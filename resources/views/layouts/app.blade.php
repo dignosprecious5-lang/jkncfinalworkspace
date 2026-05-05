@@ -572,6 +572,13 @@
                            {{ request()->routeIs('sales-marketing.ida.*') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
                             IDA Records
                         </a>
+                        @if(Auth::user()->hasPermission('approve_sales_marketing'))
+                    <a href="{{ route('sales-marketing.payouts.index') }}"
+                       class="block px-3 py-2 rounded-lg transition
+                       {{ request()->routeIs('sales-marketing.payouts.*') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
+                        Payout Requests
+                    </a>
+                @endif
                     </div>
                 </div>
             </aside>

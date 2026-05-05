@@ -124,6 +124,12 @@ class SalesMarketingIdaController extends Controller
             abort(403, 'Unauthorized');
         }
 
+        if (!$this->canModify($ida)) {
+            return back()->withErrors([
+                'ida' => 'Only Uploaded or Reverted IDA records can be edited.',
+            ]);
+        }
+
         $validated = $this->validateIda($request);
 
         DB::transaction(function () use ($validated, $ida) {
@@ -137,6 +143,7 @@ class SalesMarketingIdaController extends Controller
                 'service_area' => $validated['service_area'] ?? null,
                 'product_engagement_structure' => $validated['product_engagement_structure'] ?? null,
                 'deal_value' => $dealValue,
+                'workflow_status' => 'Uploaded',
             ]);
 
             $ida->allocations()->delete();
@@ -155,6 +162,12 @@ class SalesMarketingIdaController extends Controller
             abort(403, 'Unauthorized');
         }
 
+        if (!$this->canModify($ida)) {
+            return back()->withErrors([
+                'ida' => 'Only Uploaded or Reverted IDA records can be deleted.',
+            ]);
+        }
+
         DB::transaction(function () use ($ida) {
             $ida->allocations()->delete();
             $ida->delete();
@@ -163,6 +176,75 @@ class SalesMarketingIdaController extends Controller
         return redirect()
             ->route('sales-marketing.ida.index')
             ->with('success', 'IDA record deleted successfully.');
+    }
+
+    public function submit(SalesMarketingIda $ida)
+    {
+        if (!auth()->user()->hasPermission('create_sales_marketing')) {
+            abort(403, 'Unauthorized');
+        }
+
+        if (!in_array($ida->workflow_status, ['Uploaded', 'Reverted', null], true)) {
+            return back()->withErrors([
+                'ida' => 'Only Uploaded or Reverted IDA records can be submitted.',
+            ]);
+        }
+
+        if (!$ida->allocations()->exists()) {
+            return back()->withErrors([
+                'ida' => 'You cannot submit an IDA record without allocation rows.',
+            ]);
+        }
+
+        $ida->update([
+            'workflow_status' => 'Submitted',
+        ]);
+
+        return redirect()
+            ->route('sales-marketing.ida.show', $ida)
+            ->with('success', 'IDA record submitted for approval.');
+    }
+
+    public function accept(SalesMarketingIda $ida)
+    {
+        if (!auth()->user()->hasPermission('approve_sales_marketing')) {
+            abort(403, 'Unauthorized');
+        }
+
+        if ($ida->workflow_status !== 'Submitted') {
+            return back()->withErrors([
+                'ida' => 'Only Submitted IDA records can be accepted.',
+            ]);
+        }
+
+        $ida->update([
+            'workflow_status' => 'Accepted',
+        ]);
+
+        return redirect()
+            ->route('sales-marketing.ida.show', $ida)
+            ->with('success', 'IDA record accepted successfully.');
+    }
+
+    public function revert(SalesMarketingIda $ida)
+    {
+        if (!auth()->user()->hasPermission('approve_sales_marketing')) {
+            abort(403, 'Unauthorized');
+        }
+
+        if ($ida->workflow_status !== 'Submitted') {
+            return back()->withErrors([
+                'ida' => 'Only Submitted IDA records can be reverted.',
+            ]);
+        }
+
+        $ida->update([
+            'workflow_status' => 'Reverted',
+        ]);
+
+        return redirect()
+            ->route('sales-marketing.ida.show', $ida)
+            ->with('success', 'IDA record reverted successfully.');
     }
 
     private function validateIda(Request $request): array
@@ -225,5 +307,10 @@ class SalesMarketingIdaController extends Controller
                 'status' => $allocation['status'] ?? 'Pending',
             ]);
         }
+    }
+
+    private function canModify(SalesMarketingIda $ida): bool
+    {
+        return in_array($ida->workflow_status, ['Uploaded', 'Reverted', null], true);
     }
 }

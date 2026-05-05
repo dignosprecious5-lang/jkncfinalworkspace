@@ -71,6 +71,7 @@ use App\Http\Controllers\OnboardingRecordController;
 use App\Http\Controllers\PayrollController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\PhilippineLocationController;
+use App\Http\Controllers\SalesMarketingPayoutController;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 
@@ -834,6 +835,20 @@ Route::middleware('auth')->group(function () {
 
     Route::delete('/sales-marketing/ida/{ida}', [SalesMarketingIdaController::class, 'destroy'])
     ->name('sales-marketing.ida.destroy');
+    Route::patch('/sales-marketing/ida/{ida}/submit', [SalesMarketingIdaController::class, 'submit'])
+    ->name('sales-marketing.ida.submit');
+
+    Route::patch('/sales-marketing/ida/{ida}/accept', [SalesMarketingIdaController::class, 'accept'])
+    ->name('sales-marketing.ida.accept');
+
+    Route::patch('/sales-marketing/ida/{ida}/revert', [SalesMarketingIdaController::class, 'revert'])
+    ->name('sales-marketing.ida.revert');
+    Route::post('/sales-marketing/earners/{earner}/request-payout', [SalesMarketingPayoutController::class, 'requestPayout'])
+    ->name('sales-marketing.earners.request-payout');
+    Route::get('/sales-marketing/payouts', [SalesMarketingPayoutController::class, 'index'])
+    ->name('sales-marketing.payouts.index');
+    Route::patch('/sales-marketing/payouts/{allocation}/mark-paid', [SalesMarketingPayoutController::class, 'markPaid'])
+    ->name('sales-marketing.payouts.mark-paid');
 
     /*
     |--------------------------------------------------------------------------

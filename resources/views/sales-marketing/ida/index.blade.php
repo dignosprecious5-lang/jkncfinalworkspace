@@ -115,9 +115,26 @@
                                             ₱ {{ number_format((float) $allocation->commission_amount, 2) }}
                                         </td>
                                         <td class="px-4 py-3 whitespace-nowrap">
-                                            <span class="inline-flex px-2 py-1 rounded-full text-xs font-medium bg-yellow-50 text-yellow-700 border border-yellow-100">
-                                                {{ $allocation->status ?? 'Pending' }}
-                                            </span>
+                                            @php
+                                                $workflowStatus = $ida->workflow_status ?: 'Uploaded';
+
+                                                $workflowClass = match($workflowStatus) {
+                                                    'Accepted' => 'bg-green-100 text-green-700 border-green-200',
+                                                    'Submitted' => 'bg-blue-100 text-blue-700 border-blue-200',
+                                                    'Reverted' => 'bg-red-100 text-red-700 border-red-200',
+                                                    default => 'bg-yellow-100 text-yellow-700 border-yellow-200',
+                                                };
+                                            @endphp
+
+                                            <div class="flex flex-col gap-1">
+                                                <span class="inline-flex w-fit px-2 py-1 rounded-full text-xs font-medium border {{ $workflowClass }}">
+                                                    {{ $workflowStatus }}
+                                                </span>
+
+                                                <span class="text-[11px] text-gray-400">
+                                                    Payout: {{ $allocation->status ?? 'Pending' }}
+                                                </span>
+                                            </div>
                                         </td>
                                         <td class="px-4 py-3 whitespace-nowrap">
                                             <div class="flex items-center gap-2">
