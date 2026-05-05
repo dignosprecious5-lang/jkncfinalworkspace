@@ -67,4 +67,16 @@ class Employee extends Model
     {
         return trim($this->first_name . ' ' . $this->last_name);
     }
+
+    public function payrollProfile()
+    {
+        return $this->hasOne(\App\Models\EmployeePayrollProfile::class);
+    }
+
+    public function payrollSummaries()
+    {
+        return $this->hasMany(\App\Models\PayrollSummary::class);
+    }
+
+
 }
