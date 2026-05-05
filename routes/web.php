@@ -71,8 +71,10 @@ use App\Http\Controllers\OnboardingRecordController;
 use App\Http\Controllers\PayrollController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\PhilippineLocationController;
+use App\Http\Controllers\SalesMarketingPayoutController;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\AttendanceController;
 
 /*
 |--------------------------------------------------------------------------
@@ -829,6 +831,25 @@ Route::middleware('auth')->group(function () {
     Route::get('/sales-marketing/ida', [SalesMarketingIdaController::class, 'index'])->name('sales-marketing.ida.index');
     Route::post('/sales-marketing/ida', [SalesMarketingIdaController::class, 'store'])->name('sales-marketing.ida.store');
     Route::get('/sales-marketing/ida/{ida}', [SalesMarketingIdaController::class, 'show'])->name('sales-marketing.ida.show');
+    Route::put('/sales-marketing/ida/{ida}', [SalesMarketingIdaController::class, 'update'])
+    ->name('sales-marketing.ida.update');
+
+    Route::delete('/sales-marketing/ida/{ida}', [SalesMarketingIdaController::class, 'destroy'])
+    ->name('sales-marketing.ida.destroy');
+    Route::patch('/sales-marketing/ida/{ida}/submit', [SalesMarketingIdaController::class, 'submit'])
+    ->name('sales-marketing.ida.submit');
+
+    Route::patch('/sales-marketing/ida/{ida}/accept', [SalesMarketingIdaController::class, 'accept'])
+    ->name('sales-marketing.ida.accept');
+
+    Route::patch('/sales-marketing/ida/{ida}/revert', [SalesMarketingIdaController::class, 'revert'])
+    ->name('sales-marketing.ida.revert');
+    Route::post('/sales-marketing/earners/{earner}/request-payout', [SalesMarketingPayoutController::class, 'requestPayout'])
+    ->name('sales-marketing.earners.request-payout');
+    Route::get('/sales-marketing/payouts', [SalesMarketingPayoutController::class, 'index'])
+    ->name('sales-marketing.payouts.index');
+    Route::patch('/sales-marketing/payouts/{allocation}/mark-paid', [SalesMarketingPayoutController::class, 'markPaid'])
+    ->name('sales-marketing.payouts.mark-paid');
 
     /*
     |--------------------------------------------------------------------------
@@ -937,6 +958,12 @@ Route::middleware('auth')->group(function () {
         Route::view('/training', 'human-capital.training')->name('training');
         Route::view('/performance', 'human-capital.performance')->name('performance');
         Route::view('/offboarding', 'human-capital.offboarding')->name('offboarding');
+
+        // Attendance
+        Route::get('/human-capital/attendance', [AttendanceController::class, 'index'])
+        ->name('human-capital.attendance');
+
+
     });
 
     Route::get('/recruitment/assessment/start/{uuid}', [RecruitmentController::class, 'startAssessment'])

@@ -10,6 +10,17 @@ class JobOffer extends Model
     use HasFactory;
 
     protected $fillable = [
-        'name', 'position', 'salary', 'start_date', 'employment_type', 'department', 'benefits', 'status'
+        'name',
+        'position',
+        'salary',
+        'start_date',
+        'employment_type',
+        'department',
+        'benefits',
+        'status',
+    ];
+
+    protected $casts = [
+        'start_date' => 'date',
     ];
 }

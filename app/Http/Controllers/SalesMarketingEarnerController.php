@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\SalesMarketingEarner;
 use App\Models\Contact;
+use App\Models\SalesMarketingEarner;
 use App\Models\User;
 use Illuminate\Http\Request;
 
@@ -15,9 +15,20 @@ class SalesMarketingEarnerController extends Controller
             abort(403, 'Unauthorized');
         }
 
-        $earners = SalesMarketingEarner::latest()->get();
+        $earners = SalesMarketingEarner::with('allocations')
+            ->withSum('allocations as total_commission', 'commission_amount')
+            ->withCount('allocations as transaction_count')
+            ->latest()
+            ->get();
 
-        return view('sales-marketing.earners.index', compact('earners'));
+        $contacts = Contact::orderBy('first_name')->get();
+        $employees = User::orderBy('name')->get();
+
+        return view('sales-marketing.earners.index', compact(
+            'earners',
+            'contacts',
+            'employees'
+        ));
     }
 
     public function store(Request $request)
@@ -26,20 +37,8 @@ class SalesMarketingEarnerController extends Controller
             abort(403, 'Unauthorized');
         }
 
-        $validated = $request->validate([
-            'source_type' => ['required', 'string', 'max:50'],
-            'source_id' => ['nullable'],
-            'full_name' => ['nullable', 'string', 'max:255'],
-            'email' => ['nullable', 'email', 'max:255'],
-            'mobile_number' => ['nullable', 'string', 'max:255'],
-            'bank_name' => ['nullable', 'string', 'max:255'],
-            'account_name' => ['nullable', 'string', 'max:255'],
-            'account_number' => ['nullable', 'string', 'max:255'],
-            'tin' => ['nullable', 'string', 'max:255'],
-            'status' => ['required', 'string', 'max:50'],
-        ]);
+        $validated = $this->validateEarner($request);
 
-        // 🔥 AUTO-FILL LOGIC
         if ($request->source_type === 'contact' && $request->source_id) {
             $contact = Contact::find($request->source_id);
 
@@ -59,9 +58,10 @@ class SalesMarketingEarnerController extends Controller
             }
         }
 
-        // 🔒 MANUAL REQUIRED
         if ($request->source_type === 'manual' && empty($validated['full_name'])) {
-            return back()->withErrors(['full_name' => 'Full name is required for manual entry']);
+            return back()
+                ->withErrors(['full_name' => 'Full name is required for manual entry.'])
+                ->withInput();
         }
 
         $validated['created_by'] = auth()->id();
@@ -79,7 +79,36 @@ class SalesMarketingEarnerController extends Controller
             abort(403, 'Unauthorized');
         }
 
-        return view('sales-marketing.earners.show', compact('earner'));
+        $earner->load([
+            'allocations.ida',
+        ]);
+
+        $allocations = $earner->allocations()
+            ->with('ida')
+            ->latest()
+            ->get();
+
+        $totalCommission = $allocations->sum('commission_amount');
+        $pendingCommission = $allocations
+            ->where('status', 'Pending')
+            ->sum('commission_amount');
+
+        $forPayoutCommission = $allocations
+            ->where('status', 'For Payout')
+            ->sum('commission_amount');
+
+        $paidCommission = $allocations
+            ->where('status', 'Paid')
+            ->sum('commission_amount');
+
+        return view('sales-marketing.earners.show', compact(
+            'earner',
+            'allocations',
+            'totalCommission',
+            'pendingCommission',
+            'forPayoutCommission',
+            'paidCommission'
+        ));
     }
 
     public function update(Request $request, SalesMarketingEarner $earner)
@@ -88,20 +117,8 @@ class SalesMarketingEarnerController extends Controller
             abort(403, 'Unauthorized');
         }
 
-        $validated = $request->validate([
-            'source_type' => ['required', 'string', 'max:50'],
-            'source_id' => ['nullable'],
-            'full_name' => ['nullable', 'string', 'max:255'],
-            'email' => ['nullable', 'email', 'max:255'],
-            'mobile_number' => ['nullable', 'string', 'max:255'],
-            'bank_name' => ['nullable', 'string', 'max:255'],
-            'account_name' => ['nullable', 'string', 'max:255'],
-            'account_number' => ['nullable', 'string', 'max:255'],
-            'tin' => ['nullable', 'string', 'max:255'],
-            'status' => ['required', 'string', 'max:50'],
-        ]);
+        $validated = $this->validateEarner($request);
 
-        // 🔥 AUTO-FILL ON UPDATE ALSO
         if ($request->source_type === 'contact' && $request->source_id) {
             $contact = Contact::find($request->source_id);
 
@@ -121,6 +138,12 @@ class SalesMarketingEarnerController extends Controller
             }
         }
 
+        if ($request->source_type === 'manual' && empty($validated['full_name'])) {
+            return back()
+                ->withErrors(['full_name' => 'Full name is required for manual entry.'])
+                ->withInput();
+        }
+
         $earner->update($validated);
 
         return redirect()
@@ -134,10 +157,34 @@ class SalesMarketingEarnerController extends Controller
             abort(403, 'Unauthorized');
         }
 
+        if ($earner->allocations()->exists()) {
+            return redirect()
+                ->route('sales-marketing.earners.index')
+                ->withErrors([
+                    'earner' => 'This earner already has IDA transactions and cannot be deleted.',
+                ]);
+        }
+
         $earner->delete();
 
         return redirect()
             ->route('sales-marketing.earners.index')
             ->with('success', 'Commission earner deleted successfully.');
+    }
+
+    private function validateEarner(Request $request): array
+    {
+        return $request->validate([
+            'source_type' => ['required', 'string', 'max:50'],
+            'source_id' => ['nullable'],
+            'full_name' => ['nullable', 'string', 'max:255'],
+            'email' => ['nullable', 'email', 'max:255'],
+            'mobile_number' => ['nullable', 'string', 'max:255'],
+            'bank_name' => ['nullable', 'string', 'max:255'],
+            'account_name' => ['nullable', 'string', 'max:255'],
+            'account_number' => ['nullable', 'string', 'max:255'],
+            'tin' => ['nullable', 'string', 'max:255'],
+            'status' => ['required', 'string', 'max:50'],
+        ]);
     }
 }
