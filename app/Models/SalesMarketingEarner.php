@@ -21,4 +21,9 @@ class SalesMarketingEarner extends Model
         'status',
         'created_by',
     ];
+
+    public function allocations()
+    {
+        return $this->hasMany(SalesMarketingIdaAllocation::class, 'earner_id');
+    }
 }

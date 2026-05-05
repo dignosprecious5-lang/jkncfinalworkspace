@@ -829,6 +829,11 @@ Route::middleware('auth')->group(function () {
     Route::get('/sales-marketing/ida', [SalesMarketingIdaController::class, 'index'])->name('sales-marketing.ida.index');
     Route::post('/sales-marketing/ida', [SalesMarketingIdaController::class, 'store'])->name('sales-marketing.ida.store');
     Route::get('/sales-marketing/ida/{ida}', [SalesMarketingIdaController::class, 'show'])->name('sales-marketing.ida.show');
+    Route::put('/sales-marketing/ida/{ida}', [SalesMarketingIdaController::class, 'update'])
+    ->name('sales-marketing.ida.update');
+
+    Route::delete('/sales-marketing/ida/{ida}', [SalesMarketingIdaController::class, 'destroy'])
+    ->name('sales-marketing.ida.destroy');
 
     /*
     |--------------------------------------------------------------------------
