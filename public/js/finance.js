@@ -2375,6 +2375,9 @@
             if (!fieldValue && field.autoFillCurrentUser) {
                 fieldValue = bootstrap.currentUserName || '';
             }
+            if (!record && !fieldValue && isRequestOwnershipModule() && shouldUseCurrentUserRequesterDefaults(values)) {
+                fieldValue = getRequesterDefaultForField(field.name);
+            }
             values[field.name] = fieldValue;
             values[`data[${field.name}]`] = fieldValue;
             return renderDynamicField(field, fieldValue, values);
@@ -2499,9 +2502,27 @@
     }
 
     function getFinanceCurrentUserProfile() {
+        const contact = bootstrap.currentUserContact || {};
+        const contactName = contact.name || contact.full_name || '';
+        const contactEmail = contact.email || '';
+
         return {
-            name: bootstrap.currentUserName || '',
-            email: bootstrap.currentUserEmail || '',
+            name: contactName || bootstrap.currentUserName || '',
+            email: contactEmail || bootstrap.currentUserEmail || '',
+            phone: contact.phone || contact.contact_number || '',
+            contact_number: contact.contact_number || contact.phone || '',
+            position: contact.position || '',
+            department: contact.department || contact.company_name || '',
+            company_name: contact.company_name || '',
+            address: contact.address || contact.contact_address || '',
+            contact_address: contact.contact_address || contact.address || '',
+            contact_id: contact.id || '',
+            employee_id: contact.employee_id || contact.employee_code || '',
+            employee_code: contact.employee_code || contact.employee_id || '',
+            superior: contact.superior || '',
+            superior_email: contact.superior_email || '',
+            cif_no: contact.cif_no || '',
+            tin: contact.tin || '',
         };
     }
 
@@ -2509,8 +2530,34 @@
         const currentUser = getFinanceCurrentUserProfile();
         return {
             requestor: currentUser.name,
+            employee_name: currentUser.name,
             employee_email: currentUser.email,
+            contact_number: currentUser.contact_number || currentUser.phone,
+            position: currentUser.position,
+            department: currentUser.department,
+            company_name: currentUser.company_name,
+            address: currentUser.contact_address || currentUser.address,
+            contact_id: currentUser.contact_id,
+            employee_id: currentUser.employee_id || currentUser.employee_code,
+            superior: currentUser.superior,
+            superior_email: currentUser.superior_email,
         };
+    }
+
+    function getRequesterDefaultForField(fieldName) {
+        const defaults = getPrRequesterDefaults();
+
+        return defaults[fieldName] ?? '';
+    }
+
+    function shouldUseCurrentUserRequesterDefaults(values = {}) {
+        const requesterMode = values['data[requester_mode]']
+            || values.requester_mode
+            || financeFormValues?.requester_mode
+            || financeFormValues?.['data[requester_mode]']
+            || 'own_request';
+
+        return requesterMode !== 'request_for_another';
     }
 
     function getRequestOwnershipConfig(moduleKey = currentModuleKey) {
@@ -2565,15 +2612,67 @@
         };
 
         syncField(config.nameField, autoValues.requestor);
+        syncField('employee_name', autoValues.employee_name);
         if (config.mirrorNameField) {
             syncField(config.mirrorNameField, autoValues.requestor);
         }
         if (config.emailField) {
             syncField(config.emailField, autoValues.employee_email);
         }
+        syncField('contact_number', autoValues.contact_number);
+        syncField('position', autoValues.position);
+        syncField('department', autoValues.department);
+        syncField('employee_id', autoValues.employee_id);
+        syncField('superior', autoValues.superior);
+        syncField('superior_email', autoValues.superior_email);
 
         financeFormValues[config.modeField] = requesterMode;
         financeFormValues[`data[${config.modeField}]`] = requesterMode;
+    }
+
+    function forceFillOwnRequesterDetails({ preserveExisting = true } = {}) {
+        if (!isRequestOwnershipModule()) return;
+
+        const form = $('financeForm');
+        if (!form) return;
+
+        const modeInput = form.querySelector('select[name="data[requester_mode]"]');
+        const requesterMode = modeInput?.value
+            || financeFormValues?.requester_mode
+            || financeFormValues?.['data[requester_mode]']
+            || 'own_request';
+
+        if (requesterMode === 'request_for_another') {
+            return;
+        }
+
+        const defaults = getPrRequesterDefaults();
+        const fieldMap = {
+            requestor: defaults.requestor,
+            employee_name: defaults.employee_name || defaults.requestor,
+            employee_email: defaults.employee_email,
+            employee_id: defaults.employee_id,
+            contact_number: defaults.contact_number,
+            position: defaults.position,
+            department: defaults.department,
+            superior: defaults.superior,
+            superior_email: defaults.superior_email,
+        };
+
+        Object.entries(fieldMap).forEach(([fieldName, value]) => {
+            const input = form.querySelector(`[name="data[${fieldName}]"]`);
+            if (!input || value === undefined || value === null || value === '') return;
+
+            const currentValue = String(input.value || '').trim();
+            if (preserveExisting && currentValue && currentValue !== bootstrap.currentUserName && currentValue !== bootstrap.currentUserEmail) {
+                return;
+            }
+
+            input.value = value;
+            setReadonlyState(input, true);
+            financeFormValues[fieldName] = value;
+            financeFormValues[`data[${fieldName}]`] = value;
+        });
     }
 
     function getPrSupplierRecord(value) {
@@ -2983,30 +3082,32 @@
         const requesterMode = form.querySelector('select[name="data[requester_mode]"]')?.value || financeFormValues.requester_mode || 'own_request';
         const autoValues = getPrRequesterDefaults();
         const shouldUseOwnRequest = requesterMode !== 'request_for_another';
-        const requestorInput = form.querySelector('[name="data[requestor]"]');
-        const emailInput = form.querySelector('[name="data[employee_email]"]');
+        const fieldsToSync = {
+            requestor: autoValues.requestor,
+            employee_name: autoValues.employee_name,
+            employee_email: autoValues.employee_email,
+            employee_id: autoValues.employee_id,
+            contact_number: autoValues.contact_number,
+            position: autoValues.position,
+            department: autoValues.department,
+            superior: autoValues.superior,
+            superior_email: autoValues.superior_email,
+        };
 
-        if (requestorInput) {
-            const currentValue = String(requestorInput.value || '').trim();
-            const nextValue = shouldUseOwnRequest
-                ? (preserveExisting && currentValue ? currentValue : autoValues.requestor)
-                : (preserveExisting && currentValue && currentValue !== autoValues.requestor ? currentValue : '');
-            requestorInput.value = nextValue;
-            setReadonlyState(requestorInput, shouldUseOwnRequest);
-            financeFormValues.requestor = nextValue;
-            financeFormValues['data[requestor]'] = nextValue;
-        }
+        Object.entries(fieldsToSync).forEach(([fieldName, autoValue]) => {
+            const input = form.querySelector(`[name="data[${fieldName}]"]`);
+            if (!input) return;
 
-        if (emailInput) {
-            const currentValue = String(emailInput.value || '').trim();
+            const currentValue = String(input.value || '').trim();
             const nextValue = shouldUseOwnRequest
-                ? (preserveExisting && currentValue ? currentValue : autoValues.employee_email)
-                : (preserveExisting && currentValue && currentValue !== autoValues.employee_email ? currentValue : '');
-            emailInput.value = nextValue;
-            setReadonlyState(emailInput, shouldUseOwnRequest && Boolean(autoValues.employee_email));
-            financeFormValues.employee_email = nextValue;
-            financeFormValues['data[employee_email]'] = nextValue;
-        }
+                ? (preserveExisting && currentValue ? currentValue : (autoValue || ''))
+                : (preserveExisting && currentValue && currentValue !== (autoValue || '') ? currentValue : '');
+
+            input.value = nextValue;
+            setReadonlyState(input, shouldUseOwnRequest && Boolean(autoValue));
+            financeFormValues[fieldName] = nextValue;
+            financeFormValues[`data[${fieldName}]`] = nextValue;
+        });
 
         financeFormValues.requester_mode = requesterMode;
         financeFormValues['data[requester_mode]'] = requesterMode;
@@ -4597,6 +4698,7 @@
             if (requesterModeSelect) {
                 requesterModeSelect.addEventListener('change', () => {
                     syncRequestOwnershipFields({ preserveExisting: false });
+                    forceFillOwnRequesterDetails({ preserveExisting: false });
                     renderDrawerPreview();
                 });
             }
@@ -4621,6 +4723,7 @@
             if (requesterModeSelect) {
                 requesterModeSelect.addEventListener('change', () => {
                     syncRequestOwnershipFields({ preserveExisting: false });
+                    forceFillOwnRequesterDetails({ preserveExisting: false });
                     renderDrawerPreview();
                 });
             }
@@ -5292,6 +5395,15 @@
                 values['data[requestor]'] = requestorFieldValue;
                 values.employee_email = employeeEmailValue || '';
                 values['data[employee_email]'] = employeeEmailValue || '';
+                ['employee_id', 'employee_name', 'contact_number', 'position', 'department', 'superior', 'superior_email'].forEach((fieldName) => {
+                    const existingValue = getDraftValue(fieldName, record);
+                    const defaultValue = getRequesterDefaultForField(fieldName);
+                    const nextValue = requesterModeValue === 'own_request'
+                        ? (existingValue || defaultValue || '')
+                        : existingValue;
+                    values[fieldName] = nextValue;
+                    values[`data[${fieldName}]`] = nextValue;
+                });
                 values.supplier_id = supplierValue;
                 values['data[supplier_id]'] = supplierValue;
                 values.new_vendor = supplierRecord ? 'No' : (getDraftValue('new_vendor', record) || '');
@@ -5542,6 +5654,7 @@
         if (currentModuleKey === 'bank_account') {
             renderBankAccountLookupList(activeBankAccountLookupQuery);
         }
+        forceFillOwnRequesterDetails({ preserveExisting: true });
         bindPurchaseRequestLineItems();
         renderDrawerPreview();
     }

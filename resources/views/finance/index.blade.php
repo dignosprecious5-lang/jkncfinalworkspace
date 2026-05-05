@@ -228,6 +228,7 @@
         'canApproveFinance' => $canApproveFinance,
         'currentUserName' => $currentUserName,
         'currentUserEmail' => $currentUserEmail,
+        'currentUserContact' => $currentUserContact,
         'csrfToken' => csrf_token(),
     ]);
 </script>

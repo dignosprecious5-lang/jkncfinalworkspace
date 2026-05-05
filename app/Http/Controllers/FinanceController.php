@@ -4,11 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Mail\SupplierCompletionMail;
 use App\Models\Contact;
+use App\Models\Employee;
 use App\Models\FinanceRecord;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -1194,15 +1196,214 @@ SVG;
 
         $options['client'] = Contact::query()
             ->orderBy('first_name')
-            ->get(['id', 'first_name', 'last_name', 'email'])
+            ->get([
+                'id',
+                'salutation',
+                'first_name',
+                'middle_initial',
+                'middle_name',
+                'last_name',
+                'name_extension',
+                'email',
+                'phone',
+                'contact_address',
+                'company_name',
+                'company_address',
+                'position',
+                'customer_type',
+                'client_status',
+                'cif_no',
+                'tin',
+            ])
             ->map(fn (Contact $contact) => [
                 'id' => $contact->id,
-                'label' => $contact->email ? "{$contact->first_name} {$contact->last_name} ({$contact->email})" : "{$contact->first_name} {$contact->last_name}",
-                'record_title' => "{$contact->first_name} {$contact->last_name}",
+                'label' => $this->contactDisplayName($contact, includeEmail: true),
+                'record_title' => $this->contactDisplayName($contact),
+                'full_name' => $this->contactDisplayName($contact),
+                'email' => $contact->email,
+                'phone' => $contact->phone,
+                'contact_address' => $contact->contact_address,
+                'company_name' => $contact->company_name,
+                'company_address' => $contact->company_address,
+                'position' => $contact->position,
+                'customer_type' => $contact->customer_type,
+                'client_status' => $contact->client_status,
+                'cif_no' => $contact->cif_no,
+                'tin' => $contact->tin,
             ])
             ->values();
 
         return $options;
+    }
+
+    private function resolveCurrentUserContactProfile(): ?array
+    {
+        $user = Auth::user();
+
+        if (! $user) {
+            return null;
+        }
+
+        $email = trim((string) $user->email);
+        $name = trim((string) $user->name);
+
+        if ($email === '' && $name === '') {
+            return null;
+        }
+
+        $contact = Schema::hasTable('contacts')
+            ? Contact::query()
+                ->where(function ($query) use ($email, $name) {
+                    if ($email !== '') {
+                        $query->where('email', $email);
+                    }
+
+                    if ($name !== '') {
+                        $method = $email !== '' ? 'orWhereRaw' : 'whereRaw';
+                        $query->{$method}("TRIM(CONCAT_WS(' ', first_name, middle_name, last_name)) = ?", [$name])
+                            ->orWhereRaw("TRIM(CONCAT_WS(' ', first_name, last_name)) = ?", [$name]);
+                    }
+                })
+                ->first()
+            : null;
+
+        $employee = $this->resolveCurrentUserEmployee($email, $name);
+
+        $userProfileFields = [
+            $user->getAttribute('employee_id'),
+            $user->getAttribute('employee_code'),
+            $user->getAttribute('phone'),
+            $user->getAttribute('contact_number'),
+            $user->getAttribute('position'),
+            $user->getAttribute('department'),
+            $user->getAttribute('superior'),
+            $user->getAttribute('superior_email'),
+        ];
+
+        if (! $contact && ! $employee && ! collect($userProfileFields)->contains(fn ($value) => filled($value))) {
+            return null;
+        }
+
+        $employeeName = $employee
+            ? trim(collect([$employee->first_name, $employee->last_name])->filter()->implode(' '))
+            : '';
+        $departmentName = $employee?->relationLoaded('department')
+            ? (string) ($employee->department?->department_name ?? '')
+            : '';
+        $superior = $employee?->relationLoaded('department')
+            ? (string) ($employee->department?->department_head ?? '')
+            : '';
+        $superiorEmail = $this->resolveEmployeeSuperiorEmail($superior);
+
+        return [
+            'id' => $contact?->id,
+            'contact_id' => $contact?->id,
+            'employee_record_id' => $employee?->id,
+            'name' => $this->firstFilledFinanceValue($employeeName, $contact ? $this->contactDisplayName($contact) : null, $name),
+            'email' => $this->firstFilledFinanceValue($employee?->email, $contact?->email, $email),
+            'phone' => $this->firstFilledFinanceValue($employee?->phone_number, $contact?->phone, $user->getAttribute('phone'), $user->getAttribute('contact_number')),
+            'contact_number' => $this->firstFilledFinanceValue($employee?->phone_number, $contact?->phone, $user->getAttribute('contact_number'), $user->getAttribute('phone')),
+            'employee_id' => $this->firstFilledFinanceValue($employee?->employee_code, $user->getAttribute('employee_id'), $user->getAttribute('employee_code')),
+            'employee_code' => $this->firstFilledFinanceValue($employee?->employee_code, $user->getAttribute('employee_code'), $user->getAttribute('employee_id')),
+            'position' => $this->firstFilledFinanceValue($employee?->position, $contact?->position, $user->getAttribute('position')),
+            'department' => $this->firstFilledFinanceValue($departmentName, $contact?->company_name, $user->getAttribute('department')),
+            'company_name' => $contact?->company_name,
+            'address' => $this->firstFilledFinanceValue($employee?->address, $contact?->contact_address),
+            'contact_address' => $this->firstFilledFinanceValue($contact?->contact_address, $employee?->address),
+            'superior' => $this->firstFilledFinanceValue($superior, $user->getAttribute('superior')),
+            'superior_email' => $this->firstFilledFinanceValue($superiorEmail, $user->getAttribute('superior_email')),
+            'cif_no' => $contact?->cif_no,
+            'tin' => $contact?->tin,
+        ];
+    }
+
+    private function resolveCurrentUserEmployee(string $email, string $name): ?Employee
+    {
+        if (! Schema::hasTable('employees')) {
+            return null;
+        }
+
+        $query = Employee::query();
+
+        if (Schema::hasTable('departments')) {
+            $query->with('department');
+        }
+
+        return $query
+            ->where(function ($query) use ($email, $name) {
+                if ($email !== '') {
+                    $query->where('email', $email);
+                }
+
+                if ($name !== '') {
+                    $method = $email !== '' ? 'orWhereRaw' : 'whereRaw';
+                    $query->{$method}("TRIM(CONCAT_WS(' ', first_name, last_name)) = ?", [$name]);
+                }
+            })
+            ->first();
+    }
+
+    private function resolveEmployeeSuperiorEmail(string $superior): string
+    {
+        $superior = trim($superior);
+
+        if ($superior === '') {
+            return '';
+        }
+
+        if (Schema::hasTable('employees')) {
+            $employee = Employee::query()
+                ->whereRaw("TRIM(CONCAT_WS(' ', first_name, last_name)) = ?", [$superior])
+                ->first(['email']);
+
+            if ($employee?->email) {
+                return $employee->email;
+            }
+        }
+
+        if (Schema::hasTable('users')) {
+            $user = \App\Models\User::query()
+                ->where('name', $superior)
+                ->first(['email']);
+
+            if ($user?->email) {
+                return $user->email;
+            }
+        }
+
+        return '';
+    }
+
+    private function firstFilledFinanceValue(mixed ...$values): mixed
+    {
+        foreach ($values as $value) {
+            if (! blank($value)) {
+                return $value;
+            }
+        }
+
+        return '';
+    }
+
+    private function contactDisplayName(Contact $contact, bool $includeEmail = false): string
+    {
+        $name = trim(collect([
+            $contact->salutation,
+            $contact->first_name,
+            $contact->middle_name ?: $contact->middle_initial,
+            $contact->last_name,
+            $contact->name_extension,
+        ])->filter()->implode(' '));
+
+        if ($name === '') {
+            $name = trim((string) ($contact->company_name ?: $contact->email ?: 'Contact #'.$contact->id));
+        }
+
+        if ($includeEmail && filled($contact->email)) {
+            return "{$name} ({$contact->email})";
+        }
+
+        return $name;
     }
 
     private function transformRecord(FinanceRecord $record): array
@@ -1902,6 +2103,7 @@ SVG;
             'canApproveFinance' => $this->canApproveFinance(),
             'currentUserName' => Auth::user()->name ?? 'Unknown User',
             'currentUserEmail' => Auth::user()->email ?? '',
+            'currentUserContact' => $this->resolveCurrentUserContactProfile(),
         ]);
     }
 
