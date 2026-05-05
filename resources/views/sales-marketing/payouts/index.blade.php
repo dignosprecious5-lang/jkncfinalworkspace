@@ -55,6 +55,7 @@
             </div>
         </div>
 
+        {{-- PENDING PAYOUT REQUESTS --}}
         <div class="bg-white border border-gray-200 rounded-2xl overflow-hidden">
             <div class="px-6 py-4 border-b border-gray-100">
                 <h2 class="text-sm font-semibold text-gray-700 uppercase tracking-wide">
@@ -80,6 +81,8 @@
                             <th class="px-4 py-3 font-semibold">Account Name</th>
                             <th class="px-4 py-3 font-semibold">Account No.</th>
                             <th class="px-4 py-3 font-semibold">Status</th>
+                            <th class="px-4 py-3 font-semibold">Requested At</th>
+                            <th class="px-4 py-3 font-semibold">Requested By</th>
                             <th class="px-4 py-3 font-semibold">Action</th>
                         </tr>
                     </thead>
@@ -146,6 +149,14 @@
                                 </td>
 
                                 <td class="px-4 py-3 whitespace-nowrap">
+                                    {{ $payout->requested_at ? $payout->requested_at->format('M d, Y h:i A') : '—' }}
+                                </td>
+
+                                <td class="px-4 py-3 whitespace-nowrap">
+                                    {{ optional($payout->requestedBy)->name ?? '—' }}
+                                </td>
+
+                                <td class="px-4 py-3 whitespace-nowrap">
                                     <div class="flex items-center gap-2">
                                         @if($ida)
                                             <a href="{{ route('sales-marketing.ida.show', $ida) }}"
@@ -172,7 +183,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="12" class="px-6 py-10 text-center text-gray-400">
+                                <td colspan="14" class="px-6 py-10 text-center text-gray-400">
                                     No payout requests yet.
                                 </td>
                             </tr>
@@ -188,7 +199,7 @@
                                 <td class="px-4 py-3 font-bold text-gray-900">
                                     ₱ {{ number_format((float) $totalForPayout, 2) }}
                                 </td>
-                                <td colspan="5"></td>
+                                <td colspan="7"></td>
                             </tr>
                         </tfoot>
                     @endif
@@ -196,6 +207,7 @@
             </div>
         </div>
 
+        {{-- RECENT PAID PAYOUTS --}}
         <div class="bg-white border border-gray-200 rounded-2xl overflow-hidden">
             <div class="px-6 py-4 border-b border-gray-100">
                 <h2 class="text-sm font-semibold text-gray-700 uppercase tracking-wide">
@@ -216,6 +228,10 @@
                             <th class="px-4 py-3 font-semibold">Business</th>
                             <th class="px-4 py-3 font-semibold">Amount</th>
                             <th class="px-4 py-3 font-semibold">Status</th>
+                            <th class="px-4 py-3 font-semibold">Requested At</th>
+                            <th class="px-4 py-3 font-semibold">Requested By</th>
+                            <th class="px-4 py-3 font-semibold">Paid At</th>
+                            <th class="px-4 py-3 font-semibold">Paid By</th>
                             <th class="px-4 py-3 font-semibold">Action</th>
                         </tr>
                     </thead>
@@ -229,7 +245,14 @@
 
                             <tr class="hover:bg-gray-50">
                                 <td class="px-4 py-3 whitespace-nowrap font-medium text-gray-900">
-                                    {{ optional($earner)->full_name ?? '—' }}
+                                    @if($earner)
+                                        <a href="{{ route('sales-marketing.earners.show', $earner) }}"
+                                           class="text-blue-600 hover:text-blue-800 font-medium">
+                                            {{ $earner->full_name }}
+                                        </a>
+                                    @else
+                                        —
+                                    @endif
                                 </td>
 
                                 <td class="px-4 py-3 whitespace-nowrap">
@@ -255,6 +278,22 @@
                                 </td>
 
                                 <td class="px-4 py-3 whitespace-nowrap">
+                                    {{ $paid->requested_at ? $paid->requested_at->format('M d, Y h:i A') : '—' }}
+                                </td>
+
+                                <td class="px-4 py-3 whitespace-nowrap">
+                                    {{ optional($paid->requestedBy)->name ?? '—' }}
+                                </td>
+
+                                <td class="px-4 py-3 whitespace-nowrap">
+                                    {{ $paid->paid_at ? $paid->paid_at->format('M d, Y h:i A') : '—' }}
+                                </td>
+
+                                <td class="px-4 py-3 whitespace-nowrap">
+                                    {{ optional($paid->paidBy)->name ?? '—' }}
+                                </td>
+
+                                <td class="px-4 py-3 whitespace-nowrap">
                                     @if($ida)
                                         <a href="{{ route('sales-marketing.ida.show', $ida) }}"
                                            class="text-blue-600 hover:text-blue-800 font-medium">
@@ -267,7 +306,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="7" class="px-6 py-10 text-center text-gray-400">
+                                <td colspan="11" class="px-6 py-10 text-center text-gray-400">
                                     No paid payouts yet.
                                 </td>
                             </tr>
