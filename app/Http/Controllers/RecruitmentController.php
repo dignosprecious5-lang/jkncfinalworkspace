@@ -9,6 +9,14 @@ use App\Models\CandidateApplication;
 use App\Models\CandidateAssessment;
 use App\Models\CandidateInterview;
 use App\Models\JobOffer;
+use App\Models\OrganizationalAddress;
+use App\Models\Branch;
+use App\Models\Office;
+use App\Models\Department;
+use App\Models\Division;
+use App\Models\Unit;
+use App\Models\Position;
+use App\Models\SalaryGrade;
 use Illuminate\Support\Facades\Mail;
 use App\Mail\AssessmentProceedingMail;
 use App\Mail\AssessmentTestMail;
@@ -24,8 +32,146 @@ class RecruitmentController extends Controller
         $interviewData = CandidateInterview::latest()->get();
         $jobOfferData = JobOffer::latest()->get();
 
+        $organizationalAddresses = OrganizationalAddress::orderBy('full_address')
+            ->get()
+            ->map(function ($address) {
+                return [
+                    'id' => $address->id,
+                    'full_address' => $address->full_address,
+                    'country' => $address->country,
+                    'region_name' => $address->region_name,
+                    'province_name' => $address->province_name,
+                    'city_name' => $address->city_name,
+                    'barangay_name' => $address->barangay_name,
+                ];
+            })
+            ->values();
+
+        $branches = Branch::with('address')
+            ->orderBy('branch_name')
+            ->get()
+            ->map(function ($branch) {
+                return [
+                    'id' => $branch->id,
+                    'branch_name' => $branch->branch_name,
+                    'branch_head' => $branch->branch_head,
+                    'address_id' => $branch->address_id,
+                    'address' => optional($branch->address)->full_address,
+                ];
+            })
+            ->values();
+
+        $offices = Office::with(['branch', 'address'])
+            ->orderBy('office_name')
+            ->get()
+            ->map(function ($office) {
+                return [
+                    'id' => $office->id,
+                    'office_name' => $office->office_name,
+                    'office_head' => $office->office_head,
+                    'branch_id' => $office->branch_id,
+                    'branch_name' => optional($office->branch)->branch_name,
+                    'address_id' => $office->address_id,
+                    'address' => optional($office->address)->full_address,
+                ];
+            })
+            ->values();
+
+        $departments = Department::with(['office', 'address'])
+            ->orderBy('department_name')
+            ->get()
+            ->map(function ($department) {
+                return [
+                    'id' => $department->id,
+                    'department_name' => $department->department_name,
+                    'department_head' => $department->department_head,
+                    'office_id' => $department->office_id,
+                    'office_name' => optional($department->office)->office_name,
+                    'address_id' => $department->address_id,
+                    'address' => optional($department->address)->full_address,
+                ];
+            })
+            ->values();
+
+        $divisions = Division::with(['department', 'address'])
+            ->orderBy('division_name')
+            ->get()
+            ->map(function ($division) {
+                return [
+                    'id' => $division->id,
+                    'division_name' => $division->division_name,
+                    'division_head' => $division->division_head,
+                    'department_id' => $division->department_id,
+                    'department_name' => optional($division->department)->department_name,
+                    'address_id' => $division->address_id,
+                    'address' => optional($division->address)->full_address,
+                ];
+            })
+            ->values();
+
+        $units = Unit::with(['division', 'address'])
+            ->orderBy('unit_name')
+            ->get()
+            ->map(function ($unit) {
+                return [
+                    'id' => $unit->id,
+                    'unit_name' => $unit->unit_name,
+                    'unit_head' => $unit->unit_head,
+                    'division_id' => $unit->division_id,
+                    'division_name' => optional($unit->division)->division_name,
+                    'address_id' => $unit->address_id,
+                    'address' => optional($unit->address)->full_address,
+                ];
+            })
+            ->values();
+
+        $positions = Position::with(['unit', 'address'])
+            ->orderBy('position_name')
+            ->get()
+            ->map(function ($position) {
+                return [
+                    'id' => $position->id,
+                    'position_name' => $position->position_name,
+                    'unit_id' => $position->unit_id,
+                    'unit_name' => optional($position->unit)->unit_name,
+                    'address_id' => $position->address_id,
+                    'address' => optional($position->address)->full_address,
+                ];
+            })
+            ->values();
+
+        $salaryGrades = SalaryGrade::orderBy('code')
+            ->get()
+            ->map(function ($grade) {
+                return [
+                    'id' => $grade->id,
+                    'code' => $grade->code,
+                    'name' => $grade->name,
+                    'payment_type' => $grade->payment_type,
+                    'monthly_basic_pay' => $grade->monthly_basic_pay,
+                    'applicable_daily_rate' => $grade->applicable_daily_rate,
+                    'hourly_rate' => $grade->hourly_rate,
+                    'minute_rate' => $grade->minute_rate,
+                    'yearly_rate' => $grade->yearly_rate,
+                ];
+            })
+            ->values();
+
         return view('human-capital.recruitment', compact(
-            'mrfData', 'jpfData', 'cafData', 'assessmentData', 'interviewData', 'jobOfferData'
+            'mrfData',
+            'jpfData',
+            'cafData',
+            'assessmentData',
+            'interviewData',
+            'jobOfferData',
+            'organizationalAddresses',
+            'branches',
+            'offices',
+            'departments',
+            'divisions',
+            'units',
+            'positions',
+            'salaryGrades'
         ));
     }
 
