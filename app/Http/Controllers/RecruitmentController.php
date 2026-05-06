@@ -222,6 +222,14 @@ class RecruitmentController extends Controller
     public function storeMRF(Request $request)
     {
         $data = [
+            'address_id'          => $request->orgAddressId,
+            'branch_id'           => $request->orgBranchId,
+            'office_id'           => $request->orgOfficeId,
+            'department_id'       => $request->orgDepartmentId,
+            'division_id'         => $request->orgDivisionId,
+            'unit_id'             => $request->orgUnitId,
+            'position_id'         => $request->orgPositionId,
+
             'department'         => $request->department,
             'date_requested'     => $request->dateRequested,
             'date_required'      => $request->dateRequired,
@@ -261,6 +269,14 @@ class RecruitmentController extends Controller
     {
         $mrf = ManpowerRequest::findOrFail($id);
         $data = [
+            'address_id'          => $request->orgAddressId,
+            'branch_id'           => $request->orgBranchId,
+            'office_id'           => $request->orgOfficeId,
+            'department_id'       => $request->orgDepartmentId,
+            'division_id'         => $request->orgDivisionId,
+            'unit_id'             => $request->orgUnitId,
+            'position_id'         => $request->orgPositionId,
+
             'department'         => $request->department,
             'date_requested'     => $request->dateRequested,
             'date_required'      => $request->dateRequired,
@@ -306,7 +322,33 @@ class RecruitmentController extends Controller
 
     public function storeJPF(Request $request)
     {
+        $mrf = ManpowerRequest::find($request->mrfId);
+
+        if (!$mrf) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Please select an approved MRF before creating a JPF.'
+            ], 422);
+        }
+
+        if (strtolower((string) $mrf->request_status) !== 'approved') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Only approved MRF records can be used to create a JPF.'
+            ], 422);
+        }
+
         $data = [
+            'mrf_id'                 => $request->mrfId,
+            'address_id'             => $request->orgAddressId,
+            'branch_id'              => $request->orgBranchId,
+            'office_id'              => $request->orgOfficeId,
+            'department_id'          => $request->orgDepartmentId,
+            'division_id'            => $request->orgDivisionId,
+            'unit_id'                => $request->orgUnitId,
+            'position_id'            => $request->orgPositionId,
+            'salary_grade_id'        => $request->salaryGradeId,
+
             'position'               => $request->position,
             'employment_type'        => $request->employmentType,
             'location'               => $request->workLocation,
@@ -316,7 +358,7 @@ class RecruitmentController extends Controller
             'posted_date'            => $request->postingStartDate ?: date('Y-m-d'),
             'status'                 => $request->status ?: 'Draft',
 
-            'related_mrf_no'         => $request->relatedMrfNo,
+            'related_mrf_no'         => $mrf->request_id,
             'date_opened'            => $request->dateOpened,
             'hiring_status'          => $request->hiringStatus,
             'company_name'           => $request->companyName,
@@ -368,7 +410,33 @@ class RecruitmentController extends Controller
     public function updateJPF(Request $request, $id)
     {
         $jpf = JobPosting::findOrFail($id);
+        $mrf = ManpowerRequest::find($request->mrfId);
+
+        if (!$mrf) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Please select an approved MRF before updating this JPF.'
+            ], 422);
+        }
+
+        if (strtolower((string) $mrf->request_status) !== 'approved') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Only approved MRF records can be linked to a JPF.'
+            ], 422);
+        }
+
         $data = [
+            'mrf_id'                 => $request->mrfId,
+            'address_id'             => $request->orgAddressId,
+            'branch_id'              => $request->orgBranchId,
+            'office_id'              => $request->orgOfficeId,
+            'department_id'          => $request->orgDepartmentId,
+            'division_id'            => $request->orgDivisionId,
+            'unit_id'                => $request->orgUnitId,
+            'position_id'            => $request->orgPositionId,
+            'salary_grade_id'        => $request->salaryGradeId,
+
             'position'               => $request->position,
             'employment_type'        => $request->employmentType,
             'location'               => $request->workLocation,
@@ -377,7 +445,7 @@ class RecruitmentController extends Controller
             'requirements'           => $request->education,
             'status'                 => $request->status ?: $jpf->status,
 
-            'related_mrf_no'         => $request->relatedMrfNo,
+            'related_mrf_no'         => $mrf->request_id,
             'date_opened'            => $request->dateOpened,
             'hiring_status'          => $request->hiringStatus,
             'company_name'           => $request->companyName,
@@ -578,6 +646,23 @@ class RecruitmentController extends Controller
         }
     }
 
+    public function updateInterviewStatus(Request $request, $id)
+    {
+        $request->validate([
+            'status' => 'required|in:Scheduled,Completed,Passed,Failed,Cancelled'
+        ]);
+
+        $interview = CandidateInterview::findOrFail($id);
+        $interview->update([
+            'status' => $request->status
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'data' => $interview
+        ]);
+    }
+
     public function deleteInterview($id)
     {
         CandidateInterview::findOrFail($id)->delete();
@@ -610,15 +695,60 @@ class RecruitmentController extends Controller
     public function storeJobOffer(Request $request)
     {
         try {
+            $interview = CandidateInterview::find($request->interviewId);
+
+            if (!$interview) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Please select a Completed/Passed Interview before creating a Job Offer.'
+                ], 422);
+            }
+
+            if (!in_array(strtolower((string) $interview->status), ['completed', 'passed'], true)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Interview must be Completed or Passed before creating a Job Offer.'
+                ], 422);
+            }
+
+            $jpf = JobPosting::find($request->jobPostingId);
+
+            if (!$jpf) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Please select a JPF with status Posted/Open before creating a Job Offer.'
+                ], 422);
+            }
+
+            $status = strtolower((string) $jpf->status);
+
+            if (!in_array($status, ['posted', 'open'], true)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Only JPF records with status Posted/Open can be used for Job Offer.'
+                ], 422);
+            }
+
             $jobOffer = JobOffer::create([
-                'name' => $request->name,
-                'position' => $request->position,
-                'salary' => $request->salary,
-                'start_date' => $request->startDate,
+                'job_posting_id'  => $jpf->id,
+                'address_id'      => $request->orgAddressId ?: $jpf->address_id,
+                'branch_id'       => $request->orgBranchId ?: $jpf->branch_id,
+                'office_id'       => $request->orgOfficeId ?: $jpf->office_id,
+                'department_id'   => $request->orgDepartmentId ?: $jpf->department_id,
+                'division_id'     => $request->orgDivisionId ?: $jpf->division_id,
+                'unit_id'         => $request->orgUnitId ?: $jpf->unit_id,
+                'position_id'     => $request->orgPositionId ?: $jpf->position_id,
+                'salary_grade_id' => $request->salaryGradeId ?: $jpf->salary_grade_id,
+
+                'name'            => $request->name,
+                'position'        => $request->position,
+                'salary'          => $request->salary,
+                'start_date'      => $request->startDate,
                 'employment_type' => $request->employmentType,
-                'department' => $request->department,
-                'benefits' => $request->benefits,
-                'status' => 'Pending'
+                'department'      => $request->department,
+                'company_address' => $request->companyAddress,
+                'benefits'        => $request->benefits,
+                'status'          => $request->status ?: 'Pending',
             ]);
 
             return response()->json(['success' => true, 'data' => $jobOffer]);

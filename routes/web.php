@@ -193,7 +193,8 @@ Route::post('/careers/apply', [RecruitmentController::class, 'storeCAF'])->name(
 Route::get('/careers/pds', [RecruitmentController::class, 'showPublicPDSForm'])->name('careers.pds');
 Route::post('/careers/pds', [RecruitmentController::class, 'storePDS'])->name('careers.pds.submit');
 Route::get('/assessment/start/{uuid}', [RecruitmentController::class, 'startAssessment'])->name('recruitment.assessment.start');
-
+Route::post('/human-capital/recruitment/interview/{id}/status', [RecruitmentController::class, 'updateInterviewStatus'])
+    ->name('human-capital.recruitment.interview_status');
 /*
 |--------------------------------------------------------------------------
 | AUTHENTICATED ROUTES
