@@ -75,6 +75,7 @@ use App\Http\Controllers\SalesMarketingPayoutController;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AttendanceController;
+use App\Http\Controllers\TrainingController;
 
 /*
 |--------------------------------------------------------------------------
@@ -962,6 +963,10 @@ Route::middleware('auth')->group(function () {
 
         // Attendance
         Route::get('/human-capital/attendance', [AttendanceController::class, 'index'])->name('human-capital.attendance');
+
+        // Training
+        Route::get('/human-capital/training', [TrainingController::class, 'index'])->name('human-capital.training');
+        Route::post('/human-capital/training', [TrainingController::class, 'store'])->name('human-capital.training.store');
 
 
     });
