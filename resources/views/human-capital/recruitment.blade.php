@@ -751,6 +751,51 @@
                                 Manpower Request Form
                             </div>
 
+                            {{-- Organizational Assignment --}}
+                            <div class="border-b border-gray-400">
+                                <div class="bg-gray-100 text-center font-bold py-1 text-[11px] uppercase tracking-widest border-b border-gray-400">
+                                    Organizational Assignment
+                                </div>
+                                <div class="grid grid-cols-2 divide-x divide-gray-400">
+                                    <div class="p-2 border-b border-gray-400">
+                                        <span class="text-gray-500">Address / Work Location:</span>
+                                        <p class="font-semibold mt-0.5 min-h-[1rem]" x-text="selectedAddress?.full_address || ''"></p>
+                                    </div>
+                                    <div class="p-2 border-b border-gray-400">
+                                        <span class="text-gray-500">Branch:</span>
+                                        <p class="font-semibold mt-0.5 min-h-[1rem]" x-text="selectedBranch?.branch_name || ''"></p>
+                                    </div>
+                                    <div class="p-2 border-b border-gray-400">
+                                        <span class="text-gray-500">Office:</span>
+                                        <p class="font-semibold mt-0.5 min-h-[1rem]" x-text="selectedOffice?.office_name || ''"></p>
+                                    </div>
+                                    <div class="p-2 border-b border-gray-400">
+                                        <span class="text-gray-500">Department:</span>
+                                        <p class="font-semibold mt-0.5 min-h-[1rem]" x-text="form.department || selectedDepartment?.department_name || ''"></p>
+                                    </div>
+                                    <div class="p-2 border-b border-gray-400">
+                                        <span class="text-gray-500">Division:</span>
+                                        <p class="font-semibold mt-0.5 min-h-[1rem]" x-text="selectedDivision?.division_name || ''"></p>
+                                    </div>
+                                    <div class="p-2 border-b border-gray-400">
+                                        <span class="text-gray-500">Unit:</span>
+                                        <p class="font-semibold mt-0.5 min-h-[1rem]" x-text="selectedUnit?.unit_name || ''"></p>
+                                    </div>
+                                    <div class="p-2">
+                                        <span class="text-gray-500">Position / Title:</span>
+                                        <p class="font-semibold mt-0.5 min-h-[1rem]" x-text="form.position || selectedPosition?.position_name || ''"></p>
+                                    </div>
+                                    <div class="p-2">
+                                        <span class="text-gray-500">Department Head / Position Unit:</span>
+                                        <p class="font-semibold mt-0.5 min-h-[1rem]">
+                                            <span x-text="selectedDepartment?.department_head || ''"></span>
+                                            <span x-show="selectedDepartment?.department_head && selectedPosition?.unit_name"> / </span>
+                                            <span x-text="selectedPosition?.unit_name || ''"></span>
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
                             {{-- Row 1 --}}
                             <div class="grid grid-cols-2 border-b border-gray-400 divide-x divide-gray-400">
                                 <div class="p-2">
@@ -963,16 +1008,33 @@
                         <img src="{{ asset('images/imaglogo.png') }}" onerror="this.src='{{ asset('images/imag1logo.jpg') }}'" alt="John Kelly & Company" class="h-14 w-auto object-contain mix-blend-multiply">
                     </div>
                     <div class="bg-blue-700 text-white text-center font-bold py-2 text-sm tracking-widest uppercase border-gray-300">Manpower Request Form</div>
+
+                    <div class="border-b border-gray-300">
+                        <div class="bg-gray-100 text-center font-bold py-1 text-[11px] uppercase tracking-widest border-b border-gray-300">
+                            Organizational Assignment
+                        </div>
+                        <div class="grid grid-cols-2 divide-x divide-gray-300">
+                            <div class="p-3 border-b border-gray-300"><span class="text-xs text-gray-500">Address / Work Location:</span><p class="font-medium mt-1" x-text="orgDisplay('organizationalAddresses', viewData.address_id, 'full_address')"></p></div>
+                            <div class="p-3 border-b border-gray-300"><span class="text-xs text-gray-500">Branch:</span><p class="font-medium mt-1" x-text="orgDisplay('branches', viewData.branch_id, 'branch_name')"></p></div>
+                            <div class="p-3 border-b border-gray-300"><span class="text-xs text-gray-500">Office:</span><p class="font-medium mt-1" x-text="orgDisplay('offices', viewData.office_id, 'office_name')"></p></div>
+                            <div class="p-3 border-b border-gray-300"><span class="text-xs text-gray-500">Department:</span><p class="font-medium mt-1" x-text="viewData.department || orgDisplay('departments', viewData.department_id, 'department_name')"></p></div>
+                            <div class="p-3 border-b border-gray-300"><span class="text-xs text-gray-500">Division:</span><p class="font-medium mt-1" x-text="orgDisplay('divisions', viewData.division_id, 'division_name')"></p></div>
+                            <div class="p-3 border-b border-gray-300"><span class="text-xs text-gray-500">Unit:</span><p class="font-medium mt-1" x-text="orgDisplay('units', viewData.unit_id, 'unit_name')"></p></div>
+                            <div class="p-3"><span class="text-xs text-gray-500">Position / Title:</span><p class="font-medium mt-1" x-text="viewData.position || orgDisplay('positions', viewData.position_id, 'position_name')"></p></div>
+                            <div class="p-3"><span class="text-xs text-gray-500">Department Head / Position Unit:</span><p class="font-medium mt-1"><span x-text="orgDisplay('departments', viewData.department_id, 'department_head', '')"></span><span x-show="orgDisplay('departments', viewData.department_id, 'department_head', '') && orgDisplay('positions', viewData.position_id, 'unit_name', '')"> / </span><span x-text="orgDisplay('positions', viewData.position_id, 'unit_name', '')"></span></p></div>
+                        </div>
+                    </div>
+
                     <div class="grid grid-cols-2 border-b border-gray-300 divide-x divide-gray-300">
                         <div class="p-3"><span class="text-xs text-gray-500">Requesting Department:</span><p class="font-medium mt-1" x-text="viewData.department"></p></div>
                         <div class="p-3">
-                            <span class="text-xs text-gray-500">Date Requested:</span><p class="font-medium mt-1" x-text="viewData.dateRequested"></p>
-                            <span class="text-xs text-gray-500 block mt-2">Date Required:</span><p class="font-medium mt-1" x-text="viewData.dateRequired || '—'"></p>
+                            <span class="text-xs text-gray-500">Date Requested:</span><p class="font-medium mt-1" x-text="viewData.dateRequested || viewData.date_requested"></p>
+                            <span class="text-xs text-gray-500 block mt-2">Date Required:</span><p class="font-medium mt-1" x-text="viewData.dateRequired || viewData.date_required || '—'"></p>
                         </div>
                     </div>
                     <div class="grid grid-cols-2 border-b border-gray-300 divide-x divide-gray-300">
                         <div class="p-3"><span class="text-xs text-gray-500">Position / Title:</span><p class="font-medium mt-1" x-text="viewData.position"></p></div>
-                        <div class="p-3"><span class="text-xs text-gray-500">Employment Type:</span><p class="font-medium mt-1" x-text="viewData.employmentType || '—'"></p></div>
+                        <div class="p-3"><span class="text-xs text-gray-500">Employment Type:</span><p class="font-medium mt-1" x-text="viewData.employmentType || viewData.employment_type || '—'"></p></div>
                     </div>
                     <div class="border-b border-gray-300 p-3">
                         <span class="text-xs text-gray-500">Brief Description of Duties:</span>
@@ -1102,8 +1164,18 @@
                                     <input type="text" x-model="jpfForm.jobId" placeholder="Auto-generated" readonly class="w-full text-sm px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-500">
                                 </div>
                                 <div>
-                                    <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Related MRF No.</label>
-                                    <input type="text" x-model="jpfForm.relatedMrfNo" placeholder="Enter MRF No." class="w-full text-sm px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-100 outline-none">
+                                    <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Related MRF No. <span class="text-red-500">*</span></label>
+                                    <select x-model="jpfForm.mrfId" @change="onJpfMrfChange()" required
+                                        class="w-full text-sm px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-100 outline-none bg-white">
+                                        <option value="">Select Approved MRF...</option>
+                                        <template x-for="mrf in approvedMRFs" :key="mrf.id">
+                                            <option :value="mrf.id" x-text="`${mrf.request_id || 'MRF'} - ${mrf.position || 'No position'} (${mrf.department || 'No department'})`"></option>
+                                        </template>
+                                    </select>
+                                    <input type="hidden" x-model="jpfForm.relatedMrfNo">
+                                    <p class="text-[11px] mt-1"
+                                       :class="approvedMRFs.length ? 'text-gray-500' : 'text-red-500'"
+                                       x-text="approvedMRFs.length ? 'Only approved MRF records are available here.' : 'No approved MRF available. Approve an MRF first before creating JPF.'"></p>
                                 </div>
                             </div>
                             <div class="grid grid-cols-2 gap-4">
@@ -2810,13 +2882,36 @@
                             </div>
                         </div>
 
-                        <div class="px-8 py-6 border-t border-gray-100 flex gap-4 shrink-0">
-                            <button @click="showInterviewViewModal = false" class="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl transition uppercase tracking-widest text-[11px]">
-                                Close
-                            </button>
-                            <button @click="openJobOfferModal(viewInterviewData)" class="flex-1 py-3 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl transition shadow-lg shadow-purple-200 uppercase tracking-widest text-[11px]"
-                                x-text="isDatePassed(viewInterviewData.interview_date || viewInterviewData.date) ? 'Send a Job Offer' : 'Send Reminder'">
-                            </button>
+                        <div class="px-8 py-6 border-t border-gray-100 space-y-3 shrink-0">
+                            <div class="grid grid-cols-2 gap-3" x-show="!interviewAllowsJobOffer(viewInterviewData)">
+                                <button type="button"
+                                    @click="updateInterviewStatus(viewInterviewData, 'Completed')"
+                                    class="py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl transition shadow-lg shadow-green-100 uppercase tracking-widest text-[11px]">
+                                    Mark Completed
+                                </button>
+
+                                <button type="button"
+                                    @click="updateInterviewStatus(viewInterviewData, 'Passed')"
+                                    class="py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition shadow-lg shadow-blue-100 uppercase tracking-widest text-[11px]">
+                                    Mark Passed
+                                </button>
+                            </div>
+
+                            <div class="flex gap-4">
+                                <button @click="showInterviewViewModal = false"
+                                    class="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl transition uppercase tracking-widest text-[11px]">
+                                    Close
+                                </button>
+
+                                <button @click="openJobOfferModal(viewInterviewData)"
+                                    :disabled="!interviewAllowsJobOffer(viewInterviewData)"
+                                    :class="interviewAllowsJobOffer(viewInterviewData)
+                                        ? 'bg-purple-600 hover:bg-purple-700 text-white shadow-lg shadow-purple-200'
+                                        : 'bg-gray-200 text-gray-400 cursor-not-allowed'"
+                                    class="flex-1 py-3 font-bold rounded-xl transition uppercase tracking-widest text-[11px]"
+                                    x-text="interviewAllowsJobOffer(viewInterviewData) ? 'Send a Job Offer' : 'Complete/Pass Interview First'">
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </template>
@@ -2853,14 +2948,31 @@
 
             <form @submit.prevent="submitJobOffer()" class="p-6 space-y-5 bg-white">
                 <div>
-                    <label class="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Link to JPF / Job Posting</label>
+                    <label class="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Link to Completed / Passed Interview <span class="text-red-500">*</span></label>
+                    <select x-model="jobOfferForm.interviewId" @change="onJobOfferInterviewChange()" required
+                        class="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-100 focus:border-purple-500 text-gray-700 text-sm bg-white transition-all">
+                        <option value="">Select Completed/Passed Interview...</option>
+                        <template x-for="interview in validJobOfferInterviews" :key="interview.id">
+                            <option :value="interview.id" x-text="`${interview.name || 'Candidate'} - ${interview.position || 'No position'} (${interview.status || 'Status'})`"></option>
+                        </template>
+                    </select>
+                    <p class="text-[11px] mt-1"
+                       :class="validJobOfferInterviews.length ? 'text-gray-500' : 'text-red-500'"
+                       x-text="validJobOfferInterviews.length ? 'Only Completed/Passed interviews are available here.' : 'No Completed/Passed interview is available yet.'"></p>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Link to JPF / Job Posting <span class="text-red-500">*</span></label>
                     <select x-model="jobOfferForm.jobPostingId" @change="onJobOfferJpfChange()"
                         class="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 text-gray-700 text-sm bg-white transition-all">
                         <option value="">Select JPF to auto-fill Organizational and Payroll details...</option>
-                        <template x-for="jpf in data['JPF']" :key="jpf.id || jpf.job_id">
+                        <template x-for="jpf in validJobOfferJPFs" :key="jpf.id || jpf.job_id">
                             <option :value="jpf.id" x-text="`${jpf.job_id || 'JPF'} - ${jpf.position || 'No position'} (${jpf.department_unit || jpf.departmentUnit || 'No department'})`"></option>
                         </template>
                     </select>
+                    <p class="text-[11px] mt-1"
+                       :class="validJobOfferJPFs.length ? 'text-gray-500' : 'text-red-500'"
+                       x-text="validJobOfferJPFs.length ? 'Only JPF records with status Posted/Open are available here.' : 'No JPF with status Posted/Open is available. Set a JPF status to Posted/Open first.'"></p>
                 </div>
 
                 <div class="grid grid-cols-2 gap-5">
@@ -3365,10 +3477,10 @@ function recruitmentPage(
 
         jpfForm: {
             // REQUISITION DETAILS
-            jobId: '', relatedMrfNo: '', dateOpened: '', hiringStatus: 'Open',
+            jobId: '', mrfId: '', relatedMrfNo: '', dateOpened: '', hiringStatus: 'Open',
 
             // ORGANIZATIONAL LINKS (frontend only for now)
-            orgAddressId: '', orgDepartmentId: '', orgPositionId: '',
+            orgAddressId: '', orgBranchId: '', orgOfficeId: '', orgDepartmentId: '', orgDivisionId: '', orgUnitId: '', orgPositionId: '',
 
             // COMPANY DETAILS
             companyName: '', officeBranchSite: '', departmentUnit: '', hiringManager: '', departmentSuperior: '',
@@ -3430,8 +3542,9 @@ function recruitmentPage(
         },
 
         jobOfferForm: {
+            interviewId: '',
             jobPostingId: '',
-            orgAddressId: '', orgDepartmentId: '', orgPositionId: '', salaryGradeId: '',
+            orgAddressId: '', orgBranchId: '', orgOfficeId: '', orgDepartmentId: '', orgDivisionId: '', orgUnitId: '', orgPositionId: '', salaryGradeId: '',
             name: '', position: '', salary: '', startDate: '',
             employmentType: 'Full-time', department: '', companyAddress: '', benefits: ''
         },
@@ -3600,6 +3713,17 @@ function recruitmentPage(
             }
         },
 
+        get approvedMRFs() {
+            return this.data['MRF'].filter(mrf => {
+                const status = String(mrf.request_status || '').toLowerCase();
+                return status === 'approved';
+            });
+        },
+
+        get selectedJpfMrf() {
+            return this.data['MRF'].find(mrf => String(mrf.id) === String(this.jpfForm.mrfId)) || null;
+        },
+
         get selectedJpfAddress() {
             return this.organizationalAddresses.find(a => String(a.id) === String(this.jpfForm.orgAddressId)) || null;
         },
@@ -3626,12 +3750,79 @@ function recruitmentPage(
             return this.positions.filter(position => String(position.address_id) === String(this.jpfForm.orgAddressId));
         },
 
+        onJpfMrfChange() {
+            const mrf = this.selectedJpfMrf;
+
+            if (!mrf) {
+                this.jpfForm.relatedMrfNo = '';
+                return;
+            }
+
+            if (String(mrf.request_status || '').toLowerCase() !== 'approved') {
+                alert('Only approved MRF records can be used to create a JPF.');
+                this.jpfForm.mrfId = '';
+                this.jpfForm.relatedMrfNo = '';
+                return;
+            }
+
+            const toValue = (value) => value === null || value === undefined ? '' : String(value);
+
+            this.jpfForm.relatedMrfNo = mrf.request_id || '';
+            this.jpfForm.orgAddressId = toValue(mrf.address_id);
+            this.jpfForm.orgBranchId = toValue(mrf.branch_id);
+            this.jpfForm.orgOfficeId = toValue(mrf.office_id);
+            this.jpfForm.orgDepartmentId = toValue(mrf.department_id);
+            this.jpfForm.orgDivisionId = toValue(mrf.division_id);
+            this.jpfForm.orgUnitId = toValue(mrf.unit_id);
+            this.jpfForm.orgPositionId = toValue(mrf.position_id);
+
+            const address = this.organizationalAddresses.find(item => String(item.id) === String(mrf.address_id)) || null;
+            const department = this.departments.find(item => String(item.id) === String(mrf.department_id)) || null;
+            const position = this.positions.find(item => String(item.id) === String(mrf.position_id)) || null;
+
+            this.jpfForm.officeBranchSite = address ? (address.full_address || '') : '';
+            this.jpfForm.workLocation = address ? (address.full_address || '') : '';
+            this.jpfForm.applicableArea = address ? [address.city_name, address.province_name].filter(Boolean).join(', ') : '';
+
+            this.jpfForm.departmentUnit = department ? (department.department_name || '') : (mrf.department || '');
+            this.jpfForm.departmentSuperior = department ? (department.department_head || '') : '';
+            this.jpfForm.hiringManager = department ? (department.department_head || this.jpfForm.hiringManager || '') : this.jpfForm.hiringManager;
+
+            this.jpfForm.position = position ? (position.position_name || '') : (mrf.position || '');
+            this.jpfForm.noOfVacancies = mrf.headcount || '';
+            this.jpfForm.employmentType = mrf.employment_type || '';
+            this.jpfForm.dateNeeded = this.toDateInput(mrf.date_required);
+            this.jpfForm.duties = mrf.duties || '';
+            this.jpfForm.education = mrf.education || '';
+            this.jpfForm.preferredQualifications = mrf.qualifications || '';
+        },
+
+        toDateInput(value) {
+            if (!value) return '';
+
+            const raw = String(value);
+            if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+                return raw;
+            }
+
+            const date = new Date(raw);
+            if (Number.isNaN(date.getTime())) {
+                return '';
+            }
+
+            return date.toISOString().split('T')[0];
+        },
+
         onJpfAddressChange() {
             const address = this.selectedJpfAddress;
             this.jpfForm.officeBranchSite = address ? address.full_address : '';
             this.jpfForm.workLocation = address ? address.full_address : '';
             this.jpfForm.applicableArea = address ? [address.city_name, address.province_name].filter(Boolean).join(', ') : '';
+            this.jpfForm.orgBranchId = '';
+            this.jpfForm.orgOfficeId = '';
             this.jpfForm.orgDepartmentId = '';
+            this.jpfForm.orgDivisionId = '';
+            this.jpfForm.orgUnitId = '';
             this.jpfForm.orgPositionId = '';
             this.jpfForm.departmentUnit = '';
             this.jpfForm.departmentSuperior = '';
@@ -3672,6 +3863,56 @@ function recruitmentPage(
             }
         },
 
+        get validJobOfferInterviews() {
+            return this.data['Interview'].filter(interview => {
+                const status = String(interview.status || '').toLowerCase();
+                return ['completed', 'passed'].includes(status);
+            });
+        },
+
+        get selectedJobOfferInterview() {
+            return this.data['Interview'].find(item => String(item.id) === String(this.jobOfferForm.interviewId)) || null;
+        },
+
+        onJobOfferInterviewChange() {
+            const interview = this.selectedJobOfferInterview;
+
+            if (!interview) {
+                this.jobOfferForm.name = '';
+                this.jobOfferForm.position = '';
+                return;
+            }
+
+            if (!this.interviewAllowsJobOffer(interview)) {
+                alert('Only Completed or Passed interviews can be used for Job Offer.');
+                this.jobOfferForm.interviewId = '';
+                this.jobOfferForm.name = '';
+                this.jobOfferForm.position = '';
+                return;
+            }
+
+            this.jobOfferForm.name = interview.name || '';
+            this.jobOfferForm.position = interview.position || this.jobOfferForm.position || '';
+
+            const matchedPosition = this.positions.find(position =>
+                String(position.position_name || '').toLowerCase() === String(this.jobOfferForm.position || '').toLowerCase()
+            );
+
+            if (matchedPosition && !this.jobOfferForm.orgPositionId) {
+                this.jobOfferForm.orgPositionId = String(matchedPosition.id);
+            }
+        },
+
+        get validJobOfferJPFs() {
+            return this.data['JPF'].filter(jpf => {
+                const status = String(jpf.status || '').toLowerCase();
+
+                // Only actual JPF status controls Job Offer eligibility.
+                // Draft JPF should not appear even if Hiring Status is Open.
+                return ['posted', 'open'].includes(status);
+            });
+        },
+
         get selectedJobOfferJpf() {
             return this.data['JPF'].find(j => String(j.id) === String(this.jobOfferForm.jobPostingId)) || null;
         },
@@ -3694,20 +3935,67 @@ function recruitmentPage(
 
         onJobOfferJpfChange() {
             const jpf = this.selectedJobOfferJpf;
-            if (!jpf) return;
+
+            if (!jpf) {
+                return;
+            }
+
+            const status = String(jpf.status || '').toLowerCase();
+
+            if (!['posted', 'open'].includes(status)) {
+                alert('Only JPF records with status Posted/Open can be used for Job Offer.');
+                this.jobOfferForm.jobPostingId = '';
+                return;
+            }
+
+            const toValue = (value) => value === null || value === undefined ? '' : String(value);
+
+            this.jobOfferForm.orgAddressId = toValue(jpf.address_id);
+            this.jobOfferForm.orgBranchId = toValue(jpf.branch_id);
+            this.jobOfferForm.orgOfficeId = toValue(jpf.office_id);
+            this.jobOfferForm.orgDepartmentId = toValue(jpf.department_id);
+            this.jobOfferForm.orgDivisionId = toValue(jpf.division_id);
+            this.jobOfferForm.orgUnitId = toValue(jpf.unit_id);
+            this.jobOfferForm.orgPositionId = toValue(jpf.position_id);
+            this.jobOfferForm.salaryGradeId = toValue(jpf.salary_grade_id);
 
             this.jobOfferForm.position = jpf.position || '';
             this.jobOfferForm.department = jpf.department_unit || jpf.departmentUnit || '';
             this.jobOfferForm.employmentType = jpf.employment_type || jpf.employmentType || this.jobOfferForm.employmentType;
-            this.jobOfferForm.salary = jpf.min_salary_offer || jpf.minSalary || jpf.salary_range || jpf.salaryRange || this.jobOfferForm.salary;
-            this.jobOfferForm.benefits = Array.isArray(jpf.benefits_package) ? jpf.benefits_package.join(', ') : (jpf.benefits_package || jpf.benefits || this.jobOfferForm.benefits);
             this.jobOfferForm.companyAddress = jpf.office_branch_site || jpf.officeBranchSite || jpf.location || jpf.workLocation || '';
 
-            const matchedPosition = this.positions.find(p => p.position_name === this.jobOfferForm.position);
-            if (matchedPosition) this.jobOfferForm.orgPositionId = matchedPosition.id;
+            const minSalary = jpf.min_salary_offer || jpf.minSalary || '';
+            const maxSalary = jpf.max_salary_offer || jpf.maxSalary || '';
+            this.jobOfferForm.salary = minSalary && maxSalary
+                ? `${minSalary} - ${maxSalary}`
+                : (minSalary || jpf.salary_range || jpf.salaryRange || this.jobOfferForm.salary);
 
-            const matchedDepartment = this.departments.find(d => d.department_name === this.jobOfferForm.department);
-            if (matchedDepartment) this.jobOfferForm.orgDepartmentId = matchedDepartment.id;
+            this.jobOfferForm.benefits = Array.isArray(jpf.benefits_package)
+                ? jpf.benefits_package.join(', ')
+                : (jpf.benefits_package || jpf.benefits || this.jobOfferForm.benefits);
+
+            const address = this.selectedJobOfferAddress;
+            if (address && !this.jobOfferForm.companyAddress) {
+                this.jobOfferForm.companyAddress = address.full_address || '';
+            }
+
+            const department = this.selectedJobOfferDepartment;
+            if (department && !this.jobOfferForm.department) {
+                this.jobOfferForm.department = department.department_name || '';
+            }
+
+            const position = this.selectedJobOfferPosition;
+            if (position && !this.jobOfferForm.position) {
+                this.jobOfferForm.position = position.position_name || '';
+            }
+
+            const salaryGrade = this.selectedJobOfferSalaryGrade;
+            if (salaryGrade && !this.jobOfferForm.salary) {
+                const monthly = Number(salaryGrade.monthly_basic_pay || 0);
+                this.jobOfferForm.salary = monthly > 0
+                    ? `₱ ${monthly.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                    : [salaryGrade.code, salaryGrade.name].filter(Boolean).join(' - ');
+            }
         },
 
         onJobOfferAddressChange() {
@@ -3904,6 +4192,48 @@ function recruitmentPage(
             this.interviewForm.meeting_link = `https://meet.google.com/${seg(3)}-${seg(4)}-${seg(3)}`;
         },
 
+        interviewAllowsJobOffer(interview) {
+            if (!interview) return false;
+
+            const status = String(interview.status || '').toLowerCase();
+
+            return ['completed', 'passed'].includes(status);
+        },
+
+        updateInterviewStatus(interview, status) {
+            if (!interview || !interview.id) {
+                alert('Interview record was not found.');
+                return;
+            }
+
+            axios.post(`/human-capital/recruitment/interview/${interview.id}/status`, {
+                status: status
+            })
+            .then(res => {
+                const updated = res.data.data || res.data.interview || { ...interview, status: status };
+
+                const idx = this.data['Interview'].findIndex(item => item.id === interview.id);
+                if (idx !== -1) {
+                    this.data['Interview'][idx] = {
+                        ...this.data['Interview'][idx],
+                        ...updated,
+                        status: updated.status || status
+                    };
+                }
+
+                this.viewInterviewData = {
+                    ...this.viewInterviewData,
+                    ...updated,
+                    status: updated.status || status
+                };
+
+                alert(`Interview marked as ${status}. You can now proceed to Job Offer.`);
+            })
+            .catch(err => {
+                alert('Error updating interview status: ' + (err.response?.data?.message || err.message));
+            });
+        },
+
         submitInterview() {
             axios.post('{{ route("human-capital.recruitment.store_interview") }}', this.interviewForm)
             .then(res => {
@@ -3926,6 +4256,33 @@ function recruitmentPage(
         },
 
         submitJobOffer() {
+            if (!this.jobOfferForm.interviewId) {
+                alert('Please select a Completed/Passed Interview before creating a Job Offer.');
+                return;
+            }
+
+            if (!this.selectedJobOfferInterview || !this.interviewAllowsJobOffer(this.selectedJobOfferInterview)) {
+                alert('Interview must be Completed or Passed before creating a Job Offer.');
+                return;
+            }
+
+            if (!this.jobOfferForm.jobPostingId) {
+                alert('Please select a JPF with status Posted/Open before creating a Job Offer.');
+                return;
+            }
+
+            if (!this.selectedJobOfferJpf) {
+                alert('Selected JPF was not found. Please select another JPF.');
+                return;
+            }
+
+            const status = String(this.selectedJobOfferJpf.status || '').toLowerCase();
+
+            if (!['posted', 'open'].includes(status)) {
+                alert('Only JPF records with status Posted/Open can be used for Job Offer.');
+                return;
+            }
+
             axios.post('{{ route("human-capital.recruitment.store_job_offer") }}', this.jobOfferForm)
             .then(res => {
                 this.data['Job Offer'].unshift(res.data.data);
@@ -3946,27 +4303,44 @@ function recruitmentPage(
         },
 
         openJobOfferModal(interviewData = null) {
-            if (interviewData) {
-                this.jobOfferForm = {
-                    jobPostingId: '',
-                    orgAddressId: '', orgDepartmentId: '', orgPositionId: '', salaryGradeId: '',
-                    name: interviewData.name,
-                    position: interviewData.position,
-                    salary: '',
-                    startDate: '',
-                    employmentType: 'Full-time',
-                    department: '',
-                    companyAddress: '',
-                    benefits: ''
-                };
-            } else {
-                this.jobOfferForm = {
-                    jobPostingId: '',
-                    orgAddressId: '', orgDepartmentId: '', orgPositionId: '', salaryGradeId: '',
-                    name: '', position: '', salary: '', startDate: '',
-                    employmentType: 'Full-time', department: '', companyAddress: '', benefits: ''
-                };
+            if (this.validJobOfferInterviews.length === 0) {
+                alert('No Completed/Passed Interview is available yet. Mark an interview as Completed or Passed first.');
+                return;
             }
+
+            if (interviewData && !this.interviewAllowsJobOffer(interviewData)) {
+                alert('Interview must be Completed or Passed before creating a Job Offer.');
+                return;
+            }
+
+            if (this.validJobOfferJPFs.length === 0) {
+                alert('No JPF with status Posted/Open is available. Please set a JPF status to Posted/Open first.');
+                return;
+            }
+
+            const selectedInterview = interviewData || this.validJobOfferInterviews[0] || null;
+
+            this.jobOfferForm = {
+                interviewId: selectedInterview ? (selectedInterview.id || '') : '',
+                jobPostingId: '',
+                orgAddressId: '',
+                orgBranchId: '',
+                orgOfficeId: '',
+                orgDepartmentId: '',
+                orgDivisionId: '',
+                orgUnitId: '',
+                orgPositionId: '',
+                salaryGradeId: '',
+                name: selectedInterview ? (selectedInterview.name || '') : '',
+                position: selectedInterview ? (selectedInterview.position || '') : '',
+                salary: '',
+                startDate: '',
+                employmentType: 'Full-time',
+                department: '',
+                companyAddress: '',
+                benefits: ''
+            };
+
             this.showJobOfferModal = true;
         },
 
@@ -3975,17 +4349,24 @@ function recruitmentPage(
             this.showJobOfferViewModal = true;
         },
 
+        orgDisplay(collection, id, field, fallback = '—') {
+            if (!id) return fallback;
+            const list = this[collection] || [];
+            const item = list.find(record => String(record.id) === String(id));
+            return item && item[field] ? item[field] : fallback;
+        },
+
         editMRF(row) {
             this.isEditing = true;
             this.editingId = row.id || row.request_id;
             this.form = {
-                orgAddressId: '',
-                orgBranchId: '',
-                orgOfficeId: '',
-                orgDepartmentId: '',
-                orgDivisionId: '',
-                orgUnitId: '',
-                orgPositionId: '',
+                orgAddressId: row.address_id || '',
+                orgBranchId: row.branch_id || '',
+                orgOfficeId: row.office_id || '',
+                orgDepartmentId: row.department_id || '',
+                orgDivisionId: row.division_id || '',
+                orgUnitId: row.unit_id || '',
+                orgPositionId: row.position_id || '',
 
                 department: row.department,
                 dateRequested: row.date_requested,
@@ -4019,13 +4400,18 @@ function recruitmentPage(
             this.editingId = row.id || row.job_id;
             this.jpfForm = {
                 jobId: row.job_id,
+                mrfId: row.mrf_id || '',
                 relatedMrfNo: row.related_mrf_no,
                 dateOpened: row.date_opened,
                 hiringStatus: row.hiring_status || 'Open',
 
-                orgAddressId: '',
-                orgDepartmentId: '',
-                orgPositionId: '',
+                orgAddressId: row.address_id || '',
+                orgBranchId: row.branch_id || '',
+                orgOfficeId: row.office_id || '',
+                orgDepartmentId: row.department_id || '',
+                orgDivisionId: row.division_id || '',
+                orgUnitId: row.unit_id || '',
+                orgPositionId: row.position_id || '',
                 companyName: row.company_name,
                 officeBranchSite: row.office_branch_site,
                 departmentUnit: row.department_unit,
@@ -4125,9 +4511,14 @@ function recruitmentPage(
                 };
                 this.showModal = true;
             } else if (this.activeTab === 'JPF') {
+                if (this.approvedMRFs.length === 0) {
+                    alert('No approved MRF available. Please approve an MRF first before creating a JPF.');
+                    return;
+                }
+
                 this.jpfForm = {
-                    jobId: '', relatedMrfNo: '', dateOpened: '', hiringStatus: 'Open',
-                    orgAddressId: '', orgDepartmentId: '', orgPositionId: '',
+                    jobId: '', mrfId: '', relatedMrfNo: '', dateOpened: '', hiringStatus: 'Open',
+                    orgAddressId: '', orgBranchId: '', orgOfficeId: '', orgDepartmentId: '', orgDivisionId: '', orgUnitId: '', orgPositionId: '',
                     companyName: '', officeBranchSite: '', departmentUnit: '', hiringManager: '', departmentSuperior: '',
                     position: '', noOfVacancies: '', positionLevel: '', employmentType: '', reportsTo: '', workLocation: '',
                     salaryGradeId: '', minSalary: '', maxSalary: '', salaryGrade: '',
@@ -4203,6 +4594,16 @@ function recruitmentPage(
         },
 
         submitJPF() {
+            if (!this.jpfForm.mrfId) {
+                alert('Please select an Approved MRF before creating a JPF.');
+                return;
+            }
+
+            if (!this.selectedJpfMrf || String(this.selectedJpfMrf.request_status || '').toLowerCase() !== 'approved') {
+                alert('The selected MRF is not approved. Only Approved MRF records can be used for JPF.');
+                return;
+            }
+
             const url = this.isEditing ? `/human-capital/recruitment/jpf/${this.editingId}` : '{{ route("human-capital.recruitment.store_jpf") }}';
             const method = this.isEditing ? 'put' : 'post';
 
@@ -4289,35 +4690,201 @@ function recruitmentPage(
 
         downloadCSV() {
             const rows = this.filteredRows;
+
             if (rows.length === 0) {
                 alert('No data available to download.');
                 return;
             }
 
-            // Get headers from the first object
-            const headers = Object.keys(rows[0]).filter(k => typeof rows[0][k] !== 'object');
-            
-            const csvContent = [
-                headers.join(','),
-                ...rows.map(row => headers.map(h => {
-                    let val = row[h] === null || row[h] === undefined ? '' : String(row[h]);
-                    // Escape commas and quotes
-                    if (val.includes(',') || val.includes('"') || val.includes('\n')) {
-                        val = `"${val.replace(/"/g, '""')}"`;
+            const exportColumns = {
+                'MRF': [
+                    { label: 'Request ID', key: 'request_id' },
+                    { label: 'Department', key: 'department' },
+                    { label: 'Position', key: 'position' },
+                    { label: 'Employment Type', key: 'employment_type' },
+                    { label: 'Headcount', key: 'headcount' },
+                    { label: 'Date Requested', key: 'date_requested' },
+                    { label: 'Date Required', key: 'date_required' },
+                    { label: 'Duties', key: 'duties' },
+                    { label: 'Age Range', key: 'age_range' },
+                    { label: 'Civil Status', key: 'civil_status' },
+                    { label: 'Gender', key: 'gender' },
+                    { label: 'Education', key: 'education' },
+                    { label: 'Qualifications', key: 'qualifications' },
+                    { label: 'Requested By', key: 'requested_by' },
+                    { label: 'Approved By', key: 'approved_by' },
+                    { label: 'Remarks', key: 'remarks' },
+                    { label: 'Request Status', key: 'request_status' },
+                    { label: 'Charged To', key: 'charged_to' },
+                    { label: 'Breakdown Details', key: 'breakdown_details' },
+                    { label: 'Hired Personnel', key: 'hired_personnel' },
+                    { label: 'Date Hired', key: 'date_hired' },
+                    { label: 'Processed By', key: 'processed_by' },
+                    { label: 'Checked By', key: 'checked_by' },
+                ],
+
+                'JPF': [
+                    { label: 'Job ID', key: 'job_id' },
+                    { label: 'Related MRF No.', key: 'related_mrf_no' },
+                    { label: 'Date Opened', key: 'date_opened' },
+                    { label: 'Hiring Status', key: 'hiring_status' },
+                    { label: 'Company Name', key: 'company_name' },
+                    { label: 'Office / Branch / Site', key: 'office_branch_site' },
+                    { label: 'Department / Unit', key: 'department_unit' },
+                    { label: 'Position', key: 'position' },
+                    { label: 'Employment Type', key: 'employment_type' },
+                    { label: 'Location', key: 'location' },
+                    { label: 'Hiring Manager', key: 'hiring_manager' },
+                    { label: 'Department Superior', key: 'department_superior' },
+                    { label: 'No. of Vacancies', key: 'no_of_vacancies' },
+                    { label: 'Position Level', key: 'position_level' },
+                    { label: 'Reports To', key: 'reports_to' },
+                    { label: 'Min Salary Offer', key: 'min_salary_offer' },
+                    { label: 'Max Salary Offer', key: 'max_salary_offer' },
+                    { label: 'Salary Grade', key: 'salary_grade' },
+                    { label: 'Monthly Equivalent', key: 'monthly_equivalent' },
+                    { label: 'Applicable Region', key: 'applicable_region' },
+                    { label: 'Applicable Area', key: 'applicable_area' },
+                    { label: 'Daily Minimum Wage', key: 'current_daily_min_wage' },
+                    { label: 'Benefits Package', key: 'benefits_package' },
+                    { label: 'Work Schedule', key: 'work_schedule' },
+                    { label: 'Rest Days', key: 'rest_days' },
+                    { label: 'Education Requirement', key: 'education_req' },
+                    { label: 'Experience Requirement', key: 'experience_req' },
+                    { label: 'Skills Requirement', key: 'skills_req' },
+                    { label: 'Licenses Requirement', key: 'licenses_req' },
+                    { label: 'Preferred Qualifications', key: 'preferred_qualifications' },
+                    { label: 'Duties / Responsibilities', key: 'duties_responsibilities' },
+                    { label: 'Status', key: 'status' },
+                    { label: 'Posted Date', key: 'posted_date' },
+                ],
+
+                'CAF': [
+                    { label: 'Name', key: 'name' },
+                    { label: 'Position', key: 'position' },
+                    { label: 'Email', key: 'email' },
+                    { label: 'Phone', key: 'phone' },
+                    { label: 'Status', key: 'status' },
+                    { label: 'Applied Date', key: 'applied_date' },
+                    { label: 'Cover Letter', key: 'cover_letter' },
+                ],
+
+                'Interview': [
+                    { label: 'Name', key: 'name' },
+                    { label: 'Position', key: 'position' },
+                    { label: 'Interview Type', key: 'type' },
+                    { label: 'Interviewer', key: 'interviewer' },
+                    { label: 'Interview Date', key: 'interview_date' },
+                    { label: 'Duration', key: 'duration' },
+                    { label: 'Meeting Link', key: 'meeting_link' },
+                    { label: 'Status', key: 'status' },
+                ],
+
+                'Job Offer': [
+                    { label: 'Candidate Name', key: 'name' },
+                    { label: 'Position', key: 'position' },
+                    { label: 'Department', key: 'department' },
+                    { label: 'Company Address', key: 'company_address' },
+                    { label: 'Salary', key: 'salary' },
+                    { label: 'Start Date', key: 'start_date' },
+                    { label: 'Employment Type', key: 'employment_type' },
+                    { label: 'Benefits', key: 'benefits' },
+                    { label: 'Status', key: 'status' },
+                ],
+            };
+
+            const hiddenColumns = [
+                'id',
+                'mrf_id',
+                'job_posting_id',
+                'address_id',
+                'branch_id',
+                'office_id',
+                'department_id',
+                'division_id',
+                'unit_id',
+                'position_id',
+                'salary_grade_id',
+                'created_at',
+                'updated_at',
+                'deleted_at',
+                'req_id_display',
+                'date_display',
+            ];
+
+            const columns = exportColumns[this.activeTab] || Object.keys(rows[0])
+                .filter(key => {
+                    return !hiddenColumns.includes(key)
+                        && !key.endsWith('_id')
+                        && typeof rows[0][key] !== 'object';
+                })
+                .map(key => ({
+                    label: key.replaceAll('_', ' ').replace(/\b\w/g, char => char.toUpperCase()),
+                    key: key,
+                }));
+
+            const formatValue = (value) => {
+                if (value === null || value === undefined) {
+                    return '';
+                }
+
+                if (Array.isArray(value)) {
+                    return value.join('; ');
+                }
+
+                if (typeof value === 'object') {
+                    return JSON.stringify(value);
+                }
+
+                if (typeof value === 'string' && value.match(/^\d{4}-\d{2}-\d{2}T/)) {
+                    const date = new Date(value);
+                    if (!Number.isNaN(date.getTime())) {
+                        return date.toLocaleDateString('en-US', {
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric',
+                        });
                     }
-                    return val;
-                }).join(','))
+                }
+
+                return String(value);
+            };
+
+            const escapeCsv = (value) => {
+                let val = formatValue(value);
+
+                if (val.includes(',') || val.includes('"') || val.includes('\n')) {
+                    val = `"${val.replace(/"/g, '""')}"`;
+                }
+
+                return val;
+            };
+
+            const csvContent = [
+                columns.map(column => escapeCsv(column.label)).join(','),
+                ...rows.map(row => columns.map(column => escapeCsv(row[column.key])).join(','))
             ].join('\n');
 
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const blob = new Blob([csvContent], {
+                type: 'text/csv;charset=utf-8;'
+            });
+
             const url = URL.createObjectURL(blob);
             const link = document.createElement('a');
+
             link.setAttribute('href', url);
-            link.setAttribute('download', `${this.activeTab}_list_${new Date().toISOString().split('T')[0]}.csv`);
+            link.setAttribute(
+                'download',
+                `${this.activeTab.toLowerCase().replace(/\s+/g, '_')}_list_${new Date().toISOString().split('T')[0]}.csv`
+            );
+
             link.style.visibility = 'hidden';
+
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
+
+            URL.revokeObjectURL(url);
         },
 
         prevPage() {
