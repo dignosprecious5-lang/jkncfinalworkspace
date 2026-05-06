@@ -960,8 +960,7 @@ Route::middleware('auth')->group(function () {
         Route::view('/offboarding', 'human-capital.offboarding')->name('offboarding');
 
         // Attendance
-        Route::get('/human-capital/attendance', [AttendanceController::class, 'index'])
-        ->name('human-capital.attendance');
+        Route::get('/human-capital/attendance', [AttendanceController::class, 'index'])->name('human-capital.attendance');
 
 
     });

@@ -5,30 +5,35 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration {
+    
     public function up(): void
     {
         Schema::create('attendances', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('user_id')->constrained()->onDelete('cascade'); // Best practice
+            $table->string('employee_name'); 
             $table->date('date');
-            $table->string('employee_name');
-
+            
             $table->dateTime('time_in')->nullable();
             $table->dateTime('time_out')->nullable();
 
-            $table->dateTime('break_in')->nullable();
-            $table->dateTime('break_out')->nullable();
+            // Break 1
+            $table->dateTime('break_1_start')->nullable();
+            $table->dateTime('break_1_end')->nullable();
 
-            $table->dateTime('lunch_in')->nullable();
-            $table->dateTime('lunch_out')->nullable();
+            // Lunch
+            $table->dateTime('lunch_start')->nullable();
+            $table->dateTime('lunch_end')->nullable();
 
-            $table->integer('late')->default(0);
+            // Break 2
+            $table->dateTime('break_2_start')->nullable();
+            $table->dateTime('break_2_end')->nullable();
 
-            $table->decimal('total_working_hours', 8, 2)->nullable();
-            $table->decimal('total_lunch', 8, 2)->nullable();
-            $table->decimal('total_break', 8, 2)->nullable();
+            $table->integer('total_break_mins')->default(0);
+            $table->integer('total_lunch_mins')->default(0);
+            $table->decimal('total_working_hours', 8, 2)->default(0);
 
-            $table->enum('status', ['pending', 'approved'])->default('pending');
-
+            $table->enum('status', ['pending', 'approved', 'rejected'])->default('pending');
             $table->timestamps();
         });
     }
