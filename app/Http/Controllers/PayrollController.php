@@ -91,9 +91,14 @@ class PayrollController extends Controller
             'salary_grade_id' => ['required', 'exists:salary_grades,id'],
             'level_name' => ['required', 'string', 'max:100'],
             'work_schedule_label' => ['required', Rule::in([
-                'no_saturday',
-                'no_sat_sun',
-                'no_sat_sun_holidays',
+                'Monday to Sunday – 8:00 AM to 5:00 PM',
+                'Monday to Saturday – 8:00 AM to 5:00 PM',
+                'Monday to Friday – 8:00 AM to 5:00 PM',
+                'Shifting Schedule',
+                'Night Shift',
+                'Hybrid',
+                'Work From Home',
+                'Flexible',
             ])],
             'hours_per_day' => ['required', 'numeric', 'min:1'],
             'date_created' => ['required', 'date'],
@@ -107,7 +112,7 @@ class PayrollController extends Controller
             'salary_grade_id' => $salaryGrade->id,
             'level_name' => $validated['level_name'],
             'computation_type' => $salaryGrade->payment_type,
-            'work_schedule' => null,
+            'work_schedule' => $this->mapPayrollWorkScheduleCode($validated['work_schedule_label']),
             'work_schedule_label' => $validated['work_schedule_label'],
             'hours_per_day' => $validated['hours_per_day'],
             'date_created' => $validated['date_created'],
@@ -374,6 +379,17 @@ class PayrollController extends Controller
             ]);
         }
     }
+
+
+private function mapPayrollWorkScheduleCode(?string $label): ?string
+{
+    return match ($label) {
+        'Monday to Sunday – 8:00 AM to 5:00 PM' => 'every_day',
+        'Monday to Saturday – 8:00 AM to 5:00 PM' => 'no_sunday',
+        'Monday to Friday – 8:00 AM to 5:00 PM' => 'no_sat_sun',
+        default => null,
+    };
+}
 
     private function storeBasisFile(Request $request, string $directory): ?string
     {

@@ -15,7 +15,8 @@
     {{ $divisions->toJson() }},
     {{ $units->toJson() }},
     {{ $positions->toJson() }},
-    {{ $salaryGrades->toJson() }}
+    {{ $salaryGrades->toJson() }},
+    {{ $payrollLevels->toJson() }}
 )" x-init="startAssessmentPolling()">
 
     {{-- TABS --}}
@@ -1361,18 +1362,36 @@
                         {{-- WORK SCHEDULE --}}
                         <div class="space-y-4">
                             <h3 class="text-xs font-black text-blue-700 uppercase tracking-[0.2em] border-b pb-2">Work Schedule</h3>
+                            <div>
+                                <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Payroll Level <span class="text-red-500">*</span></label>
+                                <select x-model="jpfForm.payrollLevelId" @change="onJpfPayrollLevelChange()"
+                                    class="w-full text-sm px-3 py-2 border border-gray-300 rounded-lg bg-white outline-none">
+                                    <option value="">Select Payroll Level...</option>
+                                    <template x-for="level in jpfFilteredPayrollLevels" :key="level.id">
+                                        <option :value="level.id" x-text="formatPayrollLevelOption(level)"></option>
+                                    </template>
+                                </select>
+                                <p class="text-[11px] text-gray-500 mt-1">
+                                    Work Schedule and Rest Day/s are auto-filled from the selected Payroll Level.
+                                </p>
+                            </div>
+
                             <div class="grid grid-cols-2 gap-3">
-                                <template x-for="ws in ['Monday to Friday – 8:00 AM to 5:00 PM', 'Monday to Saturday – 8:00 AM to 5:00 PM', 'Shifting Schedule', 'Night Shift', 'Hybrid', 'Work From Home', 'Flexible']" :key="ws">
-                                    <label class="flex items-center gap-2 text-xs font-semibold text-gray-600 cursor-pointer p-2 rounded-lg border border-gray-100 hover:bg-gray-50 transition"
-                                        :class="jpfForm.workSchedule.includes(ws) ? 'bg-blue-50 border-blue-200' : ''">
-                                        <input type="checkbox" x-model="jpfForm.workSchedule" :value="ws" class="w-4 h-4 rounded text-blue-600 focus:ring-blue-500">
-                                        <span x-text="ws"></span>
+                                <template x-for="ws in jpfWorkScheduleOptions" :key="ws.label + '-' + jpfForm.workSchedule.join('|') + '-' + jpfForm.payrollLevelId">
+                                    <label class="flex items-center gap-2 text-xs font-semibold text-gray-600 p-2 rounded-lg border border-gray-100 transition"
+                                        :class="isJpfWorkScheduleChecked(ws) ? 'bg-blue-50 border-blue-300 text-blue-700' : 'hover:bg-gray-50'">
+                                        <input type="checkbox"
+                                            :checked="isJpfWorkScheduleChecked(ws)"
+                                            @change="toggleJpfWorkSchedule(ws, $event.target.checked)"
+                                            :disabled="jpfForm.payrollLevelId"
+                                            class="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 disabled:opacity-80">
+                                        <span x-text="ws.label"></span>
                                     </label>
                                 </template>
                             </div>
                             <div class="flex items-center gap-3 pt-2">
                                 <label class="text-[10px] font-bold text-gray-400 uppercase">Rest Day/s:</label>
-                                <input type="text" x-model="jpfForm.restDays" placeholder="e.g. Sunday" class="flex-1 border-b border-gray-300 focus:border-blue-500 outline-none text-sm py-1">
+                                <input type="text" x-model="jpfForm.restDays" placeholder="e.g. Sunday" :readonly="jpfForm.payrollLevelId" class="flex-1 border-b border-gray-300 focus:border-blue-500 outline-none text-sm py-1" :class="jpfForm.payrollLevelId ? 'bg-gray-100 text-gray-700 px-2 rounded' : ''">
                             </div>
                         </div>
 
@@ -3396,7 +3415,8 @@ function recruitmentPage(
     initialDivisions = [],
     initialUnits = [],
     initialPositions = [],
-    initialSalaryGrades = []
+    initialSalaryGrades = [],
+    initialPayrollLevels = []
 ) {
     return {
         assessmentPolling: null,
@@ -3463,6 +3483,7 @@ refreshAssessments() {
         units: initialUnits,
         positions: initialPositions,
         salaryGrades: initialSalaryGrades,
+        payrollLevels: initialPayrollLevels,
 
         tabs: [
             { key: 'MRF',        label: 'MRF' },
@@ -3471,6 +3492,17 @@ refreshAssessments() {
             { key: 'Assessment', label: 'Assessment' },
             { key: 'Interview',  label: 'Interview' },
             { key: 'Job Offer',  label: 'Job Offer' },
+        ],
+
+        jpfWorkScheduleOptions: [
+            { key: 'every_day', label: 'Monday to Sunday – 8:00 AM to 5:00 PM' },
+            { key: 'no_sat_sun', label: 'Monday to Friday – 8:00 AM to 5:00 PM' },
+            { key: 'no_sunday', label: 'Monday to Saturday – 8:00 AM to 5:00 PM' },
+            { key: 'shifting', label: 'Shifting Schedule' },
+            { key: 'night_shift', label: 'Night Shift' },
+            { key: 'hybrid', label: 'Hybrid' },
+            { key: 'work_from_home', label: 'Work From Home' },
+            { key: 'flexible', label: 'Flexible' },
         ],
 
         data: {
@@ -3525,7 +3557,7 @@ refreshAssessments() {
             position: '', noOfVacancies: '', positionLevel: '', employmentType: '', reportsTo: '', workLocation: '',
 
             // SALARY OFFER / PAYROLL LINK (frontend only for now)
-            salaryGradeId: '', minSalary: '', maxSalary: '', salaryGrade: '',
+            salaryGradeId: '', payrollLevelId: '', minSalary: '', maxSalary: '', salaryGrade: '',
 
             // WAGE COMPLIANCE
             applicableRegion: 'Central Visayas', applicableArea: '', dailyMinWage: '', monthlyEquivalent: '',
@@ -3536,6 +3568,7 @@ refreshAssessments() {
 
             // WORK SCHEDULE
             workSchedule: [], // Mon-Fri, Mon-Sat, etc.
+            workScheduleKey: '',
             restDays: '',
 
             // JOB REQUIREMENTS
@@ -3778,6 +3811,27 @@ refreshAssessments() {
             return this.salaryGrades.find(g => String(g.id) === String(this.jpfForm.salaryGradeId)) || null;
         },
 
+        get jpfFilteredPayrollLevels() {
+            if (!this.jpfForm.salaryGradeId) return this.payrollLevels;
+            return this.payrollLevels.filter(level => String(level.salary_grade_id) === String(this.jpfForm.salaryGradeId));
+        },
+
+        get selectedJpfPayrollLevel() {
+            return this.payrollLevels.find(level => String(level.id) === String(this.jpfForm.payrollLevelId)) || null;
+        },
+
+        formatPayrollLevelOption(level) {
+            if (!level) return '';
+            const schedule = this.formatPayrollScheduleLabel(level);
+            const hours = level.hours_per_day ? `${Number(level.hours_per_day)} hrs/day` : '';
+            return [level.level_name, schedule, hours].filter(Boolean).join(' • ');
+        },
+
+
+formatPayrollScheduleLabel(level) {
+    return this.normalizeJpfWorkScheduleLabel(level?.work_schedule_label || level?.work_schedule || '');
+},
+
         get jpfFilteredDepartments() {
             if (!this.jpfForm.orgAddressId) return this.departments;
             return this.departments.filter(department => String(department.address_id) === String(this.jpfForm.orgAddressId));
@@ -3898,6 +3952,10 @@ refreshAssessments() {
             const grade = this.selectedJpfSalaryGrade;
             if (!grade) {
                 this.jpfForm.salaryGrade = '';
+                this.jpfForm.payrollLevelId = '';
+                this.jpfForm.workSchedule = [];
+                this.jpfForm.workScheduleKey = '';
+                this.jpfForm.restDays = '';
                 return;
             }
 
@@ -3914,7 +3972,106 @@ refreshAssessments() {
             if (daily > 0) {
                 this.jpfForm.dailyMinWage = daily;
             }
+
+            const selectedLevelStillValid = this.jpfFilteredPayrollLevels.some(level => String(level.id) === String(this.jpfForm.payrollLevelId));
+
+            if (!selectedLevelStillValid) {
+                this.jpfForm.payrollLevelId = '';
+                this.jpfForm.workSchedule = [];
+                this.jpfForm.workScheduleKey = '';
+                this.jpfForm.restDays = '';
+            }
+
+            if (!this.jpfForm.payrollLevelId && this.jpfFilteredPayrollLevels.length === 1) {
+                this.jpfForm.payrollLevelId = this.jpfFilteredPayrollLevels[0].id;
+                this.onJpfPayrollLevelChange();
+            }
         },
+
+
+normalizeJpfWorkScheduleLabel(value) {
+    const raw = String(value || '').trim();
+
+    const legacyMap = {
+        every_day: 'Monday to Sunday – 8:00 AM to 5:00 PM',
+        no_sunday: 'Monday to Saturday – 8:00 AM to 5:00 PM',
+        no_saturday: 'Monday to Friday – 8:00 AM to 5:00 PM',
+        no_sat_sun: 'Monday to Friday – 8:00 AM to 5:00 PM',
+        no_sat_sun_holidays: 'Monday to Friday – 8:00 AM to 5:00 PM',
+    };
+
+    return legacyMap[raw] || raw;
+},
+
+getJpfWorkScheduleOptionByLabel(label) {
+    const normalized = this.normalizeJpfWorkScheduleLabel(label);
+    return this.jpfWorkScheduleOptions.find(option => option.label === normalized) || null;
+},
+
+getJpfRestDaysByLabel(label) {
+    const normalized = this.normalizeJpfWorkScheduleLabel(label);
+
+    const restDayMap = {
+        'Monday to Sunday – 8:00 AM to 5:00 PM': 'None',
+        'Monday to Saturday – 8:00 AM to 5:00 PM': 'Sunday',
+        'Monday to Friday – 8:00 AM to 5:00 PM': 'Saturday and Sunday',
+    };
+
+    return restDayMap[normalized] || '';
+},
+
+isJpfWorkScheduleChecked(ws) {
+    if (!Array.isArray(this.jpfForm.workSchedule)) {
+        this.jpfForm.workSchedule = [];
+    }
+
+    return this.jpfForm.workSchedule.includes(ws.label);
+},
+
+toggleJpfWorkSchedule(ws, checked) {
+    if (this.jpfForm.payrollLevelId) {
+        return;
+    }
+
+    const label = typeof ws === 'string' ? ws : ws.label;
+    const key = typeof ws === 'string' ? '' : ws.key;
+
+    if (!Array.isArray(this.jpfForm.workSchedule)) {
+        this.jpfForm.workSchedule = [];
+    }
+
+    if (checked) {
+        if (!this.jpfForm.workSchedule.includes(label)) {
+            this.jpfForm.workSchedule.push(label);
+        }
+
+        this.jpfForm.workScheduleKey = key;
+    } else {
+        this.jpfForm.workSchedule = this.jpfForm.workSchedule.filter(item => item !== label);
+
+        if (this.jpfForm.workScheduleKey === key) {
+            this.jpfForm.workScheduleKey = '';
+        }
+    }
+},
+
+onJpfPayrollLevelChange() {
+    const level = this.selectedJpfPayrollLevel;
+
+    if (!level) {
+        this.jpfForm.workSchedule = [];
+        this.jpfForm.workScheduleKey = '';
+        this.jpfForm.restDays = '';
+        return;
+    }
+
+    const label = this.normalizeJpfWorkScheduleLabel(level.work_schedule_label || level.work_schedule);
+    const option = this.getJpfWorkScheduleOptionByLabel(label);
+
+    this.jpfForm.workScheduleKey = option ? option.key : '';
+    this.jpfForm.workSchedule = label ? [label] : [];
+    this.jpfForm.restDays = this.getJpfRestDaysByLabel(label);
+},
 
         get validJobOfferInterviews() {
             return this.data['Interview'].filter(interview => {
@@ -4516,7 +4673,8 @@ refreshAssessments() {
                 reportsTo: row.reports_to,
                 workLocation: row.location,
 
-                salaryGradeId: '',
+                salaryGradeId: row.salary_grade_id || '',
+                payrollLevelId: '',
                 minSalary: row.min_salary_offer,
                 maxSalary: row.max_salary_offer,
                 salaryGrade: row.salary_grade,

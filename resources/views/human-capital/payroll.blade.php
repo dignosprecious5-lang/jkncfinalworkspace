@@ -118,11 +118,13 @@
                                     <td class="p-3 text-gray-900 align-top">{{ $item->salaryGrade?->name }}</td>
                                     <td class="p-3 text-gray-900 align-top capitalize">{{ $item->computation_type }}</td>
                                     <td class="p-3 text-gray-900 align-top">
-                                        {{ match($item->work_schedule_label) {
-                                            'no_saturday' => 'Does not work on Saturday',
-                                            'no_sat_sun' => 'Does not work on Saturday and Sunday',
-                                            'no_sat_sun_holidays' => 'Does not work on Saturday, Sunday and Holidays',
-                                            default => '-',
+                                        {{ match($item->work_schedule_label ?: $item->work_schedule) {
+                                            'every_day' => 'Monday to Sunday – 8:00 AM to 5:00 PM',
+                                            'no_sunday' => 'Monday to Saturday – 8:00 AM to 5:00 PM',
+                                            'no_saturday' => 'Monday to Friday – 8:00 AM to 5:00 PM',
+                                            'no_sat_sun' => 'Monday to Friday – 8:00 AM to 5:00 PM',
+                                            'no_sat_sun_holidays' => 'Monday to Friday – 8:00 AM to 5:00 PM',
+                                            default => $item->work_schedule_label ?: '-',
                                         } }}
                                     </td>
                                     <td class="p-3 text-gray-900 align-top">{{ number_format($item->hours_per_day, 2) }}</td>
@@ -606,9 +608,14 @@
                         <div>
                             <label class="block text-sm font-medium mb-1">Work Schedule</label>
                             <select name="work_schedule_label" class="w-full border rounded-md p-2 bg-white text-gray-900" required>
-                                <option value="no_saturday">Does not work on Saturday</option>
-                                <option value="no_sat_sun">Does not work on Saturday and Sunday</option>
-                                <option value="no_sat_sun_holidays">Does not work on Saturday, Sunday and Holidays</option>
+                                <option value="Monday to Sunday – 8:00 AM to 5:00 PM">Monday to Sunday – 8:00 AM to 5:00 PM</option>
+                                <option value="Monday to Saturday – 8:00 AM to 5:00 PM">Monday to Saturday – 8:00 AM to 5:00 PM</option>
+                                <option value="Monday to Friday – 8:00 AM to 5:00 PM">Monday to Friday – 8:00 AM to 5:00 PM</option>
+                                <option value="Shifting Schedule">Shifting Schedule</option>
+                                <option value="Night Shift">Night Shift</option>
+                                <option value="Hybrid">Hybrid</option>
+                                <option value="Work From Home">Work From Home</option>
+                                <option value="Flexible">Flexible</option>
                             </select>
                         </div>
 

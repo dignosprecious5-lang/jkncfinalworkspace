@@ -17,6 +17,7 @@ use App\Models\Division;
 use App\Models\Unit;
 use App\Models\Position;
 use App\Models\SalaryGrade;
+use App\Models\PayrollLevel;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
 use App\Mail\AssessmentProceedingMail;
@@ -160,6 +161,23 @@ class RecruitmentController extends Controller
             })
             ->values();
 
+        $payrollLevels = PayrollLevel::with('salaryGrade')
+            ->orderBy('level_name')
+            ->get()
+            ->map(function ($level) {
+                return [
+                    'id' => $level->id,
+                    'salary_grade_id' => $level->salary_grade_id,
+                    'salary_grade' => optional($level->salaryGrade)->code,
+                    'level_name' => $level->level_name,
+                    'computation_type' => $level->computation_type,
+                    'work_schedule' => $level->work_schedule,
+                    'work_schedule_label' => $level->work_schedule_label ?? null,
+                    'hours_per_day' => $level->hours_per_day,
+                ];
+            })
+            ->values();
+
         return view('human-capital.recruitment', compact(
             'mrfData',
             'jpfData',
@@ -174,7 +192,8 @@ class RecruitmentController extends Controller
             'divisions',
             'units',
             'positions',
-            'salaryGrades'
+            'salaryGrades',
+            'payrollLevels'
         ));
     }
 
