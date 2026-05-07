@@ -526,19 +526,6 @@
                                 </div>
                             </div>
 
-                            <div class="grid grid-cols-2 gap-3">
-                                <div>
-                                    <label class="block text-xs font-semibold text-gray-600 mb-1">Requesting Department</label>
-                                    <input type="text" x-model="form.department" readonly required
-                                        class="w-full text-sm px-3 py-1.5 border border-gray-200 rounded-lg bg-gray-100 text-gray-700 outline-none">
-                                </div>
-
-                                <div>
-                                    <label class="block text-xs font-semibold text-gray-600 mb-1">Position / Title</label>
-                                    <input type="text" x-model="form.position" readonly required
-                                        class="w-full text-sm px-3 py-1.5 border border-gray-200 rounded-lg bg-gray-100 text-gray-700 outline-none">
-                                </div>
-                            </div>
 
                             <div class="text-[11px] text-gray-500" x-show="selectedDepartment || selectedPosition">
                                 <p x-show="selectedAddress">
