@@ -1314,7 +1314,9 @@
                                 </div>
                                 <div>
                                     <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Applicable Area</label>
-                                    <input type="text" x-model="jpfForm.applicableArea" class="w-full text-sm px-3 py-2 border border-gray-300 rounded-lg outline-none">
+                                    <input type="text" x-model="jpfForm.applicableArea" readonly
+                                        class="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg bg-gray-100 text-gray-700 outline-none">
+                                    <p class="text-[11px] text-gray-500 mt-1">Auto-filled from the MRF organizational address.</p>
                                 </div>
                                 <div>
                                     <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Current Daily Min Wage (₱)</label>
@@ -3786,12 +3788,26 @@ refreshAssessments() {
             return this.positions.filter(position => String(position.address_id) === String(this.jpfForm.orgAddressId));
         },
 
+        formatApplicableAreaFromAddress(address) {
+            if (!address) return '';
+
+            const areaParts = [
+                address.barangay_name,
+                address.city_name,
+                address.province_name,
+                address.region_name
+            ].filter(Boolean);
+
+            return areaParts.length ? areaParts.join(', ') : (address.full_address || '');
+        },
+
         onJpfMrfChange() {
             const mrf = this.selectedJpfMrf;
 
             if (!mrf) {
                 this.jpfForm.relatedMrfNo = '';
                 this.jpfForm.employmentType = '';
+                this.jpfForm.applicableArea = '';
                 return;
             }
 
@@ -3819,7 +3835,7 @@ refreshAssessments() {
 
             this.jpfForm.officeBranchSite = address ? (address.full_address || '') : '';
             this.jpfForm.workLocation = address ? (address.full_address || '') : '';
-            this.jpfForm.applicableArea = address ? [address.city_name, address.province_name].filter(Boolean).join(', ') : '';
+            this.jpfForm.applicableArea = this.formatApplicableAreaFromAddress(address);
 
             this.jpfForm.departmentUnit = department ? (department.department_name || '') : (mrf.department || '');
             this.jpfForm.departmentSuperior = department ? (department.department_head || '') : '';
@@ -3854,7 +3870,7 @@ refreshAssessments() {
             const address = this.selectedJpfAddress;
             this.jpfForm.officeBranchSite = address ? address.full_address : '';
             this.jpfForm.workLocation = address ? address.full_address : '';
-            this.jpfForm.applicableArea = address ? [address.city_name, address.province_name].filter(Boolean).join(', ') : '';
+            this.jpfForm.applicableArea = this.formatApplicableAreaFromAddress(address);
             this.jpfForm.orgBranchId = '';
             this.jpfForm.orgOfficeId = '';
             this.jpfForm.orgDepartmentId = '';
