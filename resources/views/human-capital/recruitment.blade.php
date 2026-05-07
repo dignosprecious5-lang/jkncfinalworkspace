@@ -16,7 +16,7 @@
     {{ $units->toJson() }},
     {{ $positions->toJson() }},
     {{ $salaryGrades->toJson() }}
-)">
+)" x-init="startAssessmentPolling()">
 
     {{-- TABS --}}
     <div class="flex items-center border-b border-gray-200 mb-4 gap-1">
@@ -2260,14 +2260,26 @@
                                         class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 text-gray-700 text-sm transition-all shadow-sm">
                                 </div>
                                 <div>
-                                    <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Position Applied</label>
-                                    <select x-model="cafForm.positionApplied" required
+                                    <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Applied Job / JPF</label>
+                                    <select x-model="cafForm.jobPostingId" @change="onCafJpfChange()" required
                                         class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 text-gray-700 text-sm transition-all bg-white cursor-pointer shadow-sm">
-                                        <option value="">Select Position</option>
-                                        <template x-for="pos in uniqueJpfPositions" :key="pos">
-                                            <option :value="pos" x-text="pos"></option>
+                                        <option value="">Select Posted JPF</option>
+                                        <template x-for="jpf in postedJPFs" :key="jpf.id || jpf.job_id">
+                                            <option :value="jpf.id" x-text="`${jpf.job_id || 'JPF'} - ${jpf.position || 'No position'} (${jpf.department_unit || jpf.departmentUnit || 'No department'})`"></option>
                                         </template>
                                     </select>
+                                    <p class="text-[11px] mt-1"
+                                       :class="postedJPFs.length ? 'text-gray-500' : 'text-red-500'"
+                                       x-text="postedJPFs.length ? 'Only Posted JPF records are available for applicants.' : 'No Posted JPF available. Post a JPF first.'"></p>
+
+                                    <input type="hidden" x-model="cafForm.positionApplied">
+
+                                    <div class="mt-3 grid grid-cols-1 gap-2 text-[11px] text-gray-600 bg-gray-50 border border-gray-100 rounded-lg p-3" x-show="selectedCafJpf">
+                                        <p><strong>Position:</strong> <span x-text="cafForm.positionApplied || '—'"></span></p>
+                                        <p><strong>Department / Unit:</strong> <span x-text="selectedCafJpf?.department_unit || selectedCafJpf?.departmentUnit || '—'"></span></p>
+                                        <p><strong>Location:</strong> <span x-text="selectedCafJpf?.location || selectedCafJpf?.office_branch_site || selectedCafJpf?.officeBranchSite || '—'"></span></p>
+                                        <p><strong>Employment Type:</strong> <span x-text="selectedCafJpf?.employment_type || selectedCafJpf?.employmentType || '—'"></span></p>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -3160,8 +3172,10 @@
                             <button @click="showJobOfferViewModal = false" class="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl transition uppercase tracking-widest text-[11px]">
                                 Close
                             </button>
-                            <button class="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition shadow-lg shadow-blue-200 uppercase tracking-widest text-[11px]">
-                                Send Email
+                            <button type="button"
+                                @click="resendJobOfferEmail(viewJobOfferData)"
+                                class="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition shadow-lg shadow-blue-200 uppercase tracking-widest text-[11px]">
+                                Resend Email
                             </button>
                         </div>
                     </div>
@@ -3287,26 +3301,35 @@
             </div>
 
             <form @submit.prevent="submitInterview()" class="p-6 space-y-5 bg-white">
-                <div class="grid grid-cols-2 gap-5">
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Passed Assessment Candidate</label>
+                    <select x-model="interviewForm.assessmentId" @change="onInterviewAssessmentChange()" required
+                        class="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 text-gray-700 text-sm transition-all bg-gray-50/50 cursor-pointer appearance-none">
+                        <option value="">Select Passed Assessment</option>
+                        <template x-for="assessment in passedAssessmentCandidates" :key="assessment.id">
+                            <option :value="assessment.id" x-text="`${assessment.name} - ${assessment.position}`"></option>
+                        </template>
+                    </select>
+                    <p class="text-[11px] mt-1"
+                       :class="passedAssessmentCandidates.length ? 'text-gray-500' : 'text-red-500'"
+                       x-text="passedAssessmentCandidates.length ? 'Only Passed Assessment records are available for interview scheduling.' : 'No Passed Assessment available yet.'"></p>
+                </div>
+
+                <div class="grid grid-cols-3 gap-5">
                     <div>
                         <label class="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Candidate Name</label>
-                        <select x-model="interviewForm.name" required
-                            class="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 text-gray-700 text-sm transition-all bg-gray-50/50 cursor-pointer appearance-none">
-                            <option value="">Select Candidate</option>
-                            <template x-for="name in uniqueCafNames" :key="name">
-                                <option :value="name" x-text="name"></option>
-                            </template>
-                        </select>
+                        <input type="text" x-model="interviewForm.name" readonly required
+                            class="w-full px-4 py-2.5 border border-gray-200 rounded-xl bg-gray-100 text-gray-700 text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Candidate Email</label>
+                        <input type="email" x-model="interviewForm.email" readonly required
+                            class="w-full px-4 py-2.5 border border-gray-200 rounded-xl bg-gray-100 text-gray-700 text-sm">
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Position</label>
-                        <select x-model="interviewForm.position" required
-                            class="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 text-gray-700 text-sm transition-all bg-gray-50/50 cursor-pointer appearance-none">
-                            <option value="">Select Position</option>
-                            <template x-for="pos in uniqueCafPositions" :key="pos">
-                                <option :value="pos" x-text="pos"></option>
-                            </template>
-                        </select>
+                        <input type="text" x-model="interviewForm.position" readonly required
+                            class="w-full px-4 py-2.5 border border-gray-200 rounded-xl bg-gray-100 text-gray-700 text-sm">
                     </div>
                 </div>
 
@@ -3390,6 +3413,33 @@ function recruitmentPage(
     initialSalaryGrades = []
 ) {
     return {
+        assessmentPolling: null,
+
+startAssessmentPolling() {
+    this.refreshAssessments();
+
+    if (this.assessmentPolling) {
+        clearInterval(this.assessmentPolling);
+    }
+
+    this.assessmentPolling = setInterval(() => {
+        this.refreshAssessments();
+    }, 5000);
+},
+
+refreshAssessments() {
+    axios.get('/human-capital/recruitment/assessment/latest?ts=' + Date.now())
+        .then(res => {
+            if (res.data.success) {
+                this.data['Assessment'] = res.data.data;
+                console.log('Assessment polling updated:', res.data.data);
+            }
+        })
+        .catch(err => {
+            console.error('Assessment polling failed:', err);
+        });
+},
+
         activeTab: 'MRF',
         search: '',
         paperSize: 'a4',
@@ -3528,6 +3578,7 @@ function recruitmentPage(
         },
 
         cafForm: {
+            jobPostingId: '',
             fullName: '', positionApplied: '', email: '', phone: '', 
             photo: null, cv: null, coverLetterFile: null, coverLetter: ''
         },
@@ -3537,7 +3588,8 @@ function recruitmentPage(
         },
 
         interviewForm: {
-            name: '', position: '', type: 'Online', interviewer: '', 
+            assessmentId: '',
+            name: '', email: '', position: '', type: 'Online', interviewer: '', 
             interview_date: '', duration: '60', meeting_link: ''
         },
 
@@ -4172,10 +4224,16 @@ function recruitmentPage(
         },
 
         scheduleInterviewFromAssessment(item) {
-            // Pre-fill interview form and switch to Interview tab
+            if (!item || item.status !== 'Passed') {
+                alert('Only Passed Assessment records can be scheduled for interview.');
+                return;
+            }
+
             this.interviewForm = {
-                name: item.name,
-                position: item.position,
+                assessmentId: item.id || '',
+                name: item.name || '',
+                email: item.email || '',
+                position: item.position || '',
                 type: 'Online',
                 interviewer: '', 
                 interview_date: '',
@@ -4235,10 +4293,21 @@ function recruitmentPage(
         },
 
         submitInterview() {
+            if (!this.interviewForm.assessmentId || !this.interviewForm.name || !this.interviewForm.email || !this.interviewForm.position) {
+                alert('Please select a Passed Assessment candidate before scheduling the interview.');
+                return;
+            }
+
             axios.post('{{ route("human-capital.recruitment.store_interview") }}', this.interviewForm)
             .then(res => {
                 this.data['Interview'].unshift(res.data.data);
                 this.showInterviewModal = false;
+
+                if (res.data.warning) {
+                    alert(res.data.warning);
+                } else {
+                    alert(res.data.message || 'Interview scheduled and email sent successfully.');
+                }
             })
             .catch(err => {
                 alert('Error scheduling interview: ' + (err.response?.data?.message || err.message));
@@ -4256,42 +4325,48 @@ function recruitmentPage(
         },
 
         submitJobOffer() {
-            if (!this.jobOfferForm.interviewId) {
-                alert('Please select a Completed/Passed Interview before creating a Job Offer.');
-                return;
-            }
+    if (!this.jobOfferForm.interviewId) {
+        alert('Please select a Completed/Passed Interview before creating a Job Offer.');
+        return;
+    }
 
-            if (!this.selectedJobOfferInterview || !this.interviewAllowsJobOffer(this.selectedJobOfferInterview)) {
-                alert('Interview must be Completed or Passed before creating a Job Offer.');
-                return;
-            }
+    if (!this.selectedJobOfferInterview || !this.interviewAllowsJobOffer(this.selectedJobOfferInterview)) {
+        alert('Interview must be Completed or Passed before creating a Job Offer.');
+        return;
+    }
 
-            if (!this.jobOfferForm.jobPostingId) {
-                alert('Please select a JPF with status Posted/Open before creating a Job Offer.');
-                return;
-            }
+    if (!this.jobOfferForm.jobPostingId) {
+        alert('Please select a JPF with status Posted/Open before creating a Job Offer.');
+        return;
+    }
 
-            if (!this.selectedJobOfferJpf) {
-                alert('Selected JPF was not found. Please select another JPF.');
-                return;
-            }
+    if (!this.selectedJobOfferJpf) {
+        alert('Selected JPF was not found. Please select another JPF.');
+        return;
+    }
 
-            const status = String(this.selectedJobOfferJpf.status || '').toLowerCase();
+    const status = String(this.selectedJobOfferJpf.status || '').toLowerCase();
 
-            if (!['posted', 'open'].includes(status)) {
-                alert('Only JPF records with status Posted/Open can be used for Job Offer.');
-                return;
-            }
+    if (!['posted', 'open'].includes(status)) {
+        alert('Only JPF records with status Posted/Open can be used for Job Offer.');
+        return;
+    }
 
-            axios.post('{{ route("human-capital.recruitment.store_job_offer") }}', this.jobOfferForm)
-            .then(res => {
-                this.data['Job Offer'].unshift(res.data.data);
-                this.showJobOfferModal = false;
-            })
-            .catch(err => {
-                alert('Error saving Job Offer: ' + (err.response?.data?.message || err.message));
-            });
-        },
+    axios.post('{{ route("human-capital.recruitment.store_job_offer") }}', this.jobOfferForm)
+    .then(res => {
+        this.data['Job Offer'].unshift(res.data.data);
+        this.showJobOfferModal = false;
+
+        if (res.data.warning) {
+            alert(res.data.warning);
+        } else {
+            alert(res.data.message || 'Job Offer created and emailed successfully.');
+        }
+    })
+    .catch(err => {
+        alert('Error saving Job Offer: ' + (err.response?.data?.message || err.message));
+    });
+},
 
         deleteJobOffer(id) {
             if (!confirm('Are you sure you want to delete this job offer?')) return;
@@ -4347,6 +4422,21 @@ function recruitmentPage(
         viewJobOffer(offer) {
             this.viewJobOfferData = offer;
             this.showJobOfferViewModal = true;
+        },
+
+        resendJobOfferEmail(offer) {
+            if (!offer || !offer.id) {
+                alert('Job Offer record was not found.');
+                return;
+            }
+
+            axios.post(`/human-capital/recruitment/job-offer/${offer.id}/resend-email`)
+                .then(res => {
+                    alert(res.data.message || 'Job Offer email resent successfully.');
+                })
+                .catch(err => {
+                    alert('Error resending Job Offer email: ' + (err.response?.data?.message || err.message));
+                });
         },
 
         orgDisplay(collection, id, field, fallback = '—') {
@@ -4470,6 +4560,7 @@ function recruitmentPage(
             this.isEditing = true;
             this.editingId = row.id;
             this.cafForm = {
+                jobPostingId: row.job_posting_id || '',
                 fullName: row.name,
                 positionApplied: row.position,
                 email: row.email,
@@ -4540,14 +4631,26 @@ function recruitmentPage(
                 };
                 this.showJpfModal = true;
             } else if (this.activeTab === 'CAF') {
+                if (this.postedJPFs.length === 0) {
+                    alert('No Posted JPF available. Please post a JPF first before adding applicants.');
+                    return;
+                }
+
                 this.cafForm = {
+                    jobPostingId: '',
                     fullName: '', positionApplied: '', email: '', phone: '', 
                     photo: null, photo_path: null, cv: null, coverLetterFile: null, coverLetter: ''
                 };
                 this.showCafModal = true;
             } else if (this.activeTab === 'Interview') {
+                if (this.passedAssessmentCandidates.length === 0) {
+                    alert('No Passed Assessment available. An applicant must pass the assessment before scheduling an interview.');
+                    return;
+                }
+
                 this.interviewForm = {
-                    name: '', position: '', type: 'Online', interviewer: '', 
+                    assessmentId: '',
+                    name: '', email: '', position: '', type: 'Online', interviewer: '', 
                     interview_date: '', duration: '60', meeting_link: ''
                 };
                 this.generateMeetingLink();
@@ -4644,6 +4747,7 @@ function recruitmentPage(
 
         submitCAF() {
             let formData = new FormData();
+            formData.append('jobPostingId', this.cafForm.jobPostingId);
             formData.append('fullName', this.cafForm.fullName);
             formData.append('positionApplied', this.cafForm.positionApplied);
             formData.append('email', this.cafForm.email);
@@ -4680,7 +4784,9 @@ function recruitmentPage(
                 }
                 this.showCafModal = false;
             })
-            .catch(err => console.error('Error submitting CAF:', err));
+            .catch(err => {
+                alert('Error submitting CAF: ' + (err.response?.data?.message || err.message));
+            });
         },
 
         viewJPF(row) {
@@ -4760,6 +4866,7 @@ function recruitmentPage(
                 ],
 
                 'CAF': [
+                    { label: 'Applied JPF ID', key: 'job_posting_id' },
                     { label: 'Name', key: 'name' },
                     { label: 'Position', key: 'position' },
                     { label: 'Email', key: 'email' },
@@ -4918,6 +5025,37 @@ function recruitmentPage(
             return [...new Set(positions)];
         },
 
+        get postedJPFs() {
+            return this.data['JPF'].filter(jpf => {
+                const status = String(jpf.status || '').toLowerCase();
+                return status === 'posted';
+            });
+        },
+
+        get selectedCafJpf() {
+            return this.data['JPF'].find(jpf => String(jpf.id) === String(this.cafForm.jobPostingId)) || null;
+        },
+
+        onCafJpfChange() {
+            const jpf = this.selectedCafJpf;
+
+            if (!jpf) {
+                this.cafForm.positionApplied = '';
+                return;
+            }
+
+            const status = String(jpf.status || '').toLowerCase();
+
+            if (status !== 'posted') {
+                alert('Only Posted JPF records can be selected for applicant/CAF.');
+                this.cafForm.jobPostingId = '';
+                this.cafForm.positionApplied = '';
+                return;
+            }
+
+            this.cafForm.positionApplied = jpf.position || '';
+        },
+
         get uniqueJpfPositions() {
             const positions = this.data['JPF'].map(jpf => jpf.position).filter(p => p && p.trim() !== '');
             return [...new Set(positions)];
@@ -4931,6 +5069,25 @@ function recruitmentPage(
         get uniqueCafNames() {
             const names = this.data['CAF'].map(caf => caf.name).filter(n => n && n.trim() !== '');
             return [...new Set(names)];
+        },
+
+        get passedAssessmentCandidates() {
+            return this.data['Assessment'].filter(item => String(item.status || '').toLowerCase() === 'passed');
+        },
+
+        onInterviewAssessmentChange() {
+            const selected = this.passedAssessmentCandidates.find(item => String(item.id) === String(this.interviewForm.assessmentId));
+
+            if (!selected) {
+                this.interviewForm.name = '';
+                this.interviewForm.email = '';
+                this.interviewForm.position = '';
+                return;
+            }
+
+            this.interviewForm.name = selected.name || '';
+            this.interviewForm.email = selected.email || '';
+            this.interviewForm.position = selected.position || '';
         },
 
         viewMRF(row) {

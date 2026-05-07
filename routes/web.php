@@ -193,9 +193,13 @@ Route::get('/careers/apply', [RecruitmentController::class, 'showPublicApplicati
 Route::post('/careers/apply', [RecruitmentController::class, 'storeCAF'])->name('careers.apply.submit');
 Route::get('/careers/pds', [RecruitmentController::class, 'showPublicPDSForm'])->name('careers.pds');
 Route::post('/careers/pds', [RecruitmentController::class, 'storePDS'])->name('careers.pds.submit');
-Route::get('/assessment/start/{uuid}', [RecruitmentController::class, 'startAssessment'])->name('recruitment.assessment.start');
-Route::post('/human-capital/recruitment/interview/{id}/status', [RecruitmentController::class, 'updateInterviewStatus'])
-    ->name('human-capital.recruitment.interview_status');
+
+Route::get('/assessment/start/{uuid}', [RecruitmentController::class, 'startAssessment'])
+    ->name('recruitment.assessment.start');
+
+Route::post('/assessment/start/{uuid}/submit', [RecruitmentController::class, 'submitAssessmentTest'])
+    ->name('recruitment.assessment.submit');
+
 /*
 |--------------------------------------------------------------------------
 | AUTHENTICATED ROUTES
@@ -925,6 +929,7 @@ Route::middleware('auth')->group(function () {
         // Assessment
         Route::post('/recruitment/assessment', [RecruitmentController::class, 'storeAssessment'])->name('recruitment.store_assessment');
         Route::post('/recruitment/assessment/{id}/status', [RecruitmentController::class, 'updateAssessmentStatus'])->name('recruitment.update_assessment_status');
+        Route::get('/recruitment/assessment/latest', [RecruitmentController::class, 'latestAssessments'])->name('recruitment.assessment.latest');
         Route::post('/recruitment/assessment/{id}/send-test', [RecruitmentController::class, 'sendAssessmentTest'])->name('recruitment.send_assessment_test');
         Route::post('/recruitment/assessment/{id}/result', [RecruitmentController::class, 'updateAssessmentResult'])->name('recruitment.update_assessment_result');
         Route::delete('/recruitment/assessment/{id}', [RecruitmentController::class, 'deleteAssessment'])->name('recruitment.delete_assessment');
@@ -932,9 +937,12 @@ Route::middleware('auth')->group(function () {
         // Interview
         Route::post('/recruitment/interview', [RecruitmentController::class, 'storeInterview'])->name('recruitment.store_interview');
         Route::delete('/recruitment/interview/{id}', [RecruitmentController::class, 'deleteInterview'])->name('recruitment.delete_interview');
+        Route::post('/recruitment/interview/{id}/status', [RecruitmentController::class, 'updateInterviewStatus'])
+            ->name('recruitment.interview_status');
 
         // Job Offer
         Route::post('/recruitment/job-offer', [RecruitmentController::class, 'storeJobOffer'])->name('recruitment.store_job_offer');
+        Route::post('/recruitment/job-offer/{id}/resend-email', [RecruitmentController::class, 'resendJobOfferEmail'])->name('recruitment.resend_job_offer_email');
         Route::delete('/recruitment/job-offer/{id}', [RecruitmentController::class, 'deleteJobOffer'])->name('recruitment.delete_job_offer');
 
         /*
@@ -970,7 +978,4 @@ Route::middleware('auth')->group(function () {
 
 
     });
-
-    Route::get('/recruitment/assessment/start/{uuid}', [RecruitmentController::class, 'startAssessment'])
-        ->name('recruitment.assessment.start');
 });

@@ -18,8 +18,11 @@ use App\Models\Unit;
 use App\Models\Position;
 use App\Models\SalaryGrade;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Log;
 use App\Mail\AssessmentProceedingMail;
 use App\Mail\AssessmentTestMail;
+use App\Mail\InterviewScheduleMail;
+use App\Mail\JobOfferMail;
 
 class RecruitmentController extends Controller
 {
@@ -625,22 +628,60 @@ class RecruitmentController extends Controller
         return response()->json(['success' => true]);
     }
 
+    public function latestAssessments()
+    {
+        $assessments = CandidateAssessment::latest()->get();
+
+        return response()->json([
+            'success' => true,
+            'data' => $assessments
+        ]);
+    }
+
     public function storeInterview(Request $request)
     {
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|email|max:255',
+            'position' => 'required|string|max:255',
+            'type' => 'required|string|max:255',
+            'interviewer' => 'required|string|max:255',
+            'interview_date' => 'required',
+            'duration' => 'nullable|integer|min:1',
+            'meeting_link' => 'nullable|string|max:1000',
+        ]);
+
         try {
             $interview = CandidateInterview::create([
                 'name' => $request->name,
+                'email' => $request->email,
                 'position' => $request->position,
                 'type' => $request->type,
-                'round' => $request->type, // For backward compatibility
+                'round' => $request->type, // Backward compatibility with old column
                 'interviewer' => $request->interviewer,
                 'interview_date' => $request->interview_date,
-                'duration' => $request->duration,
+                'duration' => $request->duration ?: 60,
                 'meeting_link' => $request->meeting_link,
-                'status' => 'Scheduled'
+                'status' => 'Scheduled',
             ]);
 
-            return response()->json(['success' => true, 'data' => $interview]);
+            try {
+                Mail::to($interview->email)->send(new InterviewScheduleMail($interview));
+            } catch (\Exception $mailException) {
+                Log::error('Failed to send interview schedule email to ' . $interview->email . ': ' . $mailException->getMessage());
+
+                return response()->json([
+                    'success' => true,
+                    'data' => $interview,
+                    'warning' => 'Interview was scheduled, but the email could not be sent. Check mail settings/logs.'
+                ]);
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => $interview,
+                'message' => 'Interview scheduled and email sent successfully.'
+            ]);
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }
@@ -692,70 +733,145 @@ class RecruitmentController extends Controller
         JobPosting::findOrFail($id)->delete();
         return response()->json(['success' => true]);
     }
-    public function storeJobOffer(Request $request)
-    {
-        try {
-            $interview = CandidateInterview::find($request->interviewId);
 
-            if (!$interview) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Please select a Completed/Passed Interview before creating a Job Offer.'
-                ], 422);
-            }
+public function storeJobOffer(Request $request)
+{
+    try {
+        $interview = CandidateInterview::find($request->interviewId);
 
-            if (!in_array(strtolower((string) $interview->status), ['completed', 'passed'], true)) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Interview must be Completed or Passed before creating a Job Offer.'
-                ], 422);
-            }
-
-            $jpf = JobPosting::find($request->jobPostingId);
-
-            if (!$jpf) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Please select a JPF with status Posted/Open before creating a Job Offer.'
-                ], 422);
-            }
-
-            $status = strtolower((string) $jpf->status);
-
-            if (!in_array($status, ['posted', 'open'], true)) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Only JPF records with status Posted/Open can be used for Job Offer.'
-                ], 422);
-            }
-
-            $jobOffer = JobOffer::create([
-                'job_posting_id'  => $jpf->id,
-                'address_id'      => $request->orgAddressId ?: $jpf->address_id,
-                'branch_id'       => $request->orgBranchId ?: $jpf->branch_id,
-                'office_id'       => $request->orgOfficeId ?: $jpf->office_id,
-                'department_id'   => $request->orgDepartmentId ?: $jpf->department_id,
-                'division_id'     => $request->orgDivisionId ?: $jpf->division_id,
-                'unit_id'         => $request->orgUnitId ?: $jpf->unit_id,
-                'position_id'     => $request->orgPositionId ?: $jpf->position_id,
-                'salary_grade_id' => $request->salaryGradeId ?: $jpf->salary_grade_id,
-
-                'name'            => $request->name,
-                'position'        => $request->position,
-                'salary'          => $request->salary,
-                'start_date'      => $request->startDate,
-                'employment_type' => $request->employmentType,
-                'department'      => $request->department,
-                'company_address' => $request->companyAddress,
-                'benefits'        => $request->benefits,
-                'status'          => $request->status ?: 'Pending',
-            ]);
-
-            return response()->json(['success' => true, 'data' => $jobOffer]);
-        } catch (\Exception $e) {
-            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        if (!$interview) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Please select a Completed/Passed Interview before creating a Job Offer.'
+            ], 422);
         }
+
+        if (!in_array(strtolower((string) $interview->status), ['completed', 'passed'], true)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Interview must be Completed or Passed before creating a Job Offer.'
+            ], 422);
+        }
+
+        $jpf = JobPosting::find($request->jobPostingId);
+
+        if (!$jpf) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Please select a JPF with status Posted/Open before creating a Job Offer.'
+            ], 422);
+        }
+
+        $status = strtolower((string) $jpf->status);
+
+        if (!in_array($status, ['posted', 'open'], true)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Only JPF records with status Posted/Open can be used for Job Offer.'
+            ], 422);
+        }
+
+        $candidateEmail = $interview->email ?? $request->candidateEmail ?? null;
+
+        $jobOffer = JobOffer::create([
+            'interview_id'     => $interview->id,
+            'job_posting_id'   => $jpf->id,
+
+            'address_id'       => $request->orgAddressId ?: $jpf->address_id,
+            'branch_id'        => $request->orgBranchId ?: $jpf->branch_id,
+            'office_id'        => $request->orgOfficeId ?: $jpf->office_id,
+            'department_id'    => $request->orgDepartmentId ?: $jpf->department_id,
+            'division_id'      => $request->orgDivisionId ?: $jpf->division_id,
+            'unit_id'          => $request->orgUnitId ?: $jpf->unit_id,
+            'position_id'      => $request->orgPositionId ?: $jpf->position_id,
+            'salary_grade_id'  => $request->salaryGradeId ?: $jpf->salary_grade_id,
+
+            'candidate_email'  => $candidateEmail,
+            'name'             => $request->name ?: $interview->name,
+            'position'         => $request->position ?: $interview->position,
+            'salary'           => $request->salary,
+            'start_date'       => $request->startDate,
+            'employment_type'  => $request->employmentType ?: $jpf->employment_type,
+            'department'       => $request->department ?: ($jpf->department_unit ?? $jpf->department ?? null),
+            'company_address'  => $request->companyAddress ?: $jpf->location,
+            'benefits'         => $request->benefits,
+            'status'           => $request->status ?: 'Pending',
+        ]);
+
+        if ($candidateEmail) {
+            try {
+                Mail::to($candidateEmail)->send(new JobOfferMail($jobOffer, $interview, $jpf));
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Job Offer created and emailed successfully.',
+                    'data' => $jobOffer
+                ]);
+            } catch (\Exception $mailError) {
+                Log::error("Failed to send job offer email to {$candidateEmail}: " . $mailError->getMessage());
+
+                return response()->json([
+                    'success' => true,
+                    'warning' => 'Job Offer was saved, but the email failed to send: ' . $mailError->getMessage(),
+                    'data' => $jobOffer
+                ]);
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'warning' => 'Job Offer was saved, but no candidate email was found.',
+            'data' => $jobOffer
+        ]);
+    } catch (\Exception $e) {
+        Log::error('Error saving Job Offer: ' . $e->getMessage());
+
+        return response()->json([
+            'success' => false,
+            'message' => $e->getMessage()
+        ], 500);
     }
+}
+
+
+public function resendJobOfferEmail($id)
+{
+    try {
+        $jobOffer = JobOffer::findOrFail($id);
+
+        if (!$jobOffer->candidate_email) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Candidate email was not found for this job offer.'
+            ], 422);
+        }
+
+        $interview = $jobOffer->interview_id
+            ? CandidateInterview::find($jobOffer->interview_id)
+            : CandidateInterview::where('name', $jobOffer->name)
+                ->where('position', $jobOffer->position)
+                ->latest()
+                ->first();
+
+        $jpf = $jobOffer->job_posting_id
+            ? JobPosting::find($jobOffer->job_posting_id)
+            : null;
+
+        Mail::to($jobOffer->candidate_email)->send(new JobOfferMail($jobOffer, $interview, $jpf));
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Job Offer email resent successfully.'
+        ]);
+    } catch (\Exception $e) {
+        Log::error('Error resending Job Offer email: ' . $e->getMessage());
+
+        return response()->json([
+            'success' => false,
+            'message' => $e->getMessage()
+        ], 500);
+    }
+}
 
     public function deleteJobOffer($id)
     {
@@ -799,40 +915,218 @@ class RecruitmentController extends Controller
     public function startAssessment($uuid)
     {
         $assessment = CandidateAssessment::where('uuid', $uuid)->firstOrFail();
-        
-        // Move to In Progress when applicant clicks the link
+
+        if (in_array($assessment->status, ['Passed', 'Failed'], true)) {
+            return view('careers.assessment-test', [
+                'assessment' => $assessment,
+                'questions' => [],
+                'submitted' => true,
+                'score' => $assessment->score,
+                'status' => $assessment->status,
+                'message' => 'You have already submitted this assessment.'
+            ]);
+        }
+
         if ($assessment->status === 'Pending Assessment') {
             $assessment->update(['status' => 'In Progress']);
         }
 
-        // Redirect to a dummy test interface or the actual platform
-        $testUrls = [
-            'Technical Test' => 'https://example.com/tests/technical',
-            'Amplitude Test' => 'https://example.com/tests/amplitude',
-            'Personality Test' => 'https://example.com/tests/personality',
-        ];
+        $questions = $this->getAssessmentQuestions($assessment->test_type);
 
-        $redirectUrl = $testUrls[$assessment->test_type] ?? $testUrls['Technical Test'];
-
-        return redirect()->away($redirectUrl);
-    }
-    public function deletePDS($id)
-{
-    try {
-        $pds = \App\Models\PersonalDataSheet::findOrFail($id);
-        $pds->delete();
-
-        return response()->json([
-            'success' => true,
-            'message' => 'PDS deleted successfully.'
+        return view('careers.assessment-test', [
+            'assessment' => $assessment,
+            'questions' => $questions,
+            'submitted' => false,
+            'score' => null,
+            'status' => null,
+            'message' => null,
         ]);
-    } catch (\Exception $e) {
-        return response()->json([
-            'success' => false,
-            'message' => $e->getMessage()
-        ], 500);
     }
-}
+
+    public function submitAssessmentTest(Request $request, $uuid)
+    {
+        $assessment = CandidateAssessment::where('uuid', $uuid)->firstOrFail();
+
+        if (in_array($assessment->status, ['Passed', 'Failed'], true)) {
+            return view('careers.assessment-test', [
+                'assessment' => $assessment,
+                'questions' => [],
+                'submitted' => true,
+                'score' => $assessment->score,
+                'status' => $assessment->status,
+                'message' => 'You have already submitted this assessment.'
+            ]);
+        }
+
+        $questions = $this->getAssessmentQuestions($assessment->test_type);
+
+        $request->validate([
+            'answers' => 'required|array',
+        ]);
+
+        $answers = $request->input('answers', []);
+        $correct = 0;
+
+        foreach ($questions as $index => $question) {
+            $givenAnswer = $answers[$index] ?? null;
+
+            if ($givenAnswer !== null && (string) $givenAnswer === (string) $question['answer']) {
+                $correct++;
+            }
+        }
+
+        $total = count($questions);
+        $score = $total > 0 ? round(($correct / $total) * 100) : 0;
+        $status = $score >= 75 ? 'Passed' : 'Failed';
+
+        $assessment->update([
+            'score' => $score . '%',
+            'status' => $status,
+            'assessment_date' => now()->toDateString(),
+        ]);
+
+        return view('careers.assessment-test', [
+            'assessment' => $assessment,
+            'questions' => [],
+            'submitted' => true,
+            'score' => $score . '%',
+            'status' => $status,
+            'message' => 'Assessment submitted successfully.',
+        ]);
+    }
+
+    private function getAssessmentQuestions($testType): array
+    {
+        $type = strtolower((string) $testType);
+
+        if (str_contains($type, 'personality')) {
+            return [
+                [
+                    'question' => 'How do you usually handle urgent tasks?',
+                    'choices' => [
+                        'I ignore them until later.',
+                        'I prioritize them and communicate with the team.',
+                        'I wait for others to decide.',
+                        'I stop all other work permanently.'
+                    ],
+                    'answer' => 1,
+                ],
+                [
+                    'question' => 'Which behavior best shows professionalism?',
+                    'choices' => [
+                        'Arriving late without notice.',
+                        'Keeping commitments and communicating clearly.',
+                        'Avoiding feedback.',
+                        'Not following instructions.'
+                    ],
+                    'answer' => 1,
+                ],
+                [
+                    'question' => 'When receiving feedback, what is the best response?',
+                    'choices' => [
+                        'Listen, clarify, and improve.',
+                        'Ignore the feedback.',
+                        'Argue immediately.',
+                        'Blame someone else.'
+                    ],
+                    'answer' => 0,
+                ],
+                [
+                    'question' => 'Which trait is important in a workplace?',
+                    'choices' => [
+                        'Accountability',
+                        'Dishonesty',
+                        'Carelessness',
+                        'Avoiding teamwork'
+                    ],
+                    'answer' => 0,
+                ],
+                [
+                    'question' => 'What should you do if you do not understand a task?',
+                    'choices' => [
+                        'Pretend you understand.',
+                        'Ask for clarification.',
+                        'Submit random work.',
+                        'Delay without informing anyone.'
+                    ],
+                    'answer' => 1,
+                ],
+            ];
+        }
+
+        if (str_contains($type, 'aptitude') || str_contains($type, 'amplitude')) {
+            return [
+                [
+                    'question' => 'What is 15% of 200?',
+                    'choices' => ['15', '20', '30', '45'],
+                    'answer' => 2,
+                ],
+                [
+                    'question' => 'If A is greater than B, and B is greater than C, which is true?',
+                    'choices' => ['C is greatest', 'A is greatest', 'B is greatest', 'All are equal'],
+                    'answer' => 1,
+                ],
+                [
+                    'question' => 'Complete the pattern: 2, 4, 8, 16, ___',
+                    'choices' => ['18', '24', '30', '32'],
+                    'answer' => 3,
+                ],
+                [
+                    'question' => 'A task starts at 9:15 AM and ends at 10:45 AM. How long did it take?',
+                    'choices' => ['1 hour', '1 hour 15 minutes', '1 hour 30 minutes', '2 hours'],
+                    'answer' => 2,
+                ],
+                [
+                    'question' => 'Which word is closest in meaning to "reliable"?',
+                    'choices' => ['Dependable', 'Careless', 'Late', 'Weak'],
+                    'answer' => 0,
+                ],
+            ];
+        }
+
+        return [
+            [
+                'question' => 'What does HTML stand for?',
+                'choices' => [
+                    'HyperText Markup Language',
+                    'HighText Machine Language',
+                    'HyperTool Multi Language',
+                    'Home Tool Markup Language'
+                ],
+                'answer' => 0,
+            ],
+            [
+                'question' => 'Which SQL command is used to retrieve data?',
+                'choices' => ['INSERT', 'SELECT', 'UPDATE', 'DELETE'],
+                'answer' => 1,
+            ],
+            [
+                'question' => 'In Laravel, which folder usually contains controllers?',
+                'choices' => [
+                    'resources/views',
+                    'database/migrations',
+                    'app/Http/Controllers',
+                    'public/assets'
+                ],
+                'answer' => 2,
+            ],
+            [
+                'question' => 'Which HTTP method is commonly used to submit a form that creates a new record?',
+                'choices' => ['GET', 'POST', 'PUT', 'DELETE'],
+                'answer' => 1,
+            ],
+            [
+                'question' => 'What is the purpose of validation in a system?',
+                'choices' => [
+                    'To check and control user input',
+                    'To delete all records',
+                    'To slow down the system',
+                    'To remove authentication'
+                ],
+                'answer' => 0,
+            ],
+        ];
+    }
 
     public function updateAssessmentResult(Request $request, $id)
     {

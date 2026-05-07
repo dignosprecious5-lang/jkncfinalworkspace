@@ -10,6 +10,7 @@ class JobOffer extends Model
     use HasFactory;
 
     protected $fillable = [
+        'interview_id',
         'job_posting_id',
         'address_id',
         'branch_id',
@@ -20,6 +21,7 @@ class JobOffer extends Model
         'position_id',
         'salary_grade_id',
 
+        'candidate_email',
         'name',
         'position',
         'salary',
@@ -34,6 +36,11 @@ class JobOffer extends Model
     protected $casts = [
         'start_date' => 'date',
     ];
+
+    public function interview()
+    {
+        return $this->belongsTo(CandidateInterview::class, 'interview_id');
+    }
 
     public function jobPosting()
     {
