@@ -1261,12 +1261,9 @@
                                 </div>
                                 <div>
                                     <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Employment Type</label>
-                                    <select x-model="jpfForm.employmentType" class="w-full text-sm px-3 py-2 border border-gray-300 rounded-lg bg-white outline-none">
-                                        <option value="">Select Type...</option>
-                                        <template x-for="et in ['Regular', 'Probationary', 'Project-Based', 'Fixed-Term', 'Part-Time', 'OJT / Intern']" :key="et">
-                                            <option :value="et" x-text="et"></option>
-                                        </template>
-                                    </select>
+                                    <input type="text" x-model="jpfForm.employmentType" readonly placeholder="Auto-filled from selected MRF"
+                                        class="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg bg-gray-100 text-gray-700 outline-none">
+                                    <p class="text-[11px] text-gray-500 mt-1">Based on the employment type selected in the related MRF.</p>
                                 </div>
                                 <div>
                                     <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Reports To</label>
@@ -1643,7 +1640,7 @@
                                             <div>
                                                 <p class="font-bold mb-2">Employment Type:</p>
                                                 <div class="grid grid-cols-2 gap-y-1">
-                                                    <template x-for="et in ['Regular', 'Probationary', 'Project-Based', 'Fixed-Term', 'Part-Time', 'OJT / Intern']" :key="et">
+                                                    <template x-for="et in ['Intern', 'Project Hire', 'Contractual', 'Regular']" :key="et">
                                                         <div class="flex items-center gap-2">
                                                             <span class="w-3 h-3 border border-gray-400 flex items-center justify-center" :class="jpfForm.employmentType === et ? 'bg-gray-800' : ''">
                                                                 <svg x-show="jpfForm.employmentType === et" class="w-2 h-2 text-white" fill="currentColor" viewBox="0 0 20 20"><path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/></svg>
@@ -1982,7 +1979,7 @@
                                             <div>
                                                 <p class="font-bold mb-2">Employment Type:</p>
                                                 <div class="grid grid-cols-2 gap-y-1">
-                                                    <template x-for="et in ['Regular', 'Probationary', 'Project-Based', 'Fixed-Term', 'Part-Time', 'OJT / Intern']" :key="et">
+                                                    <template x-for="et in ['Intern', 'Project Hire', 'Contractual', 'Regular']" :key="et">
                                                         <div class="flex items-center gap-2">
                                                             <span class="w-3 h-3 border border-gray-400 flex items-center justify-center" :class="viewJpfData.employment_type === et ? 'bg-gray-800' : ''">
                                                                 <svg x-show="viewJpfData.employment_type === et" class="w-2 h-2 text-white" fill="currentColor" viewBox="0 0 20 20"><path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/></svg>
@@ -3794,6 +3791,7 @@ refreshAssessments() {
 
             if (!mrf) {
                 this.jpfForm.relatedMrfNo = '';
+                this.jpfForm.employmentType = '';
                 return;
             }
 
@@ -4693,6 +4691,8 @@ refreshAssessments() {
                 alert('The selected MRF is not approved. Only Approved MRF records can be used for JPF.');
                 return;
             }
+
+            this.jpfForm.employmentType = this.selectedJpfMrf.employment_type || this.jpfForm.employmentType;
 
             const url = this.isEditing ? `/human-capital/recruitment/jpf/${this.editingId}` : '{{ route("human-capital.recruitment.store_jpf") }}';
             const method = this.isEditing ? 'put' : 'post';
