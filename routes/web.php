@@ -76,6 +76,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\TrainingController;
+use App\Http\Controllers\DeploymentController;
 
 /*
 |--------------------------------------------------------------------------
@@ -976,7 +977,10 @@ Route::middleware('auth')->group(function () {
         Route::post('/onboarding/trainings', [OnboardingRecordController::class, 'storeTraining'])->name('onboarding.trainings.store');
         Route::delete('/onboarding/trainings/{training}', [OnboardingRecordController::class, 'destroyTraining'])->name('onboarding.trainings.destroy');
 
-        Route::view('/deployment', 'human-capital.deployment')->name('deployment');
+        Route::get('/deployment', [DeploymentController::class, 'index'])->name('deployment');
+        Route::post('/deployment', [DeploymentController::class, 'store'])->name('deployment.store');
+        Route::put('/deployment/{deployment}', [DeploymentController::class, 'update'])->name('deployment.update');
+        Route::delete('/deployment/{deployment}', [DeploymentController::class, 'destroy'])->name('deployment.destroy');
         Route::view('/attendance', 'human-capital.attendance')->name('attendance');
         Route::view('/employee-requests', 'human-capital.employee-requests')->name('employee-requests');
         Route::view('/employee-relations', 'human-capital.employee-relations')->name('employee-relations');
