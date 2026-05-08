@@ -18,6 +18,7 @@ use App\Models\Unit;
 use App\Models\Position;
 use App\Models\SalaryGrade;
 use App\Models\PayrollLevel;
+use App\Models\OnboardingChecklist;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -26,6 +27,7 @@ use App\Mail\AssessmentTestMail;
 use App\Mail\InterviewScheduleMail;
 use App\Mail\JobOfferMail;
 use App\Mail\PdsInvitationMail;
+use App\Mail\ChecklistSubmissionMail;
 
 class RecruitmentController extends Controller
 {
@@ -208,40 +210,145 @@ class RecruitmentController extends Controller
         return view('careers.apply', compact('positions'));
     }
 
-    public function onboarding()
-    {
-        $pdsData = \App\Models\PersonalDataSheet::latest()->get()->map(function($pds) {
-            return array_merge([
-                'db_id' => $pds->id,
-                'status' => $pds->status,
-                'submittedDate' => $pds->created_at->format('Y-m-d')
-            ], is_array($pds->data) ? $pds->data : json_decode($pds->data, true));
-        });
-        
-        return view('human-capital.onboarding', compact('pdsData'));
-    }
+public function onboarding()
+{
+    $pdsData = \App\Models\PersonalDataSheet::latest()->get()->map(function ($pds) {
+        $data = is_array($pds->data) ? $pds->data : (json_decode($pds->data, true) ?: []);
 
-    public function showPublicPDSForm()
-    {
-        return view('careers.pds');
-    }
+        return array_merge($data, [
+            'id' => $pds->id,
+            'db_id' => $pds->id,
+            'fullName' => $pds->full_name ?: ($data['fullName'] ?? ''),
+            'position' => $pds->position ?: ($data['position'] ?? ''),
+            'email' => $pds->email ?: ($data['email'] ?? ''),
+            'phone' => $pds->phone ?: ($data['phone'] ?? ''),
+            'status' => $pds->status,
+            'submittedDate' => optional($pds->created_at)->format('Y-m-d'),
+        ]);
+    });
 
-    public function storePDS(Request $request)
-    {
-        try {
-            $pds = \App\Models\PersonalDataSheet::create([
-                'full_name' => $request->fullName,
-                'position' => $request->position,
-                'email' => $request->email,
-                'phone' => $request->phone,
-                'data' => $request->all(),
-                'status' => 'Submitted'
-            ]);
-            return response()->json(['success' => true, 'message' => 'PDS Submitted Successfully', 'data' => $pds]);
-        } catch (\Exception $e) {
-            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+    return view('human-capital.onboarding', compact('pdsData'));
+}
+
+
+public function showPublicPDSForm($token = null)
+{
+    $jobOffer = null;
+
+    if ($token) {
+        $jobOffer = JobOffer::where('accept_token', $token)->firstOrFail();
+
+        if ($jobOffer->status !== 'Accepted') {
+            abort(403, 'This PDS link is only available after accepting the job offer.');
         }
     }
+
+    return view('careers.pds', [
+        'jobOffer' => $jobOffer,
+        'token' => $token,
+    ]);
+}
+
+
+public function storePDS(Request $request)
+{
+    try {
+        $jobOffer = null;
+
+        if ($request->jobOfferToken) {
+            $jobOffer = JobOffer::where('accept_token', $request->jobOfferToken)->first();
+        }
+
+        $fullName = $request->fullName;
+
+        if (!$fullName) {
+            $nameParts = array_filter([
+                $request->surname,
+                $request->firstName,
+                $request->middleName,
+            ]);
+
+            $fullName = implode(', ', array_filter([
+                $request->surname,
+                trim(implode(' ', array_filter([$request->firstName, $request->middleName]))),
+            ]));
+        }
+
+        $position = $request->position ?: optional($jobOffer)->position;
+        $email = $request->email ?: optional($jobOffer)->candidate_email;
+        $phone = $request->phone ?: $request->mobileNo;
+
+        $payload = $request->all();
+        $payload['fullName'] = $fullName;
+        $payload['position'] = $position;
+        $payload['email'] = $email;
+        $payload['phone'] = $phone;
+
+        $pds = \App\Models\PersonalDataSheet::updateOrCreate(
+            [
+                'job_offer_id' => optional($jobOffer)->id,
+                'email' => $email,
+            ],
+            [
+                'full_name' => $fullName,
+                'position' => $position,
+                'phone' => $phone,
+                'data' => $payload,
+                'status' => 'Submitted',
+            ]
+        );
+
+        $checklist = OnboardingChecklist::firstOrCreate(
+            ['personal_data_sheet_id' => $pds->id],
+            [
+                'employee_name' => $pds->full_name,
+                'employee_email' => $pds->email,
+                'position' => $pds->position,
+                'checked_documents' => [],
+                'docs_submitted' => 0,
+                'docs_approved' => 0,
+                'total_docs' => 11,
+                'status' => 'Pending Documents',
+                'upload_token' => (string) Str::uuid(),
+                'created_by' => null,
+            ]
+        );
+
+        if (!$checklist->upload_token) {
+            $checklist->update([
+                'upload_token' => (string) Str::uuid(),
+            ]);
+
+            $checklist->refresh();
+        }
+
+        if ($pds->email) {
+            try {
+                Mail::to($pds->email)->send(new ChecklistSubmissionMail(
+                    $checklist,
+                    route('careers.checklist.show', $checklist->upload_token)
+                ));
+            } catch (\Exception $mailError) {
+                Log::error('Failed to send checklist upload email: ' . $mailError->getMessage());
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'PDS Submitted Successfully. Please check your email for the checklist upload link.',
+            'data' => $pds,
+            'checklist' => $checklist,
+        ]);
+    } catch (\Exception $e) {
+        Log::error('PDS submission failed: ' . $e->getMessage());
+
+        return response()->json([
+            'success' => false,
+            'message' => $e->getMessage(),
+        ], 500);
+    }
+}
+
 
     public function storeMRF(Request $request)
     {
@@ -952,7 +1059,7 @@ public function acceptJobOffer($token)
 
     if (!$jobOffer->pds_sent_at && $jobOffer->candidate_email) {
         try {
-            Mail::to($jobOffer->candidate_email)->send(new PdsInvitationMail($jobOffer, route('careers.pds')));
+            Mail::to($jobOffer->candidate_email)->send(new PdsInvitationMail($jobOffer, route('careers.pds', ['token' => $jobOffer->accept_token])));
 
             $jobOffer->update([
                 'pds_sent_at' => now(),

@@ -72,11 +72,7 @@
         showPdsModal = false;
         showEmpRegModal = false;
         showTrainingModal = false;
-        checklistForm = {
-            employeeName: '',
-            checked: []
-        };
-        showChecklistModal = true;
+        openChecklistModal();
     "
     class="flex items-center gap-2 px-5 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition font-medium shadow-sm"
 >
@@ -178,38 +174,51 @@
                 </tbody>
             </table>
 
-            {{-- CHECKLIST TABLE --}}
-            <table class="w-full text-sm border-collapse" x-show="activeTab === 'Checklist Submission'">
-                <thead class="bg-gray-50 text-gray-600 sticky top-0 z-10">
-                    <tr class="border-b border-gray-200">
-                        <th class="px-4 py-3 text-left font-semibold">Employee Name</th>
-                        <th class="px-4 py-3 text-left font-semibold">Docs Submitted</th>
-                        <th class="px-4 py-3 text-left font-semibold">Total Docs</th>
-                        <th class="px-4 py-3 text-left font-semibold">Completion</th>
-                        <th class="px-4 py-3 text-left font-semibold">Date</th>
-                        <th class="px-4 py-3 text-left font-semibold">Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <template x-if="filteredRows.length === 0">
-                        <tr><td colspan="6" class="px-4 py-16 text-center text-gray-400"><div class="flex flex-col items-center gap-2"><svg class="w-10 h-10 text-gray-300" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5.586a1 1 0 0 1 .707.293l5.414 5.414a1 1 0 0 1 .293.707V19a2 2 0 0 1-2 2z"/></svg><span class="text-sm">No checklist records found. Click + Add New to create one.</span></div></td></tr>
-                    </template>
-                    <template x-for="(row, i) in filteredRows" :key="i">
-                        <tr class="border-t border-gray-100 hover:bg-gray-50 transition">
-                            <td class="px-4 py-3 text-gray-800 font-medium" x-text="row.employeeName"></td>
-                            <td class="px-4 py-3 text-gray-600" x-text="row.docsSubmitted"></td>
-                            <td class="px-4 py-3 text-gray-600" x-text="row.totalDocs"></td>
-                            <td class="px-4 py-3">
-                                <span :class="row.docsSubmitted === row.totalDocs ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'" class="px-2 py-0.5 rounded-full text-xs font-medium" x-text="row.docsSubmitted === row.totalDocs ? 'Complete' : 'Incomplete'"></span>
-                            </td>
-                            <td class="px-4 py-3 text-gray-500" x-text="row.submittedDate"></td>
-                            <td class="px-4 py-3"><button @click="deleteChecklist(i)" class="text-xs text-red-500 hover:underline">Delete</button></td>
-                        </tr>
-                    </template>
-                </tbody>
-            </table>
+            
+{{-- CHECKLIST TABLE --}}
+<table class="w-full text-sm border-collapse" x-show="activeTab === 'Checklist Submission'">
+    <thead class="bg-gray-50 text-gray-600 sticky top-0 z-10">
+        <tr class="border-b border-gray-200">
+            <th class="px-4 py-3 text-left font-semibold">Employee Name</th>
+            <th class="px-4 py-3 text-left font-semibold">Position</th>
+            <th class="px-4 py-3 text-left font-semibold">Submitted</th>
+            <th class="px-4 py-3 text-left font-semibold">Approved</th>
+            <th class="px-4 py-3 text-left font-semibold">Status</th>
+            <th class="px-4 py-3 text-left font-semibold">Date</th>
+            <th class="px-4 py-3 text-left font-semibold">Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        <template x-if="filteredRows.length === 0">
+            <tr>
+                <td colspan="7" class="px-4 py-16 text-center text-gray-400">
+                    <div class="flex flex-col items-center gap-2">
+                        <svg class="w-10 h-10 text-gray-300" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5.586a1 1 0 0 1 .707.293l5.414 5.414a1 1 0 0 1 .293.707V19a2 2 0 0 1-2 2z"/></svg>
+                        <span class="text-sm">No checklist records found. Click + Add New to create one.</span>
+                    </div>
+                </td>
+            </tr>
+        </template>
+        <template x-for="(row, i) in filteredRows" :key="row.id || i">
+            <tr class="border-t border-gray-100 hover:bg-gray-50 transition">
+                <td class="px-4 py-3 text-gray-800 font-medium" x-text="row.employeeName"></td>
+                <td class="px-4 py-3 text-gray-600" x-text="row.position || '—'"></td>
+                <td class="px-4 py-3 text-gray-600" x-text="`${row.docsSubmitted || 0} / ${row.totalDocs || 0}`"></td>
+                <td class="px-4 py-3 text-gray-600" x-text="`${row.docsApproved || 0} / ${row.totalDocs || 0}`"></td>
+                <td class="px-4 py-3">
+                    <span :class="checklistStatusClass(row.status)" class="px-2 py-0.5 rounded-full text-xs font-medium" x-text="row.status || 'For Review'"></span>
+                </td>
+                <td class="px-4 py-3 text-gray-500" x-text="row.submittedDate"></td>
+                <td class="px-4 py-3 whitespace-nowrap">
+                    <button @click="viewChecklist(row)" class="text-xs text-blue-600 hover:underline mr-2">Review</button>
+                    <button @click="deleteChecklist(i)" class="text-xs text-red-500 hover:underline">Delete</button>
+                </td>
+            </tr>
+        </template>
+    </tbody>
+</table>
 
-            {{-- EMPLOYEE REGISTRATION TABLE --}}
+{{-- EMPLOYEE REGISTRATION TABLE --}}
             <table class="w-full text-sm border-collapse" x-show="activeTab === 'Employee Registration'">
                 <thead class="bg-gray-50 text-gray-600 sticky top-0 z-10">
                     <tr class="border-b border-gray-200">
@@ -737,55 +746,217 @@
     </div>
 </div>{{-- end PDS outer overlay --}}
 
-    {{-- ===================== CHECKLIST SUBMISSION SLIDE-OVER ===================== --}}
+    
+{{-- ===================== CHECKLIST SUBMISSION SLIDE-OVER ===================== --}}
+<div
+    x-show="showChecklistModal"
+    x-transition:enter="transition ease-out duration-300"
+    x-transition:enter-start="opacity-0"
+    x-transition:enter-end="opacity-100"
+    x-transition:leave="transition ease-in duration-200"
+    x-transition:leave-start="opacity-100"
+    x-transition:leave-end="opacity-0"
+    class="fixed inset-0 z-50 flex justify-end bg-black/50 backdrop-blur-sm"
+    style="display:none;"
+    @click.self="showChecklistModal = false"
+>
     <div
         x-show="showChecklistModal"
-        x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
-        x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
-        class="fixed inset-0 z-50 flex justify-end bg-black/50 backdrop-blur-sm"
-        style="display:none;"
-        @click.self="showChecklistModal = false"
+        x-transition:enter="transform transition ease-out duration-300"
+        x-transition:enter-start="translate-x-full"
+        x-transition:enter-end="translate-x-0"
+        x-transition:leave="transform transition ease-in duration-200"
+        x-transition:leave-start="translate-x-0"
+        x-transition:leave-end="translate-x-full"
+        class="bg-white shadow-2xl w-full max-w-3xl h-full flex flex-col overflow-hidden"
     >
-        <div
-            x-show="showChecklistModal"
-            x-transition:enter="transform transition ease-out duration-300" x-transition:enter-start="translate-x-full" x-transition:enter-end="translate-x-0"
-            x-transition:leave="transform transition ease-in duration-200" x-transition:leave-start="translate-x-0" x-transition:leave-end="translate-x-full"
-            class="bg-white shadow-2xl w-full max-w-lg h-full flex flex-col overflow-hidden"
-        >
-            <div class="flex items-center justify-between px-6 py-3 bg-blue-700 shrink-0">
-                <h2 class="text-sm font-bold text-white uppercase tracking-widest">New Checklist Submission</h2>
-                <button @click="showChecklistModal = false" class="text-blue-200 hover:text-white transition">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12"/></svg>
-                </button>
-            </div>
-            <form @submit.prevent="submitChecklist()" class="flex-1 overflow-y-auto px-6 py-5 space-y-5">
-                <div>
-                    <label class="block text-xs font-semibold text-gray-600 mb-1">Employee Name <span class="text-red-500">*</span></label>
-                    <input type="text" x-model="checklistForm.employeeName" required
-                        class="w-full text-sm px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none">
-                </div>
-                <div>
-                    <label class="block text-xs font-semibold text-gray-600 mb-3">Required Documents</label>
-                    <div class="space-y-2">
-                        <template x-for="doc in checklistDocs" :key="doc.key">
-                            <label class="flex items-center gap-3 cursor-pointer group p-2 rounded-lg hover:bg-blue-50 transition">
-                                <input type="checkbox" :value="doc.key" x-model="checklistForm.checked" class="w-4 h-4 accent-blue-600 rounded">
-                                <span class="text-sm text-gray-700 group-hover:text-blue-700 font-medium transition" x-text="doc.label"></span>
-                            </label>
+        <div class="flex items-center justify-between px-6 py-3 bg-blue-700 shrink-0">
+            <h2 class="text-sm font-bold text-white uppercase tracking-widest">Checklist Submission</h2>
+            <button @click="showChecklistModal = false" class="text-blue-200 hover:text-white transition">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+
+        <form @submit.prevent="submitChecklist()" class="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+            <div class="grid grid-cols-2 gap-4">
+                <div class="col-span-2">
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Employee Name from Submitted PDS <span class="text-red-500">*</span></label>
+                    <select x-model="checklistForm.pdsId" @change="onChecklistPdsChange()" required
+                        class="w-full text-sm px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none bg-white">
+                        <option value="">Select submitted PDS...</option>
+                        <template x-for="pds in pdsApplicantsForChecklist" :key="pds.id">
+                            <option :value="pds.id" x-text="`${pds.fullName || 'Unnamed'} - ${pds.position || 'No position'} (${pds.email || 'No email'})`"></option>
                         </template>
+                    </select>
+                    <p class="text-[11px] text-gray-500 mt-1">Only applicants with submitted PDS records appear here.</p>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Position</label>
+                    <input type="text" x-model="checklistForm.position" readonly class="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg bg-gray-100 text-gray-700 outline-none">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Email</label>
+                    <input type="text" x-model="checklistForm.employeeEmail" readonly class="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg bg-gray-100 text-gray-700 outline-none">
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-gray-600 mb-3">Upload Required Documents</label>
+                <div class="grid grid-cols-1 gap-3">
+                    <template x-for="doc in checklistDocs" :key="doc.key">
+                        <div class="border border-gray-200 rounded-xl p-4 bg-gray-50 hover:bg-blue-50/40 transition">
+                            <div class="flex items-start justify-between gap-3">
+                                <div>
+                                    <p class="text-sm font-bold text-gray-800" x-text="doc.label"></p>
+                                    <p class="text-[11px] text-gray-500">PDF, JPG, PNG, DOC, or DOCX. Max 10MB.</p>
+                                    <p x-show="checklistForm.files[doc.key]" class="text-[11px] text-blue-600 font-semibold mt-1" x-text="checklistForm.files[doc.key]?.name"></p>
+                                </div>
+                                <label class="px-3 py-2 bg-white border border-blue-200 text-blue-700 text-xs font-bold rounded-lg cursor-pointer hover:bg-blue-50 transition">
+                                    Upload
+                                    <input type="file" class="hidden" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" @change="handleChecklistFile($event, doc.key)">
+                                </label>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+            <div class="pt-4 border-t flex justify-end gap-3 pb-2">
+                <button type="button" @click="showChecklistModal = false"
+                    class="px-4 py-2 text-sm border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition">Cancel</button>
+                <button type="submit"
+                    class="px-5 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium shadow-sm transition">Save Checklist</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{{-- ===================== CHECKLIST REVIEW SLIDE-OVER ===================== --}}
+<div
+    x-show="showChecklistViewModal"
+    x-transition:enter="transition ease-out duration-300"
+    x-transition:enter-start="opacity-0"
+    x-transition:enter-end="opacity-100"
+    x-transition:leave="transition ease-in duration-200"
+    x-transition:leave-start="opacity-100"
+    x-transition:leave-end="opacity-0"
+    class="fixed inset-0 z-[60] flex justify-end bg-black/50 backdrop-blur-sm"
+    style="display:none;"
+    @click.self="showChecklistViewModal = false"
+>
+    <div
+        x-show="showChecklistViewModal"
+        x-transition:enter="transform transition ease-out duration-300"
+        x-transition:enter-start="translate-x-full"
+        x-transition:enter-end="translate-x-0"
+        x-transition:leave="transform transition ease-in duration-200"
+        x-transition:leave-start="translate-x-0"
+        x-transition:leave-end="translate-x-full"
+        class="bg-white shadow-2xl w-full max-w-4xl h-full flex flex-col overflow-hidden"
+    >
+        <div class="flex items-center justify-between px-6 py-3 bg-indigo-700 shrink-0">
+            <h2 class="text-sm font-bold text-white uppercase tracking-widest">Review Checklist Documents</h2>
+            <button @click="showChecklistViewModal = false" class="text-indigo-200 hover:text-white transition">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+
+        <template x-if="viewChecklistData">
+            <div class="flex-1 overflow-y-auto p-6 space-y-5">
+                <div class="grid grid-cols-3 gap-4">
+                    <div class="bg-gray-50 border border-gray-100 rounded-xl p-4">
+                        <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Employee</p>
+                        <p class="text-sm font-bold text-gray-800" x-text="viewChecklistData.employeeName"></p>
+                    </div>
+                    <div class="bg-gray-50 border border-gray-100 rounded-xl p-4">
+                        <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Position</p>
+                        <p class="text-sm font-bold text-gray-800" x-text="viewChecklistData.position || '—'"></p>
+                    </div>
+                    <div class="bg-gray-50 border border-gray-100 rounded-xl p-4">
+                        <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Status</p>
+                        <span :class="checklistStatusClass(viewChecklistData.status)" class="inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-bold" x-text="viewChecklistData.status"></span>
                     </div>
                 </div>
-                <div class="pt-4 border-t flex justify-end gap-3 pb-2">
-                    <button type="button" @click="showChecklistModal = false"
-                        class="px-4 py-2 text-sm border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition">Cancel</button>
-                    <button type="submit"
-                        class="px-5 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium shadow-sm transition">Save Checklist</button>
-                </div>
-            </form>
-        </div>
-    </div>
 
-    {{-- ===================== EMPLOYEE REGISTRATION SLIDE-OVER ===================== --}}
+                <div class="space-y-3">
+                    <template x-for="doc in viewChecklistData.documents" :key="doc.key">
+                        <div class="border border-gray-200 rounded-xl p-4 bg-white shadow-sm">
+                            <div class="flex items-start justify-between gap-4">
+                                <div class="min-w-0">
+                                    <p class="font-bold text-gray-900 text-sm" x-text="doc.label"></p>
+                                    <p class="text-xs text-gray-500 mt-1" x-text="doc.original_name || 'No file uploaded'"></p>
+                                    <p x-show="doc.remarks" class="text-xs text-red-600 mt-2 font-semibold" x-text="'Remarks: ' + doc.remarks"></p>
+                                </div>
+
+                                <div class="flex items-center gap-2 shrink-0">
+                                    <a x-show="doc.file_url" :href="doc.file_url" target="_blank"
+                                       class="px-3 py-1.5 text-xs font-bold rounded-lg border border-blue-200 text-blue-700 hover:bg-blue-50 transition">
+                                        View File
+                                    </a>
+                                    <span :class="documentStatusClass(doc.status)" class="px-2 py-1 rounded-full text-[11px] font-bold" x-text="doc.status"></span>
+                                </div>
+                            </div>
+
+                            {{-- Review actions --}}
+                            <div class="mt-4">
+                                {{-- Missing: HR cannot approve/reject because applicant has not uploaded anything yet --}}
+                                <div x-show="doc.status === 'Missing'" class="flex items-center justify-between gap-3 rounded-lg border border-yellow-200 bg-yellow-50 px-3 py-2">
+                                    <p class="text-xs font-semibold text-yellow-700">
+                                        Waiting for applicant to upload this document.
+                                    </p>
+                                    <span class="text-[11px] font-bold text-yellow-700 bg-yellow-100 px-2 py-1 rounded-full">
+                                        No action available
+                                    </span>
+                                </div>
+
+                                {{-- Approved: no action needed --}}
+                                <div x-show="doc.status === 'Approved'" class="flex items-center justify-between gap-3 rounded-lg border border-green-200 bg-green-50 px-3 py-2">
+                                    <p class="text-xs font-semibold text-green-700">
+                                        This document has already been approved.
+                                    </p>
+                                    <span class="text-[11px] font-bold text-green-700 bg-green-100 px-2 py-1 rounded-full">
+                                        Approved
+                                    </span>
+                                </div>
+
+                                {{-- Needs Re-upload: applicant must replace/correct the file from the checklist link --}}
+                                <div x-show="doc.status === 'Needs Re-upload'" class="flex items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2">
+                                    <div>
+                                        <p class="text-xs font-semibold text-red-700">
+                                            Waiting for applicant to upload a corrected document.
+                                        </p>
+                                        <p x-show="doc.remarks" class="text-[11px] text-red-600 mt-1" x-text="'Remarks: ' + doc.remarks"></p>
+                                    </div>
+                                    <span class="text-[11px] font-bold text-red-700 bg-red-100 px-2 py-1 rounded-full">
+                                        Needs Re-upload
+                                    </span>
+                                </div>
+
+                                {{-- Submitted: HR can approve or request re-upload --}}
+                                <div x-show="doc.status === 'Submitted'" class="grid grid-cols-[1fr_auto_auto] gap-2 items-center">
+                                    <input type="text" :value="doc.remarks || ''" @input="doc.reviewRemarks = $event.target.value" placeholder="Remarks if needs re-upload..."
+                                        class="w-full text-xs px-3 py-2 border border-gray-200 rounded-lg outline-none focus:border-blue-400">
+                                    <button type="button" @click="reviewChecklistDocument(doc, 'Approved')"
+                                        class="px-3 py-2 text-xs font-bold bg-green-600 text-white rounded-lg hover:bg-green-700 transition">
+                                        Approve
+                                    </button>
+                                    <button type="button" @click="reviewChecklistDocument(doc, 'Needs Re-upload')"
+                                        class="px-3 py-2 text-xs font-bold bg-red-600 text-white rounded-lg hover:bg-red-700 transition">
+                                        Re-upload
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </template>
+    </div>
+</div>
+
+{{-- ===================== EMPLOYEE REGISTRATION SLIDE-OVER ===================== --}}
     <div
         x-show="showEmpRegModal"
         x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
@@ -952,8 +1123,10 @@ function onboardingPage() {
 
         showPdsModal: false,
         showChecklistModal: false,
+        showChecklistViewModal: false,
         showEmpRegModal: false,
         showTrainingModal: false,
+        viewChecklistData: null,
 
         tabs: [
             { key: 'PDS', label: 'PDS' },
@@ -971,22 +1144,26 @@ function onboardingPage() {
 
         checklistDocs: [
             { key: 'valid_id', label: 'Valid ID (Government-issued)' },
-            { key: 'birth_cert', label: 'Birth Certificate' },
-            { key: 'ssn_tax', label: 'SSN / Tax ID' },
-            { key: 'edu_certs', label: 'Educational Certificates' },
-            { key: 'prev_employ', label: 'Previous Employment Records' },
-            { key: 'med_cert', label: 'Medical Certificate' },
-            { key: 'nbi', label: 'NBI Clearance' },
-            { key: 'bank', label: 'Bank Account Details' },
-            { key: 'id_photos', label: '2x2 ID Photos' },
-            { key: 'covid_vax', label: 'COVID-19 Vaccination Card' },
+            { key: 'birth_certificate', label: 'Birth Certificate' },
+            { key: 'sss', label: 'SSS Number / E-1 / Static Info' },
+            { key: 'philhealth', label: 'PhilHealth MDR' },
+            { key: 'pagibig', label: 'Pag-IBIG MDF / MID' },
+            { key: 'tin_bir', label: 'TIN / BIR Form' },
+            { key: 'nbi_clearance', label: 'NBI Clearance' },
+            { key: 'medical_certificate', label: 'Medical Certificate' },
+            { key: 'tor_diploma', label: 'Transcript of Records / Diploma' },
+            { key: 'signed_job_offer', label: 'Signed Job Offer' },
+            { key: 'two_by_two_picture', label: '2x2 Picture' },
         ],
 
         pdsForm: {},
 
         checklistForm: {
+            pdsId: '',
             employeeName: '',
-            checked: [],
+            employeeEmail: '',
+            position: '',
+            files: {},
         },
 
         empRegForm: {
@@ -1035,6 +1212,7 @@ function onboardingPage() {
 
                 const result = await response.json();
 
+                this.data['PDS'] = result.pdsApplicants ?? this.data['PDS'];
                 this.data['Checklist Submission'] = result.checklists ?? [];
                 this.data['Employee Registration'] = result.employees ?? [];
                 this.data['Training'] = result.trainings ?? [];
@@ -1079,11 +1257,7 @@ function onboardingPage() {
             }
 
             if (tab === 'Checklist Submission') {
-                this.checklistForm = {
-                    employeeName: '',
-                    checked: [],
-                };
-                this.showChecklistModal = true;
+                this.openChecklistModal();
                 return;
             }
 
@@ -1299,22 +1473,162 @@ function onboardingPage() {
     }
 },
 
+
+get pdsApplicantsForChecklist() {
+    const usedPdsIds = (this.data['Checklist Submission'] || [])
+        .map(item => String(item.pdsId || ''))
+        .filter(Boolean);
+
+    return (this.data['PDS'] || []).filter(pds => {
+        const status = String(pds.status || '').toLowerCase();
+
+        return pds.id && !usedPdsIds.includes(String(pds.id)) && !status.includes('checklist completed');
+    });
+},
+
+openChecklistModal() {
+    this.closeAllModals();
+
+    this.checklistForm = {
+        pdsId: '',
+        employeeName: '',
+        employeeEmail: '',
+        position: '',
+        files: {},
+    };
+
+    this.showChecklistModal = true;
+},
+
+onChecklistPdsChange() {
+    const selected = (this.data['PDS'] || []).find(pds => String(pds.id) === String(this.checklistForm.pdsId));
+
+    if (!selected) {
+        this.checklistForm.employeeName = '';
+        this.checklistForm.employeeEmail = '';
+        this.checklistForm.position = '';
+        return;
+    }
+
+    this.checklistForm.employeeName = selected.fullName || '';
+    this.checklistForm.employeeEmail = selected.email || '';
+    this.checklistForm.position = selected.position || '';
+},
+
+handleChecklistFile(event, key) {
+    const file = event.target.files[0];
+
+    if (!file) {
+        return;
+    }
+
+    this.checklistForm.files = {
+        ...this.checklistForm.files,
+        [key]: file,
+    };
+},
+
+viewChecklist(row) {
+    this.viewChecklistData = JSON.parse(JSON.stringify(row));
+    this.showChecklistViewModal = true;
+},
+
+checklistStatusClass(status) {
+    const map = {
+        'Completed': 'bg-green-100 text-green-700',
+        'For Review': 'bg-blue-100 text-blue-700',
+        'Needs Re-upload': 'bg-red-100 text-red-700',
+        'Pending Documents': 'bg-yellow-100 text-yellow-700',
+    };
+
+    return map[status] || 'bg-gray-100 text-gray-700';
+},
+
+documentStatusClass(status) {
+    const map = {
+        'Approved': 'bg-green-100 text-green-700',
+        'Submitted': 'bg-blue-100 text-blue-700',
+        'Needs Re-upload': 'bg-red-100 text-red-700',
+        'Missing': 'bg-yellow-100 text-yellow-700',
+    };
+
+    return map[status] || 'bg-gray-100 text-gray-700';
+},
+
+async reviewChecklistDocument(doc, status) {
+    if (!this.viewChecklistData || !this.viewChecklistData.id) {
+        alert('Checklist record was not found.');
+        return;
+    }
+
+    if (status === 'Needs Re-upload' && !String(doc.reviewRemarks || doc.remarks || '').trim()) {
+        alert('Please add remarks so the applicant/employee knows which document to re-upload.');
+        return;
+    }
+
+    try {
+        const response = await fetch(`/human-capital/onboarding/checklists/${this.viewChecklistData.id}/review-document`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                'Accept': 'application/json',
+            },
+            body: JSON.stringify({
+                documentKey: doc.key,
+                status: status,
+                remarks: doc.reviewRemarks || doc.remarks || '',
+            })
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error(errorText);
+            throw new Error('Failed to update document review.');
+        }
+
+        const result = await response.json();
+
+        const idx = this.data['Checklist Submission'].findIndex(item => item.id === result.record.id);
+
+        if (idx !== -1) {
+            this.data['Checklist Submission'][idx] = result.record;
+        }
+
+        this.viewChecklistData = JSON.parse(JSON.stringify(result.record));
+        alert(result.message || 'Document review updated.');
+    } catch (error) {
+        console.error(error);
+        alert('Document review was not updated.');
+    }
+},
+
         async submitChecklist() {
-            const total = this.checklistDocs.length;
+            if (!this.checklistForm.pdsId) {
+                alert('Please select an employee from submitted PDS.');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('pdsId', this.checklistForm.pdsId);
+            formData.append('employeeName', this.checklistForm.employeeName || '');
+            formData.append('employeeEmail', this.checklistForm.employeeEmail || '');
+            formData.append('position', this.checklistForm.position || '');
+
+            Object.entries(this.checklistForm.files || {}).forEach(([key, file]) => {
+                if (file) {
+                    formData.append(`documents[${key}]`, file);
+                }
+            });
 
             try {
                 const response = await fetch('{{ route("human-capital.onboarding.checklists.store") }}', {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json',
                         'X-CSRF-TOKEN': '{{ csrf_token() }}',
                         'Accept': 'application/json',
                     },
-                    body: JSON.stringify({
-                        employeeName: this.checklistForm.employeeName,
-                        checked: this.checklistForm.checked,
-                        totalDocs: total,
-                    })
+                    body: formData
                 });
 
                 if (!response.ok) {
@@ -1326,6 +1640,7 @@ function onboardingPage() {
                 const result = await response.json();
 
                 this.data['Checklist Submission'].unshift(result.record);
+                await this.fetchOnboardingRecords();
                 this.showChecklistModal = false;
             } catch (error) {
                 console.error(error);

@@ -191,8 +191,14 @@ Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
 
 Route::get('/careers/apply', [RecruitmentController::class, 'showPublicApplicationForm'])->name('careers.apply');
 Route::post('/careers/apply', [RecruitmentController::class, 'storeCAF'])->name('careers.apply.submit');
-Route::get('/careers/pds', [RecruitmentController::class, 'showPublicPDSForm'])->name('careers.pds');
+Route::get('/careers/pds/{token?}', [RecruitmentController::class, 'showPublicPDSForm'])->name('careers.pds');
 Route::post('/careers/pds', [RecruitmentController::class, 'storePDS'])->name('careers.pds.submit');
+
+Route::get('/careers/checklist/{token}', [OnboardingRecordController::class, 'showPublicChecklistUpload'])
+    ->name('careers.checklist.show');
+Route::post('/careers/checklist/{token}', [OnboardingRecordController::class, 'submitPublicChecklistUpload'])
+    ->name('careers.checklist.submit');
+
 
 Route::get('/assessment/start/{uuid}', [RecruitmentController::class, 'startAssessment'])
     ->name('recruitment.assessment.start');
@@ -963,6 +969,7 @@ Route::middleware('auth')->group(function () {
 
         Route::get('/onboarding/records', [OnboardingRecordController::class, 'records'])->name('onboarding.records');
         Route::post('/onboarding/checklists', [OnboardingRecordController::class, 'storeChecklist'])->name('onboarding.checklists.store');
+        Route::patch('/onboarding/checklists/{checklist}/review-document', [OnboardingRecordController::class, 'reviewChecklistDocument'])->name('onboarding.checklists.review-document');
         Route::delete('/onboarding/checklists/{checklist}', [OnboardingRecordController::class, 'destroyChecklist'])->name('onboarding.checklists.destroy');
         Route::post('/onboarding/employees', [OnboardingRecordController::class, 'storeEmployee'])->name('onboarding.employees.store');
         Route::delete('/onboarding/employees/{employee}', [OnboardingRecordController::class, 'destroyEmployee'])->name('onboarding.employees.destroy');
