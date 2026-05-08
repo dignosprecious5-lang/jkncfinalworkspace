@@ -200,6 +200,13 @@ Route::get('/assessment/start/{uuid}', [RecruitmentController::class, 'startAsse
 Route::post('/assessment/start/{uuid}/submit', [RecruitmentController::class, 'submitAssessmentTest'])
     ->name('recruitment.assessment.submit');
 
+Route::get('/job-offer/{token}/accept', [RecruitmentController::class, 'acceptJobOffer'])
+    ->name('job-offer.accept');
+
+Route::get('/job-offer/{token}/decline', [RecruitmentController::class, 'declineJobOffer'])
+    ->name('job-offer.decline');
+
+
 /*
 |--------------------------------------------------------------------------
 | AUTHENTICATED ROUTES
@@ -941,6 +948,7 @@ Route::middleware('auth')->group(function () {
             ->name('recruitment.interview_status');
 
         // Job Offer
+        Route::get('/recruitment/job-offer/latest', [RecruitmentController::class, 'latestJobOffers'])->name('recruitment.job_offer.latest');
         Route::post('/recruitment/job-offer', [RecruitmentController::class, 'storeJobOffer'])->name('recruitment.store_job_offer');
         Route::post('/recruitment/job-offer/{id}/resend-email', [RecruitmentController::class, 'resendJobOfferEmail'])->name('recruitment.resend_job_offer_email');
         Route::delete('/recruitment/job-offer/{id}', [RecruitmentController::class, 'deleteJobOffer'])->name('recruitment.delete_job_offer');

@@ -20,10 +20,12 @@ use App\Models\SalaryGrade;
 use App\Models\PayrollLevel;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use App\Mail\AssessmentProceedingMail;
 use App\Mail\AssessmentTestMail;
 use App\Mail\InterviewScheduleMail;
 use App\Mail\JobOfferMail;
+use App\Mail\PdsInvitationMail;
 
 class RecruitmentController extends Controller
 {
@@ -814,12 +816,19 @@ public function storeJobOffer(Request $request)
             'department'       => $request->department ?: ($jpf->department_unit ?? $jpf->department ?? null),
             'company_address'  => $request->companyAddress ?: $jpf->location,
             'benefits'         => $request->benefits,
-            'status'           => $request->status ?: 'Pending',
+            'accept_token'     => $this->generateJobOfferToken(),
+            'status'           => 'Pending',
         ]);
 
         if ($candidateEmail) {
             try {
                 Mail::to($candidateEmail)->send(new JobOfferMail($jobOffer, $interview, $jpf));
+
+                $jobOffer->update([
+                    'status' => 'Sent',
+                ]);
+
+                $jobOffer->refresh();
 
                 return response()->json([
                     'success' => true,
@@ -857,6 +866,7 @@ public function resendJobOfferEmail($id)
 {
     try {
         $jobOffer = JobOffer::findOrFail($id);
+        $jobOffer = $this->ensureJobOfferToken($jobOffer);
 
         if (!$jobOffer->candidate_email) {
             return response()->json([
@@ -878,9 +888,15 @@ public function resendJobOfferEmail($id)
 
         Mail::to($jobOffer->candidate_email)->send(new JobOfferMail($jobOffer, $interview, $jpf));
 
+        if (!in_array($jobOffer->status, ['Accepted', 'Declined'], true)) {
+            $jobOffer->update(['status' => 'Sent']);
+            $jobOffer->refresh();
+        }
+
         return response()->json([
             'success' => true,
-            'message' => 'Job Offer email resent successfully.'
+            'message' => 'Job Offer email resent successfully.',
+            'data' => $jobOffer
         ]);
     } catch (\Exception $e) {
         Log::error('Error resending Job Offer email: ' . $e->getMessage());
@@ -890,6 +906,135 @@ public function resendJobOfferEmail($id)
             'message' => $e->getMessage()
         ], 500);
     }
+}
+
+
+
+public function latestJobOffers()
+{
+    return response()->json([
+        'success' => true,
+        'data' => JobOffer::latest()->get(),
+    ]);
+}
+
+public function acceptJobOffer($token)
+{
+    $jobOffer = JobOffer::where('accept_token', $token)->firstOrFail();
+
+    if ($jobOffer->status === 'Accepted') {
+        return view('careers.job-offer-response', [
+            'jobOffer' => $jobOffer,
+            'decision' => 'accepted',
+            'title' => 'Job Offer Already Accepted',
+            'message' => 'You have already accepted this job offer. The Human Capital team will continue with your onboarding process.',
+        ]);
+    }
+
+    if ($jobOffer->status === 'Declined') {
+        return view('careers.job-offer-response', [
+            'jobOffer' => $jobOffer,
+            'decision' => 'declined',
+            'title' => 'Job Offer Already Declined',
+            'message' => 'This job offer has already been declined. If this was a mistake, please contact the Human Capital team.',
+        ]);
+    }
+
+    $pdsMessage = 'Please check your email for the PDS form link.';
+
+    $jobOffer->update([
+        'status' => 'Accepted',
+        'accepted_at' => now(),
+        'declined_at' => null,
+    ]);
+
+    $jobOffer->refresh();
+
+    if (!$jobOffer->pds_sent_at && $jobOffer->candidate_email) {
+        try {
+            Mail::to($jobOffer->candidate_email)->send(new PdsInvitationMail($jobOffer, route('careers.pds')));
+
+            $jobOffer->update([
+                'pds_sent_at' => now(),
+            ]);
+
+            $jobOffer->refresh();
+        } catch (\Exception $e) {
+            Log::error('Failed to send PDS invitation after job offer acceptance: ' . $e->getMessage());
+            $pdsMessage = 'Your acceptance was recorded, but the PDS email failed to send. The Human Capital team will resend it.';
+        }
+    } elseif (!$jobOffer->candidate_email) {
+        $pdsMessage = 'Your acceptance was recorded, but no candidate email was found for the PDS link.';
+    } elseif ($jobOffer->pds_sent_at) {
+        $pdsMessage = 'The PDS form link was already sent to your email.';
+    }
+
+    return view('careers.job-offer-response', [
+        'jobOffer' => $jobOffer,
+        'decision' => 'accepted',
+        'title' => 'Job Offer Accepted',
+        'message' => 'Thank you for accepting the job offer. ' . $pdsMessage,
+    ]);
+}
+
+public function declineJobOffer($token)
+{
+    $jobOffer = JobOffer::where('accept_token', $token)->firstOrFail();
+
+    if ($jobOffer->status === 'Accepted') {
+        return view('careers.job-offer-response', [
+            'jobOffer' => $jobOffer,
+            'decision' => 'accepted',
+            'title' => 'Job Offer Already Accepted',
+            'message' => 'You have already accepted this job offer, so it can no longer be declined from this link. Please contact the Human Capital team if this was a mistake.',
+        ]);
+    }
+
+    if ($jobOffer->status === 'Declined') {
+        return view('careers.job-offer-response', [
+            'jobOffer' => $jobOffer,
+            'decision' => 'declined',
+            'title' => 'Job Offer Already Declined',
+            'message' => 'You have already declined this job offer. If this was a mistake, please contact the Human Capital team.',
+        ]);
+    }
+
+    $jobOffer->update([
+        'status' => 'Declined',
+        'declined_at' => now(),
+        'accepted_at' => null,
+    ]);
+
+    $jobOffer->refresh();
+
+    return view('careers.job-offer-response', [
+        'jobOffer' => $jobOffer,
+        'decision' => 'declined',
+        'title' => 'Job Offer Declined',
+        'message' => 'Your response has been recorded. Thank you for informing John Kelly & Company.',
+    ]);
+}
+
+private function ensureJobOfferToken(JobOffer $jobOffer): JobOffer
+{
+    if (!$jobOffer->accept_token) {
+        $jobOffer->update([
+            'accept_token' => $this->generateJobOfferToken(),
+        ]);
+
+        $jobOffer->refresh();
+    }
+
+    return $jobOffer;
+}
+
+private function generateJobOfferToken(): string
+{
+    do {
+        $token = Str::random(64);
+    } while (JobOffer::where('accept_token', $token)->exists());
+
+    return $token;
 }
 
     public function deleteJobOffer($id)

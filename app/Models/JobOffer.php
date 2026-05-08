@@ -22,6 +22,7 @@ class JobOffer extends Model
         'salary_grade_id',
 
         'candidate_email',
+        'accept_token',
         'name',
         'position',
         'salary',
@@ -31,10 +32,16 @@ class JobOffer extends Model
         'company_address',
         'benefits',
         'status',
+        'accepted_at',
+        'declined_at',
+        'pds_sent_at',
     ];
 
     protected $casts = [
         'start_date' => 'date',
+        'accepted_at' => 'datetime',
+        'declined_at' => 'datetime',
+        'pds_sent_at' => 'datetime',
     ];
 
     public function interview()

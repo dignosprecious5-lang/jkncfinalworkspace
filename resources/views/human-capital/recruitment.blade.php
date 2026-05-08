@@ -24,7 +24,7 @@
         <template x-for="tab in tabs" :key="tab.key">
             <button
                 type="button"
-                @click="activeTab = tab.key"
+                @click="activeTab = tab.key; if (tab.key === 'Job Offer') refreshJobOffers()"
                 :class="activeTab === tab.key
                     ? 'border-b-2 border-blue-600 text-blue-600 font-semibold'
                     : 'text-gray-500 hover:text-gray-700'"
@@ -3420,9 +3420,11 @@ function recruitmentPage(
 ) {
     return {
         assessmentPolling: null,
+        jobOfferFocusListenerAdded: false,
 
 startAssessmentPolling() {
     this.refreshAssessments();
+    this.refreshJobOffers();
 
     if (this.assessmentPolling) {
         clearInterval(this.assessmentPolling);
@@ -3430,6 +3432,7 @@ startAssessmentPolling() {
 
     this.assessmentPolling = setInterval(() => {
         this.refreshAssessments();
+        this.refreshJobOffers();
     }, 5000);
 },
 
@@ -3445,6 +3448,32 @@ refreshAssessments() {
             console.error('Assessment polling failed:', err);
         });
 },
+
+
+refreshJobOffers() {
+    axios.get('/human-capital/recruitment/job-offer/latest?ts=' + Date.now())
+        .then(res => {
+            if (res.data.success) {
+                this.data['Job Offer'] = res.data.data;
+
+                if (this.viewJobOfferData && this.viewJobOfferData.id) {
+                    const updated = this.data['Job Offer'].find(item =>
+                        String(item.id) === String(this.viewJobOfferData.id)
+                    );
+
+                    if (updated) {
+                        this.viewJobOfferData = updated;
+                    }
+                }
+
+                console.log('Job Offer polling updated:', res.data.data);
+            }
+        })
+        .catch(err => {
+            console.error('Job Offer polling failed:', err);
+        });
+},
+
 
         activeTab: 'MRF',
         search: '',
@@ -4590,6 +4619,15 @@ onJpfPayrollLevelChange() {
 
             axios.post(`/human-capital/recruitment/job-offer/${offer.id}/resend-email`)
                 .then(res => {
+                    if (res.data.data) {
+                        const idx = this.data['Job Offer'].findIndex(item => String(item.id) === String(res.data.data.id));
+                        if (idx !== -1) {
+                            this.data['Job Offer'][idx] = res.data.data;
+                        }
+
+                        this.viewJobOfferData = res.data.data;
+                    }
+
                     alert(res.data.message || 'Job Offer email resent successfully.');
                 })
                 .catch(err => {

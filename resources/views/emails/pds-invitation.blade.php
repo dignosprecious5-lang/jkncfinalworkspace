@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Job Offer</title>
+    <title>PDS Form Invitation</title>
     <style>
         body {
             margin: 0;
@@ -23,7 +23,7 @@
         }
 
         .header {
-            background: linear-gradient(135deg, #7c3aed, #2563eb);
+            background: linear-gradient(135deg, #2563eb, #16a34a);
             color: white;
             padding: 32px;
             text-align: center;
@@ -38,6 +38,7 @@
 
         .content {
             padding: 32px;
+            line-height: 1.6;
         }
 
         .box {
@@ -64,30 +65,22 @@
             margin-bottom: 14px;
         }
 
-        .actions {
+        .btn-wrap {
             text-align: center;
             margin: 28px 0;
         }
 
-        .button {
+        .btn {
             display: inline-block;
-            padding: 14px 22px;
-            border-radius: 999px;
-            text-decoration: none;
+            background: #2563eb;
             color: #ffffff !important;
-            font-size: 13px;
+            text-decoration: none;
+            padding: 15px 26px;
+            border-radius: 999px;
             font-weight: 800;
             text-transform: uppercase;
             letter-spacing: 1px;
-            margin: 6px;
-        }
-
-        .accept {
-            background: #16a34a;
-        }
-
-        .decline {
-            background: #dc2626;
+            font-size: 13px;
         }
 
         .note {
@@ -97,7 +90,6 @@
             border-radius: 12px;
             padding: 14px;
             font-size: 13px;
-            line-height: 1.5;
         }
 
         .footer {
@@ -111,14 +103,9 @@
     </style>
 </head>
 <body>
-    @php
-        $acceptUrl = $jobOffer->accept_token ? route('job-offer.accept', $jobOffer->accept_token) : '#';
-        $declineUrl = $jobOffer->accept_token ? route('job-offer.decline', $jobOffer->accept_token) : '#';
-    @endphp
-
     <div class="container">
         <div class="header">
-            <h1>Job Offer</h1>
+            <h1>PDS Form</h1>
             <p style="margin: 8px 0 0;">John Kelly & Company</p>
         </div>
 
@@ -126,7 +113,8 @@
             <p>Dear <strong>{{ $jobOffer->name }}</strong>,</p>
 
             <p>
-                Congratulations. We are pleased to extend a job offer to you for the position below.
+                Thank you for accepting the job offer for <strong>{{ $jobOffer->position }}</strong>.
+                To continue your onboarding process, please complete your Personal Data Sheet (PDS).
             </p>
 
             <div class="box">
@@ -135,35 +123,14 @@
 
                 <div class="label">Department</div>
                 <div class="value">{{ $jobOffer->department ?? 'N/A' }}</div>
-
-                <div class="label">Employment Type</div>
-                <div class="value">{{ $jobOffer->employment_type ?? 'N/A' }}</div>
-
-                <div class="label">Salary</div>
-                <div class="value">{{ $jobOffer->salary ?? 'N/A' }}</div>
-
-                <div class="label">Start Date</div>
-                <div class="value">
-                    {{ optional($jobOffer->start_date)->format('F d, Y') ?? 'N/A' }}
-                </div>
-
-                <div class="label">Company Address</div>
-                <div class="value">{{ $jobOffer->company_address ?? 'N/A' }}</div>
-
-                <div class="label">Benefits</div>
-                <div class="value">{{ $jobOffer->benefits ?? 'N/A' }}</div>
             </div>
 
-            <p>Please review the offer details carefully and confirm your decision below.</p>
-
-            <div class="actions">
-                <a href="{{ $acceptUrl }}" class="button accept">Accept Job Offer</a>
-                <a href="{{ $declineUrl }}" class="button decline">Decline Job Offer</a>
+            <div class="btn-wrap">
+                <a href="{{ $pdsUrl }}" class="btn">Fill Out PDS Form</a>
             </div>
 
             <div class="note">
-                <strong>Important:</strong> Clicking Accept confirms your intent to accept the offer.
-                You may still be required to submit a physically signed copy of the Job Offer during onboarding.
+                Please complete the form carefully. The Human Capital team will review your submitted information before the next onboarding step.
             </div>
 
             <p style="margin-top: 24px;">
