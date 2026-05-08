@@ -49,11 +49,35 @@ class EmployeeController extends Controller
 
         return view('human-capital.employee-profile', [
             'employees' => $employees,
-            'officeOptions' => Office::orderBy('office_name')->get(['id', 'office_name']),
-            'branchOptions' => Branch::orderBy('branch_name')->get(['id', 'office_id', 'branch_name']),
-            'departmentOptions' => Department::orderBy('department_name')->get(['id', 'office_id', 'branch_id', 'department_name']),
-            'divisionOptions' => Division::orderBy('division_name')->get(['id', 'office_id', 'branch_id', 'department_id', 'division_name']),
-            'unitOptions' => Unit::orderBy('unit_name')->get(['id', 'office_id', 'branch_id', 'department_id', 'division_id', 'unit_name']),
+
+            // offices table has: id, office_name, branch_id
+            'officeOptions' => Office::orderBy('office_name')
+                ->get(['id', 'office_name', 'branch_id'])
+                ->values(),
+
+            // branches table has: id, branch_name, address_id
+            // It does NOT have office_id.
+            'branchOptions' => Branch::orderBy('branch_name')
+                ->get(['id', 'branch_name'])
+                ->values(),
+
+            // departments table has: id, department_name, office_id
+            // It does NOT have branch_id.
+            'departmentOptions' => Department::orderBy('department_name')
+                ->get(['id', 'office_id', 'department_name'])
+                ->values(),
+
+            // divisions table has: id, division_name, department_id
+            // It does NOT have office_id or branch_id.
+            'divisionOptions' => Division::orderBy('division_name')
+                ->get(['id', 'department_id', 'division_name'])
+                ->values(),
+
+            // units table has: id, unit_name, division_id
+            // It does NOT have office_id, branch_id, or department_id.
+            'unitOptions' => Unit::orderBy('unit_name')
+                ->get(['id', 'division_id', 'unit_name'])
+                ->values(),
         ]);
     }
 
@@ -82,6 +106,12 @@ class EmployeeController extends Controller
             $validated['basic_salary'],
             $validated['payroll_type']
         );
+
+        // Make branch match the selected office when office is provided.
+        if (!empty($validated['office_id'])) {
+            $office = Office::find($validated['office_id']);
+            $validated['branch_id'] = $office?->branch_id;
+        }
 
         Employee::create($validated);
 
@@ -113,6 +143,12 @@ class EmployeeController extends Controller
             $validated['basic_salary'],
             $validated['payroll_type']
         );
+
+        // Make branch match the selected office when office is provided.
+        if (!empty($validated['office_id'])) {
+            $office = Office::find($validated['office_id']);
+            $validated['branch_id'] = $office?->branch_id;
+        }
 
         $employee->update($validated);
 

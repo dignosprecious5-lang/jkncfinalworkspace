@@ -86,20 +86,7 @@
 <button
     x-show="activeTab === 'Employee Registration'"
     type="button"
-    @click="
-        showPdsModal = false;
-        showChecklistModal = false;
-        showTrainingModal = false;
-        empRegForm = {
-            fullName: '',
-            employeeId: generateEmployeeId(),
-            department: '',
-            startDate: '',
-            workEmail: '',
-            manager: ''
-        };
-        showEmpRegModal = true;
-    "
+    @click="openEmpRegModal()"
     class="flex items-center gap-2 px-5 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition font-medium shadow-sm"
 >
     <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
@@ -978,55 +965,85 @@
                 </button>
             </div>
             <form @submit.prevent="submitEmpReg()" class="flex-1 overflow-y-auto px-6 py-5 space-y-4">
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-600 mb-1">Full Name <span class="text-red-500">*</span></label>
-                        <input type="text" x-model="empRegForm.fullName" required
-                            class="w-full text-sm px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-600 mb-1">
-                            Employee ID
-                            <span class="ml-1 text-[10px] font-normal text-blue-500 inline-flex items-center gap-0.5">
-                                <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
-                                Auto-generated
-                            </span>
-                        </label>
-                        <input type="text" x-model="empRegForm.employeeId" readonly
-                            class="w-full text-sm px-3 py-2 border border-blue-200 rounded-lg bg-blue-50 text-blue-700 font-mono font-semibold outline-none cursor-default tracking-wide">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-600 mb-1">Department</label>
-                        <select x-model="empRegForm.department"
-                            class="w-full text-sm px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none bg-white">
-                            <option value="">Select...</option>
-                            <option>Human Resources</option>
-                            <option>Finance</option>
-                            <option>Operations</option>
-                            <option>Information Technology</option>
-                            <option>Marketing</option>
-                            <option>Sales</option>
-                            <option>Legal</option>
-                            <option>Administration</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-600 mb-1">Start Date</label>
-                        <input type="date" x-model="empRegForm.startDate"
-                            class="w-full text-sm px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none">
-                    </div>
-                    <div class="col-span-2">
-                        <label class="block text-xs font-semibold text-gray-600 mb-1">Work Email</label>
-                        <input type="email" x-model="empRegForm.workEmail" placeholder="employee@company.com"
-                            class="w-full text-sm px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none">
-                    </div>
-                    <div class="col-span-2">
-                        <label class="block text-xs font-semibold text-gray-600 mb-1">Reporting Manager</label>
-                        <input type="text" x-model="empRegForm.manager"
-                            class="w-full text-sm px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none">
-                    </div>
-                </div>
-                <div class="pt-4 border-t flex justify-end gap-3 pb-2">
+                
+<div class="grid grid-cols-2 gap-4">
+    <div class="col-span-2">
+        <label class="block text-xs font-semibold text-gray-600 mb-1">
+            Applicant with Completed Checklist <span class="text-red-500">*</span>
+        </label>
+        <select x-model="empRegForm.checklistId" @change="onEmpRegChecklistChange()" required
+            class="w-full text-sm px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none bg-white">
+            <option value="">Select completed checklist...</option>
+            <template x-for="checklist in completedChecklistsForRegistration" :key="checklist.id">
+                <option :value="checklist.id" x-text="`${checklist.employeeName} - ${checklist.position || 'No position'}`"></option>
+            </template>
+        </select>
+        <p class="text-[11px] text-gray-500 mt-1">
+            Only applicants with Completed checklist and not yet registered will appear here.
+        </p>
+    </div>
+
+    <div>
+        <label class="block text-xs font-semibold text-gray-600 mb-1">Full Name <span class="text-red-500">*</span></label>
+        <input type="text" x-model="empRegForm.fullName" required readonly
+            class="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg bg-gray-100 text-gray-700 outline-none">
+    </div>
+
+    <div>
+        <label class="block text-xs font-semibold text-gray-600 mb-1">Employee ID <span class="ml-1 text-[10px] font-normal text-blue-500">Auto-generated</span></label>
+        <input type="text" x-model="empRegForm.employeeId" readonly
+            class="w-full text-sm px-3 py-2 border border-blue-200 rounded-lg bg-blue-50 text-blue-700 font-mono font-semibold outline-none cursor-default tracking-wide">
+    </div>
+
+    <div>
+        <label class="block text-xs font-semibold text-gray-600 mb-1">Position</label>
+        <input type="text" x-model="empRegForm.position" readonly
+            class="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg bg-gray-100 text-gray-700 outline-none">
+    </div>
+
+    <div>
+        <label class="block text-xs font-semibold text-gray-600 mb-1">Personal Email</label>
+        <input type="email" x-model="empRegForm.personalEmail" readonly
+            class="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg bg-gray-100 text-gray-700 outline-none">
+    </div>
+
+    <div>
+        <label class="block text-xs font-semibold text-gray-600 mb-1">Department</label>
+        <input type="text" x-model="empRegForm.department" placeholder="e.g. Human Capital Department"
+            class="w-full text-sm px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none">
+    </div>
+
+    <div>
+        <label class="block text-xs font-semibold text-gray-600 mb-1">Start Date</label>
+        <input type="date" x-model="empRegForm.startDate"
+            class="w-full text-sm px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none">
+    </div>
+
+    <div class="col-span-2">
+        <label class="block text-xs font-semibold text-gray-600 mb-1">Work Email</label>
+        <input type="email" x-model="empRegForm.workEmail" placeholder="employee@company.com"
+            class="w-full text-sm px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none">
+    </div>
+
+    <div>
+        <label class="block text-xs font-semibold text-gray-600 mb-1">Salary from Job Offer</label>
+        <input type="text" x-model="empRegForm.salary" readonly
+            class="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg bg-gray-100 text-gray-700 outline-none">
+    </div>
+
+    <div>
+        <label class="block text-xs font-semibold text-gray-600 mb-1">Employment Type from Job Offer</label>
+        <input type="text" x-model="empRegForm.employmentType" readonly
+            class="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg bg-gray-100 text-gray-700 outline-none">
+    </div>
+
+    <div class="col-span-2">
+        <label class="block text-xs font-semibold text-gray-600 mb-1">Reporting Manager</label>
+        <input type="text" x-model="empRegForm.manager"
+            class="w-full text-sm px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none">
+    </div>
+</div>
+<div class="pt-4 border-t flex justify-end gap-3 pb-2">
                     <button type="button" @click="showEmpRegModal = false"
                         class="px-4 py-2 text-sm border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition">Cancel</button>
                     <button type="submit"
@@ -1167,9 +1184,14 @@ function onboardingPage() {
         },
 
         empRegForm: {
+            checklistId: '',
             fullName: '',
             employeeId: '',
             department: '',
+            position: '',
+            personalEmail: '',
+            salary: '',
+            employmentType: '',
             startDate: '',
             workEmail: '',
             manager: '',
@@ -1262,15 +1284,7 @@ function onboardingPage() {
             }
 
             if (tab === 'Employee Registration') {
-                this.empRegForm = {
-                    fullName: '',
-                    employeeId: this.generateEmployeeId(),
-                    department: '',
-                    startDate: '',
-                    workEmail: '',
-                    manager: '',
-                };
-                this.showEmpRegModal = true;
+                this.openEmpRegModal();
                 return;
             }
 
@@ -1682,7 +1696,70 @@ async reviewChecklistDocument(doc, status) {
             }
         },
 
+
+get completedChecklistsForRegistration() {
+    const registeredChecklistIds = (this.data['Employee Registration'] || [])
+        .map(item => String(item.checklistId || ''))
+        .filter(Boolean);
+
+    return (this.data['Checklist Submission'] || []).filter(item => {
+        return item.status === 'Completed'
+            && item.id
+            && !registeredChecklistIds.includes(String(item.id));
+    });
+},
+
+openEmpRegModal() {
+    this.closeAllModals();
+
+    if (this.completedChecklistsForRegistration.length === 0) {
+        alert('No applicant is ready for Employee Registration yet. Checklist must be Completed first.');
+        return;
+    }
+
+    this.empRegForm = {
+        checklistId: '',
+        fullName: '',
+        employeeId: this.generateEmployeeId(),
+        department: '',
+        position: '',
+        personalEmail: '',
+        startDate: '',
+        workEmail: '',
+        manager: '',
+    };
+
+    this.showEmpRegModal = true;
+},
+
+onEmpRegChecklistChange() {
+    const selected = (this.data['Checklist Submission'] || []).find(item =>
+        String(item.id) === String(this.empRegForm.checklistId)
+    );
+
+    if (!selected) {
+        this.empRegForm.fullName = '';
+        this.empRegForm.position = '';
+        this.empRegForm.personalEmail = '';
+        return;
+    }
+
+    this.empRegForm.fullName = selected.employeeName || '';
+    this.empRegForm.position = selected.position || '';
+    this.empRegForm.personalEmail = selected.employeeEmail || '';
+    this.empRegForm.workEmail = selected.employeeEmail || '';
+    this.empRegForm.department = selected.jobOfferDepartment || selected.position || this.empRegForm.department;
+
+            this.empRegForm.startDate = selected.startDate || '';
+            this.empRegForm.salary = selected.jobOfferSalary || '';
+            this.empRegForm.employmentType = selected.jobOfferEmploymentType || '';},
+
         async submitEmpReg() {
+            if (!this.empRegForm.checklistId) {
+                alert('Please select an applicant with a Completed checklist.');
+                return;
+            }
+
             try {
                 const response = await fetch('{{ route("human-capital.onboarding.employees.store") }}', {
                     method: 'POST',
@@ -1697,16 +1774,25 @@ async reviewChecklistDocument(doc, status) {
                 if (!response.ok) {
                     const errorText = await response.text();
                     console.error(errorText);
-                    throw new Error('Failed to save employee registration.');
+
+                    let message = 'Employee registration was not saved.';
+                    try {
+                        const parsed = JSON.parse(errorText);
+                        message = parsed.message || message;
+                    } catch (e) {}
+
+                    throw new Error(message);
                 }
 
                 const result = await response.json();
 
                 this.data['Employee Registration'].unshift(result.record);
+                await this.fetchOnboardingRecords();
                 this.showEmpRegModal = false;
+                alert(result.message || 'Employee registration saved successfully.');
             } catch (error) {
                 console.error(error);
-                alert('Employee registration was not saved. Check if Employee ID is already used, or check controller/routes/migration.');
+                alert(error.message || 'Employee registration was not saved. Check if Employee ID is already used, or check controller/routes/migration.');
             }
         },
 

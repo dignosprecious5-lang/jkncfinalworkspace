@@ -33,8 +33,10 @@ class Employee extends Model
     protected static function booted()
     {
         static::creating(function ($employee) {
-            $nextId = static::max('id') + 1;
-            $employee->employee_code = 'EMP-' . str_pad($nextId, 4, '0', STR_PAD_LEFT);
+            if (!$employee->employee_code) {
+                $nextId = (static::max('id') ?? 0) + 1;
+                $employee->employee_code = 'EMP-' . str_pad($nextId, 4, '0', STR_PAD_LEFT);
+            }
         });
     }
 
@@ -77,6 +79,4 @@ class Employee extends Model
     {
         return $this->hasMany(\App\Models\PayrollSummary::class);
     }
-
-
 }

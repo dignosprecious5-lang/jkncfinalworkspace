@@ -31,228 +31,184 @@
             </button>
         </div>
 
-        {{-- TABLE --}}
-        <div class="flex-1 min-h-0 overflow-auto">
-            <table class="w-full text-sm min-w-[3200px]">
-                <thead class="bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
+        
+    {{-- TABLE --}}
+    <div class="flex-1 min-h-0 overflow-auto">
+        <table class="w-full text-sm min-w-[1200px]">
+            <thead class="bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
+                <tr>
+                    <th class="px-4 py-3 text-left font-medium text-gray-700">Employee ID</th>
+                    <th class="px-4 py-3 text-left font-medium text-gray-700">Full Name</th>
+                    <th class="px-4 py-3 text-left font-medium text-gray-700">Email</th>
+                    <th class="px-4 py-3 text-left font-medium text-gray-700">Phone</th>
+                    <th class="px-4 py-3 text-left font-medium text-gray-700">Position</th>
+                    <th class="px-4 py-3 text-left font-medium text-gray-700">Department</th>
+                    <th class="px-4 py-3 text-left font-medium text-gray-700">Office</th>
+                    <th class="px-4 py-3 text-left font-medium text-gray-700">Branch</th>
+                    <th class="px-4 py-3 text-left font-medium text-gray-700">Payroll Type</th>
+                    <th class="px-4 py-3 text-left font-medium text-gray-700">Basic Salary</th>
+                    <th class="px-4 py-3 text-right font-medium text-gray-700">Actions</th>
+                </tr>
+            </thead>
+
+            <tbody>
+                <template x-if="employees.length === 0">
                     <tr>
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">Employee ID</th>
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">Surname</th>
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">First Name</th>
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">Middle Name</th>
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">Name Extension</th>
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">Full Name</th>
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">Date of Birth</th>
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">Place of Birth</th>
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">Citizenship</th>
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">Sex</th>
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">Civil Status</th>
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">Age</th>
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">Height</th>
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">Weight</th>
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">Blood Type</th>
-
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">SSS Number</th>
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">PhilHealth Number</th>
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">Pag-IBIG Number</th>
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">TIN Number</th>
-
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">Residential House No.</th>
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">Residential Street</th>
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">Residential Subdivision</th>
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">Residential Barangay</th>
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">Residential City</th>
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">Residential Province</th>
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">Residential ZIP</th>
-
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">Permanent House No.</th>
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">Permanent Street</th>
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">Permanent Subdivision</th>
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">Permanent Barangay</th>
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">Permanent City</th>
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">Permanent Province</th>
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">Permanent ZIP</th>
-
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">Telephone</th>
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">Mobile Number</th>
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">Email</th>
-
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">Spouse Surname</th>
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">Spouse First Name</th>
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">Spouse Middle Name</th>
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">Spouse Name Extension</th>
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">Spouse Occupation</th>
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">Spouse Employer</th>
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">Spouse Business Address</th>
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">Spouse Telephone</th>
-
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">Father Surname</th>
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">Father First Name</th>
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">Father Middle Name</th>
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">Father Name Extension</th>
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">Mother Maiden Surname</th>
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">Mother First Name</th>
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">Mother Middle Name</th>
-
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">Elementary School</th>
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">Elementary Degree</th>
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">Elementary From</th>
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">Elementary To</th>
-
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">Secondary School</th>
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">Secondary Degree</th>
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">Secondary From</th>
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">Secondary To</th>
-
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">College School</th>
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">College Degree</th>
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">College From</th>
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">College To</th>
-
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">Masters School</th>
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">Masters Degree</th>
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">Masters From</th>
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">Masters To</th>
-
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">Doctorate School</th>
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">Doctorate Degree</th>
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">Doctorate From</th>
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">Doctorate To</th>
-
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">Office</th>
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">Branch</th>
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">Department</th>
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">Division</th>
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">Unit</th>
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">Position</th>
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">Payroll Type</th>
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">Basic Salary</th>
-                        <th class="px-4 py-3 text-left font-medium text-gray-700">Hourly Rate</th>
-                        <th class="px-4 py-3 text-right font-medium text-gray-700">Actions</th>
+                        <td colspan="11" class="px-4 py-10 text-center text-gray-400">
+                            No employees found.
+                        </td>
                     </tr>
-                </thead>
+                </template>
 
-                <tbody>
-                    <template x-if="employees.length === 0">
-                        <tr>
-                            <td colspan="84" class="px-4 py-10 text-center text-gray-400">
-                                No employees found.
-                            </td>
-                        </tr>
-                    </template>
-
-                    <template x-for="employee in employees" :key="employee.id">
-                        <tr class="border-b border-gray-100 hover:bg-gray-50">
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.employee_code ?? '-'"></td>
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.last_name ?? '-'"></td>
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.first_name ?? '-'"></td>
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.middle_name ?? '-'"></td>
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.name_extension ?? '-'"></td>
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.full_name ?? '-'"></td>
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.date_of_birth ?? '-'"></td>
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.place_of_birth ?? '-'"></td>
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.citizenship ?? '-'"></td>
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.sex ?? '-'"></td>
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.civil_status ?? '-'"></td>
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.age ?? '-'"></td>
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.height ?? '-'"></td>
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.weight ?? '-'"></td>
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.blood_type ?? '-'"></td>
-
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.sss_number ?? '-'"></td>
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.philhealth_number ?? '-'"></td>
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.pagibig_number ?? '-'"></td>
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.tin_number ?? '-'"></td>
-
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.res_house_no ?? '-'"></td>
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.res_street ?? '-'"></td>
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.res_subdivision ?? '-'"></td>
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.res_barangay ?? '-'"></td>
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.res_city ?? '-'"></td>
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.res_province ?? '-'"></td>
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.res_zip ?? '-'"></td>
-
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.perm_house_no ?? '-'"></td>
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.perm_street ?? '-'"></td>
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.perm_subdivision ?? '-'"></td>
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.perm_barangay ?? '-'"></td>
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.perm_city ?? '-'"></td>
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.perm_province ?? '-'"></td>
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.perm_zip ?? '-'"></td>
-
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.telephone_number ?? '-'"></td>
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.mobile_number ?? employee.phone_number ?? '-'"></td>
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.email ?? employee.email_address ?? '-'"></td>
-
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.spouse_surname ?? '-'"></td>
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.spouse_first_name ?? '-'"></td>
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.spouse_middle_name ?? '-'"></td>
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.spouse_name_extension ?? '-'"></td>
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.spouse_occupation ?? '-'"></td>
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.spouse_employer ?? '-'"></td>
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.spouse_business_address ?? '-'"></td>
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.spouse_telephone ?? '-'"></td>
-
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.father_surname ?? '-'"></td>
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.father_first_name ?? '-'"></td>
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.father_middle_name ?? '-'"></td>
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.father_name_extension ?? '-'"></td>
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.mother_maiden_surname ?? '-'"></td>
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.mother_first_name ?? '-'"></td>
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.mother_middle_name ?? '-'"></td>
-
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.elementary_school ?? '-'"></td>
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.elementary_degree ?? '-'"></td>
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.elementary_from ?? '-'"></td>
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.elementary_to ?? '-'"></td>
-
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.secondary_school ?? '-'"></td>
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.secondary_degree ?? '-'"></td>
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.secondary_from ?? '-'"></td>
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.secondary_to ?? '-'"></td>
-
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.college_school ?? '-'"></td>
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.college_degree ?? '-'"></td>
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.college_from ?? '-'"></td>
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.college_to ?? '-'"></td>
-
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.masters_school ?? '-'"></td>
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.masters_degree ?? '-'"></td>
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.masters_from ?? '-'"></td>
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.masters_to ?? '-'"></td>
-
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.doctorate_school ?? '-'"></td>
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.doctorate_degree ?? '-'"></td>
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.doctorate_from ?? '-'"></td>
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.doctorate_to ?? '-'"></td>
-
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.office_name ?? '-'"></td>
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.branch_name ?? '-'"></td>
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.department_name ?? '-'"></td>
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.division_name ?? '-'"></td>
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.unit_name ?? '-'"></td>
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.position ?? '-'"></td>
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="employee.payroll_type ?? '-'"></td>
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="formatMoney(employee.basic_salary)"></td>
-                            <td class="px-4 py-3 whitespace-nowrap" x-text="formatMoney(employee.hourly_rate)"></td>
-
-                            <td class="px-4 py-3 text-right whitespace-nowrap">
-                                <button
-                                    type="button"
-                                    @click="openEdit(employee)"
-                                    class="text-blue-600 hover:text-blue-800 text-sm font-medium"
-                                >
-                                    Edit
-                                </button>
-                            </td>
-                        </tr>
-                    </template>
-                </tbody>
-            </table>
-        </div>
+                <template x-for="employee in employees" :key="employee.id">
+                    <tr class="border-b border-gray-100 hover:bg-gray-50">
+                        <td class="px-4 py-3 whitespace-nowrap font-semibold text-blue-700" x-text="employee.employee_code ?? '-'"></td>
+                        <td class="px-4 py-3 whitespace-nowrap font-medium text-gray-900" x-text="employee.full_name ?? '-'"></td>
+                        <td class="px-4 py-3 whitespace-nowrap text-gray-700" x-text="employee.email ?? '-'"></td>
+                        <td class="px-4 py-3 whitespace-nowrap text-gray-700" x-text="employee.phone_number ?? '-'"></td>
+                        <td class="px-4 py-3 whitespace-nowrap text-gray-700" x-text="employee.position ?? '-'"></td>
+                        <td class="px-4 py-3 whitespace-nowrap text-gray-700" x-text="employee.department_name ?? '-'"></td>
+                        <td class="px-4 py-3 whitespace-nowrap text-gray-700" x-text="employee.office_name ?? '-'"></td>
+                        <td class="px-4 py-3 whitespace-nowrap text-gray-700" x-text="employee.branch_name ?? '-'"></td>
+                        <td class="px-4 py-3 whitespace-nowrap">
+                            <span class="px-2 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700" x-text="employee.payroll_type ?? '-'"></span>
+                        </td>
+                        <td class="px-4 py-3 whitespace-nowrap text-gray-700" x-text="formatMoney(employee.basic_salary)"></td>
+                        <td class="px-4 py-3 text-right whitespace-nowrap">
+                            <button
+                                type="button"
+                                @click="openView(employee)"
+                                class="text-indigo-600 hover:text-indigo-800 text-sm font-medium mr-3"
+                            >
+                                View
+                            </button>
+                            <button
+                                type="button"
+                                @click="openEdit(employee)"
+                                class="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                            >
+                                Edit
+                            </button>
+                        </td>
+                    </tr>
+                </template>
+            </tbody>
+        </table>
     </div>
+</div>
 
-    {{-- SLIDER --}}
+{{-- VIEW DETAILS MODAL --}}
+<div
+    x-show="showDetails"
+    x-transition.opacity
+    class="fixed inset-0 z-50"
+    style="display: none;"
+>
+    <div class="absolute inset-0 bg-black/40" @click="closeDetails()"></div>
+
+    <div
+        x-transition:enter="transform transition ease-in-out duration-300"
+        x-transition:enter-start="translate-x-full"
+        x-transition:enter-end="translate-x-0"
+        x-transition:leave="transform transition ease-in-out duration-300"
+        x-transition:leave-start="translate-x-0"
+        x-transition:leave-end="translate-x-full"
+        class="absolute right-0 top-0 h-full w-full max-w-[640px] bg-white shadow-xl flex flex-col"
+    >
+        <div class="px-5 py-4 border-b flex items-center justify-between bg-indigo-700">
+            <div>
+                <h2 class="text-base font-bold text-white">Employee Details</h2>
+                <p class="text-xs text-indigo-100" x-text="selectedEmployee?.employee_code ?? ''"></p>
+            </div>
+            <button type="button" @click="closeDetails()" class="text-indigo-100 hover:text-white text-xl leading-none">&times;</button>
+        </div>
+
+        <template x-if="selectedEmployee">
+            <div class="flex-1 overflow-auto p-5 space-y-5">
+                <div class="rounded-xl border border-gray-200 p-4 bg-gray-50">
+                    <p class="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">Full Name</p>
+                    <p class="text-xl font-bold text-gray-900" x-text="selectedEmployee.full_name ?? '-'"></p>
+                    <p class="text-sm text-gray-500 mt-1" x-text="selectedEmployee.position ?? '-'"></p>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="rounded-lg border border-gray-200 p-4">
+                        <p class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Surname</p>
+                        <p class="text-sm font-semibold text-gray-900 mt-1" x-text="selectedEmployee.last_name ?? '-'"></p>
+                    </div>
+                    <div class="rounded-lg border border-gray-200 p-4">
+                        <p class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">First Name</p>
+                        <p class="text-sm font-semibold text-gray-900 mt-1" x-text="selectedEmployee.first_name ?? '-'"></p>
+                    </div>
+                    <div class="rounded-lg border border-gray-200 p-4">
+                        <p class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Email</p>
+                        <p class="text-sm font-semibold text-gray-900 mt-1" x-text="selectedEmployee.email ?? '-'"></p>
+                    </div>
+                    <div class="rounded-lg border border-gray-200 p-4">
+                        <p class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Phone</p>
+                        <p class="text-sm font-semibold text-gray-900 mt-1" x-text="selectedEmployee.phone_number ?? '-'"></p>
+                    </div>
+                </div>
+
+                <div>
+                    <h3 class="text-sm font-bold text-gray-900 mb-3">Organizational Assignment</h3>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="rounded-lg border border-gray-200 p-4">
+                            <p class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Branch</p>
+                            <p class="text-sm font-semibold text-gray-900 mt-1" x-text="selectedEmployee.branch_name ?? '-'"></p>
+                        </div>
+                        <div class="rounded-lg border border-gray-200 p-4">
+                            <p class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Office</p>
+                            <p class="text-sm font-semibold text-gray-900 mt-1" x-text="selectedEmployee.office_name ?? '-'"></p>
+                        </div>
+                        <div class="rounded-lg border border-gray-200 p-4">
+                            <p class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Department</p>
+                            <p class="text-sm font-semibold text-gray-900 mt-1" x-text="selectedEmployee.department_name ?? '-'"></p>
+                        </div>
+                        <div class="rounded-lg border border-gray-200 p-4">
+                            <p class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Position</p>
+                            <p class="text-sm font-semibold text-gray-900 mt-1" x-text="selectedEmployee.position ?? '-'"></p>
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    <h3 class="text-sm font-bold text-gray-900 mb-3">Payroll Details</h3>
+                    <div class="grid grid-cols-3 gap-4">
+                        <div class="rounded-lg border border-gray-200 p-4">
+                            <p class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Payroll Type</p>
+                            <p class="text-sm font-semibold text-gray-900 mt-1" x-text="selectedEmployee.payroll_type ?? '-'"></p>
+                        </div>
+                        <div class="rounded-lg border border-gray-200 p-4">
+                            <p class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Basic Salary</p>
+                            <p class="text-sm font-semibold text-gray-900 mt-1" x-text="formatMoney(selectedEmployee.basic_salary)"></p>
+                        </div>
+                        <div class="rounded-lg border border-gray-200 p-4">
+                            <p class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Hourly Rate</p>
+                            <p class="text-sm font-semibold text-gray-900 mt-1" x-text="formatMoney(selectedEmployee.hourly_rate)"></p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="rounded-lg border border-gray-200 p-4">
+                    <p class="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">Address</p>
+                    <p class="text-sm text-gray-800" x-text="selectedEmployee.address ?? '-'"></p>
+                </div>
+
+                <div class="pt-2 flex justify-end gap-3">
+                    <button type="button" @click="closeDetails()" class="px-4 py-2 text-sm border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
+                        Close
+                    </button>
+                    <button type="button" @click="openEdit(selectedEmployee); closeDetails()" class="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                        Edit Employee
+                    </button>
+                </div>
+            </div>
+        </template>
+    </div>
+</div>
+
+{{-- SLIDER --}}
     <div
         x-show="showSlider"
         x-transition.opacity
@@ -418,6 +374,8 @@ function employeePage(config) {
         updateBaseUrl: config.updateBaseUrl,
 
         showSlider: false,
+        showDetails: false,
+        selectedEmployee: null,
         isEdit: false,
         formAction: config.storeUrl,
 
@@ -440,36 +398,42 @@ function employeePage(config) {
         },
 
         get filteredBranches() {
-            if (!this.form.office_id) return [];
-            return this.branchOptions.filter(item => String(item.office_id) === String(this.form.office_id));
-        },
+    if (!this.form.office_id) return [];
+
+    const selectedOffice = this.officeOptions.find(item =>
+        String(item.id) === String(this.form.office_id)
+    );
+
+    if (!selectedOffice) return [];
+
+    return this.branchOptions.filter(item =>
+        String(item.id) === String(selectedOffice.branch_id)
+    );
+},
 
         get filteredDepartments() {
-            if (!this.form.office_id || !this.form.branch_id) return [];
-            return this.departmentOptions.filter(item =>
-                String(item.office_id) === String(this.form.office_id) &&
-                String(item.branch_id) === String(this.form.branch_id)
-            );
-        },
+    if (!this.form.office_id) return [];
+
+    return this.departmentOptions.filter(item =>
+        String(item.office_id) === String(this.form.office_id)
+    );
+},
 
         get filteredDivisions() {
-            if (!this.form.office_id || !this.form.branch_id || !this.form.department_id) return [];
-            return this.divisionOptions.filter(item =>
-                String(item.office_id) === String(this.form.office_id) &&
-                String(item.branch_id) === String(this.form.branch_id) &&
-                String(item.department_id) === String(this.form.department_id)
-            );
-        },
+    if (!this.form.department_id) return [];
+
+    return this.divisionOptions.filter(item =>
+        String(item.department_id) === String(this.form.department_id)
+    );
+},
 
         get filteredUnits() {
-            if (!this.form.office_id || !this.form.branch_id || !this.form.department_id || !this.form.division_id) return [];
-            return this.unitOptions.filter(item =>
-                String(item.office_id) === String(this.form.office_id) &&
-                String(item.branch_id) === String(this.form.branch_id) &&
-                String(item.department_id) === String(this.form.department_id) &&
-                String(item.division_id) === String(this.form.division_id)
-            );
-        },
+    if (!this.form.division_id) return [];
+
+    return this.unitOptions.filter(item =>
+        String(item.division_id) === String(this.form.division_id)
+    );
+},
 
         get hourlyRate() {
             const salary = parseFloat(this.form.basic_salary || 0);
@@ -482,6 +446,17 @@ function employeePage(config) {
 
             return (salary / 8).toFixed(2);
         },
+
+
+openView(employee) {
+    this.selectedEmployee = employee;
+    this.showDetails = true;
+},
+
+closeDetails() {
+    this.showDetails = false;
+    this.selectedEmployee = null;
+},
 
         openAdd() {
             this.isEdit = false;
@@ -540,17 +515,21 @@ function employeePage(config) {
         },
 
         onOfficeChange() {
-            this.form.branch_id = '';
-            this.form.department_id = '';
-            this.form.division_id = '';
-            this.form.unit_id = '';
-        },
+    const selectedOffice = this.officeOptions.find(item =>
+        String(item.id) === String(this.form.office_id)
+    );
+
+    this.form.branch_id = selectedOffice?.branch_id ?? '';
+    this.form.department_id = '';
+    this.form.division_id = '';
+    this.form.unit_id = '';
+},
 
         onBranchChange() {
-            this.form.department_id = '';
-            this.form.division_id = '';
-            this.form.unit_id = '';
-        },
+    this.form.department_id = '';
+    this.form.division_id = '';
+    this.form.unit_id = '';
+},
 
         onDepartmentChange() {
             this.form.division_id = '';
