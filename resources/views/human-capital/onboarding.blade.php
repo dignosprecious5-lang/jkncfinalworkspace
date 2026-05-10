@@ -260,7 +260,7 @@
                     <template x-for="(row, i) in filteredRows" :key="i">
                         <tr class="border-t border-gray-100 hover:bg-gray-50 transition">
                             <td class="px-4 py-3 text-gray-800 font-medium" x-text="row.employeeName"></td>
-                            <td class="px-4 py-3 text-gray-600" x-text="row.program"></td>
+                            <td class="px-4 py-3 text-gray-600" x-text="trainings.find(t => t.id == row.training_id || t.id == row.trainingId)?.title || row.program || row.training_id || row.trainingId"></td>
                             <td class="px-4 py-3 text-gray-600" x-text="row.trainer"></td>
                             <td class="px-4 py-3 text-gray-500" x-text="row.startDate"></td>
                             <td class="px-4 py-3 text-gray-500" x-text="row.dueDate"></td>
@@ -895,17 +895,12 @@
                     </div>
                     <div>
                         <label class="block text-xs font-semibold text-gray-600 mb-1">Training Program <span class="text-red-500">*</span></label>
-                        <select x-model="trainingForm.program" required
+                        <select x-model="trainingForm.trainingId" required
                             class="w-full text-sm px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none bg-white">
-                            <option value="">Select...</option>
-                            <option>Onboarding Orientation</option>
-                            <option>Company Policies &amp; Procedures</option>
-                            <option>Safety &amp; Security Awareness</option>
-                            <option>IT Systems &amp; Tools</option>
-                            <option>Customer Service Excellence</option>
-                            <option>Leadership Development</option>
-                            <option>Communication Skills</option>
-                            <option>Data Privacy &amp; Compliance</option>
+                            <option value="">-- Select Training Program --</option>
+                            <template x-for="training in trainings" :key="training.id">
+                                <option :value="training.id" x-text="training.title"></option>
+                            </template>
                         </select>
                     </div>
                     <div>
@@ -962,6 +957,8 @@ function onboardingPage() {
             { key: 'Training', label: 'Training' },
         ],
 
+        trainings: [],
+
         data: {
             'PDS': @json($pdsData ?? []),
             'Checklist Submission': [],
@@ -1000,7 +997,7 @@ function onboardingPage() {
 
         trainingForm: {
             employeeName: '',
-            program: '',
+            trainingId: '',
             startDate: '',
             dueDate: '',
             trainer: '',
@@ -1010,11 +1007,32 @@ function onboardingPage() {
         init() {
             this.loadLocalOnboardingData();
             this.resetPdsForm();
+            this.fetchTrainingPrograms();
         },
 
         loadLocalOnboardingData() {
             this.fetchOnboardingRecords();
         },
+
+        async fetchTrainingPrograms() {
+            try {
+                const response = await fetch('{{ route("human-capital.training") }}', {
+                    headers: {
+                        'Accept': 'application/json',
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to fetch training programs');
+                }
+
+                this.trainings = await response.json();
+            } catch (error) {
+                console.error('Error fetching training programs:', error);
+            }
+        },
+
+
 
         saveLocalOnboardingData() {
             // Database saving is now handled by Laravel routes.

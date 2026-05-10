@@ -11,6 +11,18 @@ class Training extends Model
         'title',
         'description',
         'provider',
-        'duration',
+        'duration_value',
+        'duration_unit',
     ];
+
+    /**
+     * Get the formatted duration display
+     */
+    public function getFormattedDurationAttribute()
+    {
+        if ($this->duration_value && $this->duration_unit) {
+            return $this->duration_value . ' ' . $this->duration_unit;
+        }
+        return null;
+    }
 }

@@ -83,7 +83,7 @@
                                 </td>
 
                                 <td class="p-3">
-                                    {{ $training->duration }}
+                                    {{ $training->formatted_duration }}
                                 </td>
 
                                 <td class="p-3">
@@ -203,11 +203,25 @@
                     <!-- DURATION -->
                     <div class="mb-3">
 
-                        <input
-                            type="text"
-                            name="duration"
-                            placeholder="Duration (e.g. 2 days)"
-                            class="w-full border p-2 rounded">
+                        <div class="flex gap-2">
+                            <input
+                                type="number"
+                                name="duration_value"
+                                placeholder="Duration"
+                                min="1"
+                                class="flex-1 border p-2 rounded"
+                                required>
+
+                            <select
+                                name="duration_unit"
+                                class="border p-2 rounded">
+                                <option value="minutes">Minutes</option>
+                                <option value="hours">Hours</option>
+                                <option value="days" selected>Days</option>
+                                <option value="weeks">Weeks</option>
+                                <option value="months">Months</option>
+                            </select>
+                        </div>
 
                     </div>
 

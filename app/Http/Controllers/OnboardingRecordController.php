@@ -102,7 +102,7 @@ class OnboardingRecordController extends Controller
     {
         $validated = $request->validate([
             'employeeName' => ['required', 'string', 'max:255'],
-            'program' => ['required', 'string', 'max:255'],
+            'trainingId' => ['required', 'integer', 'exists:trainings,id'],
             'startDate' => ['nullable', 'date'],
             'dueDate' => ['nullable', 'date'],
             'trainer' => ['nullable', 'string', 'max:255'],
@@ -111,7 +111,7 @@ class OnboardingRecordController extends Controller
 
         $training = OnboardingTraining::create([
             'employee_name' => $validated['employeeName'],
-            'program' => $validated['program'],
+            'training_id' => $validated['trainingId'],
             'start_date' => $validated['startDate'] ?? null,
             'due_date' => $validated['dueDate'] ?? null,
             'trainer' => $validated['trainer'] ?? null,
@@ -165,6 +165,7 @@ class OnboardingRecordController extends Controller
         return [
             'id' => $item->id,
             'employeeName' => $item->employee_name,
+            'training_id' => $item->training_id,
             'program' => $item->program,
             'trainer' => $item->trainer,
             'startDate' => optional($item->start_date)->format('Y-m-d'),
