@@ -119,7 +119,7 @@
         </form>
 
         <div class="overflow-x-auto">
-            <table class="w-full min-w-[1180px] text-left text-sm">
+            <table class="w-full min-w-[1360px] text-left text-sm">
                 <thead class="border-y border-gray-100 bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
                     <tr>
                         <th class="px-4 py-3">Date</th>
@@ -134,7 +134,7 @@
                         <th class="px-4 py-3 text-center">Hours</th>
                         <th class="px-4 py-3 text-center">Status</th>
                         @if($canManageAttendance)
-                            <th class="px-4 py-3 text-center">Actions</th>
+                            <th class="min-w-[220px] px-4 py-3 text-center">Actions</th>
                         @endif
                     </tr>
                 </thead>
@@ -220,8 +220,8 @@
                                 @endif
                             </td>
                             @if($canManageAttendance)
-                                <td class="px-4 py-3">
-                                    <div class="flex flex-col items-stretch gap-2">
+                                <td class="min-w-[220px] px-4 py-3 align-top">
+                                    <div class="w-[190px] space-y-2">
                                         <form id="{{ $updateFormId }}" method="POST" action="{{ route('human-capital.attendance.update', $attendance) }}">
                                             @csrf
                                             @method('PUT')
@@ -234,12 +234,12 @@
                                             <form method="POST" action="{{ route('human-capital.attendance.approve', $attendance) }}">
                                                 @csrf
                                                 @method('PATCH')
-                                                <button type="submit" class="w-full rounded-md bg-emerald-600 px-2 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700">Approve</button>
+                                                <button type="submit" class="block w-full whitespace-nowrap rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700">Approve</button>
                                             </form>
                                             <form method="POST" action="{{ route('human-capital.attendance.reject', $attendance) }}">
                                                 @csrf
                                                 @method('PATCH')
-                                                <button type="submit" class="w-full rounded-md bg-rose-600 px-2 py-1.5 text-xs font-semibold text-white hover:bg-rose-700">Reject</button>
+                                                <button type="submit" class="block w-full whitespace-nowrap rounded-md bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-700">Reject</button>
                                             </form>
                                         </div>
                                     </div>
