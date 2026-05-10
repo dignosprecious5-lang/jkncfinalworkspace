@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Http\Request;
+use App\Models\Attendance;
 use App\Models\TownHallCommunication;
 use Illuminate\Support\Facades\Storage;
 use App\Models\TownHallAcknowledgement;
@@ -32,6 +33,10 @@ class TownHallController extends Controller
         }
 
         $communications = $query->latest()->paginate(10);
+        $todayAttendance = Attendance::firstOrNew([
+            'user_id' => Auth::id(),
+            'date' => now()->toDateString(),
+        ]);
 
         $departmentQuery = TownHallCommunication::query();
         if (Schema::hasColumn('townhall_communications', 'is_archived')) {
@@ -41,7 +46,11 @@ class TownHallController extends Controller
             ->distinct()
             ->pluck('department_stakeholder');
 
-        return view('townhall.townhall', compact('communications', 'departments'));
+        return view('townhall.townhall', compact(
+            'communications',
+            'departments',
+            'todayAttendance'
+        ));
     }
 
     public function store(Request $request)

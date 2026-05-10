@@ -247,6 +247,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/townhall', [TownHallController::class, 'index'])->name('townhall');
     Route::get('/townhall/department', [TownHallController::class, 'department'])->name('townhall.department');
     Route::get('/townhall/attachments', [TownHallController::class, 'attachments'])->name('townhall.attachments');
+    Route::post('/townhall/attendance/clock', [AttendanceController::class, 'clock'])->name('townhall.attendance.clock');
     Route::post('/townhall', [TownHallController::class, 'store'])->name('townhall.store');
     Route::get('/townhall/{id}/edit', [TownHallController::class, 'edit'])->name('townhall.edit');
     Route::put('/townhall/{id}', [TownHallController::class, 'update'])->name('townhall.update');
@@ -954,14 +955,15 @@ Route::middleware('auth')->group(function () {
         Route::delete('/onboarding/trainings/{training}', [OnboardingRecordController::class, 'destroyTraining'])->name('onboarding.trainings.destroy');
 
         Route::view('/deployment', 'human-capital.deployment')->name('deployment');
-        Route::view('/attendance', 'human-capital.attendance')->name('attendance');
+        Route::get('/attendance', [AttendanceController::class, 'index'])->name('attendance');
+        Route::post('/attendance/clock', [AttendanceController::class, 'clock'])->name('attendance.clock');
+        Route::put('/attendance/{attendance}', [AttendanceController::class, 'update'])->name('attendance.update');
+        Route::patch('/attendance/{attendance}/approve', [AttendanceController::class, 'approve'])->name('attendance.approve');
+        Route::patch('/attendance/{attendance}/reject', [AttendanceController::class, 'reject'])->name('attendance.reject');
         Route::view('/employee-requests', 'human-capital.employee-requests')->name('employee-requests');
         Route::view('/employee-relations', 'human-capital.employee-relations')->name('employee-relations');
         Route::view('/performance', 'human-capital.performance')->name('performance');
         Route::view('/offboarding', 'human-capital.offboarding')->name('offboarding');
-
-        // Attendance
-        Route::get('/human-capital/attendance', [AttendanceController::class, 'index'])->name('human-capital.attendance');
 
 
         // Training
