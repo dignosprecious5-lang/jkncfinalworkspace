@@ -152,7 +152,7 @@
             </div>
 
             <!-- FORM -->
-            <form action="{{ route('training.store') }}"
+            <form action="{{ route('human-capital.training.store') }}"
                 method="POST"
                 class="flex flex-col h-full">
 

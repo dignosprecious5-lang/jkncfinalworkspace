@@ -957,16 +957,19 @@ Route::middleware('auth')->group(function () {
         Route::view('/attendance', 'human-capital.attendance')->name('attendance');
         Route::view('/employee-requests', 'human-capital.employee-requests')->name('employee-requests');
         Route::view('/employee-relations', 'human-capital.employee-relations')->name('employee-relations');
-        Route::view('/training', 'human-capital.training')->name('training');
         Route::view('/performance', 'human-capital.performance')->name('performance');
         Route::view('/offboarding', 'human-capital.offboarding')->name('offboarding');
 
         // Attendance
         Route::get('/human-capital/attendance', [AttendanceController::class, 'index'])->name('human-capital.attendance');
 
+
         // Training
-        Route::get('/human-capital/training', [TrainingController::class, 'index'])->name('human-capital.training');
-        Route::post('/human-capital/training', [TrainingController::class, 'store'])->name('human-capital.training.store');
+        Route::get('/training', [TrainingController::class, 'index'])
+            ->name('training');
+
+        Route::post('/training', [TrainingController::class, 'store'])
+            ->name('training.store');
 
 
     });
