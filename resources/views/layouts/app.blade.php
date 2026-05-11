@@ -484,7 +484,7 @@
 
                 <div class="flex-1 overflow-y-auto p-3">
                     <div class="space-y-1 text-sm">
-                       
+
 
                         <a href="{{ route('human-capital.organizational') }}"
                            class="block px-3 py-2 rounded-lg transition {{ request()->is('human-capital/organizational') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
@@ -521,7 +521,7 @@
                             Attendance
                         </a>
 
-                        <a href="{{ route('human-capital.employee-requests') }}"
+                        <a href="{{ route('human-capital.employee-requests.index') }}"
                            class="block px-3 py-2 rounded-lg transition {{ request()->is('human-capital/employee-requests') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
                             Employee Requests
                         </a>

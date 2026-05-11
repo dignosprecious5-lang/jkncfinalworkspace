@@ -70,6 +70,7 @@ use App\Http\Controllers\RecruitmentController;
 use App\Http\Controllers\OnboardingRecordController;
 use App\Http\Controllers\PayrollController;
 use App\Http\Controllers\EmployeeController;
+use App\Http\Controllers\EmployeeRequestController;
 use App\Http\Controllers\PhilippineLocationController;
 use App\Http\Controllers\SalesMarketingPayoutController;
 use Illuminate\Support\Facades\Auth;
@@ -853,24 +854,24 @@ Route::middleware('auth')->group(function () {
     Route::post('/sales-marketing/ida', [SalesMarketingIdaController::class, 'store'])->name('sales-marketing.ida.store');
     Route::get('/sales-marketing/ida/{ida}', [SalesMarketingIdaController::class, 'show'])->name('sales-marketing.ida.show');
     Route::put('/sales-marketing/ida/{ida}', [SalesMarketingIdaController::class, 'update'])
-    ->name('sales-marketing.ida.update');
+        ->name('sales-marketing.ida.update');
 
     Route::delete('/sales-marketing/ida/{ida}', [SalesMarketingIdaController::class, 'destroy'])
-    ->name('sales-marketing.ida.destroy');
+        ->name('sales-marketing.ida.destroy');
     Route::patch('/sales-marketing/ida/{ida}/submit', [SalesMarketingIdaController::class, 'submit'])
-    ->name('sales-marketing.ida.submit');
+        ->name('sales-marketing.ida.submit');
 
     Route::patch('/sales-marketing/ida/{ida}/accept', [SalesMarketingIdaController::class, 'accept'])
-    ->name('sales-marketing.ida.accept');
+        ->name('sales-marketing.ida.accept');
 
     Route::patch('/sales-marketing/ida/{ida}/revert', [SalesMarketingIdaController::class, 'revert'])
-    ->name('sales-marketing.ida.revert');
+        ->name('sales-marketing.ida.revert');
     Route::post('/sales-marketing/earners/{earner}/request-payout', [SalesMarketingPayoutController::class, 'requestPayout'])
-    ->name('sales-marketing.earners.request-payout');
+        ->name('sales-marketing.earners.request-payout');
     Route::get('/sales-marketing/payouts', [SalesMarketingPayoutController::class, 'index'])
-    ->name('sales-marketing.payouts.index');
+        ->name('sales-marketing.payouts.index');
     Route::patch('/sales-marketing/payouts/{allocation}/mark-paid', [SalesMarketingPayoutController::class, 'markPaid'])
-    ->name('sales-marketing.payouts.mark-paid');
+        ->name('sales-marketing.payouts.mark-paid');
 
     /*
     |--------------------------------------------------------------------------
@@ -889,6 +890,8 @@ Route::middleware('auth')->group(function () {
             Route::get('/cities-municipalities/{type}/{code}', [PhilippineLocationController::class, 'citiesMunicipalities'])->name('cities-municipalities');
             Route::get('/barangays/{cityCode}', [PhilippineLocationController::class, 'barangays'])->name('barangays');
         });
+
+
 
         /*
         |--------------------------------------------------------------------------
@@ -987,7 +990,6 @@ Route::middleware('auth')->group(function () {
         Route::put('/attendance/{attendance}', [AttendanceController::class, 'update'])->name('attendance.update');
         Route::patch('/attendance/{attendance}/approve', [AttendanceController::class, 'approve'])->name('attendance.approve');
         Route::patch('/attendance/{attendance}/reject', [AttendanceController::class, 'reject'])->name('attendance.reject');
-        Route::view('/employee-requests', 'human-capital.employee-requests')->name('employee-requests');
         Route::view('/employee-relations', 'human-capital.employee-relations')->name('employee-relations');
         Route::view('/performance', 'human-capital.performance')->name('performance');
         Route::view('/offboarding', 'human-capital.offboarding')->name('offboarding');
@@ -1000,6 +1002,28 @@ Route::middleware('auth')->group(function () {
         Route::post('/training', [TrainingController::class, 'store'])
             ->name('training.store');
 
+        /*
+        |--------------------------------------------------------------------------
+        | HUMAN RESOURCE EMPLOYEE REQUESTS
+        |--------------------------------------------------------------------------
+        */
 
+        Route::post('/employee-requests/{employeeRequest}/approve', [EmployeeRequestController::class, 'approve'])
+            ->name('employee-requests.approve');
+
+        Route::post('/employee-requests/{employeeRequest}/reject', [EmployeeRequestController::class, 'reject'])
+            ->name('employee-requests.reject');
+
+        Route::post('/employee-requests/{employeeRequest}/revise', [EmployeeRequestController::class, 'revise'])
+            ->name('employee-requests.revise');
+
+        Route::post('/employee-requests/{employeeRequest}/update-revision', [EmployeeRequestController::class, 'updateRevision'])
+            ->name('employee-requests.update-revision');
+
+        Route::get('/employee-requests', [EmployeeRequestController::class, 'index'])
+            ->name('employee-requests.index');
+
+        Route::post('/employee-requests', [EmployeeRequestController::class, 'store'])
+            ->name('employee-requests.store');
     });
 });
