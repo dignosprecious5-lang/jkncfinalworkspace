@@ -79,6 +79,7 @@ use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\TrainingController;
 use App\Http\Controllers\DeploymentController;
 use App\Http\Controllers\OfficialBusinessTripController;
+use App\Http\Controllers\EmployeeRelationController;
 
 /*
 |--------------------------------------------------------------------------
@@ -992,7 +993,12 @@ Route::middleware('auth')->group(function () {
         Route::put('/attendance/{attendance}', [AttendanceController::class, 'update'])->name('attendance.update');
         Route::patch('/attendance/{attendance}/approve', [AttendanceController::class, 'approve'])->name('attendance.approve');
         Route::patch('/attendance/{attendance}/reject', [AttendanceController::class, 'reject'])->name('attendance.reject');
-        Route::view('/employee-relations', 'human-capital.employee-relations')->name('employee-relations');
+        Route::get('/employee-relations', [EmployeeRelationController::class, 'index'])->name('employee-relations');
+        Route::post('/employee-relations', [EmployeeRelationController::class, 'store'])->name('employee-relations.store');
+        Route::put('/employee-relations/{employeeRelation}', [EmployeeRelationController::class, 'update'])->name('employee-relations.update');
+        Route::post('/employee-relations/{employeeRelation}/approve', [EmployeeRelationController::class, 'approve'])->name('employee-relations.approve');
+        Route::post('/employee-relations/{employeeRelation}/reject', [EmployeeRelationController::class, 'reject'])->name('employee-relations.reject');
+        Route::delete('/employee-relations/{employeeRelation}', [EmployeeRelationController::class, 'destroy'])->name('employee-relations.destroy');
         Route::view('/performance', 'human-capital.performance')->name('performance');
         Route::view('/offboarding', 'human-capital.offboarding')->name('offboarding');
 
