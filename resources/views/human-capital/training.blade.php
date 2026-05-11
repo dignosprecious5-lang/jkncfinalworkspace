@@ -56,6 +56,10 @@
                                 Duration
                             </th>
 
+                            <th class="w-72 p-3 text-left">
+                                Assigned Employees
+                            </th>
+
                             <th class="w-32 p-3 text-left">
                                 Action
                             </th>
@@ -87,6 +91,27 @@
                                 </td>
 
                                 <td class="p-3">
+                                    @forelse($training->assignments->take(4) as $assignment)
+                                        <div class="mb-1 flex items-center justify-between gap-2 rounded border border-gray-100 bg-gray-50 px-2 py-1 text-xs">
+                                            <span class="truncate">
+                                                {{ $assignment->employee?->full_name ?? 'Employee deleted' }}
+                                            </span>
+                                            <span class="shrink-0 rounded-full bg-blue-100 px-2 py-0.5 font-medium text-blue-700">
+                                                {{ $assignment->status }}
+                                            </span>
+                                        </div>
+                                    @empty
+                                        <span class="text-xs text-gray-400">No assignments yet</span>
+                                    @endforelse
+
+                                    @if($training->assignments->count() > 4)
+                                        <div class="mt-1 text-xs text-gray-400">
+                                            +{{ $training->assignments->count() - 4 }} more
+                                        </div>
+                                    @endif
+                                </td>
+
+                                <td class="p-3">
 
                                     <button class="text-blue-600 text-sm">
                                         Edit
@@ -100,7 +125,7 @@
 
                             <tr>
 
-                                <td colspan="5"
+                                <td colspan="6"
                                     class="p-6 text-center text-gray-500">
 
                                     No trainings found.

@@ -14,10 +14,22 @@ class TrainingController extends Controller
      */
     public function index()
     {
-        $trainings = Training::latest()->get();
+        $trainings = Training::with(['assignments.employee'])
+            ->latest()
+            ->get();
 
         if (request()->wantsJson()) {
-            return response()->json($trainings);
+            return response()->json(
+                $trainings->map(fn (Training $training) => [
+                    'id' => $training->id,
+                    'title' => $training->title,
+                    'description' => $training->description,
+                    'provider' => $training->provider,
+                    'duration_value' => $training->duration_value,
+                    'duration_unit' => $training->duration_unit,
+                    'formatted_duration' => $training->formatted_duration,
+                ])
+            );
         }
 
         return view('human-capital.training', compact('trainings'));

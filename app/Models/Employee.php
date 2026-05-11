@@ -79,4 +79,9 @@ class Employee extends Model
     {
         return $this->hasMany(\App\Models\PayrollSummary::class);
     }
+
+    public function trainingAssignments()
+    {
+        return $this->hasMany(\App\Models\TrainingAssignment::class);
+    }
 }

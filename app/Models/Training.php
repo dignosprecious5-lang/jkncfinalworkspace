@@ -4,6 +4,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Training extends Model
 {
@@ -24,5 +25,10 @@ class Training extends Model
             return $this->duration_value . ' ' . $this->duration_unit;
         }
         return null;
+    }
+
+    public function assignments(): HasMany
+    {
+        return $this->hasMany(TrainingAssignment::class);
     }
 }

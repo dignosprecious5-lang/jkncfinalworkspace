@@ -47,6 +47,10 @@ class EmployeeController extends Controller
             })
             ->values();
 
+        if (request()->wantsJson()) {
+            return $employees;
+        }
+
         return view('human-capital.employee-profile', [
             'employees' => $employees,
 

@@ -5,24 +5,26 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class OnboardingTraining extends Model
+class TrainingAssignment extends Model
 {
     protected $fillable = [
         'employee_id',
-        'employee_name',
         'training_id',
-        'program',
+        'assignment_type',
         'start_date',
         'due_date',
+        'completed_at',
         'trainer',
         'description',
         'status',
-        'created_by',
+        'remarks',
+        'assigned_by',
     ];
 
     protected $casts = [
         'start_date' => 'date',
         'due_date' => 'date',
+        'completed_at' => 'datetime',
     ];
 
     public function employee(): BelongsTo
@@ -33,5 +35,10 @@ class OnboardingTraining extends Model
     public function training(): BelongsTo
     {
         return $this->belongsTo(Training::class);
+    }
+
+    public function assignedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'assigned_by');
     }
 }
