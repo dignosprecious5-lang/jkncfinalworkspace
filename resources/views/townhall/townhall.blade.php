@@ -20,6 +20,75 @@
         </div>
     @endif
 
+    @php
+        $attendanceAction = $todayAttendance->next_punch_action;
+        $attendanceButtonLabel = $todayAttendance->next_punch_label;
+        $attendanceIcon = $todayAttendance->next_punch_icon;
+        $todayHours = (float) ($todayAttendance->total_working_hours ?? 0);
+    @endphp
+
+    <section class="mb-5 overflow-hidden rounded-lg border border-gray-200 bg-white">
+        <div class="grid gap-0 lg:grid-cols-[1.2fr_0.8fr]">
+            <div class="relative bg-gray-950 px-6 py-6 text-white">
+                <div class="absolute inset-y-0 right-0 w-1/2 bg-gradient-to-l from-blue-500/30 to-transparent"></div>
+                <div class="relative">
+                    <p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-200">Today Attendance</p>
+                    <div class="mt-3 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                        <div>
+                            <h2 class="text-2xl font-semibold">{{ now()->format('l, F d') }}</h2>
+                            <p class="mt-1 text-sm text-gray-300">
+                                {{ $todayAttendance->time_in ? $todayAttendance->current_punch_status : 'Start your workday from Town Hall.' }}
+                                @if($todayAttendance->time_out)
+                                    Finished at {{ $todayAttendance->time_out->format('h:i A') }}.
+                                @elseif($attendanceAction)
+                                    Next punch: {{ $attendanceButtonLabel }}.
+                                @endif
+                            </p>
+                        </div>
+
+                        <form method="POST" action="{{ route('townhall.attendance.clock') }}">
+                            @csrf
+                            <input type="hidden" name="action" value="{{ $attendanceAction }}">
+                            <button
+                                type="submit"
+                                @disabled($attendanceAction === null)
+                                class="inline-flex min-w-[150px] items-center justify-center gap-2 rounded-lg px-5 py-3 text-sm font-semibold shadow-lg transition
+                                    {{ $attendanceAction === 'clock_out'
+                                        ? 'bg-white text-gray-950 hover:bg-gray-100'
+                                        : ($attendanceAction === null
+                                            ? 'cursor-not-allowed bg-white/15 text-white/60'
+                                            : 'bg-blue-500 text-white hover:bg-blue-400') }}">
+                                <i class="fas {{ $attendanceIcon }}"></i>
+                                {{ $attendanceButtonLabel }}
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-3 divide-x divide-gray-100 border-t border-gray-100 bg-white text-center lg:border-l lg:border-t-0">
+                <div class="p-4">
+                    <p class="text-xs font-semibold uppercase tracking-wide text-gray-400">In</p>
+                    <p class="mt-2 text-sm font-semibold text-gray-900">{{ $todayAttendance->time_in?->format('h:i A') ?? '--:--' }}</p>
+                </div>
+                <div class="p-4">
+                    <p class="text-xs font-semibold uppercase tracking-wide text-gray-400">Status</p>
+                    <p class="mt-2 text-sm font-semibold text-gray-900">{{ $todayAttendance->current_punch_status }}</p>
+                </div>
+                <div class="p-4">
+                    <p class="text-xs font-semibold uppercase tracking-wide text-gray-400">Hours</p>
+                    <p class="mt-2 text-sm font-semibold text-gray-900">{{ number_format($todayHours, 2) }}</p>
+                </div>
+                <div class="col-span-3 border-t border-gray-100 p-4 text-left">
+                    <a href="{{ route('human-capital.attendance') }}" class="inline-flex items-center gap-2 text-sm font-semibold text-blue-700 hover:text-blue-800">
+                        View full attendance
+                        <i class="fas fa-arrow-right text-xs"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </section>
+
     @if(Auth::user()->hasPermission('create_townhall'))
     <div x-show="showSlideOver" x-cloak class="fixed inset-0 z-50 overflow-hidden">
         <div class="absolute inset-0 bg-black/40" @click="showSlideOver = false"></div>

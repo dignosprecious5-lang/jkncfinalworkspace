@@ -16,6 +16,10 @@ class TrainingController extends Controller
     {
         $trainings = Training::latest()->get();
 
+        if (request()->wantsJson()) {
+            return response()->json($trainings);
+        }
+
         return view('human-capital.training', compact('trainings'));
     }
 
@@ -28,14 +32,16 @@ class TrainingController extends Controller
             'title' => 'required|string|max:255',
             'description' => 'nullable|string',
             'provider' => 'nullable|string|max:255',
-            'duration' => 'nullable|string|max:255',
+            'duration_value' => 'nullable|integer|min:1',
+            'duration_unit' => 'nullable|in:minutes,hours,days,weeks,months',
         ]);
 
         Training::create([
             'title' => $request->title,
             'description' => $request->description,
             'provider' => $request->provider,
-            'duration' => $request->duration,
+            'duration_value' => $request->duration_value,
+            'duration_unit' => $request->duration_unit,
         ]);
 
         return redirect()->back()->with('success', 'Training added successfully.');

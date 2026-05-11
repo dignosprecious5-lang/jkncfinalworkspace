@@ -8,6 +8,7 @@ class OnboardingTraining extends Model
 {
     protected $fillable = [
         'employee_name',
+        'training_id',
         'program',
         'start_date',
         'due_date',

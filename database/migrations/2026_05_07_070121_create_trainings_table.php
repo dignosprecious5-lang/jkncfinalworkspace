@@ -17,7 +17,8 @@ return new class extends Migration
             $table->string('title');
             $table->text('description')->nullable();
             $table->string('provider')->nullable();
-            $table->string('duration')->nullable();
+            $table->integer('duration_value')->nullable();
+            $table->enum('duration_unit', ['minutes', 'hours', 'days', 'weeks', 'months'])->nullable();
 
             $table->timestamps();
         });

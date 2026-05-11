@@ -265,6 +265,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/townhall', [TownHallController::class, 'index'])->name('townhall');
     Route::get('/townhall/department', [TownHallController::class, 'department'])->name('townhall.department');
     Route::get('/townhall/attachments', [TownHallController::class, 'attachments'])->name('townhall.attachments');
+    Route::post('/townhall/attendance/clock', [AttendanceController::class, 'clock'])->name('townhall.attendance.clock');
     Route::post('/townhall', [TownHallController::class, 'store'])->name('townhall.store');
     Route::get('/townhall/{id}/edit', [TownHallController::class, 'edit'])->name('townhall.edit');
     Route::put('/townhall/{id}', [TownHallController::class, 'update'])->name('townhall.update');
@@ -984,16 +985,16 @@ Route::middleware('auth')->group(function () {
         Route::view('/attendance', 'human-capital.attendance')->name('attendance');
         Route::view('/employee-requests', 'human-capital.employee-requests')->name('employee-requests');
         Route::view('/employee-relations', 'human-capital.employee-relations')->name('employee-relations');
-        Route::view('/training', 'human-capital.training')->name('training');
         Route::view('/performance', 'human-capital.performance')->name('performance');
         Route::view('/offboarding', 'human-capital.offboarding')->name('offboarding');
 
-        // Attendance
-        Route::get('/human-capital/attendance', [AttendanceController::class, 'index'])->name('human-capital.attendance');
 
         // Training
-        Route::get('/human-capital/training', [TrainingController::class, 'index'])->name('human-capital.training');
-        Route::post('/human-capital/training', [TrainingController::class, 'store'])->name('human-capital.training.store');
+        Route::get('/training', [TrainingController::class, 'index'])
+            ->name('training');
+
+        Route::post('/training', [TrainingController::class, 'store'])
+            ->name('training.store');
 
 
     });
