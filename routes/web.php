@@ -982,7 +982,11 @@ Route::middleware('auth')->group(function () {
         Route::post('/deployment', [DeploymentController::class, 'store'])->name('deployment.store');
         Route::put('/deployment/{deployment}', [DeploymentController::class, 'update'])->name('deployment.update');
         Route::delete('/deployment/{deployment}', [DeploymentController::class, 'destroy'])->name('deployment.destroy');
-        Route::view('/attendance', 'human-capital.attendance')->name('attendance');
+        Route::get('/attendance', [AttendanceController::class, 'index'])->name('attendance');
+        Route::post('/attendance/clock', [AttendanceController::class, 'clock'])->name('attendance.clock');
+        Route::put('/attendance/{attendance}', [AttendanceController::class, 'update'])->name('attendance.update');
+        Route::patch('/attendance/{attendance}/approve', [AttendanceController::class, 'approve'])->name('attendance.approve');
+        Route::patch('/attendance/{attendance}/reject', [AttendanceController::class, 'reject'])->name('attendance.reject');
         Route::view('/employee-requests', 'human-capital.employee-requests')->name('employee-requests');
         Route::view('/employee-relations', 'human-capital.employee-relations')->name('employee-relations');
         Route::view('/performance', 'human-capital.performance')->name('performance');

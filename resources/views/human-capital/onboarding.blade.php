@@ -105,7 +105,7 @@
         showEmpRegModal = false;
         trainingForm = {
             employeeName: '',
-            program: '',
+            trainingId: '',
             startDate: '',
             dueDate: '',
             trainer: '',
@@ -256,7 +256,12 @@
                     <template x-for="(row, i) in filteredRows" :key="i">
                         <tr class="border-t border-gray-100 hover:bg-gray-50 transition">
                             <td class="px-4 py-3 text-gray-800 font-medium" x-text="row.employeeName"></td>
-                            <td class="px-4 py-3 text-gray-600" x-text="trainings.find(t => t.id == row.training_id || t.id == row.trainingId)?.title || row.program || row.training_id || row.trainingId"></td>
+                            <td class="px-4 py-3 text-gray-600"
+    x-text="(() => {
+        const selected = trainings.find(t => t.id == row.training_id || t.id == row.trainingId);
+        return selected?.title || selected?.program || selected?.name || row.program || row.training_id || row.trainingId || '—';
+    })()">
+</td>
                             <td class="px-4 py-3 text-gray-600" x-text="row.trainer"></td>
                             <td class="px-4 py-3 text-gray-500" x-text="row.startDate"></td>
                             <td class="px-4 py-3 text-gray-500" x-text="row.dueDate"></td>
@@ -1087,7 +1092,7 @@
                             class="w-full text-sm px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none bg-white">
                             <option value="">-- Select Training Program --</option>
                             <template x-for="training in trainings" :key="training.id">
-                                <option :value="training.id" x-text="training.title"></option>
+                                <option :value="training.id" x-text="training.title || training.program || training.name"></option>
                             </template>
                         </select>
                     </div>
@@ -1309,7 +1314,7 @@ function onboardingPage() {
             if (tab === 'Training') {
                 this.trainingForm = {
                     employeeName: '',
-                    program: '',
+                    trainingId: '',
                     startDate: '',
                     dueDate: '',
                     trainer: '',
@@ -1991,14 +1996,18 @@ onEmpRegChecklistChange() {
                     r.manager
                 ]),
 
-                'Training': rows.map(r => [
-                    r.employeeName,
-                    r.program,
-                    r.startDate,
-                    r.dueDate,
-                    r.trainer,
-                    r.description
-                ]),
+                'Training': rows.map(r => {
+                    const selected = this.trainings.find(t => t.id == r.training_id || t.id == r.trainingId);
+
+                    return [
+                        r.employeeName,
+                        selected?.title || selected?.program || selected?.name || r.program || r.training_id || r.trainingId,
+                        r.startDate,
+                        r.dueDate,
+                        r.trainer,
+                        r.description
+                    ];
+                }),
             };
 
             const escape = value => '"' + String(value ?? '').replace(/"/g, '""') + '"';
