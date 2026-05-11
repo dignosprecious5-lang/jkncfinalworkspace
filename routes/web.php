@@ -77,6 +77,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\TrainingController;
 use App\Http\Controllers\DeploymentController;
+use App\Http\Controllers\OfficialBusinessTripController;
 
 /*
 |--------------------------------------------------------------------------
@@ -991,6 +992,14 @@ Route::middleware('auth')->group(function () {
         Route::view('/employee-relations', 'human-capital.employee-relations')->name('employee-relations');
         Route::view('/performance', 'human-capital.performance')->name('performance');
         Route::view('/offboarding', 'human-capital.offboarding')->name('offboarding');
+
+Route::get('/obf', [OfficialBusinessTripController::class, 'index'])->name('obf');
+Route::post('/obf', [OfficialBusinessTripController::class, 'store'])->name('obf.store');
+Route::put('/obf/{officialBusinessTrip}', [OfficialBusinessTripController::class, 'update'])->name('obf.update');
+Route::delete('/obf/{officialBusinessTrip}', [OfficialBusinessTripController::class, 'destroy'])->name('obf.destroy');
+Route::post('/obf/{officialBusinessTrip}/approve', [OfficialBusinessTripController::class, 'approve'])->name('obf.approve');
+Route::post('/obf/{officialBusinessTrip}/reject', [OfficialBusinessTripController::class, 'reject'])->name('obf.reject');
+
 
 
         // Training

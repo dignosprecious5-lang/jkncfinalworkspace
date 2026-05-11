@@ -22,6 +22,23 @@
                 <h1 class="text-lg font-semibold text-gray-900">Employee Profile</h1>
             </div>
 
+        @if (session('success'))
+            <div class="mx-4 mt-4 px-4 py-3 rounded-lg bg-green-50 border border-green-200 text-green-700 text-sm font-semibold">
+                {{ session('success') }}
+            </div>
+        @endif
+
+        @if ($errors->any())
+            <div class="mx-4 mt-4 px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
+                <p class="font-bold mb-1">Please fix the following:</p>
+                <ul class="list-disc pl-5">
+                    @foreach ($errors->all() as $error)
+                        <li>{{ $error }}</li>
+                    @endforeach
+                </ul>
+            </div>
+        @endif
+
             <button
                 type="button"
                 @click="openAdd()"
@@ -239,12 +256,12 @@
 
                 <div class="grid grid-cols-2 gap-3">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">First Name</label>
-                        <input type="text" name="first_name" x-model="form.first_name" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">First Name <span class="text-red-500">*</span></label>
+                        <input type="text" name="first_name" x-model="form.first_name" required class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
-                        <input type="text" name="last_name" x-model="form.last_name" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Last Name <span class="text-red-500">*</span></label>
+                        <input type="text" name="last_name" x-model="form.last_name" required class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
                     </div>
                 </div>
 
@@ -265,8 +282,8 @@
                 </div>
 
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
-                    <input type="email" name="email" x-model="form.email" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Email Address <span class="text-red-500">*</span></label>
+                    <input type="email" name="email" x-model="form.email" required class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
                 </div>
 
                 <div class="pt-2">
@@ -333,8 +350,8 @@
                 </div>
 
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Payroll Type</label>
-                    <select name="payroll_type" x-model="form.payroll_type" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Payroll Type <span class="text-red-500">*</span></label>
+                    <select name="payroll_type" x-model="form.payroll_type" required class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
                         <option value="">Select Payroll Type</option>
                         <option value="Monthly Paid">Monthly Paid</option>
                         <option value="Daily Paid">Daily Paid</option>
@@ -342,8 +359,8 @@
                 </div>
 
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Basic Salary</label>
-                    <input type="number" step="0.01" name="basic_salary" x-model="form.basic_salary" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Basic Salary <span class="text-red-500">*</span></label>
+                    <input type="number" step="0.01" name="basic_salary" x-model="form.basic_salary" required class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
                 </div>
 
                 <div>
@@ -483,8 +500,8 @@ closeDetails() {
                 division_id: employee.division_id ?? '',
                 unit_id: employee.unit_id ?? '',
                 position: employee.position ?? '',
-                payroll_type: employee.payroll_type ?? '',
-                basic_salary: employee.basic_salary ?? ''
+                payroll_type: employee.payroll_type ?? 'Monthly Paid',
+                basic_salary: employee.basic_salary ?? 0
             };
 
             this.showSlider = true;
@@ -509,8 +526,8 @@ closeDetails() {
                 division_id: '',
                 unit_id: '',
                 position: '',
-                payroll_type: '',
-                basic_salary: ''
+                payroll_type: 'Monthly Paid',
+                basic_salary: 0
             };
         },
 

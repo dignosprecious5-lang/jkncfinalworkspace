@@ -521,6 +521,11 @@
                             Attendance
                         </a>
 
+                        <a href="{{ route('human-capital.obf') }}"
+                        class="block px-3 py-2 rounded-lg transition {{ request()->is('human-capital/obf') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
+                            Official Business Trip Form
+                        </a>
+
                         <a href="{{ route('human-capital.employee-requests') }}"
                            class="block px-3 py-2 rounded-lg transition {{ request()->is('human-capital/employee-requests') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
                             Employee Requests
