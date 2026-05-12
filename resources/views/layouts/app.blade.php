@@ -551,9 +551,9 @@
                             Performance
                         </a>
 
-                        <a href="{{ route('human-capital.award') }}"
-                        class="block px-3 py-2 rounded-lg transition {{ request()->is('human-capital/award') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
-                            Award
+                        <a href="{{ route('human-capital.awards') }}"
+                        class="block px-3 py-2 rounded-lg transition {{ request()->is('human-capital/awards') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
+                            Awards
                         </a>
 
                         <a href="{{ route('human-capital.offboarding') }}"

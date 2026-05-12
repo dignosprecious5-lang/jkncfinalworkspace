@@ -80,6 +80,7 @@ use App\Http\Controllers\TrainingController;
 use App\Http\Controllers\DeploymentController;
 use App\Http\Controllers\OfficialBusinessTripController;
 use App\Http\Controllers\EmployeeRelationController;
+use App\Http\Controllers\AwardController;
 
 /*
 |--------------------------------------------------------------------------
@@ -999,7 +1000,6 @@ Route::middleware('auth')->group(function () {
         Route::post('/employee-relations/{employeeRelation}/approve', [EmployeeRelationController::class, 'approve'])->name('employee-relations.approve');
         Route::post('/employee-relations/{employeeRelation}/reject', [EmployeeRelationController::class, 'reject'])->name('employee-relations.reject');
         Route::delete('/employee-relations/{employeeRelation}', [EmployeeRelationController::class, 'destroy'])->name('employee-relations.destroy');
-        Route::view('/award', 'human-capital.award')->name('award');
         Route::view('/memos', 'human-capital.memos')->name('memos');
         Route::view('/performance', 'human-capital.performance')->name('performance');
         Route::view('/offboarding', 'human-capital.offboarding')->name('offboarding');
@@ -1014,11 +1014,20 @@ Route::post('/obf/{officialBusinessTrip}/reject', [OfficialBusinessTripControlle
 
 
         // Training
-        Route::get('/training', [TrainingController::class, 'index'])
-            ->name('training');
+        Route::get('/training', [TrainingController::class, 'index'])->name('training');
+        Route::post('/training', [TrainingController::class, 'store'])->name('training.store');
+        Route::put('/training/{training}', [TrainingController::class, 'update'])->name('training.update');
+        Route::delete('/training/{training}', [TrainingController::class, 'destroy'])->name('training.destroy');
 
-        Route::post('/training', [TrainingController::class, 'store'])
-            ->name('training.store');
+        // Assignment actions
+        Route::post('/training/assignment/{id}/complete', [TrainingController::class, 'markCompleted'])
+            ->name('training.complete');
+
+        Route::post('/training/assignment/{id}/certificate', [TrainingController::class, 'issueCertificate'])
+            ->name('training.certificate');
+
+        // Awards page
+        Route::get('/awards', [AwardController::class, 'index'])->name('awards');
 
         /*
         |--------------------------------------------------------------------------
