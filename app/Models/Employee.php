@@ -14,6 +14,7 @@ class Employee extends Model
         'address',
         'phone_number',
         'email',
+        'profile_photo',
         'office_id',
         'branch_id',
         'department_id',
@@ -33,8 +34,10 @@ class Employee extends Model
     protected static function booted()
     {
         static::creating(function ($employee) {
-            $nextId = static::max('id') + 1;
-            $employee->employee_code = 'EMP-' . str_pad($nextId, 4, '0', STR_PAD_LEFT);
+            if (!$employee->employee_code) {
+                $nextId = (static::max('id') ?? 0) + 1;
+                $employee->employee_code = 'EMP-' . str_pad($nextId, 4, '0', STR_PAD_LEFT);
+            }
         });
     }
 
@@ -66,5 +69,15 @@ class Employee extends Model
     public function getFullNameAttribute()
     {
         return trim($this->first_name . ' ' . $this->last_name);
+    }
+
+    public function payrollProfile()
+    {
+        return $this->hasOne(\App\Models\EmployeePayrollProfile::class);
+    }
+
+    public function payrollSummaries()
+    {
+        return $this->hasMany(\App\Models\PayrollSummary::class);
     }
 }

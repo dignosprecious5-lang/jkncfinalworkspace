@@ -16,7 +16,14 @@ class SalesMarketingIdaController extends Controller
             abort(403, 'Unauthorized');
         }
 
-        $idas = SalesMarketingIda::with(['deal', 'allocations.earner'])
+        $idas = SalesMarketingIda::with([
+                'deal',
+                'allocations.earner',
+                'creator',
+                'submittedBy',
+                'acceptedBy',
+                'revertedBy',
+            ])
             ->latest()
             ->get();
 
@@ -97,6 +104,13 @@ class SalesMarketingIdaController extends Controller
                 'deal_value' => $dealValue,
                 'workflow_status' => 'Uploaded',
                 'created_by' => auth()->id(),
+
+                'submitted_at' => null,
+                'submitted_by' => null,
+                'accepted_at' => null,
+                'accepted_by' => null,
+                'reverted_at' => null,
+                'reverted_by' => null,
             ]);
 
             $this->saveAllocations($ida, $validated['allocations'] ?? [], $dealValue);
@@ -113,7 +127,14 @@ class SalesMarketingIdaController extends Controller
             abort(403, 'Unauthorized');
         }
 
-        $ida->load(['deal', 'allocations.earner']);
+        $ida->load([
+            'deal',
+            'allocations.earner',
+            'creator',
+            'submittedBy',
+            'acceptedBy',
+            'revertedBy',
+        ]);
 
         return view('sales-marketing.ida.show', compact('ida'));
     }
@@ -143,7 +164,15 @@ class SalesMarketingIdaController extends Controller
                 'service_area' => $validated['service_area'] ?? null,
                 'product_engagement_structure' => $validated['product_engagement_structure'] ?? null,
                 'deal_value' => $dealValue,
+
+                // Reset workflow after editing.
                 'workflow_status' => 'Uploaded',
+                'submitted_at' => null,
+                'submitted_by' => null,
+                'accepted_at' => null,
+                'accepted_by' => null,
+                'reverted_at' => null,
+                'reverted_by' => null,
             ]);
 
             $ida->allocations()->delete();
@@ -198,6 +227,14 @@ class SalesMarketingIdaController extends Controller
 
         $ida->update([
             'workflow_status' => 'Submitted',
+            'submitted_at' => now(),
+            'submitted_by' => auth()->id(),
+
+            // Clear approval/revert trail because this is a new submission.
+            'accepted_at' => null,
+            'accepted_by' => null,
+            'reverted_at' => null,
+            'reverted_by' => null,
         ]);
 
         return redirect()
@@ -219,6 +256,12 @@ class SalesMarketingIdaController extends Controller
 
         $ida->update([
             'workflow_status' => 'Accepted',
+            'accepted_at' => now(),
+            'accepted_by' => auth()->id(),
+
+            // Clear revert trail after successful acceptance.
+            'reverted_at' => null,
+            'reverted_by' => null,
         ]);
 
         return redirect()
@@ -240,6 +283,12 @@ class SalesMarketingIdaController extends Controller
 
         $ida->update([
             'workflow_status' => 'Reverted',
+            'reverted_at' => now(),
+            'reverted_by' => auth()->id(),
+
+            // Clear acceptance trail because this was reverted.
+            'accepted_at' => null,
+            'accepted_by' => null,
         ]);
 
         return redirect()

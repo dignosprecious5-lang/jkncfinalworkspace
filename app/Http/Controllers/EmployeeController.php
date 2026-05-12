@@ -9,6 +9,7 @@ use App\Models\Employee;
 use App\Models\Office;
 use App\Models\Unit;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
 class EmployeeController extends Controller
@@ -29,16 +30,21 @@ class EmployeeController extends Controller
                     'address' => $item->address,
                     'phone_number' => $item->phone_number,
                     'email' => $item->email,
+                    'profile_photo' => $item->profile_photo,
+                    'profile_photo_url' => $item->profile_photo ? Storage::url($item->profile_photo) : null,
+
                     'office_id' => $item->office_id,
                     'branch_id' => $item->branch_id,
                     'department_id' => $item->department_id,
                     'division_id' => $item->division_id,
                     'unit_id' => $item->unit_id,
+
                     'office_name' => $item->office?->office_name,
                     'branch_name' => $item->branch?->branch_name,
                     'department_name' => $item->department?->department_name,
                     'division_name' => $item->division?->division_name,
                     'unit_name' => $item->unit?->unit_name,
+
                     'position' => $item->position,
                     'payroll_type' => $item->payroll_type,
                     'basic_salary' => $item->basic_salary,
@@ -47,19 +53,40 @@ class EmployeeController extends Controller
             })
             ->values();
 
+        if (request()->wantsJson()) {
+            return $employees;
+        }
+
         return view('human-capital.employee-profile', [
             'employees' => $employees,
-            'officeOptions' => Office::orderBy('office_name')->get(['id', 'office_name']),
-            'branchOptions' => Branch::orderBy('branch_name')->get(['id', 'office_id', 'branch_name']),
-            'departmentOptions' => Department::orderBy('department_name')->get(['id', 'office_id', 'branch_id', 'department_name']),
-            'divisionOptions' => Division::orderBy('division_name')->get(['id', 'office_id', 'branch_id', 'department_id', 'division_name']),
-            'unitOptions' => Unit::orderBy('unit_name')->get(['id', 'office_id', 'branch_id', 'department_id', 'division_id', 'unit_name']),
+
+            'officeOptions' => Office::orderBy('office_name')
+                ->get(['id', 'office_name', 'branch_id'])
+                ->values(),
+
+            'branchOptions' => Branch::orderBy('branch_name')
+                ->get(['id', 'branch_name'])
+                ->values(),
+
+            'departmentOptions' => Department::orderBy('department_name')
+                ->get(['id', 'office_id', 'department_name'])
+                ->values(),
+
+            'divisionOptions' => Division::orderBy('division_name')
+                ->get(['id', 'department_id', 'division_name'])
+                ->values(),
+
+            'unitOptions' => Unit::orderBy('unit_name')
+                ->get(['id', 'division_id', 'unit_name'])
+                ->values(),
         ]);
     }
 
     public function store(Request $request)
     {
         $validated = $request->validate([
+            'profile_photo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
+
             'first_name' => ['required', 'string', 'max:255'],
             'last_name' => ['required', 'string', 'max:255'],
             'age' => ['nullable', 'integer', 'min:18', 'max:100'],
@@ -78,10 +105,19 @@ class EmployeeController extends Controller
             'basic_salary' => ['required', 'numeric', 'min:0'],
         ]);
 
+        if ($request->hasFile('profile_photo')) {
+            $validated['profile_photo'] = $request->file('profile_photo')->store('employee-photos', 'public');
+        }
+
         $validated['hourly_rate'] = $this->computeHourlyRate(
             $validated['basic_salary'],
             $validated['payroll_type']
         );
+
+        if (!empty($validated['office_id'])) {
+            $office = Office::find($validated['office_id']);
+            $validated['branch_id'] = $office?->branch_id;
+        }
 
         Employee::create($validated);
 
@@ -91,6 +127,8 @@ class EmployeeController extends Controller
     public function update(Request $request, Employee $employee)
     {
         $validated = $request->validate([
+            'profile_photo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
+
             'first_name' => ['required', 'string', 'max:255'],
             'last_name' => ['required', 'string', 'max:255'],
             'age' => ['nullable', 'integer', 'min:18', 'max:100'],
@@ -109,10 +147,23 @@ class EmployeeController extends Controller
             'basic_salary' => ['required', 'numeric', 'min:0'],
         ]);
 
+        if ($request->hasFile('profile_photo')) {
+            if ($employee->profile_photo) {
+                Storage::disk('public')->delete($employee->profile_photo);
+            }
+
+            $validated['profile_photo'] = $request->file('profile_photo')->store('employee-photos', 'public');
+        }
+
         $validated['hourly_rate'] = $this->computeHourlyRate(
             $validated['basic_salary'],
             $validated['payroll_type']
         );
+
+        if (!empty($validated['office_id'])) {
+            $office = Office::find($validated['office_id']);
+            $validated['branch_id'] = $office?->branch_id;
+        }
 
         $employee->update($validated);
 

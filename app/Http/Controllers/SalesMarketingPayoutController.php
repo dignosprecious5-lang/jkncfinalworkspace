@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\SalesMarketingEarner;
 use App\Models\SalesMarketingIdaAllocation;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class SalesMarketingPayoutController extends Controller
@@ -15,7 +14,7 @@ class SalesMarketingPayoutController extends Controller
             abort(403, 'Unauthorized');
         }
 
-        $payouts = SalesMarketingIdaAllocation::with(['earner', 'ida'])
+        $payouts = SalesMarketingIdaAllocation::with(['earner', 'ida', 'requestedBy'])
             ->where('status', 'For Payout')
             ->whereHas('ida', function ($query) {
                 $query->where('workflow_status', 'Accepted');
@@ -23,7 +22,7 @@ class SalesMarketingPayoutController extends Controller
             ->latest()
             ->get();
 
-        $paidPayouts = SalesMarketingIdaAllocation::with(['earner', 'ida'])
+        $paidPayouts = SalesMarketingIdaAllocation::with(['earner', 'ida', 'requestedBy', 'paidBy'])
             ->where('status', 'Paid')
             ->latest()
             ->limit(20)
@@ -65,6 +64,8 @@ class SalesMarketingPayoutController extends Controller
             foreach ($eligibleAllocations as $allocation) {
                 $allocation->update([
                     'status' => 'For Payout',
+                    'requested_at' => now(),
+                    'requested_by' => auth()->id(),
                 ]);
             }
         });
@@ -96,6 +97,8 @@ class SalesMarketingPayoutController extends Controller
 
         $allocation->update([
             'status' => 'Paid',
+            'paid_at' => now(),
+            'paid_by' => auth()->id(),
         ]);
 
         return redirect()

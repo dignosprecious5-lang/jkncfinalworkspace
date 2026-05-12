@@ -2,13 +2,11 @@
 
 namespace App\Services;
 
-use App\Models\EmployeePayrollProfile;
 use App\Models\PayrollAllowance;
 use App\Models\PayrollBenefit;
 use App\Models\PayrollDeduction;
-use App\Models\PayrollHoliday;
 use App\Models\PayrollPeriod;
-use Carbon\Carbon;
+use App\Models\EmployeePayrollProfile;
 
 class PayrollCalculator
 {
@@ -17,159 +15,157 @@ class PayrollCalculator
         $level = $profile->payrollLevel;
         $grade = $level->salaryGrade;
 
-        $monthlyBasic = round((float) ($profile->basic_salary_override ?: $grade->monthly_basic_pay), 2);
-        $dailyRate = round((float) $grade->applicable_daily_rate, 2);
-        $hourlyRate = round((float) ($grade->hourly_rate ?: ($dailyRate / max((float) $level->hours_per_day, 1))), 4);
+        $adr = (float) $grade->applicable_daily_rate;
+        $hoursPerDay = (float) $level->hours_per_day;
+        $hourlyRate = $hoursPerDay > 0 ? $adr / $hoursPerDay : 0;
+        $minuteRate = $hourlyRate / 60;
 
-        $holidays = PayrollHoliday::query()
-            ->where('salary_grade_id', $grade->id)
-            ->where('payroll_level_id', $level->id)
-            ->whereBetween('holiday_date', [$period->period_start, $period->period_end])
-            ->get();
-
-        $workDays = $this->countWorkDays(
-            $period->period_start,
-            $period->period_end,
-            $level->work_schedule_label ?: $level->work_schedule,
-            $holidays->pluck('holiday_date')->all()
-        );
-
-        $grossPay = round($dailyRate * $workDays, 2);
-
-        if ($grossPay <= 0 && $level->computation_type === 'monthly') {
-            $grossPay = round($monthlyBasic / 2, 2);
+        if ($profile->basic_salary_override !== null) {
+            $monthlyBasic = (float) $profile->basic_salary_override;
+        } else {
+            $monthlyBasic = $level->computation_type === 'monthly'
+                ? ($adr * 365) / 12
+                : ($adr * $this->getDailyFactor($level->work_schedule)) / 12;
         }
 
-        $benefits = PayrollBenefit::query()
-            ->where('salary_grade_id', $grade->id)
-            ->where('payroll_level_id', $level->id)
-            ->where('is_active', true)
-            ->get();
+        $yearlyBasic = $monthlyBasic * 12;
+        $dailyEquivalent = $adr;
 
-        $allowances = PayrollAllowance::query()
-            ->where('salary_grade_id', $grade->id)
-            ->where('payroll_level_id', $level->id)
-            ->where('is_active', true)
-            ->get();
+        $benefits = PayrollBenefit::where('is_active', true)->get();
+        $allowances = PayrollAllowance::where('is_active', true)->get();
+        $deductions = PayrollDeduction::where('is_active', true)->get();
 
-        $deductions = PayrollDeduction::query()
-            ->where('salary_grade_id', $grade->id)
-            ->where('payroll_level_id', $level->id)
-            ->where('is_active', true)
-            ->get();
-
-        $totalBenefits = round((float) $benefits->sum('value'), 2);
-        $totalAllowances = round((float) $allowances->sum('value'), 2);
-        $totalDeductions = round((float) $deductions->sum('value'), 2);
-        $holidayPayAmount = round((float) $holidays->sum('holiday_value'), 2);
-        $nightDifferentialAmount = 0.00;
-        $netPay = round($grossPay + $totalBenefits + $totalAllowances + $holidayPayAmount - $totalDeductions, 2);
+        $totalBenefits = 0;
+        $totalAllowances = 0;
+        $totalDeductions = 0;
+        $nightDiff = 0;     // placeholder
+        $holidayPay = 0;    // placeholder
 
         $items = [];
 
         $items[] = [
             'item_type' => 'earning',
-            'category' => 'basic_pay',
-            'name' => 'Basic Pay',
-            'amount' => $grossPay,
+            'category' => 'basic_salary',
+            'name' => 'Basic Salary',
+            'amount' => round($monthlyBasic, 2),
             'meta_json' => [
-                'computation_type' => $level->computation_type,
-                'work_days' => $workDays,
-                'daily_rate' => $dailyRate,
-                'hourly_rate' => $hourlyRate,
+                'yearly' => round($yearlyBasic, 2),
+                'monthly' => round($monthlyBasic, 2),
+                'daily' => round($dailyEquivalent, 2),
+                'hourly' => round($hourlyRate, 2),
+                'minute' => round($minuteRate, 4),
             ],
         ];
 
-        foreach ($benefits as $item) {
-            $items[] = $this->buildItem('earning', 'benefit', $item->name, (float) $item->value, $item->type, $item->rate);
-        }
+        foreach ($benefits as $benefit) {
+            $amount = $benefit->type === 'percentage'
+                ? ($monthlyBasic * ((float) $benefit->value / 100))
+                : (float) $benefit->value;
 
-        foreach ($allowances as $item) {
-            $items[] = $this->buildItem('earning', 'allowance', $item->name, (float) $item->value, $item->type, $item->rate);
-        }
+            $amount = round($amount, 2);
+            $totalBenefits += $amount;
 
-        foreach ($holidays as $item) {
             $items[] = [
                 'item_type' => 'earning',
-                'category' => 'holiday',
-                'name' => $item->name,
-                'amount' => (float) $item->holiday_value,
+                'category' => 'benefit',
+                'name' => $benefit->name,
+                'amount' => $amount,
                 'meta_json' => [
-                    'holiday_date' => optional($item->holiday_date)->format('Y-m-d'),
-                    'holiday_type' => $item->holiday_category ?: $item->holiday_type,
-                    'percentage' => (float) $item->percentage,
+                    'type' => $benefit->type,
+                    'value' => $benefit->value,
                 ],
             ];
         }
 
-        foreach ($deductions as $item) {
-            $items[] = $this->buildItem('deduction', 'deduction', $item->name, (float) $item->value, $item->type, $item->rate);
+        foreach ($allowances as $allowance) {
+            $amount = $allowance->type === 'percentage'
+                ? ($monthlyBasic * ((float) $allowance->value / 100))
+                : (float) $allowance->value;
+
+            $amount = round($amount, 2);
+            $totalAllowances += $amount;
+
+            $items[] = [
+                'item_type' => 'earning',
+                'category' => 'allowance',
+                'name' => $allowance->name,
+                'amount' => $amount,
+                'meta_json' => [
+                    'type' => $allowance->type,
+                    'value' => $allowance->value,
+                    'yearly' => round($amount * 12, 2),
+                    'monthly' => round($amount, 2),
+                    'daily' => round($amount / 30, 2),
+                    'hourly' => round(($amount / 30) / max($hoursPerDay, 1), 2),
+                    'minute' => round((($amount / 30) / max($hoursPerDay, 1)) / 60, 4),
+                ],
+            ];
         }
+
+        foreach ($deductions as $deduction) {
+            $amount = $deduction->type === 'percentage'
+                ? ($monthlyBasic * ((float) $deduction->value / 100))
+                : (float) $deduction->value;
+
+            $amount = round($amount, 2);
+            $totalDeductions += $amount;
+
+            $items[] = [
+                'item_type' => 'deduction',
+                'category' => 'deduction',
+                'name' => $deduction->name,
+                'amount' => $amount,
+                'meta_json' => [
+                    'type' => $deduction->type,
+                    'value' => $deduction->value,
+                ],
+            ];
+        }
+
+        if ($profile->night_differential_enabled) {
+            $nightDiff = 0;
+            $items[] = [
+                'item_type' => 'earning',
+                'category' => 'night_differential',
+                'name' => 'Night Differential',
+                'amount' => 0,
+                'meta_json' => [
+                    'formula' => 'Hourly Rate x 10% x Night Hours Worked',
+                ],
+            ];
+        }
+
+        $grossPay = round($monthlyBasic + $totalBenefits + $totalAllowances + $nightDiff + $holidayPay, 2);
+        $netPay = round($grossPay - $totalDeductions, 2);
 
         return [
             'computation_type' => $level->computation_type,
             'gross_pay' => $grossPay,
-            'total_benefits' => $totalBenefits,
-            'total_allowances' => $totalAllowances,
-            'total_deductions' => $totalDeductions,
-            'night_differential_amount' => $nightDifferentialAmount,
-            'holiday_pay_amount' => $holidayPayAmount,
+            'total_benefits' => round($totalBenefits, 2),
+            'total_allowances' => round($totalAllowances, 2),
+            'total_deductions' => round($totalDeductions, 2),
+            'night_differential_amount' => round($nightDiff, 2),
+            'holiday_pay_amount' => round($holidayPay, 2),
             'net_pay' => $netPay,
             'breakdown' => [
-                'monthly_basic_pay' => $monthlyBasic,
-                'daily_rate' => $dailyRate,
-                'hourly_rate' => $hourlyRate,
-                'work_days' => $workDays,
+                'applicable_daily_rate' => round($adr, 2),
+                'monthly_basic_salary' => round($monthlyBasic, 2),
+                'yearly_basic_salary' => round($yearlyBasic, 2),
+                'hourly_rate' => round($hourlyRate, 2),
+                'minute_rate' => round($minuteRate, 4),
+                'work_schedule' => $level->work_schedule,
+                'hours_per_day' => $hoursPerDay,
             ],
             'items' => $items,
         ];
     }
 
-    private function buildItem(string $itemType, string $category, string $name, float $amount, string $type, ?float $rate): array
+    protected function getDailyFactor(?string $workSchedule): float
     {
-        return [
-            'item_type' => $itemType,
-            'category' => $category,
-            'name' => $name,
-            'amount' => round($amount, 2),
-            'meta_json' => [
-                'type' => $type,
-                'rate' => $rate,
-            ],
-        ];
-    }
-
-    private function countWorkDays(Carbon $start, Carbon $end, ?string $schedule, array $holidayDates): int
-    {
-        $count = 0;
-        $cursor = $start->copy()->startOfDay();
-        $lastDay = $end->copy()->startOfDay();
-        $holidayLookup = collect($holidayDates)
-            ->filter()
-            ->map(fn ($date) => Carbon::parse($date)->format('Y-m-d'))
-            ->flip();
-
-        while ($cursor->lte($lastDay)) {
-            $dayOfWeek = $cursor->dayOfWeek;
-            $isSaturday = $dayOfWeek === Carbon::SATURDAY;
-            $isSunday = $dayOfWeek === Carbon::SUNDAY;
-            $isHoliday = $holidayLookup->has($cursor->format('Y-m-d'));
-
-            $skip = match ($schedule) {
-                'no_saturday' => $isSaturday,
-                'no_sat_sun', 'does_not_work_on_saturday_and_sunday' => $isSaturday || $isSunday,
-                'no_sat_sun_holidays' => $isSaturday || $isSunday || $isHoliday,
-                'no_sunday' => $isSunday,
-                default => false,
-            };
-
-            if (! $skip) {
-                $count++;
-            }
-
-            $cursor->addDay();
-        }
-
-        return $count;
+        return match ($workSchedule) {
+            'every_day' => 395.0,
+            'no_sunday' => 313.0,
+            default => 261.0,
+        };
     }
 }

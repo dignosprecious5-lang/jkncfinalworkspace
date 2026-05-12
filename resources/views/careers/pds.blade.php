@@ -20,6 +20,31 @@
                 <img src="{{ asset('images/imaglogo.png') }}" onerror="this.src='{{ asset('images/imag1logo.jpg') }}'" alt="Logo" class="h-20 w-auto mx-auto mb-6 object-contain">
                 <h1 class="text-3xl font-black text-gray-900 tracking-tight uppercase">Personal Data Sheet</h1>
                 <p class="mt-2 text-gray-600 font-medium">Please accurately fill out the form below for onboarding.</p>
+                @if(!empty($jobOffer))
+                    <div class="mt-6 max-w-2xl mx-auto bg-blue-50 border border-blue-200 rounded-2xl p-4 text-left">
+                        <p class="text-xs font-black text-blue-600 uppercase tracking-widest mb-2">Accepted Job Offer Details</p>
+                        <div class="grid sm:grid-cols-3 gap-3 text-sm">
+                            <div>
+                                <p class="text-gray-500 text-xs font-bold uppercase">Name</p>
+                                <p class="font-bold text-gray-900">{{ $jobOffer->name }}</p>
+                            </div>
+                            <div>
+                                <p class="text-gray-500 text-xs font-bold uppercase">Position</p>
+                                <p class="font-bold text-gray-900">{{ $jobOffer->position }}</p>
+                            </div>
+                            <div>
+                                <p class="text-gray-500 text-xs font-bold uppercase">Email</p>
+                                <p class="font-bold text-gray-900">{{ $jobOffer->candidate_email }}</p>
+                            </div>
+                        </div>
+                        <div class="mt-3 bg-white/70 border border-blue-100 rounded-xl p-3">
+                            <p class="text-[11px] text-blue-900 font-semibold">
+                                Please manually enter your legal Surname, First Name, and Middle Name below. The job offer name is shown only for reference to avoid incorrect name splitting.
+                            </p>
+                        </div>
+                    </div>
+                @endif
+
             </div>
 
             <div class="bg-white rounded-3xl shadow-xl border border-gray-100 mb-12">
@@ -29,8 +54,8 @@
         <div>
             <p class="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-3 pb-1 border-b border-blue-100">I. Personal Information</p>
             <div class="grid grid-cols-2 gap-3 mb-3">
-                <div><label class="block text-xs font-semibold text-gray-600 mb-1">Surname</label><input type="text" x-model="pdsForm.surname" @input="pdsForm.fullName = pdsForm.surname + ', ' + pdsForm.firstName" class="w-full text-sm px-3 py-1.5 border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 outline-none"></div>
-                <div><label class="block text-xs font-semibold text-gray-600 mb-1">First Name</label><input type="text" x-model="pdsForm.firstName" @input="pdsForm.fullName = pdsForm.surname + ', ' + pdsForm.firstName" class="w-full text-sm px-3 py-1.5 border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 outline-none"></div>
+                <div><label class="block text-xs font-semibold text-gray-600 mb-1">Surname</label><input type="text" x-model="pdsForm.surname" required @input="pdsForm.fullName = pdsForm.surname + ', ' + pdsForm.firstName" class="w-full text-sm px-3 py-1.5 border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 outline-none"></div>
+                <div><label class="block text-xs font-semibold text-gray-600 mb-1">First Name</label><input type="text" x-model="pdsForm.firstName" required @input="pdsForm.fullName = pdsForm.surname + ', ' + pdsForm.firstName" class="w-full text-sm px-3 py-1.5 border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 outline-none"></div>
                 <div><label class="block text-xs font-semibold text-gray-600 mb-1">Middle Name</label><input type="text" x-model="pdsForm.middleName" class="w-full text-sm px-3 py-1.5 border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 outline-none"></div>
                 <div><label class="block text-xs font-semibold text-gray-600 mb-1">Name Extension</label><input type="text" x-model="pdsForm.nameExt" placeholder="Jr., Sr., III, etc." class="w-full text-sm px-3 py-1.5 border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 outline-none"></div>
             </div>
@@ -218,8 +243,14 @@
     function publicPDS() {
         return {
             pdsForm: {
-                fullName: '', position: '', email: '', phone: '',
-                surname: '', firstName: '', middleName: '', nameExt: '',
+                jobOfferToken: @json($token ?? null),
+                fullName: @json(optional($jobOffer ?? null)->name ?? ''),
+                position: @json(optional($jobOffer ?? null)->position ?? ''),
+                email: @json(optional($jobOffer ?? null)->candidate_email ?? ''),
+                phone: '',
+                surname: '',
+                firstName: '',
+                middleName: '', nameExt: '',
                 dob: '', pob: '', citizenship: '',
                 sex: '', civilStatus: '', height: '', weight: '', bloodType: '',
                 sss: '', philhealth: '', pagibig: '', tin: '',
@@ -243,7 +274,26 @@
             },
             isSubmitting: false,
             isSuccess: false,
+            acceptedName: @json(optional($jobOffer ?? null)->name ?? ''),
+
+            init() {
+                // Do not auto-split the job offer name into surname/first/middle name.
+                // The applicant must manually enter their legal name to avoid wrong middle-name parsing.
+            },
             submitPds() {
+                const first = String(this.pdsForm.firstName || '').trim();
+                const middle = String(this.pdsForm.middleName || '').trim();
+                const surname = String(this.pdsForm.surname || '').trim();
+
+                if (surname || first || middle) {
+                    const givenNames = [first, middle].filter(Boolean).join(' ');
+                    this.pdsForm.fullName = surname ? `${surname}, ${givenNames}`.trim() : givenNames;
+                }
+
+                if (!this.pdsForm.phone) {
+                    this.pdsForm.phone = this.pdsForm.mobileNo || '';
+                }
+
                 this.isSubmitting = true;
                 
                 fetch('{{ route("careers.pds.submit") }}', {

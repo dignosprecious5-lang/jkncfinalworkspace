@@ -417,6 +417,8 @@ class StockTransferCertificateController extends Controller
             ? null
             : $this->generateCertificateTemplatePdf($stockTransferCertificate);
 
+        $stockTransferCertificate->loadMissing('sourceCertificate');
+        
         return view('corporate.stock-transfer-book.certificate-preview', [
             'certificate' => $stockTransferCertificate,
             'generatedPreviewUrl' => $generatedPreviewPath ? route('uploads.show', ['path' => $generatedPreviewPath]) : null,
@@ -494,11 +496,13 @@ class StockTransferCertificateController extends Controller
     }
 
     public function templatePreview(StockTransferCertificate $stockTransferCertificate)
-    {
-        return view('corporate.stock-transfer-book.certificate-template-pdf', [
-            'certificate' => $stockTransferCertificate,
-        ]);
-    }
+{
+    $stockTransferCertificate->loadMissing('sourceCertificate');
+
+    return view('corporate.stock-transfer-book.certificate-template-pdf', [
+        'certificate' => $stockTransferCertificate,
+    ]);
+}
 
     protected function ensureDefaultCertificateTemplatePreview(StockTransferCertificate $certificate, ?string $targetPath = null): ?string
     {

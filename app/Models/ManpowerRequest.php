@@ -1,6 +1,6 @@
 <?php
 
-namespace app\Models;
+namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -10,4 +10,50 @@ class ManpowerRequest extends Model
     use HasFactory;
 
     protected $guarded = [];
+
+    protected $casts = [
+        'date_requested' => 'date',
+        'date_required' => 'date',
+        'date_hired' => 'date',
+    ];
+
+    public function address()
+    {
+        return $this->belongsTo(OrganizationalAddress::class, 'address_id');
+    }
+
+    public function branch()
+    {
+        return $this->belongsTo(Branch::class, 'branch_id');
+    }
+
+    public function office()
+    {
+        return $this->belongsTo(Office::class, 'office_id');
+    }
+
+    public function departmentRecord()
+    {
+        return $this->belongsTo(Department::class, 'department_id');
+    }
+
+    public function division()
+    {
+        return $this->belongsTo(Division::class, 'division_id');
+    }
+
+    public function unit()
+    {
+        return $this->belongsTo(Unit::class, 'unit_id');
+    }
+
+    public function positionRecord()
+    {
+        return $this->belongsTo(Position::class, 'position_id');
+    }
+
+    public function jobPostings()
+    {
+        return $this->hasMany(JobPosting::class, 'mrf_id');
+    }
 }

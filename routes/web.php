@@ -70,10 +70,16 @@ use App\Http\Controllers\RecruitmentController;
 use App\Http\Controllers\OnboardingRecordController;
 use App\Http\Controllers\PayrollController;
 use App\Http\Controllers\EmployeeController;
+use App\Http\Controllers\EmployeeRequestController;
 use App\Http\Controllers\PhilippineLocationController;
 use App\Http\Controllers\SalesMarketingPayoutController;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\AttendanceController;
+use App\Http\Controllers\TrainingController;
+use App\Http\Controllers\DeploymentController;
+use App\Http\Controllers\OfficialBusinessTripController;
+use App\Http\Controllers\EmployeeRelationController;
 
 /*
 |--------------------------------------------------------------------------
@@ -189,9 +195,27 @@ Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
 
 Route::get('/careers/apply', [RecruitmentController::class, 'showPublicApplicationForm'])->name('careers.apply');
 Route::post('/careers/apply', [RecruitmentController::class, 'storeCAF'])->name('careers.apply.submit');
-Route::get('/careers/pds', [RecruitmentController::class, 'showPublicPDSForm'])->name('careers.pds');
+Route::get('/careers/pds/{token?}', [RecruitmentController::class, 'showPublicPDSForm'])->name('careers.pds');
 Route::post('/careers/pds', [RecruitmentController::class, 'storePDS'])->name('careers.pds.submit');
-Route::get('/assessment/start/{uuid}', [RecruitmentController::class, 'startAssessment'])->name('recruitment.assessment.start');
+
+Route::get('/careers/checklist/{token}', [OnboardingRecordController::class, 'showPublicChecklistUpload'])
+    ->name('careers.checklist.show');
+Route::post('/careers/checklist/{token}', [OnboardingRecordController::class, 'submitPublicChecklistUpload'])
+    ->name('careers.checklist.submit');
+
+
+Route::get('/assessment/start/{uuid}', [RecruitmentController::class, 'startAssessment'])
+    ->name('recruitment.assessment.start');
+
+Route::post('/assessment/start/{uuid}/submit', [RecruitmentController::class, 'submitAssessmentTest'])
+    ->name('recruitment.assessment.submit');
+
+Route::get('/job-offer/{token}/accept', [RecruitmentController::class, 'acceptJobOffer'])
+    ->name('job-offer.accept');
+
+Route::get('/job-offer/{token}/decline', [RecruitmentController::class, 'declineJobOffer'])
+    ->name('job-offer.decline');
+
 
 /*
 |--------------------------------------------------------------------------
@@ -244,6 +268,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/townhall', [TownHallController::class, 'index'])->name('townhall');
     Route::get('/townhall/department', [TownHallController::class, 'department'])->name('townhall.department');
     Route::get('/townhall/attachments', [TownHallController::class, 'attachments'])->name('townhall.attachments');
+    Route::post('/townhall/attendance/clock', [AttendanceController::class, 'clock'])->name('townhall.attendance.clock');
     Route::post('/townhall', [TownHallController::class, 'store'])->name('townhall.store');
     Route::get('/townhall/{id}/edit', [TownHallController::class, 'edit'])->name('townhall.edit');
     Route::put('/townhall/{id}', [TownHallController::class, 'update'])->name('townhall.update');
@@ -831,24 +856,24 @@ Route::middleware('auth')->group(function () {
     Route::post('/sales-marketing/ida', [SalesMarketingIdaController::class, 'store'])->name('sales-marketing.ida.store');
     Route::get('/sales-marketing/ida/{ida}', [SalesMarketingIdaController::class, 'show'])->name('sales-marketing.ida.show');
     Route::put('/sales-marketing/ida/{ida}', [SalesMarketingIdaController::class, 'update'])
-    ->name('sales-marketing.ida.update');
+        ->name('sales-marketing.ida.update');
 
     Route::delete('/sales-marketing/ida/{ida}', [SalesMarketingIdaController::class, 'destroy'])
-    ->name('sales-marketing.ida.destroy');
+        ->name('sales-marketing.ida.destroy');
     Route::patch('/sales-marketing/ida/{ida}/submit', [SalesMarketingIdaController::class, 'submit'])
-    ->name('sales-marketing.ida.submit');
+        ->name('sales-marketing.ida.submit');
 
     Route::patch('/sales-marketing/ida/{ida}/accept', [SalesMarketingIdaController::class, 'accept'])
-    ->name('sales-marketing.ida.accept');
+        ->name('sales-marketing.ida.accept');
 
     Route::patch('/sales-marketing/ida/{ida}/revert', [SalesMarketingIdaController::class, 'revert'])
-    ->name('sales-marketing.ida.revert');
+        ->name('sales-marketing.ida.revert');
     Route::post('/sales-marketing/earners/{earner}/request-payout', [SalesMarketingPayoutController::class, 'requestPayout'])
-    ->name('sales-marketing.earners.request-payout');
+        ->name('sales-marketing.earners.request-payout');
     Route::get('/sales-marketing/payouts', [SalesMarketingPayoutController::class, 'index'])
-    ->name('sales-marketing.payouts.index');
+        ->name('sales-marketing.payouts.index');
     Route::patch('/sales-marketing/payouts/{allocation}/mark-paid', [SalesMarketingPayoutController::class, 'markPaid'])
-    ->name('sales-marketing.payouts.mark-paid');
+        ->name('sales-marketing.payouts.mark-paid');
 
     /*
     |--------------------------------------------------------------------------
@@ -867,6 +892,8 @@ Route::middleware('auth')->group(function () {
             Route::get('/cities-municipalities/{type}/{code}', [PhilippineLocationController::class, 'citiesMunicipalities'])->name('cities-municipalities');
             Route::get('/barangays/{cityCode}', [PhilippineLocationController::class, 'barangays'])->name('barangays');
         });
+
+
 
         /*
         |--------------------------------------------------------------------------
@@ -922,6 +949,7 @@ Route::middleware('auth')->group(function () {
         // Assessment
         Route::post('/recruitment/assessment', [RecruitmentController::class, 'storeAssessment'])->name('recruitment.store_assessment');
         Route::post('/recruitment/assessment/{id}/status', [RecruitmentController::class, 'updateAssessmentStatus'])->name('recruitment.update_assessment_status');
+        Route::get('/recruitment/assessment/latest', [RecruitmentController::class, 'latestAssessments'])->name('recruitment.assessment.latest');
         Route::post('/recruitment/assessment/{id}/send-test', [RecruitmentController::class, 'sendAssessmentTest'])->name('recruitment.send_assessment_test');
         Route::post('/recruitment/assessment/{id}/result', [RecruitmentController::class, 'updateAssessmentResult'])->name('recruitment.update_assessment_result');
         Route::delete('/recruitment/assessment/{id}', [RecruitmentController::class, 'deleteAssessment'])->name('recruitment.delete_assessment');
@@ -929,9 +957,13 @@ Route::middleware('auth')->group(function () {
         // Interview
         Route::post('/recruitment/interview', [RecruitmentController::class, 'storeInterview'])->name('recruitment.store_interview');
         Route::delete('/recruitment/interview/{id}', [RecruitmentController::class, 'deleteInterview'])->name('recruitment.delete_interview');
+        Route::post('/recruitment/interview/{id}/status', [RecruitmentController::class, 'updateInterviewStatus'])
+            ->name('recruitment.interview_status');
 
         // Job Offer
+        Route::get('/recruitment/job-offer/latest', [RecruitmentController::class, 'latestJobOffers'])->name('recruitment.job_offer.latest');
         Route::post('/recruitment/job-offer', [RecruitmentController::class, 'storeJobOffer'])->name('recruitment.store_job_offer');
+        Route::post('/recruitment/job-offer/{id}/resend-email', [RecruitmentController::class, 'resendJobOfferEmail'])->name('recruitment.resend_job_offer_email');
         Route::delete('/recruitment/job-offer/{id}', [RecruitmentController::class, 'deleteJobOffer'])->name('recruitment.delete_job_offer');
 
         /*
@@ -944,21 +976,70 @@ Route::middleware('auth')->group(function () {
 
         Route::get('/onboarding/records', [OnboardingRecordController::class, 'records'])->name('onboarding.records');
         Route::post('/onboarding/checklists', [OnboardingRecordController::class, 'storeChecklist'])->name('onboarding.checklists.store');
+        Route::patch('/onboarding/checklists/{checklist}/review-document', [OnboardingRecordController::class, 'reviewChecklistDocument'])->name('onboarding.checklists.review-document');
         Route::delete('/onboarding/checklists/{checklist}', [OnboardingRecordController::class, 'destroyChecklist'])->name('onboarding.checklists.destroy');
         Route::post('/onboarding/employees', [OnboardingRecordController::class, 'storeEmployee'])->name('onboarding.employees.store');
         Route::delete('/onboarding/employees/{employee}', [OnboardingRecordController::class, 'destroyEmployee'])->name('onboarding.employees.destroy');
         Route::post('/onboarding/trainings', [OnboardingRecordController::class, 'storeTraining'])->name('onboarding.trainings.store');
+        Route::patch('/onboarding/trainings/{training}/status', [OnboardingRecordController::class, 'updateTrainingStatus'])->name('onboarding.trainings.status');
         Route::delete('/onboarding/trainings/{training}', [OnboardingRecordController::class, 'destroyTraining'])->name('onboarding.trainings.destroy');
 
-        Route::view('/deployment', 'human-capital.deployment')->name('deployment');
-        Route::view('/attendance', 'human-capital.attendance')->name('attendance');
-        Route::view('/employee-requests', 'human-capital.employee-requests')->name('employee-requests');
-        Route::view('/employee-relations', 'human-capital.employee-relations')->name('employee-relations');
-        Route::view('/training', 'human-capital.training')->name('training');
+        Route::get('/deployment', [DeploymentController::class, 'index'])->name('deployment');
+        Route::post('/deployment', [DeploymentController::class, 'store'])->name('deployment.store');
+        Route::put('/deployment/{deployment}', [DeploymentController::class, 'update'])->name('deployment.update');
+        Route::delete('/deployment/{deployment}', [DeploymentController::class, 'destroy'])->name('deployment.destroy');
+        Route::get('/attendance', [AttendanceController::class, 'index'])->name('attendance');
+        Route::post('/attendance/clock', [AttendanceController::class, 'clock'])->name('attendance.clock');
+        Route::put('/attendance/{attendance}', [AttendanceController::class, 'update'])->name('attendance.update');
+        Route::patch('/attendance/{attendance}/approve', [AttendanceController::class, 'approve'])->name('attendance.approve');
+        Route::patch('/attendance/{attendance}/reject', [AttendanceController::class, 'reject'])->name('attendance.reject');
+        Route::get('/employee-relations', [EmployeeRelationController::class, 'index'])->name('employee-relations');
+        Route::post('/employee-relations', [EmployeeRelationController::class, 'store'])->name('employee-relations.store');
+        Route::put('/employee-relations/{employeeRelation}', [EmployeeRelationController::class, 'update'])->name('employee-relations.update');
+        Route::post('/employee-relations/{employeeRelation}/approve', [EmployeeRelationController::class, 'approve'])->name('employee-relations.approve');
+        Route::post('/employee-relations/{employeeRelation}/reject', [EmployeeRelationController::class, 'reject'])->name('employee-relations.reject');
+        Route::delete('/employee-relations/{employeeRelation}', [EmployeeRelationController::class, 'destroy'])->name('employee-relations.destroy');
         Route::view('/performance', 'human-capital.performance')->name('performance');
         Route::view('/offboarding', 'human-capital.offboarding')->name('offboarding');
-    });
 
-    Route::get('/recruitment/assessment/start/{uuid}', [RecruitmentController::class, 'startAssessment'])
-        ->name('recruitment.assessment.start');
+Route::get('/obf', [OfficialBusinessTripController::class, 'index'])->name('obf');
+Route::post('/obf', [OfficialBusinessTripController::class, 'store'])->name('obf.store');
+Route::put('/obf/{officialBusinessTrip}', [OfficialBusinessTripController::class, 'update'])->name('obf.update');
+Route::delete('/obf/{officialBusinessTrip}', [OfficialBusinessTripController::class, 'destroy'])->name('obf.destroy');
+Route::post('/obf/{officialBusinessTrip}/approve', [OfficialBusinessTripController::class, 'approve'])->name('obf.approve');
+Route::post('/obf/{officialBusinessTrip}/reject', [OfficialBusinessTripController::class, 'reject'])->name('obf.reject');
+
+
+
+        // Training
+        Route::get('/training', [TrainingController::class, 'index'])
+            ->name('training');
+
+        Route::post('/training', [TrainingController::class, 'store'])
+            ->name('training.store');
+
+        /*
+        |--------------------------------------------------------------------------
+        | HUMAN RESOURCE EMPLOYEE REQUESTS
+        |--------------------------------------------------------------------------
+        */
+
+        Route::post('/employee-requests/{employeeRequest}/approve', [EmployeeRequestController::class, 'approve'])
+            ->name('employee-requests.approve');
+
+        Route::post('/employee-requests/{employeeRequest}/reject', [EmployeeRequestController::class, 'reject'])
+            ->name('employee-requests.reject');
+
+        Route::post('/employee-requests/{employeeRequest}/revise', [EmployeeRequestController::class, 'revise'])
+            ->name('employee-requests.revise');
+
+        Route::post('/employee-requests/{employeeRequest}/update-revision', [EmployeeRequestController::class, 'updateRevision'])
+            ->name('employee-requests.update-revision');
+
+        Route::get('/employee-requests', [EmployeeRequestController::class, 'index'])
+            ->name('employee-requests.index');
+
+        Route::post('/employee-requests', [EmployeeRequestController::class, 'store'])
+            ->name('employee-requests.store');
+    });
 });

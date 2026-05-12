@@ -19,7 +19,7 @@
     </style>
 </head>
 <body class="bg-gray-50 text-gray-900">
-    <div class="min-h-screen py-12 px-4 sm:px-6 lg:px-8" x-data="publicApplication()">
+    <div class="min-h-screen py-12 px-4 sm:px-6 lg:px-8" x-data="publicApplication({{ $jobPostings->toJson() }})">
         <div class="max-w-4xl mx-auto">
             {{-- Header --}}
             <div class="text-center mb-12">
@@ -73,13 +73,25 @@
 
                                 <div class="sm:col-span-1">
                                     <label class="block text-[11px] font-black text-gray-400 uppercase tracking-widest mb-2 px-1">Position Applied</label>
-                                    <select x-model="form.positionApplied" required
+                                    <select x-model="form.jobPostingId" @change="onJobPostingChange()" required
                                         class="w-full px-5 py-4 border border-gray-200 rounded-2xl focus:ring-4 focus:ring-blue-50 focus:border-blue-500 outline-none transition-all bg-gray-50/30 text-sm font-medium appearance-none">
-                                        <option value="">Select a position</option>
-                                        @foreach($positions as $pos)
-                                            <option value="{{ $pos }}">{{ $pos }}</option>
-                                        @endforeach
+                                        <option value="">Select a posted job</option>
+                                        @forelse($jobPostings as $job)
+                                            <option value="{{ $job->id }}">
+                                                {{ $job->job_id }} - {{ $job->position }}
+                                            </option>
+                                        @empty
+                                            <option value="" disabled>No posted jobs available</option>
+                                        @endforelse
                                     </select>
+                                    <input type="hidden" x-model="form.positionApplied">
+
+                                    <div x-show="selectedJob" x-cloak class="mt-3 text-[11px] text-gray-600 bg-gray-50 border border-gray-100 rounded-2xl p-4 space-y-1">
+                                        <p><strong>Position:</strong> <span x-text="selectedJob?.position || '—'"></span></p>
+                                        <p><strong>Department / Unit:</strong> <span x-text="selectedJob?.department_unit || '—'"></span></p>
+                                        <p><strong>Location:</strong> <span x-text="selectedJob?.location || selectedJob?.office_branch_site || '—'"></span></p>
+                                        <p><strong>Employment Type:</strong> <span x-text="selectedJob?.employment_type || '—'"></span></p>
+                                    </div>
                                 </div>
 
                                 <div class="sm:col-span-1">
@@ -173,17 +185,34 @@
     </div>
 
     <script>
-    function publicApplication() {
+    function publicApplication(jobPostings = []) {
         return {
+            jobPostings: jobPostings,
             form: {
+                jobPostingId: '',
                 fullName: '', positionApplied: '', email: '', phone: '',
                 photo: null, cv: null, coverLetterFile: null, coverLetter: ''
             },
             isSubmitting: false,
             isSuccess: false,
+
+            get selectedJob() {
+                return this.jobPostings.find(job => String(job.id) === String(this.form.jobPostingId)) || null;
+            },
+
+            onJobPostingChange() {
+                this.form.positionApplied = this.selectedJob ? (this.selectedJob.position || '') : '';
+            },
+
             submitForm() {
+                if (!this.form.jobPostingId) {
+                    alert('Please select a posted job before submitting your application.');
+                    return;
+                }
+
                 this.isSubmitting = true;
                 let fd = new FormData();
+                fd.append('jobPostingId', this.form.jobPostingId);
                 fd.append('fullName', this.form.fullName);
                 fd.append('positionApplied', this.form.positionApplied);
                 fd.append('email', this.form.email);
@@ -205,7 +234,7 @@
                     if (data.success) {
                         this.isSuccess = true;
                     } else {
-                        alert('Submission failed. Please check your inputs and try again.');
+                        alert(data.message || 'Submission failed. Please check your inputs and try again.');
                     }
                 })
                 .catch(err => {
@@ -219,6 +248,7 @@
             resetForm() {
                 this.isSuccess = false;
                 this.form = {
+                    jobPostingId: '',
                     fullName: '', positionApplied: '', email: '', phone: '',
                     photo: null, cv: null, coverLetterFile: null, coverLetter: ''
                 };
