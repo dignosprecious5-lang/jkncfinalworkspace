@@ -14,6 +14,7 @@ class Employee extends Model
         'address',
         'phone_number',
         'email',
+        'profile_photo',
         'office_id',
         'branch_id',
         'department_id',
@@ -78,10 +79,5 @@ class Employee extends Model
     public function payrollSummaries()
     {
         return $this->hasMany(\App\Models\PayrollSummary::class);
-    }
-
-    public function trainingAssignments()
-    {
-        return $this->hasMany(\App\Models\TrainingAssignment::class);
     }
 }
