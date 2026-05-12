@@ -46,6 +46,7 @@
         'data.destination_bank_account_id': 'Destination bank account',
         'data.source_document_type': 'Linked document type',
         'data.source_document_id': 'Linked source document',
+        'data.payroll_period_id': 'Payroll period',
         'data.master_item_type': 'Item type',
         'data.master_item_id': 'Item',
         'data.linked_item_type': 'Item type',
@@ -943,13 +944,32 @@
             recordNumberLabel: 'PDA Number',
             recordTitleLabel: 'Payroll Period',
             recordDateLabel: 'Date',
-            summaryKeys: ['total_payroll_amount', 'department', 'funding_bank_account_id', 'payroll_expense_coa_id'],
+            summaryKeys: ['payroll_period_id', 'employee_count', 'basic_salary_total', 'gross_pay_total', 'deductions_total', 'total_payroll_amount', 'funding_bank_account_id', 'payroll_expense_coa_id'],
             fields: [
-                numberField('total_payroll_amount', 'Total Payroll Amount', { required: true }),
+                selectField('payroll_period_id', 'Payroll Period', { source: 'payroll_period', required: true }),
+                dateField('period_start', 'Period Start', { readOnly: true }),
+                dateField('period_end', 'Period End', { readOnly: true }),
+                dateField('payroll_start', 'Payroll Start', { readOnly: true }),
+                dateField('payroll_end', 'Payroll End', { readOnly: true }),
+                dateField('pay_date', 'Pay Date', { readOnly: true }),
+                numberField('total_payroll_amount', 'Total Payroll Amount', { required: true, readOnly: true }),
+                textField('employee_count', 'Employees Included', { readOnly: true }),
+                numberField('basic_salary_total', 'Basic Salary Total', { readOnly: true }),
+                numberField('yearly_basic_total', 'Yearly Basic Total', { readOnly: true }),
+                numberField('daily_rate_total', 'Daily Rate Total', { readOnly: true }),
+                numberField('hourly_rate_total', 'Hourly Rate Total', { readOnly: true }),
+                numberField('minute_rate_total', 'Minute Rate Total', { readOnly: true }),
+                numberField('gross_pay_total', 'Gross Pay', { readOnly: true }),
+                numberField('benefits_total', 'Benefits', { readOnly: true }),
+                numberField('allowances_total', 'Allowances', { readOnly: true }),
+                numberField('deductions_total', 'Deductions', { readOnly: true }),
+                numberField('night_differential_total', 'Night Differential', { readOnly: true }),
+                numberField('holiday_pay_total', 'Holiday Pay', { readOnly: true }),
                 textField('department', 'Department / Coverage'),
                 selectField('funding_bank_account_id', 'Funding Bank Account', { source: 'bank_account' }),
                 selectField('payroll_expense_coa_id', 'Payroll Expense Account', { source: 'chart_account' }),
                 textareaField('supporting_payroll_summary', 'Supporting Payroll Summary'),
+                textareaField('employee_payroll_breakdown', 'Employee Payroll Breakdown', { readOnly: true }),
                 textareaField('remarks', 'Remarks'),
             ],
         },
@@ -1064,6 +1084,12 @@
         const num = Number(value);
         if (Number.isNaN(num)) return String(value);
         return num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function blank(value) {
+        if (value === null || value === undefined) return true;
+        if (Array.isArray(value)) return value.length === 0;
+        return String(value).trim() === '';
     }
 
     function getCashAdvanceLiquidationCalculation(values = {}) {
@@ -1698,7 +1724,7 @@
             ca: ['record_number', 'record_title', 'record_date', 'requestor', 'department', 'amount_requested', 'mode_of_release', 'purpose', 'remarks'],
             lr: ['record_number', 'record_title', 'record_date', 'linked_ca_id', 'total_cash_advance', 'actual_expenses', 'variance', 'variance_indicator', 'purpose', 'remarks'],
             err: ['record_number', 'record_title', 'record_date', 'linked_lr_id', 'amount', 'expense_details', 'reimbursement_mode', 'purpose', 'remarks'],
-            pda: ['record_number', 'record_title', 'record_date', 'total_payroll_amount', 'department', 'funding_bank_account_id', 'payroll_expense_coa_id', 'remarks'],
+            pda: ['record_number', 'record_title', 'record_date', 'payroll_period_id', 'period_start', 'period_end', 'payroll_start', 'payroll_end', 'pay_date', 'employee_count', 'basic_salary_total', 'yearly_basic_total', 'daily_rate_total', 'hourly_rate_total', 'minute_rate_total', 'gross_pay_total', 'benefits_total', 'allowances_total', 'deductions_total', 'night_differential_total', 'holiday_pay_total', 'total_payroll_amount', 'department', 'funding_bank_account_id', 'payroll_expense_coa_id', 'remarks'],
             crf: ['record_number', 'record_title', 'record_date', 'linked_lr_id', 'amount_returned', 'mode_of_return', 'remarks'],
             ibtf: ['record_number', 'record_title', 'record_date', 'source_bank_account_id', 'destination_bank_account_id', 'amount', 'reason', 'remarks'],
             arf: ['record_number', 'record_title', 'record_date', 'linked_po_id', 'linked_dv_id', 'asset_description', 'asset_category', 'acquisition_cost', 'acquisition_date', 'remarks'],
@@ -3073,6 +3099,80 @@
         });
     }
 
+    function syncPdaPayrollPeriod({ preserveExisting = false } = {}) {
+        if (currentModuleKey !== 'pda') return;
+
+        const form = $('financeForm');
+        if (!form) return;
+
+        const periodSelect = form.querySelector('[name="data[payroll_period_id]"]');
+        const selectedPeriod = (financeLookupOptions.payroll_period || [])
+            .find((period) => String(period.id) === String(periodSelect?.value || ''));
+
+        const setFieldValue = (fieldName, value) => {
+            const input = form.querySelector(`[name="data[${fieldName}]"]`);
+            if (!input) return;
+            const currentValue = String(input.value || '').trim();
+            if (preserveExisting && currentValue) return;
+            input.value = blank(value) ? '' : String(value);
+            financeFormValues[fieldName] = input.value;
+            financeFormValues[`data[${fieldName}]`] = input.value;
+        };
+
+        if (!selectedPeriod) {
+            ['period_start', 'period_end', 'payroll_start', 'payroll_end', 'pay_date', 'total_payroll_amount', 'employee_count', 'basic_salary_total', 'yearly_basic_total', 'daily_rate_total', 'hourly_rate_total', 'minute_rate_total', 'gross_pay_total', 'benefits_total', 'allowances_total', 'deductions_total', 'night_differential_total', 'holiday_pay_total', 'employee_payroll_breakdown'].forEach((fieldName) => {
+                setFieldValue(fieldName, '');
+            });
+            return;
+        }
+
+        setFieldValue('period_start', selectedPeriod.period_start || '');
+        setFieldValue('period_end', selectedPeriod.period_end || '');
+        setFieldValue('payroll_start', selectedPeriod.payroll_start || '');
+        setFieldValue('payroll_end', selectedPeriod.payroll_end || '');
+        setFieldValue('pay_date', selectedPeriod.pay_date || '');
+        setFieldValue('total_payroll_amount', selectedPeriod.total_payroll_amount || 0);
+        setFieldValue('employee_count', selectedPeriod.employee_count || 0);
+        setFieldValue('basic_salary_total', selectedPeriod.basic_salary_total || 0);
+        setFieldValue('yearly_basic_total', selectedPeriod.yearly_basic_total || 0);
+        setFieldValue('daily_rate_total', selectedPeriod.daily_rate_total || 0);
+        setFieldValue('hourly_rate_total', selectedPeriod.hourly_rate_total || 0);
+        setFieldValue('minute_rate_total', selectedPeriod.minute_rate_total || 0);
+        setFieldValue('gross_pay_total', selectedPeriod.gross_pay_total || 0);
+        setFieldValue('benefits_total', selectedPeriod.benefits_total || 0);
+        setFieldValue('allowances_total', selectedPeriod.allowances_total || 0);
+        setFieldValue('deductions_total', selectedPeriod.deductions_total || 0);
+        setFieldValue('night_differential_total', selectedPeriod.night_differential_total || 0);
+        setFieldValue('holiday_pay_total', selectedPeriod.holiday_pay_total || 0);
+
+        const recordTitleInput = $('recordTitleInput');
+        if (recordTitleInput && (!recordTitleInput.value || recordTitleInput.value === getModuleConfig('pda').recordTitleLabel)) {
+            recordTitleInput.value = selectedPeriod.record_title || selectedPeriod.label || 'Payroll Period';
+        }
+
+        const recordDateInput = $('recordDateInput');
+        if (recordDateInput && !recordDateInput.value && selectedPeriod.pay_date) {
+            recordDateInput.value = selectedPeriod.pay_date;
+        }
+
+        const summaryInput = form.querySelector('[name="data[supporting_payroll_summary]"]');
+        if (summaryInput && (!preserveExisting || blank(summaryInput.value))) {
+            summaryInput.value = `${selectedPeriod.employee_count || 0} payroll summaries. Basic: ${formatCurrency(selectedPeriod.basic_salary_total || 0)}; Gross: ${formatCurrency(selectedPeriod.gross_pay_total || 0)}; Benefits: ${formatCurrency(selectedPeriod.benefits_total || 0)}; Allowances: ${formatCurrency(selectedPeriod.allowances_total || 0)}; Deductions: ${formatCurrency(selectedPeriod.deductions_total || 0)}; Night Differential: ${formatCurrency(selectedPeriod.night_differential_total || 0)}; Holiday Pay: ${formatCurrency(selectedPeriod.holiday_pay_total || 0)}; Net Payroll: ${formatCurrency(selectedPeriod.total_payroll_amount || 0)}.`;
+            financeFormValues.supporting_payroll_summary = summaryInput.value;
+            financeFormValues['data[supporting_payroll_summary]'] = summaryInput.value;
+        }
+
+        const breakdownInput = form.querySelector('[name="data[employee_payroll_breakdown]"]');
+        if (breakdownInput && (!preserveExisting || blank(breakdownInput.value))) {
+            const employeeLines = Array.isArray(selectedPeriod.employee_lines) ? selectedPeriod.employee_lines : [];
+            breakdownInput.value = employeeLines.length
+                ? employeeLines.map((line, index) => `${index + 1}. ${line.employee_name || line.employee_code || 'Employee'} | ${line.salary_grade || 'No grade'} / ${line.payroll_level || 'No level'} | Basic ${formatCurrency(line.monthly_basic_salary || 0)} | Gross ${formatCurrency(line.gross_pay || 0)} | Deduct ${formatCurrency(line.total_deductions || 0)} | Net ${formatCurrency(line.net_pay || 0)}`).join('\n')
+                : 'No employee payroll profiles or summaries found for this period.';
+            financeFormValues.employee_payroll_breakdown = breakdownInput.value;
+            financeFormValues['data[employee_payroll_breakdown]'] = breakdownInput.value;
+        }
+    }
+
     function syncPrRequesterFields({ preserveExisting = false } = {}) {
         if (currentModuleKey !== 'pr') return;
 
@@ -3499,8 +3599,10 @@
                 ];
             case 'pda':
                 return [
-                    { title: 'Payroll Details', fieldNames: ['total_payroll_amount', 'department', 'funding_bank_account_id', 'payroll_expense_coa_id'] },
-                    { title: 'Supporting Notes', fieldNames: ['supporting_payroll_summary', 'remarks'] },
+                    { title: 'Payroll Period', fieldNames: ['payroll_period_id', 'period_start', 'period_end', 'payroll_start', 'payroll_end', 'pay_date'] },
+                    { title: 'Payroll Variables', fieldNames: ['employee_count', 'basic_salary_total', 'yearly_basic_total', 'daily_rate_total', 'hourly_rate_total', 'minute_rate_total', 'gross_pay_total', 'benefits_total', 'allowances_total', 'deductions_total', 'night_differential_total', 'holiday_pay_total', 'total_payroll_amount'] },
+                    { title: 'Funding', fieldNames: ['department', 'funding_bank_account_id', 'payroll_expense_coa_id'] },
+                    { title: 'Supporting Notes', fieldNames: ['supporting_payroll_summary', 'employee_payroll_breakdown', 'remarks'] },
                     { type: 'notes', renderer: () => renderFinanceReviewNotesSection(record) },
                 ];
             case 'crf':
@@ -4625,6 +4727,16 @@
             });
         }
 
+        if (currentModuleKey === 'pda') {
+            const payrollPeriodSelect = form.querySelector('[name="data[payroll_period_id]"]');
+            if (payrollPeriodSelect) {
+                payrollPeriodSelect.addEventListener('change', () => {
+                    syncPdaPayrollPeriod({ preserveExisting: false });
+                    renderDrawerPreview();
+                });
+            }
+        }
+
         if (currentModuleKey === 'err' || currentModuleKey === 'crf') {
             const linkedLrSelect = form.querySelector('select[name="data[linked_lr_id]"]');
             if (linkedLrSelect) {
@@ -5647,6 +5759,9 @@
         }
         if (currentModuleKey === 'ibtf') {
             syncIbtfAccountCodes({ preserveExisting: true });
+        }
+        if (currentModuleKey === 'pda') {
+            syncPdaPayrollPeriod({ preserveExisting: Boolean(record) });
         }
         if (currentModuleKey === 'arf') {
             syncArfLinkedDocumentFields({ preserveExisting: true });

@@ -4,8 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Mail\SupplierCompletionMail;
 use App\Models\Contact;
+use App\Models\EmployeePayrollProfile;
 use App\Models\Employee;
 use App\Models\FinanceRecord;
+use App\Models\PayrollPeriod;
+use App\Models\PayrollSummary;
+use App\Models\PayrollSummaryItem;
+use App\Services\PayrollCalculator;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -255,6 +260,7 @@ SVG;
             'linked_ca_id' => $this->financePdfLookupLabel($lookupOptions, 'ca', $value) ?: $this->financePdfValue($value),
             'linked_lr_id' => $this->financePdfLookupLabel($lookupOptions, 'lr', $value) ?: $this->financePdfValue($value),
             'linked_dv_id' => $this->financePdfLookupLabel($lookupOptions, 'dv', $value) ?: $this->financePdfValue($value),
+            'payroll_period_id' => $this->financePdfLookupLabel($lookupOptions, 'payroll_period', $value) ?: $this->financePdfValue($value),
             'source_document_id' => $this->financePdfLookupLabel($lookupOptions, (string) data_get($data, 'source_document_type', ''), $value) ?: $this->financePdfValue($value),
             'master_item_id' => $this->financePdfLookupLabel($lookupOptions, (string) data_get($data, 'master_item_type', 'product'), $value) ?: $this->financePdfValue($value),
             'linked_item_id' => $this->financePdfLookupLabel($lookupOptions, (string) data_get($data, 'linked_item_type', 'product'), $value) ?: $this->financePdfValue($value),
@@ -770,13 +776,32 @@ SVG;
             ],
             'pda' => [
                 $section('Payroll Details', [
+                    ['name' => 'payroll_period_id', 'label' => 'Payroll Period'],
+                    ['name' => 'period_start', 'label' => 'Period Start'],
+                    ['name' => 'period_end', 'label' => 'Period End'],
+                    ['name' => 'payroll_start', 'label' => 'Payroll Start'],
+                    ['name' => 'payroll_end', 'label' => 'Payroll End'],
+                    ['name' => 'pay_date', 'label' => 'Pay Date'],
                     ['name' => 'total_payroll_amount', 'label' => 'Total Payroll Amount'],
+                    ['name' => 'employee_count', 'label' => 'Employees Included'],
+                    ['name' => 'basic_salary_total', 'label' => 'Basic Salary'],
+                    ['name' => 'yearly_basic_total', 'label' => 'Yearly Basic'],
+                    ['name' => 'daily_rate_total', 'label' => 'Daily Rate Total'],
+                    ['name' => 'hourly_rate_total', 'label' => 'Hourly Rate Total'],
+                    ['name' => 'minute_rate_total', 'label' => 'Minute Rate Total'],
+                    ['name' => 'gross_pay_total', 'label' => 'Gross Pay'],
+                    ['name' => 'benefits_total', 'label' => 'Benefits'],
+                    ['name' => 'allowances_total', 'label' => 'Allowances'],
+                    ['name' => 'deductions_total', 'label' => 'Deductions'],
+                    ['name' => 'night_differential_total', 'label' => 'Night Differential'],
+                    ['name' => 'holiday_pay_total', 'label' => 'Holiday Pay'],
                     ['name' => 'department', 'label' => 'Department / Coverage'],
                     ['name' => 'funding_bank_account_id', 'label' => 'Funding Bank Account'],
                     ['name' => 'payroll_expense_coa_id', 'label' => 'Payroll Expense Account'],
                 ]),
                 $section('Supporting Notes', [
                     ['name' => 'supporting_payroll_summary', 'label' => 'Supporting Payroll Summary'],
+                    ['name' => 'employee_payroll_breakdown', 'label' => 'Employee Payroll Breakdown'],
                     ['name' => 'remarks', 'label' => 'Remarks'],
                 ]),
                 $notesSection,
@@ -1233,7 +1258,178 @@ SVG;
             ])
             ->values();
 
+        $options['payroll_period'] = PayrollPeriod::query()
+            ->orderByDesc('period_start')
+            ->orderByDesc('created_at')
+            ->get()
+            ->map(fn (PayrollPeriod $period) => $this->payrollPeriodSnapshot($period))
+            ->values();
+
         return $options;
+    }
+
+    private function payrollPeriodSnapshot(PayrollPeriod $period, bool $persistMissingSummaries = false): array
+    {
+        $summaries = PayrollSummary::query()
+            ->with(['employee', 'payrollLevel.salaryGrade', 'items'])
+            ->where('payroll_period_id', $period->id)
+            ->get();
+
+        if ($persistMissingSummaries || $summaries->isEmpty()) {
+            $generatedSummaries = $this->generatePayrollSummariesForPeriod($period, $persistMissingSummaries);
+            if ($generatedSummaries->isNotEmpty()) {
+                $summaries = $generatedSummaries;
+            }
+        }
+
+        $employeeLines = $summaries->map(function (PayrollSummary $summary) {
+            $breakdown = $summary->breakdown_json ?? [];
+            $employee = $summary->employee;
+            $level = $summary->payrollLevel;
+            $grade = $level?->salaryGrade;
+
+            return [
+                'employee_id' => $summary->employee_id,
+                'employee_code' => $employee?->employee_code,
+                'employee_name' => trim((string) ($employee?->full_name ?: $employee?->name ?: '')),
+                'salary_grade' => $grade?->name,
+                'salary_grade_code' => $grade?->code,
+                'payroll_level' => $level?->level_name,
+                'computation_type' => $summary->computation_type,
+                'work_schedule' => data_get($breakdown, 'work_schedule') ?: $level?->work_schedule_label,
+                'hours_per_day' => (float) data_get($breakdown, 'hours_per_day', $level?->hours_per_day ?: 0),
+                'monthly_basic_salary' => (float) data_get($breakdown, 'monthly_basic_salary', 0),
+                'yearly_basic_salary' => (float) data_get($breakdown, 'yearly_basic_salary', 0),
+                'applicable_daily_rate' => (float) data_get($breakdown, 'applicable_daily_rate', 0),
+                'hourly_rate' => (float) data_get($breakdown, 'hourly_rate', 0),
+                'minute_rate' => (float) data_get($breakdown, 'minute_rate', 0),
+                'gross_pay' => (float) $summary->gross_pay,
+                'total_benefits' => (float) $summary->total_benefits,
+                'total_allowances' => (float) $summary->total_allowances,
+                'total_deductions' => (float) $summary->total_deductions,
+                'night_differential_amount' => (float) $summary->night_differential_amount,
+                'holiday_pay_amount' => (float) $summary->holiday_pay_amount,
+                'net_pay' => (float) $summary->net_pay,
+                'status' => $summary->status,
+            ];
+        })->values();
+
+        $periodLabel = trim(sprintf(
+            '%s (%s to %s)',
+            $period->name,
+            optional($period->period_start)->format('Y-m-d') ?: 'N/A',
+            optional($period->period_end)->format('Y-m-d') ?: 'N/A'
+        ));
+
+        return [
+            'id' => $period->id,
+            'label' => $periodLabel,
+            'record_title' => $period->name,
+            'period_start' => optional($period->period_start)->format('Y-m-d'),
+            'period_end' => optional($period->period_end)->format('Y-m-d'),
+            'payroll_start' => optional($period->payroll_start)->format('Y-m-d'),
+            'payroll_end' => optional($period->payroll_end)->format('Y-m-d'),
+            'pay_date' => optional($period->pay_date)->format('Y-m-d'),
+            'dispute_start' => optional($period->dispute_start)->format('Y-m-d'),
+            'dispute_end' => optional($period->dispute_end)->format('Y-m-d'),
+            'status' => $period->status,
+            'employee_count' => $employeeLines->count(),
+            'basic_salary_total' => round((float) $employeeLines->sum('monthly_basic_salary'), 2),
+            'yearly_basic_total' => round((float) $employeeLines->sum('yearly_basic_salary'), 2),
+            'daily_rate_total' => round((float) $employeeLines->sum('applicable_daily_rate'), 2),
+            'hourly_rate_total' => round((float) $employeeLines->sum('hourly_rate'), 2),
+            'minute_rate_total' => round((float) $employeeLines->sum('minute_rate'), 4),
+            'gross_pay_total' => round((float) $employeeLines->sum('gross_pay'), 2),
+            'benefits_total' => round((float) $employeeLines->sum('total_benefits'), 2),
+            'allowances_total' => round((float) $employeeLines->sum('total_allowances'), 2),
+            'deductions_total' => round((float) $employeeLines->sum('total_deductions'), 2),
+            'night_differential_total' => round((float) $employeeLines->sum('night_differential_amount'), 2),
+            'holiday_pay_total' => round((float) $employeeLines->sum('holiday_pay_amount'), 2),
+            'total_payroll_amount' => round((float) $employeeLines->sum('net_pay'), 2),
+            'payroll_summary_ids' => $summaries->pluck('id')->filter()->values()->all(),
+            'employee_lines' => $employeeLines->all(),
+        ];
+    }
+
+    private function generatePayrollSummariesForPeriod(PayrollPeriod $period, bool $persist): \Illuminate\Support\Collection
+    {
+        $profiles = EmployeePayrollProfile::query()
+            ->with(['employee', 'payrollLevel.salaryGrade'])
+            ->get();
+
+        if ($profiles->isEmpty()) {
+            return collect();
+        }
+
+        $calculator = app(PayrollCalculator::class);
+        $summaries = collect();
+
+        foreach ($profiles as $profile) {
+            if (! $profile->employee || ! $profile->payrollLevel || ! $profile->payrollLevel->salaryGrade) {
+                continue;
+            }
+
+            $computed = $calculator->compute($profile, $period);
+
+            if ($persist) {
+                $summary = PayrollSummary::updateOrCreate(
+                    [
+                        'employee_id' => $profile->employee_id,
+                        'payroll_period_id' => $period->id,
+                    ],
+                    [
+                        'payroll_level_id' => $profile->payroll_level_id,
+                        'computation_type' => $computed['computation_type'],
+                        'gross_pay' => $computed['gross_pay'],
+                        'total_benefits' => $computed['total_benefits'],
+                        'total_allowances' => $computed['total_allowances'],
+                        'total_deductions' => $computed['total_deductions'],
+                        'night_differential_amount' => $computed['night_differential_amount'],
+                        'holiday_pay_amount' => $computed['holiday_pay_amount'],
+                        'net_pay' => $computed['net_pay'],
+                        'breakdown_json' => $computed['breakdown'],
+                        'status' => 'generated',
+                    ]
+                );
+
+                PayrollSummaryItem::where('payroll_summary_id', $summary->id)->delete();
+                foreach ($computed['items'] as $item) {
+                    PayrollSummaryItem::create([
+                        'payroll_summary_id' => $summary->id,
+                        'item_type' => $item['item_type'],
+                        'category' => $item['category'],
+                        'name' => $item['name'],
+                        'amount' => $item['amount'],
+                        'meta_json' => $item['meta_json'] ?? null,
+                    ]);
+                }
+
+                $summary->load(['employee', 'payrollLevel.salaryGrade', 'items']);
+                $summaries->push($summary);
+                continue;
+            }
+
+            $summary = new PayrollSummary([
+                'employee_id' => $profile->employee_id,
+                'payroll_period_id' => $period->id,
+                'payroll_level_id' => $profile->payroll_level_id,
+                'computation_type' => $computed['computation_type'],
+                'gross_pay' => $computed['gross_pay'],
+                'total_benefits' => $computed['total_benefits'],
+                'total_allowances' => $computed['total_allowances'],
+                'total_deductions' => $computed['total_deductions'],
+                'night_differential_amount' => $computed['night_differential_amount'],
+                'holiday_pay_amount' => $computed['holiday_pay_amount'],
+                'net_pay' => $computed['net_pay'],
+                'breakdown_json' => $computed['breakdown'],
+                'status' => 'computed',
+            ]);
+            $summary->setRelation('employee', $profile->employee);
+            $summary->setRelation('payrollLevel', $profile->payrollLevel);
+            $summaries->push($summary);
+        }
+
+        return $summaries;
     }
 
     private function resolveCurrentUserContactProfile(): ?array
@@ -1706,9 +1902,23 @@ SVG;
                 'data.line_items.*.credit' => 'nullable|numeric|min:0',
             ],
             'pda' => [
-                'data.total_payroll_amount' => 'required|numeric|min:0',
+                'data.payroll_period_id' => 'required|exists:payroll_periods,id',
+                'data.total_payroll_amount' => 'nullable|numeric|min:0',
                 'data.funding_bank_account_id' => ['required', $this->acceptedLinkedRecordRule('bank_account')],
                 'data.payroll_expense_coa_id' => ['required', $this->acceptedLinkedRecordRule('chart_account')],
+                'data.employee_count' => 'nullable|integer|min:0',
+                'data.basic_salary_total' => 'nullable|numeric|min:0',
+                'data.yearly_basic_total' => 'nullable|numeric|min:0',
+                'data.daily_rate_total' => 'nullable|numeric|min:0',
+                'data.hourly_rate_total' => 'nullable|numeric|min:0',
+                'data.minute_rate_total' => 'nullable|numeric|min:0',
+                'data.gross_pay_total' => 'nullable|numeric|min:0',
+                'data.benefits_total' => 'nullable|numeric|min:0',
+                'data.allowances_total' => 'nullable|numeric|min:0',
+                'data.deductions_total' => 'nullable|numeric|min:0',
+                'data.night_differential_total' => 'nullable|numeric|min:0',
+                'data.holiday_pay_total' => 'nullable|numeric|min:0',
+                'data.employee_payroll_breakdown' => 'nullable|string|max:10000',
             ],
             'crf' => [
                 'data.requester_mode' => 'nullable|in:own_request,request_for_another',
@@ -1951,6 +2161,80 @@ SVG;
             data_set($data, 'line_items', $lineItems);
         }
 
+        if ($moduleKey === 'pda') {
+            $period = PayrollPeriod::query()->find(data_get($data, 'payroll_period_id'));
+
+            if ($period) {
+                $snapshot = $this->payrollPeriodSnapshot($period, true);
+
+                foreach ([
+                    'period_start',
+                    'period_end',
+                    'payroll_start',
+                    'payroll_end',
+                    'pay_date',
+                    'dispute_start',
+                    'dispute_end',
+                    'status',
+                    'employee_count',
+                    'basic_salary_total',
+                    'yearly_basic_total',
+                    'daily_rate_total',
+                    'hourly_rate_total',
+                    'minute_rate_total',
+                    'gross_pay_total',
+                    'benefits_total',
+                    'allowances_total',
+                    'deductions_total',
+                    'night_differential_total',
+                    'holiday_pay_total',
+                    'total_payroll_amount',
+                    'payroll_summary_ids',
+                    'employee_lines',
+                ] as $field) {
+                    data_set($data, $field, data_get($snapshot, $field));
+                }
+
+                data_set($data, 'payroll_period_label', data_get($snapshot, 'label'));
+
+                if (blank(data_get($data, 'supporting_payroll_summary'))) {
+                    data_set($data, 'supporting_payroll_summary', sprintf(
+                        '%d payroll summaries for %s. Basic: PHP %s; Gross: PHP %s; Benefits: PHP %s; Allowances: PHP %s; Deductions: PHP %s; Night Differential: PHP %s; Holiday Pay: PHP %s; Net Payroll: PHP %s.',
+                        (int) data_get($snapshot, 'employee_count', 0),
+                        data_get($data, 'payroll_period_label'),
+                        number_format((float) data_get($snapshot, 'basic_salary_total', 0), 2),
+                        number_format((float) data_get($snapshot, 'gross_pay_total', 0), 2),
+                        number_format((float) data_get($snapshot, 'benefits_total', 0), 2),
+                        number_format((float) data_get($snapshot, 'allowances_total', 0), 2),
+                        number_format((float) data_get($snapshot, 'deductions_total', 0), 2),
+                        number_format((float) data_get($snapshot, 'night_differential_total', 0), 2),
+                        number_format((float) data_get($snapshot, 'holiday_pay_total', 0), 2),
+                        number_format((float) data_get($snapshot, 'total_payroll_amount', 0), 2)
+                    ));
+                }
+
+                if (blank(data_get($data, 'employee_payroll_breakdown'))) {
+                    $lines = collect((array) data_get($snapshot, 'employee_lines', []))
+                        ->map(function (array $line, int $index) {
+                            return sprintf(
+                                '%d. %s | %s / %s | Basic PHP %s | Gross PHP %s | Deductions PHP %s | Net PHP %s',
+                                $index + 1,
+                                data_get($line, 'employee_name') ?: data_get($line, 'employee_code') ?: 'Employee',
+                                data_get($line, 'salary_grade') ?: 'No grade',
+                                data_get($line, 'payroll_level') ?: 'No level',
+                                number_format((float) data_get($line, 'monthly_basic_salary', 0), 2),
+                                number_format((float) data_get($line, 'gross_pay', 0), 2),
+                                number_format((float) data_get($line, 'total_deductions', 0), 2),
+                                number_format((float) data_get($line, 'net_pay', 0), 2)
+                            );
+                        })
+                        ->implode("\n");
+
+                    data_set($data, 'employee_payroll_breakdown', $lines ?: 'No employee payroll profiles or summaries found for this period.');
+                }
+            }
+        }
+
         if ($moduleKey === 'lr') {
             $lineItems = array_values(array_filter((array) data_get($data, 'line_items', []), function ($item) {
                 return is_array($item) && collect($item)->contains(fn ($value) => !blank($value));
@@ -2158,7 +2442,7 @@ SVG;
             'record_number' => $recordNumber,
             'record_title' => $recordTitle,
             'record_date' => $recordDate,
-            'amount' => $request->module_key === 'dv' ? data_get($data, 'amount') : $request->amount,
+            'amount' => in_array($request->module_key, ['dv', 'pda'], true) ? data_get($data, $request->module_key === 'pda' ? 'total_payroll_amount' : 'amount') : $request->amount,
             'status' => $request->status,
             'workflow_status' => $isApprover ? 'Accepted' : 'Uploaded',
             'approval_status' => $isApprover ? 'Approved' : 'Pending',
@@ -2219,7 +2503,7 @@ SVG;
             'record_number' => $recordNumber,
             'record_title' => $recordTitle,
             'record_date' => $recordDate,
-            'amount' => $request->module_key === 'dv' ? data_get($data, 'amount') : $request->amount,
+            'amount' => in_array($request->module_key, ['dv', 'pda'], true) ? data_get($data, $request->module_key === 'pda' ? 'total_payroll_amount' : 'amount') : $request->amount,
             'status' => $request->status,
             'data' => $data,
             'attachments' => $attachments,
