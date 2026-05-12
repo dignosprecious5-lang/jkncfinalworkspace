@@ -186,7 +186,7 @@
 
             @if($canSeeHumanCapital)
                 <a href="{{ $humanCapitalLandingRoute }}"
-                   class="w-12 h-12 rounded-xl flex flex-col items-center justify-center gap-1 text-[10px] transition
+                   class="w-12 h-12 rounded-xl flex flex-col items-center justify-center gap-1 text-[10px] text-center transition
                    {{ $isHumanCapitalSection ? 'bg-blue-50 text-blue-700 border border-blue-100' : 'text-gray-600 hover:bg-gray-100' }}">
                     <i class="fas fa-user-tie text-base"></i>
                     <span>Human Capital</span>
@@ -536,6 +536,11 @@
                             Employee Relations
                         </a>
 
+                        <a href="{{ route('human-capital.memos') }}"
+                        class="block px-3 py-2 rounded-lg transition {{ request()->is('human-capital/memos') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
+                            Memos
+                        </a>
+
                         <a href="{{ route('human-capital.training') }}"
                            class="block px-3 py-2 rounded-lg transition {{ request()->is('human-capital/training') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
                             Training
@@ -544,6 +549,11 @@
                         <a href="{{ route('human-capital.performance') }}"
                            class="block px-3 py-2 rounded-lg transition {{ request()->is('human-capital/performance') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
                             Performance
+                        </a>
+
+                        <a href="{{ route('human-capital.award') }}"
+                        class="block px-3 py-2 rounded-lg transition {{ request()->is('human-capital/award') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
+                            Award
                         </a>
 
                         <a href="{{ route('human-capital.offboarding') }}"
