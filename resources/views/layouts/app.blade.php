@@ -186,6 +186,7 @@
 
             @if($canSeeHumanCapital)
                 <a href="{{ $humanCapitalLandingRoute }}"
+<<<<<<< HEAD
                     class="w-12 h-12 rounded-xl flex flex-col items-center justify-center gap-1 text-[10px] text-center transition
                     {{ $isHumanCapitalSection ? 'bg-blue-50 text-blue-700 border border-blue-100' : 'text-gray-600 hover:bg-gray-100' }}">
 
@@ -195,6 +196,13 @@
                             Human Capital
                         </span>
                     </a>
+=======
+                   class="w-12 h-12 rounded-xl flex flex-col items-center justify-center gap-1 text-[10px] text-center transition
+                   {{ $isHumanCapitalSection ? 'bg-blue-50 text-blue-700 border border-blue-100' : 'text-gray-600 hover:bg-gray-100' }}">
+                    <i class="fas fa-user-tie text-base"></i>
+                    <span>Human Capital</span>
+                </a>
+>>>>>>> origin/HumanCapital
             @endif
 
             @if(Auth::user()->hasPermission('access_activities'))
@@ -540,6 +548,11 @@
                             Employee Relations
                         </a>
 
+                        <a href="{{ route('human-capital.memos') }}"
+                        class="block px-3 py-2 rounded-lg transition {{ request()->is('human-capital/memos') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
+                            Memos
+                        </a>
+
                         <a href="{{ route('human-capital.training') }}"
                            class="block px-3 py-2 rounded-lg transition {{ request()->is('human-capital/training') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
                             Training
@@ -548,6 +561,11 @@
                         <a href="{{ route('human-capital.performance') }}"
                            class="block px-3 py-2 rounded-lg transition {{ request()->is('human-capital/performance') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
                             Performance
+                        </a>
+
+                        <a href="{{ route('human-capital.awards') }}"
+                        class="block px-3 py-2 rounded-lg transition {{ request()->is('human-capital/awards') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
+                            Awards
                         </a>
 
                         <a href="{{ route('human-capital.offboarding') }}"

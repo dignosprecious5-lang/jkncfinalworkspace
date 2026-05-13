@@ -1,6 +1,5 @@
 <?php
 
-
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
@@ -17,16 +16,20 @@ class Training extends Model
     ];
 
     /**
-     * Get the formatted duration display
+     * Get formatted duration
      */
     public function getFormattedDurationAttribute()
     {
         if ($this->duration_value && $this->duration_unit) {
             return $this->duration_value . ' ' . $this->duration_unit;
         }
+
         return null;
     }
 
+    /**
+     * Training assignments
+     */
     public function assignments(): HasMany
     {
         return $this->hasMany(TrainingAssignment::class);

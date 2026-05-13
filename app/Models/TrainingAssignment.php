@@ -19,6 +19,9 @@ class TrainingAssignment extends Model
         'status',
         'remarks',
         'assigned_by',
+        'certificate_issued',
+        'certificate_issued_at',
+        'certificate_code',
     ];
 
     protected $casts = [
@@ -41,4 +44,15 @@ class TrainingAssignment extends Model
     {
         return $this->belongsTo(User::class, 'assigned_by');
     }
+
+    public function isCompleted(): bool
+    {
+        return $this->status === 'Completed' || $this->completed_at !== null;
+    }
+
+    public function hasCertificate(): bool
+    {
+        return $this->certificate_issued === true;
+    }
+    
 }
