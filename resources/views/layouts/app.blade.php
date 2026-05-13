@@ -378,6 +378,15 @@
                             </a>
                         @endif
 
+
+                        @if(Auth::user()->isAdmin() || Auth::user()->isSuperAdmin() || Auth::user()->hasPermission('access_admin_dashboard'))
+                            <a href="{{ route('admin.human-capital.dashboard') }}"
+                               class="block px-3 py-2 rounded-lg transition
+                               {{ request()->routeIs('admin.human-capital.dashboard') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
+                                Human Capital
+                            </a>
+                        @endif
+
                         <a href="{{ route('admin.policies.index') }}"
                            class="flex items-center px-4 py-2 rounded-lg text-sm font-medium
                            {{ request()->routeIs('admin.policies.*') ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:bg-gray-100' }}">

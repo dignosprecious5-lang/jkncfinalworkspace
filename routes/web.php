@@ -29,6 +29,7 @@ use App\Http\Controllers\DealProposalController;
 use App\Http\Controllers\DirectorOfficerController;
 use App\Http\Controllers\GisController;
 use App\Http\Controllers\AdminDashboardController;
+use App\Http\Controllers\AdminHumanCapitalDashboardController;
 use App\Http\Controllers\AdminUserController;
 use App\Http\Controllers\AdminUserPermissionController;
 use App\Http\Controllers\ProductController;
@@ -253,6 +254,17 @@ Route::middleware('auth')->group(function () {
     Route::post('/admin/user-permissions/{id}', [AdminUserPermissionController::class, 'update'])->name('admin.user-permissions.update');
 
     Route::get('/admin/corporate-dashboard', [CorporateApprovalController::class, 'dashboard'])->name('admin.corporate.dashboard');
+
+    Route::get('/admin/human-capital-dashboard', [AdminHumanCapitalDashboardController::class, 'index'])->name('admin.human-capital.dashboard');
+    Route::post('/admin/human-capital/employee-requests/{employeeRequest}/approve', [AdminHumanCapitalDashboardController::class, 'approveEmployeeRequest'])->name('admin.human-capital.employee-requests.approve');
+    Route::post('/admin/human-capital/employee-requests/{employeeRequest}/reject', [AdminHumanCapitalDashboardController::class, 'rejectEmployeeRequest'])->name('admin.human-capital.employee-requests.reject');
+    Route::post('/admin/human-capital/employee-requests/{employeeRequest}/revise', [AdminHumanCapitalDashboardController::class, 'reviseEmployeeRequest'])->name('admin.human-capital.employee-requests.revise');
+    Route::post('/admin/human-capital/obf/{officialBusinessTrip}/approve', [AdminHumanCapitalDashboardController::class, 'approveObf'])->name('admin.human-capital.obf.approve');
+    Route::post('/admin/human-capital/obf/{officialBusinessTrip}/reject', [AdminHumanCapitalDashboardController::class, 'rejectObf'])->name('admin.human-capital.obf.reject');
+    Route::post('/admin/human-capital/employee-relations/{employeeRelation}/approve', [AdminHumanCapitalDashboardController::class, 'approveEmployeeRelation'])->name('admin.human-capital.employee-relations.approve');
+    Route::post('/admin/human-capital/employee-relations/{employeeRelation}/reject', [AdminHumanCapitalDashboardController::class, 'rejectEmployeeRelation'])->name('admin.human-capital.employee-relations.reject');
+    Route::post('/admin/human-capital/training-assignments/{trainingAssignment}/complete', [AdminHumanCapitalDashboardController::class, 'completeTrainingAssignment'])->name('admin.human-capital.training-assignments.complete');
+    Route::post('/admin/human-capital/training-assignments/{trainingAssignment}/certificate', [AdminHumanCapitalDashboardController::class, 'issueTrainingCertificate'])->name('admin.human-capital.training-assignments.certificate');
     Route::post('/admin/corporate-approvals/{module}/{id}/approve', [CorporateApprovalController::class, 'approve'])->name('corporate.approvals.approve');
     Route::post('/admin/corporate-approvals/{module}/{id}/reject', [CorporateApprovalController::class, 'reject'])->name('corporate.approvals.reject');
     Route::post('/admin/corporate-approvals/{module}/{id}/revise', [CorporateApprovalController::class, 'revise'])->name('corporate.approvals.revise');
