@@ -11,9 +11,23 @@
                 </div>
             </div>
 
-            <button id="addButton" onclick="window.openFinanceDrawer()" class="bg-blue-600 text-white px-5 py-2 rounded-md text-sm shrink-0 hover:bg-blue-700 transition">
-                + Add
-            </button>
+            <div class="flex items-center gap-2 shrink-0">
+                @if($canManageFinanceSettings)
+                    <button
+                        id="financeDropdownSettingsButton"
+                        type="button"
+                        onclick="window.financeModule.openDropdownSettings()"
+                        class="w-9 h-9 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-800 flex items-center justify-center"
+                        title="Finance dropdown settings"
+                        aria-label="Finance dropdown settings"
+                    >
+                        <i class="fas fa-cog text-sm"></i>
+                    </button>
+                @endif
+                <button id="addButton" onclick="window.openFinanceDrawer()" class="bg-blue-600 text-white px-5 py-2 rounded-md text-sm hover:bg-blue-700 transition">
+                    + Add
+                </button>
+            </div>
         </div>
 
         <div class="px-4 pt-4 bg-white border-b border-gray-100">
@@ -192,6 +206,35 @@
 </div>
 
 <div id="financeToastStack" class="fixed bottom-4 right-4 z-[60] flex flex-col gap-2 pointer-events-none"></div>
+@if($canManageFinanceSettings)
+<div id="financeDropdownSettingsModal" class="hidden fixed inset-0 z-[75]" aria-hidden="true">
+    <div class="absolute inset-0 bg-black/40" onclick="window.financeModule.closeDropdownSettings()"></div>
+    <div class="absolute inset-0 flex items-center justify-center p-4">
+        <div class="w-full max-w-5xl h-[84vh] rounded-2xl bg-white shadow-2xl border border-gray-200 overflow-hidden flex flex-col">
+            <div class="flex items-start justify-between gap-4 border-b border-gray-100 px-5 py-4">
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-900">Finance Dropdown Settings</h3>
+                    <p class="mt-1 text-xs text-gray-500">Edit selectable values for dropdowns that are not linked to master records.</p>
+                </div>
+                <button type="button" onclick="window.financeModule.closeDropdownSettings()" class="text-sm text-gray-500 hover:text-gray-700">Close</button>
+            </div>
+            <div class="flex flex-1 min-h-0">
+                <div id="financeDropdownSettingsModules" class="w-64 border-r border-gray-100 overflow-y-auto p-3 bg-gray-50"></div>
+                <div class="flex-1 min-w-0 flex flex-col">
+                    <div class="border-b border-gray-100 px-5 py-3">
+                        <p id="financeDropdownSettingsTitle" class="text-sm font-semibold text-gray-900">Select a finance tab</p>
+                    </div>
+                    <div id="financeDropdownSettingsFields" class="flex-1 overflow-y-auto p-5 space-y-4"></div>
+                    <div class="border-t border-gray-100 px-5 py-4 flex justify-end gap-2">
+                        <button type="button" onclick="window.financeModule.closeDropdownSettings()" class="rounded-md border border-gray-200 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Cancel</button>
+                        <button type="button" onclick="window.financeModule.saveDropdownSettings()" class="rounded-md bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700">Save Settings</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+@endif
 <div id="financeLookupSelectorModal" class="hidden fixed inset-0 z-[70]">
     <div class="absolute inset-0 bg-black/40" onclick="window.financeModule.closeLookupSelector()"></div>
     <div class="absolute inset-0 flex items-center justify-center p-4">
@@ -226,6 +269,8 @@
         'currentModule' => $currentModule,
         'currentWorkflowFilter' => $currentWorkflowFilter,
         'canApproveFinance' => $canApproveFinance,
+        'canManageFinanceSettings' => $canManageFinanceSettings,
+        'financeDropdownOptions' => $financeDropdownOptions,
         'currentUserName' => $currentUserName,
         'currentUserEmail' => $currentUserEmail,
         'currentUserContact' => $currentUserContact,

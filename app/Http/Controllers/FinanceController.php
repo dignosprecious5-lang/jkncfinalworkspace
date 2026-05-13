@@ -10,6 +10,7 @@ use App\Models\FinanceRecord;
 use App\Models\PayrollPeriod;
 use App\Models\PayrollSummary;
 use App\Models\PayrollSummaryItem;
+use App\Models\Setting;
 use App\Services\PayrollCalculator;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
@@ -50,9 +51,80 @@ class FinanceController extends Controller
         'Archived',
     ];
 
+    private const DROPDOWN_SETTINGS_KEY = 'finance_dropdown_options';
+
     private function canApproveFinance(): bool
     {
         return Auth::check() && Auth::user()->hasPermission('approve_corporate');
+    }
+
+    private function canManageFinanceSettings(): bool
+    {
+        $user = Auth::user();
+
+        return $user
+            && ($user->hasPermission('approve_corporate') || $user->hasPermission('manage_users'));
+    }
+
+    private function financeDropdownSettings(): array
+    {
+        if (
+            !Schema::hasTable('settings')
+            || !Schema::hasColumn('settings', 'key')
+            || !Schema::hasColumn('settings', 'value')
+        ) {
+            return [];
+        }
+
+        $setting = Setting::query()
+            ->where('key', self::DROPDOWN_SETTINGS_KEY)
+            ->first();
+
+        if (!$setting || blank($setting->value)) {
+            return [];
+        }
+
+        $decoded = json_decode((string) $setting->value, true);
+
+        return is_array($decoded) ? $decoded : [];
+    }
+
+    private function sanitizeFinanceDropdownSettings(array $settings): array
+    {
+        $moduleKeys = $this->moduleKeys();
+        $sanitized = [];
+
+        foreach ($settings as $moduleKey => $fields) {
+            if (!is_string($moduleKey) || !in_array($moduleKey, $moduleKeys, true) || !is_array($fields)) {
+                continue;
+            }
+
+            foreach ($fields as $fieldName => $options) {
+                if (!is_string($fieldName) || !preg_match('/^[A-Za-z0-9_]+$/', $fieldName) || !is_array($options)) {
+                    continue;
+                }
+
+                $fieldOptions = [];
+
+                foreach ($options as $option) {
+                    $value = is_array($option) ? trim((string) ($option['value'] ?? '')) : trim((string) $option);
+                    $label = is_array($option) ? trim((string) ($option['label'] ?? $value)) : $value;
+
+                    if ($value === '') {
+                        continue;
+                    }
+
+                    $fieldOptions[$value] = [
+                        'value' => Str::limit($value, 255, ''),
+                        'label' => Str::limit($label !== '' ? $label : $value, 255, ''),
+                    ];
+                }
+
+                $sanitized[$moduleKey][$fieldName] = array_values($fieldOptions);
+            }
+        }
+
+        return $sanitized;
     }
 
     private function moduleKeys(): array
@@ -235,10 +307,6 @@ SVG;
         $data = $record->data ?? [];
         $value = data_get($data, $fieldName);
 
-        if ($fieldName === 'liquidation_calculation') {
-            return $this->financeCashAdvanceLiquidationCalculation($data);
-        }
-
         if ($fieldName === 'requester_mode') {
             return match ($value) {
                 'own_request' => 'Own Request',
@@ -266,22 +334,6 @@ SVG;
             'linked_item_id' => $this->financePdfLookupLabel($lookupOptions, (string) data_get($data, 'linked_item_type', 'product'), $value) ?: $this->financePdfValue($value),
             default => $this->financePdfValue($value),
         };
-    }
-
-    private function financeCashAdvanceLiquidationCalculation(array $data): string
-    {
-        $amount = (float) (data_get($data, 'amount_requested') ?: 0);
-        $releaseCount = max((int) (data_get($data, 'release_count') ?: 1), 1);
-        $amountPerRelease = $amount / $releaseCount;
-        $releaseLabel = $releaseCount === 1 ? 'release' : 'releases';
-
-        return sprintf(
-            'CA %s / %d %s = %s per release. LR: CA - actual expenses = balance.',
-            number_format($amount, 2),
-            $releaseCount,
-            $releaseLabel,
-            number_format($amountPerRelease, 2)
-        );
     }
 
     private function financePreviewRow(FinanceRecord $record, array $lookupOptions, string $fieldName, ?string $label = null): array
@@ -662,12 +714,15 @@ SVG;
                     ['name' => 'release_schedule', 'label' => 'Release Schedule'],
                     ['name' => 'release_count', 'label' => 'Number of Releases'],
                     ['name' => 'amount_per_release', 'label' => 'Amount per Release'],
-                    ['name' => 'liquidation_calculation', 'label' => 'Liquidation Calculation'],
                     ['name' => 'cash_release_date', 'label' => 'Cash Release Date'],
                     ['name' => 'cash_release_time', 'label' => 'Cash Release Time'],
                     ['name' => 'mode_of_release', 'label' => 'Mode of Release'],
                     ['name' => 'paid_through', 'label' => 'Paid Through'],
                 ]),
+                [
+                    'type' => 'ca_payment_tracking',
+                    'title' => 'Cash Advance Payment Tracking',
+                ],
                 $section('Declarations & Authorizations', [
                     ['name' => 'official_business_cash_advance', 'label' => 'Official Business Cash Advance'],
                     ['name' => 'employee_cash_advance_personal', 'label' => 'Employee Cash Advance - Personal Purpose'],
@@ -723,12 +778,20 @@ SVG;
                     ['name' => 'expense_details', 'label' => 'Expense Details'],
                     ['name' => 'amount', 'label' => 'Amount'],
                     ['name' => 'reimbursement_payment_details', 'label' => 'Reimbursement Payment Details'],
-                    ['name' => 'supplier_id', 'label' => 'Supplier'],
                     ['name' => 'reimbursement_mode', 'label' => 'Mode of Reimbursement'],
-                ]),
-                $section('Accounting & Funding', [
-                    ['name' => 'coa_id', 'label' => 'Account from Chart of Accounts'],
-                    ['name' => 'bank_account_id', 'label' => 'Bank Account'],
+                    ...match (data_get($data, 'reimbursement_mode')) {
+                        'Cash' => [
+                            ['name' => 'cash_receiver_name', 'label' => 'Name of Receiver'],
+                        ],
+                        'Bank Transfer' => [
+                            ['name' => 'recipient_bank_account', 'label' => 'Bank Account'],
+                            ['name' => 'recipient_bank_number', 'label' => 'Bank Number'],
+                        ],
+                        'Check' => [
+                            ['name' => 'bank_account_id', 'label' => 'Bank Account Source'],
+                        ],
+                        default => [],
+                    },
                     ['name' => 'remarks', 'label' => 'Remarks'],
                 ]),
                 $notesSection,
@@ -766,11 +829,6 @@ SVG;
                     ['name' => 'received_by_name', 'label' => 'Received By'],
                     ['name' => 'received_by_signature', 'label' => 'Signature'],
                     ['name' => 'date_received', 'label' => 'Date Received'],
-                ]),
-                $section('Signatories', [
-                    ['name' => 'prepared_by', 'label' => 'Prepared By'],
-                    ['name' => 'checked_by', 'label' => 'Checked By'],
-                    ['name' => 'approved_by_name', 'label' => 'Approved By'],
                 ]),
                 $notesSection,
             ],
@@ -870,6 +928,62 @@ SVG;
             ],
             default => [],
         };
+    }
+
+    private function financeCashAdvancePaymentTracking(FinanceRecord $record): ?array
+    {
+        if ($record->module_key !== 'ca') {
+            return null;
+        }
+
+        $data = $record->data ?? [];
+        $amount = (float) data_get($data, 'amount_requested', $record->amount ?? 0);
+        $releaseCount = max((int) data_get($data, 'release_count', 1), 1);
+        $amountPerRelease = (float) data_get($data, 'amount_per_release', $releaseCount > 0 ? $amount / $releaseCount : $amount);
+        $entries = collect((array) data_get($data, 'ca_payment_entries', []))
+            ->filter(fn ($entry) => is_array($entry))
+            ->values();
+        $entriesByRelease = $entries->groupBy(fn (array $entry) => (int) data_get($entry, 'release_no', 0));
+
+        $rows = collect(range(1, $releaseCount))->map(function (int $releaseNo) use ($releaseCount, $amount, $amountPerRelease, $entriesByRelease, $data) {
+            $releaseEntries = $entriesByRelease->get($releaseNo, collect());
+            $paidAmount = $releaseEntries->sum(fn (array $entry) => (float) data_get($entry, 'payment_amount', 0));
+            $scheduledAmount = $releaseNo === $releaseCount
+                ? max($amount - ($amountPerRelease * ($releaseCount - 1)), 0)
+                : $amountPerRelease;
+            $latestPayment = $releaseEntries->last() ?: [];
+            $status = $paidAmount >= $scheduledAmount && $scheduledAmount > 0
+                ? 'Paid'
+                : ($paidAmount > 0 ? 'Partial' : 'Pending');
+
+            return [
+                'no' => $releaseNo,
+                'scheduled_date' => $releaseNo === 1 ? (data_get($data, 'cash_release_date') ?: '-') : '-',
+                'scheduled_amount' => number_format($scheduledAmount, 2),
+                'paid_amount' => number_format($paidAmount, 2),
+                'payment_date' => data_get($latestPayment, 'payment_date') ?: '-',
+                'payment_remarks' => $releaseEntries->pluck('payment_remarks')->filter()->implode(' | '),
+                'status' => $status,
+            ];
+        })->values();
+
+        $totalPaid = $entries->sum(fn (array $entry) => (float) data_get($entry, 'payment_amount', 0));
+        $remainingBalance = max($amount - $totalPaid, 0);
+        $paidCount = $rows->where('status', 'Paid')->count();
+        $status = $remainingBalance <= 0 && $amount > 0 ? 'Fully Released' : ($totalPaid > 0 ? 'Partially Released' : 'Pending Release');
+
+        return [
+            'summary' => [
+                ['label' => 'Per Release', 'value' => number_format($amountPerRelease, 2)],
+                ['label' => 'Total Cash Advance', 'value' => number_format($amount, 2)],
+                ['label' => 'Released / Paid', 'value' => number_format($totalPaid, 2)],
+                ['label' => 'Remaining for Release', 'value' => number_format($remainingBalance, 2)],
+                ['label' => 'Releases Paid', 'value' => $paidCount],
+                ['label' => 'Releases Remaining', 'value' => max($releaseCount - $paidCount, 0)],
+                ['label' => 'Status', 'value' => $status],
+            ],
+            'rows' => $rows->all(),
+        ];
     }
 
     private function financePdfContext(FinanceRecord $record, bool $includeLogo = true): array
@@ -993,6 +1107,7 @@ SVG;
             'poSupplierGroups' => $poSupplierGroups,
             'costSummary' => $costSummary,
             'liquidationReport' => $liquidationReport,
+            'cashAdvancePaymentTracking' => $this->financeCashAdvancePaymentTracking($record),
             'attachments' => $attachments,
             'chartAccountLabel' => $this->financePdfLookupLabel($lookupOptions, 'chart_account', data_get($data, 'coa_id')) ?: data_get($data, 'coa_id') ?: 'N/A',
         ];
@@ -1176,6 +1291,29 @@ SVG;
                         $option['account_type'] = data_get($record->data, 'account_type');
                         $option['account_group'] = data_get($record->data, 'account_group');
                         $option['account_description'] = data_get($record->data, 'account_description');
+                    }
+
+                    if ($record->module_key === 'product') {
+                        $option['data'] = [
+                            'product_description' => data_get($record->data, 'product_description'),
+                            'category' => data_get($record->data, 'category'),
+                            'default_cost' => data_get($record->data, 'default_cost'),
+                            'supplier_id' => data_get($record->data, 'supplier_id'),
+                            'tax_type' => data_get($record->data, 'tax_type'),
+                            'unit_of_measure' => data_get($record->data, 'unit_of_measure'),
+                        ];
+                    }
+
+                    if ($record->module_key === 'service') {
+                        $option['data'] = [
+                            'service_description' => data_get($record->data, 'service_description'),
+                            'products_services_provided' => data_get($record->data, 'products_services_provided'),
+                            'category' => data_get($record->data, 'category'),
+                            'default_cost' => data_get($record->data, 'default_cost'),
+                            'supplier_id' => data_get($record->data, 'supplier_id'),
+                            'tax_type' => data_get($record->data, 'tax_type'),
+                            'unit_of_measure' => data_get($record->data, 'unit_of_measure'),
+                        ];
                     }
 
                     return $option;
@@ -1651,6 +1789,25 @@ SVG;
         ];
     }
 
+    private function defaultAcceptedFinanceRecordId(string $moduleKey): string
+    {
+        static $cache = [];
+
+        if (!array_key_exists($moduleKey, $cache)) {
+            $cache[$moduleKey] = (string) (FinanceRecord::query()
+                ->where('module_key', $moduleKey)
+                ->where(function ($query) {
+                    $query->where('workflow_status', 'Accepted')
+                        ->orWhere('approval_status', 'Approved');
+                })
+                ->orderByDesc('record_date')
+                ->orderByDesc('created_at')
+                ->value('id') ?: '');
+        }
+
+        return $cache[$moduleKey];
+    }
+
     private function fallbackDvPayload(FinanceRecord $record): array
     {
         $data = $record->data ?? [];
@@ -1665,7 +1822,15 @@ SVG;
             return null;
         };
 
-        return [
+        $paymentType = $firstFilled([
+            data_get($data, 'payment_type'),
+            data_get($data, 'mode_of_release'),
+            data_get($data, 'reimbursement_mode'),
+            data_get($data, 'mode_of_return'),
+            data_get($data, 'paid_through'),
+        ]) ?: 'Cash';
+
+        $payload = [
             'supplier_id' => data_get($data, 'supplier_id') ?? '',
             'amount' => $firstFilled([
                 data_get($data, 'amount'),
@@ -1677,18 +1842,26 @@ SVG;
                 data_get($data, 'acquisition_cost'),
                 $record->amount,
             ]) ?? '',
-            'payment_type' => $firstFilled([
-                data_get($data, 'payment_type'),
-                data_get($data, 'mode_of_release'),
-                data_get($data, 'reimbursement_mode'),
-                data_get($data, 'mode_of_return'),
-                data_get($data, 'paid_through'),
-            ]) ?? '',
+            'payment_type' => $paymentType,
+            'disbursement_type' => $paymentType,
+            'bank_account_id' => $firstFilled([
+                data_get($data, 'bank_account_id'),
+                data_get($data, 'funding_bank_account_id'),
+                data_get($data, 'receiving_bank_account_id'),
+                data_get($data, 'source_bank_account_id'),
+                data_get($data, 'destination_bank_account_id'),
+            ]) ?: $this->defaultAcceptedFinanceRecordId('bank_account'),
             'coa_id' => $firstFilled([
                 data_get($data, 'coa_id'),
                 data_get($data, 'payroll_expense_coa_id'),
                 data_get($data, 'asset_coa_id'),
+            ]) ?: $this->defaultAcceptedFinanceRecordId('chart_account'),
+            'fund_source' => $firstFilled([
+                data_get($data, 'fund_source'),
+                data_get($data, 'project'),
+                data_get($data, 'department'),
             ]) ?? '',
+            'department' => data_get($data, 'department') ?: data_get($data, 'requesting_department') ?: '',
             'reference_number' => $firstFilled([
                 data_get($data, 'reference_number'),
                 data_get($data, 'transfer_reference_number'),
@@ -1703,8 +1876,90 @@ SVG;
                 $record->record_title,
             ]) ?? '',
             'payment_date' => optional($record->record_date)->format('Y-m-d') ?: '',
+            'due_date' => $firstFilled([
+                data_get($data, 'due_date'),
+                data_get($data, 'needed_date'),
+                data_get($data, 'expected_delivery_date'),
+                data_get($data, 'pay_date'),
+                data_get($data, 'acquisition_date'),
+            ]) ?? '',
+            'withholding_tax' => $firstFilled([
+                data_get($data, 'withholding_tax'),
+                data_get($data, 'wht_amount'),
+                data_get($data, 'wht_total'),
+            ]) ?? '',
+            'vat_amount' => $firstFilled([
+                data_get($data, 'vat_amount'),
+                data_get($data, 'tax_amount'),
+                data_get($data, 'tax_total'),
+            ]) ?? '',
+            'currency' => data_get($data, 'currency') ?: 'PHP',
+            'exchange_rate' => data_get($data, 'exchange_rate') ?: '',
+            'received_by_name' => data_get($data, 'received_by_name') ?: '',
+            'received_by_signature' => data_get($data, 'received_by_signature') ?: '',
+            'date_received' => data_get($data, 'date_received') ?: '',
             'remarks' => data_get($data, 'remarks') ?: 'Seeded DV dummy payload.',
         ];
+
+        $payload['line_items'] = $this->financeDvLineItemsFromSource($record, $payload);
+
+        return $payload;
+    }
+
+    private function financeDvLineItemsFromSource(FinanceRecord $record, array $payload): array
+    {
+        $data = $record->data ?? [];
+        $rows = collect((array) data_get($data, 'line_items', []))
+            ->filter(fn ($row) => is_array($row) && collect($row)->contains(fn ($value) => !blank($value)))
+            ->values();
+
+        if ($rows->isNotEmpty()) {
+            return $rows->map(function (array $row, int $index) use ($payload, $data) {
+                $quantity = (float) data_get($row, 'quantity', 0);
+                $unitAmount = (float) (data_get($row, 'amount') ?: data_get($row, 'unit_cost') ?: 0);
+                $amount = (float) (data_get($row, 'total') ?: data_get($row, 'line_total') ?: data_get($row, 'debit') ?: data_get($row, 'credit') ?: ($quantity * $unitAmount) ?: $unitAmount);
+                $description = trim(collect([
+                    data_get($row, 'item_id') ?: data_get($row, 'description') ?: data_get($row, 'account_code') ?: 'Line '.($index + 1),
+                    data_get($row, 'category') ? '('.data_get($row, 'category').')' : null,
+                ])->filter()->implode(' '));
+
+                return [
+                    'description' => $description,
+                    'account_code' => data_get($row, 'account_code') ?: data_get($row, 'coa_id') ?: data_get($payload, 'coa_id') ?: data_get($data, 'coa_id') ?: '',
+                    'debit' => $amount > 0 ? number_format($amount, 2, '.', '') : '',
+                    'credit' => '',
+                ];
+            })->all();
+        }
+
+        $amount = (float) (data_get($payload, 'amount') ?: $record->amount ?: data_get($data, 'amount') ?: 0);
+
+        if ($record->module_key === 'ibtf') {
+            return [
+                [
+                    'description' => 'Transfer to '.(data_get($data, 'destination_account_code') ?: data_get($data, 'destination_bank_account_id') ?: 'destination account'),
+                    'account_code' => data_get($data, 'destination_account_code') ?: '',
+                    'debit' => $amount > 0 ? number_format($amount, 2, '.', '') : '',
+                    'credit' => '',
+                ],
+                [
+                    'description' => 'Transfer from '.(data_get($data, 'source_account_code') ?: data_get($data, 'source_bank_account_id') ?: 'source account'),
+                    'account_code' => data_get($data, 'source_account_code') ?: '',
+                    'debit' => '',
+                    'credit' => $amount > 0 ? number_format($amount, 2, '.', '') : '',
+                ],
+            ];
+        }
+
+        return [[
+            'description' => trim(collect([
+                $record->record_number ?: strtoupper($record->module_key),
+                data_get($payload, 'purpose') ?: $record->record_title ?: 'Source document amount',
+            ])->filter()->implode(' - ')),
+            'account_code' => data_get($payload, 'coa_id') ?: '',
+            'debit' => $amount > 0 ? number_format($amount, 2, '.', '') : '',
+            'credit' => '',
+        ]];
     }
 
     private function persistAttachments(Request $request, array $existingAttachments = []): array
@@ -1801,13 +2056,15 @@ SVG;
                 'data.requestor' => 'required|string|max:255',
                 'data.request_type' => 'required|in:Service,Product',
                 'data.supplier_id' => ['nullable', $this->acceptedLinkedRecordRule('supplier')],
-                'data.master_item_type' => 'nullable|in:product',
+                'data.master_item_type' => 'nullable|in:service,product',
                 'data.master_item_id' => 'nullable|integer',
                 'data.coa_id' => ['nullable', $this->acceptedLinkedRecordRule('chart_account')],
                 'data.quantity' => 'nullable|numeric|min:0',
                 'data.unit_cost' => 'nullable|numeric|min:0',
                 'data.estimated_total_cost' => 'nullable|numeric|min:0',
                 'data.line_items' => 'nullable|array',
+                'data.line_items.*.item_module' => 'nullable|in:service,product',
+                'data.line_items.*.item_record_id' => 'nullable|integer',
                 'data.line_items.*.item_id' => 'nullable|string|max:255',
                 'data.line_items.*.description' => 'nullable|string|max:1000',
                 'data.line_items.*.category' => 'nullable|string|max:255',
@@ -1840,6 +2097,11 @@ SVG;
                 'data.paid_through' => ['nullable', $this->acceptedLinkedRecordRule('chart_account')],
                 'data.bank_account_id' => ['nullable', $this->acceptedLinkedRecordRule('bank_account')],
                 'data.coa_id' => ['nullable', $this->acceptedLinkedRecordRule('chart_account')],
+                'data.ca_payment_entries' => 'nullable|array',
+                'data.ca_payment_entries.*.release_no' => 'nullable|integer|min:1',
+                'data.ca_payment_entries.*.payment_date' => 'nullable|date',
+                'data.ca_payment_entries.*.payment_amount' => 'nullable|numeric|min:0',
+                'data.ca_payment_entries.*.payment_remarks' => 'nullable|string|max:1000',
             ],
             'lr' => [
                 'data.requester_mode' => 'nullable|in:own_request,request_for_another',
@@ -1868,12 +2130,15 @@ SVG;
                 'data.amount' => 'required|numeric|min:0',
                 'data.reimbursement_payment_details' => 'nullable|string|max:1000',
                 'data.manual_liquidation_entry' => 'nullable|boolean',
-                'data.coa_id' => ['required', $this->acceptedLinkedRecordRule('chart_account')],
-                'data.bank_account_id' => ['required', $this->acceptedLinkedRecordRule('bank_account')],
+                'data.reimbursement_mode' => 'required|in:Cash,Bank Transfer,Check',
+                'data.cash_receiver_name' => 'required_if:data.reimbursement_mode,Cash|nullable|string|max:255',
+                'data.recipient_bank_account' => 'required_if:data.reimbursement_mode,Bank Transfer|nullable|string|max:255',
+                'data.recipient_bank_number' => 'required_if:data.reimbursement_mode,Bank Transfer|nullable|string|max:255',
+                'data.bank_account_id' => ['required_if:data.reimbursement_mode,Check', 'nullable', $this->acceptedLinkedRecordRule('bank_account')],
                 'data.supplier_id' => ['nullable', $this->acceptedLinkedRecordRule('supplier')],
             ],
             'dv' => [
-                'data.source_document_type' => 'required|in:ca,lr,err,pda,crf,ibtf,arf',
+                'data.source_document_type' => 'required|in:pr,po,ca,lr,err,pda,crf,ibtf,arf',
                 'data.source_document_id' => 'required',
                 'data.amount' => 'required|numeric|min:0',
                 'data.payment_type' => 'required|in:Cash,Check,Bank Transfer,E-Wallet',
@@ -1884,9 +2149,6 @@ SVG;
                 'data.fund_source' => 'nullable|string|max:255',
                 'data.department' => 'nullable|string|max:255',
                 'data.due_date' => 'nullable|date',
-                'data.prepared_by' => 'nullable|string|max:255',
-                'data.checked_by' => 'nullable|string|max:255',
-                'data.approved_by_name' => 'nullable|string|max:255',
                 'data.received_by_name' => 'nullable|string|max:255',
                 'data.received_by_signature' => 'nullable|string|max:255',
                 'data.date_received' => 'nullable|date',
@@ -1947,11 +2209,11 @@ SVG;
         ];
 
         if ($moduleKey === 'po') {
-            $rules['data.linked_item_id'] = ['required', $this->acceptedLinkedRecordRule('service')];
+            $rules['data.linked_item_id'] = ['required', 'integer'];
         }
 
         if ($moduleKey === 'pr') {
-            $rules['data.master_item_id'] = ['required', $this->acceptedLinkedRecordRule('product')];
+            $rules['data.master_item_id'] = ['required', 'integer'];
         }
 
         if ($moduleKey === 'chart_account') {
@@ -2049,6 +2311,8 @@ SVG;
             $sourceDocumentId = data_get($validated, 'data.source_document_id');
 
             $allowedModule = match ($sourceDocumentType) {
+                'pr' => 'pr',
+                'po' => 'po',
                 'ca' => 'ca',
                 'lr' => 'lr',
                 'err' => 'err',
@@ -2122,18 +2386,73 @@ SVG;
             data_set($data, 'completion_mode', 'complete_internally');
         }
 
+        if ($moduleKey === 'err') {
+            unset($data['supplier_id'], $data['coa_id']);
+
+            $mode = (string) data_get($data, 'reimbursement_mode', '');
+            if ($mode !== 'Cash') {
+                unset($data['cash_receiver_name']);
+            }
+            if ($mode !== 'Bank Transfer') {
+                unset($data['recipient_bank_account'], $data['recipient_bank_number']);
+            }
+            if ($mode !== 'Check') {
+                unset($data['bank_account_id']);
+            }
+        }
+
         if ($moduleKey === 'dv') {
             $sourceType = (string) data_get($data, 'source_document_type', '');
             $sourceId = data_get($data, 'source_document_id');
+            $submittedLineItems = array_values((array) data_get($data, 'line_items', []));
             $sourceRecord = $sourceType && $sourceId
                 ? FinanceRecord::query()->where('module_key', $sourceType)->find($sourceId)
                 : null;
 
             if ($sourceRecord) {
                 $sourcePayload = $this->fallbackDvPayload($sourceRecord);
-                foreach (['supplier_id', 'amount', 'coa_id', 'purpose', 'payment_date', 'remarks'] as $lockedField) {
+                foreach ([
+                    'supplier_id',
+                    'amount',
+                    'bank_account_id',
+                    'payment_type',
+                    'disbursement_type',
+                    'coa_id',
+                    'fund_source',
+                    'department',
+                    'purpose',
+                    'payment_date',
+                    'due_date',
+                    'withholding_tax',
+                    'vat_amount',
+                    'currency',
+                    'exchange_rate',
+                    'received_by_name',
+                    'received_by_signature',
+                    'date_received',
+                    'reference_number',
+                    'remarks',
+                ] as $lockedField) {
                     data_set($data, $lockedField, data_get($sourcePayload, $lockedField, data_get($data, $lockedField)));
                 }
+
+                $sourceLineItems = array_values((array) data_get($sourcePayload, 'line_items', []));
+                $lineItems = array_map(function ($item, $index) use ($submittedLineItems) {
+                    $submittedItem = $submittedLineItems[$index] ?? [];
+                    if (!is_array($item) || !is_array($submittedItem)) {
+                        return $item;
+                    }
+
+                    foreach (['debit', 'credit'] as $editableField) {
+                        if (array_key_exists($editableField, $submittedItem)) {
+                            $item[$editableField] = $submittedItem[$editableField];
+                        }
+                    }
+
+                    return $item;
+                }, $sourceLineItems, array_keys($sourceLineItems));
+
+                data_set($data, 'line_items', $lineItems ?: $submittedLineItems);
             }
 
             if (blank(data_get($data, 'currency'))) {
@@ -2142,10 +2461,6 @@ SVG;
 
             if (blank(data_get($data, 'disbursement_type'))) {
                 data_set($data, 'disbursement_type', data_get($data, 'payment_type') ?: 'Cash');
-            }
-
-            if (blank(data_get($data, 'prepared_by'))) {
-                data_set($data, 'prepared_by', Auth::user()->name ?? 'Unknown User');
             }
 
             $amount = (float) data_get($data, 'amount', 0);
@@ -2233,6 +2548,44 @@ SVG;
                     data_set($data, 'employee_payroll_breakdown', $lines ?: 'No employee payroll profiles or summaries found for this period.');
                 }
             }
+        }
+
+        if ($moduleKey === 'ca') {
+            $cashAdvanceAmount = (float) data_get($data, 'amount_requested', 0);
+            $releaseCount = max((int) data_get($data, 'release_count', 1), 1);
+            $amountPerRelease = $releaseCount > 0 ? $cashAdvanceAmount / $releaseCount : $cashAdvanceAmount;
+            $entries = array_values(array_filter((array) data_get($data, 'ca_payment_entries', []), function ($entry) {
+                return is_array($entry) && (
+                    !blank(data_get($entry, 'payment_date'))
+                    || (float) data_get($entry, 'payment_amount', 0) > 0
+                    || !blank(data_get($entry, 'payment_remarks'))
+                );
+            }));
+
+            $entries = array_values(array_map(function (array $entry, int $index) {
+                return [
+                    'release_no' => max((int) data_get($entry, 'release_no', $index + 1), 1),
+                    'payment_date' => data_get($entry, 'payment_date') ?: null,
+                    'payment_amount' => number_format((float) data_get($entry, 'payment_amount', 0), 2, '.', ''),
+                    'payment_remarks' => trim((string) data_get($entry, 'payment_remarks', '')),
+                ];
+            }, $entries, array_keys($entries)));
+
+            $totalPaid = collect($entries)->sum(fn (array $entry) => (float) data_get($entry, 'payment_amount', 0));
+            $paidReleaseNos = collect($entries)
+                ->groupBy(fn (array $entry) => (int) data_get($entry, 'release_no', 0))
+                ->filter(fn ($releaseEntries) => $amountPerRelease > 0 && $releaseEntries->sum(fn (array $entry) => (float) data_get($entry, 'payment_amount', 0)) >= $amountPerRelease)
+                ->keys()
+                ->count();
+            $remainingBalance = max($cashAdvanceAmount - $totalPaid, 0);
+
+            data_set($data, 'amount_per_release', number_format($amountPerRelease, 2, '.', ''));
+            data_set($data, 'ca_payment_entries', $entries);
+            data_set($data, 'ca_payment_total_paid', number_format($totalPaid, 2, '.', ''));
+            data_set($data, 'ca_payment_remaining_balance', number_format($remainingBalance, 2, '.', ''));
+            data_set($data, 'ca_payment_paid_count', min($paidReleaseNos, $releaseCount));
+            data_set($data, 'ca_payment_remaining_count', max($releaseCount - min($paidReleaseNos, $releaseCount), 0));
+            data_set($data, 'ca_payment_status', $remainingBalance <= 0 && $cashAdvanceAmount > 0 ? 'Fully Released' : ($totalPaid > 0 ? 'Partially Released' : 'Pending Release'));
         }
 
         if ($moduleKey === 'lr') {
@@ -2385,9 +2738,44 @@ SVG;
             'currentModule' => $moduleKey,
             'currentWorkflowFilter' => $workflowFilter,
             'canApproveFinance' => $this->canApproveFinance(),
+            'canManageFinanceSettings' => $this->canManageFinanceSettings(),
+            'financeDropdownOptions' => $this->financeDropdownSettings(),
             'currentUserName' => Auth::user()->name ?? 'Unknown User',
             'currentUserEmail' => Auth::user()->email ?? '',
             'currentUserContact' => $this->resolveCurrentUserContactProfile(),
+        ]);
+    }
+
+    public function updateDropdownSettings(Request $request)
+    {
+        if (!$this->canManageFinanceSettings()) {
+            abort(403, 'Unauthorized');
+        }
+
+        if (
+            !Schema::hasTable('settings')
+            || !Schema::hasColumn('settings', 'key')
+            || !Schema::hasColumn('settings', 'value')
+        ) {
+            return response()->json([
+                'message' => 'Finance dropdown settings storage is not ready. Please run the database migrations.',
+            ], 422);
+        }
+
+        $validated = $request->validate([
+            'options' => ['required', 'array'],
+        ]);
+
+        $settings = $this->sanitizeFinanceDropdownSettings($validated['options']);
+
+        Setting::query()->updateOrCreate(
+            ['key' => self::DROPDOWN_SETTINGS_KEY],
+            ['value' => json_encode($settings, JSON_UNESCAPED_SLASHES)]
+        );
+
+        return response()->json([
+            'message' => 'Finance dropdown settings saved.',
+            'options' => $settings,
         ]);
     }
 

@@ -4,14 +4,15 @@
     <meta charset="utf-8">
     <style>
         @page {
-            margin: 18px 20px;
+            size: letter;
+            margin: 10px 12px;
         }
 
         body {
             font-family: DejaVu Sans, sans-serif;
             color: #111827;
-            font-size: 11px;
-            line-height: 1.45;
+            font-size: 8.5px;
+            line-height: 1.18;
             margin: 0;
         }
 
@@ -30,7 +31,7 @@
 
         .header-cell {
             vertical-align: top;
-            padding: 16px 18px;
+            padding: 7px 9px;
             border-right: 1px solid #e5e7eb;
         }
 
@@ -39,20 +40,20 @@
         }
 
         .logo-wrap {
-            width: 86px;
-            height: 86px;
+            width: 48px;
+            height: 48px;
             border: 1px solid #dbeafe;
-            border-radius: 18px;
+            border-radius: 10px;
             display: inline-block;
             text-align: center;
-            line-height: 86px;
-            margin-right: 14px;
+            line-height: 48px;
+            margin-right: 8px;
             vertical-align: middle;
         }
 
         .logo-wrap img {
-            width: 72px;
-            height: 72px;
+            width: 40px;
+            height: 40px;
             object-fit: contain;
             vertical-align: middle;
         }
@@ -66,13 +67,13 @@
         .eyebrow {
             text-transform: uppercase;
             letter-spacing: 0.28em;
-            font-size: 9px;
+            font-size: 7px;
             color: #6b7280;
             margin: 0 0 6px;
         }
 
         .brand-name {
-            font-size: 22px;
+            font-size: 15px;
             line-height: 1.1;
             margin: 0;
             color: #111827;
@@ -81,7 +82,7 @@
 
         .brand-subtitle {
             margin: 4px 0 0;
-            font-size: 11px;
+            font-size: 8.5px;
             color: #1d4ed8;
             font-weight: 700;
             letter-spacing: 0.04em;
@@ -90,7 +91,7 @@
         .brand-note {
             margin: 4px 0 0;
             color: #6b7280;
-            font-size: 10px;
+            font-size: 8px;
         }
 
         .status-box {
@@ -101,25 +102,25 @@
             margin: 0 0 6px;
             text-transform: uppercase;
             letter-spacing: 0.28em;
-            font-size: 9px;
+            font-size: 7px;
             color: #6b7280;
         }
 
         .status-line {
             margin: 0;
-            font-size: 11px;
+            font-size: 8.5px;
             font-weight: 700;
             color: #111827;
         }
 
         .section-title {
-            margin: 14px 0 0;
-            padding: 8px 12px;
+            margin: 7px 0 0;
+            padding: 5px 7px;
             background: #1d4ed8;
             color: #ffffff;
             text-transform: uppercase;
             letter-spacing: 0.28em;
-            font-size: 10px;
+            font-size: 8px;
             font-weight: 700;
             border-radius: 5px;
         }
@@ -143,8 +144,8 @@
 
         .summary-table td {
             width: 25%;
-            padding: 10px 12px;
-            height: 66px;
+            padding: 5px 6px;
+            height: 36px;
         }
 
         .summary-label,
@@ -152,14 +153,14 @@
         .table-head {
             text-transform: uppercase;
             letter-spacing: 0.22em;
-            font-size: 8.5px;
+            font-size: 7px;
             color: #6b7280;
         }
 
         .summary-value,
         .detail-value {
-            margin-top: 6px;
-            font-size: 13px;
+            margin-top: 3px;
+            font-size: 9.5px;
             color: #111827;
             font-weight: 700;
             word-break: break-word;
@@ -167,7 +168,7 @@
 
         .detail-table td {
             width: 50%;
-            padding: 10px 12px;
+            padding: 5px 6px;
         }
 
         .detail-value {
@@ -175,9 +176,9 @@
         }
 
         .section-box {
-            margin-top: 12px;
+            margin-top: 6px;
             border: 1px solid #dbe2ea;
-            border-radius: 12px;
+            border-radius: 8px;
             overflow: hidden;
         }
 
@@ -187,22 +188,22 @@
         }
 
         .section-body {
-            padding: 12px;
+            padding: 6px;
         }
 
         .line-table th,
         .line-table td {
-            padding: 8px 8px;
+            padding: 4px 5px;
         }
 
         .line-table th {
             background: #f8fafc;
-            font-size: 10px;
+            font-size: 8px;
             text-align: left;
         }
 
         .line-table td {
-            font-size: 10.5px;
+            font-size: 8px;
         }
 
         .pr-line-list {
@@ -211,10 +212,10 @@
 
         .pr-line-card {
             border: 1px solid #dbe2ea;
-            border-radius: 12px;
+            border-radius: 8px;
             background: #f8fafc;
-            padding: 10px 12px;
-            margin-bottom: 8px;
+            padding: 5px 6px;
+            margin-bottom: 4px;
         }
 
         .pr-line-head {
@@ -239,7 +240,7 @@
         }
 
         .pr-line-title {
-            font-size: 11px;
+            font-size: 9px;
             font-weight: 700;
             color: #111827;
         }
@@ -247,15 +248,15 @@
         .pr-line-meta {
             margin-top: 2px;
             color: #6b7280;
-            font-size: 9px;
+            font-size: 7.5px;
         }
 
         .pr-line-total {
             border: 1px solid #e5e7eb;
             background: #ffffff;
             border-radius: 999px;
-            padding: 4px 8px;
-            font-size: 10px;
+            padding: 3px 6px;
+            font-size: 8px;
             font-weight: 700;
             white-space: nowrap;
         }
@@ -263,8 +264,8 @@
         .pr-line-grid {
             display: table;
             width: 100%;
-            border-spacing: 6px;
-            margin-top: 8px;
+            border-spacing: 3px;
+            margin-top: 4px;
         }
 
         .pr-line-fields {
@@ -283,21 +284,21 @@
             border: 1px solid #e5e7eb;
             border-radius: 10px;
             background: #ffffff;
-            padding: 8px 10px;
-            margin-bottom: 6px;
+            padding: 4px 5px;
+            margin-bottom: 3px;
         }
 
         .pr-field-label {
             text-transform: uppercase;
             letter-spacing: 0.18em;
-            font-size: 8px;
+            font-size: 7px;
             color: #6b7280;
             margin: 0;
         }
 
         .pr-field-value {
-            margin-top: 4px;
-            font-size: 10.5px;
+            margin-top: 2px;
+            font-size: 8.5px;
             font-weight: 700;
             color: #111827;
             word-break: break-word;
@@ -305,15 +306,15 @@
 
         .pr-summary-panel {
             border: 1px solid #dbeafe;
-            border-radius: 12px;
+            border-radius: 8px;
             background: #ffffff;
-            padding: 10px;
+            padding: 5px;
         }
 
         .pr-summary-title {
             text-transform: uppercase;
             letter-spacing: 0.22em;
-            font-size: 8.5px;
+            font-size: 7px;
             color: #1d4ed8;
             margin: 0;
             font-weight: 700;
@@ -321,19 +322,19 @@
 
         .pr-summary-subtitle {
             margin: 4px 0 0;
-            font-size: 9px;
+            font-size: 7px;
             color: #6b7280;
         }
 
         .pr-summary-stack {
-            margin-top: 8px;
+            margin-top: 4px;
         }
 
         .pr-summary-row {
             display: table;
             width: 100%;
-            border-spacing: 6px;
-            margin-top: 6px;
+            border-spacing: 3px;
+            margin-top: 3px;
         }
 
         .pr-summary-cell {
@@ -343,41 +344,41 @@
             border: 1px solid #e5e7eb;
             border-radius: 10px;
             background: #ffffff;
-            padding: 8px 10px;
+            padding: 4px 5px;
         }
 
         .pr-summary-full {
             border: 1px solid #e5e7eb;
             border-radius: 10px;
             background: #ffffff;
-            padding: 8px 10px;
+            padding: 4px 5px;
         }
 
         .pr-summary-formula {
-            margin-top: 8px;
-            font-size: 9.5px;
+            margin-top: 4px;
+            font-size: 7.5px;
             font-weight: 700;
             color: #111827;
         }
 
         .po-supplier-card {
             border: 1px solid #dbe2ea;
-            border-radius: 12px;
+            border-radius: 8px;
             background: #f8fafc;
-            padding: 10px 12px;
-            margin-bottom: 10px;
+            padding: 5px 6px;
+            margin-bottom: 5px;
         }
 
         .po-supplier-head {
             width: 100%;
-            margin-bottom: 8px;
+            margin-bottom: 4px;
         }
 
         .lr-report {
             border: 1px solid #dbe2ea;
-            border-radius: 12px;
+            border-radius: 8px;
             background: #f8fafc;
-            padding: 12px;
+            padding: 6px;
         }
 
         .lr-report-head {
@@ -388,37 +389,37 @@
             margin: 0;
             text-transform: uppercase;
             letter-spacing: 0.22em;
-            font-size: 9px;
+            font-size: 7px;
             color: #2563eb;
             font-weight: 700;
         }
 
         .lr-report-name {
             margin: 4px 0 0;
-            font-size: 15px;
+            font-size: 11px;
             font-weight: 700;
             color: #111827;
         }
 
         .lr-report-subtitle {
             margin: 4px 0 0;
-            font-size: 10px;
+            font-size: 8px;
             color: #6b7280;
         }
 
         .lr-report-badge {
             display: inline-block;
-            padding: 4px 8px;
+            padding: 3px 6px;
             border-radius: 999px;
-            font-size: 9px;
+            font-size: 7px;
             font-weight: 700;
         }
 
         .lr-report-grid {
             width: 100%;
             border-collapse: separate;
-            border-spacing: 8px;
-            margin-top: 10px;
+            border-spacing: 4px;
+            margin-top: 5px;
         }
 
         .lr-report-grid td {
@@ -427,81 +428,81 @@
 
         .lr-report-panel {
             border: 1px solid #e5e7eb;
-            border-radius: 10px;
+            border-radius: 7px;
             background: #ffffff;
-            padding: 10px;
+            padding: 5px;
         }
 
         .lr-report-metrics {
             width: 100%;
             border-collapse: separate;
-            border-spacing: 6px;
+            border-spacing: 3px;
         }
 
         .lr-report-metrics td {
             border: 1px solid #e5e7eb;
-            border-radius: 10px;
+            border-radius: 7px;
             background: #f8fafc;
-            padding: 8px 9px;
+            padding: 4px 5px;
             width: 50%;
         }
 
         .lr-metric-label {
             text-transform: uppercase;
             letter-spacing: 0.18em;
-            font-size: 8px;
+            font-size: 7px;
             color: #6b7280;
             margin: 0;
         }
 
         .lr-metric-value {
             margin-top: 4px;
-            font-size: 11px;
+            font-size: 8.5px;
             font-weight: 700;
             color: #111827;
             word-break: break-word;
         }
 
         .lr-calc-band {
-            margin-top: 8px;
+            margin-top: 4px;
             border: 1px dashed #bfdbfe;
-            border-radius: 10px;
+            border-radius: 7px;
             background: #eff6ff;
-            padding: 8px 9px;
+            padding: 4px 5px;
         }
 
         .lr-calc-grid {
             width: 100%;
             border-collapse: separate;
-            border-spacing: 6px;
-            margin-top: 6px;
+            border-spacing: 3px;
+            margin-top: 3px;
         }
 
         .lr-calc-grid td {
             border: 1px solid #e5e7eb;
-            border-radius: 10px;
+            border-radius: 7px;
             background: #ffffff;
-            padding: 8px 9px;
+            padding: 4px 5px;
             width: 33.333%;
         }
 
         .lr-note-stack {
             width: 100%;
             border-collapse: separate;
-            border-spacing: 0 6px;
+            border-spacing: 0 3px;
         }
 
         .lr-note-stack td {
             border: 1px solid #e5e7eb;
-            border-radius: 10px;
+            border-radius: 7px;
             background: #f8fafc;
-            padding: 8px 9px;
+            padding: 4px 5px;
         }
 
         .pr-notes-wrap {
             display: grid;
             grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 6px;
+            gap: 3px;
         }
 
         .muted {
@@ -514,7 +515,7 @@
         }
 
         .attachment-list li {
-            margin: 0 0 4px;
+            margin: 0 0 2px;
         }
 
         .two-column {
@@ -526,18 +527,18 @@
             width: 50%;
             vertical-align: top;
             border: 1px solid #dbe2ea;
-            padding: 10px 12px;
+            padding: 5px 6px;
         }
 
         .asset-tag-card {
             border: 1px solid #dbe2ea;
-            border-radius: 14px;
+            border-radius: 8px;
             overflow: hidden;
             background: #ffffff;
         }
 
         .asset-tag-head {
-            padding: 12px 14px;
+            padding: 6px 7px;
             border-bottom: 1px solid #dbe2ea;
             background: #f8fafc;
             text-align: center;
@@ -547,14 +548,14 @@
             margin: 0;
             text-transform: uppercase;
             letter-spacing: 0.32em;
-            font-size: 10px;
+            font-size: 8px;
             color: #6b7280;
             font-weight: 700;
         }
 
         .asset-tag-title {
             margin: 4px 0 0;
-            font-size: 22px;
+            font-size: 14px;
             line-height: 1.1;
             font-weight: 900;
             letter-spacing: 0.22em;
@@ -563,18 +564,18 @@
 
         .asset-tag-grid {
             display: grid;
-            grid-template-columns: 140px 1fr;
+            grid-template-columns: 92px 1fr;
         }
 
         .asset-tag-label,
         .asset-tag-value {
             border-bottom: 1px solid #dbe2ea;
-            padding: 10px 12px;
+            padding: 5px 6px;
         }
 
         .asset-tag-label {
             background: #f8fafc;
-            font-size: 10px;
+            font-size: 8px;
             text-transform: uppercase;
             letter-spacing: 0.18em;
             color: #6b7280;
@@ -582,7 +583,7 @@
         }
 
         .asset-tag-value {
-            font-size: 12px;
+            font-size: 9px;
             font-weight: 700;
             color: #111827;
             word-break: break-word;
@@ -590,13 +591,13 @@
 
         .asset-tag-barcode {
             grid-column: 1 / -1;
-            padding: 12px;
+            padding: 6px;
         }
 
         .asset-tag-barcode-box {
             border: 1px solid #e5e7eb;
-            border-radius: 12px;
-            padding: 10px;
+            border-radius: 8px;
+            padding: 5px;
             background: #fff;
         }
     </style>
@@ -698,6 +699,54 @@
                         </table>
                     @else
                         <div class="muted">No line items added.</div>
+                    @endif
+                </div>
+            </div>
+        @endif
+
+        @if($record->module_key === 'ca')
+            <div class="section-box">
+                <div class="section-title">Cash Advance Payment Tracking</div>
+                <div class="section-body">
+                    @if(!empty($cashAdvancePaymentTracking))
+                        <table class="detail-table">
+                            @foreach(array_chunk($cashAdvancePaymentTracking['summary'] ?? [], 2) as $pair)
+                                <tr>
+                                    @foreach($pair as $detail)
+                                        <td>
+                                            <div class="detail-label">{{ $detail['label'] }}</div>
+                                            <div class="detail-value">{{ $detail['value'] }}</div>
+                                        </td>
+                                    @endforeach
+                                    @for($pad = count($pair); $pad < 2; $pad++)
+                                        <td></td>
+                                    @endfor
+                                </tr>
+                            @endforeach
+                        </table>
+
+                        <table class="line-table" style="margin-top: 8px;">
+                            <tr>
+                                <th>Release</th>
+                                <th>Scheduled Date</th>
+                                <th>Amount</th>
+                                <th>Paid</th>
+                                <th>Payment Date</th>
+                                <th>Status</th>
+                            </tr>
+                            @foreach(($cashAdvancePaymentTracking['rows'] ?? []) as $row)
+                                <tr>
+                                    <td>{{ $row['no'] }}</td>
+                                    <td>{{ $row['scheduled_date'] }}</td>
+                                    <td>{{ $row['scheduled_amount'] }}</td>
+                                    <td>{{ $row['paid_amount'] }}</td>
+                                    <td>{{ $row['payment_date'] }}</td>
+                                    <td>{{ $row['status'] }}</td>
+                                </tr>
+                            @endforeach
+                        </table>
+                    @else
+                        <div class="muted">No cash advance payment tracking available.</div>
                     @endif
                 </div>
             </div>
