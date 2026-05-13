@@ -104,12 +104,13 @@
         showChecklistModal = false;
         showEmpRegModal = false;
         trainingForm = {
-            employeeName: '',
             trainingId: '',
+            employeeId: '',
             startDate: '',
             dueDate: '',
             trainer: '',
-            description: ''
+            description: '',
+            status: 'Pending'
         };
         showTrainingModal = true;
     "
@@ -265,8 +266,26 @@
                             <td class="px-4 py-3 text-gray-600" x-text="row.trainer"></td>
                             <td class="px-4 py-3 text-gray-500" x-text="row.startDate"></td>
                             <td class="px-4 py-3 text-gray-500" x-text="row.dueDate"></td>
-                            <td class="px-4 py-3"><span class="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">Scheduled</span></td>
-                            <td class="px-4 py-3"><button @click="deleteTraining(i)" class="text-xs text-red-500 hover:underline">Delete</button></td>
+                            <td class="px-4 py-3">
+                                <span :class="trainingStatusClass(row.status)" class="px-2 py-0.5 rounded-full text-xs font-medium" x-text="row.status || 'Pending'"></span>
+                            </td>
+                            <td class="px-4 py-3">
+                                <div class="flex items-center gap-2">
+                                    <select
+                                        :value="row.status || 'Pending'"
+                                        @change="updateTrainingStatus(row, $event.target.value)"
+                                        class="rounded border border-gray-300 px-2 py-1 text-xs bg-white"
+                                    >
+                                        <option value="Pending">Pending</option>
+                                        <option value="Scheduled">Scheduled</option>
+                                        <option value="In Progress">In Progress</option>
+                                        <option value="Completed">Completed</option>
+                                        <option value="Failed">Failed</option>
+                                        <option value="Cancelled">Cancelled</option>
+                                    </select>
+                                    <button @click="deleteTraining(i)" class="text-xs text-red-500 hover:underline">Delete</button>
+                                </div>
+                            </td>
                         </tr>
                     </template>
                 </tbody>
@@ -1083,8 +1102,13 @@
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="block text-xs font-semibold text-gray-600 mb-1">Employee Name <span class="text-red-500">*</span></label>
-                        <input type="text" x-model="trainingForm.employeeName" required
-                            class="w-full text-sm px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none">
+                        <select x-model="trainingForm.employeeId" required
+                            class="w-full text-sm px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none bg-white">
+                            <option value="">-- Select Employee --</option>
+                            <template x-for="emp in employees" :key="emp.id">
+                                <option :value="emp.id" x-text="emp.first_name + ' ' + emp.last_name"></option>
+                            </template>
+                        </select>
                     </div>
                     <div>
                         <label class="block text-xs font-semibold text-gray-600 mb-1">Training Program <span class="text-red-500">*</span></label>
@@ -1111,6 +1135,18 @@
                     <label class="block text-xs font-semibold text-gray-600 mb-1">Trainer / Instructor</label>
                     <input type="text" x-model="trainingForm.trainer"
                         class="w-full text-sm px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Status</label>
+                    <select x-model="trainingForm.status"
+                        class="w-full text-sm px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none bg-white">
+                        <option value="Pending">Pending</option>
+                        <option value="Scheduled">Scheduled</option>
+                        <option value="In Progress">In Progress</option>
+                        <option value="Completed">Completed</option>
+                        <option value="Failed">Failed</option>
+                        <option value="Cancelled">Cancelled</option>
+                    </select>
                 </div>
                 <div>
                     <label class="block text-xs font-semibold text-gray-600 mb-1">Training Description</label>
@@ -1153,6 +1189,7 @@ function onboardingPage() {
         ],
 
         trainings: [],
+        employees: [],
 
         data: {
             'PDS': @json($pdsData ?? []),
@@ -1200,18 +1237,20 @@ function onboardingPage() {
         },
 
         trainingForm: {
-            employeeName: '',
+            employeeId: '',
             trainingId: '',
             startDate: '',
             dueDate: '',
             trainer: '',
             description: '',
+            status: 'Pending',
         },
 
         init() {
             this.loadLocalOnboardingData();
             this.resetPdsForm();
             this.fetchTrainingPrograms();
+            this.fetchEmployees();
         },
 
         loadLocalOnboardingData() {
@@ -1233,6 +1272,24 @@ function onboardingPage() {
                 this.trainings = await response.json();
             } catch (error) {
                 console.error('Error fetching training programs:', error);
+            }
+        },
+
+        async fetchEmployees() {
+            try {
+                const response = await fetch('{{ route("human-capital.employee-profile") }}', {
+                    headers: {
+                        'Accept': 'application/json',
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to fetch employees');
+                }
+
+                this.employees = await response.json();
+            } catch (error) {
+                console.error('Error fetching employees:', error);
             }
         },
 
@@ -1313,12 +1370,13 @@ function onboardingPage() {
 
             if (tab === 'Training') {
                 this.trainingForm = {
-                    employeeName: '',
+                    employeeId: '',
                     trainingId: '',
                     startDate: '',
                     dueDate: '',
                     trainer: '',
                     description: '',
+                    status: 'Pending',
                 };
                 this.showTrainingModal = true;
                 return;
@@ -1587,6 +1645,19 @@ documentStatusClass(status) {
         'Submitted': 'bg-blue-100 text-blue-700',
         'Needs Re-upload': 'bg-red-100 text-red-700',
         'Missing': 'bg-yellow-100 text-yellow-700',
+    };
+
+    return map[status] || 'bg-gray-100 text-gray-700';
+},
+
+trainingStatusClass(status) {
+    const map = {
+        'Pending': 'bg-yellow-100 text-yellow-700',
+        'Scheduled': 'bg-blue-100 text-blue-700',
+        'In Progress': 'bg-indigo-100 text-indigo-700',
+        'Completed': 'bg-green-100 text-green-700',
+        'Failed': 'bg-red-100 text-red-700',
+        'Cancelled': 'bg-gray-100 text-gray-700',
     };
 
     return map[status] || 'bg-gray-100 text-gray-700';
@@ -1873,11 +1944,51 @@ onEmpRegChecklistChange() {
 
                 const result = await response.json();
 
-                this.data['Training'].unshift(result.record);
+                // Refresh the training records to ensure consistency with server
+                await this.fetchOnboardingRecords();
                 this.showTrainingModal = false;
             } catch (error) {
                 console.error(error);
                 alert('Training assignment was not saved. Please check controller, routes, and migration.');
+            }
+        },
+
+        async updateTrainingStatus(row, status) {
+            if (!row || !row.id) {
+                alert('Unable to update this training assignment. Missing database ID.');
+                return;
+            }
+
+            const previousStatus = row.status || 'Pending';
+            row.status = status;
+
+            try {
+                const response = await fetch(`/human-capital/onboarding/trainings/${row.id}/status`, {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                        'Accept': 'application/json',
+                    },
+                    body: JSON.stringify({ status })
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error(errorText);
+                    throw new Error('Failed to update training status.');
+                }
+
+                const result = await response.json();
+                const idx = this.data['Training'].findIndex(item => item.id === result.record.id);
+
+                if (idx !== -1) {
+                    this.data['Training'][idx] = result.record;
+                }
+            } catch (error) {
+                console.error(error);
+                row.status = previousStatus;
+                alert('Training assignment status was not updated.');
             }
         },
 
@@ -1967,7 +2078,7 @@ onEmpRegChecklistChange() {
                 'PDS': ['Full Name', 'Position', 'Email', 'Phone', 'Date Submitted'],
                 'Checklist Submission': ['Employee Name', 'Docs Submitted', 'Total Docs', 'Checked Documents', 'Date Submitted'],
                 'Employee Registration': ['Full Name', 'Employee ID', 'Department', 'Start Date', 'Work Email', 'Reporting Manager'],
-                'Training': ['Employee Name', 'Training Program', 'Start Date', 'Due Date', 'Trainer', 'Description'],
+                'Training': ['Employee Name', 'Training Program', 'Start Date', 'Due Date', 'Trainer', 'Status', 'Description'],
             };
 
             const csvRows = {
@@ -2005,6 +2116,7 @@ onEmpRegChecklistChange() {
                         r.startDate,
                         r.dueDate,
                         r.trainer,
+                        r.status,
                         r.description
                     ];
                 }),

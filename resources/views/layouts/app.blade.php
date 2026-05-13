@@ -186,11 +186,15 @@
 
             @if($canSeeHumanCapital)
                 <a href="{{ $humanCapitalLandingRoute }}"
-                   class="w-12 h-12 rounded-xl flex flex-col items-center justify-center gap-1 text-[10px] transition
-                   {{ $isHumanCapitalSection ? 'bg-blue-50 text-blue-700 border border-blue-100' : 'text-gray-600 hover:bg-gray-100' }}">
-                    <i class="fas fa-user-tie text-base"></i>
-                    <span>Human Capital</span>
-                </a>
+                    class="w-12 h-12 rounded-xl flex flex-col items-center justify-center gap-1 text-[10px] text-center transition
+                    {{ $isHumanCapitalSection ? 'bg-blue-50 text-blue-700 border border-blue-100' : 'text-gray-600 hover:bg-gray-100' }}">
+
+                        <i class="fas fa-user-tie text-base"></i>
+
+                        <span class="w-full text-center leading-tight">
+                            Human Capital
+                        </span>
+                    </a>
             @endif
 
             @if(Auth::user()->hasPermission('access_activities'))
@@ -521,6 +525,11 @@
                             Attendance
                         </a>
 
+                        <a href="{{ route('human-capital.obf') }}"
+                        class="block px-3 py-2 rounded-lg transition {{ request()->is('human-capital/obf') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
+                            Official Business Trip Form
+                        </a>
+
                         <a href="{{ route('human-capital.employee-requests.index') }}"
                            class="block px-3 py-2 rounded-lg transition {{ request()->is('human-capital/employee-requests') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
                             Employee Requests
@@ -531,6 +540,11 @@
                             Employee Relations
                         </a>
 
+                        <a href="{{ route('human-capital.memos') }}"
+                        class="block px-3 py-2 rounded-lg transition {{ request()->is('human-capital/memos') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
+                            Memos
+                        </a>
+
                         <a href="{{ route('human-capital.training') }}"
                            class="block px-3 py-2 rounded-lg transition {{ request()->is('human-capital/training') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
                             Training
@@ -539,6 +553,11 @@
                         <a href="{{ route('human-capital.performance') }}"
                            class="block px-3 py-2 rounded-lg transition {{ request()->is('human-capital/performance') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
                             Performance
+                        </a>
+
+                        <a href="{{ route('human-capital.awards') }}"
+                        class="block px-3 py-2 rounded-lg transition {{ request()->is('human-capital/awards') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
+                            Awards
                         </a>
 
                         <a href="{{ route('human-capital.offboarding') }}"

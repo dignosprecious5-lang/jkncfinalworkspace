@@ -3,10 +3,12 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class OnboardingTraining extends Model
 {
     protected $fillable = [
+        'employee_id',
         'employee_name',
         'training_id',
         'program',
@@ -22,4 +24,14 @@ class OnboardingTraining extends Model
         'start_date' => 'date',
         'due_date' => 'date',
     ];
+
+    public function employee(): BelongsTo
+    {
+        return $this->belongsTo(Employee::class);
+    }
+
+    public function training(): BelongsTo
+    {
+        return $this->belongsTo(Training::class);
+    }
 }

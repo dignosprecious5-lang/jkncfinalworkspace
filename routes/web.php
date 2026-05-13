@@ -78,6 +78,9 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\TrainingController;
 use App\Http\Controllers\DeploymentController;
+use App\Http\Controllers\OfficialBusinessTripController;
+use App\Http\Controllers\EmployeeRelationController;
+use App\Http\Controllers\AwardController;
 
 /*
 |--------------------------------------------------------------------------
@@ -979,6 +982,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/onboarding/employees', [OnboardingRecordController::class, 'storeEmployee'])->name('onboarding.employees.store');
         Route::delete('/onboarding/employees/{employee}', [OnboardingRecordController::class, 'destroyEmployee'])->name('onboarding.employees.destroy');
         Route::post('/onboarding/trainings', [OnboardingRecordController::class, 'storeTraining'])->name('onboarding.trainings.store');
+        Route::patch('/onboarding/trainings/{training}/status', [OnboardingRecordController::class, 'updateTrainingStatus'])->name('onboarding.trainings.status');
         Route::delete('/onboarding/trainings/{training}', [OnboardingRecordController::class, 'destroyTraining'])->name('onboarding.trainings.destroy');
 
         Route::get('/deployment', [DeploymentController::class, 'index'])->name('deployment');
@@ -990,17 +994,40 @@ Route::middleware('auth')->group(function () {
         Route::put('/attendance/{attendance}', [AttendanceController::class, 'update'])->name('attendance.update');
         Route::patch('/attendance/{attendance}/approve', [AttendanceController::class, 'approve'])->name('attendance.approve');
         Route::patch('/attendance/{attendance}/reject', [AttendanceController::class, 'reject'])->name('attendance.reject');
-        Route::view('/employee-relations', 'human-capital.employee-relations')->name('employee-relations');
+        Route::get('/employee-relations', [EmployeeRelationController::class, 'index'])->name('employee-relations');
+        Route::post('/employee-relations', [EmployeeRelationController::class, 'store'])->name('employee-relations.store');
+        Route::put('/employee-relations/{employeeRelation}', [EmployeeRelationController::class, 'update'])->name('employee-relations.update');
+        Route::post('/employee-relations/{employeeRelation}/approve', [EmployeeRelationController::class, 'approve'])->name('employee-relations.approve');
+        Route::post('/employee-relations/{employeeRelation}/reject', [EmployeeRelationController::class, 'reject'])->name('employee-relations.reject');
+        Route::delete('/employee-relations/{employeeRelation}', [EmployeeRelationController::class, 'destroy'])->name('employee-relations.destroy');
+        Route::view('/memos', 'human-capital.memos')->name('memos');
         Route::view('/performance', 'human-capital.performance')->name('performance');
         Route::view('/offboarding', 'human-capital.offboarding')->name('offboarding');
 
+Route::get('/obf', [OfficialBusinessTripController::class, 'index'])->name('obf');
+Route::post('/obf', [OfficialBusinessTripController::class, 'store'])->name('obf.store');
+Route::put('/obf/{officialBusinessTrip}', [OfficialBusinessTripController::class, 'update'])->name('obf.update');
+Route::delete('/obf/{officialBusinessTrip}', [OfficialBusinessTripController::class, 'destroy'])->name('obf.destroy');
+Route::post('/obf/{officialBusinessTrip}/approve', [OfficialBusinessTripController::class, 'approve'])->name('obf.approve');
+Route::post('/obf/{officialBusinessTrip}/reject', [OfficialBusinessTripController::class, 'reject'])->name('obf.reject');
+
+
 
         // Training
-        Route::get('/training', [TrainingController::class, 'index'])
-            ->name('training');
+        Route::get('/training', [TrainingController::class, 'index'])->name('training');
+        Route::post('/training', [TrainingController::class, 'store'])->name('training.store');
+        Route::put('/training/{training}', [TrainingController::class, 'update'])->name('training.update');
+        Route::delete('/training/{training}', [TrainingController::class, 'destroy'])->name('training.destroy');
 
-        Route::post('/training', [TrainingController::class, 'store'])
-            ->name('training.store');
+        // Assignment actions
+        Route::post('/training/assignment/{id}/complete', [TrainingController::class, 'markCompleted'])
+            ->name('training.complete');
+
+        Route::post('/training/assignment/{id}/certificate', [TrainingController::class, 'issueCertificate'])
+            ->name('training.certificate');
+
+        // Awards page
+        Route::get('/awards', [AwardController::class, 'index'])->name('awards');
 
         /*
         |--------------------------------------------------------------------------

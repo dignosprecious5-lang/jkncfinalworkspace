@@ -5,8 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\Employee;
 use App\Models\OnboardingChecklist;
 use App\Models\OnboardingEmployeeRegistration;
-use App\Models\OnboardingTraining;
 use App\Models\PersonalDataSheet;
+use App\Models\TrainingAssignment;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -45,7 +45,9 @@ class OnboardingRecordController extends Controller
                 ->get()
                 ->map(fn ($item) => $this->formatEmployee($item)),
 
-            'trainings' => OnboardingTraining::latest()
+            'trainings' => TrainingAssignment::with(['employee', 'training'])
+                ->where('assignment_type', 'onboarding')
+                ->latest()
                 ->get()
                 ->map(fn ($item) => $this->formatTraining($item)),
         ]);
@@ -370,33 +372,66 @@ class OnboardingRecordController extends Controller
     public function storeTraining(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'employeeName' => ['required', 'string', 'max:255'],
-            'program' => ['required', 'string', 'max:255'],
+            'employeeId' => ['required', 'integer', 'exists:employees,id'],
+            'trainingId' => ['required', 'integer', 'exists:trainings,id'],
             'startDate' => ['nullable', 'date'],
             'dueDate' => ['nullable', 'date'],
             'trainer' => ['nullable', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
+            'status' => ['nullable', Rule::in(['Pending', 'Scheduled', 'In Progress', 'Completed', 'Failed', 'Cancelled'])],
         ]);
 
-        $training = OnboardingTraining::create([
-            'employee_name' => $validated['employeeName'],
-            'program' => $validated['program'],
-            'start_date' => $validated['startDate'] ?? null,
-            'due_date' => $validated['dueDate'] ?? null,
-            'trainer' => $validated['trainer'] ?? null,
-            'description' => $validated['description'] ?? null,
-            'status' => 'Scheduled',
-            'created_by' => Auth::id(),
-        ]);
+        $training = TrainingAssignment::updateOrCreate(
+            [
+                'employee_id' => $validated['employeeId'],
+                'training_id' => $validated['trainingId'],
+                'assignment_type' => 'onboarding',
+            ],
+            [
+                'start_date' => $validated['startDate'] ?? null,
+                'due_date' => $validated['dueDate'] ?? null,
+                'trainer' => $validated['trainer'] ?? null,
+                'description' => $validated['description'] ?? null,
+                'status' => $validated['status'] ?? 'Pending',
+                'assigned_by' => Auth::id(),
+            ]
+        );
 
         return response()->json([
             'message' => 'Training assignment saved successfully.',
-            'record' => $this->formatTraining($training),
+            'record' => $this->formatTraining($training->fresh(['employee', 'training'])),
         ]);
     }
 
-    public function destroyTraining(OnboardingTraining $training): JsonResponse
+    public function updateTrainingStatus(Request $request, TrainingAssignment $training): JsonResponse
     {
+        if ($training->assignment_type !== 'onboarding') {
+            abort(404);
+        }
+
+        $validated = $request->validate([
+            'status' => ['required', Rule::in(['Pending', 'Scheduled', 'In Progress', 'Completed', 'Failed', 'Cancelled'])],
+            'remarks' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $training->update([
+            'status' => $validated['status'],
+            'remarks' => $validated['remarks'] ?? $training->remarks,
+            'completed_at' => $validated['status'] === 'Completed' ? now() : null,
+        ]);
+
+        return response()->json([
+            'message' => 'Training assignment status updated.',
+            'record' => $this->formatTraining($training->fresh(['employee', 'training'])),
+        ]);
+    }
+
+    public function destroyTraining(TrainingAssignment $training): JsonResponse
+    {
+        if ($training->assignment_type !== 'onboarding') {
+            abort(404);
+        }
+
         $training->delete();
 
         return response()->json([
@@ -555,17 +590,27 @@ private function computeEmployeeHourlyRate(float $salary, string $payrollType): 
     return round($salary / 8, 2);
 }
 
-    private function formatTraining(OnboardingTraining $item): array
+    private function formatTraining(TrainingAssignment $item): array
     {
+        $employeeName = '';
+        if ($item->employee) {
+            $employeeName = ($item->employee->first_name ?? '') . ' ' . ($item->employee->last_name ?? '');
+        }
+
         return [
             'id' => $item->id,
-            'employeeName' => $item->employee_name,
-            'program' => $item->program,
+            'employeeId' => $item->employee_id,
+            'employeeName' => trim($employeeName),
+            'trainingId' => $item->training_id,
+            'program' => $item->training?->title,
             'trainer' => $item->trainer,
             'startDate' => optional($item->start_date)->format('Y-m-d'),
             'dueDate' => optional($item->due_date)->format('Y-m-d'),
+            'completedAt' => optional($item->completed_at)->format('Y-m-d H:i'),
             'description' => $item->description,
             'status' => $item->status,
+            'remarks' => $item->remarks,
+            'assignmentType' => $item->assignment_type,
         ];
     }
 }
