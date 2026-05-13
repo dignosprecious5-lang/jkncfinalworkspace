@@ -308,6 +308,7 @@
                     <img src="{{ asset('images/imaglogo.png') }}" alt="John Kelly and Company" class="logo">
                     <div class="title">
                         <h1>SCOPE OF WORK REPORT</h1>
+                        <p>PROJ-F-004</p>
                     </div>
                 </div>
 

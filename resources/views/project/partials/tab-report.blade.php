@@ -4,9 +4,11 @@
         'Approved' => 'bg-emerald-50 text-emerald-700 border border-emerald-200',
         'Pending' => 'bg-amber-50 text-amber-700 border border-amber-200',
     ];
+    $projectLocked = $projectLocked ?? false;
 @endphp
 
 <div class="space-y-5">
+    @if (! $projectLocked)
     <div id="projectReportSelectionBar" class="hidden rounded-xl border border-blue-100 bg-blue-50 px-4 py-3">
         <div class="flex items-center gap-2 text-sm">
             <span class="font-medium text-slate-800"><span id="projectReportSelectedCount">0</span> selected</span>
@@ -14,6 +16,7 @@
             <button id="projectReportClearSelection" type="button" class="ml-auto text-slate-700 hover:underline">Clear</button>
         </div>
     </div>
+    @endif
 
     <section class="project-top-card rounded-2xl px-6 py-5">
         <div class="flex flex-wrap items-end justify-between gap-4">
@@ -47,7 +50,7 @@
             <table class="min-w-full text-sm">
                 <thead class="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
                     <tr>
-                        <th class="w-10 px-3 py-4 text-left"><input id="projectReportSelectAll" type="checkbox" class="h-4 w-4 rounded border-slate-300"></th>
+                        @if (! $projectLocked)<th class="w-10 px-3 py-4 text-left"><input id="projectReportSelectAll" type="checkbox" class="h-4 w-4 rounded border-slate-300"></th>@endif
                         <th class="px-6 py-4 text-left">Report No.</th>
                         <th class="px-6 py-4 text-left">Date of Reporting</th>
                         <th class="px-6 py-4 text-left">Date Sent to Client</th>
@@ -67,9 +70,9 @@
                             data-report-search="{{ \Illuminate\Support\Str::lower(implode(' ', array_filter([$item->report_number, $statusLabel, optional($item->date_prepared)->format('M d, Y'), optional($item->client_approved_at)->format('M d, Y')])) ) }}"
                             onclick="window.location='{{ $previewUrl }}'"
                         >
-                            <td class="px-3 py-4" onclick="event.stopPropagation()">
+                            @if (! $projectLocked)<td class="px-3 py-4" onclick="event.stopPropagation()">
                                 <input type="checkbox" value="{{ $item->id }}" class="project-report-row-checkbox h-4 w-4 rounded border-slate-300">
-                            </td>
+                            </td>@endif
                             <td class="px-6 py-4">
                                 <span class="font-semibold text-blue-700 hover:text-blue-800">{{ $item->report_number ?: 'Report-'.$item->id }}</span>
                             </td>
@@ -84,7 +87,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="6" class="px-6 py-12 text-center text-sm text-slate-500">
+                            <td colspan="{{ $projectLocked ? 5 : 6 }}" class="px-6 py-12 text-center text-sm text-slate-500">
                                 No generated SOW reports yet. Use <span class="font-semibold text-slate-700">Generate SOW Report</span> in the Scope of Work tab.
                             </td>
                         </tr>
@@ -95,6 +98,7 @@
     </section>
 </div>
 
+@if (! $projectLocked)
 <div id="projectReportDeleteModal" class="fixed inset-0 z-[70] hidden" aria-hidden="true">
     <button id="projectReportDeleteOverlay" type="button" aria-label="Close delete reports modal" class="absolute inset-0 bg-slate-900/45"></button>
     <div class="absolute inset-0 flex items-center justify-center px-4">
@@ -118,6 +122,7 @@
         </div>
     </div>
 </div>
+@endif
 
 <script>
     (() => {

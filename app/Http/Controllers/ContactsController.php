@@ -6,6 +6,7 @@ use App\Models\Company;
 use App\Models\Contact;
 use App\Models\SpecimenSignature;
 use App\Models\User;
+use App\Support\ActivityTimelineBuilder;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -2681,6 +2682,7 @@ class ContactsController extends Controller
     private function tabData(Contact $contact): array
     {
         $owner = $contact->owner_name ?: 'John Admin';
+        $linkedActivities = app(ActivityTimelineBuilder::class)->forContact($contact);
         $deals = [
             [
                 'name' => 'Corporate Software License',
@@ -2866,7 +2868,7 @@ class ContactsController extends Controller
                     'updatedAt' => '2026-02-26T14:30:00',
                 ],
             ],
-            'activities' => [
+            'activities' => $linkedActivities ?: [
                 [
                     'type' => 'Call',
                     'icon' => 'fa-phone',

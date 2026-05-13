@@ -9,6 +9,7 @@ use App\Models\CompanyConsultationNote;
 use App\Models\Project;
 use App\Models\CompanyHistoryEntry;
 use App\Models\Contact;
+use App\Support\ActivityTimelineBuilder;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -1034,14 +1035,17 @@ class CompanyController extends Controller
     private function companyActivities(array $companyData): array
     {
         $companyId = (int) $companyData['id'];
+        $mainActivities = app(ActivityTimelineBuilder::class)->forCompany($companyData);
 
         if (Schema::hasTable('company_activities')) {
-            return CompanyActivity::query()
+            $companyActivities = CompanyActivity::query()
                 ->where('company_id', $companyId)
                 ->latest('due_at')
                 ->get()
                 ->map(fn (CompanyActivity $activity) => [
                     'id' => $activity->id,
+                    'source' => 'company',
+                    'readonly' => false,
                     'type' => $activity->type,
                     'icon' => match (strtolower($activity->type)) {
                         'call' => 'fa-phone',
@@ -1057,6 +1061,16 @@ class CompanyController extends Controller
                     'dueAt' => optional($activity->due_at)->format('Y-m-d\TH:i'),
                 ])
                 ->all();
+
+            return collect($mainActivities)
+                ->merge($companyActivities)
+                ->sortByDesc(fn (array $activity): string => $activity['dueAt'] ?? $activity['when'] ?? '')
+                ->values()
+                ->all();
+        }
+
+        if ($mainActivities !== []) {
+            return $mainActivities;
         }
 
         $owner = $companyData['owner_name'] ?? 'John Admin';

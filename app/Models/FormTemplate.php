@@ -10,10 +10,15 @@ class FormTemplate extends Model
         'type',
         'name',
         'payload',
+        'status',
+        'review_note',
         'created_by',
+        'reviewed_by',
+        'reviewed_at',
     ];
 
     protected $casts = [
         'payload' => 'array',
+        'reviewed_at' => 'datetime',
     ];
 }

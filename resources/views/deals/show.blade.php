@@ -187,7 +187,13 @@
             </div>
             <div class="mt-2 flex flex-wrap items-center gap-2">
                 <span id="dealStageBadge" class="inline-flex rounded-full px-2 py-0.5 text-xs font-medium {{ $stageBadgeClasses[$deal['stage']] ?? 'bg-gray-100 text-gray-700 border border-gray-200' }}">{{ $deal['stage'] }}</span>
-                <span class="text-lg font-semibold text-gray-900">{{ $formatCurrency($deal['amount'] ?? 0) }}</span>
+                <span class="inline-flex items-center gap-1.5 text-lg font-semibold text-gray-900" data-price-wrap data-price-visible="false">
+                    <span data-price-hidden>••••••</span>
+                    <span data-price-value class="hidden">{{ $formatCurrency($deal['amount'] ?? 0) }}</span>
+                    <button type="button" data-price-toggle aria-label="Show deal value" title="Show deal value" class="inline-flex h-6 w-6 items-center justify-center rounded-full text-gray-400 hover:bg-blue-50 hover:text-blue-700">
+                        <i class="fas fa-eye text-[11px]" data-price-icon></i>
+                    </button>
+                </span>
             </div>
         </div>
 
@@ -225,7 +231,18 @@
                 <article class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
                     <h2 class="mb-4 text-xl font-semibold text-gray-900">Financial Details</h2>
                     <div class="grid gap-4 text-sm md:grid-cols-2">
-                        <div><p class="text-xs text-gray-500">Deal Value</p><p class="font-medium text-gray-800">{{ $formatCurrency(data_get($detail, 'financial.deal_value', 0)) }}</p></div>
+                        <div data-price-wrap data-price-visible="false">
+                            <p class="flex items-center gap-1.5 text-xs text-gray-500">
+                                <span>Deal Value</span>
+                                <button type="button" data-price-toggle aria-label="Show deal value" title="Show deal value" class="inline-flex h-5 w-5 items-center justify-center rounded-full text-gray-400 hover:bg-blue-50 hover:text-blue-700">
+                                    <i class="fas fa-eye text-[10px]" data-price-icon></i>
+                                </button>
+                            </p>
+                            <p class="font-medium text-gray-800">
+                                <span data-price-hidden>••••••</span>
+                                <span data-price-value class="hidden">{{ $formatCurrency(data_get($detail, 'financial.deal_value', 0)) }}</span>
+                            </p>
+                        </div>
                         <div><p class="text-xs text-gray-500">Pricing Model</p><p class="font-medium text-gray-800">{{ data_get($detail, 'financial.pricing_model', '-') }}</p></div>
                         <div><p class="text-xs text-gray-500">Payment Terms</p><p class="font-medium text-gray-800">{{ data_get($detail, 'financial.payment_terms', '-') }}</p></div>
                         <div><p class="text-xs text-gray-500">Commission Applicable</p><p class="font-medium text-gray-800">{{ data_get($detail, 'financial.commission_applicable', '-') }}</p></div>
@@ -659,6 +676,7 @@
     'ownerLabel' => $ownerLabel,
     'owners' => $owners,
     'financeUsers' => $financeUsers ?? [],
+    'employeeOptions' => $employeeOptions ?? [],
     'defaultOwnerId' => $defaultOwnerId,
     'dealDraft' => $dealFormData,
     'openDealModal' => $openDealModal ?? false,
@@ -701,6 +719,29 @@ document.addEventListener('DOMContentLoaded', function () {
     let stageData = stageDataNode ? JSON.parse(stageDataNode.textContent || '[]') : [];
     let currentStageId = dealShowScriptData?.dataset.currentStageId || null;
     let toastTimer = null;
+
+    document.querySelectorAll('[data-price-toggle]').forEach((toggle) => {
+        toggle.addEventListener('click', () => {
+            const wrap = toggle.closest('[data-price-wrap]');
+            if (!wrap) {
+                return;
+            }
+
+            const isVisible = wrap.dataset.priceVisible === 'true';
+            wrap.dataset.priceVisible = isVisible ? 'false' : 'true';
+            wrap.querySelector('[data-price-hidden]')?.classList.toggle('hidden', !isVisible);
+            wrap.querySelector('[data-price-value]')?.classList.toggle('hidden', isVisible);
+
+            const icon = wrap.querySelector('[data-price-icon]');
+            if (icon) {
+                icon.classList.toggle('fa-eye', isVisible);
+                icon.classList.toggle('fa-eye-slash', !isVisible);
+            }
+
+            toggle.setAttribute('aria-label', isVisible ? 'Show deal value' : 'Hide deal value');
+            toggle.setAttribute('title', isVisible ? 'Show deal value' : 'Hide deal value');
+        });
+    });
 
     const buttons = Array.from(document.querySelectorAll('[data-tab-button]'));
     const panels = Array.from(document.querySelectorAll('[data-tab-panel]'));

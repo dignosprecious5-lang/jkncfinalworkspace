@@ -33,7 +33,7 @@
         overflow: hidden;
     }
     .proposal-inner-page { height: 297mm; padding-top: 52px; overflow: hidden; }
-    .proposal-page-body { width: 100%; max-height: calc(297mm - 44px - 70px - 52px - 34px); overflow: hidden; }
+    .proposal-page-body { width: 100%; max-height: calc(297mm - 44px - 70px - 52px - 44px); overflow: hidden; padding-bottom: 8px; box-sizing: border-box; }
     .proposal-cover { height: 297mm; min-height: 297mm; position: relative; overflow: hidden; }
     .proposal-cover-logo-wrap { width: 100%; }
     .proposal-brand-logo { width: 470px; max-width: 100%; height: auto; object-fit: contain; }
@@ -72,13 +72,17 @@
     .proposal-requirement-group { margin-bottom: 12px; }
     .proposal-requirement-label { margin-bottom: 6px; font-size: 12px; font-weight: 700; color: #0031af; }
     .proposal-term-block { margin-bottom: 16px; }
-    .proposal-service-table, .proposal-pricing-table, .proposal-data-table { width: 100%; border-collapse: collapse; margin-top: 12px; table-layout: fixed; }
+    .proposal-service-table, .proposal-pricing-table, .proposal-data-table { width: 100%; border: 1px solid #111827; border-collapse: separate; border-spacing: 0; margin-top: 12px; table-layout: fixed; box-shadow: inset 0 -1px 0 #111827; }
     .proposal-service-table th, .proposal-service-table td, .proposal-pricing-table th, .proposal-pricing-table td, .proposal-data-table th, .proposal-data-table td {
-        border: 1px solid #111827;
+        border: 0;
+        border-right: 1px solid #111827;
+        border-bottom: 1px solid #111827;
         padding: 8px 10px;
         font-size: 10.5px;
         vertical-align: top;
     }
+    .proposal-service-table th:last-child, .proposal-service-table td:last-child, .proposal-pricing-table th:last-child, .proposal-pricing-table td:last-child, .proposal-data-table th:last-child, .proposal-data-table td:last-child { border-right: 0; }
+    .proposal-service-table tbody tr:last-child td, .proposal-pricing-table tbody tr:last-child td, .proposal-data-table tbody tr:last-child td { border-bottom: 0; }
 .proposal-service-table th, .proposal-pricing-table th, .proposal-data-table th { text-align: left; font-weight: 400; background: transparent; }
     .proposal-service-no { width: 7%; }
     .proposal-service-area { width: 24%; }
@@ -89,7 +93,7 @@
     .proposal-service-scope-list ol[type="a"] { list-style-type: lower-alpha; }
     .proposal-service-table { margin-top: 22px; }
 .proposal-product-offerings-heading { margin-top: 24px; }
-.proposal-product-table { margin-top: 10px; }
+.proposal-product-table { margin-top: 10px; margin-bottom: 10px; }
 .proposal-pricing-table, .proposal-data-table { margin-top: 16px; }
 .proposal-availed-table { margin: 36px 0 14px; table-layout: fixed; }
 .proposal-availed-table th, .proposal-availed-table td { padding: 6px 7px; font-size: 10.5px; line-height: 1.35; }
@@ -188,6 +192,11 @@
                 @if (session('proposal_client_link'))
                     <a href="{{ session('proposal_client_link') }}" target="_blank" class="ml-2 underline">Open client link</a>
                 @endif
+            </div>
+        @endif
+        @if (session('error'))
+            <div class="border-b border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-800">
+                {{ session('error') }}
             </div>
         @endif
     </div>
@@ -443,6 +452,14 @@
                             <button type="submit" class="inline-flex rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Save Proposal</button>
                             <button type="button" id="proposal-refresh-button" class="inline-flex rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Refresh Preview</button>
                         </div>
+                        @if ($pendingGlobalTemplate ?? false)
+                            <div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
+                                A global proposal template update is already waiting for admin approval. New deals will keep using the last approved template until an admin approves the pending one.
+                                @if (in_array((string) (auth()->user()?->role ?? ''), ['Admin', 'SuperAdmin'], true))
+                                    <a href="{{ route('admin.deal-proposal-templates.index') }}" class="ml-1 font-semibold underline">Review templates</a>
+                                @endif
+                            </div>
+                        @endif
                     </form>
                     @endif
                 </div>
@@ -478,7 +495,7 @@
                             <button type="button" data-editor-cmd="justifyCenter">Center</button>
                             <button type="button" data-editor-cmd="justifyRight">Right</button>
                             <button type="button" data-editor-action="clear-format">Clear Format</button>
-                            <button type="button" data-editor-action="reset-template" class="is-primary">Reset From Template</button>
+                            <button type="button" data-editor-action="save-global-template" class="is-primary">Save Global Template</button>
                         </div>
                         @endunless
                         <div id="proposal-preview-scroll" class="proposal-preview-scroll">
@@ -597,6 +614,7 @@
             : 'Preview updated from the same proposal data used for the generated PDF.';
         errorBox.classList.add('hidden');
         htmlPreview.innerHTML = payload.html || htmlPreview.innerHTML;
+        window.paginateProposalTables?.(htmlPreview);
         syncDocumentHtml();
         recalculateFeeFields();
 
@@ -704,6 +722,7 @@
         }
 
         htmlPreview.innerHTML = payload.html || htmlPreview.innerHTML;
+        window.paginateProposalTables?.(htmlPreview);
         syncDocumentHtml();
         recalculateFeeFields();
     };
@@ -713,6 +732,10 @@
     form.addEventListener('change', () => {
         recalculateFeeFields();
         queuePreview();
+    });
+    form.addEventListener('submit', () => {
+        window.paginateProposalTables?.(htmlPreview);
+        syncDocumentHtml();
     });
     refreshButton.addEventListener('click', refreshPreview);
 
@@ -737,17 +760,20 @@
         syncDocumentHtml();
     });
 
-    editorToolbar?.querySelector('[data-editor-action="reset-template"]')?.addEventListener('click', async () => {
-        try {
-            setBusy('Resetting the proposal editor from the latest structured template.');
-            await loadTemplateIntoEditor();
-            badge.textContent = 'Editor reset';
-            badge.classList.remove('bg-blue-50', 'text-blue-700', 'bg-amber-50', 'text-amber-700');
-            badge.classList.add('bg-emerald-50', 'text-emerald-700');
-            status.textContent = 'The proposal editor has been reset from the current proposal template.';
-        } catch (error) {
-            setError(error.message || 'Unable to reset template.');
+    editorToolbar?.querySelector('[data-editor-action="save-global-template"]')?.addEventListener('click', () => {
+        window.paginateProposalTables?.(htmlPreview);
+        syncDocumentHtml();
+
+        let globalInput = form.querySelector('[name="submit_global_template"]');
+        if (!globalInput) {
+            globalInput = document.createElement('input');
+            globalInput.type = 'hidden';
+            globalInput.name = 'submit_global_template';
+            form.appendChild(globalInput);
         }
+
+        globalInput.value = '1';
+        form.requestSubmit();
     });
 
     syncDocumentHtml();
@@ -755,4 +781,6 @@
 })();
 </script>
 @endunless
+
+@include('deals.proposal.partials.pagination-script')
 @endsection

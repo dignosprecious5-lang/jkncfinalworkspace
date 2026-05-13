@@ -177,7 +177,7 @@
                 </div>
                 <div class="brand-cell right">
                     <div class="title">Scope of Work</div>
-                    <div class="subtitle">John Kelly &amp; Company</div>
+                    <div class="subtitle">PROJ-F-002</div>
                 </div>
             </div>
 

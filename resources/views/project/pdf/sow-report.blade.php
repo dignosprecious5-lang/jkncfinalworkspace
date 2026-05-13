@@ -48,7 +48,7 @@
                 <img src="{{ asset('images/imaglogo.png') }}" alt="John Kelly and Company">
                 <div class="title">
                     <h1>Scope Of Work Report</h1>
-                    <p>John Kelly &amp; Company</p>
+                    <p>PROJ-F-004</p>
                 </div>
             </div>
             <div class="meta">

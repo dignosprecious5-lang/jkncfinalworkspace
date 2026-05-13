@@ -113,6 +113,7 @@ class ProjectController extends Controller
                 ->with(['deal:id,deal_code', 'company:id,company_name'])
                 ->latest()
                 ->get()
+                ->map(fn (Project $project): Project => $this->normalizeProjectCompletionState($project))
                 ->filter(fn (Project $project): bool => ! Str::contains(Str::lower(trim((string) $project->engagement_type)), 'regular'))
                 ->values();
         }
@@ -128,8 +129,7 @@ class ProjectController extends Controller
         }
 
         if (Schema::hasTable('form_templates')) {
-            $sowTemplates = FormTemplate::query()
-                ->where('type', 'project_sow')
+            $sowTemplates = $this->projectSowTemplateQuery()
                 ->orderBy('name')
                 ->get();
         }
@@ -137,8 +137,9 @@ class ProjectController extends Controller
         $stats = [
             'all' => $projects->count(),
             'start' => $projects->whereIn('current_phase', ['Start', 'SOW'])->count(),
-            'planning' => $projects->where('current_phase', 'Planning')->count(),
-            'active' => $projects->whereIn('status', ['Start', 'SOW', 'Planning', 'For NTP Approval', 'Execution', 'Reporting', 'Delivery'])->count(),
+            'in_progress' => $projects->filter(fn (Project $project): bool => in_array($project->status, ['In Progress', 'Execution', 'Reporting', 'Delivery'], true)
+                || in_array($project->current_phase, ['In Progress', 'Execution', 'Reporting', 'Delivery'], true))->count(),
+            'active' => $projects->whereIn('status', ['Start', 'SOW', 'In Progress', 'For NTP Approval', 'Execution', 'Reporting', 'Delivery'])->count(),
             'completed' => $projects->where('status', 'Completed')->count(),
         ];
 
@@ -189,7 +190,13 @@ class ProjectController extends Controller
             'scope_summary' => ['nullable', 'string', 'max:2000'],
             'engagement_requirements_text' => ['nullable', 'string', 'max:4000'],
             'template_id' => Schema::hasTable('form_templates')
-                ? ['nullable', 'integer', Rule::exists('form_templates', 'id')->where(fn ($query) => $query->where('type', 'project_sow'))]
+                ? ['nullable', 'integer', Rule::exists('form_templates', 'id')->where(function ($query) {
+                    $query->where('type', 'project_sow');
+
+                    if (Schema::hasColumn('form_templates', 'status')) {
+                        $query->where('status', 'approved');
+                    }
+                })]
                 : ['nullable'],
         ]);
 
@@ -266,8 +273,7 @@ class ProjectController extends Controller
             ?? null;
 
         $selectedTemplate = ! empty($validated['template_id'])
-            ? FormTemplate::query()
-                ->where('type', 'project_sow')
+            ? $this->projectSowTemplateQuery()
                 ->find($validated['template_id'])
             : null;
         $templatePayload = (array) ($selectedTemplate?->payload ?? []);
@@ -387,27 +393,31 @@ class ProjectController extends Controller
 
     public function show(Request $request, Project $project): View
     {
+        $project = $this->normalizeProjectCompletionState($project);
         $payload = $this->buildProjectDocumentPayload($project);
         extract($payload);
         $sowAutoReportSettings = $this->projectAutoReportSettings($project, 'sow');
         $ntpRecord = $project->ntps()->latest()->first();
         $coc = null;
         $sowTemplates = Schema::hasTable('form_templates')
-            ? FormTemplate::query()->where('type', 'project_sow')->orderBy('name')->get()
+            ? $this->projectSowTemplateQuery()->orderBy('name')->get()
             : collect();
         $tab = in_array((string) $request->query('tab', 'sow'), ['sow', 'report'], true)
             ? (string) $request->query('tab', 'sow')
             : 'sow';
+        $projectLocked = $this->isProjectCompleted($project);
 
         if ($tab === 'sow') {
             [, $coc] = $this->buildProjectCocPreviewData($project);
         }
 
-        return view('project.show', compact('project', 'start', 'sow', 'report', 'ntpRecord', 'sowTemplates', 'tab', 'coc', 'sowAutoReportSettings'));
+        return view('project.show', compact('project', 'start', 'sow', 'report', 'ntpRecord', 'sowTemplates', 'tab', 'coc', 'sowAutoReportSettings', 'projectLocked'));
     }
 
     public function updateSowAutoReportSettings(Request $request, Project $project): RedirectResponse
     {
+        $this->abortIfProjectCompleted($project);
+
         $validated = $request->validate([
             'enabled' => ['nullable', 'boolean'],
             'day_of_month' => ['required', 'integer', 'min:1', 'max:31'],
@@ -564,6 +574,8 @@ class ProjectController extends Controller
 
     public function updateSow(Request $request, Project $project): RedirectResponse
     {
+        $this->abortIfProjectCompleted($project);
+
         $validated = $this->validateSowPayload($request);
         $this->persistSowDocument($request, $project, $validated);
 
@@ -603,6 +615,8 @@ class ProjectController extends Controller
 
     public function downloadNtpPdf(Project $project): RedirectResponse
     {
+        $this->abortIfProjectCompleted($project);
+
         $ntpRecord = $this->generateAndSendProjectNtp($project);
 
         return redirect()
@@ -613,6 +627,9 @@ class ProjectController extends Controller
 
     public function showCocPreview(Project $project): View
     {
+        if (! $this->isProjectCompleted($project)) {
+            $this->markCocGenerated($project);
+        }
         [$project, $coc] = $this->buildProjectCocPreviewData($project);
 
         return view('project.coc-preview', compact('project', 'coc'));
@@ -620,12 +637,49 @@ class ProjectController extends Controller
 
     public function downloadCocPdf(Project $project)
     {
+        if (! $this->isProjectCompleted($project)) {
+            $this->markCocGenerated($project);
+        }
         [$project, $coc] = $this->buildProjectCocPreviewData($project);
 
         $pdf = Pdf::loadView('project.coc-preview', compact('project', 'coc'))
             ->setPaper('a4', 'portrait');
 
         return $pdf->download(Str::slug((string) ($project->project_code ?: 'project')).'-certificate-of-completion.pdf');
+    }
+
+    public function approveCoc(Request $request, Project $project): RedirectResponse
+    {
+        $this->abortIfProjectCompleted($project);
+
+        $validated = $this->validateSignedApprovalUpload($request);
+        $metadata = (array) ($project->metadata ?? []);
+        $existingPath = data_get($metadata, 'coc.signed_attachment_path');
+
+        if ($existingPath && Storage::disk('public')->exists($existingPath)) {
+            Storage::disk('public')->delete($existingPath);
+        }
+
+        $path = $request->file('signed_document')->store("projects/{$project->id}/coc", 'public');
+
+        data_set($metadata, 'coc.generated_at', data_get($metadata, 'coc.generated_at') ?: now()->toDateTimeString());
+        data_set($metadata, 'coc.approval_status', 'approved');
+        data_set($metadata, 'coc.approved_at', now()->toDateTimeString());
+        data_set($metadata, 'coc.approved_by_name', $validated['approval_name'] ?: ($request->user()?->name ?? 'Manual Override'));
+        data_set($metadata, 'coc.approval_note', trim((string) ($validated['approval_note'] ?? '')) ?: 'COC manually approved using uploaded signed document.');
+        data_set($metadata, 'coc.signed_attachment_path', $path);
+
+        $project->forceFill([
+            'status' => 'Completed',
+            'current_phase' => 'Completed',
+            'current_step' => 'Completed',
+            'closed_at' => now(),
+            'metadata' => $metadata,
+        ])->save();
+
+        return redirect()
+            ->route('project.show', ['project' => $project->id, 'tab' => 'sow'])
+            ->with('success', 'Signed COC uploaded and approved. Project marked as completed.');
     }
 
     public function ntpStatus(Project $project): JsonResponse
@@ -654,6 +708,7 @@ class ProjectController extends Controller
     {
         $ntpRecord = $this->findNtpByClientToken($token);
         abort_if($ntpRecord->client_access_expires_at && $ntpRecord->client_access_expires_at->isPast(), 403, 'This NTP link has expired.');
+        abort_if($ntpRecord->project && $this->isProjectCompleted($ntpRecord->project), 423, 'This completed project is view-only.');
 
         $project = $ntpRecord->project()->with(['deal:id,deal_code', 'contact:id,first_name,last_name,email', 'company:id,company_name'])->firstOrFail();
         $contactName = trim(collect([$project->contact?->first_name, $project->contact?->last_name])->filter()->implode(' '))
@@ -696,10 +751,38 @@ class ProjectController extends Controller
             'client_attachment_path' => $request->file('client_attachment')->store("projects/{$ntpRecord->project_id}/ntp", 'public'),
         ]);
         $ntpRecord->save();
+        $this->markProjectInProgress($ntpRecord->project, 'Client signed NTP submitted');
 
         return redirect()
             ->route('project.ntp.client.show', ['token' => $token])
             ->with('success', 'Approved to proceed. The signed NTP was submitted successfully.');
+    }
+
+    public function manualApproveNtp(Request $request, Project $project): RedirectResponse
+    {
+        $this->abortIfProjectCompleted($project);
+
+        $ntpRecord = $project->ntps()->latest()->firstOrFail();
+        $validated = $this->validateSignedApprovalUpload($request);
+
+        $this->replaceClientAttachment(
+            $ntpRecord,
+            $request,
+            "projects/{$project->id}/ntp",
+        );
+
+        $ntpRecord->fill([
+            'client_response_status' => 'approved_to_proceed',
+            'client_approved_at' => now(),
+            'client_approved_name' => $validated['approval_name'] ?: ($request->user()?->name ?? 'Manual Override'),
+            'client_response_notes' => trim((string) ($validated['approval_note'] ?? '')) ?: 'Approved by manual override using uploaded signed NTP.',
+        ]);
+        $ntpRecord->save();
+        $this->markProjectInProgress($project, 'Signed NTP uploaded manually');
+
+        return redirect()
+            ->route('project.show', ['project' => $project->id, 'tab' => 'sow'])
+            ->with('success', 'Signed NTP uploaded and approved manually. Project is now in progress.');
     }
 
     public function downloadClientNtp(string $token): RedirectResponse
@@ -712,6 +795,8 @@ class ProjectController extends Controller
 
     public function generateSowReport(Request $request, Project $project): RedirectResponse
     {
+        $this->abortIfProjectCompleted($project);
+
         $validated = $this->validateSowPayload($request);
         $sow = $this->persistSowDocument($request, $project, $validated);
         $statusSummary = $this->buildReportStatusSummary($validated);
@@ -760,6 +845,7 @@ class ProjectController extends Controller
     public function sendGeneratedReport(Project $project, ProjectSowReport $report, Request $request): RedirectResponse
     {
         abort_unless($report->project_id === $project->id, 404);
+        $this->abortIfProjectCompleted($project);
 
         if (! $this->supportsProjectSowReportClientPortal()) {
             return redirect()
@@ -781,6 +867,8 @@ class ProjectController extends Controller
 
     public function storeSowTemplate(Request $request, Project $project): RedirectResponse
     {
+        $this->abortIfProjectCompleted($project);
+
         abort_if(! Schema::hasTable('form_templates'), 500, 'Templates table is not available.');
 
         $validated = array_merge(
@@ -813,6 +901,8 @@ class ProjectController extends Controller
 
     public function bulkDestroyGeneratedReports(Request $request, Project $project): RedirectResponse
     {
+        $this->abortIfProjectCompleted($project);
+
         $validated = $request->validate([
             'selected_reports' => ['required', 'array', 'min:1'],
             'selected_reports.*' => ['required', 'integer'],
@@ -843,6 +933,7 @@ class ProjectController extends Controller
 
         $report = $this->findReportByClientToken($token);
         abort_if($report->client_access_expires_at && $report->client_access_expires_at->isPast(), 403, 'This SOW report link has expired.');
+        abort_if($report->project && $this->isProjectCompleted($report->project), 423, 'This completed project is view-only.');
 
         $project = $report->project()->with(['deal:id,deal_code', 'contact:id,first_name,last_name,email', 'company:id,company_name'])->firstOrFail();
         $contactName = trim(collect([$project->contact?->first_name, $project->contact?->last_name])->filter()->implode(' '))
@@ -888,10 +979,40 @@ class ProjectController extends Controller
             'client_confirmation_name' => $validated['client_approval_name'],
         ]);
         $report->save();
+        $project = $report->project()->firstOrFail();
+        $this->markProjectReadyForCompletion($project, 'Client approved SOW report');
 
         return redirect()
             ->route('project.report.client.show', ['token' => $token])
             ->with('success', 'Your approval has been recorded successfully.');
+    }
+
+    public function manualApproveReport(Request $request, Project $project, ProjectSowReport $report): RedirectResponse
+    {
+        abort_unless($report->project_id === $project->id, 404);
+        $this->abortIfProjectCompleted($project);
+
+        $validated = $this->validateSignedApprovalUpload($request);
+
+        $this->replaceClientAttachment(
+            $report,
+            $request,
+            "projects/{$project->id}/reports",
+        );
+
+        $report->fill([
+            'client_response_status' => 'approved',
+            'client_approved_at' => now(),
+            'client_approved_name' => $validated['approval_name'] ?: ($request->user()?->name ?? 'Manual Override'),
+            'client_response_notes' => trim((string) ($validated['approval_note'] ?? '')) ?: 'Approved by manual override using uploaded signed report.',
+            'client_confirmation_name' => $validated['approval_name'] ?: ($report->client_confirmation_name ?: $project->client_name),
+        ]);
+        $report->save();
+        $this->markProjectReadyForCompletion($project, 'Signed SOW report uploaded manually');
+
+        return redirect()
+            ->route('project.report.preview', ['project' => $project->id, 'report' => $report->id])
+            ->with('success', 'Signed SOW report uploaded and approved manually. You can now generate the COC.');
     }
 
     public function downloadClientSowReport(string $token): RedirectResponse
@@ -915,6 +1036,8 @@ class ProjectController extends Controller
 
     public function updateReport(Request $request, Project $project): RedirectResponse
     {
+        $this->abortIfProjectCompleted($project);
+
         $validated = $request->validate([
             'version_number' => ['nullable', 'string', 'max:50'],
             'date_prepared' => ['nullable', 'date'],
@@ -1036,6 +1159,112 @@ class ProjectController extends Controller
         return [$project, $coc];
     }
 
+    private function validateSignedApprovalUpload(Request $request): array
+    {
+        return $request->validate([
+            'approval_name' => ['nullable', 'string', 'max:255'],
+            'approval_note' => ['nullable', 'string', 'max:2000'],
+            'signed_document' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png,doc,docx', 'max:10240'],
+        ], [
+            'signed_document.required' => 'Please upload the signed approval document.',
+        ]);
+    }
+
+    private function isProjectCompleted(Project $project): bool
+    {
+        return strcasecmp((string) $project->status, 'Completed') === 0
+            || $this->projectHasApprovedCoc($project);
+    }
+
+    private function abortIfProjectCompleted(Project $project): void
+    {
+        abort_if($this->isProjectCompleted($project), 423, 'Completed projects are view-only. Documents can be viewed or downloaded, but no longer edited.');
+    }
+
+    private function replaceClientAttachment(ProjectNtp|ProjectSowReport $record, Request $request, string $directory): void
+    {
+        if ($record->client_attachment_path && Storage::disk('public')->exists($record->client_attachment_path)) {
+            Storage::disk('public')->delete($record->client_attachment_path);
+        }
+
+        $record->client_attachment_path = $request->file('signed_document')->store($directory, 'public');
+    }
+
+    private function markProjectInProgress(?Project $project, string $step): void
+    {
+        if (! $project) {
+            return;
+        }
+
+        $project->forceFill([
+            'status' => 'In Progress',
+            'current_phase' => 'In Progress',
+            'current_step' => $step,
+        ])->save();
+    }
+
+    private function markProjectReadyForCompletion(Project $project, string $step): void
+    {
+        $project->forceFill([
+            'status' => 'Delivery',
+            'current_phase' => 'Delivery',
+            'current_step' => $step,
+        ])->save();
+    }
+
+    private function markCocGenerated(Project $project): void
+    {
+        $metadata = (array) ($project->metadata ?? []);
+        data_set($metadata, 'coc.generated_at', data_get($metadata, 'coc.generated_at') ?: now()->toDateTimeString());
+
+        if (! data_get($metadata, 'coc.approval_status')) {
+            data_set($metadata, 'coc.approval_status', 'pending');
+        }
+
+        $project->forceFill([
+            'metadata' => $metadata,
+        ])->save();
+    }
+
+    private function projectHasApprovedCoc(Project $project): bool
+    {
+        return strcasecmp((string) data_get($project->metadata ?? [], 'coc.approval_status'), 'approved') === 0;
+    }
+
+    private function normalizeProjectCompletionState(Project $project): Project
+    {
+        if (! $this->projectHasApprovedCoc($project)) {
+            return $project;
+        }
+
+        $attributes = [];
+
+        if (strcasecmp((string) $project->status, 'Completed') !== 0) {
+            $attributes['status'] = 'Completed';
+        }
+
+        if (strcasecmp((string) $project->current_phase, 'Completed') !== 0) {
+            $attributes['current_phase'] = 'Completed';
+        }
+
+        if (strcasecmp((string) $project->current_step, 'Completed') !== 0) {
+            $attributes['current_step'] = 'Completed';
+        }
+
+        if (! $project->closed_at) {
+            $attributes['closed_at'] = data_get($project->metadata ?? [], 'coc.approved_at') ?: now();
+        }
+
+        if ($attributes === []) {
+            return $project;
+        }
+
+        $project->forceFill($attributes);
+        $project->save();
+
+        return $project;
+    }
+
     private function buildServiceMemoPayload(Project $project, ProjectStart $start, ?ProjectSow $sow): array
     {
         $project->loadMissing([
@@ -1128,6 +1357,16 @@ class ProjectController extends Controller
         $sow->save();
 
         return $sow;
+    }
+
+    private function projectSowTemplateQuery()
+    {
+        return FormTemplate::query()
+            ->where('type', 'project_sow')
+            ->when(
+                Schema::hasColumn('form_templates', 'status'),
+                fn ($query) => $query->where('status', 'approved')
+            );
     }
 
     private function calculateCompletionPercentage(array $statusSummary): float
@@ -2323,7 +2562,7 @@ class ProjectController extends Controller
 
         return [
             'title' => 'NOTICE TO PROCEED',
-            'form_code' => 'ENG-F-001-v1.0-03.16.26',
+            'form_code' => 'PROJ-F-003',
             'date_issued' => now()->format('F d, Y'),
             'ntp_no' => null,
             'engagement_type' => $project->engagement_type ?: 'Project',
@@ -2364,6 +2603,12 @@ class ProjectController extends Controller
         if ($recipientEmail !== null) {
             $this->sendNtpClientLink($project, $ntpRecord, $recipientEmail);
         }
+
+        $project->forceFill([
+            'status' => 'For NTP Approval',
+            'current_phase' => 'For NTP Approval',
+            'current_step' => 'Waiting for signed NTP',
+        ])->save();
 
         return $ntpRecord->fresh();
     }

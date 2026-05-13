@@ -5,6 +5,7 @@
     $withinCount = $sowWithin->filter(fn ($row) => filled($row['main_task_description'] ?? null))->count();
     $outCount = $sowOut->filter(fn ($row) => filled($row['main_task_description'] ?? null))->count();
     $clientConfirmationName = old('client_confirmation_name', $sow?->client_confirmation_name ?: ($project->client_name ?: $contactName));
+    $projectLocked = $projectLocked ?? false;
 @endphp
 
 <style>
@@ -331,6 +332,7 @@
 <form id="project-sow-form" method="POST" action="{{ route('project.sow.update', $project) }}" enctype="multipart/form-data">
     @csrf
     <input type="hidden" name="template_name" value="">
+    <fieldset {{ $projectLocked ? 'disabled' : '' }}>
 
     <section class="project-sow-sheet">
         <div class="project-sow-form">
@@ -338,7 +340,7 @@
                 <img src="{{ asset('images/imaglogo.png') }}" alt="John Kelly and Company" class="project-sow-logo">
                 <div class="project-sow-title">
                     <h2>SCOPE OF WORK</h2>
-                    <div class="project-sow-code">[ Form Code ]</div>
+                    <div class="project-sow-code">PROJ-F-002</div>
                 </div>
             </div>
 
@@ -439,9 +441,11 @@
                         <div class="project-sow-total-label">Total:</div>
                         <div class="project-sow-total-value">{{ $section['count'] }} item(s)</div>
                     </div>
+                    @if (! $projectLocked)
                     <div class="project-sow-actions">
                         <button type="button" class="project-doc-action" data-add-scope-row="{{ $prefix }}-scope-table">Add Row</button>
                     </div>
+                    @endif
                 </div>
             @endforeach
 
@@ -556,6 +560,7 @@
             </div>
         </div>
     </section>
+    </fieldset>
 
     <script>
         document.addEventListener('DOMContentLoaded', function() {
