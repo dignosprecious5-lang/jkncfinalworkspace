@@ -9,11 +9,27 @@ use Illuminate\Http\Request;
 
 class TrainingController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
         $trainings = Training::with(['assignments.employee'])
             ->latest()
             ->get();
+
+        if ($request->wantsJson()) {
+            return response()->json(
+                $trainings->map(function ($training) {
+                    return [
+                        'id' => $training->id,
+                        'title' => $training->title,
+                        'description' => $training->description,
+                        'provider' => $training->provider,
+                        'duration_value' => $training->duration_value,
+                        'duration_unit' => $training->duration_unit,
+                        'formatted_duration' => $training->formatted_duration,
+                    ];
+                })->values()
+            );
+        }
 
         return view('human-capital.training', compact('trainings'));
     }
@@ -75,7 +91,6 @@ class TrainingController extends Controller
             return back()->with('error', 'Training must be completed first.');
         }
 
-        // generate certificate code
         $code = 'CERT-' . strtoupper(uniqid());
 
         $assignment->update([

@@ -1188,7 +1188,7 @@ function onboardingPage() {
             { key: 'Training', label: 'Training' },
         ],
 
-        trainings: [],
+        trainings: @json($trainingPrograms ?? []),
         employees: [],
 
         data: {
@@ -1269,9 +1269,15 @@ function onboardingPage() {
                     throw new Error('Failed to fetch training programs');
                 }
 
-                this.trainings = await response.json();
+                const programs = await response.json();
+                this.trainings = Array.isArray(programs) ? programs : [];
             } catch (error) {
                 console.error('Error fetching training programs:', error);
+
+                // Keep server-rendered training programs if the JSON fetch fails.
+                if (!Array.isArray(this.trainings)) {
+                    this.trainings = [];
+                }
             }
         },
 

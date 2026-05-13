@@ -28,6 +28,7 @@ use App\Mail\InterviewScheduleMail;
 use App\Mail\JobOfferMail;
 use App\Mail\PdsInvitationMail;
 use App\Mail\ChecklistSubmissionMail;
+use App\Models\Training;
 
 class RecruitmentController extends Controller
 {
@@ -227,7 +228,9 @@ public function onboarding()
         ]);
     });
 
-    return view('human-capital.onboarding', compact('pdsData'));
+    $trainingPrograms = Training::orderBy('title')->get();
+
+    return view('human-capital.onboarding', compact('pdsData', 'trainingPrograms'));
 }
 
 
