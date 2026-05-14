@@ -12,6 +12,29 @@
             </h1>
         </div>
 
+        <!-- FILTER BAR (Admin/SuperAdmin Only) -->
+        @if($isAdmin)
+            <div class="px-4 py-3 border-b bg-gray-50">
+                <div class="flex items-center gap-4">
+                    <label for="employeeFilter" class="text-sm font-medium text-gray-700">
+                        Filter by Employee:
+                    </label>
+                    <select 
+                        id="employeeFilter"
+                        onchange="filterByEmployee(this.value)"
+                        class="px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                        <option value="">All Employees</option>
+                        @foreach($employees as $employee)
+                            <option value="{{ $employee->id }}" {{ $selectedEmployeeId == $employee->id ? 'selected' : '' }}>
+                                {{ $employee->first_name }} {{ $employee->last_name }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+            </div>
+        @endif
+
         <!-- CONTENT -->
         <div class="p-6 overflow-auto">
 
@@ -168,6 +191,15 @@ function openCertificate(id) {
 
 function closeCertificate() {
     document.getElementById('certificateModal').classList.add('hidden');
+}
+
+function filterByEmployee(employeeId) {
+    const params = new URLSearchParams();
+    if (employeeId) {
+        params.append('employee_id', employeeId);
+    }
+    const queryString = params.toString();
+    window.location.href = `{{ route('human-capital.awards') }}${queryString ? '?' + queryString : ''}`;
 }
 </script>
 

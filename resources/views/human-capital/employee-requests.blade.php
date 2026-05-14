@@ -1,1204 +1,512 @@
 @extends('layouts.app')
 
 @section('content')
-@php
-    $canManageEmployeeRequests = $canManageEmployeeRequests ?? false;
-    $employeeRequests = $employeeRequests ?? collect();
-    $myEmployeeRequests = $myEmployeeRequests ?? collect();
-@endphp
-
-<div class="w-full px-6 mt-4 h-[calc(100vh-100px)] flex flex-col">
-
+<div class="w-full px-6 mt-4 h-[calc(100vh-100px)] flex flex-col" x-data="employeeRequestsPage()">
     <div class="bg-white rounded-xl border border-gray-200 flex flex-col flex-grow min-h-0">
-
-        {{-- Header --}}
-        <div class="px-4 pt-3 border-b shrink-0">
-            <div class="flex items-center justify-between">
+        <div class="flex items-center justify-between px-5 py-4 border-b shrink-0 gap-4">
+            <div>
+                <p class="text-xs font-bold text-blue-600 uppercase tracking-wider">Human Capital</p>
                 <h1 class="text-lg font-semibold text-gray-900">Employee Requests</h1>
-
-                <button type="button"
-                    onclick="showRequestTab('overtime')"
-                    class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded text-sm">
-                    + Add
-                </button>
+                <p class="text-xs text-gray-500">Submit and manage employee requests: overtime, leave, attendance corrections, and more.</p>
             </div>
 
-            {{-- Top Tabs --}}
-            <div class="flex items-center gap-6 mt-3 overflow-x-auto text-sm">
-                <button type="button" onclick="showRequestTab('overtime')" id="tab-overtime"
-                    class="request-tab py-3 border-b-2 border-blue-600 text-blue-600 font-medium whitespace-nowrap">
-                    Overtime Request
-                </button>
+            <button
+                type="button"
+                @click="openAdd()"
+                class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg text-sm font-semibold"
+            >
+                + Add New Request
+            </button>
+        </div>
 
-                <button type="button" onclick="showRequestTab('leave')" id="tab-leave"
-                    class="request-tab py-3 border-b-2 border-transparent text-gray-600 hover:text-blue-600 whitespace-nowrap">
-                    Leave Application
-                </button>
-
-                <button type="button" onclick="showRequestTab('attendance')" id="tab-attendance"
-                    class="request-tab py-3 border-b-2 border-transparent text-gray-600 hover:text-blue-600 whitespace-nowrap">
-                    Attendance Correction
-                </button>
-
-                <button type="button" onclick="showRequestTab('undertime')" id="tab-undertime"
-                    class="request-tab py-3 border-b-2 border-transparent text-gray-600 hover:text-blue-600 whitespace-nowrap">
-                    Undertime / Absence
-                </button>
-
-                <button type="button" onclick="showRequestTab('coe')" id="tab-coe"
-                    class="request-tab py-3 border-b-2 border-transparent text-gray-600 hover:text-blue-600 whitespace-nowrap">
-                    COE Request
-                </button>
-
-                <button type="button" onclick="showRequestTab('my-requests')" id="tab-my-requests"
-                    class="request-tab py-3 border-b-2 border-transparent text-gray-600 hover:text-blue-600 whitespace-nowrap">
+        <!-- TABS -->
+        <div class="px-4 py-3 border-b bg-white">
+            <div class="flex items-center gap-4">
+                <button
+                    type="button"
+                    @click="activeTab = 'my-requests'"
+                    :class="activeTab === 'my-requests' ? 'border-b-2 border-blue-600 text-blue-600 font-medium' : 'border-b-2 border-transparent text-gray-600 hover:text-blue-600'"
+                    class="py-2 transition text-sm"
+                >
                     My Requests
                 </button>
 
-                @if($canManageEmployeeRequests)
-                    <button type="button" onclick="showRequestTab('list')" id="tab-list"
-                        class="request-tab py-3 border-b-2 border-transparent text-gray-600 hover:text-blue-600 whitespace-nowrap">
-                        List of Requests
-                    </button>
-                @endif
+                <button
+                    type="button"
+                    @click="activeTab = 'list'"
+                    x-show="canManageRequests"
+                    :class="activeTab === 'list' ? 'border-b-2 border-blue-600 text-blue-600 font-medium' : 'border-b-2 border-transparent text-gray-600 hover:text-blue-600'"
+                    class="py-2 transition text-sm"
+                >
+                    List of Requests
+                </button>
             </div>
         </div>
 
-        {{-- Content --}}
-        <div class="p-4 flex-grow overflow-auto bg-gray-50">
-
-            @if(session('success'))
-                <div class="mb-4 rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
-                    {{ session('success') }}
-                </div>
-            @endif
-
-            {{-- Overtime Request --}}
-            <div id="content-overtime" class="request-content bg-white border rounded-lg p-4">
-                <h2 class="text-base font-semibold text-gray-900 mb-1">Overtime Request Form</h2>
-                <p class="text-sm text-gray-500 mb-4">
-                    Request form for employees rendering work beyond regular working hours.
-                </p>
-
-                <form method="POST" action="{{ route('human-capital.employee-requests.store') }}" class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                    @csrf
-
-                    <input type="hidden" name="request_type" value="Overtime Request">
-
-                    <div>
-                        <label class="block mb-1 text-gray-700">Employee Name</label>
-                        <input type="text"
-                            name="employee_name"
-                            value="{{ auth()->user()->name ?? '' }}"
-                            readonly
-                            class="w-full border-gray-300 rounded-md text-sm bg-gray-100 text-gray-700 cursor-not-allowed">
-                    </div>
-
-                    <div>
-                        <label class="block mb-1 text-gray-700">Department</label>
-                        <input type="text"
-                            name="department"
-                            class="w-full border-gray-300 rounded-md text-sm"
-                            placeholder="Enter department">
-                    </div>
-
-                    <div>
-                        <label class="block mb-1 text-gray-700">Overtime Date</label>
-                        <input type="date"
-                            name="overtime_date"
-                            class="w-full border-gray-300 rounded-md text-sm">
-                    </div>
-
-                    <div>
-                        <label class="block mb-1 text-gray-700">Total Hours</label>
-                        <input type="number"
-                            name="total_hours"
-                            step="0.01"
-                            class="w-full border-gray-300 rounded-md text-sm"
-                            placeholder="0.00">
-                    </div>
-
-                    <div>
-                        <label class="block mb-1 text-gray-700">Start Time</label>
-                        <input type="time"
-                            name="start_time"
-                            class="w-full border-gray-300 rounded-md text-sm">
-                    </div>
-
-                    <div>
-                        <label class="block mb-1 text-gray-700">End Time</label>
-                        <input type="time"
-                            name="end_time"
-                            class="w-full border-gray-300 rounded-md text-sm">
-                    </div>
-
-                    <div class="md:col-span-2">
-                        <label class="block mb-1 text-gray-700">Reason / Purpose</label>
-                        <textarea rows="3"
-                            name="reason"
-                            class="w-full border-gray-300 rounded-md text-sm"
-                            placeholder="Enter reason for overtime"></textarea>
-                    </div>
-
-                    <div class="md:col-span-2 flex justify-end gap-2 pt-2">
-                        <button type="reset" class="px-4 py-2 border rounded text-sm text-gray-700 hover:bg-gray-50">
-                            Clear
-                        </button>
-                        <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">
-                            Submit Request
-                        </button>
-                    </div>
-                </form>
+        @if(session('success'))
+            <div class="mx-5 mt-4 px-4 py-3 rounded-lg bg-green-50 border border-green-200 text-green-700 text-sm font-semibold">
+                {{ session('success') }}
             </div>
+        @endif
 
-            {{-- Leave Application --}}
-            <div id="content-leave" class="request-content hidden bg-white border rounded-lg p-4">
-                <h2 class="text-base font-semibold text-gray-900 mb-1">Leave Application Request Form</h2>
-                <p class="text-sm text-gray-500 mb-4">
-                    Request form for filing vacation, sick, emergency, or other types of leave.
-                </p>
-
-                <form method="POST" action="{{ route('human-capital.employee-requests.store') }}" class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                    @csrf
-
-                    <input type="hidden" name="request_type" value="Leave Application Request">
-
-                    <div>
-                        <label class="block mb-1 text-gray-700">Employee Name</label>
-                        <input type="text"
-                            name="employee_name"
-                            value="{{ auth()->user()->name ?? '' }}"
-                            readonly
-                            class="w-full border-gray-300 rounded-md text-sm bg-gray-100 text-gray-700 cursor-not-allowed">
-                    </div>
-
-                    <div>
-                        <label class="block mb-1 text-gray-700">Leave Type</label>
-                        <select name="leave_type" class="w-full border-gray-300 rounded-md text-sm">
-                            <option value="">Select leave type</option>
-                            <option value="Sick Leave">Sick Leave</option>
-                            <option value="Vacation Leave">Vacation Leave</option>
-                            <option value="Emergency Leave">Emergency Leave</option>
-                            <option value="Maternity Leave">Maternity Leave</option>
-                            <option value="Paternity Leave">Paternity Leave</option>
-                            <option value="Others">Others</option>
-                        </select>
-                    </div>
-
-                    <div>
-                        <label class="block mb-1 text-gray-700">Start Date</label>
-                        <input type="date"
-                            name="start_date"
-                            class="w-full border-gray-300 rounded-md text-sm">
-                    </div>
-
-                    <div>
-                        <label class="block mb-1 text-gray-700">End Date</label>
-                        <input type="date"
-                            name="end_date"
-                            class="w-full border-gray-300 rounded-md text-sm">
-                    </div>
-
-                    <div>
-                        <label class="block mb-1 text-gray-700">Number of Days</label>
-                        <input type="number"
-                            name="number_of_days"
-                            step="0.5"
-                            class="w-full border-gray-300 rounded-md text-sm"
-                            placeholder="0">
-                    </div>
-
-                    <div>
-                        <label class="block mb-1 text-gray-700">With Pay?</label>
-                        <select name="with_pay" class="w-full border-gray-300 rounded-md text-sm">
-                            <option value="">Select option</option>
-                            <option value="Yes">Yes</option>
-                            <option value="No">No</option>
-                        </select>
-                    </div>
-
-                    <div class="md:col-span-2">
-                        <label class="block mb-1 text-gray-700">Reason</label>
-                        <textarea rows="3"
-                            name="reason"
-                            class="w-full border-gray-300 rounded-md text-sm"
-                            placeholder="Enter reason for leave"></textarea>
-                    </div>
-
-                    <div class="md:col-span-2 flex justify-end gap-2 pt-2">
-                        <button type="reset" class="px-4 py-2 border rounded text-sm text-gray-700 hover:bg-gray-50">
-                            Clear
-                        </button>
-                        <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">
-                            Submit Request
-                        </button>
-                    </div>
-                </form>
-            </div>
-
-            {{-- Attendance Correction --}}
-            <div id="content-attendance" class="request-content hidden bg-white border rounded-lg p-4">
-                <h2 class="text-base font-semibold text-gray-900 mb-1">Attendance Correction Request Form</h2>
-                <p class="text-sm text-gray-500 mb-4">
-                    Request form for correcting incorrect, missing, or incomplete attendance records.
-                </p>
-
-                <form method="POST" action="{{ route('human-capital.employee-requests.store') }}" class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                    @csrf
-
-                    <input type="hidden" name="request_type" value="Attendance Correction Request">
-
-                    <div>
-                        <label class="block mb-1 text-gray-700">Employee Name</label>
-                        <input type="text"
-                            name="employee_name"
-                            value="{{ auth()->user()->name ?? '' }}"
-                            readonly
-                            class="w-full border-gray-300 rounded-md text-sm bg-gray-100 text-gray-700 cursor-not-allowed">
-                    </div>
-
-                    <div>
-                        <label class="block mb-1 text-gray-700">Attendance Date</label>
-                        <input type="date"
-                            name="attendance_date"
-                            class="w-full border-gray-300 rounded-md text-sm">
-                    </div>
-
-                    <div>
-                        <label class="block mb-1 text-gray-700">Correction Type</label>
-                        <select name="correction_type" class="w-full border-gray-300 rounded-md text-sm">
-                            <option value="">Select correction type</option>
-                            <option value="Time In">Time In</option>
-                            <option value="Time Out">Time Out</option>
-                            <option value="Break Time">Break Time</option>
-                            <option value="Lunch Time">Lunch Time</option>
-                            <option value="Whole Attendance Record">Whole Attendance Record</option>
-                        </select>
-                    </div>
-
-                    <div>
-                        <label class="block mb-1 text-gray-700">Correct Time</label>
-                        <input type="time"
-                            name="correct_time"
-                            class="w-full border-gray-300 rounded-md text-sm">
-                    </div>
-
-                    <div class="md:col-span-2">
-                        <label class="block mb-1 text-gray-700">Reason for Correction</label>
-                        <textarea rows="3"
-                            name="reason"
-                            class="w-full border-gray-300 rounded-md text-sm"
-                            placeholder="Enter reason for correction"></textarea>
-                    </div>
-
-                    <div class="md:col-span-2 flex justify-end gap-2 pt-2">
-                        <button type="reset" class="px-4 py-2 border rounded text-sm text-gray-700 hover:bg-gray-50">
-                            Clear
-                        </button>
-                        <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">
-                            Submit Request
-                        </button>
-                    </div>
-                </form>
-            </div>
-
-            {{-- Undertime / Absence --}}
-            <div id="content-undertime" class="request-content hidden bg-white border rounded-lg p-4">
-                <h2 class="text-base font-semibold text-gray-900 mb-1">Undertime / Absence Request Form</h2>
-                <p class="text-sm text-gray-500 mb-4">
-                    Request form for filing undertime, absence, or work schedule exceptions.
-                </p>
-
-                <form method="POST" action="{{ route('human-capital.employee-requests.store') }}" class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                    @csrf
-
-                    <input type="hidden" name="request_type" value="Undertime / Absence Request">
-
-                    <div>
-                        <label class="block mb-1 text-gray-700">Employee Name</label>
-                        <input type="text"
-                            name="employee_name"
-                            value="{{ auth()->user()->name ?? '' }}"
-                            readonly
-                            class="w-full border-gray-300 rounded-md text-sm bg-gray-100 text-gray-700 cursor-not-allowed">
-                    </div>
-
-                    <div>
-                        <label class="block mb-1 text-gray-700">Request Type</label>
-                        <select name="absence_type" class="w-full border-gray-300 rounded-md text-sm">
-                            <option value="">Select request type</option>
-                            <option value="Undertime">Undertime</option>
-                            <option value="Absence">Absence</option>
-                        </select>
-                    </div>
-
-                    <div>
-                        <label class="block mb-1 text-gray-700">Date</label>
-                        <input type="date"
-                            name="request_date"
-                            class="w-full border-gray-300 rounded-md text-sm">
-                    </div>
-
-                    <div>
-                        <label class="block mb-1 text-gray-700">Time Affected</label>
-                        <input type="time"
-                            name="time_affected"
-                            class="w-full border-gray-300 rounded-md text-sm">
-                    </div>
-
-                    <div class="md:col-span-2">
-                        <label class="block mb-1 text-gray-700">Reason</label>
-                        <textarea rows="3"
-                            name="reason"
-                            class="w-full border-gray-300 rounded-md text-sm"
-                            placeholder="Enter reason"></textarea>
-                    </div>
-
-                    <div class="md:col-span-2 flex justify-end gap-2 pt-2">
-                        <button type="reset" class="px-4 py-2 border rounded text-sm text-gray-700 hover:bg-gray-50">
-                            Clear
-                        </button>
-                        <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">
-                            Submit Request
-                        </button>
-                    </div>
-                </form>
-            </div>
-
-            {{-- COE Request --}}
-            <div id="content-coe" class="request-content hidden bg-white border rounded-lg p-4">
-                <h2 class="text-base font-semibold text-gray-900 mb-1">COE Request Form</h2>
-                <p class="text-sm text-gray-500 mb-4">
-                    Request form for Certificate of Employment issuance and processing.
-                </p>
-
-                <form method="POST" action="{{ route('human-capital.employee-requests.store') }}" class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                    @csrf
-
-                    <input type="hidden" name="request_type" value="COE Request Form">
-
-                    <div>
-                        <label class="block mb-1 text-gray-700">Employee Name</label>
-                        <input type="text"
-                            name="employee_name"
-                            value="{{ auth()->user()->name ?? '' }}"
-                            readonly
-                            class="w-full border-gray-300 rounded-md text-sm bg-gray-100 text-gray-700 cursor-not-allowed">
-                    </div>
-
-                    <div>
-                        <label class="block mb-1 text-gray-700">Purpose</label>
-                        <select name="purpose" class="w-full border-gray-300 rounded-md text-sm">
-                            <option value="">Select purpose</option>
-                            <option value="Employment Requirement">Employment Requirement</option>
-                            <option value="Loan Application">Loan Application</option>
-                            <option value="Visa / Travel">Visa / Travel</option>
-                            <option value="School Requirement">School Requirement</option>
-                            <option value="Others">Others</option>
-                        </select>
-                    </div>
-
-                    <div>
-                        <label class="block mb-1 text-gray-700">Date Needed</label>
-                        <input type="date"
-                            name="date_needed"
-                            class="w-full border-gray-300 rounded-md text-sm">
-                    </div>
-
-                    <div>
-                        <label class="block mb-1 text-gray-700">Number of Copies</label>
-                        <input type="number"
-                            name="number_of_copies"
-                            min="1"
-                            class="w-full border-gray-300 rounded-md text-sm"
-                            placeholder="1">
-                    </div>
-
-                    <div class="md:col-span-2">
-                        <label class="block mb-1 text-gray-700">Remarks</label>
-                        <textarea rows="3"
-                            name="remarks"
-                            class="w-full border-gray-300 rounded-md text-sm"
-                            placeholder="Enter remarks"></textarea>
-                    </div>
-
-                    <div class="md:col-span-2 flex justify-end gap-2 pt-2">
-                        <button type="reset" class="px-4 py-2 border rounded text-sm text-gray-700 hover:bg-gray-50">
-                            Clear
-                        </button>
-                        <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">
-                            Submit Request
-                        </button>
-                    </div>
-                </form>
-            </div>
-
-            {{-- My Requests --}}
-            <div id="content-my-requests" class="request-content hidden bg-white border rounded-lg p-4">
-                <div class="flex items-center justify-between gap-4 mb-4">
-                    <div>
-                        <h2 class="text-base font-semibold text-gray-900">My Requests</h2>
-                        <p class="text-sm text-gray-500">
-                            View your submitted requests and revise requests sent back by admin.
-                        </p>
-                    </div>
-                </div>
-
-                <div class="border rounded-md overflow-auto">
-                    <table class="w-full text-sm table-fixed border-collapse">
-                        <thead class="bg-gray-50 text-gray-600">
+        <!-- CONTENT AREA -->
+        <div class="p-5 flex-grow overflow-hidden">
+            <!-- MY REQUESTS TAB -->
+            <div x-show="activeTab === 'my-requests'" class="h-full flex flex-col">
+                <div class="border rounded-xl h-full overflow-auto bg-white">
+                    <table class="w-full text-sm border-collapse">
+                        <thead class="bg-gray-50 text-gray-600 sticky top-0 z-20">
                             <tr>
-                                <th class="w-32 p-3 text-left font-medium">Request No.</th>
-                                <th class="p-3 text-left font-medium">Request Type</th>
-                                <th class="w-36 p-3 text-left font-medium">Date Filed</th>
-                                <th class="w-36 p-3 text-left font-medium">Status</th>
-                                <th class="p-3 text-left font-medium">Admin Note</th>
-                                <th class="w-48 p-3 text-left font-medium">Action</th>
+                                <th class="p-3 text-left">Request No.</th>
+                                <th class="p-3 text-left">Request Type</th>
+                                <th class="p-3 text-left">Date Filed</th>
+                                <th class="p-3 text-left">Status</th>
+                                <th class="p-3 text-left">Admin Note</th>
+                                <th class="p-3 text-right">Actions</th>
                             </tr>
                         </thead>
+                        <tbody>
+                            <template x-if="myRequests.length === 0">
+                                <tr>
+                                    <td colspan="6" class="p-10 text-center text-gray-400">
+                                        No requests submitted yet. Click + Add New Request to create one.
+                                    </td>
+                                </tr>
+                            </template>
 
-                        <tbody class="bg-white text-gray-700">
-                            @forelse($myEmployeeRequests as $request)
+                            <template x-for="request in myRequests" :key="request.id">
                                 <tr class="border-t hover:bg-gray-50">
+                                    <td class="p-3 font-semibold text-blue-700" x-text="`REQ-${String(request.id).padStart(4, '0')}`"></td>
+                                    <td class="p-3 text-gray-700" x-text="request.request_type"></td>
+                                    <td class="p-3 text-gray-700" x-text="request.created_at ? request.created_at.split(' ')[0] : '-'"></td>
                                     <td class="p-3">
-                                        REQ-{{ str_pad($request->id, 4, '0', STR_PAD_LEFT) }}
+                                        <span class="px-2 py-1 rounded-full text-xs font-semibold" :class="statusClass(request.status)" x-text="request.status || 'Pending'"></span>
                                     </td>
-
-                                    <td class="p-3">
-                                        {{ $request->request_type }}
-                                    </td>
-
-                                    <td class="p-3">
-                                        {{ $request->created_at->format('Y-m-d') }}
-                                    </td>
-
-                                    <td class="p-3">
-                                        @if($request->status === 'Approved')
-                                            <span class="px-2 py-1 rounded-full text-xs bg-green-100 text-green-700">Approved</span>
-                                        @elseif($request->status === 'Declined')
-                                            <span class="px-2 py-1 rounded-full text-xs bg-red-100 text-red-700">Declined</span>
-                                        @elseif($request->status === 'For Revision')
-                                            <span class="px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-700">For Revision</span>
-                                        @else
-                                            <span class="px-2 py-1 rounded-full text-xs bg-yellow-100 text-yellow-700">Pending</span>
-                                        @endif
-                                    </td>
-
-                                    <td class="p-3">
-                                        {{ $request->admin_note ?? 'N/A' }}
-                                    </td>
-
-                                    <td class="p-3">
-                                        <div x-data="{ openReviseForm: false }" class="flex items-center gap-2">
-                                            @if($request->status === 'For Revision')
-                                                <button type="button"
-                                                    @click="openReviseForm = true"
-                                                    class="rounded-md bg-gray-800 px-4 py-2 text-xs font-semibold text-white hover:bg-gray-900">
-                                                    Revise
-                                                </button>
-                                            @else
-                                                <span class="text-xs text-gray-400">No action</span>
-                                            @endif
-
-                                            {{-- Employee Revision Modal --}}
-                                            <div x-show="openReviseForm"
-                                                x-cloak
-                                                class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-
-                                                <div @click.outside="openReviseForm = false"
-                                                    class="w-full max-w-2xl rounded-lg bg-white shadow-lg">
-
-                                                    <div class="flex items-center justify-between border-b px-5 py-3">
-                                                        <h3 class="text-base font-semibold text-gray-900">
-                                                            Revise Request
-                                                        </h3>
-
-                                                        <button type="button"
-                                                            @click="openReviseForm = false"
-                                                            class="text-gray-400 hover:text-gray-600">
-                                                            ✕
-                                                        </button>
-                                                    </div>
-
-                                                    <form method="POST" action="{{ route('human-capital.employee-requests.update-revision', $request->id) }}">
-                                                        @csrf
-
-                                                        <div class="max-h-[70vh] overflow-y-auto p-5">
-                                                            <div class="mb-4 rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-700">
-                                                                <strong>Admin Note:</strong>
-                                                                {{ $request->admin_note ?? 'Please revise your request.' }}
-                                                            </div>
-
-                                                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                                                                <div>
-                                                                    <label class="block mb-1 text-gray-700">Department</label>
-                                                                    <input type="text"
-                                                                        name="department"
-                                                                        value="{{ $request->department }}"
-                                                                        class="w-full border-gray-300 rounded-md text-sm">
-                                                                </div>
-
-                                                                @if($request->request_type === 'Overtime Request')
-                                                                    <div>
-                                                                        <label class="block mb-1 text-gray-700">Overtime Date</label>
-                                                                        <input type="date"
-                                                                            name="overtime_date"
-                                                                            value="{{ $request->overtime_date }}"
-                                                                            class="w-full border-gray-300 rounded-md text-sm">
-                                                                    </div>
-
-                                                                    <div>
-                                                                        <label class="block mb-1 text-gray-700">Start Time</label>
-                                                                        <input type="time"
-                                                                            name="start_time"
-                                                                            value="{{ $request->start_time }}"
-                                                                            class="w-full border-gray-300 rounded-md text-sm">
-                                                                    </div>
-
-                                                                    <div>
-                                                                        <label class="block mb-1 text-gray-700">End Time</label>
-                                                                        <input type="time"
-                                                                            name="end_time"
-                                                                            value="{{ $request->end_time }}"
-                                                                            class="w-full border-gray-300 rounded-md text-sm">
-                                                                    </div>
-
-                                                                    <div>
-                                                                        <label class="block mb-1 text-gray-700">Total Hours</label>
-                                                                        <input type="number"
-                                                                            step="0.01"
-                                                                            name="total_hours"
-                                                                            value="{{ $request->total_hours }}"
-                                                                            class="w-full border-gray-300 rounded-md text-sm">
-                                                                    </div>
-                                                                @endif
-
-                                                                @if($request->request_type === 'Leave Application Request')
-                                                                    <div>
-                                                                        <label class="block mb-1 text-gray-700">Leave Type</label>
-                                                                        <select name="leave_type" class="w-full border-gray-300 rounded-md text-sm">
-                                                                            <option value="">Select leave type</option>
-                                                                            <option value="Sick Leave" {{ $request->leave_type === 'Sick Leave' ? 'selected' : '' }}>Sick Leave</option>
-                                                                            <option value="Vacation Leave" {{ $request->leave_type === 'Vacation Leave' ? 'selected' : '' }}>Vacation Leave</option>
-                                                                            <option value="Emergency Leave" {{ $request->leave_type === 'Emergency Leave' ? 'selected' : '' }}>Emergency Leave</option>
-                                                                            <option value="Maternity Leave" {{ $request->leave_type === 'Maternity Leave' ? 'selected' : '' }}>Maternity Leave</option>
-                                                                            <option value="Paternity Leave" {{ $request->leave_type === 'Paternity Leave' ? 'selected' : '' }}>Paternity Leave</option>
-                                                                            <option value="Others" {{ $request->leave_type === 'Others' ? 'selected' : '' }}>Others</option>
-                                                                        </select>
-                                                                    </div>
-
-                                                                    <div>
-                                                                        <label class="block mb-1 text-gray-700">Start Date</label>
-                                                                        <input type="date"
-                                                                            name="start_date"
-                                                                            value="{{ $request->start_date }}"
-                                                                            class="w-full border-gray-300 rounded-md text-sm">
-                                                                    </div>
-
-                                                                    <div>
-                                                                        <label class="block mb-1 text-gray-700">End Date</label>
-                                                                        <input type="date"
-                                                                            name="end_date"
-                                                                            value="{{ $request->end_date }}"
-                                                                            class="w-full border-gray-300 rounded-md text-sm">
-                                                                    </div>
-
-                                                                    <div>
-                                                                        <label class="block mb-1 text-gray-700">Number of Days</label>
-                                                                        <input type="number"
-                                                                            step="0.5"
-                                                                            name="number_of_days"
-                                                                            value="{{ $request->number_of_days }}"
-                                                                            class="w-full border-gray-300 rounded-md text-sm">
-                                                                    </div>
-
-                                                                    <div>
-                                                                        <label class="block mb-1 text-gray-700">With Pay?</label>
-                                                                        <select name="with_pay" class="w-full border-gray-300 rounded-md text-sm">
-                                                                            <option value="">Select option</option>
-                                                                            <option value="Yes" {{ $request->with_pay === 'Yes' ? 'selected' : '' }}>Yes</option>
-                                                                            <option value="No" {{ $request->with_pay === 'No' ? 'selected' : '' }}>No</option>
-                                                                        </select>
-                                                                    </div>
-                                                                @endif
-
-                                                                @if($request->request_type === 'Attendance Correction Request')
-                                                                    <div>
-                                                                        <label class="block mb-1 text-gray-700">Attendance Date</label>
-                                                                        <input type="date"
-                                                                            name="attendance_date"
-                                                                            value="{{ $request->attendance_date }}"
-                                                                            class="w-full border-gray-300 rounded-md text-sm">
-                                                                    </div>
-
-                                                                    <div>
-                                                                        <label class="block mb-1 text-gray-700">Correction Type</label>
-                                                                        <select name="correction_type" class="w-full border-gray-300 rounded-md text-sm">
-                                                                            <option value="">Select correction type</option>
-                                                                            <option value="Time In" {{ $request->correction_type === 'Time In' ? 'selected' : '' }}>Time In</option>
-                                                                            <option value="Time Out" {{ $request->correction_type === 'Time Out' ? 'selected' : '' }}>Time Out</option>
-                                                                            <option value="Break Time" {{ $request->correction_type === 'Break Time' ? 'selected' : '' }}>Break Time</option>
-                                                                            <option value="Lunch Time" {{ $request->correction_type === 'Lunch Time' ? 'selected' : '' }}>Lunch Time</option>
-                                                                            <option value="Whole Attendance Record" {{ $request->correction_type === 'Whole Attendance Record' ? 'selected' : '' }}>Whole Attendance Record</option>
-                                                                        </select>
-                                                                    </div>
-
-                                                                    <div>
-                                                                        <label class="block mb-1 text-gray-700">Correct Time</label>
-                                                                        <input type="time"
-                                                                            name="correct_time"
-                                                                            value="{{ $request->correct_time }}"
-                                                                            class="w-full border-gray-300 rounded-md text-sm">
-                                                                    </div>
-                                                                @endif
-
-                                                                @if($request->request_type === 'Undertime / Absence Request')
-                                                                    <div>
-                                                                        <label class="block mb-1 text-gray-700">Request Type</label>
-                                                                        <select name="absence_type" class="w-full border-gray-300 rounded-md text-sm">
-                                                                            <option value="">Select request type</option>
-                                                                            <option value="Undertime" {{ $request->absence_type === 'Undertime' ? 'selected' : '' }}>Undertime</option>
-                                                                            <option value="Absence" {{ $request->absence_type === 'Absence' ? 'selected' : '' }}>Absence</option>
-                                                                        </select>
-                                                                    </div>
-
-                                                                    <div>
-                                                                        <label class="block mb-1 text-gray-700">Date</label>
-                                                                        <input type="date"
-                                                                            name="request_date"
-                                                                            value="{{ $request->request_date }}"
-                                                                            class="w-full border-gray-300 rounded-md text-sm">
-                                                                    </div>
-
-                                                                    <div>
-                                                                        <label class="block mb-1 text-gray-700">Time Affected</label>
-                                                                        <input type="time"
-                                                                            name="time_affected"
-                                                                            value="{{ $request->time_affected }}"
-                                                                            class="w-full border-gray-300 rounded-md text-sm">
-                                                                    </div>
-                                                                @endif
-
-                                                                @if($request->request_type === 'COE Request Form')
-                                                                    <div>
-                                                                        <label class="block mb-1 text-gray-700">Purpose</label>
-                                                                        <select name="purpose" class="w-full border-gray-300 rounded-md text-sm">
-                                                                            <option value="">Select purpose</option>
-                                                                            <option value="Employment Requirement" {{ $request->purpose === 'Employment Requirement' ? 'selected' : '' }}>Employment Requirement</option>
-                                                                            <option value="Loan Application" {{ $request->purpose === 'Loan Application' ? 'selected' : '' }}>Loan Application</option>
-                                                                            <option value="Visa / Travel" {{ $request->purpose === 'Visa / Travel' ? 'selected' : '' }}>Visa / Travel</option>
-                                                                            <option value="School Requirement" {{ $request->purpose === 'School Requirement' ? 'selected' : '' }}>School Requirement</option>
-                                                                            <option value="Others" {{ $request->purpose === 'Others' ? 'selected' : '' }}>Others</option>
-                                                                        </select>
-                                                                    </div>
-
-                                                                    <div>
-                                                                        <label class="block mb-1 text-gray-700">Date Needed</label>
-                                                                        <input type="date"
-                                                                            name="date_needed"
-                                                                            value="{{ $request->date_needed }}"
-                                                                            class="w-full border-gray-300 rounded-md text-sm">
-                                                                    </div>
-
-                                                                    <div>
-                                                                        <label class="block mb-1 text-gray-700">Number of Copies</label>
-                                                                        <input type="number"
-                                                                            min="1"
-                                                                            name="number_of_copies"
-                                                                            value="{{ $request->number_of_copies }}"
-                                                                            class="w-full border-gray-300 rounded-md text-sm">
-                                                                    </div>
-                                                                @endif
-
-                                                                <div class="md:col-span-2">
-                                                                    <label class="block mb-1 text-gray-700">Reason</label>
-                                                                    <textarea rows="3"
-                                                                        name="reason"
-                                                                        class="w-full border-gray-300 rounded-md text-sm">{{ $request->reason }}</textarea>
-                                                                </div>
-
-                                                                <div class="md:col-span-2">
-                                                                    <label class="block mb-1 text-gray-700">Remarks</label>
-                                                                    <textarea rows="3"
-                                                                        name="remarks"
-                                                                        class="w-full border-gray-300 rounded-md text-sm">{{ $request->remarks }}</textarea>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-
-                                                        <div class="flex justify-end gap-2 border-t px-5 py-3">
-                                                            <button type="button"
-                                                                @click="openReviseForm = false"
-                                                                class="rounded border px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
-                                                                Cancel
-                                                            </button>
-
-                                                            <button type="submit"
-                                                                class="rounded bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700">
-                                                                Resubmit Request
-                                                            </button>
-                                                        </div>
-                                                    </form>
-                                                </div>
-                                            </div>
-                                        </div>
+                                    <td class="p-3 text-sm text-gray-600" x-text="request.admin_note || 'N/A'"></td>
+                                    <td class="p-3 text-right whitespace-nowrap">
+                                        <button type="button" @click="openView(request)" class="text-indigo-600 hover:underline text-xs font-semibold mr-3">View</button>
+                                        <button type="button" @click="openEdit(request)" x-show="request.status === 'For Revision'" class="text-blue-600 hover:underline text-xs font-semibold">Revise</button>
                                     </td>
                                 </tr>
-                            @empty
-                                <tr class="border-t">
-                                    <td class="p-3 text-gray-400" colspan="6">
-                                        You have not submitted any employee requests yet.
-                                    </td>
-                                </tr>
-                            @endforelse
+                            </template>
                         </tbody>
                     </table>
                 </div>
             </div>
 
-            @if($canManageEmployeeRequests)
-                {{-- List of Requests --}}
-                <div id="content-list" class="request-content hidden bg-white border rounded-lg p-4">
-                    <div class="flex items-center justify-between gap-4 mb-4">
-                        <div>
-                            <h2 class="text-base font-semibold text-gray-900">List of Employee Requests</h2>
-                            <p class="text-sm text-gray-500">
-                                Summary list of submitted employee requests with their approval status.
-                            </p>
+            <!-- LIST OF REQUESTS TAB (Admin Only) -->
+            <div x-show="activeTab === 'list'" class="h-full flex flex-col">
+                <div class="border rounded-xl h-full overflow-auto bg-white">
+                    <table class="w-full text-sm border-collapse">
+                        <thead class="bg-gray-50 text-gray-600 sticky top-0 z-20">
+                            <tr>
+                                <th class="p-3 text-left">Request No.</th>
+                                <th class="p-3 text-left">Employee</th>
+                                <th class="p-3 text-left">Request Type</th>
+                                <th class="p-3 text-left">Date Filed</th>
+                                <th class="p-3 text-left">Status</th>
+                                <th class="p-3 text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <template x-if="allRequests.length === 0">
+                                <tr>
+                                    <td colspan="6" class="p-10 text-center text-gray-400">
+                                        No employee requests submitted yet.
+                                    </td>
+                                </tr>
+                            </template>
+
+                            <template x-for="request in allRequests" :key="request.id">
+                                <tr class="border-t hover:bg-gray-50">
+                                    <td class="p-3 font-semibold text-blue-700" x-text="`REQ-${String(request.id).padStart(4, '0')}`"></td>
+                                    <td class="p-3 text-gray-700" x-text="request.employee_name"></td>
+                                    <td class="p-3 text-gray-700" x-text="request.request_type"></td>
+                                    <td class="p-3 text-gray-700" x-text="request.created_at ? request.created_at.split(' ')[0] : '-'"></td>
+                                    <td class="p-3">
+                                        <span class="px-2 py-1 rounded-full text-xs font-semibold" :class="statusClass(request.status)" x-text="request.status || 'Pending'"></span>
+                                    </td>
+                                    <td class="p-3 text-right whitespace-nowrap space-x-2">
+                                        <button type="button" @click="openView(request)" class="text-indigo-600 hover:underline text-xs font-semibold">View</button>
+                                        <button type="button" @click="openApproveForm(request)" x-show="request.status === 'Pending'" class="text-green-600 hover:underline text-xs font-semibold">Approve</button>
+                                        <button type="button" @click="openRejectForm(request)" x-show="request.status !== 'Approved'" class="text-red-600 hover:underline text-xs font-semibold">Reject</button>
+                                    </td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SLIDER PANEL -->
+    <div x-show="showPanel" x-transition.opacity class="fixed inset-0 z-50 bg-black/40 flex justify-end" style="display:none;" @click.self="closePanel()">
+        <div class="w-screen h-full bg-white shadow-xl flex flex-col">
+            <div class="px-6 py-4 border-b bg-white flex items-center justify-between">
+                <div>
+                    <h2 class="text-lg font-bold uppercase tracking-widest text-gray-900" x-text="panelTitle"></h2>
+                    <p class="text-xs text-gray-500" x-text="form.id ? `REQ-${String(form.id).padStart(4, '0')}` : 'New Request'"></p>
+                </div>
+                <button type="button" @click="closePanel()" class="text-gray-400 hover:text-gray-700 text-2xl leading-none">&times;</button>
+            </div>
+
+            <div class="flex-1 min-h-0 grid grid-cols-[58%_42%] bg-gray-50">
+                <!-- LEFT SIDE: PDF PREVIEW -->
+                <div class="min-h-0 overflow-auto p-5 border-r bg-gray-100">
+                    <div class="flex items-center justify-between mb-4 sticky top-0 z-10 bg-gray-100 py-2">
+                        <p class="text-xs font-bold text-gray-500 uppercase tracking-widest">Preview</p>
+                        <button type="button" onclick="window.print()" class="px-3 py-2 border rounded-lg text-xs font-semibold text-gray-700 bg-white">Download PDF</button>
+                    </div>
+
+                    <div class="bg-white mx-auto border border-gray-300 shadow-lg px-10 py-8 text-[11px] leading-tight w-[820px] min-h-[1123px] print-area">
+                        <div class="text-center border-b-2 border-blue-700 pb-4 mb-4">
+                            <img src="{{ asset('images/jk-logo-template.png') }}" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';" class="h-24 mx-auto mb-2 object-contain" alt="John Kelly & Company Logo">
+                            <div style="display:none">
+                                <div class="text-3xl font-serif font-bold text-gray-900">John Kelly</div>
+                                <div class="text-2xl font-serif italic text-gray-800">& Company</div>
+                            </div>
+                            <p class="mt-2 text-[11px] font-semibold">3F, Cebu Holdings Center, Cebu Business Park, Cebu City, Philippines 6000</p>
+                            <p>Email: start@jknc.io | Website: https://jknc.io/ | Phone: 0995-535-8729</p>
+                            <p class="mt-1">Form Code: ERF-F002 | Version: 1.0 | Effective Date: {{ now()->format('F j, Y') }} | Issued by: Human Capital</p>
+                        </div>
+
+                        <div class="bg-blue-700 text-white px-3 py-2 font-bold uppercase tracking-widest text-sm mb-3 rounded-sm" x-text="form.request_type || 'Employee Request'"></div>
+
+                        <div class="grid grid-cols-2 gap-2 mb-3">
+                            <div><span class="font-bold">Request No:</span> <span x-text="form.id ? `REQ-${String(form.id).padStart(4, '0')}` : 'Auto-generated'"></span></div>
+                            <div><span class="font-bold">Status:</span> <span x-text="form.status || 'Pending'"></span></div>
+                            <div><span class="font-bold">Filed Date:</span> <span x-text="form.created_at ? form.created_at.split(' ')[0] : '{{ now()->format('Y-m-d') }}'"></span></div>
+                            <div><span class="font-bold">Request Type:</span> <span x-text="form.request_type || '-'"></span></div>
+                        </div>
+
+                        <div class="section-title">A. Employee Information</div>
+                        <table class="preview-table">
+                            <tr>
+                                <td><b>Employee Name:</b> <span x-text="form.employee_name || '-'"></span></td>
+                                <td><b>Department:</b> <span x-text="form.department || '-'"></span></td>
+                            </tr>
+                        </table>
+
+                        <div class="section-title">B. Request Details</div>
+                        <table class="preview-table">
+                            <template x-if="form.request_type === 'Overtime Request'">
+                                <tr><td colspan="2"><b>Date:</b> <span x-text="form.overtime_date || '-'"></span> | <b>Hours:</b> <span x-text="form.total_hours || '-'"></span></td></tr>
+                            </template>
+                            <template x-if="form.request_type === 'Leave Application Request'">
+                                <tr><td><b>Leave Type:</b> <span x-text="form.leave_type || '-'"></span></td><td><b>Days:</b> <span x-text="form.number_of_days || '-'"></span></td></tr>
+                            </template>
+                            <template x-if="form.request_type === 'Attendance Correction Request'">
+                                <tr><td><b>Attendance Date:</b> <span x-text="form.attendance_date || '-'"></span></td><td><b>Type:</b> <span x-text="form.correction_type || '-'"></span></td></tr>
+                            </template>
+                            <template x-if="form.request_type === 'Undertime / Absence Request'">
+                                <tr><td><b>Request Date:</b> <span x-text="form.request_date || '-'"></span></td><td><b>Type:</b> <span x-text="form.absence_type || '-'"></span></td></tr>
+                            </template>
+                            <template x-if="form.request_type === 'COE Request Form'">
+                                <tr><td><b>Purpose:</b> <span x-text="form.purpose || '-'"></span></td><td><b>Needed:</b> <span x-text="form.date_needed || '-'"></span></td></tr>
+                            </template>
+                            <tr><td colspan="2"><b>Reason/Details:</b><br><span x-text="form.reason || form.remarks || '-'"></span></td></tr>
+                        </table>
+
+                        <div class="section-title">C. Admin Review</div>
+                        <table class="preview-table">
+                            <tr><td><b>Admin Note:</b><br><span x-text="form.admin_note || '-'"></span></td></tr>
+                        </table>
+
+                        <div class="grid grid-cols-2 gap-10 mt-12 text-center">
+                            <div><div class="border-b border-gray-700 h-8"></div><p class="mt-1 font-bold">Employee Signature</p></div>
+                            <div><div class="border-b border-gray-700 h-8"></div><p class="mt-1 font-bold">HR / Authorized Reviewer</p></div>
                         </div>
                     </div>
-
-                    <div class="border rounded-md overflow-auto">
-                        <table class="w-full text-sm table-fixed border-collapse">
-                            <thead class="bg-gray-50 text-gray-600">
-                                <tr>
-                                    <th class="w-32 p-3 text-left font-medium">Request No.</th>
-                                    <th class="w-48 p-3 text-left font-medium">Employee</th>
-                                    <th class="p-3 text-left font-medium">Request Type</th>
-                                    <th class="w-36 p-3 text-left font-medium">Date Filed</th>
-                                    <th class="w-32 p-3 text-left font-medium">Status</th>
-                                    <th class="w-72 p-3 text-left font-medium">Action</th>
-                                </tr>
-                            </thead>
-
-                            <tbody class="bg-white text-gray-700">
-                                @forelse($employeeRequests as $request)
-                                    <tr class="border-t hover:bg-gray-50">
-                                        <td class="p-3">
-                                            REQ-{{ str_pad($request->id, 4, '0', STR_PAD_LEFT) }}
-                                        </td>
-
-                                        <td class="p-3">
-                                            {{ $request->employee_name }}
-                                        </td>
-
-                                        <td class="p-3">
-                                            {{ $request->request_type }}
-                                        </td>
-
-                                        <td class="p-3">
-                                            {{ $request->created_at->format('Y-m-d') }}
-                                        </td>
-
-                                        <td class="p-3">
-                                            @if($request->status === 'Approved')
-                                                <span class="px-2 py-1 rounded-full text-xs bg-green-100 text-green-700">Approved</span>
-                                            @elseif($request->status === 'Declined')
-                                                <span class="px-2 py-1 rounded-full text-xs bg-red-100 text-red-700">Declined</span>
-                                            @elseif($request->status === 'For Revision')
-                                                <span class="px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-700">For Revision</span>
-                                            @else
-                                                <span class="px-2 py-1 rounded-full text-xs bg-yellow-100 text-yellow-700">Pending</span>
-                                            @endif
-                                        </td>
-
-                                        <td class="p-3">
-                                            <div x-data="{ openView: false, openReject: false, openRevise: false }" class="flex items-center gap-2">
-                                                @if($request->status === 'Pending')
-                                                    <form method="POST" action="{{ route('human-capital.employee-requests.approve', $request->id) }}">
-                                                        @csrf
-
-                                                        <button type="submit"
-                                                            onclick="return confirm('Approve this employee request?')"
-                                                            class="rounded-md bg-green-600 px-4 py-2 text-xs font-semibold text-white hover:bg-green-700">
-                                                            Approve
-                                                        </button>
-                                                    </form>
-
-                                                    <button type="button"
-                                                        @click="openReject = true"
-                                                        class="rounded-md bg-red-600 px-4 py-2 text-xs font-semibold text-white hover:bg-red-700">
-                                                        Reject
-                                                    </button>
-
-                                                    <button type="button"
-                                                        @click="openRevise = true"
-                                                        class="rounded-md bg-gray-800 px-4 py-2 text-xs font-semibold text-white hover:bg-gray-900">
-                                                        Revise
-                                                    </button>
-                                                @endif
-
-                                                <button type="button"
-                                                    @click="openView = true"
-                                                    class="rounded-md border border-gray-300 bg-white px-4 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50">
-                                                    View
-                                                </button>
-
-                                                {{-- Admin View Modal --}}
-                                                <div x-show="openView"
-                                                    x-cloak
-                                                    class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-
-                                                    <div @click.outside="openView = false"
-                                                        class="w-full max-w-2xl rounded-lg bg-white shadow-lg">
-
-                                                        <div class="flex items-center justify-between border-b px-5 py-3">
-                                                            <h3 class="text-base font-semibold text-gray-900">
-                                                                Request Details
-                                                            </h3>
-
-                                                            <button type="button"
-                                                                @click="openView = false"
-                                                                class="text-gray-400 hover:text-gray-600">
-                                                                ✕
-                                                            </button>
-                                                        </div>
-
-                                                        <div class="max-h-[70vh] overflow-y-auto p-5 text-sm">
-                                                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                                <div>
-                                                                    <p class="text-gray-500">Request No.</p>
-                                                                    <p class="font-medium text-gray-800">
-                                                                        REQ-{{ str_pad($request->id, 4, '0', STR_PAD_LEFT) }}
-                                                                    </p>
-                                                                </div>
-
-                                                                <div>
-                                                                    <p class="text-gray-500">Status</p>
-                                                                    <p class="font-medium text-gray-800">{{ $request->status }}</p>
-                                                                </div>
-
-                                                                <div>
-                                                                    <p class="text-gray-500">Employee</p>
-                                                                    <p class="font-medium text-gray-800">{{ $request->employee_name }}</p>
-                                                                </div>
-
-                                                                <div>
-                                                                    <p class="text-gray-500">Request Type</p>
-                                                                    <p class="font-medium text-gray-800">{{ $request->request_type }}</p>
-                                                                </div>
-
-                                                                <div>
-                                                                    <p class="text-gray-500">Department</p>
-                                                                    <p class="font-medium text-gray-800">{{ $request->department ?? 'N/A' }}</p>
-                                                                </div>
-
-                                                                <div>
-                                                                    <p class="text-gray-500">Date Filed</p>
-                                                                    <p class="font-medium text-gray-800">{{ $request->created_at->format('Y-m-d') }}</p>
-                                                                </div>
-
-                                                                @if($request->overtime_date)
-                                                                    <div>
-                                                                        <p class="text-gray-500">Overtime Date</p>
-                                                                        <p class="font-medium text-gray-800">{{ $request->overtime_date }}</p>
-                                                                    </div>
-                                                                @endif
-
-                                                                @if($request->start_time)
-                                                                    <div>
-                                                                        <p class="text-gray-500">Start Time</p>
-                                                                        <p class="font-medium text-gray-800">{{ $request->start_time }}</p>
-                                                                    </div>
-                                                                @endif
-
-                                                                @if($request->end_time)
-                                                                    <div>
-                                                                        <p class="text-gray-500">End Time</p>
-                                                                        <p class="font-medium text-gray-800">{{ $request->end_time }}</p>
-                                                                    </div>
-                                                                @endif
-
-                                                                @if($request->total_hours)
-                                                                    <div>
-                                                                        <p class="text-gray-500">Total Hours</p>
-                                                                        <p class="font-medium text-gray-800">{{ $request->total_hours }}</p>
-                                                                    </div>
-                                                                @endif
-
-                                                                @if($request->leave_type)
-                                                                    <div>
-                                                                        <p class="text-gray-500">Leave Type</p>
-                                                                        <p class="font-medium text-gray-800">{{ $request->leave_type }}</p>
-                                                                    </div>
-                                                                @endif
-
-                                                                @if($request->start_date)
-                                                                    <div>
-                                                                        <p class="text-gray-500">Start Date</p>
-                                                                        <p class="font-medium text-gray-800">{{ $request->start_date }}</p>
-                                                                    </div>
-                                                                @endif
-
-                                                                @if($request->end_date)
-                                                                    <div>
-                                                                        <p class="text-gray-500">End Date</p>
-                                                                        <p class="font-medium text-gray-800">{{ $request->end_date }}</p>
-                                                                    </div>
-                                                                @endif
-
-                                                                @if($request->number_of_days)
-                                                                    <div>
-                                                                        <p class="text-gray-500">Number of Days</p>
-                                                                        <p class="font-medium text-gray-800">{{ $request->number_of_days }}</p>
-                                                                    </div>
-                                                                @endif
-
-                                                                @if($request->with_pay)
-                                                                    <div>
-                                                                        <p class="text-gray-500">With Pay</p>
-                                                                        <p class="font-medium text-gray-800">{{ $request->with_pay }}</p>
-                                                                    </div>
-                                                                @endif
-
-                                                                @if($request->attendance_date)
-                                                                    <div>
-                                                                        <p class="text-gray-500">Attendance Date</p>
-                                                                        <p class="font-medium text-gray-800">{{ $request->attendance_date }}</p>
-                                                                    </div>
-                                                                @endif
-
-                                                                @if($request->correction_type)
-                                                                    <div>
-                                                                        <p class="text-gray-500">Correction Type</p>
-                                                                        <p class="font-medium text-gray-800">{{ $request->correction_type }}</p>
-                                                                    </div>
-                                                                @endif
-
-                                                                @if($request->correct_time)
-                                                                    <div>
-                                                                        <p class="text-gray-500">Correct Time</p>
-                                                                        <p class="font-medium text-gray-800">{{ $request->correct_time }}</p>
-                                                                    </div>
-                                                                @endif
-
-                                                                @if($request->absence_type)
-                                                                    <div>
-                                                                        <p class="text-gray-500">Absence / Undertime Type</p>
-                                                                        <p class="font-medium text-gray-800">{{ $request->absence_type }}</p>
-                                                                    </div>
-                                                                @endif
-
-                                                                @if($request->request_date)
-                                                                    <div>
-                                                                        <p class="text-gray-500">Request Date</p>
-                                                                        <p class="font-medium text-gray-800">{{ $request->request_date }}</p>
-                                                                    </div>
-                                                                @endif
-
-                                                                @if($request->time_affected)
-                                                                    <div>
-                                                                        <p class="text-gray-500">Time Affected</p>
-                                                                        <p class="font-medium text-gray-800">{{ $request->time_affected }}</p>
-                                                                    </div>
-                                                                @endif
-
-                                                                @if($request->purpose)
-                                                                    <div>
-                                                                        <p class="text-gray-500">Purpose</p>
-                                                                        <p class="font-medium text-gray-800">{{ $request->purpose }}</p>
-                                                                    </div>
-                                                                @endif
-
-                                                                @if($request->date_needed)
-                                                                    <div>
-                                                                        <p class="text-gray-500">Date Needed</p>
-                                                                        <p class="font-medium text-gray-800">{{ $request->date_needed }}</p>
-                                                                    </div>
-                                                                @endif
-
-                                                                @if($request->number_of_copies)
-                                                                    <div>
-                                                                        <p class="text-gray-500">Number of Copies</p>
-                                                                        <p class="font-medium text-gray-800">{{ $request->number_of_copies }}</p>
-                                                                    </div>
-                                                                @endif
-                                                            </div>
-
-                                                            <div class="mt-4 space-y-3">
-                                                                @if($request->reason)
-                                                                    <div>
-                                                                        <p class="text-gray-500">Reason</p>
-                                                                        <p class="rounded-md bg-gray-50 p-3 text-gray-800">{{ $request->reason }}</p>
-                                                                    </div>
-                                                                @endif
-
-                                                                @if($request->remarks)
-                                                                    <div>
-                                                                        <p class="text-gray-500">Remarks</p>
-                                                                        <p class="rounded-md bg-gray-50 p-3 text-gray-800">{{ $request->remarks }}</p>
-                                                                    </div>
-                                                                @endif
-
-                                                                @if($request->admin_note)
-                                                                    <div>
-                                                                        <p class="text-gray-500">Admin Note</p>
-                                                                        <p class="rounded-md bg-yellow-50 p-3 text-yellow-800">{{ $request->admin_note }}</p>
-                                                                    </div>
-                                                                @endif
-                                                            </div>
-                                                        </div>
-
-                                                        <div class="flex justify-end border-t px-5 py-3">
-                                                            <button type="button"
-                                                                @click="openView = false"
-                                                                class="rounded border px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
-                                                                Close
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                </div>
-
-                                                {{-- Reject Modal --}}
-                                                <div x-show="openReject"
-                                                    x-cloak
-                                                    class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-
-                                                    <div @click.outside="openReject = false"
-                                                        class="w-full max-w-md rounded-lg bg-white shadow-lg">
-
-                                                        <div class="border-b px-5 py-3">
-                                                            <h3 class="text-base font-semibold text-gray-900">
-                                                                Reject Request
-                                                            </h3>
-                                                        </div>
-
-                                                        <form method="POST" action="{{ route('human-capital.employee-requests.reject', $request->id) }}">
-                                                            @csrf
-
-                                                            <div class="p-5">
-                                                                <label class="mb-1 block text-sm text-gray-700">
-                                                                    Reason / Note
-                                                                </label>
-
-                                                                <textarea name="admin_note"
-                                                                    rows="4"
-                                                                    class="w-full rounded-md border-gray-300 text-sm"
-                                                                    placeholder="Enter reason for rejection"></textarea>
-                                                            </div>
-
-                                                            <div class="flex justify-end gap-2 border-t px-5 py-3">
-                                                                <button type="button"
-                                                                    @click="openReject = false"
-                                                                    class="rounded border px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
-                                                                    Cancel
-                                                                </button>
-
-                                                                <button type="submit"
-                                                                    class="rounded bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-700">
-                                                                    Reject
-                                                                </button>
-                                                            </div>
-                                                        </form>
-                                                    </div>
-                                                </div>
-
-                                                {{-- Admin Send Back for Revision Modal --}}
-                                                <div x-show="openRevise"
-                                                    x-cloak
-                                                    class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-
-                                                    <div @click.outside="openRevise = false"
-                                                        class="w-full max-w-md rounded-lg bg-white shadow-lg">
-
-                                                        <div class="border-b px-5 py-3">
-                                                            <h3 class="text-base font-semibold text-gray-900">
-                                                                Send Back for Revision
-                                                            </h3>
-                                                        </div>
-
-                                                        <form method="POST" action="{{ route('human-capital.employee-requests.revise', $request->id) }}">
-                                                            @csrf
-
-                                                            <div class="p-5">
-                                                                <label class="mb-1 block text-sm text-gray-700">
-                                                                    Revision Note
-                                                                </label>
-
-                                                                <textarea name="admin_note"
-                                                                    rows="4"
-                                                                    required
-                                                                    class="w-full rounded-md border-gray-300 text-sm"
-                                                                    placeholder="Tell the employee what needs to be revised"></textarea>
-                                                            </div>
-
-                                                            <div class="flex justify-end gap-2 border-t px-5 py-3">
-                                                                <button type="button"
-                                                                    @click="openRevise = false"
-                                                                    class="rounded border px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
-                                                                    Cancel
-                                                                </button>
-
-                                                                <button type="submit"
-                                                                    class="rounded bg-gray-800 px-4 py-2 text-sm text-white hover:bg-gray-900">
-                                                                    Send Back
-                                                                </button>
-                                                            </div>
-                                                        </form>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                @empty
-                                    <tr class="border-t">
-                                        <td class="p-3 text-gray-400" colspan="6">
-                                            No employee requests submitted yet.
-                                        </td>
-                                    </tr>
-                                @endforelse
-                            </tbody>
-                        </table>
-                    </div>
                 </div>
-            @endif
 
+                <!-- RIGHT SIDE: FORM -->
+                <div class="min-h-0 overflow-auto bg-white">
+                    <form :action="formAction" method="POST" class="p-6 space-y-4">
+                        @csrf
+                        <template x-if="isEdit"><input type="hidden" name="_method" value="PUT"></template>
+
+                        <!-- REQUEST TYPE SELECTOR -->
+                        <div class="rounded-xl border border-gray-200 overflow-hidden">
+                            <div class="px-4 py-2 bg-blue-700 text-white text-xs font-bold uppercase tracking-widest">Request Type</div>
+                            <div class="p-4">
+                                <select name="request_type" x-model="form.request_type" :disabled="isView" required class="w-full border rounded-lg px-3 py-2 text-sm">
+                                    <option value="">Select request type</option>
+                                    <option value="Overtime Request">Overtime Request</option>
+                                    <option value="Leave Application Request">Leave Application Request</option>
+                                    <option value="Attendance Correction Request">Attendance Correction Request</option>
+                                    <option value="Undertime / Absence Request">Undertime / Absence Request</option>
+                                    <option value="COE Request Form">COE Request Form</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- EMPLOYEE INFORMATION -->
+                        <div class="rounded-xl border border-gray-200 overflow-hidden">
+                            <div class="px-4 py-2 bg-blue-700 text-white text-xs font-bold uppercase tracking-widest">Employee Information</div>
+                            <div class="p-4 grid grid-cols-1 gap-3">
+                                <input type="text" value="{{ auth()->user()->name ?? '' }}" readonly class="w-full border rounded-lg px-3 py-2 text-sm bg-gray-100 text-gray-700 cursor-not-allowed" placeholder="Employee Name">
+                                <input type="text" name="department" x-model="form.department" :readonly="isView" class="w-full border rounded-lg px-3 py-2 text-sm" placeholder="Department">
+                            </div>
+                        </div>
+
+                        <!-- OVERTIME REQUEST FIELDS -->
+                        <div class="rounded-xl border border-gray-200 overflow-hidden" x-show="form.request_type === 'Overtime Request'">
+                            <div class="px-4 py-2 bg-blue-700 text-white text-xs font-bold uppercase tracking-widest">Overtime Details</div>
+                            <div class="p-4 grid grid-cols-2 gap-3">
+                                <input type="date" name="overtime_date" x-model="form.overtime_date" :readonly="isView" class="border rounded-lg px-3 py-2 text-sm">
+                                <input type="number" name="total_hours" x-model="form.total_hours" step="0.01" :readonly="isView" placeholder="Total Hours" class="border rounded-lg px-3 py-2 text-sm">
+                                <input type="time" name="start_time" x-model="form.start_time" :readonly="isView" class="border rounded-lg px-3 py-2 text-sm">
+                                <input type="time" name="end_time" x-model="form.end_time" :readonly="isView" class="border rounded-lg px-3 py-2 text-sm">
+                                <textarea name="reason" x-model="form.reason" :readonly="isView" rows="3" placeholder="Reason / Purpose" class="col-span-2 border rounded-lg px-3 py-2 text-sm"></textarea>
+                            </div>
+                        </div>
+
+                        <!-- LEAVE APPLICATION FIELDS -->
+                        <div class="rounded-xl border border-gray-200 overflow-hidden" x-show="form.request_type === 'Leave Application Request'">
+                            <div class="px-4 py-2 bg-blue-700 text-white text-xs font-bold uppercase tracking-widest">Leave Details</div>
+                            <div class="p-4 grid grid-cols-2 gap-3">
+                                <select name="leave_type" x-model="form.leave_type" :disabled="isView" class="col-span-2 border rounded-lg px-3 py-2 text-sm">
+                                    <option value="">Select leave type</option>
+                                    <option value="Sick Leave">Sick Leave</option>
+                                    <option value="Vacation Leave">Vacation Leave</option>
+                                    <option value="Emergency Leave">Emergency Leave</option>
+                                    <option value="Maternity Leave">Maternity Leave</option>
+                                    <option value="Paternity Leave">Paternity Leave</option>
+                                </select>
+                                <input type="date" name="start_date" x-model="form.start_date" :readonly="isView" class="border rounded-lg px-3 py-2 text-sm">
+                                <input type="date" name="end_date" x-model="form.end_date" :readonly="isView" class="border rounded-lg px-3 py-2 text-sm">
+                                <input type="number" name="number_of_days" x-model="form.number_of_days" step="0.5" :readonly="isView" placeholder="Number of Days" class="border rounded-lg px-3 py-2 text-sm">
+                                <select name="with_pay" x-model="form.with_pay" :disabled="isView" class="border rounded-lg px-3 py-2 text-sm">
+                                    <option value="">With Pay?</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                                <textarea name="reason" x-model="form.reason" :readonly="isView" rows="3" placeholder="Reason" class="col-span-2 border rounded-lg px-3 py-2 text-sm"></textarea>
+                            </div>
+                        </div>
+
+                        <!-- ATTENDANCE CORRECTION FIELDS -->
+                        <div class="rounded-xl border border-gray-200 overflow-hidden" x-show="form.request_type === 'Attendance Correction Request'">
+                            <div class="px-4 py-2 bg-blue-700 text-white text-xs font-bold uppercase tracking-widest">Attendance Correction Details</div>
+                            <div class="p-4 grid grid-cols-2 gap-3">
+                                <input type="date" name="attendance_date" x-model="form.attendance_date" :readonly="isView" class="border rounded-lg px-3 py-2 text-sm">
+                                <select name="correction_type" x-model="form.correction_type" :disabled="isView" class="border rounded-lg px-3 py-2 text-sm">
+                                    <option value="">Select correction type</option>
+                                    <option value="Time In">Time In</option>
+                                    <option value="Time Out">Time Out</option>
+                                    <option value="Break Time">Break Time</option>
+                                    <option value="Lunch Time">Lunch Time</option>
+                                </select>
+                                <input type="time" name="correct_time" x-model="form.correct_time" :readonly="isView" class="col-span-2 border rounded-lg px-3 py-2 text-sm">
+                                <textarea name="reason" x-model="form.reason" :readonly="isView" rows="3" placeholder="Reason for Correction" class="col-span-2 border rounded-lg px-3 py-2 text-sm"></textarea>
+                            </div>
+                        </div>
+
+                        <!-- UNDERTIME / ABSENCE FIELDS -->
+                        <div class="rounded-xl border border-gray-200 overflow-hidden" x-show="form.request_type === 'Undertime / Absence Request'">
+                            <div class="px-4 py-2 bg-blue-700 text-white text-xs font-bold uppercase tracking-widest">Undertime / Absence Details</div>
+                            <div class="p-4 grid grid-cols-2 gap-3">
+                                <select name="absence_type" x-model="form.absence_type" :disabled="isView" class="border rounded-lg px-3 py-2 text-sm">
+                                    <option value="">Select type</option>
+                                    <option value="Undertime">Undertime</option>
+                                    <option value="Absence">Absence</option>
+                                </select>
+                                <input type="date" name="request_date" x-model="form.request_date" :readonly="isView" class="border rounded-lg px-3 py-2 text-sm">
+                                <input type="time" name="time_affected" x-model="form.time_affected" :readonly="isView" class="col-span-2 border rounded-lg px-3 py-2 text-sm" placeholder="Time Affected">
+                                <textarea name="reason" x-model="form.reason" :readonly="isView" rows="3" placeholder="Reason" class="col-span-2 border rounded-lg px-3 py-2 text-sm"></textarea>
+                            </div>
+                        </div>
+
+                        <!-- COE REQUEST FIELDS -->
+                        <div class="rounded-xl border border-gray-200 overflow-hidden" x-show="form.request_type === 'COE Request Form'">
+                            <div class="px-4 py-2 bg-blue-700 text-white text-xs font-bold uppercase tracking-widest">COE Request Details</div>
+                            <div class="p-4 grid grid-cols-2 gap-3">
+                                <select name="purpose" x-model="form.purpose" :disabled="isView" class="col-span-2 border rounded-lg px-3 py-2 text-sm">
+                                    <option value="">Select purpose</option>
+                                    <option value="Employment Requirement">Employment Requirement</option>
+                                    <option value="Loan Application">Loan Application</option>
+                                    <option value="Visa / Travel">Visa / Travel</option>
+                                    <option value="School Requirement">School Requirement</option>
+                                </select>
+                                <input type="date" name="date_needed" x-model="form.date_needed" :readonly="isView" class="border rounded-lg px-3 py-2 text-sm">
+                                <input type="number" name="number_of_copies" x-model="form.number_of_copies" min="1" :readonly="isView" placeholder="Number of Copies" class="border rounded-lg px-3 py-2 text-sm">
+                                <textarea name="remarks" x-model="form.remarks" :readonly="isView" rows="3" placeholder="Remarks" class="col-span-2 border rounded-lg px-3 py-2 text-sm"></textarea>
+                            </div>
+                        </div>
+
+                        <!-- ADMIN REVIEW SECTION (Admin only) -->
+                        <template x-if="canManageRequests">
+                            <div class="rounded-xl border border-gray-200 overflow-hidden">
+                                <div class="px-4 py-2 bg-blue-700 text-white text-xs font-bold uppercase tracking-widest">Admin Review</div>
+                                <div class="p-4 grid grid-cols-1 gap-3">
+                                    <textarea name="admin_note" x-model="form.admin_note" :readonly="isView" rows="3" placeholder="Admin note / remarks" class="border rounded-lg px-3 py-2 text-sm"></textarea>
+                                    <select name="status" x-model="form.status" x-show="!isView" class="border rounded-lg px-3 py-2 text-sm">
+                                        <option value="Pending">Pending</option>
+                                        <option value="Approved">Approved</option>
+                                        <option value="For Revision">For Revision</option>
+                                        <option value="Declined">Declined</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </template>
+
+                        <div class="pt-2 border-t flex justify-end gap-3 pb-2">
+                            <button type="button" @click="closePanel()" class="px-4 py-2 text-sm border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Cancel</button>
+                            <button type="submit" x-show="!isView" class="px-5 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold">Save Request</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
         </div>
     </div>
 </div>
 
-<script>
-    function showRequestTab(tabName) {
-        const contents = document.querySelectorAll('.request-content');
-        const tabs = document.querySelectorAll('.request-tab');
-
-        contents.forEach(content => {
-            content.classList.add('hidden');
-        });
-
-        tabs.forEach(tab => {
-            tab.classList.remove('border-blue-600', 'text-blue-600', 'font-medium');
-            tab.classList.add('border-transparent', 'text-gray-600');
-        });
-
-        const content = document.getElementById('content-' + tabName);
-        if (content) {
-            content.classList.remove('hidden');
-        }
-
-        const activeTab = document.getElementById('tab-' + tabName);
-        if (activeTab) {
-            activeTab.classList.remove('border-transparent', 'text-gray-600');
-            activeTab.classList.add('border-blue-600', 'text-blue-600', 'font-medium');
-        }
+@push('styles')
+<style>
+    .section-title {
+        margin-top: 10px;
+        margin-bottom: 4px;
+        background: #1d4ed8;
+        color: white;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        padding: 5px 8px;
+        border-radius: 2px;
     }
 
-    @if(session('success'))
-        @if($canManageEmployeeRequests)
-            showRequestTab('list');
-        @else
-            showRequestTab('my-requests');
-        @endif
-    @endif
+    .preview-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 8px;
+    }
+
+    .preview-table td {
+        border: 1px solid #d1d5db;
+        padding: 7px;
+        vertical-align: top;
+    }
+
+    @media print {
+        body * { visibility: hidden; }
+        .print-area, .print-area * { visibility: visible; }
+        .print-area { position: absolute; left: 0; top: 0; width: 100%; box-shadow: none; border: none; }
+    }
+</style>
+@endpush
+
+@push('scripts')
+<script>
+function employeeRequestsPage() {
+    return {
+        myRequests: @json($myEmployeeRequests ?? collect()),
+        allRequests: @json($employeeRequests ?? collect()),
+        canManageRequests: @json($canManageEmployeeRequests ?? false),
+        activeTab: 'my-requests',
+        showPanel: false,
+        mode: 'create',
+        form: {},
+
+        get isView() {
+            return this.mode === 'view';
+        },
+
+        get isEdit() {
+            return this.mode === 'edit';
+        },
+
+        get panelTitle() {
+            if (this.isView) return 'View Employee Request';
+            if (this.isEdit) return 'Edit Employee Request';
+            return 'New Employee Request';
+        },
+
+        get formAction() {
+            if (this.isEdit && this.form.id) {
+                return `{{ url('/human-capital/employee-requests') }}/${this.form.id}`;
+            }
+            return `{{ route('human-capital.employee-requests.store') }}`;
+        },
+
+        defaultForm() {
+            return {
+                id: null,
+                request_type: '',
+                employee_name: '{{ auth()->user()->name ?? "" }}',
+                department: '',
+                overtime_date: '',
+                total_hours: '',
+                start_time: '',
+                end_time: '',
+                leave_type: '',
+                start_date: '',
+                end_date: '',
+                number_of_days: '',
+                with_pay: '',
+                attendance_date: '',
+                correction_type: '',
+                correct_time: '',
+                request_date: '',
+                absence_type: '',
+                time_affected: '',
+                purpose: '',
+                date_needed: '',
+                number_of_copies: '',
+                reason: '',
+                remarks: '',
+                admin_note: '',
+                status: 'Pending',
+                created_at: '',
+            };
+        },
+
+        openAdd() {
+            this.mode = 'create';
+            this.form = this.defaultForm();
+            this.showPanel = true;
+        },
+
+        openView(request) {
+            this.mode = 'view';
+            this.form = { ...this.defaultForm(), ...request };
+            this.showPanel = true;
+        },
+
+        openEdit(request) {
+            this.mode = 'edit';
+            this.form = { ...this.defaultForm(), ...request };
+            this.showPanel = true;
+        },
+
+        openApproveForm(request) {
+            this.mode = 'edit';
+            this.form = { ...this.defaultForm(), ...request, status: 'Approved' };
+            this.showPanel = true;
+        },
+
+        openRejectForm(request) {
+            this.mode = 'edit';
+            this.form = { ...this.defaultForm(), ...request, status: 'Declined' };
+            this.showPanel = true;
+        },
+
+        closePanel() {
+            this.showPanel = false;
+        },
+
+        statusClass(status) {
+            const map = {
+                'Pending': 'bg-yellow-100 text-yellow-700',
+                'Approved': 'bg-green-100 text-green-700',
+                'For Revision': 'bg-blue-100 text-blue-700',
+                'Declined': 'bg-red-100 text-red-700',
+            };
+            return map[status] || 'bg-gray-100 text-gray-700';
+        },
+    };
+}
 </script>
+@endpush
+
 @endsection
