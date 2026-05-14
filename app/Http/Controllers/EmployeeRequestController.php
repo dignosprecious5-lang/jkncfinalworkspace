@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\EmployeeRequest;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 
 class EmployeeRequestController extends Controller
 {
@@ -48,7 +49,7 @@ class EmployeeRequestController extends Controller
             // Overtime Request fields
             'overtime_date' => $request->overtime_date,
             'start_time' => $request->start_time,
-            'end_time' => $request->end_time,
+            'end_time' => $this->calculateOvertimeEndTime($request),
             'total_hours' => $request->total_hours,
 
             // Leave Application fields
@@ -122,7 +123,7 @@ class EmployeeRequestController extends Controller
 
             'overtime_date' => $request->overtime_date,
             'start_time' => $request->start_time,
-            'end_time' => $request->end_time,
+            'end_time' => $this->calculateOvertimeEndTime($request),
             'total_hours' => $request->total_hours,
 
             'leave_type' => $request->leave_type,
@@ -150,17 +151,25 @@ class EmployeeRequestController extends Controller
             'reviewed_by' => null,
             'reviewed_at' => null,
         ]);
+
+        return redirect()
+            ->route('human-capital.employee-requests.index')
+            ->with('success', 'Employee request revision submitted successfully.');
     }
 
-    public function approve(EmployeeRequest $employeeRequest)
+    public function approve(Request $request, EmployeeRequest $employeeRequest)
     {
         $this->authorizeAdminAccess();
+
+        $request->validate([
+            'admin_note' => 'nullable|string|max:1000',
+        ]);
 
         $employeeRequest->update([
             'status' => 'Approved',
             'reviewed_by' => auth()->id(),
             'reviewed_at' => now(),
-            'admin_note' => null,
+            'admin_note' => $request->admin_note,
         ]);
 
         return redirect()
@@ -213,5 +222,16 @@ class EmployeeRequestController extends Controller
         $user = auth()->user();
 
         abort_unless($user && ($user->isAdmin() || $user->isSuperAdmin()), 403);
+    }
+
+    private function calculateOvertimeEndTime(Request $request): ?string
+    {
+        if ($request->request_type !== 'Overtime Request' || ! $request->start_time || ! is_numeric($request->total_hours)) {
+            return $request->end_time;
+        }
+
+        return Carbon::createFromFormat('H:i', substr($request->start_time, 0, 5))
+            ->addMinutes((int) round(((float) $request->total_hours) * 60))
+            ->format('H:i');
     }
 }

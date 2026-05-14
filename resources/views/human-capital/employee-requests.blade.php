@@ -224,7 +224,6 @@
                 <div class="min-h-0 overflow-auto bg-white">
                     <form :action="formAction" method="POST" class="p-6 space-y-4">
                         @csrf
-                        <template x-if="isEdit"><input type="hidden" name="_method" value="PUT"></template>
 
                         <!-- REQUEST TYPE SELECTOR -->
                         <div class="rounded-xl border border-gray-200 overflow-hidden">
@@ -255,9 +254,9 @@
                             <div class="px-4 py-2 bg-blue-700 text-white text-xs font-bold uppercase tracking-widest">Overtime Details</div>
                             <div class="p-4 grid grid-cols-2 gap-3">
                                 <input type="date" name="overtime_date" x-model="form.overtime_date" :readonly="isView" class="border rounded-lg px-3 py-2 text-sm">
-                                <input type="number" name="total_hours" x-model="form.total_hours" step="0.01" :readonly="isView" placeholder="Total Hours" class="border rounded-lg px-3 py-2 text-sm">
-                                <input type="time" name="start_time" x-model="form.start_time" :readonly="isView" class="border rounded-lg px-3 py-2 text-sm">
-                                <input type="time" name="end_time" x-model="form.end_time" :readonly="isView" class="border rounded-lg px-3 py-2 text-sm">
+                                <input type="number" name="total_hours" x-model="form.total_hours" @input="calculateOvertimeEnd()" step="0.01" :readonly="isView" placeholder="Total Hours" class="border rounded-lg px-3 py-2 text-sm">
+                                <input type="time" name="start_time" x-model="form.start_time" @input="calculateOvertimeEnd()" :readonly="isView" class="border rounded-lg px-3 py-2 text-sm">
+                                <input type="time" name="end_time" x-model="form.end_time" readonly class="border rounded-lg px-3 py-2 text-sm bg-gray-100 text-gray-700 cursor-not-allowed">
                                 <textarea name="reason" x-model="form.reason" :readonly="isView" rows="3" placeholder="Reason / Purpose" class="col-span-2 border rounded-lg px-3 py-2 text-sm"></textarea>
                             </div>
                         </div>
@@ -353,7 +352,7 @@
 
                         <div class="pt-2 border-t flex justify-end gap-3 pb-2">
                             <button type="button" @click="closePanel()" class="px-4 py-2 text-sm border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Cancel</button>
-                            <button type="submit" x-show="!isView" class="px-5 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold">Save Request</button>
+                            <button type="submit" x-show="!isView" class="px-5 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold" x-text="submitLabel"></button>
                         </div>
                     </form>
                 </div>
@@ -416,17 +415,45 @@ function employeeRequestsPage() {
             return this.mode === 'edit';
         },
 
+        get isApproval() {
+            return this.mode === 'approve';
+        },
+
+        get isRejection() {
+            return this.mode === 'reject';
+        },
+
         get panelTitle() {
             if (this.isView) return 'View Employee Request';
+            if (this.isApproval) return 'Approve Employee Request';
+            if (this.isRejection) return 'Reject Employee Request';
             if (this.isEdit) return 'Edit Employee Request';
             return 'New Employee Request';
         },
 
         get formAction() {
-            if (this.isEdit && this.form.id) {
-                return `{{ url('/human-capital/employee-requests') }}/${this.form.id}`;
+            const base = `{{ url('/human-capital/employee-requests') }}`;
+
+            if (this.isApproval && this.form.id) {
+                return `${base}/${this.form.id}/approve`;
             }
+
+            if (this.isRejection && this.form.id) {
+                return `${base}/${this.form.id}/reject`;
+            }
+
+            if (this.isEdit && this.form.id) {
+                return `${base}/${this.form.id}/update-revision`;
+            }
+
             return `{{ route('human-capital.employee-requests.store') }}`;
+        },
+
+        get submitLabel() {
+            if (this.isApproval) return 'Approve Request';
+            if (this.isRejection) return 'Reject Request';
+            if (this.isEdit) return 'Submit Revision';
+            return 'Save Request';
         },
 
         defaultForm() {
@@ -470,24 +497,28 @@ function employeeRequestsPage() {
         openView(request) {
             this.mode = 'view';
             this.form = { ...this.defaultForm(), ...request };
+            this.calculateOvertimeEnd();
             this.showPanel = true;
         },
 
         openEdit(request) {
             this.mode = 'edit';
             this.form = { ...this.defaultForm(), ...request };
+            this.calculateOvertimeEnd();
             this.showPanel = true;
         },
 
         openApproveForm(request) {
-            this.mode = 'edit';
+            this.mode = 'approve';
             this.form = { ...this.defaultForm(), ...request, status: 'Approved' };
+            this.calculateOvertimeEnd();
             this.showPanel = true;
         },
 
         openRejectForm(request) {
-            this.mode = 'edit';
+            this.mode = 'reject';
             this.form = { ...this.defaultForm(), ...request, status: 'Declined' };
+            this.calculateOvertimeEnd();
             this.showPanel = true;
         },
 
@@ -503,6 +534,25 @@ function employeeRequestsPage() {
                 'Declined': 'bg-red-100 text-red-700',
             };
             return map[status] || 'bg-gray-100 text-gray-700';
+        },
+
+        calculateOvertimeEnd() {
+            if (this.form.request_type !== 'Overtime Request' || !this.form.start_time || !this.form.total_hours) {
+                return;
+            }
+
+            const [hours, minutes] = this.form.start_time.split(':').map(Number);
+            const overtimeMinutes = Math.round(Number(this.form.total_hours) * 60);
+
+            if (!Number.isFinite(hours) || !Number.isFinite(minutes) || !Number.isFinite(overtimeMinutes)) {
+                return;
+            }
+
+            const endMinutes = ((hours * 60 + minutes + overtimeMinutes) % 1440 + 1440) % 1440;
+            const endHours = String(Math.floor(endMinutes / 60)).padStart(2, '0');
+            const endMins = String(endMinutes % 60).padStart(2, '0');
+
+            this.form.end_time = `${endHours}:${endMins}`;
         },
     };
 }
