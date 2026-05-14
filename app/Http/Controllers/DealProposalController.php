@@ -2,29 +2,30 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\GeneratesPdfPreview;
 use App\Models\Deal;
 use App\Models\DealProposal;
 use App\Models\DealStage;
 use App\Models\Company;
+use App\Models\FormTemplate;
 use App\Models\Product;
 use App\Models\Service;
 use App\Services\DealProposalTemplateService;
 use App\Services\ProjectProvisioner;
-use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\View as ViewFacade;
 use Illuminate\View\View;
-use Throwable;
 
 class DealProposalController extends Controller
 {
+    use GeneratesPdfPreview;
+
     public function __construct(
         private readonly DealProposalTemplateService $templateService,
         private readonly ProjectProvisioner $projectProvisioner,
@@ -37,6 +38,7 @@ class DealProposalController extends Controller
     private const COMPANY_WEBSITE = 'jknc.io';
     private const COMPANY_ADDRESS = '3F, Cebu Holdings Center, Cebu Business Park, Cebu City, Philippines 6000.';
     private const CLIENT_LINK_TTL_DAYS = 14;
+    private const GLOBAL_TEMPLATE_TYPE = 'deal_proposal';
 
     private const EXECUTIVE_SUMMARY = [
         "John Kelly & Company is a management consulting and corporate advisory company that assists businesses in growing, improving how they operate, and making better decisions for the future. With over 30 years of combined experience across the public and private sectors, the company works closely with organizations to strengthen systems, improve management discipline, and support compliance and governance needs with clarity and professionalism. John Kelly & Company is supported by a multidisciplinary team with legal, financial, operational, and governance expertise, including Atty. Jose B. Ogang, CPA, MMPSM, former Mediator-Arbiter of the Department of Labor and Employment (DOLE); Jose Tomayo Rio, MM-BA, CPA, former Municipal Accountant of LGU Madridejos, Cebu; Lyndon Earl P. Rio, RN, CB, with extensive experience as an accountant and bookkeeper across various industries; and John Kelly Abalde, CLSSBB, CPM, a corporate secretary and board director serving organizations across multiple industries-working together to support clients in managing their businesses effectively and sustainably.",
@@ -320,25 +322,16 @@ class DealProposalController extends Controller
 
         $documentData = $this->documentData($deal, $proposal);
         $requirementGroup = $this->selectedRequirementGroup($deal);
-        $generatedPdfPath = null;
+        $baseName = Str::slug((string) ($deal->deal_code ?: 'deal-proposal')).'-proposal.docx';
+        $generatedPdfPath = $this->generateProposalPdf($documentData, $baseName);
         $previewError = null;
-
-        try {
-            $baseName = Str::slug((string) ($deal->deal_code ?: 'deal-proposal')).'-proposal.docx';
-            $generatedPdfPath = $this->generateProposalPdf($documentData, $baseName);
-        } catch (Throwable $exception) {
-            $generatedPdfPath = $this->generateProposalPdf(
-                $documentData,
-                Str::slug((string) ($deal->deal_code ?: 'deal-proposal')).'-proposal.docx'
-            );
-            $previewError = $generatedPdfPath ? null : $exception->getMessage();
-        }
 
         return view('deals.proposal.show', [
             'deal' => $deal,
             'proposal' => $proposal,
             'documentData' => $documentData,
             'proposalDocumentHtml' => $this->resolveProposalDocumentHtml($documentData, $proposal->document_html, false),
+            'pendingGlobalTemplate' => $this->pendingGlobalProposalTemplate(),
             'generatedPdfUrl' => $generatedPdfPath ? route('uploads.show', ['path' => $generatedPdfPath]) : null,
             'generatedPdfDownloadUrl' => $proposal->exists ? route('deals.proposal.download', $deal) : ($generatedPdfPath ? route('uploads.show', ['path' => $generatedPdfPath, 'download' => 1]) : null),
             'requirementGroup' => $requirementGroup,
@@ -358,12 +351,84 @@ class DealProposalController extends Controller
         $proposal->status = $proposal->status === 'approved' ? 'approved' : 'saved';
         $proposal->save();
 
+        if ($request->boolean('submit_global_template')) {
+            $this->storePendingGlobalProposalTemplate($this->documentData($deal, $proposal), (string) ($validated['document_html'] ?? ''));
+
+            return redirect()
+                ->route('deals.proposal.show', $deal)
+                ->with('success', 'Saved this proposal and submitted the edited preview as a global proposal template request for admin approval.');
+        }
+
         return redirect()
             ->route('deals.proposal.show', $deal)
             ->with('success', 'Saved current proposal changes. The downloadable PDF now uses these saved details.');
     }
 
-    public function download(Deal $deal): Response
+    public function proposalTemplatesIndex(): View
+    {
+        $this->abortUnlessAdminReviewer();
+        abort_if(! Schema::hasTable('form_templates'), 500, 'Templates table is not available.');
+
+        $templates = FormTemplate::query()
+            ->where('type', self::GLOBAL_TEMPLATE_TYPE)
+            ->when(Schema::hasColumn('form_templates', 'status'), fn ($query) => $query->orderByRaw("CASE status WHEN 'pending' THEN 0 WHEN 'approved' THEN 1 WHEN 'rejected' THEN 2 ELSE 3 END"))
+            ->latest()
+            ->get();
+
+        return view('admin.deal-proposal-templates', [
+            'templates' => $templates,
+        ]);
+    }
+
+    public function approveProposalTemplate(FormTemplate $formTemplate): RedirectResponse
+    {
+        $this->abortUnlessAdminReviewer();
+        abort_unless($formTemplate->type === self::GLOBAL_TEMPLATE_TYPE, 404);
+
+        if (Schema::hasColumn('form_templates', 'status')) {
+            FormTemplate::query()
+                ->where('type', self::GLOBAL_TEMPLATE_TYPE)
+                ->where('id', '!=', $formTemplate->id)
+                ->where('status', 'approved')
+                ->update(['status' => 'superseded']);
+
+            $formTemplate->forceFill([
+                'status' => 'approved',
+                'reviewed_by' => auth()->id(),
+                'reviewed_at' => now(),
+                'review_note' => null,
+            ])->save();
+        }
+
+        return redirect()
+            ->route('admin.deal-proposal-templates.index')
+            ->with('success', 'Global proposal template approved. New deal proposals will use it.');
+    }
+
+    public function rejectProposalTemplate(Request $request, FormTemplate $formTemplate): RedirectResponse
+    {
+        $this->abortUnlessAdminReviewer();
+        abort_unless($formTemplate->type === self::GLOBAL_TEMPLATE_TYPE, 404);
+
+        $validated = $request->validate([
+            'review_note' => ['nullable', 'string', 'max:2000'],
+        ]);
+
+        if (Schema::hasColumn('form_templates', 'status')) {
+            $formTemplate->forceFill([
+                'status' => 'rejected',
+                'reviewed_by' => auth()->id(),
+                'reviewed_at' => now(),
+                'review_note' => $validated['review_note'] ?? null,
+            ])->save();
+        }
+
+        return redirect()
+            ->route('admin.deal-proposal-templates.index')
+            ->with('success', 'Global proposal template request rejected.');
+    }
+
+    public function download(Deal $deal): RedirectResponse
     {
         $deal->loadMissing('contact', 'proposal');
         $proposal = $deal->proposal ?: DealProposal::create($this->defaultProposalPayload($deal));
@@ -465,7 +530,7 @@ class DealProposalController extends Controller
             ->with('success', 'Proposal approved successfully. Thank you.');
     }
 
-    public function downloadClientProposal(string $token): Response
+    public function downloadClientProposal(string $token): RedirectResponse
     {
         $proposal = $this->findProposalByClientToken($token);
         $this->abortExpiredClientProposal($proposal);
@@ -571,16 +636,20 @@ class DealProposalController extends Controller
                 ->with('success', 'Quotation is already approved.');
         }
 
+        $financeName = auth()->user()?->name ?: 'Finance';
         $proposal->update([
+            'status' => 'approved',
             'quotation_status' => 'approved',
             'quotation_approved_at' => now(),
-            'quotation_approved_by_name' => auth()->user()?->name ?: 'Finance',
+            'quotation_approved_by_name' => $financeName,
         ]);
+
+        $this->markDealApprovedByFinance($deal, $financeName);
         $this->moveDealToStage($deal, 'Payment');
 
         return redirect()
             ->route('deals.quotation.finance', $deal)
-            ->with('success', 'Quotation marked as approved. Deal moved to Payment.');
+            ->with('success', 'Quotation approved by finance. Deal moved to Payment.');
     }
 
     public function uploadFinanceQuotation(Request $request, Deal $deal): RedirectResponse
@@ -616,7 +685,7 @@ class DealProposalController extends Controller
     public function uploadInvoice(Request $request, Deal $deal): RedirectResponse
     {
         $proposal = $deal->proposal ?: DealProposal::create($this->defaultProposalPayload($deal));
-        if ($proposal->payment_confirmed_at || $proposal->invoice_status === 'payment_confirmed') {
+        if ($proposal->payment_confirmed_at || in_array($proposal->invoice_status, ['approved', 'payment_confirmed'], true)) {
             return redirect()
                 ->route('deals.invoice.payment', $deal)
                 ->with('error', 'Invoices cannot be replaced after payment is confirmed.');
@@ -632,17 +701,21 @@ class DealProposalController extends Controller
     {
         $proposal = $deal->proposal ?: DealProposal::create($this->defaultProposalPayload($deal));
 
-        if ($proposal->payment_confirmed_at || $proposal->invoice_status === 'payment_confirmed') {
+        if ($proposal->payment_confirmed_at || in_array($proposal->invoice_status, ['approved', 'payment_confirmed'], true)) {
             return redirect()
                 ->route('deals.invoice.payment', $deal)
-                ->with('success', 'Payment is already confirmed.');
+                ->with('success', 'Payment / invoice is already approved.');
         }
 
+        $financeName = auth()->user()?->name ?: 'Finance';
         $proposal->forceFill([
-            'invoice_status' => 'payment_confirmed',
+            'status' => 'approved',
+            'invoice_status' => 'approved',
             'payment_confirmed_at' => now(),
-            'payment_confirmed_by_name' => auth()->user()?->name ?: 'Finance',
+            'payment_confirmed_by_name' => $financeName,
         ])->save();
+
+        $this->markDealApprovedByFinance($deal, $financeName);
 
         $freshDeal = $deal->fresh();
         if ($freshDeal) {
@@ -666,7 +739,7 @@ class DealProposalController extends Controller
 
         return redirect()
             ->route('deals.invoice.payment', $deal)
-            ->with('success', 'Payment confirmed. START has been submitted for approval.');
+            ->with('success', 'Payment / invoice approved by finance. START has been submitted for approval.');
     }
 
     public function uploadClientQuotation(Request $request, string $token): RedirectResponse
@@ -1221,9 +1294,11 @@ class DealProposalController extends Controller
 
     private function resolveProposalDocumentHtml(array $documentData, ?string $documentHtml, bool $editable): string
     {
+        $globalTemplateHtml = $this->approvedGlobalProposalTemplateHtml($documentData);
+
         $html = filled($documentHtml)
             ? $this->sanitizeProposalHtml($documentHtml, $editable)
-            : ($editable ? $this->renderEditableProposalDocument($documentData) : $this->renderProposalDocument($documentData));
+            : ($globalTemplateHtml ?: ($editable ? $this->renderEditableProposalDocument($documentData) : $this->renderProposalDocument($documentData)));
 
         return $html;
     }
@@ -1234,6 +1309,7 @@ class DealProposalController extends Controller
         $clean = preg_replace('/<script\b[^>]*>(.*?)<\/script>/is', '', $clean) ?? $clean;
         $clean = preg_replace('/\son\w+="[^"]*"/i', '', $clean) ?? $clean;
         $clean = preg_replace("/\son\w+='[^']*'/i", '', $clean) ?? $clean;
+        $clean = str_replace(' (Continued)', '', $clean);
 
         if (! $editable) {
             $clean = preg_replace('/\scontenteditable="[^"]*"/i', '', $clean) ?? $clean;
@@ -1243,35 +1319,143 @@ class DealProposalController extends Controller
         return $clean;
     }
 
+    private function approvedGlobalProposalTemplateHtml(array $documentData): ?string
+    {
+        $template = $this->approvedGlobalProposalTemplate();
+        $html = $template?->payload['document_html'] ?? null;
+
+        return filled($html) ? $this->hydrateGlobalProposalTemplate((string) $html, $documentData) : null;
+    }
+
+    private function approvedGlobalProposalTemplate(): ?FormTemplate
+    {
+        if (! Schema::hasTable('form_templates')) {
+            return null;
+        }
+
+        return FormTemplate::query()
+            ->where('type', self::GLOBAL_TEMPLATE_TYPE)
+            ->when(Schema::hasColumn('form_templates', 'status'), fn ($query) => $query->where('status', 'approved'))
+            ->latest()
+            ->first();
+    }
+
+    private function pendingGlobalProposalTemplate(): ?FormTemplate
+    {
+        if (! Schema::hasTable('form_templates') || ! Schema::hasColumn('form_templates', 'status')) {
+            return null;
+        }
+
+        return FormTemplate::query()
+            ->where('type', self::GLOBAL_TEMPLATE_TYPE)
+            ->where('status', 'pending')
+            ->latest()
+            ->first();
+    }
+
+    private function storePendingGlobalProposalTemplate(array $documentData, string $documentHtml): void
+    {
+        abort_if(! Schema::hasTable('form_templates'), 500, 'Templates table is not available.');
+
+        $templateHtml = $this->depersonalizeGlobalProposalTemplate(
+            $this->sanitizeProposalHtml($documentHtml, false),
+            $documentData
+        );
+
+        $attributes = [
+            'type' => self::GLOBAL_TEMPLATE_TYPE,
+            'name' => 'Deal Proposal Template '.now()->format('Y-m-d H:i'),
+            'payload' => [
+                'document_html' => $templateHtml,
+            ],
+            'created_by' => auth()->id(),
+        ];
+
+        if (Schema::hasColumn('form_templates', 'status')) {
+            $attributes['status'] = 'pending';
+        }
+
+        FormTemplate::query()->create($attributes);
+    }
+
+    private function depersonalizeGlobalProposalTemplate(string $html, array $documentData): string
+    {
+        foreach ($this->globalTemplateVariables($documentData) as $key => $value) {
+            $value = trim((string) $value);
+            if ($value === '') {
+                continue;
+            }
+
+            $token = '{{proposal:'.$key.'}}';
+            $html = str_replace([$value, e($value)], $token, $html);
+        }
+
+        return $html;
+    }
+
+    private function hydrateGlobalProposalTemplate(string $html, array $documentData): string
+    {
+        foreach ($this->globalTemplateVariables($documentData) as $key => $value) {
+            $html = str_replace('{{proposal:'.$key.'}}', e((string) $value), $html);
+        }
+
+        return $this->sanitizeProposalHtml($html, false);
+    }
+
+    private function globalTemplateVariables(array $documentData): array
+    {
+        return collect($documentData)
+            ->only([
+                'year',
+                'date',
+                'reference_id',
+                'crud_id',
+                'service_type',
+                'client_name',
+                'business_name',
+                'location',
+                'company_phone',
+                'company_email',
+                'company_website',
+                'company_address',
+                'prepared_by_name',
+                'prepared_by_id',
+            ])
+            ->map(fn ($value) => is_scalar($value) ? (string) $value : '')
+            ->all();
+    }
+
+    private function abortUnlessAdminReviewer(): void
+    {
+        abort_unless(in_array((string) (auth()->user()?->role ?? ''), ['Admin', 'SuperAdmin'], true), 403);
+    }
+
     private function generateProposalPdf(array $documentData, string $docxFileName): ?string
     {
         $relativePdfPath = 'generated-proposals/deals/'.preg_replace('/\.docx$/i', '.pdf', $docxFileName);
 
-        try {
-            $pdf = Pdf::loadView('deals.proposal.pdf', [
-                'documentData' => $documentData,
-                'proposalHtml' => $this->resolveProposalDocumentHtml($documentData, $documentData['document_html'] ?? null, false),
-            ])->setPaper('a4', 'portrait');
-
-            Storage::disk('public')->put($relativePdfPath, $pdf->output());
-
-            return $relativePdfPath;
-        } catch (Throwable) {
-            return null;
-        }
+        return $this->generatePdfPreview('deals.proposal.pdf', [
+            'documentData' => $documentData,
+            'proposalHtml' => $this->resolveProposalDocumentHtml($documentData, $documentData['document_html'] ?? null, false),
+        ], $relativePdfPath);
     }
 
-    private function proposalPdfDownloadResponse(Deal $deal, DealProposal $proposal): Response
+    private function proposalPdfDownloadResponse(Deal $deal, DealProposal $proposal): RedirectResponse
     {
         $documentData = $this->documentData($deal, $proposal);
-        $pdf = Pdf::loadView('deals.proposal.pdf', [
+        $fileName = Str::slug((string) ($proposal->reference_id ?: $deal->deal_code ?: 'proposal')).'.pdf';
+        $targetPath = 'generated-proposals/deals/'.$fileName;
+
+        $pdfPath = $this->generatePdfPreview('deals.proposal.pdf', [
             'documentData' => $documentData,
             'proposalHtml' => $this->resolveProposalDocumentHtml($documentData, $proposal->document_html, false),
-        ])->setPaper('a4', 'portrait');
+        ], $targetPath);
 
-        $fileName = Str::slug((string) ($proposal->reference_id ?: $deal->deal_code ?: 'proposal')).'.pdf';
+        if (! $pdfPath || ! Storage::disk('public')->exists($pdfPath)) {
+            return redirect()->back()->with('error', 'Unable to generate PDF. Please ensure Chrome or Edge is installed on this server.');
+        }
 
-        return $pdf->download($fileName);
+        return redirect()->route('uploads.show', ['path' => $pdfPath, 'download' => 1]);
     }
 
     private function findProposalByClientToken(string $token): DealProposal
@@ -1358,6 +1542,27 @@ class DealProposalController extends Controller
         }
 
         $deal->update($payload);
+    }
+
+    private function markDealApprovedByFinance(Deal $deal, string $financeName): void
+    {
+        $payload = [
+            'proposal_decision' => 'Approved',
+        ];
+
+        if (Schema::hasColumn('deals', 'deal_status')) {
+            $payload['deal_status'] = 'approved';
+        }
+
+        if (Schema::hasColumn('deals', 'approved_at')) {
+            $payload['approved_at'] = now();
+        }
+
+        if (Schema::hasColumn('deals', 'approved_by_name')) {
+            $payload['approved_by_name'] = $financeName;
+        }
+
+        $deal->forceFill($payload)->save();
     }
 
     private function abortExpiredClientProposal(DealProposal $proposal): void

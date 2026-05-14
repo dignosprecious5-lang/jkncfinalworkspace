@@ -5,7 +5,7 @@
 @php
     $formatCurrency = static fn ($amount): string => 'P'.number_format((float) $amount, 2);
     $invoiceStatus = $proposal->invoice_status ?: 'not_started';
-    $isPaymentConfirmed = filled($proposal->payment_confirmed_at) || $invoiceStatus === 'payment_confirmed';
+    $isPaymentConfirmed = filled($proposal->payment_confirmed_at) || in_array($invoiceStatus, ['approved', 'payment_confirmed'], true);
 @endphp
 
 <div class="min-h-screen bg-slate-50 px-4 py-6 sm:px-6 lg:px-8">
@@ -20,7 +20,7 @@
                 <div>
                     <p class="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Payment / Invoice</p>
                     <h1 class="mt-1 text-2xl font-semibold text-slate-950">{{ $deal->company_name ?: $deal->deal_name ?: $deal->deal_code }}</h1>
-                    <p class="mt-1 text-sm text-slate-600">Upload the invoice, then confirm payment to submit START for approval.</p>
+                    <p class="mt-1 text-sm text-slate-600">Upload the invoice, then finance can approve it and submit START for approval.</p>
                 </div>
                 <span class="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold uppercase tracking-wide text-emerald-700">
                     {{ str_replace('_', ' ', $invoiceStatus) }}
@@ -97,13 +97,13 @@
                     <div class="mt-4 grid gap-2">
                         @if ($isPaymentConfirmed)
                             <button type="button" disabled class="inline-flex h-11 w-full cursor-not-allowed items-center justify-center rounded-lg bg-emerald-100 px-4 text-sm font-semibold text-emerald-700">
-                                <i class="fas fa-circle-check mr-2"></i>Payment Confirmed
+                                <i class="fas fa-circle-check mr-2"></i>Approved by Finance
                             </button>
                         @else
                             <form method="POST" action="{{ route('deals.payment.confirm', $deal) }}">
                                 @csrf
                                 <button type="submit" class="inline-flex h-11 w-full items-center justify-center rounded-lg bg-blue-700 px-4 text-sm font-semibold text-white hover:bg-blue-800">
-                                    <i class="fas fa-circle-check mr-2"></i>Confirm Payment / Submit START
+                                    <i class="fas fa-circle-check mr-2"></i>Approve Payment / Invoice
                                 </button>
                             </form>
                         @endif

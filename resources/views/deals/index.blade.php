@@ -29,6 +29,27 @@
         </div>
     @endif
 
+    @if (session('deal_access_denied'))
+        <div id="dealAccessDeniedModal" class="fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/35 px-4">
+            <div class="w-full max-w-sm rounded-xl border border-red-100 bg-white p-5 shadow-xl">
+                <div class="flex items-start gap-3">
+                    <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-50 text-red-600">
+                        <i class="fas fa-lock text-sm"></i>
+                    </span>
+                    <div class="min-w-0">
+                        <h2 class="text-base font-semibold text-gray-900">Access Restricted</h2>
+                        <p class="mt-1 text-sm text-gray-600">{{ session('deal_access_denied') }}</p>
+                    </div>
+                </div>
+                <div class="mt-5 flex justify-end">
+                    <button id="dealAccessDeniedClose" type="button" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
+                        OK
+                    </button>
+                </div>
+            </div>
+        </div>
+    @endif
+
     <form method="GET" action="{{ route('deals.index') }}" class="mb-4 flex flex-wrap items-center gap-2 text-sm">
         <div class="relative w-full max-w-sm">
             <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400"></i>
@@ -137,7 +158,25 @@
                                     <p class="mt-2 text-xs text-gray-700">{{ $deal['contact_name'] }}</p>
                                     <p class="text-[11px] text-gray-400">{{ $deal['company_name'] }}</p>
 
-                                    <p class="mt-3 text-lg font-semibold text-blue-700">{{ $formatCurrency($deal['amount']) }}</p>
+                                    <div class="mt-3" data-price-wrap data-price-visible="false">
+                                        <div class="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                                            <span>Price</span>
+                                            <span
+                                                role="button"
+                                                tabindex="0"
+                                                data-price-toggle
+                                                aria-label="Show price"
+                                                title="Show price"
+                                                class="inline-flex h-5 w-5 items-center justify-center rounded-full text-gray-400 hover:bg-blue-50 hover:text-blue-700"
+                                            >
+                                                <i class="fas fa-eye text-[10px]" data-price-icon></i>
+                                            </span>
+                                        </div>
+                                        <p class="text-lg font-semibold text-blue-700">
+                                            <span data-price-hidden>••••••</span>
+                                            <span data-price-value class="hidden">{{ $formatCurrency($deal['amount']) }}</span>
+                                        </p>
+                                    </div>
                                     <p class="mt-2 text-[11px] text-gray-400">Expected Close</p>
                                     <p class="text-xs text-gray-700">{{ $deal['expected_close'] }}</p>
 
@@ -203,6 +242,7 @@
     'ownerLabel' => $ownerLabel,
     'owners' => $owners,
     'financeUsers' => $financeUsers ?? [],
+    'employeeOptions' => $employeeOptions ?? [],
     'defaultOwnerId' => $defaultOwnerId,
     'dealDraft' => $dealDraft ?? [],
     'openDealModal' => $openDealModal ?? false,
@@ -211,6 +251,8 @@
 <script>
 document.addEventListener('DOMContentLoaded', () => {
     const board = document.getElementById('dealsBoard');
+    const dealAccessDeniedModal = document.getElementById('dealAccessDeniedModal');
+    const dealAccessDeniedClose = document.getElementById('dealAccessDeniedClose');
     const selectionBar = document.getElementById('dealSelectionBar');
     const selectedCount = document.getElementById('selectedDealCount');
     const clearBtn = document.getElementById('clearDealSelectionBtn');
@@ -610,6 +652,43 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const cards = () => Array.from(document.querySelectorAll('.deal-card'));
+
+    dealAccessDeniedClose?.addEventListener('click', () => {
+        dealAccessDeniedModal?.classList.add('hidden');
+    });
+
+    document.querySelectorAll('[data-price-toggle]').forEach((toggle) => {
+        const handleToggle = (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+
+            const wrap = toggle.closest('[data-price-wrap]');
+            if (!wrap) {
+                return;
+            }
+
+            const isVisible = wrap.dataset.priceVisible === 'true';
+            wrap.dataset.priceVisible = isVisible ? 'false' : 'true';
+            wrap.querySelector('[data-price-hidden]')?.classList.toggle('hidden', !isVisible);
+            wrap.querySelector('[data-price-value]')?.classList.toggle('hidden', isVisible);
+
+            const icon = wrap.querySelector('[data-price-icon]');
+            if (icon) {
+                icon.classList.toggle('fa-eye', isVisible);
+                icon.classList.toggle('fa-eye-slash', !isVisible);
+            }
+
+            toggle.setAttribute('aria-label', isVisible ? 'Show price' : 'Hide price');
+            toggle.setAttribute('title', isVisible ? 'Show price' : 'Hide price');
+        };
+
+        toggle.addEventListener('click', handleToggle);
+        toggle.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+                handleToggle(event);
+            }
+        });
+    });
     const checkboxes = () => Array.from(document.querySelectorAll('.deal-select-checkbox'));
     const stageCheckboxes = () => Array.from(document.querySelectorAll('.stage-select-checkbox'));
 

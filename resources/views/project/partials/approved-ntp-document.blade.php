@@ -2,7 +2,7 @@
     <div class="project-ntp-doc">
         <div class="text-center">
             <div class="project-ntp-title">{{ $ntp['title'] ?? 'NOTICE TO PROCEED' }}</div>
-            <div class="project-ntp-code">{{ $ntp['form_code'] ?? '' }}</div>
+            <div class="project-ntp-code">{{ str_contains(strtolower((string) ($ntp['engagement_type'] ?? '')), 'regular') ? 'REG-F-002' : 'PROJ-F-003' }}</div>
         </div>
         <div class="project-ntp-issued">Date Issued: <span class="project-ntp-light">{{ $ntp['date_issued'] ?? '-' }}</span></div>
         <table class="project-ntp-meta">

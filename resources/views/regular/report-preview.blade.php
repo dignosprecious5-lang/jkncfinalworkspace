@@ -8,6 +8,7 @@
     $reportApproval = (array) ($report?->internal_approval ?? []);
     $filledRows = $reportRows->filter(fn ($item) => filled($item['service'] ?? null) || filled($item['activity_output'] ?? null))->values();
     $clientApprovalStatus = $report->client_response_status ?: 'pending';
+    $regularLocked = strcasecmp((string) $regular->status, 'Completed') === 0;
 @endphp
 
 <style>
@@ -132,11 +133,17 @@
         </div>
 
         <div class="rounded-2xl border border-slate-200 bg-white px-5 py-5 shadow-sm">
+            @if ($regularLocked)
+                <div class="mb-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                    This completed regular engagement report is view-only.
+                </div>
+            @endif
             <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                 <div>
                     <h2 class="text-lg font-semibold text-slate-900">Client Approval Delivery</h2>
                     <p class="mt-1 text-sm text-slate-500">Send or resend the secure client approval link for this generated RSAT report.</p>
                 </div>
+                @if (! $regularLocked)
                 <form method="POST" action="{{ route('regular.report.send', ['regular' => $regular->id, 'report' => $report->id]) }}" class="flex w-full max-w-xl flex-col gap-3 sm:flex-row sm:items-end">
                     @csrf
                     <div class="flex-1">
@@ -146,6 +153,7 @@
                     </div>
                     <button type="submit" class="inline-flex h-11 items-center justify-center rounded-xl bg-[#21409a] px-5 text-sm font-semibold text-white hover:bg-[#1b367d]">Send Link</button>
                 </form>
+                @endif
             </div>
 
             <div class="mt-4 grid gap-3 md:grid-cols-4">
@@ -166,6 +174,19 @@
                     <p class="mt-2 text-sm font-semibold text-slate-900">{{ optional($report->client_approved_at)->format('M d, Y h:i A') ?: '-' }}</p>
                 </div>
             </div>
+
+            @if (! $regularLocked && $clientApprovalStatus !== 'approved')
+                <form method="POST" action="{{ route('regular.report.manual-approve', ['regular' => $regular->id, 'report' => $report->id]) }}" enctype="multipart/form-data" class="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
+                    @csrf
+                    <p class="text-sm font-semibold text-amber-900">Manual signed-document approval</p>
+                    <p class="mt-1 text-xs text-amber-800">Use this when the client signed outside the portal. Upload the signed RSAT report to approve and continue.</p>
+                    <div class="mt-3 grid gap-3 md:grid-cols-[minmax(0,1fr)_220px_auto] md:items-end">
+                        <input type="file" name="signed_document" required accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" class="block w-full rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm">
+                        <input type="text" name="approval_name" placeholder="Approver name" class="h-10 rounded-lg border border-amber-200 bg-white px-3 text-sm">
+                        <button type="submit" class="inline-flex h-10 items-center justify-center rounded-lg bg-amber-600 px-4 text-sm font-semibold text-white hover:bg-amber-700">Upload & Approve</button>
+                    </div>
+                </form>
+            @endif
         </div>
 
         <section class="rsat-sheet overflow-hidden p-6">
@@ -176,7 +197,7 @@
                     </div>
                     <div class="space-y-2">
                         <div class="rsat-title">REGULAR SERVICE ACTIVITY<br>TRACKER REPORT (RSAT REPORT)</div>
-                        <div class="rsat-form-code">Generated Report Preview</div>
+                        <div class="rsat-form-code">REG-F-003</div>
                     </div>
                 </div>
 

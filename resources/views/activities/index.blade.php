@@ -2523,6 +2523,7 @@ document.addEventListener('alpine:init', () => {
                         duration: this.newMeeting.duration,
                         location: this.newMeeting.location,
                         attendees: this.newMeeting.attendees.length,
+                        related_to: Array.isArray(this.newMeeting.attendees) ? this.newMeeting.attendees.join(', ') : this.newMeeting.attendees,
                         status: this.newMeeting.status || 'upcoming',
                         description: this.newMeeting.description,
                         has_video: this.newMeeting.hasVideo,
@@ -2665,7 +2666,7 @@ document.addEventListener('alpine:init', () => {
                 durationHour: parsedHr,
                 durationMin: parsedMin,
                 location: meeting.location,
-                attendees: [], // Cannot easily reverse numeric count to names, so starting fresh for editing
+                attendees: meeting.related_to ? meeting.related_to.split(', ').filter(Boolean) : [],
                 description: meeting.description,
                 hasVideo: meeting.has_video,
                 hasAudio: meeting.has_audio,

@@ -400,6 +400,7 @@ class TransmittalController extends Controller
 
     private function buildProjectPrefill(Project $project, string $sourceLabel): array
     {
+        $formCode = $sourceLabel === 'RSAT' ? 'REG-F-004' : 'PROJ-F-006';
         $contactName = trim(collect([
             $project->contact?->first_name,
             $project->contact?->last_name,
@@ -428,6 +429,7 @@ class TransmittalController extends Controller
             'source_type' => strtolower($sourceLabel),
             'source_id' => $project->id,
             'source_label' => $sourceLabel,
+            'form_code' => $formCode,
             'transmittal_date' => now()->toDateString(),
             'mode' => 'SEND',
             'party_name' => $externalParty,

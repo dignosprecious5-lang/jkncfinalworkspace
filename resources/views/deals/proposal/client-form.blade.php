@@ -125,6 +125,10 @@
     </style>
 </head>
 <body>
+    @php
+        $approvalName = $proposal->client_approved_by_name ?: $proposal->quotation_approved_by_name ?: 'Finance';
+        $approvalDate = $proposal->client_approved_at ?: $proposal->quotation_approved_at;
+    @endphp
     <div class="topbar">
         <div>
             <h1>{{ $proposal->reference_id ?: $deal->deal_code }}</h1>
@@ -141,7 +145,7 @@
 
         @if ($proposal->status === 'approved')
             <div class="notice">
-                Approved by {{ $proposal->client_approved_by_name ?: 'Client' }} on {{ optional($proposal->client_approved_at)->format('F j, Y g:i A') }}.
+                Approved by {{ $approvalName }} on {{ optional($approvalDate)->format('F j, Y g:i A') }}.
             </div>
         @else
             <form method="POST" action="{{ $approveUrl }}" class="approval">
@@ -164,7 +168,7 @@
             </div>
         </div>
     </main>
-    @if ($proposal->client_approved_at)
+    @if ($approvalDate)
     <script>
         (() => {
             const clientBlock = document.querySelector('.proposal-signature-grid .proposal-signature-block');
@@ -174,10 +178,11 @@
 
             const stamp = document.createElement('div');
             stamp.className = 'conforme-approved-stamp';
-            stamp.textContent = 'Approved on {{ optional($proposal->client_approved_at)->format('F j, Y g:i A') }}';
+            stamp.textContent = 'Approved on {{ optional($approvalDate)->format('F j, Y g:i A') }}';
             clientBlock.appendChild(stamp);
         })();
     </script>
     @endif
+    @include('deals.proposal.partials.pagination-script')
 </body>
 </html>

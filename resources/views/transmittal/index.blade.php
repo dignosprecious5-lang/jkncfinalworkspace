@@ -13,6 +13,7 @@
 
         previewRef: 'AUTO-INCREMENT',
         previewDate: '{{ now()->format('Y-m-d') }}',
+        previewFormCode: '',
 
         transmittalMode: 'SEND',
 
@@ -238,6 +239,7 @@
                         <div id="transmittal-preview-pdf" class="transmittal-doc-page bg-white border border-gray-300 shadow">
                             <div class="tm-title">
                                 <div class="tm-title-main">Transmittal Form</div>
+                                <div class="text-[11px] uppercase tracking-[0.12em] text-gray-500" x-text="previewFormCode"></div>
                             </div>
 
                             <div class="tm-top-block">
@@ -805,6 +807,7 @@ function resetTransmittalForm() {
 
     alpineData.previewRef = 'AUTO-INCREMENT';
     alpineData.previewDate = '{{ now()->format('Y-m-d') }}';
+    alpineData.previewFormCode = '';
     alpineData.transmittalMode = 'SEND';
     alpineData.partyName = '';
     alpineData.officeName = '';
@@ -833,6 +836,7 @@ function applyTransmittalPrefill(prefill) {
     if (!alpineData || !prefill) return;
 
     alpineData.previewDate = prefill.transmittal_date || alpineData.previewDate;
+    alpineData.previewFormCode = prefill.form_code || '';
     alpineData.transmittalMode = prefill.mode || 'SEND';
     alpineData.partyName = prefill.party_name || '';
     alpineData.officeName = prefill.office_name || '';

@@ -114,13 +114,14 @@ class RegularController extends Controller
         $stats = [
             'all' => $regulars->count(),
             'rsat' => $regulars->where('current_phase', 'RSAT')->count(),
-            'planning' => $regulars->where('current_phase', 'Planning')->count(),
-            'active' => $regulars->whereIn('status', ['RSAT', 'Planning', 'For NTP Approval', 'Execution', 'Reporting', 'Delivery'])->count(),
+            'in_progress' => $regulars->filter(fn (Project $regular): bool => in_array($regular->status, ['In Progress', 'Execution', 'Reporting', 'Delivery'], true)
+                || in_array($regular->current_phase, ['In Progress', 'Execution', 'Reporting', 'Delivery'], true))->count(),
+            'active' => $regulars->whereIn('status', ['RSAT', 'In Progress', 'For NTP Approval', 'Execution', 'Reporting', 'Delivery'])->count(),
             'completed' => $regulars->where('status', 'Completed')->count(),
         ];
 
         $rsatTemplates = Schema::hasTable('form_templates')
-            ? FormTemplate::query()->where('type', 'regular_rsat')->orderBy('name')->get()
+            ? $this->regularRsatTemplateQuery()->orderBy('name')->get()
             : collect();
 
         $serviceCatalog = $this->regularServiceCatalog();
@@ -181,7 +182,13 @@ class RegularController extends Controller
             'client_confirmation_name' => ['nullable', 'string', 'max:255'],
             'engagement_requirements_text' => ['nullable', 'string', 'max:4000'],
             'template_id' => Schema::hasTable('form_templates')
-                ? ['nullable', 'integer', Rule::exists('form_templates', 'id')->where(fn ($query) => $query->where('type', 'regular_rsat'))]
+                ? ['nullable', 'integer', Rule::exists('form_templates', 'id')->where(function ($query) {
+                    $query->where('type', 'regular_rsat');
+
+                    if (Schema::hasColumn('form_templates', 'status')) {
+                        $query->where('status', 'approved');
+                    }
+                })]
                 : ['nullable'],
         ]);
 
@@ -206,8 +213,7 @@ class RegularController extends Controller
         ) ?: ($validated['products'] ?? null);
 
         $selectedTemplate = ! empty($validated['template_id'])
-            ? FormTemplate::query()
-                ->where('type', 'regular_rsat')
+            ? $this->regularRsatTemplateQuery()
                 ->find($validated['template_id'])
             : null;
         $templatePayload = (array) ($selectedTemplate?->payload ?? []);
@@ -337,25 +343,28 @@ class RegularController extends Controller
 
         $rsat = $regular->starts->first() ?: new ProjectStart(['project_id' => $regular->id]);
         $report = $this->resolveDraftReport($regular);
+        $ntpRecord = $regular->ntps()->latest()->first();
         $generatedReports = $regular->sowReports()
             ->whereJsonContains('internal_approval->__meta->generated', true)
             ->latest('date_prepared')
             ->latest()
             ->get();
         $rsatTemplates = Schema::hasTable('form_templates')
-            ? FormTemplate::query()->where('type', 'regular_rsat')->orderBy('name')->get()
+            ? $this->regularRsatTemplateQuery()->orderBy('name')->get()
             : collect();
         $rsatAutoReportSettings = $this->regularAutoReportSettings($regular);
         $tab = in_array((string) $request->query('tab', 'rsat'), ['rsat', 'report'], true)
             ? (string) $request->query('tab', 'rsat')
             : 'rsat';
+        $regularLocked = $this->isRegularCompleted($regular);
 
-        return view('regular.show', compact('regular', 'rsat', 'report', 'generatedReports', 'rsatTemplates', 'tab', 'rsatAutoReportSettings'));
+        return view('regular.show', compact('regular', 'rsat', 'report', 'generatedReports', 'ntpRecord', 'rsatTemplates', 'tab', 'rsatAutoReportSettings', 'regularLocked'));
     }
 
     public function updateRsatAutoReportSettings(Request $request, Project $regular): RedirectResponse
     {
         abort_unless($this->isRegularEngagement($regular->engagement_type), 404);
+        $this->abortIfRegularCompleted($regular);
 
         $validated = $request->validate([
             'enabled' => ['nullable', 'boolean'],
@@ -381,6 +390,7 @@ class RegularController extends Controller
     public function updateRsat(Request $request, Project $regular): RedirectResponse
     {
         abort_unless($this->isRegularEngagement($regular->engagement_type), 404);
+        $this->abortIfRegularCompleted($regular);
 
         $validated = $this->validateRsatPayload($request);
         $this->persistRsatDocument($request, $regular, $validated);
@@ -415,6 +425,7 @@ class RegularController extends Controller
     public function downloadNtpPdf(Project $regular): RedirectResponse
     {
         abort_unless($this->isRegularEngagement($regular->engagement_type), 404);
+        $this->abortIfRegularCompleted($regular);
         $ntpRecord = $this->generateAndSendRegularNtp($regular);
 
         return redirect()
@@ -426,6 +437,7 @@ class RegularController extends Controller
     public function updateReport(Request $request, Project $regular): RedirectResponse
     {
         abort_unless($this->isRegularEngagement($regular->engagement_type), 404);
+        $this->abortIfRegularCompleted($regular);
 
         $validated = $this->validateReportPayload($request);
         $this->persistDraftReport($request, $regular, $validated);
@@ -436,6 +448,7 @@ class RegularController extends Controller
     public function generateReport(Request $request, Project $regular): RedirectResponse
     {
         abort_unless($this->isRegularEngagement($regular->engagement_type), 404);
+        $this->abortIfRegularCompleted($regular);
 
         $validated = $this->validateRsatPayload($request);
         $rsat = $this->persistRsatDocument($request, $regular, $validated);
@@ -494,6 +507,7 @@ class RegularController extends Controller
     {
         abort_unless($this->isRegularEngagement($regular->engagement_type), 404);
         abort_unless($report->project_id === $regular->id, 404);
+        $this->abortIfRegularCompleted($regular);
 
         if (! $this->supportsRegularReportClientPortal()) {
             return redirect()
@@ -516,6 +530,7 @@ class RegularController extends Controller
     public function storeRsatTemplate(Request $request, Project $regular): RedirectResponse
     {
         abort_unless($this->isRegularEngagement($regular->engagement_type), 404);
+        $this->abortIfRegularCompleted($regular);
         abort_if(! Schema::hasTable('form_templates'), 500, 'Templates table is not available.');
 
         $validated = array_merge(
@@ -546,6 +561,7 @@ class RegularController extends Controller
     public function bulkDestroyGeneratedReports(Request $request, Project $regular): RedirectResponse
     {
         abort_unless($this->isRegularEngagement($regular->engagement_type), 404);
+        $this->abortIfRegularCompleted($regular);
         $validated = $request->validate([
             'selected_reports' => ['required', 'array', 'min:1'],
             'selected_reports.*' => ['required', 'integer'],
@@ -576,6 +592,7 @@ class RegularController extends Controller
 
         $report = $this->findRegularReportByClientToken($token);
         abort_if($report->client_access_expires_at && $report->client_access_expires_at->isPast(), 403, 'This RSAT report link has expired.');
+        abort_if($report->project && $this->isRegularCompleted($report->project), 423, 'This completed regular engagement is view-only.');
 
         $regular = $report->project()->with(['deal:id,deal_code', 'contact:id,first_name,last_name,email', 'company:id,company_name'])->firstOrFail();
         abort_unless($this->isRegularEngagement($regular->engagement_type), 404);
@@ -622,6 +639,8 @@ class RegularController extends Controller
             'client_confirmation_name' => $validated['client_approval_name'],
         ]);
         $report->save();
+        $regular = $report->project()->firstOrFail();
+        $this->markRegularReadyForNextProcess($regular, 'Client approved RSAT report');
 
         return redirect()
             ->route('regular.report.client.show', ['token' => $token])
@@ -660,6 +679,7 @@ class RegularController extends Controller
     {
         $ntpRecord = $this->findRegularNtpByClientToken($token);
         abort_if($ntpRecord->client_access_expires_at && $ntpRecord->client_access_expires_at->isPast(), 403, 'This NTP link has expired.');
+        abort_if($ntpRecord->project && $this->isRegularCompleted($ntpRecord->project), 423, 'This completed regular engagement is view-only.');
 
         $regular = $ntpRecord->project()->with(['deal:id,deal_code', 'contact:id,first_name,last_name,email', 'company:id,company_name'])->firstOrFail();
         abort_unless($this->isRegularEngagement($regular->engagement_type), 404);
@@ -703,10 +723,58 @@ class RegularController extends Controller
             'client_attachment_path' => $request->file('client_attachment')->store("regular/{$ntpRecord->project_id}/ntp", 'public'),
         ]);
         $ntpRecord->save();
+        $this->markRegularInProgress($ntpRecord->project, 'Client signed NTP submitted');
 
         return redirect()
             ->route('regular.ntp.client.show', ['token' => $token])
             ->with('success', 'Approved to proceed. The signed NTP was submitted successfully.');
+    }
+
+    public function manualApproveNtp(Request $request, Project $regular): RedirectResponse
+    {
+        abort_unless($this->isRegularEngagement($regular->engagement_type), 404);
+        $this->abortIfRegularCompleted($regular);
+
+        $ntpRecord = $regular->ntps()->latest()->firstOrFail();
+        $validated = $this->validateSignedApprovalUpload($request);
+
+        $this->replaceClientAttachment($ntpRecord, $request, "regular/{$regular->id}/ntp");
+        $ntpRecord->fill([
+            'client_response_status' => 'approved_to_proceed',
+            'client_approved_at' => now(),
+            'client_approved_name' => $validated['approval_name'] ?: ($request->user()?->name ?? 'Manual Override'),
+            'client_response_notes' => trim((string) ($validated['approval_note'] ?? '')) ?: 'Approved by manual override using uploaded signed NTP.',
+        ]);
+        $ntpRecord->save();
+        $this->markRegularInProgress($regular, 'Signed NTP uploaded manually');
+
+        return redirect()
+            ->route('regular.show', ['regular' => $regular->id, 'tab' => 'rsat'])
+            ->with('success', 'Signed NTP uploaded and approved manually. Regular engagement is now in progress.');
+    }
+
+    public function manualApproveReport(Request $request, Project $regular, ProjectSowReport $report): RedirectResponse
+    {
+        abort_unless($this->isRegularEngagement($regular->engagement_type), 404);
+        abort_unless($report->project_id === $regular->id, 404);
+        $this->abortIfRegularCompleted($regular);
+
+        $validated = $this->validateSignedApprovalUpload($request);
+
+        $this->replaceClientAttachment($report, $request, "regular/{$regular->id}/reports");
+        $report->fill([
+            'client_response_status' => 'approved',
+            'client_approved_at' => now(),
+            'client_approved_name' => $validated['approval_name'] ?: ($request->user()?->name ?? 'Manual Override'),
+            'client_response_notes' => trim((string) ($validated['approval_note'] ?? '')) ?: 'Approved by manual override using uploaded signed RSAT report.',
+            'client_confirmation_name' => $validated['approval_name'] ?: ($report->client_confirmation_name ?: $regular->client_name),
+        ]);
+        $report->save();
+        $this->markRegularReadyForNextProcess($regular, 'Signed RSAT report uploaded manually');
+
+        return redirect()
+            ->route('regular.report.preview', ['regular' => $regular->id, 'report' => $report->id])
+            ->with('success', 'Signed RSAT report uploaded and approved manually.');
     }
 
     public function downloadClientNtp(string $token): RedirectResponse
@@ -715,6 +783,58 @@ class RegularController extends Controller
         abort_if($ntpRecord->client_access_expires_at && $ntpRecord->client_access_expires_at->isPast(), 403, 'This NTP link has expired.');
 
         return $this->downloadRegularNtpPdfFromRecord($ntpRecord);
+    }
+
+    private function validateSignedApprovalUpload(Request $request): array
+    {
+        return $request->validate([
+            'approval_name' => ['nullable', 'string', 'max:255'],
+            'approval_note' => ['nullable', 'string', 'max:2000'],
+            'signed_document' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png,doc,docx', 'max:10240'],
+        ], [
+            'signed_document.required' => 'Please upload the signed approval document.',
+        ]);
+    }
+
+    private function replaceClientAttachment(ProjectNtp|ProjectSowReport $record, Request $request, string $directory): void
+    {
+        if ($record->client_attachment_path && Storage::disk('public')->exists($record->client_attachment_path)) {
+            Storage::disk('public')->delete($record->client_attachment_path);
+        }
+
+        $record->client_attachment_path = $request->file('signed_document')->store($directory, 'public');
+    }
+
+    private function markRegularInProgress(?Project $regular, string $step): void
+    {
+        if (! $regular) {
+            return;
+        }
+
+        $regular->forceFill([
+            'status' => 'In Progress',
+            'current_phase' => 'In Progress',
+            'current_step' => $step,
+        ])->save();
+    }
+
+    private function markRegularReadyForNextProcess(Project $regular, string $step): void
+    {
+        $regular->forceFill([
+            'status' => 'Delivery',
+            'current_phase' => 'Delivery',
+            'current_step' => $step,
+        ])->save();
+    }
+
+    private function isRegularCompleted(Project $regular): bool
+    {
+        return strcasecmp((string) $regular->status, 'Completed') === 0;
+    }
+
+    private function abortIfRegularCompleted(Project $regular): void
+    {
+        abort_if($this->isRegularCompleted($regular), 423, 'Completed regular engagements are view-only. Documents can be viewed or downloaded, but no longer edited.');
     }
 
     private function provisionMissingRegularRecords(): void
@@ -807,6 +927,16 @@ class RegularController extends Controller
         $rsat->save();
 
         return $rsat;
+    }
+
+    private function regularRsatTemplateQuery()
+    {
+        return FormTemplate::query()
+            ->where('type', 'regular_rsat')
+            ->when(
+                Schema::hasColumn('form_templates', 'status'),
+                fn ($query) => $query->where('status', 'approved')
+            );
     }
 
     private function validateReportPayload(Request $request): array
@@ -1424,7 +1554,7 @@ class RegularController extends Controller
 
         return [
             'title' => 'NOTICE TO PROCEED',
-            'form_code' => 'ENG-F-001-v1.0-03.16.26',
+            'form_code' => 'REG-F-002',
             'date_issued' => now()->format('F d, Y'),
             'ntp_no' => null,
             'engagement_type' => $regular->engagement_type ?: 'Regular Retainer',
@@ -1469,6 +1599,12 @@ class RegularController extends Controller
         if ($recipientEmail !== null) {
             $this->sendRegularNtpClientLink($regular, $ntpRecord, $recipientEmail);
         }
+
+        $regular->forceFill([
+            'status' => 'For NTP Approval',
+            'current_phase' => 'For NTP Approval',
+            'current_step' => 'Waiting for signed NTP',
+        ])->save();
 
         return $ntpRecord->fresh();
     }

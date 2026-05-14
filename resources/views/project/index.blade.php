@@ -6,7 +6,7 @@
     $phaseBadgeClasses = [
         'SOW' => 'bg-indigo-50 text-indigo-700 border border-indigo-200',
         'Start' => 'bg-indigo-50 text-indigo-700 border border-indigo-200',
-        'Planning' => 'bg-blue-50 text-blue-700 border border-blue-200',
+        'In Progress' => 'bg-blue-50 text-blue-700 border border-blue-200',
         'For NTP Approval' => 'bg-amber-50 text-amber-700 border border-amber-200',
         'Execution' => 'bg-emerald-50 text-emerald-700 border border-emerald-200',
         'Reporting' => 'bg-cyan-50 text-cyan-700 border border-cyan-200',
@@ -72,6 +72,35 @@
     if ($productCustomEntries !== [] && ! in_array('Others', $selectedProducts, true)) {
         $selectedProducts[] = 'Others';
     }
+    $sowTemplatePreviewData = $sowTemplates->mapWithKeys(function ($template) {
+        $payload = (array) ($template->payload ?? []);
+        $withinScope = collect($payload['within_scope_items'] ?? [])
+            ->filter(fn ($row) => filled($row['main_task_description'] ?? null))
+            ->map(function ($row) {
+                $main = trim((string) ($row['main_task_description'] ?? ''));
+                $sub = trim((string) ($row['sub_task_description'] ?? ''));
+
+                return $sub !== '' ? $main.' - '.$sub : $main;
+            })
+            ->take(3)
+            ->values()
+            ->all();
+        $outOfScopeCount = collect($payload['out_of_scope_items'] ?? [])
+            ->filter(fn ($row) => filled($row['main_task_description'] ?? null))
+            ->count();
+
+        return [
+            (string) $template->id => [
+                'name' => (string) $template->name,
+                'version' => (string) ($payload['version_number'] ?? '1.0'),
+                'approval_status' => (string) ($payload['approval_status'] ?? 'draft'),
+                'ntp_status' => (string) ($payload['ntp_status'] ?? 'pending'),
+                'within_scope_count' => count($withinScope),
+                'within_scope_items' => $withinScope,
+                'out_of_scope_count' => $outOfScopeCount,
+            ],
+        ];
+    })->all();
 @endphp
 
 <div class="px-6 py-6 lg:px-8">
@@ -102,8 +131,8 @@
                 <p class="mt-2 text-3xl font-bold text-indigo-700">{{ $stats['start'] }}</p>
             </div>
             <div class="rounded-2xl border border-gray-200 bg-white px-5 py-5 shadow-sm">
-                <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Planning</p>
-                <p class="mt-2 text-3xl font-bold text-blue-700">{{ $stats['planning'] }}</p>
+                <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">In Progress</p>
+                <p class="mt-2 text-3xl font-bold text-blue-700">{{ $stats['in_progress'] }}</p>
             </div>
             <div class="rounded-2xl border border-gray-200 bg-white px-5 py-5 shadow-sm">
                 <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Active</p>
@@ -165,7 +194,7 @@
     </div>
 </div>
 
-<x-slide-over id="projectManualCreateDrawer" width="sm:max-w-[760px]">
+<x-slide-over id="projectManualCreateDrawer" width="sm:max-w-[95vw]">
     <div class="flex items-center justify-between border-b border-gray-200 px-6 py-4">
         <div>
             <h2 class="text-lg font-semibold text-gray-900">Create Project</h2>
@@ -183,7 +212,108 @@
         <input type="hidden" name="deal_id" id="project_deal_id" value="{{ old('deal_id') }}">
         <input type="hidden" name="contact_id" id="project_contact_id" value="{{ old('contact_id') }}">
         <input type="hidden" name="company_id" id="project_company_id" value="{{ old('company_id') }}">
-        <div class="flex-1 space-y-6 overflow-y-auto px-6 py-5">
+        <div class="flex-1 overflow-y-auto px-6 py-5">
+            <div class="grid gap-4 xl:grid-cols-[52%,48%]">
+                <aside class="min-w-0 xl:sticky xl:top-0 xl:self-start">
+                    <div id="projectTemplatePreview" class="rounded-3xl border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-blue-50 p-5 shadow-sm">
+                        <div class="flex items-start justify-between gap-3">
+                            <div>
+                                <p class="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">SOW Form Preview</p>
+                                <p id="projectTemplatePreviewName" class="mt-2 text-lg font-semibold text-slate-900">Blank Project Form</p>
+                            </div>
+                            <span id="projectTemplatePreviewBadge" class="inline-flex rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-600">Default</span>
+                        </div>
+                        <div class="mt-4 max-h-[calc(100vh-220px)] overflow-y-auto rounded-2xl border border-[#d7deea] bg-white p-3 shadow-sm xl:scale-[1.02] xl:origin-top-left">
+                            <div class="border border-[#163b7a] bg-white">
+                                <div class="h-1.5 bg-[#163b7a]"></div>
+                                <div class="p-3">
+                                    <div class="flex items-start justify-between gap-3">
+                                        <img src="{{ asset('images/imaglogo.png') }}" alt="John Kelly and Company" class="h-10 w-auto object-contain">
+                                        <div class="text-right">
+                                            <div class="font-[Georgia] text-[18px] font-bold uppercase leading-tight text-slate-900">Scope Of Work</div>
+                                            <div class="mt-1 text-[10px] uppercase tracking-[0.14em] text-slate-500">PROJ-F-002</div>
+                                        </div>
+                                    </div>
+
+                                    <div class="mt-3 grid grid-cols-2 gap-2 text-[10px]">
+                                        <div class="border border-slate-200 px-2 py-1.5">
+                                            <div class="font-semibold uppercase text-slate-500">Condeal Ref No.</div>
+                                            <div id="projectTemplateMetaCondeal" class="mt-1 font-semibold text-slate-900">-</div>
+                                        </div>
+                                        <div class="border border-slate-200 px-2 py-1.5">
+                                            <div class="font-semibold uppercase text-slate-500">Project Code</div>
+                                            <div id="projectTemplateMetaCode" class="mt-1 font-semibold text-slate-900">Auto-generated</div>
+                                        </div>
+                                        <div class="border border-slate-200 px-2 py-1.5">
+                                            <div class="font-semibold uppercase text-slate-500">Client</div>
+                                            <div id="projectTemplateMetaClient" class="mt-1 font-semibold text-slate-900">Pending selection</div>
+                                        </div>
+                                        <div class="border border-slate-200 px-2 py-1.5">
+                                            <div class="font-semibold uppercase text-slate-500">Business</div>
+                                            <div id="projectTemplateMetaBusiness" class="mt-1 font-semibold text-slate-900">Pending selection</div>
+                                        </div>
+                                        <div class="border border-slate-200 px-2 py-1.5">
+                                            <div class="font-semibold uppercase text-slate-500">Version</div>
+                                            <div id="projectTemplatePreviewVersion" class="mt-1 font-semibold text-slate-900">1.0</div>
+                                        </div>
+                                        <div class="border border-slate-200 px-2 py-1.5">
+                                            <div class="font-semibold uppercase text-slate-500">Status</div>
+                                            <div id="projectTemplatePreviewStatuses" class="mt-1 font-semibold text-slate-900">Draft template</div>
+                                        </div>
+                                    </div>
+
+                                    <div class="mt-3 bg-[#163b7a] px-2 py-1 text-center font-[Georgia] text-[11px] font-bold uppercase tracking-[0.08em] text-white">Within Scope</div>
+                                    <table class="w-full table-fixed border-collapse text-[9px] font-[Georgia] text-slate-900">
+                                        <thead>
+                                            <tr>
+                                                <th class="border border-slate-900 px-1 py-1 font-normal">Main Task</th>
+                                                <th class="border border-slate-900 px-1 py-1 font-normal">Sub Task</th>
+                                                <th class="border border-slate-900 px-1 py-1 font-normal">Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="projectTemplateWithinScope"></tbody>
+                                    </table>
+
+                                    <div class="mt-3 bg-[#163b7a] px-2 py-1 text-center font-[Georgia] text-[11px] font-bold uppercase tracking-[0.08em] text-white">Out Of Scope</div>
+                                    <div id="projectTemplateOutScope" class="border border-slate-900 border-t-0 px-2 py-2 text-[9px] leading-5 font-[Georgia] text-slate-900"></div>
+
+                                    <div class="mt-4 border border-slate-900 border-t-0 px-3 py-5 text-center font-[Georgia] text-[9px] text-slate-900">
+                                        <div class="mx-auto w-[70%] border-b border-slate-900 pb-1 font-semibold" id="projectTemplateSignatureName">Client representative signature</div>
+                                        <div class="mt-2 italic">Client Fullname & Signature</div>
+                                    </div>
+
+                                    <div class="mt-4 bg-[#163b7a] px-2 py-1 text-center font-[Georgia] text-[11px] font-bold uppercase tracking-[0.08em] text-white">Internal Approval</div>
+                                    <div class="grid grid-cols-2 border-l border-r border-b border-slate-900 font-[Georgia] text-[9px] text-slate-900">
+                                        <div class="border-r border-slate-900 px-3 py-3">
+                                            <div class="text-slate-500 italic">Prepared By</div>
+                                            <div id="projectTemplatePreparedBy" class="mt-3 border-b border-slate-900 pb-1 min-h-[18px]"></div>
+                                            <div class="mt-2 text-[8px] italic">Name / Signature / Date</div>
+                                        </div>
+                                        <div class="px-3 py-3">
+                                            <div class="text-slate-500 italic">Reviewed By</div>
+                                            <div id="projectTemplateReviewedBy" class="mt-3 border-b border-slate-900 pb-1 min-h-[18px]"></div>
+                                            <div class="mt-2 text-[8px] italic">Name / Signature / Date</div>
+                                        </div>
+                                    </div>
+
+                                    <div class="mt-4 bg-[#163b7a] px-2 py-1 text-center font-[Georgia] text-[11px] font-bold uppercase tracking-[0.08em] text-white">Records</div>
+                                    <div class="grid grid-cols-[1fr_38%] border-l border-r border-b border-slate-900 font-[Georgia] text-[9px] text-slate-900">
+                                        <div class="border-r border-slate-900 px-3 py-3">
+                                            <div class="mb-2">Date Received: ____________________</div>
+                                            <div>Date Returned: ____________________</div>
+                                        </div>
+                                        <div class="flex items-center justify-center px-3 py-6 italic text-center">Conforme / Record Custodian</div>
+                                    </div>
+
+                                    <div class="mt-3 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-[10px] text-slate-600">
+                                        <span id="projectTemplatePreviewEffect">The project will start from a blank/default SOW structure.</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </aside>
+                <div class="min-w-0 max-w-[720px] justify-self-end space-y-5">
             <section class="rounded-2xl border border-gray-200 bg-gray-50 p-4">
                 <p class="text-sm font-semibold text-gray-900">How do you want to create this project?</p>
                 <div class="mt-3 grid gap-3 md:grid-cols-2">
@@ -246,10 +376,10 @@
                 <div id="projectManualSelectionSummary" class="{{ old('contact_id') || old('company_id') ? '' : 'hidden' }} rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900"></div>
             </section>
 
-            <div class="grid gap-4 md:grid-cols-2">
+            <div class="grid gap-3 md:grid-cols-2">
                 <div class="md:col-span-2">
                     <label class="mb-2 block text-sm font-medium text-gray-700">SOW Template</label>
-                    <select name="template_id" class="h-11 w-full rounded-xl border border-gray-300 px-4 text-sm text-gray-900">
+                    <select name="template_id" id="project_template_id" class="h-11 w-full rounded-xl border border-gray-300 px-4 text-sm text-gray-900">
                         <option value="">Start from blank/default</option>
                         @foreach ($sowTemplates as $template)
                             <option value="{{ $template->id }}" @selected((string) old('template_id') === (string) $template->id)>{{ $template->name }}</option>
@@ -411,6 +541,8 @@
                     <input id="project-products-other-input" type="text" class="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" placeholder="Enter custom product and press Enter">
                 </div>
             </section>
+                </div>
+            </div>
         </div>
 
         <div class="border-t border-gray-200 px-6 py-4">
@@ -427,6 +559,7 @@
         const dealRecords = @json($dealRecords ?? []);
         const contactRecords = @json($contactRecords ?? []);
         const companyRecords = @json($companyRecords ?? []);
+        const sowTemplatePreviewData = @json($sowTemplatePreviewData);
 
         const sourceModeInput = document.getElementById('project_source_mode');
         const dealIdInput = document.getElementById('project_deal_id');
@@ -436,6 +569,22 @@
         const manualSection = document.getElementById('projectManualLinkSection');
         const dealSearch = document.getElementById('projectDealSearch');
         const contactSearch = document.getElementById('projectContactSearch');
+        const templateSelect = document.getElementById('project_template_id');
+        const templatePreview = document.getElementById('projectTemplatePreview');
+        const templatePreviewName = document.getElementById('projectTemplatePreviewName');
+        const templatePreviewBadge = document.getElementById('projectTemplatePreviewBadge');
+        const templateMetaCondeal = document.getElementById('projectTemplateMetaCondeal');
+        const templateMetaCode = document.getElementById('projectTemplateMetaCode');
+        const templateMetaClient = document.getElementById('projectTemplateMetaClient');
+        const templateMetaBusiness = document.getElementById('projectTemplateMetaBusiness');
+        const templatePreviewVersion = document.getElementById('projectTemplatePreviewVersion');
+        const templatePreviewStatuses = document.getElementById('projectTemplatePreviewStatuses');
+        const templatePreviewEffect = document.getElementById('projectTemplatePreviewEffect');
+        const templateSignatureName = document.getElementById('projectTemplateSignatureName');
+        const templatePreparedBy = document.getElementById('projectTemplatePreparedBy');
+        const templateReviewedBy = document.getElementById('projectTemplateReviewedBy');
+        const templateWithinScope = document.getElementById('projectTemplateWithinScope');
+        const templateOutScope = document.getElementById('projectTemplateOutScope');
         const dealResults = document.getElementById('projectDealResults');
         const contactResults = document.getElementById('projectContactResults');
         const dealSummary = document.getElementById('projectDealSelectionSummary');
@@ -673,6 +822,7 @@
                 services: payload.services || '',
                 products: payload.products || '',
             });
+            renderProjectTemplatePreview();
         };
 
         const inferProjectName = ({ dealCode = '', dealName = '', clientName = '', businessName = '' }) => {
@@ -925,6 +1075,66 @@
             container.classList.remove('hidden');
         };
 
+        const renderProjectTemplatePreview = () => {
+            if (!templateSelect || !templatePreview) {
+                return;
+            }
+
+            const template = sowTemplatePreviewData[String(templateSelect.value || '')];
+            if (!template) {
+                templatePreviewName.textContent = 'Blank Project Form';
+                templatePreviewBadge.textContent = 'Default';
+                templateMetaCondeal.textContent = '-';
+                templateMetaCode.textContent = 'Auto-generated';
+                templateMetaClient.textContent = document.getElementById('project_client_name')?.value || 'Pending selection';
+                templateMetaBusiness.textContent = document.getElementById('project_business_name')?.value || 'Pending selection';
+                templatePreviewVersion.textContent = '1.0';
+                templatePreviewStatuses.textContent = 'Draft template';
+                templateSignatureName.textContent = document.getElementById('project_client_confirmation_name')?.value || 'Client representative signature';
+                templatePreparedBy.textContent = document.getElementById('project_assigned_associate')?.value || document.getElementById('project_assigned_consultant')?.value || '';
+                templateReviewedBy.textContent = document.getElementById('project_assigned_project_manager')?.value || '';
+                templateWithinScope.innerHTML = '<tr><td colspan="3" class="border border-slate-900 px-2 py-2 text-center text-slate-500">No within-scope items yet.</td></tr>';
+                templateOutScope.textContent = 'No out-of-scope items will be loaded until a saved template is selected.';
+                templatePreviewEffect.textContent = 'The project will start from a blank/default SOW structure.';
+                return;
+            }
+
+            templatePreviewName.textContent = template.name || 'Selected template';
+            templatePreviewBadge.textContent = `Version ${template.version || '1.0'}`;
+            templateMetaCondeal.textContent = '-';
+            templateMetaCode.textContent = 'Auto-generated';
+            templateMetaClient.textContent = document.getElementById('project_client_name')?.value || 'Pending selection';
+            templateMetaBusiness.textContent = document.getElementById('project_business_name')?.value || 'Pending selection';
+            templatePreviewVersion.textContent = template.version || '1.0';
+            templatePreviewStatuses.textContent = `Approval ${template.approval_status || 'draft'} | NTP ${template.ntp_status || 'pending'}`;
+            templateSignatureName.textContent = document.getElementById('project_client_confirmation_name')?.value || 'Client representative signature';
+            templatePreparedBy.textContent = document.getElementById('project_assigned_associate')?.value || document.getElementById('project_assigned_consultant')?.value || '';
+            templateReviewedBy.textContent = document.getElementById('project_assigned_project_manager')?.value || '';
+
+            const scopeItems = Array.isArray(template.within_scope_items) ? template.within_scope_items : [];
+            if (scopeItems.length === 0) {
+                templateWithinScope.innerHTML = '<tr><td colspan="3" class="border border-slate-900 px-2 py-2 text-center text-slate-500">No saved within-scope items in this template.</td></tr>';
+            } else {
+                templateWithinScope.innerHTML = scopeItems
+                    .map((item, index) => {
+                        const [mainTask, subTask = ''] = String(item || '').split(' - ');
+                        const status = index === 0 ? 'Open' : (index === 1 ? 'In Progress' : 'Pending');
+
+                        return `<tr>
+                            <td class="border border-slate-900 px-2 py-1.5 align-top">${mainTask || ''}</td>
+                            <td class="border border-slate-900 px-2 py-1.5 align-top">${subTask || ''}</td>
+                            <td class="border border-slate-900 px-2 py-1.5 align-top text-center">${status}</td>
+                        </tr>`;
+                    })
+                    .join('');
+            }
+
+            templateOutScope.textContent = Number(template.out_of_scope_count || 0) > 0
+                ? `${template.out_of_scope_count} saved out-of-scope item(s) will also be loaded.`
+                : 'No out-of-scope items saved in this template.';
+            templatePreviewEffect.textContent = `This template will prefill ${template.within_scope_count || 0} within-scope row(s) and ${template.out_of_scope_count || 0} out-of-scope row(s) in the SOW form.`;
+        };
+
         sourceButtons.forEach((button) => {
             button.addEventListener('click', () => setSourceMode(button.dataset.projectSourceOption || 'manual'));
         });
@@ -1047,6 +1257,10 @@
         document.querySelector('input[name="product_options[]"][value="Others"]')?.addEventListener('change', (event) => {
             document.getElementById('project_products_other_wrap')?.classList.toggle('hidden', !event.target.checked);
         });
+        templateSelect?.addEventListener('change', renderProjectTemplatePreview);
+        ['project_client_name', 'project_business_name', 'project_client_confirmation_name', 'project_assigned_project_manager', 'project_assigned_consultant', 'project_assigned_associate'].forEach((id) => {
+            document.getElementById(id)?.addEventListener('input', renderProjectTemplatePreview);
+        });
 
         updateSourceUi();
         syncProjectCustomerSearchUi();
@@ -1054,6 +1268,7 @@
         syncProductOptions();
         syncCompositeFields();
         setManualSummary();
+        renderProjectTemplatePreview();
     })();
 </script>
 @endsection

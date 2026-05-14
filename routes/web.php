@@ -272,6 +272,9 @@ Route::middleware('auth')->group(function () {
 
     Route::post('/admin/catalog-change-requests/{catalogChangeRequest}/approve', [CatalogChangeRequestController::class, 'approve'])->name('catalog-change-requests.approve');
     Route::post('/admin/catalog-change-requests/{catalogChangeRequest}/reject', [CatalogChangeRequestController::class, 'reject'])->name('catalog-change-requests.reject');
+    Route::get('/admin/deal-proposal-templates', [DealProposalController::class, 'proposalTemplatesIndex'])->name('admin.deal-proposal-templates.index');
+    Route::post('/admin/deal-proposal-templates/{formTemplate}/approve', [DealProposalController::class, 'approveProposalTemplate'])->name('admin.deal-proposal-templates.approve');
+    Route::post('/admin/deal-proposal-templates/{formTemplate}/reject', [DealProposalController::class, 'rejectProposalTemplate'])->name('admin.deal-proposal-templates.reject');
 
     /*
     |--------------------------------------------------------------------------
@@ -382,12 +385,15 @@ Route::middleware('auth')->group(function () {
     Route::get('/project/{project}/sow/download', [ProjectController::class, 'downloadSowPdf'])->name('project.sow.download');
     Route::get('/project/{project}/coc/preview', [ProjectController::class, 'showCocPreview'])->name('project.coc.preview');
     Route::get('/project/{project}/coc/download', [ProjectController::class, 'downloadCocPdf'])->name('project.coc.download');
+    Route::post('/project/{project}/coc/approve', [ProjectController::class, 'approveCoc'])->name('project.coc.approve');
     Route::get('/project/{project}/ntp/download', [ProjectController::class, 'downloadNtpPdf'])->name('project.ntp.download');
+    Route::post('/project/{project}/ntp/manual-approve', [ProjectController::class, 'manualApproveNtp'])->name('project.ntp.manual-approve');
     Route::get('/project/{project}/ntp/status', [ProjectController::class, 'ntpStatus'])->name('project.ntp.status');
     Route::get('/project/{project}/ntp/submission', [ProjectController::class, 'showNtpSubmission'])->name('project.ntp.submission');
     Route::post('/project/{project}/sow/generate-report', [ProjectController::class, 'generateSowReport'])->name('project.sow.generate');
     Route::get('/project/{project}/report/{report}', [ProjectController::class, 'showGeneratedReport'])->name('project.report.preview');
     Route::post('/project/{project}/report/{report}/send', [ProjectController::class, 'sendGeneratedReport'])->name('project.report.send');
+    Route::post('/project/{project}/report/{report}/manual-approve', [ProjectController::class, 'manualApproveReport'])->name('project.report.manual-approve');
     Route::delete('/project/{project}/report/bulk-delete', [ProjectController::class, 'bulkDestroyGeneratedReports'])->name('project.report.bulk-delete');
     Route::post('/project/{project}/report', [ProjectController::class, 'updateReport'])->name('project.report.update');
 
@@ -400,10 +406,12 @@ Route::middleware('auth')->group(function () {
     Route::post('/regular/{regular}/report/generate', [RegularController::class, 'generateReport'])->name('regular.report.generate');
     Route::get('/regular/{regular}/report/{report}', [RegularController::class, 'showGeneratedReport'])->name('regular.report.preview');
     Route::post('/regular/{regular}/report/{report}/send', [RegularController::class, 'sendGeneratedReport'])->name('regular.report.send');
+    Route::post('/regular/{regular}/report/{report}/manual-approve', [RegularController::class, 'manualApproveReport'])->name('regular.report.manual-approve');
     Route::delete('/regular/{regular}/report/bulk-delete', [RegularController::class, 'bulkDestroyGeneratedReports'])->name('regular.report.bulk-delete');
     Route::post('/regular/{regular}/report', [RegularController::class, 'updateReport'])->name('regular.report.update');
     Route::get('/regular/{regular}/rsat/download', [RegularController::class, 'downloadRsatPdf'])->name('regular.rsat.download');
     Route::get('/regular/{regular}/ntp/download', [RegularController::class, 'downloadNtpPdf'])->name('regular.ntp.download');
+    Route::post('/regular/{regular}/ntp/manual-approve', [RegularController::class, 'manualApproveNtp'])->name('regular.ntp.manual-approve');
 
     Route::get('/products', [ProductController::class, 'index'])->name('products.index');
     Route::post('/products', [ProductController::class, 'store'])->name('products.store');

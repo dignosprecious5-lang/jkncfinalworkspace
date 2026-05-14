@@ -56,8 +56,25 @@
         ['title' => 'Why John Kelly & Company is the Right Partner', 'content' => 'why_partner'],
     ];
 
-    $termsChunks = collect($d['terms_and_conditions'] ?? [])->chunk(1)->values();
-    $totalPages = 13 + max($termsChunks->count() - 1, 0);
+    $serviceAreaRows = collect($d['service_areas'] ?? [])->values();
+    $serviceAreaChunks = collect();
+    if ($serviceAreaRows->isEmpty()) {
+        $serviceAreaChunks->push(collect());
+    } else {
+        $serviceAreaChunks->push($serviceAreaRows->take(3)->values());
+        $serviceAreaRows->slice(3)->chunk(4)->each(fn ($chunk) => $serviceAreaChunks->push($chunk->values()));
+    }
+
+    $productAreaRows = collect($d['product_areas'] ?? [])->values();
+    $productAreaChunks = $productAreaRows->isEmpty()
+        ? collect([collect()])
+        : $productAreaRows->chunk(4)->map(fn ($chunk) => $chunk->values())->values();
+
+    $termsChunks = collect([collect($d['terms_and_conditions'] ?? [])->values()]);
+    $totalPages = 13
+        + max($serviceAreaChunks->count() - 1, 0)
+        + max($productAreaChunks->count() - 1, 0)
+        + max($termsChunks->count() - 1, 0);
     $pageNumber = 0;
     $renderPageFooter = function () use ($d) {
         return '
@@ -128,88 +145,94 @@
         {!! $renderPageFooter() !!}
     </section>
 
-    <section class="proposal-page proposal-inner-page">
-        {!! $renderPageNumber(++$pageNumber) !!}
-        <div class="proposal-page-body">
-        @php($thirdSection = $sections[2])
-        <h2 class="proposal-section-heading">
-            <span class="proposal-section-number">{{ $toRoman(3) }}.</span>
-            <span>{{ $thirdSection['title'] }}</span>
-        </h2>
+    @foreach ($serviceAreaChunks as $serviceChunkIndex => $serviceAreaChunk)
+        <section class="proposal-page proposal-inner-page">
+            {!! $renderPageNumber(++$pageNumber) !!}
+            <div class="proposal-page-body">
+            @php($thirdSection = $sections[2])
+            <h2 class="proposal-section-heading">
+                <span class="proposal-section-number">{{ $toRoman(3) }}.</span>
+                <span>{{ $thirdSection['title'] }}</span>
+            </h2>
 
-        @foreach (($d[$thirdSection['content']] ?? []) as $item)
-            <p class="proposal-paragraph">{!! nl2br(e($item)) !!}</p>
-        @endforeach
-
-        <table class="proposal-service-table">
-            <thead>
-                <tr>
-                    <th class="proposal-service-no">No.</th>
-                    <th class="proposal-service-area">Service Area</th>
-                    <th class="proposal-service-scope">Scope of Support</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (($d['service_areas'] ?? []) as $serviceArea)
-                    <tr>
-                        <td class="proposal-service-no">{{ $serviceArea['no'] ?? '' }}</td>
-                        <td class="proposal-service-area-title">{{ $serviceArea['service_area'] ?? '' }}</td>
-                        <td class="proposal-service-scope-list">
-                            <ol type="a">
-                                @foreach (($serviceArea['scope'] ?? []) as $scope)
-                                    <li>{{ $scope }}</li>
-                                @endforeach
-                            </ol>
-                        </td>
-                    </tr>
+            @if ($serviceChunkIndex === 0)
+                @foreach (($d[$thirdSection['content']] ?? []) as $item)
+                    <p class="proposal-paragraph">{!! nl2br(e($item)) !!}</p>
                 @endforeach
-            </tbody>
-        </table>
+            @endif
 
-        </div>
-        {!! $renderPageFooter() !!}
-    </section>
+            <table class="proposal-service-table">
+                <thead>
+                    <tr>
+                        <th class="proposal-service-no">No.</th>
+                        <th class="proposal-service-area">Service Area</th>
+                        <th class="proposal-service-scope">Scope of Support</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach ($serviceAreaChunk as $serviceArea)
+                        <tr>
+                            <td class="proposal-service-no">{{ $serviceArea['no'] ?? '' }}</td>
+                            <td class="proposal-service-area-title">{{ $serviceArea['service_area'] ?? '' }}</td>
+                            <td class="proposal-service-scope-list">
+                                <ol type="a">
+                                    @foreach (($serviceArea['scope'] ?? []) as $scope)
+                                        <li>{{ $scope }}</li>
+                                    @endforeach
+                                </ol>
+                            </td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
 
-    <section class="proposal-page proposal-inner-page">
-        {!! $renderPageNumber(++$pageNumber) !!}
-        <div class="proposal-page-body">
-        <h2 class="proposal-section-heading">
-            <span class="proposal-section-number">{{ $toRoman(3) }}.</span>
-            <span>Products Offered</span>
-        </h2>
-        <table class="proposal-service-table proposal-product-table">
-            <thead>
-                <tr>
-                    <th class="proposal-service-no">No.</th>
-                    <th class="proposal-service-area">Product Area</th>
-                    <th class="proposal-service-scope">Products Offered</th>
-                </tr>
-            </thead>
-            <tbody>
-                @forelse (($d['product_areas'] ?? []) as $productArea)
+            </div>
+            {!! $renderPageFooter() !!}
+        </section>
+    @endforeach
+
+    @foreach ($productAreaChunks as $productChunkIndex => $productAreaChunk)
+        <section class="proposal-page proposal-inner-page">
+            {!! $renderPageNumber(++$pageNumber) !!}
+            <div class="proposal-page-body">
+            <h2 class="proposal-section-heading">
+                <span class="proposal-section-number">{{ $toRoman(3) }}.</span>
+                <span>Products Offered</span>
+            </h2>
+            <table class="proposal-service-table proposal-product-table">
+                <thead>
                     <tr>
-                        <td class="proposal-service-no">{{ $productArea['no'] ?? '' }}</td>
-                        <td class="proposal-service-area-title">{{ $productArea['product_area'] ?? '' }}</td>
-                        <td class="proposal-service-scope-list">
-                            <ol type="a">
-                                @foreach (($productArea['products'] ?? []) as $product)
-                                    <li>{{ $product }}</li>
-                                @endforeach
-                            </ol>
-                        </td>
+                        <th class="proposal-service-no">No.</th>
+                        <th class="proposal-service-area">Product Area</th>
+                        <th class="proposal-service-scope">Products Offered</th>
                     </tr>
-                @empty
-                    <tr>
-                        <td class="proposal-service-no">1</td>
-                        <td class="proposal-service-area-title">Products</td>
-                        <td class="proposal-service-scope-list">No active product records found.</td>
-                    </tr>
-                @endforelse
-            </tbody>
-        </table>
-        </div>
-        {!! $renderPageFooter() !!}
-    </section>
+                </thead>
+                <tbody>
+                    @forelse ($productAreaChunk as $productArea)
+                        <tr>
+                            <td class="proposal-service-no">{{ $productArea['no'] ?? '' }}</td>
+                            <td class="proposal-service-area-title">{{ $productArea['product_area'] ?? '' }}</td>
+                            <td class="proposal-service-scope-list">
+                                <ol type="a">
+                                    @foreach (($productArea['products'] ?? []) as $product)
+                                        <li>{{ $product }}</li>
+                                    @endforeach
+                                </ol>
+                            </td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td class="proposal-service-no">1</td>
+                            <td class="proposal-service-area-title">Products</td>
+                            <td class="proposal-service-scope-list">No active product records found.</td>
+                        </tr>
+                    @endforelse
+                </tbody>
+            </table>
+            </div>
+            {!! $renderPageFooter() !!}
+        </section>
+    @endforeach
 
     <section class="proposal-page proposal-inner-page">
         {!! $renderPageNumber(++$pageNumber) !!}

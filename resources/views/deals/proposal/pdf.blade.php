@@ -37,8 +37,8 @@
         .proposal-page { page-break-after: always; position: relative; overflow: hidden; background: #fff; }
         .proposal-page:last-child { page-break-after: auto; }
         .proposal-inner-page { min-height: 900px; padding-top: 52px; }
-        .proposal-page-body { width: 100%; }
-        .proposal-cover { min-height: 980px; position: relative; }
+        .proposal-page-body { width: 100%; padding-bottom: 8px; box-sizing: border-box; overflow: hidden; }
+        .proposal-cover { min-height: 980px; position: relative; overflow: hidden; }
         .proposal-cover-logo-wrap { width: 100%; }
         .proposal-brand-logo { width: 470px; max-width: 100%; height: auto; }
         .proposal-cover-body { margin-top: 165px; color: #0031af; }
@@ -79,8 +79,10 @@
         .proposal-requirement-group { margin-bottom: 10px; }
         .proposal-requirement-label { margin-bottom: 6px; font-size: 12px; font-weight: 700; color: #0031af; }
         .proposal-term-block { margin-bottom: 16px; }
-        .proposal-service-table, .proposal-pricing-table, .proposal-data-table { width: 100%; border-collapse: collapse; margin-top: 12px; table-layout: fixed; }
-        .proposal-service-table th, .proposal-service-table td, .proposal-pricing-table th, .proposal-pricing-table td, .proposal-data-table th, .proposal-data-table td { border: 1px solid #111827; padding: 8px 10px; font-size: 10.5px; vertical-align: top; }
+        .proposal-service-table, .proposal-pricing-table, .proposal-data-table { width: 100%; border: 1px solid #111827; border-collapse: separate; border-spacing: 0; margin-top: 12px; table-layout: fixed; }
+        .proposal-service-table th, .proposal-service-table td, .proposal-pricing-table th, .proposal-pricing-table td, .proposal-data-table th, .proposal-data-table td { border: 0; border-right: 1px solid #111827; border-bottom: 1px solid #111827; padding: 8px 10px; font-size: 10.5px; vertical-align: top; }
+        .proposal-service-table th:last-child, .proposal-service-table td:last-child, .proposal-pricing-table th:last-child, .proposal-pricing-table td:last-child, .proposal-data-table th:last-child, .proposal-data-table td:last-child { border-right: 0; }
+        .proposal-service-table tbody tr:last-child td, .proposal-pricing-table tbody tr:last-child td, .proposal-data-table tbody tr:last-child td { border-bottom: 0; }
         .proposal-service-table th, .proposal-pricing-table th, .proposal-data-table th { font-weight: 400; text-align: left; background: transparent; }
         .proposal-service-no { width: 7%; }
         .proposal-service-area { width: 24%; }
@@ -91,7 +93,7 @@
         .proposal-service-scope-list ol[type="a"] { list-style-type: lower-alpha; }
         .proposal-service-table { margin-top: 22px; }
         .proposal-product-offerings-heading { margin-top: 24px; }
-        .proposal-product-table { margin-top: 10px; }
+        .proposal-product-table { margin-top: 10px; margin-bottom: 10px; }
         .proposal-pricing-table, .proposal-data-table { margin-top: 16px; }
         .proposal-availed-table { margin: 36px 0 14px; table-layout: fixed; }
         .proposal-availed-table th, .proposal-availed-table td { padding: 6px 7px; font-size: 10.5px; line-height: 1.35; }
@@ -128,5 +130,6 @@
     @else
         @include('deals.proposal.partials.document', ['documentData' => $documentData])
     @endif
+    @include('deals.proposal.partials.pagination-script')
 </body>
 </html>

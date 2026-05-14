@@ -180,10 +180,17 @@
         }
     </style>
 </head>
+@php
+    $transmittalText = strtolower($transmittal->items->map(fn ($item) => trim(($item->particular ?? '').' '.($item->remarks ?? '').' '.($item->description ?? '')))->implode(' '));
+    $transmittalFormCode = str_contains($transmittalText, 'rsat') ? 'REG-F-004' : (str_contains($transmittalText, 'sow') ? 'PROJ-F-006' : '');
+@endphp
 <body>
     <div class="transmittal-doc-page">
         <div class="tm-title">
             <div class="tm-title-main">Transmittal Form</div>
+            @if ($transmittalFormCode !== '')
+                <div style="font-size: 11px; text-transform: uppercase; letter-spacing: .12em; color: #6b7280;">{{ $transmittalFormCode }}</div>
+            @endif
         </div>
 
         <div class="tm-top-block">

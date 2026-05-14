@@ -6,6 +6,7 @@ use App\Models\Contact;
 use App\Models\Company;
 use App\Models\Deal;
 use App\Models\DealStage;
+use App\Models\Employee;
 use App\Models\Project;
 use App\Models\Product;
 use App\Models\Service;
@@ -101,6 +102,7 @@ class DealController extends Controller
         $deals = [];
         $owners = $this->ownerOptions();
         $financeUsers = $this->financeUserOptions();
+        $employeeOptions = $this->employeeOptions();
         $defaultOwnerId = (int) ($owners[0]['id'] ?? 1001);
         $defaultOwner = collect($owners)->firstWhere('id', $defaultOwnerId) ?: collect($owners)->first();
         $companyOptions = [
@@ -326,7 +328,7 @@ class DealController extends Controller
                 $this->backfillMissingDealCodes();
 
                 $storedDeals = Deal::query()
-                    ->with(['contact:id,first_name,last_name', 'stage'])
+                    ->with(['contact:id,first_name,last_name', 'stage', 'assignedFinance'])
                     ->latest()
                     ->get();
 
@@ -465,6 +467,7 @@ class DealController extends Controller
             'ownerLabel' => $defaultOwner['name'] ?? 'Shine Florence Padillo',
             'owners' => $owners,
             'financeUsers' => $financeUsers,
+            'employeeOptions' => $employeeOptions,
             'defaultOwnerId' => $defaultOwnerId,
         ]);
     }
@@ -1271,6 +1274,12 @@ class DealController extends Controller
         if (Schema::hasTable('deals')) {
             $storedDeal = Deal::query()->with(['contact', 'stage', 'project', 'regularProject', 'proposal', 'assignedFinance'])->find($id);
             if ($storedDeal) {
+                if (! $this->canViewDeal($storedDeal)) {
+                    return redirect()
+                        ->route('deals.index')
+                        ->with('deal_access_denied', "You don't have access to this deal.");
+                }
+
                 $stages = $this->dealStages();
                 $currentStage = null;
                 if (Schema::hasColumn('deals', 'stage_id')) {
@@ -1418,6 +1427,7 @@ class DealController extends Controller
                     ...$linkedProjectContext,
                     ...$this->dealPanelContext($this->storedDealFormData($storedDeal)),
                     'financeUsers' => $this->financeUserOptions(),
+                    'employeeOptions' => $this->employeeOptions(),
                     'openDealModal' => (bool) request()->boolean('edit_deal'),
                 ]);
             }
@@ -1522,6 +1532,7 @@ class DealController extends Controller
                 'dealFormData' => $this->normalizeDealFormData($mockPayload),
                 ...$this->dealPanelContext($this->normalizeDealFormData($mockPayload)),
                 'financeUsers' => $this->financeUserOptions(),
+                'employeeOptions' => $this->employeeOptions(),
                 'openDealModal' => (bool) request()->boolean('edit_deal'),
             ]);
         }
@@ -1709,16 +1720,57 @@ class DealController extends Controller
                 'mobile' => $detail['contact_number'] ?? null,
             ])),
             'financeUsers' => $this->financeUserOptions(),
+            'employeeOptions' => $this->employeeOptions(),
             'openDealModal' => (bool) request()->boolean('edit_deal'),
         ]);
     }
 
-    public function downloadPdf(Request $request, int $id): View
+    public function downloadPdf(Request $request, int $id): View|RedirectResponse
     {
+        if (Schema::hasTable('deals') && ($deal = Deal::query()->with('assignedFinance')->find($id))) {
+            if (! $this->canViewDeal($deal)) {
+                return redirect()
+                    ->route('deals.index')
+                    ->with('deal_access_denied', "You don't have access to this deal.");
+            }
+        }
+
         $payload = $this->buildDealPdfPayload($id);
         $payload['autoPrint'] = $request->boolean('autoprint');
 
         return view('pdf.deal', $payload);
+    }
+
+    private function canViewDeal(Deal $deal, ?User $user = null): bool
+    {
+        $user ??= Auth::user();
+
+        if (! $user) {
+            return false;
+        }
+
+        $userTokens = collect([
+            $user->name,
+            $user->email,
+            (string) $user->id,
+        ])
+            ->filter()
+            ->map(fn ($value): string => Str::lower(trim((string) $value)))
+            ->all();
+
+        $dealRelationTokens = collect([
+            $deal->created_by,
+            $deal->assigned_consultant,
+            $deal->assigned_associate,
+            $deal->assignedFinance?->name,
+            $deal->assignedFinance?->email,
+            $deal->assigned_finance_user_id ? (string) $deal->assigned_finance_user_id : null,
+        ])
+            ->filter()
+            ->map(fn ($value): string => Str::lower(trim((string) $value)))
+            ->all();
+
+        return count(array_intersect($userTokens, $dealRelationTokens)) > 0;
     }
 
     private function dealStages(): array
@@ -3268,6 +3320,42 @@ class DealController extends Controller
                 'email' => $user->email,
                 'role' => $user->role,
             ])
+            ->values()
+            ->all();
+    }
+
+    private function employeeOptions(): array
+    {
+        if (! Schema::hasTable('employees')) {
+            return collect($this->ownerOptions())
+                ->map(fn (array $owner): array => [
+                    'id' => $owner['id'] ?? null,
+                    'name' => $owner['name'] ?? '',
+                    'employee_code' => null,
+                    'email' => $owner['email'] ?? null,
+                    'position' => null,
+                    'department' => null,
+                ])
+                ->filter(fn (array $employee): bool => filled($employee['name']))
+                ->values()
+                ->all();
+        }
+
+        return Employee::query()
+            ->with('department:id,department_name')
+            ->select(['id', 'employee_code', 'first_name', 'last_name', 'email', 'position', 'department_id'])
+            ->orderBy('first_name')
+            ->orderBy('last_name')
+            ->get()
+            ->map(fn (Employee $employee): array => [
+                'id' => (int) $employee->id,
+                'name' => $employee->full_name,
+                'employee_code' => $employee->employee_code,
+                'email' => $employee->email,
+                'position' => $employee->position,
+                'department' => $employee->department?->department_name,
+            ])
+            ->filter(fn (array $employee): bool => filled($employee['name']))
             ->values()
             ->all();
     }

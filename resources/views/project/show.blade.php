@@ -18,6 +18,9 @@
     $ntpStatusLabel = $ntpApproved
         ? 'Client approved NTP'
         : (($ntpRecord?->client_form_sent_at) ? 'Waiting for client signed NTP upload' : 'NTP not generated');
+    $cocMeta = (array) data_get($project->metadata ?? [], 'coc', []);
+    $cocApproved = ($project->status === 'Completed') || (($cocMeta['approval_status'] ?? null) === 'approved');
+    $projectLocked = $projectLocked ?? ($project->status === 'Completed');
 @endphp
 
 <style>
@@ -212,6 +215,11 @@
         @if (session('success'))
             <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{{ session('success') }}</div>
         @endif
+        @if ($projectLocked)
+            <div class="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">
+                This project is completed. Documents are view-only; editing, generating, and approval uploads are locked.
+            </div>
+        @endif
         <div class="project-linked-card rounded-2xl px-5 py-4 text-sm text-gray-600">
             <div class="flex flex-wrap items-start justify-between gap-4">
                 <div class="flex flex-wrap gap-x-8 gap-y-2">
@@ -238,30 +246,68 @@
                                     <i id="projectNtpStatusIcon" class="{{ $ntpApproved ? 'fas fa-check-circle' : 'fas fa-hourglass-half' }}"></i>
                                     <span id="projectNtpStatusText">{{ $ntpStatusLabel }}</span>
                                 </span>
+                                <span class="project-doc-status-chip {{ $cocApproved ? 'approved' : '' }}">
+                                    <i class="{{ $cocApproved ? 'fas fa-check-circle' : 'fas fa-file-circle-check' }}"></i>
+                                    <span>{{ $cocApproved ? 'COC approved, project completed' : 'COC pending completion approval' }}</span>
+                                </span>
                             </div>
                         </div>
                         <div class="project-quick-group">
                             <div class="flex items-center justify-between gap-2">
                                 <p class="project-quick-label">Document Actions</p>
-                                <button type="button" id="projectSowAutoSettingsOpen" class="project-settings-trigger" title="Auto-report settings">
-                                    <i class="fas fa-cog"></i>
-                                </button>
+                                @if (! $projectLocked)
+                                    <button type="button" id="projectSowAutoSettingsOpen" class="project-settings-trigger" title="Auto-report settings">
+                                        <i class="fas fa-cog"></i>
+                                    </button>
+                                @endif
                             </div>
                             <div class="project-quick-stack">
-                                <button type="submit" form="project-sow-form" class="project-doc-primary">Save Scope of Work</button>
-                                <button type="submit" form="project-sow-form" formaction="{{ route('project.sow.generate', $project) }}" class="project-doc-action">Generate SOW Report</button>
-                                <button type="button" id="projectCocAction" class="project-doc-action">Generate COC</button>
-                                <a href="{{ route('transmittal.create.project', $project) }}" class="project-doc-action">Generate Transmital</a>
-                                <a
-                                    id="projectNtpAction"
-                                    href="{{ $ntpApproved ? route('project.ntp.submission', $project) : route('project.ntp.download', $project) }}"
-                                    data-approved-view="{{ $ntpApproved ? 'true' : 'false' }}"
-                                    data-status-url="{{ route('project.ntp.status', $project) }}"
-                                    class="{{ $ntpApproved ? 'project-doc-action project-doc-action-approved' : 'project-doc-action' }}"
-                                ><i id="projectNtpActionIcon" class="{{ $ntpApproved ? 'fas fa-check-circle' : 'fas fa-file-signature' }}"></i><span id="projectNtpActionText">{{ $ntpApproved ? 'View Approved NTP' : 'Generate NTP' }}</span></a>
+                                @if (! $projectLocked)
+                                    <button type="submit" form="project-sow-form" class="project-doc-primary">Save Scope of Work</button>
+                                    <button type="submit" form="project-sow-form" formaction="{{ route('project.sow.generate', $project) }}" class="project-doc-action">Generate SOW Report</button>
+                                    <button type="button" id="projectCocAction" class="project-doc-action">Generate COC</button>
+                                    <a href="{{ route('transmittal.create.project', $project) }}" class="project-doc-action">Generate Transmittal</a>
+                                @elseif ($coc)
+                                    <button type="button" id="projectCocAction" class="project-doc-action">View COC</button>
+                                @endif
+                                @if (! $projectLocked || $ntpApproved)
+                                    <a
+                                        id="projectNtpAction"
+                                        href="{{ $ntpApproved ? route('project.ntp.submission', $project) : route('project.ntp.download', $project) }}"
+                                        data-approved-view="{{ $ntpApproved ? 'true' : 'false' }}"
+                                        data-status-url="{{ route('project.ntp.status', $project) }}"
+                                        class="{{ $ntpApproved ? 'project-doc-action project-doc-action-approved' : 'project-doc-action' }}"
+                                    ><i id="projectNtpActionIcon" class="{{ $ntpApproved ? 'fas fa-check-circle' : 'fas fa-file-signature' }}"></i><span id="projectNtpActionText">{{ $ntpApproved ? 'View Approved NTP' : 'Generate NTP' }}</span></a>
+                                @endif
                                 <a href="{{ route('project.sow.download', $project) }}" class="project-doc-action">Download PDF</a>
                             </div>
                         </div>
+                        @if (! $projectLocked && $ntpRecord && ! $ntpApproved)
+                            <div class="project-quick-group">
+                                <p class="project-quick-label">Manual NTP Approval</p>
+                                <form method="POST" action="{{ route('project.ntp.manual-approve', $project) }}" enctype="multipart/form-data" class="project-quick-stack">
+                                    @csrf
+                                    <input type="file" name="signed_document" required accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" class="w-full text-xs text-slate-600">
+                                    <input type="text" name="approval_name" placeholder="Approver name" class="border border-slate-300 px-3 py-2 text-sm">
+                                    <button type="submit" class="project-doc-primary">Upload Signed NTP & Approve</button>
+                                </form>
+                            </div>
+                        @endif
+                        <div class="project-quick-group">
+                            <p class="project-quick-label">COC Completion</p>
+                            @if (!empty($cocMeta['signed_attachment_path']))
+                                <a href="{{ route('uploads.show', ['path' => $cocMeta['signed_attachment_path'], 'download' => 1]) }}" class="project-doc-action">Download Signed COC</a>
+                            @endif
+                            @if (! $projectLocked && ! $cocApproved)
+                                <form method="POST" action="{{ route('project.coc.approve', $project) }}" enctype="multipart/form-data" class="project-quick-stack">
+                                    @csrf
+                                    <input type="file" name="signed_document" required accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" class="w-full text-xs text-slate-600">
+                                    <input type="text" name="approval_name" placeholder="Approver name" class="border border-slate-300 px-3 py-2 text-sm">
+                                    <button type="submit" class="project-doc-primary">Upload Signed COC & Complete</button>
+                                </form>
+                            @endif
+                        </div>
+                        @if (! $projectLocked)
                         <div class="project-quick-group">
                             <p class="project-quick-label">Templates</p>
                             <div class="project-quick-stack">
@@ -273,6 +319,7 @@
                                 @endif
                             </div>
                         </div>
+                        @endif
                     </div>
                 </aside>
                 <div class="min-w-0">
@@ -384,10 +431,6 @@
         const autoSettingsOverlay = document.getElementById('projectSowAutoSettingsOverlay');
         const autoSettingsClose = document.getElementById('projectSowAutoSettingsClose');
 
-        if (!action) {
-            return;
-        }
-
         const openApprovedNtpModal = () => {
             if (!approvedNtpModal) {
                 return;
@@ -443,6 +486,10 @@
         };
 
         const applyState = (payload) => {
+            if (!action || !statusChip || !statusIcon || !statusText || !actionIcon || !actionText) {
+                return;
+            }
+
             if (!payload) {
                 return;
             }
@@ -459,6 +506,10 @@
         };
 
         const pollStatus = async () => {
+            if (!action) {
+                return;
+            }
+
             try {
                 const response = await fetch(action.dataset.statusUrl, {
                     headers: {
@@ -483,7 +534,7 @@
             }
         };
 
-        action.addEventListener('click', (event) => {
+        action?.addEventListener('click', (event) => {
             if (action.dataset.approvedView === 'true' && approvedNtpModal) {
                 event.preventDefault();
                 openApprovedNtpModal();
@@ -505,15 +556,13 @@
             }
 
             const templateInput = sowForm.querySelector('input[name="template_name"]');
-            const previousAction = sowForm.getAttribute('action');
 
             if (templateInput) {
                 templateInput.value = templateName.trim();
             }
 
             sowForm.setAttribute('action', @json(route('project.sow.templates.store', $project)));
-            sowForm.submit();
-            sowForm.setAttribute('action', previousAction || '');
+            sowForm.requestSubmit();
         });
         autoSettingsOpen?.addEventListener('click', openAutoSettingsModal);
         autoSettingsOverlay?.addEventListener('click', closeAutoSettingsModal);
@@ -524,7 +573,7 @@
         cocOverlay?.addEventListener('click', closeCocModal);
         cocClose?.addEventListener('click', closeCocModal);
 
-        const intervalId = window.setInterval(pollStatus, 15000);
+        const intervalId = action ? window.setInterval(pollStatus, 15000) : null;
     })();
 </script>
 @endif

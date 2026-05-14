@@ -99,7 +99,7 @@
     <div class="doc">
         <div class="center">
             <div class="title">{{ $ntp['title'] ?? 'NOTICE TO PROCEED' }}</div>
-            <div class="code">{{ $ntp['form_code'] ?? '' }}</div>
+            <div class="code">{{ str_contains(strtolower((string) ($ntp['engagement_type'] ?? '')), 'regular') ? 'REG-F-002' : 'PROJ-F-003' }}</div>
         </div>
 
         <div class="issued">Date Issued: <span class="value">{{ $ntp['date_issued'] ?? '-' }}</span></div>
