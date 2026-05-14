@@ -253,7 +253,7 @@ class AttendanceController extends Controller
             $overtimeRequest = $this->eligibleOvertimeRequest($user, now(), false);
 
             if ($overtimeRequest) {
-                return Attendance::firstOrNew(
+                $overtimeAttendance = Attendance::firstOrNew(
                     [
                         'user_id' => $user->id,
                         'employee_request_id' => $overtimeRequest->id,
@@ -265,6 +265,10 @@ class AttendanceController extends Controller
                         'status' => 'pending',
                     ]
                 );
+
+                if (! $overtimeAttendance->time_out) {
+                    return $overtimeAttendance;
+                }
             }
         }
 
@@ -278,7 +282,7 @@ class AttendanceController extends Controller
             return $regularAttendance;
         }
 
-        return Attendance::firstOrNew(
+        $overtimeAttendance = Attendance::firstOrNew(
             [
                 'user_id' => $user->id,
                 'employee_request_id' => $overtimeRequest->id,
@@ -290,6 +294,8 @@ class AttendanceController extends Controller
                 'status' => 'pending',
             ]
         );
+
+        return $overtimeAttendance->time_out ? $regularAttendance : $overtimeAttendance;
     }
 
     private function clockInRestrictionMessage(User $user, Attendance $attendance): ?string
