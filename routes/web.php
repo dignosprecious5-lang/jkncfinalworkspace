@@ -82,6 +82,7 @@ use App\Http\Controllers\DeploymentController;
 use App\Http\Controllers\OfficialBusinessTripController;
 use App\Http\Controllers\EmployeeRelationController;
 use App\Http\Controllers\AwardController;
+use App\Http\Controllers\PerformanceController;
 
 /*
 |--------------------------------------------------------------------------
@@ -1021,7 +1022,17 @@ Route::middleware('auth')->group(function () {
         Route::post('/employee-relations/{employeeRelation}/reject', [EmployeeRelationController::class, 'reject'])->name('employee-relations.reject');
         Route::delete('/employee-relations/{employeeRelation}', [EmployeeRelationController::class, 'destroy'])->name('employee-relations.destroy');
         Route::view('/memos', 'human-capital.memos')->name('memos');
-        Route::view('/performance', 'human-capital.performance')->name('performance');
+        
+        // Performance Management
+        Route::get('/performance', [PerformanceController::class, 'index'])->name('performance');
+        Route::get('/performance/employee/{id}', [PerformanceController::class, 'getEmployee'])->name('performance.get-employee');
+        Route::post('/performance/evaluation', [PerformanceController::class, 'storeEvaluation'])->name('performance.evaluation.store');
+        Route::put('/performance/evaluation/{id}', [PerformanceController::class, 'updateEvaluation'])->name('performance.evaluation.update');
+        Route::delete('/performance/evaluation/{id}', [PerformanceController::class, 'destroyEvaluation'])->name('performance.evaluation.destroy');
+        Route::post('/performance/pip', [PerformanceController::class, 'storePIP'])->name('performance.pip.store');
+        Route::put('/performance/pip/{id}', [PerformanceController::class, 'updatePIP'])->name('performance.pip.update');
+        Route::delete('/performance/pip/{id}', [PerformanceController::class, 'destroyPIP'])->name('performance.pip.destroy');
+        
         Route::view('/offboarding', 'human-capital.offboarding')->name('offboarding');
 
 Route::get('/obf', [OfficialBusinessTripController::class, 'index'])->name('obf');
