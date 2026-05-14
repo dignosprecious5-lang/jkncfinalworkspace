@@ -270,20 +270,37 @@
                                 <span :class="trainingStatusClass(row.status)" class="px-2 py-0.5 rounded-full text-xs font-medium" x-text="row.status || 'Pending'"></span>
                             </td>
                             <td class="px-4 py-3">
-                                <div class="flex items-center gap-2">
-                                    <select
-                                        :value="row.status || 'Pending'"
-                                        @change="updateTrainingStatus(row, $event.target.value)"
-                                        class="rounded border border-gray-300 px-2 py-1 text-xs bg-white"
+                                <div class="flex items-center justify-end gap-2">
+                                    <button
+                                        type="button"
+                                        x-show="(row.status || 'Pending') !== 'Completed'"
+                                        @click="updateTrainingStatus(row, nextTrainingStatus(row.status))"
+                                        class="inline-flex items-center rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700"
+                                        x-text="trainingActionLabel(row.status)"
+                                    ></button>
+                                    <button
+                                        type="button"
+                                        x-show="(row.status || 'Pending') === 'Completed'"
+                                        @click="updateTrainingStatus(row, 'In Progress')"
+                                        class="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50"
                                     >
-                                        <option value="Pending">Pending</option>
-                                        <option value="Scheduled">Scheduled</option>
-                                        <option value="In Progress">In Progress</option>
-                                        <option value="Completed">Completed</option>
-                                        <option value="Failed">Failed</option>
-                                        <option value="Cancelled">Cancelled</option>
-                                    </select>
-                                    <button @click="deleteTraining(i)" class="text-xs text-red-500 hover:underline">Delete</button>
+                                        Reopen
+                                    </button>
+                                    <button
+                                        type="button"
+                                        @click="updateTrainingStatus(row, 'Cancelled')"
+                                        x-show="!['Completed', 'Cancelled'].includes(row.status || 'Pending')"
+                                        class="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="button"
+                                        @click="deleteTraining(i)"
+                                        class="inline-flex items-center rounded-md border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100"
+                                    >
+                                        Delete
+                                    </button>
                                 </div>
                             </td>
                         </tr>
@@ -1667,6 +1684,30 @@ trainingStatusClass(status) {
     };
 
     return map[status] || 'bg-gray-100 text-gray-700';
+},
+
+nextTrainingStatus(status) {
+    const current = status || 'Pending';
+
+    return {
+        'Pending': 'Scheduled',
+        'Scheduled': 'In Progress',
+        'In Progress': 'Completed',
+        'Failed': 'In Progress',
+        'Cancelled': 'Scheduled',
+    }[current] || 'Completed';
+},
+
+trainingActionLabel(status) {
+    const current = status || 'Pending';
+
+    return {
+        'Pending': 'Schedule',
+        'Scheduled': 'Start',
+        'In Progress': 'Complete',
+        'Failed': 'Restart',
+        'Cancelled': 'Reschedule',
+    }[current] || 'Complete';
 },
 
 async reviewChecklistDocument(doc, status) {

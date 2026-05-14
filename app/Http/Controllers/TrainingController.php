@@ -5,13 +5,30 @@ namespace App\Http\Controllers;
 use App\Models\Training;
 use App\Models\TrainingAssignment;
 use App\Models\Award;
+use App\Models\Employee;
 use Illuminate\Http\Request;
 
 class TrainingController extends Controller
 {
     public function index(Request $request)
     {
-        $trainings = Training::with(['assignments.employee'])
+        $user = auth()->user();
+        $canManageTraining = $user && ($user->isAdmin() || $user->isSuperAdmin());
+        $currentEmployee = $canManageTraining
+            ? null
+            : Employee::where('email', $user?->email)->first();
+
+        $trainings = Training::query()
+            ->with(['assignments' => function ($query) use ($canManageTraining, $currentEmployee) {
+                $query->with('employee');
+
+                if (! $canManageTraining) {
+                    $query->where('employee_id', $currentEmployee?->id ?: 0);
+                }
+            }])
+            ->when(! $canManageTraining, function ($query) use ($currentEmployee) {
+                $query->whereHas('assignments', fn ($assignmentQuery) => $assignmentQuery->where('employee_id', $currentEmployee?->id ?: 0));
+            })
             ->latest()
             ->get();
 
@@ -31,7 +48,7 @@ class TrainingController extends Controller
             );
         }
 
-        return view('human-capital.training', compact('trainings'));
+        return view('human-capital.training', compact('trainings', 'canManageTraining'));
     }
 
     public function store(Request $request)
