@@ -69,10 +69,13 @@
 
         $canSeeHumanCapital =
             $user->hasPermission('access_human_capital') ||
+            strtolower((string) $user->role) === 'employee' ||
             $user->isAdmin() ||
             $user->isSuperAdmin();
 
-        $humanCapitalLandingRoute = $user->hasPermission('access_human_capital')
+        $canManageHumanCapital = $user->isAdmin() || $user->isSuperAdmin();
+
+        $humanCapitalLandingRoute = $canManageHumanCapital
             ? route('human-capital.organizational')
             : route('human-capital.attendance');
     @endphp
@@ -494,35 +497,37 @@
                 <div class="flex-1 overflow-y-auto p-3">
                     <div class="space-y-1 text-sm">
 
-                        <a href="{{ route('human-capital.organizational') }}"
-                           class="block px-3 py-2 rounded-lg transition {{ request()->is('human-capital/organizational') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
-                            Organizational
-                        </a>
+                        @if($canManageHumanCapital)
+                            <a href="{{ route('human-capital.organizational') }}"
+                               class="block px-3 py-2 rounded-lg transition {{ request()->is('human-capital/organizational') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
+                                Organizational
+                            </a>
 
-                        <a href="{{ route('human-capital.payroll') }}"
-                           class="block px-3 py-2 rounded-lg transition {{ request()->is('human-capital/payroll') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
-                            Payroll
-                        </a>
+                            <a href="{{ route('human-capital.payroll') }}"
+                               class="block px-3 py-2 rounded-lg transition {{ request()->is('human-capital/payroll') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
+                                Payroll
+                            </a>
 
-                        <a href="{{ route('human-capital.employee-profile') }}"
-                           class="block px-3 py-2 rounded-lg transition {{ request()->is('human-capital/employee-profile') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
-                            Employee Profile
-                        </a>
+                            <a href="{{ route('human-capital.employee-profile') }}"
+                               class="block px-3 py-2 rounded-lg transition {{ request()->is('human-capital/employee-profile') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
+                                Employee Profile
+                            </a>
 
-                        <a href="{{ route('human-capital.recruitment') }}"
-                           class="block px-3 py-2 rounded-lg transition {{ request()->is('human-capital/recruitment') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
-                            Recruitment
-                        </a>
+                            <a href="{{ route('human-capital.recruitment') }}"
+                               class="block px-3 py-2 rounded-lg transition {{ request()->is('human-capital/recruitment') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
+                                Recruitment
+                            </a>
 
-                        <a href="{{ route('human-capital.onboarding') }}"
-                           class="block px-3 py-2 rounded-lg transition {{ request()->is('human-capital/onboarding') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
-                            On Boarding
-                        </a>
+                            <a href="{{ route('human-capital.onboarding') }}"
+                               class="block px-3 py-2 rounded-lg transition {{ request()->is('human-capital/onboarding') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
+                                On Boarding
+                            </a>
 
-                        <a href="{{ route('human-capital.deployment') }}"
-                           class="block px-3 py-2 rounded-lg transition {{ request()->is('human-capital/deployment') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
-                            Deployment
-                        </a>
+                            <a href="{{ route('human-capital.deployment') }}"
+                               class="block px-3 py-2 rounded-lg transition {{ request()->is('human-capital/deployment') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
+                                Deployment
+                            </a>
+                        @endif
 
                         {{-- MY HC MODULE --}}
                         <div
@@ -611,10 +616,12 @@
                             </div>
                         </div>
 
-                        <a href="{{ route('human-capital.offboarding') }}"
-                           class="block px-3 py-2 rounded-lg transition {{ request()->is('human-capital/offboarding') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
-                            OffBoarding
-                        </a>
+                        @if($canManageHumanCapital)
+                            <a href="{{ route('human-capital.offboarding') }}"
+                               class="block px-3 py-2 rounded-lg transition {{ request()->is('human-capital/offboarding') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
+                                OffBoarding
+                            </a>
+                        @endif
                     </div>
                 </div>
             </aside>
