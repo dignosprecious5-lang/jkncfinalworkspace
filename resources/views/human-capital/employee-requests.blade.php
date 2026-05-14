@@ -96,6 +96,20 @@
 
             <!-- LIST OF REQUESTS TAB (Admin Only) -->
             <div x-show="activeTab === 'list'" class="h-full flex flex-col">
+                <div class="mb-3 flex items-center justify-end gap-2">
+                    <label for="employee-request-filter" class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Employee</label>
+                    <select
+                        id="employee-request-filter"
+                        x-model="selectedEmployee"
+                        class="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white min-w-64"
+                    >
+                        <option value="">All employees</option>
+                        <template x-for="employee in employeeFilterOptions" :key="employee">
+                            <option :value="employee" x-text="employee"></option>
+                        </template>
+                    </select>
+                </div>
+
                 <div class="border rounded-xl h-full overflow-auto bg-white">
                     <table class="w-full text-sm border-collapse">
                         <thead class="bg-gray-50 text-gray-600 sticky top-0 z-20">
@@ -109,7 +123,7 @@
                             </tr>
                         </thead>
                         <tbody>
-                            <template x-if="allRequests.length === 0">
+                            <template x-if="filteredRequests.length === 0">
                                 <tr>
                                     <td colspan="6" class="p-10 text-center text-gray-400">
                                         No employee requests submitted yet.
@@ -117,7 +131,7 @@
                                 </tr>
                             </template>
 
-                            <template x-for="request in allRequests" :key="request.id">
+                            <template x-for="request in filteredRequests" :key="request.id">
                                 <tr class="border-t hover:bg-gray-50">
                                     <td class="p-3 font-semibold text-blue-700" x-text="`REQ-${String(request.id).padStart(4, '0')}`"></td>
                                     <td class="p-3 text-gray-700" x-text="request.employee_name"></td>
@@ -405,6 +419,7 @@ function employeeRequestsPage() {
         activeTab: 'my-requests',
         showPanel: false,
         mode: 'create',
+        selectedEmployee: '',
         form: {},
 
         get isView() {
@@ -454,6 +469,18 @@ function employeeRequestsPage() {
             if (this.isRejection) return 'Reject Request';
             if (this.isEdit) return 'Submit Revision';
             return 'Save Request';
+        },
+
+        get employeeFilterOptions() {
+            return [...new Set(this.allRequests.map(request => request.employee_name).filter(Boolean))].sort();
+        },
+
+        get filteredRequests() {
+            if (!this.selectedEmployee) {
+                return this.allRequests;
+            }
+
+            return this.allRequests.filter(request => request.employee_name === this.selectedEmployee);
         },
 
         defaultForm() {
