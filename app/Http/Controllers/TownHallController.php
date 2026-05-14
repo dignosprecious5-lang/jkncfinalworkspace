@@ -33,10 +33,7 @@ class TownHallController extends Controller
         }
 
         $communications = $query->latest()->paginate(10);
-        $todayAttendance = Attendance::firstOrNew([
-            'user_id' => Auth::id(),
-            'date' => now()->toDateString(),
-        ]);
+        $todayAttendance = app(AttendanceController::class)->currentClockAttendance(Auth::user());
 
         $departmentQuery = TownHallCommunication::query();
         if (Schema::hasColumn('townhall_communications', 'is_archived')) {

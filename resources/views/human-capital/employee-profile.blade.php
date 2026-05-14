@@ -146,6 +146,7 @@
                             <th class="px-4 py-3 text-left font-semibold text-gray-700">Department</th>
                             <th class="px-4 py-3 text-left font-semibold text-gray-700">Office</th>
                             <th class="px-4 py-3 text-left font-semibold text-gray-700">Branch</th>
+                            <th class="px-4 py-3 text-left font-semibold text-gray-700">Schedule</th>
                             <th class="px-4 py-3 text-left font-semibold text-gray-700">Payroll Type</th>
                             <th class="px-4 py-3 text-left font-semibold text-gray-700">Basic Salary</th>
                             <th class="px-4 py-3 text-right font-semibold text-gray-700">Actions</th>
@@ -155,7 +156,7 @@
                     <tbody>
                         <template x-if="filteredEmployees.length === 0">
                             <tr>
-                                <td colspan="11" class="px-4 py-10 text-center text-gray-400">
+                                <td colspan="12" class="px-4 py-10 text-center text-gray-400">
                                     No employees found.
                                 </td>
                             </tr>
@@ -186,6 +187,7 @@
                                 <td class="px-4 py-3 whitespace-nowrap text-gray-700" x-text="employee.department_name ?? '-'"></td>
                                 <td class="px-4 py-3 whitespace-nowrap text-gray-700" x-text="employee.office_name ?? '-'"></td>
                                 <td class="px-4 py-3 whitespace-nowrap text-gray-700" x-text="employee.branch_name ?? '-'"></td>
+                                <td class="px-4 py-3 whitespace-nowrap text-gray-700" x-text="scheduleLabel(employee)"></td>
                                 <td class="px-4 py-3 whitespace-nowrap">
                                     <span class="px-2 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700" x-text="employee.payroll_type ?? '-'"></span>
                                 </td>
@@ -300,7 +302,7 @@
                             <div class="grid grid-cols-3 gap-4">
                                 <div class="profile-card"><p class="profile-label">Basic Salary</p><p class="profile-value text-green-700" x-text="formatMoney(selectedEmployee.basic_salary)"></p></div>
                                 <div class="profile-card"><p class="profile-label">Hourly Rate</p><p class="profile-value" x-text="formatMoney(selectedEmployee.hourly_rate)"></p></div>
-                                <div class="profile-card"><p class="profile-label">Contact</p><p class="profile-value" x-text="selectedEmployee.phone_number ?? '-'"></p></div>
+                                <div class="profile-card"><p class="profile-label">Work Schedule</p><p class="profile-value" x-text="scheduleLabel(selectedEmployee)"></p></div>
                             </div>
                         </div>
 
@@ -336,6 +338,9 @@
                                 <div class="profile-card"><p class="profile-label">Payroll Type</p><p class="profile-value" x-text="selectedEmployee.payroll_type ?? '-'"></p></div>
                                 <div class="profile-card"><p class="profile-label">Basic Salary</p><p class="profile-value text-green-700" x-text="formatMoney(selectedEmployee.basic_salary)"></p></div>
                                 <div class="profile-card"><p class="profile-label">Hourly Rate</p><p class="profile-value" x-text="formatMoney(selectedEmployee.hourly_rate)"></p></div>
+                            </div>
+                            <div class="grid grid-cols-1 gap-4">
+                                <div class="profile-card"><p class="profile-label">Work Schedule</p><p class="profile-value" x-text="scheduleLabel(selectedEmployee)"></p></div>
                             </div>
                             <div class="rounded-xl border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-800">
                                 Payroll profile, payslip records, deductions, and payroll summaries can be connected here later.
@@ -451,6 +456,15 @@
                     </div>
                 </div>
 
+                <div class="rounded-xl border border-gray-200 p-4">
+                    <h3 class="text-sm font-bold text-gray-900 mb-4">Work Schedule</h3>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div><label class="form-label">Shift Start</label><input type="time" name="schedule_start_time" x-model="form.schedule_start_time" class="form-input"></div>
+                        <div><label class="form-label">Shift End</label><input type="time" name="schedule_end_time" x-model="form.schedule_end_time" class="form-input"></div>
+                    </div>
+                    <p class="mt-2 text-xs text-gray-500">Employees can clock in starting 10 minutes before shift start. Active shifts auto close 4 hours after shift end.</p>
+                </div>
+
                 <div class="sticky bottom-0 bg-white border-t py-4">
                     <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2.5 text-sm font-semibold">
                         Save Employee
@@ -512,7 +526,9 @@ function employeePage(config) {
             unit_id: '',
             position: '',
             payroll_type: 'Monthly Paid',
-            basic_salary: 0
+            basic_salary: 0,
+            schedule_start_time: '',
+            schedule_end_time: ''
         },
 
         get filteredEmployees() {
@@ -528,6 +544,7 @@ function employeePage(config) {
                     employee.department_name,
                     employee.office_name,
                     employee.branch_name,
+                    this.scheduleLabel(employee),
                     employee.payroll_type
                 ].join(' ').toLowerCase();
 
@@ -633,7 +650,9 @@ function employeePage(config) {
                 unit_id: employee.unit_id ?? '',
                 position: employee.position ?? '',
                 payroll_type: employee.payroll_type ?? 'Monthly Paid',
-                basic_salary: employee.basic_salary ?? 0
+                basic_salary: employee.basic_salary ?? 0,
+                schedule_start_time: employee.schedule_start_time ?? '',
+                schedule_end_time: employee.schedule_end_time ?? ''
             };
 
             this.showSlider = true;
@@ -660,7 +679,9 @@ function employeePage(config) {
                 unit_id: '',
                 position: '',
                 payroll_type: 'Monthly Paid',
-                basic_salary: 0
+                basic_salary: 0,
+                schedule_start_time: '',
+                schedule_end_time: ''
             };
         },
 
@@ -698,6 +719,24 @@ function employeePage(config) {
             const first = employee?.first_name?.charAt(0) ?? '';
             const last = employee?.last_name?.charAt(0) ?? '';
             return (first + last).toUpperCase() || 'EP';
+        },
+
+        formatTime(value) {
+            if (!value) return '';
+            const [hours, minutes] = String(value).slice(0, 5).split(':').map(Number);
+            if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return '';
+
+            const date = new Date();
+            date.setHours(hours, minutes, 0, 0);
+
+            return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+        },
+
+        scheduleLabel(employee) {
+            const start = this.formatTime(employee?.schedule_start_time);
+            const end = this.formatTime(employee?.schedule_end_time);
+
+            return start && end ? `${start} - ${end}` : 'Not set';
         },
 
         formatMoney(value) {

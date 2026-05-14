@@ -124,6 +124,7 @@
                     <tr>
                         <th class="px-4 py-3">Date</th>
                         <th class="px-4 py-3">Employee</th>
+                        <th class="px-4 py-3 text-center">Type</th>
                         <th class="px-4 py-3 text-center">Time In</th>
                         <th class="px-4 py-3 text-center">Break 1</th>
                         <th class="px-4 py-3 text-center">Lunch</th>
@@ -156,6 +157,11 @@
                                 @endif
                             </td>
                             <td class="px-4 py-3 text-gray-700">{{ $attendance->employee_name ?: optional($attendance->user)->name }}</td>
+                            <td class="px-4 py-3 text-center">
+                                <span class="inline-flex rounded-full border px-2 py-1 text-[11px] font-semibold uppercase {{ $attendance->work_type === 'overtime' ? 'border-indigo-100 bg-indigo-50 text-indigo-700' : 'border-gray-100 bg-gray-50 text-gray-600' }}">
+                                    {{ $attendance->work_type ?? 'regular' }}
+                                </span>
+                            </td>
                             <td class="px-4 py-3 text-center text-gray-700">
                                 @if($canManageAttendance)
                                     <input form="{{ $updateFormId }}" type="datetime-local" name="time_in" value="{{ $formatDateTimeInput($attendance->time_in) }}" class="w-40 rounded-md border border-gray-300 px-2 py-1 text-xs">
@@ -248,7 +254,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="{{ $canManageAttendance ? 12 : 11 }}" class="px-4 py-12 text-center text-sm text-gray-500">
+                            <td colspan="{{ $canManageAttendance ? 13 : 12 }}" class="px-4 py-12 text-center text-sm text-gray-500">
                                 No attendance records found for this period.
                             </td>
                         </tr>

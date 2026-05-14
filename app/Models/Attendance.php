@@ -11,6 +11,8 @@ class Attendance extends Model
         'user_id',
         'employee_name',
         'date',
+        'work_type',
+        'employee_request_id',
         'time_in',
         'time_out',
         'break_1_start',
@@ -45,6 +47,11 @@ class Attendance extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function employeeRequest(): BelongsTo
+    {
+        return $this->belongsTo(EmployeeRequest::class);
     }
 
     public function recalculateTotals(): void
@@ -89,6 +96,10 @@ class Attendance extends Model
 
         if (! $this->time_in) {
             return 'clock_in';
+        }
+
+        if ($this->work_type === 'overtime') {
+            return 'clock_out';
         }
 
         if (! $this->break_1_start) {

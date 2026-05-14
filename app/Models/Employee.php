@@ -24,6 +24,8 @@ class Employee extends Model
         'payroll_type',
         'basic_salary',
         'hourly_rate',
+        'schedule_start_time',
+        'schedule_end_time',
     ];
 
     protected $casts = [

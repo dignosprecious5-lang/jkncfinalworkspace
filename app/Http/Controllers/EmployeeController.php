@@ -49,6 +49,8 @@ class EmployeeController extends Controller
                     'payroll_type' => $item->payroll_type,
                     'basic_salary' => $item->basic_salary,
                     'hourly_rate' => $item->hourly_rate,
+                    'schedule_start_time' => $item->schedule_start_time ? substr($item->schedule_start_time, 0, 5) : '',
+                    'schedule_end_time' => $item->schedule_end_time ? substr($item->schedule_end_time, 0, 5) : '',
                 ];
             })
             ->values();
@@ -103,6 +105,8 @@ class EmployeeController extends Controller
             'position' => ['nullable', 'string', 'max:255'],
             'payroll_type' => ['required', Rule::in(['Monthly Paid', 'Daily Paid'])],
             'basic_salary' => ['required', 'numeric', 'min:0'],
+            'schedule_start_time' => ['nullable', 'date_format:H:i'],
+            'schedule_end_time' => ['nullable', 'date_format:H:i'],
         ]);
 
         if ($request->hasFile('profile_photo')) {
@@ -145,6 +149,8 @@ class EmployeeController extends Controller
             'position' => ['nullable', 'string', 'max:255'],
             'payroll_type' => ['required', Rule::in(['Monthly Paid', 'Daily Paid'])],
             'basic_salary' => ['required', 'numeric', 'min:0'],
+            'schedule_start_time' => ['nullable', 'date_format:H:i'],
+            'schedule_end_time' => ['nullable', 'date_format:H:i'],
         ]);
 
         if ($request->hasFile('profile_photo')) {
