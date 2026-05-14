@@ -6,6 +6,7 @@ use App\Models\Attendance;
 use App\Models\Employee;
 use App\Models\EmployeeRequest;
 use App\Models\User;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -64,6 +65,64 @@ class AttendanceController extends Controller
             'summary',
             'canManageAttendance'
         ));
+    }
+
+    public function exportPdf(Request $request)
+    {
+        $user = Auth::user();
+        $canManageAttendance = $this->canManageAttendance($user);
+        $period = $request->input('period', 'daily');
+        $selectedDate = Carbon::parse($request->input('date', now()->toDateString()))->startOfDay();
+
+        [$startDate, $endDate] = $this->dateRangeForPeriod($period, $selectedDate);
+
+        $query = Attendance::query()
+            ->with('user')
+            ->whereBetween('date', [$startDate->toDateString(), $endDate->toDateString()])
+            ->orderBy('date')
+            ->orderBy('time_in');
+
+        $employeeName = null;
+
+        if (! $canManageAttendance) {
+            $query->where('user_id', $user->id);
+            $employeeName = $user->name;
+        } elseif ($request->filled('employee_id')) {
+            $selectedEmployee = User::find($request->integer('employee_id'));
+            $query->where('user_id', $request->integer('employee_id'));
+            $employeeName = $selectedEmployee?->name;
+        }
+
+        $attendances = $query->get();
+
+        if ($attendances->isEmpty()) {
+            return back()->withErrors([
+                'attendance' => 'No attendance records found for the selected filter.',
+            ]);
+        }
+
+        $summary = [
+            'days' => $attendances->count(),
+            'hours' => $attendances->sum('total_working_hours'),
+            'pending' => $attendances->where('status', 'pending')->count(),
+            'approved' => $attendances->where('status', 'approved')->count(),
+            'rejected' => $attendances->where('status', 'rejected')->count(),
+        ];
+
+        $periodLabel = ucfirst($period === 'payroll' ? 'payroll period' : $period);
+        $scopeLabel = $employeeName ? $employeeName : 'All employees';
+        $fileName = 'attendance-'.str($scopeLabel)->slug().'-'.$startDate->format('Ymd').'-'.$endDate->format('Ymd').'.pdf';
+
+        return Pdf::loadView('human-capital.attendance-pdf', [
+            'attendances' => $attendances,
+            'summary' => $summary,
+            'periodLabel' => $periodLabel,
+            'scopeLabel' => $scopeLabel,
+            'startDate' => $startDate,
+            'endDate' => $endDate,
+            'generatedAt' => now(),
+            'generatedBy' => $user->name,
+        ])->setPaper('a4', 'landscape')->download($fileName);
     }
 
     public function clock(Request $request)
@@ -242,6 +301,7 @@ class AttendanceController extends Controller
                 'user_id' => $user->id,
                 'date' => $today,
                 'work_type' => 'regular',
+                'employee_request_id' => null,
             ],
             [
                 'employee_name' => $user->name,
@@ -265,6 +325,9 @@ class AttendanceController extends Controller
                         'status' => 'pending',
                     ]
                 );
+
+                $overtimeAttendance->work_type = 'overtime';
+                $overtimeAttendance->employee_name = $user->name;
 
                 if (! $overtimeAttendance->time_out) {
                     return $overtimeAttendance;
@@ -294,6 +357,9 @@ class AttendanceController extends Controller
                 'status' => 'pending',
             ]
         );
+
+        $overtimeAttendance->work_type = 'overtime';
+        $overtimeAttendance->employee_name = $user->name;
 
         return $overtimeAttendance->time_out ? $regularAttendance : $overtimeAttendance;
     }

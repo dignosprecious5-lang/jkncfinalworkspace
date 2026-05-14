@@ -83,6 +83,7 @@ use App\Http\Controllers\OfficialBusinessTripController;
 use App\Http\Controllers\EmployeeRelationController;
 use App\Http\Controllers\AwardController;
 use App\Http\Controllers\PerformanceController;
+use App\Http\Controllers\OffboardingController;
 
 /*
 |--------------------------------------------------------------------------
@@ -1025,6 +1026,7 @@ Route::middleware('auth')->group(function () use ($adminOrSuperAdmin) {
             Route::delete('/deployment/{deployment}', [DeploymentController::class, 'destroy'])->name('deployment.destroy');
         });
         Route::get('/attendance', [AttendanceController::class, 'index'])->name('attendance');
+        Route::get('/attendance/export-pdf', [AttendanceController::class, 'exportPdf'])->name('attendance.export-pdf');
         Route::post('/attendance/clock', [AttendanceController::class, 'clock'])->name('attendance.clock');
         Route::put('/attendance/{attendance}', [AttendanceController::class, 'update'])->name('attendance.update');
         Route::patch('/attendance/{attendance}/approve', [AttendanceController::class, 'approve'])->name('attendance.approve');
@@ -1048,7 +1050,10 @@ Route::middleware('auth')->group(function () use ($adminOrSuperAdmin) {
         Route::delete('/performance/pip/{id}', [PerformanceController::class, 'destroyPIP'])->name('performance.pip.destroy');
 
         Route::middleware($adminOrSuperAdmin)->group(function () {
-            Route::view('/offboarding', 'human-capital.offboarding')->name('offboarding');
+            Route::get('/offboarding', [OffboardingController::class, 'index'])->name('offboarding');
+            Route::post('/offboarding', [OffboardingController::class, 'store'])->name('offboarding.store');
+            Route::put('/offboarding/{offboardingRecord}', [OffboardingController::class, 'update'])->name('offboarding.update');
+            Route::delete('/offboarding/{offboardingRecord}', [OffboardingController::class, 'destroy'])->name('offboarding.destroy');
         });
 
 Route::get('/obf', [OfficialBusinessTripController::class, 'index'])->name('obf');

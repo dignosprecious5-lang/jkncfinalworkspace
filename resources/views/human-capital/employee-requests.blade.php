@@ -258,8 +258,30 @@
                         <div class="rounded-xl border border-gray-200 overflow-hidden">
                             <div class="px-4 py-2 bg-blue-700 text-white text-xs font-bold uppercase tracking-widest">Employee Information</div>
                             <div class="p-4 grid grid-cols-1 gap-3">
-                                <input type="text" value="{{ auth()->user()->name ?? '' }}" readonly class="w-full border rounded-lg px-3 py-2 text-sm bg-gray-100 text-gray-700 cursor-not-allowed" placeholder="Employee Name">
-                                <input type="text" name="department" x-model="form.department" :readonly="isView" class="w-full border rounded-lg px-3 py-2 text-sm" placeholder="Department">
+                                <template x-if="canManageRequests">
+                                    <select
+                                        name="employee_id"
+                                        x-model="form.employee_id"
+                                        @change="syncEmployee()"
+                                        :disabled="isView || isApproval || isRejection"
+                                        :required="!isApproval && !isRejection"
+                                        class="w-full border rounded-lg px-3 py-2 text-sm"
+                                    >
+                                        <option value="">Select employee</option>
+                                        <template x-for="employee in employees" :key="employee.id">
+                                            <option :value="employee.id" x-text="`${employee.full_name} - ${employee.employee_code || 'No ID'}`"></option>
+                                        </template>
+                                    </select>
+                                </template>
+
+                                <template x-if="!canManageRequests">
+                                    <div>
+                                        <input type="hidden" name="employee_id" x-model="form.employee_id">
+                                        <input type="text" x-model="form.employee_name" readonly class="w-full border rounded-lg px-3 py-2 text-sm bg-gray-100 text-gray-700 cursor-not-allowed" placeholder="Employee Name">
+                                    </div>
+                                </template>
+
+                                <input type="text" x-model="form.department" readonly class="w-full border rounded-lg px-3 py-2 text-sm bg-gray-100 text-gray-700 cursor-not-allowed" placeholder="Department">
                             </div>
                         </div>
 
@@ -416,6 +438,8 @@ function employeeRequestsPage() {
         myRequests: @json($myEmployeeRequests ?? collect()),
         allRequests: @json($employeeRequests ?? collect()),
         canManageRequests: @json($canManageEmployeeRequests ?? false),
+        employees: @json($employees ?? collect()),
+        currentEmployee: @json($currentEmployeeProfile ?? null),
         activeTab: 'my-requests',
         showPanel: false,
         mode: 'create',
@@ -487,8 +511,9 @@ function employeeRequestsPage() {
             return {
                 id: null,
                 request_type: '',
-                employee_name: '{{ auth()->user()->name ?? "" }}',
-                department: '',
+                employee_id: this.currentEmployee?.id || '',
+                employee_name: this.currentEmployee?.full_name || '{{ auth()->user()->name ?? "" }}',
+                department: this.currentEmployee?.department || '',
                 overtime_date: '',
                 total_hours: '',
                 start_time: '',
@@ -518,6 +543,7 @@ function employeeRequestsPage() {
         openAdd() {
             this.mode = 'create';
             this.form = this.defaultForm();
+            this.syncEmployee();
             this.showPanel = true;
         },
 
@@ -551,6 +577,29 @@ function employeeRequestsPage() {
 
         closePanel() {
             this.showPanel = false;
+        },
+
+        syncEmployee() {
+            if (!this.canManageRequests) {
+                if (this.currentEmployee) {
+                    this.form.employee_id = this.currentEmployee.id;
+                    this.form.employee_name = this.currentEmployee.full_name || this.form.employee_name;
+                    this.form.department = this.currentEmployee.department || '';
+                }
+
+                return;
+            }
+
+            const employee = this.employees.find(item => String(item.id) === String(this.form.employee_id));
+
+            if (!employee) {
+                this.form.employee_name = '';
+                this.form.department = '';
+                return;
+            }
+
+            this.form.employee_name = employee.full_name || '';
+            this.form.department = employee.department || '';
         },
 
         statusClass(status) {
