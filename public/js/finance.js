@@ -192,7 +192,223 @@
         `;
     }
 
-    function renderArfAssetTagCard(assetCode, location, serialNumber, barcodeSvg) {
+    function generateFinanceTapeBarcodeSvg(value) {
+        const text = String(value || '').trim();
+        if (!text) return '';
+
+        const normalized = text.replace(/\s+/g, '').toUpperCase();
+        if (!normalized) return '';
+
+        let seed = 0;
+        Array.from(normalized).forEach((char, index) => {
+            seed += char.charCodeAt(0) * (index + 5);
+        });
+
+        let bits = '101';
+        Array.from(normalized).forEach((char) => {
+            const code = char.charCodeAt(0) ^ (seed & 0xff);
+            bits += code.toString(2).padStart(8, '0');
+        });
+        bits += '1101';
+
+        const unit = 1.35;
+        const quietZone = 5;
+        const height = 28;
+        let cursor = quietZone;
+        let current = bits[0] || '0';
+        let runLength = 0;
+        let rects = '';
+
+        const flushRun = () => {
+            if (runLength > 0 && current === '1') {
+                rects += `<rect x="${cursor.toFixed(2)}" y="3" width="${(runLength * unit).toFixed(2)}" height="${height}" fill="#111827"></rect>`;
+            }
+            cursor += runLength * unit;
+            runLength = 0;
+        };
+
+        Array.from(bits).forEach((bit) => {
+            if (bit === current) {
+                runLength += 1;
+                return;
+            }
+
+            flushRun();
+            current = bit;
+            runLength = 1;
+        });
+
+        flushRun();
+
+        const width = Math.max(150, cursor + quietZone);
+        const label = escapeHtml(text);
+
+        return `
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} 34" role="img" aria-label="Barcode for ${label}">
+                <rect x="0" y="0" width="${width}" height="34" fill="#ffffff"></rect>
+                ${rects}
+            </svg>
+        `;
+    }
+
+    function printArfAssetTag(assetCode, location = '', serialNumber = '') {
+        const code = String(assetCode || '').trim() || 'N/A';
+        const labelLocation = String(location || '').trim();
+        const labelSerial = String(serialNumber || '').trim();
+        const barcodeSvg = generateFinanceTapeBarcodeSvg(code === 'N/A' ? '' : code);
+        const doc = window.open('', '_blank', 'width=520,height=260');
+        if (!doc) return;
+
+        doc.document.write(`
+            <html>
+                <head>
+                    <title>15mm Asset Tag - ${escapeHtml(code)}</title>
+                    <style>
+                        @page { size: 70mm 15mm; margin: 0; }
+                        * { box-sizing: border-box; }
+                        html, body {
+                            width: 70mm;
+                            height: 15mm;
+                            margin: 0;
+                            padding: 0;
+                            background: #fff;
+                            color: #111827;
+                            font-family: Arial, Helvetica, sans-serif;
+                            -webkit-print-color-adjust: exact;
+                            print-color-adjust: exact;
+                        }
+                        body {
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                        }
+                        .tape {
+                            width: 68mm;
+                            height: 13mm;
+                            display: grid;
+                            grid-template-columns: 22mm 1fr;
+                            gap: 1.5mm;
+                            align-items: center;
+                            overflow: hidden;
+                            border: 0.2mm solid #111827;
+                            border-radius: 1mm;
+                            padding: 1mm;
+                        }
+                        .brand {
+                            min-width: 0;
+                            border-right: 0.2mm solid #111827;
+                            padding-right: 1.2mm;
+                            height: 100%;
+                            display: flex;
+                            flex-direction: column;
+                            justify-content: center;
+                        }
+                        .company {
+                            font-size: 4.5pt;
+                            font-weight: 700;
+                            letter-spacing: 0.7pt;
+                            text-transform: uppercase;
+                            white-space: nowrap;
+                        }
+                        .title {
+                            margin-top: 0.5mm;
+                            font-size: 5pt;
+                            font-weight: 900;
+                            letter-spacing: 0.8pt;
+                            text-transform: uppercase;
+                        }
+                        .meta {
+                            margin-top: 0.7mm;
+                            font-size: 3.8pt;
+                            line-height: 1.05;
+                            white-space: nowrap;
+                            overflow: hidden;
+                            text-overflow: ellipsis;
+                        }
+                        .main {
+                            min-width: 0;
+                            height: 100%;
+                            display: grid;
+                            grid-template-rows: auto 1fr;
+                            gap: 0.5mm;
+                        }
+                        .code {
+                            font-family: "Arial Narrow", Arial, Helvetica, sans-serif;
+                            font-size: 7pt;
+                            line-height: 1;
+                            font-weight: 900;
+                            letter-spacing: 0.2pt;
+                            white-space: nowrap;
+                            overflow: hidden;
+                            text-overflow: ellipsis;
+                        }
+                        .barcode {
+                            width: 100%;
+                            height: 7mm;
+                            overflow: hidden;
+                        }
+                        .barcode svg {
+                            display: block;
+                            width: 100%;
+                            height: 100%;
+                        }
+                        @media screen {
+                            html, body {
+                                width: 100%;
+                                height: 100%;
+                                min-height: 180px;
+                                background: #f3f4f6;
+                            }
+                            .tape {
+                                background: #fff;
+                                transform: scale(2.4);
+                                transform-origin: center;
+                                box-shadow: 0 12px 30px rgba(15, 23, 42, 0.16);
+                            }
+                        }
+                    </style>
+                </head>
+                <body>
+                    <div class="tape">
+                        <div class="brand">
+                            <div class="company">JK&amp;C INC.</div>
+                            <div class="title">Asset</div>
+                            <div class="meta">${escapeHtml(labelLocation || 'No location')}</div>
+                            <div class="meta">${escapeHtml(labelSerial || 'No serial')}</div>
+                        </div>
+                        <div class="main">
+                            <div class="code">${escapeHtml(code)}</div>
+                            <div class="barcode">${barcodeSvg || '<div style="height:7mm;border:0.2mm dashed #9ca3af;"></div>'}</div>
+                        </div>
+                    </div>
+                    <script>window.onload = function(){ window.print(); };</script>
+                </body>
+            </html>
+        `);
+        doc.document.close();
+    }
+
+    function renderArfAssetTagPrintButton(assetCode, location, serialNumber, classes = '') {
+        const printArgs = [assetCode || '', location || '', serialNumber || '']
+            .map((value) => JSON.stringify(String(value)))
+            .join(', ');
+
+        return `
+            <button
+                type="button"
+                onclick="window.financeModule.printArfAssetTag(${escapeHtml(printArgs)})"
+                class="${classes || 'inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50'}"
+            >
+                Print 15mm Tape
+            </button>
+        `;
+    }
+
+    function renderArfAssetTagCard(assetCode, location, serialNumber, barcodeSvg, options = {}) {
+        const printButton = options.withPrintButton
+            ? `<div class="border-t border-gray-200 bg-gray-50 px-4 py-3 text-right">${renderArfAssetTagPrintButton(assetCode, location, serialNumber)}</div>`
+            : '';
+
         return `
             <div class="rounded-2xl border border-gray-300 bg-white overflow-hidden shadow-sm">
                 <div class="border-b border-gray-300 bg-gray-50 px-4 py-3 text-center">
@@ -213,6 +429,7 @@
                         </div>
                     </div>
                 </div>
+                ${printButton}
             </div>
         `;
     }
@@ -569,6 +786,7 @@
                     ],
                     required: true,
                 }),
+                selectField('requester_employee_id', 'Employee List', { source: 'employee', placeholder: 'Select employee profile' }),
                 textField('requestor', 'Employee Name', { required: true }),
                 selectField('request_type', 'Type', {
                     options: [
@@ -619,6 +837,7 @@
                 textField('employee_email', 'Email', { inputType: 'email' }),
                 textField('contact_number', 'Contact #'),
                 textField('position', 'Position'),
+                textField('department', 'Department'),
                 textField('superior', 'Superior'),
                 textField('superior_email', 'Superior Email', { inputType: 'email' }),
                 textField('vendor_id_number', 'Vendor ID Number'),
@@ -719,6 +938,7 @@
                     ],
                     required: true,
                 }),
+                selectField('requester_employee_id', 'Employee List', { source: 'employee', placeholder: 'Select employee profile' }),
                 textField('requestor', 'Requestor', { required: true }),
                 textField('employee_id', 'Employee ID'),
                 textField('employee_name', 'Employee Name'),
@@ -815,6 +1035,7 @@
                     ],
                     required: true,
                 }),
+                selectField('requester_employee_id', 'Employee List', { source: 'employee', placeholder: 'Select employee profile' }),
                 selectField('linked_ca_id', 'CA Reference No.', { source: 'ca', required: true }),
                 numberField('total_cash_advance', 'CA Amount', { required: true }),
                 textareaField('purpose', 'Justification / Business Need', { required: true, fullWidth: true }),
@@ -845,6 +1066,7 @@
                     ],
                     required: true,
                 }),
+                selectField('requester_employee_id', 'Employee List', { source: 'employee', placeholder: 'Select employee profile' }),
                 textField('requestor', 'Requestor', { required: true }),
                 selectField('linked_lr_id', 'Linked LR', { source: 'lr_shortage', required: true }),
                 textareaField('expense_details', 'Expense Details'),
@@ -988,6 +1210,7 @@
                     ],
                     required: true,
                 }),
+                selectField('requester_employee_id', 'Employee List', { source: 'employee', placeholder: 'Select employee profile' }),
                 textField('requestor', 'Returnee', { required: true }),
                 selectField('linked_lr_id', 'Linked LR', { source: 'lr_overage', required: true }),
                 numberField('amount_returned', 'Amount Returned', { required: true }),
@@ -3139,7 +3362,7 @@
         }
 
         return `
-            <div class="${field.fullWidth ? 'md:col-span-2' : ''}">
+            <div class="${field.fullWidth ? 'md:col-span-2' : ''}" data-finance-field="${escapeHtml(field.name)}">
                 <label class="block text-sm font-medium mb-1">${label}${field.required ? ' <span class="text-red-500">*</span>' : ''}</label>
                 ${control}
             ${hint}
@@ -3527,6 +3750,7 @@
     function getPrRequesterDefaults() {
         const currentUser = getFinanceCurrentUserProfile();
         return {
+            requester_employee_id: '',
             requestor: currentUser.name,
             employee_name: currentUser.name,
             employee_email: currentUser.email,
@@ -3539,6 +3763,37 @@
             employee_id: currentUser.employee_id || currentUser.employee_code,
             superior: currentUser.superior,
             superior_email: currentUser.superior_email,
+        };
+    }
+
+    function getEmployeeRequesterOption(employeeId) {
+        const targetId = String(employeeId || '').trim();
+        if (!targetId) return null;
+
+        return (financeLookupOptions.employee || []).find((option) => {
+            return String(option.id ?? option.value ?? '') === targetId
+                || String(option.employee_id || '') === targetId
+                || String(option.employee_code || '') === targetId;
+        }) || null;
+    }
+
+    function getEmployeeRequesterDefaults(employeeId) {
+        const employee = getEmployeeRequesterOption(employeeId);
+        if (!employee) return null;
+
+        const name = employee.full_name || employee.record_title || employee.name || employee.label || '';
+
+        return {
+            requester_employee_id: employee.id ?? employee.value ?? '',
+            requestor: name,
+            employee_name: name,
+            employee_email: employee.employee_email || employee.email || '',
+            contact_number: employee.contact_number || employee.phone_number || employee.phone || '',
+            position: employee.position || '',
+            department: employee.department || employee.department_name || '',
+            employee_id: employee.employee_id || employee.employee_code || '',
+            superior: employee.superior || '',
+            superior_email: employee.superior_email || '',
         };
     }
 
@@ -3587,9 +3842,24 @@
             || financeFormValues[config.modeField]
             || 'own_request';
         const shouldUseOwnRequest = requesterMode !== 'request_for_another';
+        const requesterEmployeeInput = form.querySelector('select[name="data[requester_employee_id]"]');
+        const requesterEmployeeWrapper = form.querySelector('[data-finance-field="requester_employee_id"]');
+        const requesterEmployeeId = shouldUseOwnRequest
+            ? ''
+            : (requesterEmployeeInput?.value || financeFormValues.requester_employee_id || financeFormValues['data[requester_employee_id]'] || '');
+        const employeeValues = getEmployeeRequesterDefaults(requesterEmployeeId);
 
         if (requesterModeInput) {
             requesterModeInput.value = requesterMode;
+        }
+
+        if (requesterEmployeeInput) {
+            requesterEmployeeInput.value = requesterEmployeeId;
+            requesterEmployeeInput.required = !shouldUseOwnRequest;
+        }
+
+        if (requesterEmployeeWrapper) {
+            requesterEmployeeWrapper.classList.toggle('hidden', shouldUseOwnRequest);
         }
 
         const syncField = (fieldName, autoValue, { readOnlyWhenOwn = true } = {}) => {
@@ -3597,13 +3867,16 @@
             if (!input) return;
 
             const currentValue = String(input.value || '').trim();
+            const employeeValue = employeeValues?.[fieldName] ?? '';
             const nextValue = shouldUseOwnRequest
                 ? (preserveExisting && currentValue ? currentValue : (autoValue || ''))
-                : (preserveExisting && currentValue && currentValue !== (autoValue || '') ? currentValue : '');
+                : (employeeValues
+                    ? (preserveExisting && currentValue ? currentValue : employeeValue)
+                    : (preserveExisting && currentValue && currentValue !== (autoValue || '') ? currentValue : ''));
 
             input.value = nextValue;
             if (readOnlyWhenOwn) {
-                setReadonlyState(input, shouldUseOwnRequest && Boolean(autoValue));
+                setReadonlyState(input, (shouldUseOwnRequest && Boolean(autoValue)) || (!shouldUseOwnRequest && Boolean(employeeValues) && Boolean(employeeValue)));
             }
             financeFormValues[fieldName] = nextValue;
             financeFormValues[`data[${fieldName}]`] = nextValue;
@@ -3624,6 +3897,8 @@
         syncField('superior', autoValues.superior);
         syncField('superior_email', autoValues.superior_email);
 
+        financeFormValues.requester_employee_id = requesterEmployeeId;
+        financeFormValues['data[requester_employee_id]'] = requesterEmployeeId;
         financeFormValues[config.modeField] = requesterMode;
         financeFormValues[`data[${config.modeField}]`] = requesterMode;
     }
@@ -3642,6 +3917,13 @@
 
         if (requesterMode === 'request_for_another') {
             return;
+        }
+
+        const requesterEmployeeInput = form.querySelector('[name="data[requester_employee_id]"]');
+        if (requesterEmployeeInput) {
+            requesterEmployeeInput.value = '';
+            financeFormValues.requester_employee_id = '';
+            financeFormValues['data[requester_employee_id]'] = '';
         }
 
         const defaults = getPrRequesterDefaults();
@@ -4150,42 +4432,7 @@
 
     function syncPrRequesterFields({ preserveExisting = false } = {}) {
         if (currentModuleKey !== 'pr') return;
-
-        const form = $('financeForm');
-        if (!form) return;
-
-        const requesterMode = form.querySelector('select[name="data[requester_mode]"]')?.value || financeFormValues.requester_mode || 'own_request';
-        const autoValues = getPrRequesterDefaults();
-        const shouldUseOwnRequest = requesterMode !== 'request_for_another';
-        const fieldsToSync = {
-            requestor: autoValues.requestor,
-            employee_name: autoValues.employee_name,
-            employee_email: autoValues.employee_email,
-            employee_id: autoValues.employee_id,
-            contact_number: autoValues.contact_number,
-            position: autoValues.position,
-            department: autoValues.department,
-            superior: autoValues.superior,
-            superior_email: autoValues.superior_email,
-        };
-
-        Object.entries(fieldsToSync).forEach(([fieldName, autoValue]) => {
-            const input = form.querySelector(`[name="data[${fieldName}]"]`);
-            if (!input) return;
-
-            const currentValue = String(input.value || '').trim();
-            const nextValue = shouldUseOwnRequest
-                ? (preserveExisting && currentValue ? currentValue : (autoValue || ''))
-                : (preserveExisting && currentValue && currentValue !== (autoValue || '') ? currentValue : '');
-
-            input.value = nextValue;
-            setReadonlyState(input, shouldUseOwnRequest && Boolean(autoValue));
-            financeFormValues[fieldName] = nextValue;
-            financeFormValues[`data[${fieldName}]`] = nextValue;
-        });
-
-        financeFormValues.requester_mode = requesterMode;
-        financeFormValues['data[requester_mode]'] = requesterMode;
+        syncRequestOwnershipFields({ preserveExisting });
     }
 
     function syncPrVendorFields({ preserveExisting = false } = {}) {
@@ -4540,7 +4787,7 @@
             case 'pr':
                 return [
                     { title: 'Request Details', fieldNames: ['requesting_department', 'request_type', 'priority', 'needed_date', 'for_client', 'pr_reason_categories'] },
-                    { title: 'Requester Details', fieldNames: ['requester_mode', 'requestor', 'employee_id', 'employee_email', 'contact_number', 'position', 'superior', 'superior_email'] },
+                    { title: 'Requester Details', fieldNames: ['requester_mode', 'requester_employee_id', 'requestor', 'employee_id', 'employee_email', 'contact_number', 'position', 'department', 'superior', 'superior_email'] },
                     { title: 'Vendor Details', fieldNames: ['supplier_id', 'new_vendor', 'vendor_id_number', 'vendors_tin', 'company_name', 'vendor_phone', 'vendor_email', 'vendor_address', 'city', 'province', 'zip'] },
                     { title: 'Items / Cost Details', renderer: () => renderPrPreviewTable(record) },
                     { type: 'notes', renderer: () => renderFinanceReviewNotesSection(record) },
@@ -4554,7 +4801,7 @@
                 ];
             case 'ca':
                 return [
-                    { title: 'Request Details', fieldNames: ['requester_mode', 'requestor', 'department', 'purpose', 'needed_date', 'mode_of_release', 'amount_requested', 'release_schedule', 'release_count', 'amount_per_release', 'cash_release_date', 'cash_release_time', 'paid_through'] },
+                    { title: 'Request Details', fieldNames: ['requester_mode', 'requester_employee_id', 'requestor', 'department', 'purpose', 'needed_date', 'mode_of_release', 'amount_requested', 'release_schedule', 'release_count', 'amount_per_release', 'cash_release_date', 'cash_release_time', 'paid_through'] },
                     { type: 'ca_payment_tracking', renderer: () => renderCashAdvancePaymentPreview(record) },
                     { title: 'Funding & Notes', fieldNames: ['bank_account_id', 'coa_id', 'remarks'] },
                     { type: 'notes', renderer: () => renderFinanceReviewNotesSection(record) },
@@ -4562,7 +4809,7 @@
             case 'lr':
                 return [
                     { title: 'Liquidation Details', fieldNames: ['requester_mode', 'linked_ca_id', 'total_cash_advance', 'purpose'] },
-                    { title: 'Requester Details', fieldNames: ['employee_id', 'employee_name', 'employee_email', 'contact_number', 'position', 'department', 'superior', 'superior_email'] },
+                    { title: 'Requester Details', fieldNames: ['requester_employee_id', 'employee_id', 'employee_name', 'employee_email', 'contact_number', 'position', 'department', 'superior', 'superior_email'] },
                     { type: 'line_items', renderer: () => renderLiquidationPreviewTable(record) },
                     { type: 'cost_summary', renderer: () => renderLiquidationPreviewSummary(record) },
                     { type: 'notes', renderer: () => renderFinanceReviewNotesSection(record) },
@@ -4575,7 +4822,7 @@
                 }[data.reimbursement_mode] || [];
 
                 return [
-                    { title: 'Reimbursement Details', fieldNames: ['requester_mode', 'linked_lr_id', 'requestor', 'expense_details', 'amount', 'reimbursement_payment_details', 'reimbursement_mode', ...errPaymentFieldNames, 'remarks'] },
+                    { title: 'Reimbursement Details', fieldNames: ['requester_mode', 'requester_employee_id', 'linked_lr_id', 'requestor', 'expense_details', 'amount', 'reimbursement_payment_details', 'reimbursement_mode', ...errPaymentFieldNames, 'remarks'] },
                     { type: 'notes', renderer: () => renderFinanceReviewNotesSection(record) },
                 ];
             case 'dv':
@@ -4596,7 +4843,7 @@
                 ];
             case 'crf':
                 return [
-                    { title: 'Return Details', fieldNames: ['requester_mode', 'requestor', 'linked_lr_id', 'amount_returned', 'mode_of_return', 'receiving_bank_account_id', 'coa_id'] },
+                    { title: 'Return Details', fieldNames: ['requester_mode', 'requester_employee_id', 'requestor', 'linked_lr_id', 'amount_returned', 'mode_of_return', 'receiving_bank_account_id', 'coa_id'] },
                     { title: 'Reference & Notes', fieldNames: ['reference_number', 'remarks'] },
                     { type: 'notes', renderer: () => renderFinanceReviewNotesSection(record) },
                 ];
@@ -5851,6 +6098,16 @@
             }
         }
 
+        if (isRequestOwnershipModule()) {
+            const requesterEmployeeSelect = form.querySelector('select[name="data[requester_employee_id]"]');
+            if (requesterEmployeeSelect) {
+                requesterEmployeeSelect.addEventListener('change', () => {
+                    syncRequestOwnershipFields({ preserveExisting: false });
+                    renderDrawerPreview();
+                });
+            }
+        }
+
         if (currentModuleKey === 'po') {
             const linkedPrSelect = form.querySelector('select[name="data[linked_pr_id]"]');
             if (linkedPrSelect) {
@@ -6081,7 +6338,7 @@
                         <h4 class="text-sm font-semibold uppercase tracking-[0.24em] text-gray-700">Requester Details</h4>
                         <p class="mt-2 text-xs text-gray-500">Choose Own Request to auto-fill your account details, or Request for Another to enter someone else&apos;s information.</p>
                         <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                            ${renderFieldsByNames(moduleConfig, ['requester_mode', 'requestor', 'employee_id', 'employee_name', 'employee_email', 'contact_number', 'position', 'department', 'superior', 'superior_email'], values, record)}
+                            ${renderFieldsByNames(moduleConfig, ['requester_mode', 'requester_employee_id', 'requestor', 'employee_id', 'employee_name', 'employee_email', 'contact_number', 'position', 'department', 'superior', 'superior_email'], values, record)}
                         </div>
                     </div>
 
@@ -6148,7 +6405,7 @@
                         <h4 class="text-sm font-semibold uppercase tracking-[0.24em] text-blue-700">Reimbursement Details</h4>
                         <p class="mt-2 text-xs text-gray-500">Choose Own Request to auto-fill your account details, or Request for Another to enter someone else&apos;s information.</p>
                         <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                            ${renderFieldsByNames(moduleConfig, ['requester_mode', 'requestor', 'linked_lr_id', 'expense_details', 'amount', 'reimbursement_payment_details', 'manual_liquidation_entry', 'reimbursement_mode'], values, record)}
+                            ${renderFieldsByNames(moduleConfig, ['requester_mode', 'requester_employee_id', 'requestor', 'linked_lr_id', 'expense_details', 'amount', 'reimbursement_payment_details', 'manual_liquidation_entry', 'reimbursement_mode'], values, record)}
                             <div data-err-reimbursement-fields="Cash">
                                 ${renderDynamicField(textField('cash_receiver_name', 'Name of Receiver', { required: values.reimbursement_mode === 'Cash' }), values.cash_receiver_name, values)}
                             </div>
@@ -6208,7 +6465,7 @@
                         <h4 class="text-sm font-semibold uppercase tracking-[0.24em] text-blue-700">Return Details</h4>
                         <p class="mt-2 text-xs text-gray-500">Choose Own Request to auto-fill your account details, or Request for Another to enter someone else&apos;s information.</p>
                         <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                            ${renderFieldsByNames(moduleConfig, ['requester_mode', 'requestor', 'linked_lr_id', 'amount_returned', 'manual_liquidation_entry', 'mode_of_return', 'receiving_bank_account_id', 'coa_id', 'reference_number', 'remarks'], values, record)}
+                            ${renderFieldsByNames(moduleConfig, ['requester_mode', 'requester_employee_id', 'requestor', 'linked_lr_id', 'amount_returned', 'manual_liquidation_entry', 'mode_of_return', 'receiving_bank_account_id', 'coa_id', 'reference_number', 'remarks'], values, record)}
                         </div>
                     </div>
                 `;
@@ -6409,7 +6666,7 @@
                         <h4 class="text-sm font-semibold uppercase tracking-[0.24em] text-gray-700">Requester Details</h4>
                         <p class="mt-2 text-xs text-gray-500">Choose Own Request to auto-fill your account details, or Request for Another to enter someone else&apos;s information.</p>
                         <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                            ${renderFieldsByNames(moduleConfig, ['requester_mode', 'requestor', 'employee_id', 'employee_name', 'employee_email', 'contact_number', 'position', 'department', 'superior', 'superior_email'], values, record)}
+                            ${renderFieldsByNames(moduleConfig, ['requester_mode', 'requester_employee_id', 'requestor', 'employee_id', 'employee_name', 'employee_email', 'contact_number', 'position', 'department', 'superior', 'superior_email'], values, record)}
                         </div>
                     </div>
 
@@ -6452,7 +6709,7 @@
                         <h4 class="text-sm font-semibold uppercase tracking-[0.24em] text-gray-700">Requester Details</h4>
                         <p class="mt-2 text-xs text-gray-500">Choose Own Request to auto-fill your account details, or Request for Another to enter someone else&apos;s information.</p>
                         <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                            ${renderFieldsByNames(moduleConfig, ['requester_mode', 'employee_name', 'employee_id', 'employee_email', 'contact_number', 'position', 'department', 'superior', 'superior_email'], values, record)}
+                            ${renderFieldsByNames(moduleConfig, ['requester_mode', 'requester_employee_id', 'employee_name', 'employee_id', 'employee_email', 'contact_number', 'position', 'department', 'superior', 'superior_email'], values, record)}
                         </div>
                     </div>
 
@@ -6489,22 +6746,28 @@
                 const supplierValue = getDraftValue('supplier_id', record);
                 const supplierRecord = getPrSupplierRecord(supplierValue);
                 const supplierDefaults = getPrSupplierAutofillValues(supplierRecord);
+                const requesterEmployeeValue = requesterModeValue === 'request_for_another'
+                    ? getDraftValue('requester_employee_id', record)
+                    : '';
+                const requesterEmployeeDefaults = getEmployeeRequesterDefaults(requesterEmployeeValue);
                 const requestorBaseValue = getDraftValue('requestor', record);
                 const employeeEmailBaseValue = getDraftValue('employee_email', record);
                 const requesterValue = requesterModeValue === 'own_request'
                     ? (requestorBaseValue || requesterDefaults.requestor)
-                    : requestorBaseValue;
+                    : (requestorBaseValue || requesterEmployeeDefaults?.requestor || '');
                 const employeeEmailValue = requesterModeValue === 'own_request'
                     ? (employeeEmailBaseValue || requesterDefaults.employee_email)
-                    : employeeEmailBaseValue;
+                    : (employeeEmailBaseValue || requesterEmployeeDefaults?.employee_email || '');
                 const requestorField = {
                     ...((moduleConfig.fields || []).find((field) => field.name === 'requestor')
                         || textField('requestor', 'Employee Name', { required: true })),
-                    readOnly: requesterModeValue === 'own_request',
+                    readOnly: requesterModeValue === 'own_request' || Boolean(requesterEmployeeDefaults),
                 };
                 const requestorFieldValue = requesterValue || '';
                 values.requester_mode = requesterModeValue;
                 values['data[requester_mode]'] = requesterModeValue;
+                values.requester_employee_id = requesterEmployeeValue;
+                values['data[requester_employee_id]'] = requesterEmployeeValue;
                 values.requestor = requestorFieldValue;
                 values['data[requestor]'] = requestorFieldValue;
                 values.employee_email = employeeEmailValue || '';
@@ -6514,7 +6777,7 @@
                     const defaultValue = getRequesterDefaultForField(fieldName);
                     const nextValue = requesterModeValue === 'own_request'
                         ? (existingValue || defaultValue || '')
-                        : existingValue;
+                        : (existingValue || requesterEmployeeDefaults?.[fieldName] || '');
                     values[fieldName] = nextValue;
                     values[`data[${fieldName}]`] = nextValue;
                 });
@@ -6540,9 +6803,9 @@
                         <h4 class="text-sm font-semibold uppercase tracking-[0.24em] text-gray-700">Requester Details</h4>
                         <p class="mt-2 text-xs text-gray-500">Choose Own Request to auto-fill your signed-in account details. Choose Request for Another when the request belongs to someone else.</p>
                         <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                            ${renderFieldsByNames(moduleConfig, ['requester_mode'], values, record)}
+                            ${renderFieldsByNames(moduleConfig, ['requester_mode', 'requester_employee_id'], values, record)}
                             ${renderDynamicField(requestorField, requestorFieldValue, values)}
-                            ${renderFieldsByNames(moduleConfig, ['employee_id', 'employee_email', 'contact_number', 'position', 'superior', 'superior_email'], values, record)}
+                            ${renderFieldsByNames(moduleConfig, ['employee_id', 'employee_email', 'contact_number', 'position', 'department', 'superior', 'superior_email'], values, record)}
                         </div>
                     </div>
 
@@ -6668,7 +6931,7 @@
                         <h4 class="text-sm font-semibold uppercase tracking-[0.24em] text-gray-700">Asset Tag</h4>
                         <p class="mt-2 text-xs text-gray-500">This tag mirrors the printable plate and updates automatically from the asset code, location, and serial number.</p>
                         <div class="mt-4">
-                            ${renderArfAssetTagCard(assetCodeValue, locationValue, serialNumberValue, barcodeSvg)}
+                            ${renderArfAssetTagCard(assetCodeValue, locationValue, serialNumberValue, barcodeSvg, { withPrintButton: true })}
                         </div>
                     </div>
 
@@ -6921,7 +7184,10 @@
 
                         <div class="relative border-t border-gray-300">
                             <div class="bg-gray-50 px-4 py-2 border-b border-gray-300">
-                                <h4 class="text-[12px] font-semibold uppercase tracking-[0.26em] text-gray-700">Asset Tag</h4>
+                                <div class="flex flex-wrap items-center justify-between gap-2">
+                                    <h4 class="text-[12px] font-semibold uppercase tracking-[0.26em] text-gray-700">Asset Tag</h4>
+                                    ${renderArfAssetTagPrintButton(assetCode, location, serialNumber, 'inline-flex items-center justify-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-[11px] font-semibold text-gray-700 hover:bg-gray-50')}
+                                </div>
                             </div>
                             <div class="relative px-5 py-5 text-center border-b border-gray-300 bg-white">
                                 <div class="mt-1 text-[10px] font-semibold uppercase tracking-[0.3em] text-gray-500">JK&amp;C INC.</div>
@@ -7780,7 +8046,7 @@
                     <div class="finance-preview-box">
                         <div class="finance-preview-section-title">${escapeHtml(section.title || 'Asset Tag')}</div>
                         <div class="finance-preview-inner">
-                            ${renderArfAssetTagCard(section.assetCode, section.location, section.serialNumber, section.barcodeSvg)}
+                            ${renderArfAssetTagCard(section.assetCode, section.location, section.serialNumber, section.barcodeSvg, { withPrintButton: true })}
                         </div>
                     </div>
                 `;
@@ -8231,6 +8497,12 @@
         actions.push(`<button type="button" onclick="window.financeModule.openFinanceDrawer(window.financeModule.getRecordById(${record.id}))" class="w-full border border-gray-300 rounded-md py-2 hover:bg-gray-50">Edit</button>`);
         if (!supplierPending) {
             actions.push(`<button type="button" onclick="window.financeModule.printFinanceRecord(${record.id})" class="w-full border border-gray-300 rounded-md py-2 hover:bg-gray-50">Print</button>`);
+        }
+        if (!supplierPending && record.module_key === 'arf') {
+            const assetCode = record.data?.asset_code || record.record_number || '';
+            const location = record.data?.location || '';
+            const serialNumber = record.data?.serial_number || '';
+            actions.push(renderArfAssetTagPrintButton(assetCode, location, serialNumber, 'w-full border border-gray-300 rounded-md py-2 hover:bg-gray-50'));
         }
 
         if (record.can_submit) {
@@ -8756,6 +9028,7 @@
         previewAttachment,
         copySupplierLink,
         printFinanceRecord,
+        printArfAssetTag,
         scrollFinanceModuleTabs,
         recordCashAdvancePayment,
         recordCashAdvancePreviewPayment,

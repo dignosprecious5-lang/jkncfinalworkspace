@@ -320,6 +320,7 @@ SVG;
         }
 
         return match ($fieldName) {
+            'requester_employee_id' => $this->financePdfLookupLabel($lookupOptions, 'employee', $value) ?: $this->financePdfValue($value),
             'supplier_id' => $this->financePdfLookupLabel($lookupOptions, 'supplier', $value) ?: $this->financePdfValue($value),
             'coa_id', 'parent_account_id', 'payroll_expense_coa_id', 'asset_coa_id', 'paid_through' => $this->financePdfLookupLabel($lookupOptions, 'chart_account', $value) ?: $this->financePdfValue($value),
             'bank_account_id', 'funding_bank_account_id', 'receiving_bank_account_id', 'source_bank_account_id', 'destination_bank_account_id' => $this->financePdfLookupLabel($lookupOptions, 'bank_account', $value) ?: $this->financePdfValue($value),
@@ -642,11 +643,13 @@ SVG;
                 ]),
                 $section('Requester Details', [
                     ['name' => 'requester_mode', 'label' => 'Requester Option'],
+                    ['name' => 'requester_employee_id', 'label' => 'Selected Employee'],
                     ['name' => 'requestor', 'label' => 'Employee Name'],
                     ['name' => 'employee_id', 'label' => 'Employee ID'],
                     ['name' => 'employee_email', 'label' => 'Email'],
                     ['name' => 'contact_number', 'label' => 'Contact #'],
                     ['name' => 'position', 'label' => 'Position'],
+                    ['name' => 'department', 'label' => 'Department'],
                     ['name' => 'superior', 'label' => 'Superior'],
                     ['name' => 'superior_email', 'label' => 'Superior Email'],
                 ]),
@@ -700,6 +703,7 @@ SVG;
                     ['name' => 'client_names', 'label' => 'Client Name(s)'],
                 ]),
                 $section('Requester Details', [
+                    ['name' => 'requester_employee_id', 'label' => 'Selected Employee'],
                     ['name' => 'employee_id', 'label' => 'Employee ID'],
                     ['name' => 'employee_name', 'label' => 'Employee Name'],
                     ['name' => 'employee_email', 'label' => 'Email'],
@@ -748,6 +752,7 @@ SVG;
                     ['name' => 'client_names', 'label' => 'Client Name(s)'],
                 ]),
                 $section('Requester Details', [
+                    ['name' => 'requester_employee_id', 'label' => 'Selected Employee'],
                     ['name' => 'employee_id', 'label' => 'Employee ID'],
                     ['name' => 'employee_name', 'label' => 'Employee Name'],
                     ['name' => 'employee_email', 'label' => 'Email'],
@@ -774,6 +779,8 @@ SVG;
             'err' => [
                 $section('Reimbursement Details', [
                     ['name' => 'requester_mode', 'label' => 'Requester Option'],
+                    ['name' => 'requester_employee_id', 'label' => 'Selected Employee'],
+                    ['name' => 'requestor', 'label' => 'Requestor'],
                     ['name' => 'linked_lr_id', 'label' => 'Linked LR'],
                     ['name' => 'expense_details', 'label' => 'Expense Details'],
                     ['name' => 'amount', 'label' => 'Amount'],
@@ -867,6 +874,7 @@ SVG;
             'crf' => [
                 $section('Return Details', [
                     ['name' => 'requester_mode', 'label' => 'Requester Option'],
+                    ['name' => 'requester_employee_id', 'label' => 'Selected Employee'],
                     ['name' => 'requestor', 'label' => 'Returnee'],
                     ['name' => 'linked_lr_id', 'label' => 'Linked LR'],
                     ['name' => 'amount_returned', 'label' => 'Amount Returned'],
@@ -1396,6 +1404,16 @@ SVG;
             ])
             ->values();
 
+        $options['employee'] = Schema::hasTable('employees')
+            ? Employee::query()
+                ->when(Schema::hasTable('departments'), fn ($query) => $query->with('department'))
+                ->orderBy('last_name')
+                ->orderBy('first_name')
+                ->get()
+                ->map(fn (Employee $employee) => $this->employeeRequesterOption($employee))
+                ->values()
+            : collect();
+
         $options['payroll_period'] = PayrollPeriod::query()
             ->orderByDesc('period_start')
             ->orderByDesc('created_at')
@@ -1404,6 +1422,43 @@ SVG;
             ->values();
 
         return $options;
+    }
+
+    private function employeeRequesterOption(Employee $employee): array
+    {
+        $employeeName = trim(collect([$employee->first_name, $employee->last_name])->filter()->implode(' '));
+        $departmentName = $employee->relationLoaded('department')
+            ? (string) ($employee->department?->department_name ?? '')
+            : '';
+        $superior = $employee->relationLoaded('department')
+            ? (string) ($employee->department?->department_head ?? '')
+            : '';
+        $superiorEmail = $this->resolveEmployeeSuperiorEmail($superior);
+        $labelParts = array_filter([
+            $employee->employee_code,
+            $employeeName ?: null,
+            $employee->email ? "({$employee->email})" : null,
+        ]);
+
+        return [
+            'id' => $employee->id,
+            'label' => implode(' - ', $labelParts) ?: 'Employee #' . $employee->id,
+            'record_title' => $employeeName,
+            'full_name' => $employeeName,
+            'employee_id' => $employee->employee_code,
+            'employee_code' => $employee->employee_code,
+            'employee_email' => $employee->email,
+            'email' => $employee->email,
+            'contact_number' => $employee->phone_number,
+            'phone_number' => $employee->phone_number,
+            'phone' => $employee->phone_number,
+            'position' => $employee->position,
+            'department' => $departmentName,
+            'department_name' => $departmentName,
+            'superior' => $superior,
+            'superior_email' => $superiorEmail,
+            'address' => $employee->address,
+        ];
     }
 
     private function payrollPeriodSnapshot(PayrollPeriod $period, bool $persistMissingSummaries = false): array
@@ -2053,7 +2108,9 @@ SVG;
             'pr' => [
                 'data.requesting_department' => 'required|string|max:255',
                 'data.requester_mode' => 'nullable|in:own_request,request_for_another',
+                'data.requester_employee_id' => ['required_if:data.requester_mode,request_for_another', 'nullable', Rule::exists('employees', 'id')],
                 'data.requestor' => 'required|string|max:255',
+                'data.department' => 'nullable|string|max:255',
                 'data.request_type' => 'required|in:Service,Product',
                 'data.supplier_id' => ['nullable', $this->acceptedLinkedRecordRule('supplier')],
                 'data.master_item_type' => 'nullable|in:service,product',
@@ -2085,6 +2142,7 @@ SVG;
             ],
             'ca' => [
                 'data.requester_mode' => 'nullable|in:own_request,request_for_another',
+                'data.requester_employee_id' => ['required_if:data.requester_mode,request_for_another', 'nullable', Rule::exists('employees', 'id')],
                 'data.requestor' => 'required|string|max:255',
                 'data.purpose' => 'required|string|max:2000',
                 'data.amount_requested' => 'required|numeric|min:0',
@@ -2105,6 +2163,7 @@ SVG;
             ],
             'lr' => [
                 'data.requester_mode' => 'nullable|in:own_request,request_for_another',
+                'data.requester_employee_id' => ['required_if:data.requester_mode,request_for_another', 'nullable', Rule::exists('employees', 'id')],
                 'data.linked_ca_id' => ['required', $this->acceptedLinkedRecordRule('ca')],
                 'data.linked_dv_id' => ['nullable', $this->acceptedLinkedRecordRule('dv', ['source_document_type' => 'ca'])],
                 'data.total_cash_advance' => 'required|numeric|min:0',
@@ -2126,6 +2185,8 @@ SVG;
             ],
             'err' => [
                 'data.requester_mode' => 'nullable|in:own_request,request_for_another',
+                'data.requester_employee_id' => ['required_if:data.requester_mode,request_for_another', 'nullable', Rule::exists('employees', 'id')],
+                'data.requestor' => 'nullable|string|max:255',
                 'data.linked_lr_id' => ['required', $this->acceptedLinkedRecordRule('lr', ['variance_indicator' => 'Shortage'])],
                 'data.amount' => 'required|numeric|min:0',
                 'data.reimbursement_payment_details' => 'nullable|string|max:1000',
@@ -2184,6 +2245,7 @@ SVG;
             ],
             'crf' => [
                 'data.requester_mode' => 'nullable|in:own_request,request_for_another',
+                'data.requester_employee_id' => ['required_if:data.requester_mode,request_for_another', 'nullable', Rule::exists('employees', 'id')],
                 'data.requestor' => 'required|string|max:255',
                 'data.linked_lr_id' => ['required', $this->acceptedLinkedRecordRule('lr', ['variance_indicator' => 'Overage'])],
                 'data.amount_returned' => 'required|numeric|min:0',
@@ -2385,6 +2447,8 @@ SVG;
         if ($moduleKey === 'supplier' && blank(data_get($data, 'completion_mode'))) {
             data_set($data, 'completion_mode', 'complete_internally');
         }
+
+        $data = $this->normalizeRequesterEmployeeData($moduleKey, $data);
 
         if ($moduleKey === 'err') {
             unset($data['supplier_id'], $data['coa_id']);
@@ -2683,6 +2747,48 @@ SVG;
                 }
             }
         }
+
+        return $data;
+    }
+
+    private function normalizeRequesterEmployeeData(string $moduleKey, array $data): array
+    {
+        if (! in_array($moduleKey, ['pr', 'ca', 'lr', 'err', 'crf'], true)) {
+            return $data;
+        }
+
+        if ((string) data_get($data, 'requester_mode', 'own_request') !== 'request_for_another') {
+            unset($data['requester_employee_id']);
+
+            return $data;
+        }
+
+        $employeeId = data_get($data, 'requester_employee_id');
+
+        if (blank($employeeId) || ! Schema::hasTable('employees')) {
+            return $data;
+        }
+
+        $employee = Employee::query()
+            ->when(Schema::hasTable('departments'), fn ($query) => $query->with('department'))
+            ->find($employeeId);
+
+        if (! $employee) {
+            return $data;
+        }
+
+        $option = $this->employeeRequesterOption($employee);
+
+        data_set($data, 'requester_employee_id', $employee->id);
+        data_set($data, 'requestor', $option['full_name']);
+        data_set($data, 'employee_name', $option['full_name']);
+        data_set($data, 'employee_id', $option['employee_code']);
+        data_set($data, 'employee_email', $option['email']);
+        data_set($data, 'contact_number', $option['contact_number']);
+        data_set($data, 'position', $option['position']);
+        data_set($data, 'department', $option['department']);
+        data_set($data, 'superior', $option['superior']);
+        data_set($data, 'superior_email', $option['superior_email']);
 
         return $data;
     }
