@@ -2,33 +2,57 @@
 @section('title', 'Users')
 
 @section('content')
-<div class="w-full h-full px-6 py-5" x-data="{ showCreateUser: false }">
-    @php
-        $authUser = auth()->user();
-    @endphp
+@php
+    $authUser = auth()->user();
 
-    @if(session('success'))
-        <div class="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
-            {{ session('success') }}
-        </div>
-    @endif
+    $employeeAccountOptions = collect($employeeOptions ?? [])->filter(function ($employee) {
+        return blank($employee->user_id);
+    })->map(function ($employee) {
+        $name = trim(($employee->first_name ?? '').' '.($employee->last_name ?? ''));
+        $name = $name !== '' ? $name : ($employee->full_name ?? 'Employee #'.$employee->id);
+        $email = $employee->work_email ?: ($employee->email ?? '');
 
-    @if(session('error'))
-        <div class="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {{ session('error') }}
-        </div>
-    @endif
+        return [
+            'id' => (string) $employee->id,
+            'employee_code' => $employee->employee_code,
+            'name' => $name,
+            'email' => $email,
+            'label' => trim(($employee->employee_code ? $employee->employee_code.' - ' : '').$name.($email ? ' ('.$email.')' : '')),
+            'linked' => (bool) $employee->user_id,
+        ];
+    })->values();
 
-    @if($errors->any())
-        <div class="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            <ul class="list-disc pl-5">
-                @foreach($errors->all() as $error)
-                    <li>{{ $error }}</li>
-                @endforeach
-            </ul>
-        </div>
-    @endif
+    $contactAccountOptions = collect($contactOptions ?? [])->filter(function ($contact) {
+        return blank($contact->user_id);
+    })->map(function ($contact) {
+        $name = trim(($contact->first_name ?? '').' '.($contact->last_name ?? ''));
+        $name = $name !== '' ? $name : 'Contact #'.$contact->id;
+        $email = $contact->email ?? '';
 
+        return [
+            'id' => (string) $contact->id,
+            'name' => $name,
+            'email' => $email,
+            'label' => trim($name.($email ? ' ('.$email.')' : '')),
+            'linked' => (bool) $contact->user_id,
+        ];
+    })->values();
+@endphp
+
+<div
+    class="w-full h-full px-6 py-5"
+    x-data="usersPage({
+        showCreateUser: {{ $errors->any() ? 'true' : 'false' }},
+        accountSource: @js(old('account_source', 'manual')),
+        selectedEmployeeId: @js((string) old('employee_id', '')),
+        selectedContactId: @js((string) old('contact_id', '')),
+        name: @js(old('name', '')),
+        email: @js(old('email', '')),
+        role: @js(old('role', '')),
+        employees: @js($employeeAccountOptions),
+        contacts: @js($contactAccountOptions),
+    })"
+>
     {{-- CREATE USER SLIDE OVER --}}
     <div x-show="showCreateUser" x-cloak class="fixed inset-0 z-50 overflow-hidden">
         <div class="absolute inset-0 overflow-hidden">
@@ -64,12 +88,65 @@
                         @csrf
 
                         <div>
+                            <label class="block text-xs font-semibold text-gray-500 mb-1">Account Source</label>
+                            <select
+                                name="account_source"
+                                x-model="accountSource"
+                                @change="changeAccountSource()"
+                                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                            >
+                                <option value="manual">Manual Account</option>
+                                <option value="employee">Link to Employee Profile</option>
+                                <option value="client">Link to Client Contact</option>
+                            </select>
+                            <p class="text-[11px] text-gray-400 mt-1">
+                                Employee accounts use the employee work email. Client accounts use the contact email.
+                            </p>
+                        </div>
+
+                        <div x-show="accountSource === 'employee'" x-cloak>
+                            <label class="block text-xs font-semibold text-gray-500 mb-1">Employee Profile</label>
+                            <select
+                                name="employee_id"
+                                x-model="selectedEmployeeId"
+                                @change="applySelectedProfile()"
+                                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                            >
+                                <option value="">Select employee profile</option>
+                                <template x-for="employee in employees" :key="employee.id">
+                                    <option :value="employee.id" x-text="employee.label"></option>
+                                </template>
+                            </select>
+                            <p class="text-[11px] text-gray-400 mt-1">
+                                Selecting a profile will auto-fill the name and email below. Choose Employee or Admin manually for the role.
+                            </p>
+                        </div>
+
+                        <div x-show="accountSource === 'client'" x-cloak>
+                            <label class="block text-xs font-semibold text-gray-500 mb-1">Client Contact</label>
+                            <select
+                                name="contact_id"
+                                x-model="selectedContactId"
+                                @change="applySelectedProfile()"
+                                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                            >
+                                <option value="">Select client contact</option>
+                                <template x-for="contact in contacts" :key="contact.id">
+                                    <option :value="contact.id" x-text="contact.label"></option>
+                                </template>
+                            </select>
+                            <p class="text-[11px] text-gray-400 mt-1">
+                                Only client contacts without linked accounts are shown. Selecting a contact will auto-fill the name and email below and set the role to Client.
+                            </p>
+                        </div>
+
+                        <div>
                             <label class="block text-xs font-semibold text-gray-500 mb-1">Full Name</label>
                             <input
                                 type="text"
                                 name="name"
-                                value="{{ old('name') }}"
-                                placeholder="Enter full name"
+                                x-model="name"
+                                placeholder="Auto-filled from selected employee/contact, or type manually"
                                 class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
                             >
                         </div>
@@ -79,8 +156,8 @@
                             <input
                                 type="email"
                                 name="email"
-                                value="{{ old('email') }}"
-                                placeholder="Enter email"
+                                x-model="email"
+                                placeholder="Auto-filled from employee work email or contact email"
                                 class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
                             >
                         </div>
@@ -89,13 +166,19 @@
                             <label class="block text-xs font-semibold text-gray-500 mb-1">Role</label>
                             <select
                                 name="role"
+                                x-model="role"
                                 class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                                :disabled="accountSource === 'client'"
                             >
                                 <option value="">Select role</option>
-                                <option value="Admin" {{ old('role') == 'Admin' ? 'selected' : '' }}>Admin</option>
-                                <option value="Employee" {{ old('role') == 'Employee' ? 'selected' : '' }}>Employee</option>
-                                <option value="Client" {{ old('role') == 'Client' ? 'selected' : '' }}>Client</option>
+                                <option value="Admin">Admin</option>
+                                <option value="Employee">Employee</option>
+                                <option value="Client">Client</option>
                             </select>
+                            <input type="hidden" name="role" value="Client" x-show="accountSource === 'client'">
+                            <p class="text-[11px] text-gray-400 mt-1">
+                                Client source will always create a Client account. Employee source can be Employee or Admin; choose manually.
+                            </p>
                         </div>
 
                         <div>
@@ -149,7 +232,7 @@
             </div>
 
             <button
-                @click="showCreateUser = true"
+                @click="openCreateModal()"
                 class="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
             >
                 + Create User
@@ -165,6 +248,7 @@
                             <th class="px-4 py-3 border-r border-gray-200 font-semibold">Name</th>
                             <th class="px-4 py-3 border-r border-gray-200 font-semibold">Email</th>
                             <th class="px-4 py-3 border-r border-gray-200 font-semibold">Role</th>
+                            <th class="px-4 py-3 border-r border-gray-200 font-semibold">Linked Profile</th>
                             <th class="px-4 py-3 border-r border-gray-200 font-semibold">Permissions</th>
                             <th class="px-4 py-3 border-r border-gray-200 font-semibold">Created At</th>
                             <th class="px-4 py-3 font-semibold">Actions</th>
@@ -238,6 +322,18 @@
                                     @endif
                                 </td>
 
+                                <td class="px-4 py-3 border-r border-gray-200 text-xs text-gray-700">
+                                    @if($user->employeeProfile)
+                                        <div class="font-semibold text-gray-900">{{ $user->employeeProfile->full_name }}</div>
+                                        <div class="text-gray-500">Employee • {{ $user->employeeProfile->employee_code }}</div>
+                                    @elseif($user->contactProfile)
+                                        <div class="font-semibold text-gray-900">{{ $user->contactProfile->full_name ?: trim(($user->contactProfile->first_name ?? '').' '.($user->contactProfile->last_name ?? '')) }}</div>
+                                        <div class="text-gray-500">Client Contact</div>
+                                    @else
+                                        <span class="text-gray-400">Manual account</span>
+                                    @endif
+                                </td>
+
                                 <td class="px-4 py-3 border-r border-gray-200 text-xs">
                                     <div class="space-y-1">
                                         <div>
@@ -288,7 +384,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="7" class="px-4 py-8 text-center text-gray-500">
+                                <td colspan="8" class="px-4 py-8 text-center text-gray-500">
                                     No users found.
                                 </td>
                             </tr>
@@ -313,4 +409,86 @@
         </div>
     </div>
 </div>
+
+<script>
+    function usersPage(config) {
+        return {
+            showCreateUser: config.showCreateUser || false,
+            accountSource: config.accountSource || 'manual',
+            selectedEmployeeId: config.selectedEmployeeId || '',
+            selectedContactId: config.selectedContactId || '',
+            name: config.name || '',
+            email: config.email || '',
+            role: config.role || '',
+            employees: config.employees || [],
+            contacts: config.contacts || [],
+
+            init() {
+                if ((this.accountSource === 'employee' && this.selectedEmployeeId) ||
+                    (this.accountSource === 'client' && this.selectedContactId)) {
+                    this.applySelectedProfile(false);
+                }
+            },
+
+            openCreateModal() {
+                this.showCreateUser = true;
+            },
+
+            changeAccountSource() {
+                this.selectedEmployeeId = '';
+                this.selectedContactId = '';
+                this.name = '';
+                this.email = '';
+                this.role = this.accountSource === 'client' ? 'Client' : '';
+            },
+
+            selectedEmployee() {
+                return this.employees.find(employee => String(employee.id) === String(this.selectedEmployeeId));
+            },
+
+            selectedContact() {
+                return this.contacts.find(contact => String(contact.id) === String(this.selectedContactId));
+            },
+
+            applySelectedProfile(overwrite = true) {
+                if (this.accountSource === 'employee') {
+                    const employee = this.selectedEmployee();
+
+                    if (!employee) {
+                        if (overwrite) {
+                            this.name = '';
+                            this.email = '';
+                        }
+                        return;
+                    }
+
+                    this.name = employee.name || '';
+                    this.email = employee.email || '';
+
+                    // Do not auto-select a role for employee profiles.
+                    // Employee Profile can belong to staff, admin, HR, president, etc.
+                    // Admin must choose the correct role manually.
+                }
+
+                if (this.accountSource === 'client') {
+                    const contact = this.selectedContact();
+
+                    if (!contact) {
+                        if (overwrite) {
+                            this.name = '';
+                            this.email = '';
+                        }
+                        this.role = 'Client';
+                        return;
+                    }
+
+                    this.name = contact.name || '';
+                    this.email = contact.email || '';
+                    this.role = 'Client';
+                }
+            },
+        };
+    }
+</script>
+
 @endsection

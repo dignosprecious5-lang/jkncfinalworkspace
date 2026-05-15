@@ -16,7 +16,7 @@ class EmployeeController extends Controller
 {
     public function index()
     {
-        $employees = Employee::with(['office', 'branch', 'department', 'division', 'unit'])
+        $employees = Employee::with(['office', 'branch', 'department', 'division', 'unit', 'user'])
             ->latest()
             ->get()
             ->map(function ($item) {
@@ -30,6 +30,14 @@ class EmployeeController extends Controller
                     'address' => $item->address,
                     'phone_number' => $item->phone_number,
                     'email' => $item->email,
+                    'personal_email' => $item->personal_email,
+                    'work_email' => $item->work_email,
+                    'login_email' => $item->work_email ?: $item->email,
+                    'user_id' => $item->user_id,
+                    'user_name' => $item->user?->name,
+                    'user_email' => $item->user?->email,
+                    'user_role' => $item->user?->role,
+                    'has_user_account' => (bool) $item->user_id,
                     'profile_photo' => $item->profile_photo,
                     'profile_photo_url' => $item->profile_photo ? Storage::url($item->profile_photo) : null,
 
@@ -94,7 +102,9 @@ class EmployeeController extends Controller
             'age' => ['nullable', 'integer', 'min:18', 'max:100'],
             'address' => ['nullable', 'string'],
             'phone_number' => ['nullable', 'string', 'max:255'],
-            'email' => ['required', 'email', 'max:255', 'unique:employees,email'],
+            'email' => ['nullable', 'email', 'max:255', 'unique:employees,email'],
+            'personal_email' => ['nullable', 'email', 'max:255', 'unique:employees,personal_email'],
+            'work_email' => ['nullable', 'email', 'max:255', 'unique:employees,work_email'],
 
             'office_id' => ['nullable', Rule::exists('offices', 'id')],
             'branch_id' => ['nullable', Rule::exists('branches', 'id')],
@@ -108,6 +118,30 @@ class EmployeeController extends Controller
             'schedule_start_time' => ['nullable', 'date_format:H:i'],
             'schedule_end_time' => ['nullable', 'date_format:H:i'],
         ]);
+
+        $legacyEmail = $validated['work_email'] ?? $validated['personal_email'] ?? $validated['email'] ?? null;
+
+        if (!$legacyEmail) {
+            return back()
+                ->withErrors(['email' => 'Please provide at least one email address.'])
+                ->withInput();
+        }
+
+        $validated['email'] = $legacyEmail;
+        $validated['personal_email'] = $validated['personal_email'] ?? $validated['email'];
+        $validated['work_email'] = $validated['work_email'] ?? $validated['email'];
+
+        $legacyEmail = $validated['work_email'] ?? $validated['personal_email'] ?? $validated['email'] ?? null;
+
+        if (!$legacyEmail) {
+            return back()
+                ->withErrors(['email' => 'Please provide at least one email address.'])
+                ->withInput();
+        }
+
+        $validated['email'] = $legacyEmail;
+        $validated['personal_email'] = $validated['personal_email'] ?? $validated['email'];
+        $validated['work_email'] = $validated['work_email'] ?? $validated['email'];
 
         if ($request->hasFile('profile_photo')) {
             $validated['profile_photo'] = $request->file('profile_photo')->store('employee-photos', 'public');
@@ -138,7 +172,9 @@ class EmployeeController extends Controller
             'age' => ['nullable', 'integer', 'min:18', 'max:100'],
             'address' => ['nullable', 'string'],
             'phone_number' => ['nullable', 'string', 'max:255'],
-            'email' => ['required', 'email', 'max:255', 'unique:employees,email,' . $employee->id],
+            'email' => ['nullable', 'email', 'max:255', 'unique:employees,email,' . $employee->id],
+            'personal_email' => ['nullable', 'email', 'max:255', 'unique:employees,personal_email,' . $employee->id],
+            'work_email' => ['nullable', 'email', 'max:255', 'unique:employees,work_email,' . $employee->id],
 
             'office_id' => ['nullable', Rule::exists('offices', 'id')],
             'branch_id' => ['nullable', Rule::exists('branches', 'id')],

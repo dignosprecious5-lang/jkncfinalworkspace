@@ -461,10 +461,21 @@
                             <div class="grid grid-cols-2 gap-4">
                                 <div>
                                     <label class="label">Is this travel for a client?</label>
-                                    <select name="is_client_travel" x-model="form.is_client_travel" :disabled="isView" class="input">
+                                    <select name="is_client_travel" x-model="form.is_client_travel" @change="handleClientTravelChange()" :disabled="isView" class="input">
                                         <option value="0">No</option>
                                         <option value="1">Yes</option>
                                     </select>
+                                </div>
+
+                                <div x-show="form.is_client_travel == '1'" x-cloak>
+                                    <label class="label">Select Client Contact</label>
+                                    <select x-model="form.client_contact_id" @change="selectClientContact()" :disabled="isView" class="input">
+                                        <option value="">Select contact from Contacts</option>
+                                        <template x-for="contact in contacts" :key="contact.id">
+                                            <option :value="contact.id" x-text="contact.label"></option>
+                                        </template>
+                                    </select>
+                                    <p class="mt-1 text-[11px] text-gray-400">This auto-fills the client details below from the Contacts module.</p>
                                 </div>
 
                                 <div>
@@ -476,9 +487,11 @@
                                     </select>
                                 </div>
 
-                                <div><label class="label">Client ID</label><input name="client_id_no" x-model="form.client_id_no" :readonly="isView" class="input"></div>
+                                <div><label class="label">Client ID / CIF No.</label><input name="client_id_no" x-model="form.client_id_no" :readonly="isView" class="input"></div>
                                 <div><label class="label">Client Name</label><input name="client_name" x-model="form.client_name" :readonly="isView" class="input"></div>
                                 <div><label class="label">Client Email</label><input type="email" name="client_email" x-model="form.client_email" :readonly="isView" class="input"></div>
+                                <div><label class="label">Client Contact Number</label><input x-model="selectedClientPhone" readonly class="input bg-gray-100"></div>
+                                <div><label class="label">Company / Business Name</label><input x-model="selectedClientCompany" readonly class="input bg-gray-100"></div>
                                 <div><label class="label">Contract Number</label><input name="client_contract_number" x-model="form.client_contract_number" :readonly="isView" class="input"></div>
                                 <div><label class="label">Contract Type</label><input name="contract_type" x-model="form.contract_type" :readonly="isView" class="input"></div>
 
@@ -817,6 +830,7 @@
 function obfPage() {
     return {
         employees: @json($employees),
+        contacts: @json($contacts ?? []),
         trips: @json($trips),
 
         showPanel: false,
@@ -862,6 +876,7 @@ function obfPage() {
                 superior_email: '',
 
                 is_client_travel: '0',
+                client_contact_id: '',
                 client_type: '',
                 client_id_no: '',
                 client_name: '',
@@ -955,6 +970,7 @@ function obfPage() {
                 purpose_options: trip.purpose_options || [],
                 team_members: trip.team_members && trip.team_members.length ? [...trip.team_members, '', '', ''].slice(0, 3) : ['', '', ''],
                 is_client_travel: trip.is_client_travel ? '1' : '0',
+                client_contact_id: trip.client_contact_id || '',
                 client_payment_items: trip.client_payment_items || [],
                 attachment_paths: trip.attachment_paths || [],
                 attachment_types: trip.attachment_types || [],
@@ -1004,6 +1020,50 @@ function obfPage() {
                 position: trip.position || employee?.position || '',
                 department: trip.department || employee?.department || '',
             };
+        },
+
+
+        selectedClientContact() {
+            return this.contacts.find(item => String(item.id) === String(this.form.client_contact_id));
+        },
+
+        get selectedClientPhone() {
+            return this.selectedClientContact()?.phone || '';
+        },
+
+        get selectedClientCompany() {
+            return this.selectedClientContact()?.company_name || '';
+        },
+
+        handleClientTravelChange() {
+            if (this.form.is_client_travel == '1') {
+                return;
+            }
+
+            this.form.client_contact_id = '';
+            this.form.client_type = '';
+            this.form.client_id_no = '';
+            this.form.client_name = '';
+            this.form.client_email = '';
+            this.form.client_contract_number = '';
+            this.form.contract_type = '';
+            this.form.travel_billability = '';
+        },
+
+        selectClientContact() {
+            const contact = this.selectedClientContact();
+
+            if (!contact) {
+                return;
+            }
+
+            this.form.is_client_travel = '1';
+            this.form.client_type = contact.client_type || this.form.client_type || 'Local';
+            this.form.client_id_no = contact.cif_no || contact.tin || contact.id || '';
+            this.form.client_name = contact.full_name || '';
+            this.form.client_email = contact.email || '';
+            this.form.client_contract_number = contact.cif_no || this.form.client_contract_number || '';
+            this.form.contract_type = contact.contract_type || this.form.contract_type || '';
         },
 
         purposeText() {

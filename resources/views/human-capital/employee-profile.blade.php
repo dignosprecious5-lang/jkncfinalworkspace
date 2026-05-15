@@ -140,7 +140,8 @@
                         <tr>
                             <th class="px-4 py-3 text-left font-semibold text-gray-700">Employee ID</th>
                             <th class="px-4 py-3 text-left font-semibold text-gray-700">Full Name</th>
-                            <th class="px-4 py-3 text-left font-semibold text-gray-700">Email</th>
+                            <th class="px-4 py-3 text-left font-semibold text-gray-700">Work Email</th>
+                            <th class="px-4 py-3 text-left font-semibold text-gray-700">Account</th>
                             <th class="px-4 py-3 text-left font-semibold text-gray-700">Phone</th>
                             <th class="px-4 py-3 text-left font-semibold text-gray-700">Position</th>
                             <th class="px-4 py-3 text-left font-semibold text-gray-700">Department</th>
@@ -430,7 +431,15 @@
                         <div><label class="form-label">Last Name <span class="text-red-500">*</span></label><input type="text" name="last_name" x-model="form.last_name" required class="form-input"></div>
                         <div><label class="form-label">Age</label><input type="number" name="age" x-model="form.age" class="form-input"></div>
                         <div><label class="form-label">Phone Number</label><input type="text" name="phone_number" x-model="form.phone_number" class="form-input"></div>
-                        <div class="col-span-2"><label class="form-label">Email Address <span class="text-red-500">*</span></label><input type="email" name="email" x-model="form.email" required class="form-input"></div>
+                        <div class="col-span-2">
+                            <label class="form-label">Personal Email</label>
+                            <input type="email" name="personal_email" x-model="form.personal_email" class="form-input" placeholder="Personal/applicant email">
+                        </div>
+                        <div class="col-span-2">
+                            <label class="form-label">Work Email <span class="text-red-500">*</span></label>
+                            <input type="email" name="work_email" x-model="form.work_email" required class="form-input" placeholder="Official company email">
+                            <input type="hidden" name="email" :value="form.work_email || form.personal_email || form.email">
+                        </div>
                         <div class="col-span-2"><label class="form-label">Address</label><textarea name="address" x-model="form.address" rows="3" class="form-input"></textarea></div>
                     </div>
                 </div>
@@ -518,6 +527,8 @@ function employeePage(config) {
             address: '',
             phone_number: '',
             email: '',
+            personal_email: '',
+            work_email: '',
             profile_photo_url: '',
             office_id: '',
             branch_id: '',
@@ -539,6 +550,9 @@ function employeePage(config) {
                     employee.employee_code,
                     employee.full_name,
                     employee.email,
+                    employee.personal_email,
+                    employee.work_email,
+                    employee.user_email,
                     employee.phone_number,
                     employee.position,
                     employee.department_name,
@@ -642,6 +656,8 @@ function employeePage(config) {
                 address: employee.address ?? '',
                 phone_number: employee.phone_number ?? '',
                 email: employee.email ?? '',
+                personal_email: employee.personal_email ?? '',
+                work_email: employee.work_email ?? employee.email ?? '',
                 profile_photo_url: employee.profile_photo_url ?? '',
                 office_id: employee.office_id ?? '',
                 branch_id: employee.branch_id ?? '',
@@ -671,6 +687,8 @@ function employeePage(config) {
                 address: '',
                 phone_number: '',
                 email: '',
+                personal_email: '',
+                work_email: '',
                 profile_photo_url: '',
                 office_id: '',
                 branch_id: '',

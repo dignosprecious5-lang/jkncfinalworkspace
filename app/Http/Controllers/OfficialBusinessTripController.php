@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Contact;
 use App\Models\Employee;
 use App\Models\OfficialBusinessTrip;
 use Illuminate\Http\Request;
@@ -21,10 +22,52 @@ class OfficialBusinessTripController extends Controller
                     'id' => $employee->id,
                     'employee_code' => $employee->employee_code,
                     'full_name' => $employee->full_name,
-                    'email' => $employee->email,
+                    'email' => $employee->work_email ?: $employee->email,
+                    'personal_email' => $employee->personal_email ?? $employee->email,
+                    'work_email' => $employee->work_email ?? null,
                     'phone_number' => $employee->phone_number,
                     'position' => $employee->position,
                     'department' => $employee->department?->department_name,
+                ];
+            })
+            ->values();
+
+        $contacts = Contact::query()
+            ->orderBy('first_name')
+            ->orderBy('last_name')
+            ->get()
+            ->map(function ($contact) {
+                $fullName = trim(implode(' ', array_filter([
+                    $contact->first_name,
+                    $contact->middle_initial,
+                    $contact->last_name,
+                    $contact->name_extension,
+                ])));
+
+                $clientType = 'Local';
+                $internationalHints = strtolower(implode(' ', array_filter([
+                    $contact->ownership_flag,
+                    $contact->foreign_business_nature,
+                    $contact->organization_type,
+                ])));
+
+                if (str_contains($internationalHints, 'foreign') || str_contains($internationalHints, 'international')) {
+                    $clientType = 'International';
+                }
+
+                return [
+                    'id' => $contact->id,
+                    'cif_no' => $contact->cif_no,
+                    'full_name' => $fullName !== '' ? $fullName : 'Contact #'.$contact->id,
+                    'email' => $contact->email,
+                    'phone' => $contact->phone,
+                    'company_name' => $contact->company_name,
+                    'customer_type' => $contact->customer_type,
+                    'client_status' => $contact->client_status,
+                    'client_type' => $clientType,
+                    'tin' => $contact->tin,
+                    'contract_type' => $contact->client_status ? ucfirst((string) $contact->client_status) : null,
+                    'label' => trim(($fullName !== '' ? $fullName : 'Contact #'.$contact->id).($contact->company_name ? ' - '.$contact->company_name : '').($contact->email ? ' ('.$contact->email.')' : '')),
                 ];
             })
             ->values();
@@ -36,6 +79,7 @@ class OfficialBusinessTripController extends Controller
 
         return view('human-capital.obf', [
             'employees' => $employees,
+            'contacts' => $contacts,
             'trips' => $trips,
         ]);
     }

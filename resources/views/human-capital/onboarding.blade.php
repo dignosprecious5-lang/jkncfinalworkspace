@@ -1062,8 +1062,9 @@
 
     <div class="col-span-2">
         <label class="block text-xs font-semibold text-gray-600 mb-1">Work Email</label>
-        <input type="email" x-model="empRegForm.workEmail" placeholder="employee@company.com"
+        <input type="email" x-model="empRegForm.workEmail" placeholder="employee@company.com" required
             class="w-full text-sm px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none">
+        <p class="text-[11px] text-gray-400 mt-1">This should be the official work email used for the future login account.</p>
     </div>
 
     <div>
@@ -1888,7 +1889,7 @@ onEmpRegChecklistChange() {
     this.empRegForm.fullName = selected.employeeName || '';
     this.empRegForm.position = selected.position || '';
     this.empRegForm.personalEmail = selected.employeeEmail || '';
-    this.empRegForm.workEmail = selected.employeeEmail || '';
+    this.empRegForm.workEmail = '';
     this.empRegForm.department = selected.jobOfferDepartment || selected.position || this.empRegForm.department;
 
             this.empRegForm.startDate = selected.startDate || '';
@@ -1898,6 +1899,11 @@ onEmpRegChecklistChange() {
         async submitEmpReg() {
             if (!this.empRegForm.checklistId) {
                 alert('Please select an applicant with a Completed checklist.');
+                return;
+            }
+
+            if (!this.empRegForm.workEmail) {
+                alert('Please enter the official work email for this new employee.');
                 return;
             }
 
