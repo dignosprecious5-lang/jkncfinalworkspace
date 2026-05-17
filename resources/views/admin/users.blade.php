@@ -175,7 +175,12 @@
                                 <option value="Employee">Employee</option>
                                 <option value="Client">Client</option>
                             </select>
-                            <input type="hidden" name="role" value="Client" x-show="accountSource === 'client'">
+                            <input
+                                type="hidden"
+                                name="role"
+                                value="Client"
+                                :disabled="accountSource !== 'client'"
+                            >
                             <p class="text-[11px] text-gray-400 mt-1">
                                 Client source will always create a Client account. Employee source can be Employee or Admin; choose manually.
                             </p>

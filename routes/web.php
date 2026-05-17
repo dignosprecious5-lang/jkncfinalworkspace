@@ -93,9 +93,17 @@ use App\Http\Controllers\OffboardingController;
 
 Route::get('/', function () {
     if (Auth::check()) {
-        Auth::logout();
-        request()->session()->invalidate();
-        request()->session()->regenerateToken();
+        $user = Auth::user();
+
+        if ($user->isSuperAdmin() || $user->isAdmin()) {
+            return redirect()->route('admin.users');
+        }
+
+        if ($user->isClient()) {
+            return redirect()->route('contacts.index');
+        }
+
+        return redirect()->route('townhall');
     }
 
     return redirect()->route('login');
@@ -226,7 +234,7 @@ Route::get('/job-offer/{token}/decline', [RecruitmentController::class, 'decline
 |--------------------------------------------------------------------------
 */
 
-Route::middleware('auth')->group(function () use ($adminOrSuperAdmin) {
+Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adminOrSuperAdmin) {
     /*
     |--------------------------------------------------------------------------
     | ACCOUNT SETTINGS

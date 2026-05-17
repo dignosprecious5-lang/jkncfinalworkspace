@@ -59,15 +59,6 @@
 
     <div class="flex items-center justify-center p-8 bg-[#ffffff]">
         <div class="relative w-full max-w-md bg-[#ffffff] rounded-2xl shadow-[0_20px_50px_rgba(16,45,121,0.12)] p-12 animate-fadeIn border border-[#102d79]/10">
-
-            <button
-                type="button"
-                onclick="history.back()"
-                class="absolute top-4 right-4 text-[#102d79]/40 hover:text-[#102d79] text-2xl transition-colors"
-            >
-                &times;
-            </button>
-
             <div class="flex justify-center mb-8">
                 <img
                     src="{{ asset('images/imaglogo.png') }}"
@@ -199,6 +190,13 @@
         input.type = isHidden ? 'text' : 'password';
         button.textContent = isHidden ? 'Hide' : 'Show';
     }
+
+    window.addEventListener('pageshow', function (event) {
+        if (event.persisted) {
+            window.location.reload();
+        }
+    });
+
 </script>
 
 </body>
