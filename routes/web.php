@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\ActivityController;
 use App\Http\Controllers\Auth\LoginController;
+use App\Http\Controllers\Auth\ChangePasswordController;
 use App\Http\Controllers\BylawController;
 use App\Http\Controllers\CapitalStructureController;
 use App\Http\Controllers\CatalogChangeRequestController;
@@ -226,6 +227,14 @@ Route::get('/job-offer/{token}/decline', [RecruitmentController::class, 'decline
 */
 
 Route::middleware('auth')->group(function () use ($adminOrSuperAdmin) {
+    /*
+    |--------------------------------------------------------------------------
+    | ACCOUNT SETTINGS
+    |--------------------------------------------------------------------------
+    */
+    Route::get('/change-password', [ChangePasswordController::class, 'edit'])->name('password.change');
+    Route::post('/change-password', [ChangePasswordController::class, 'update'])->name('password.change.update');
+
     /*
     |--------------------------------------------------------------------------
     | FILES / UPLOADS

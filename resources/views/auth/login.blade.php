@@ -147,9 +147,9 @@
                     </div>
 
                     <div class="flex justify-end mt-1">
-                        <a href="#" class="text-[#1d54e2] text-sm hover:underline">
-                            Forget your password?
-                        </a>
+                        <p class="text-[#102d79]/60 text-xs text-right">
+                            Forgot your password? Please contact your system administrator.
+                        </p>
                     </div>
                 </div>
 

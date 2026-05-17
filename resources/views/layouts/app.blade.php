@@ -127,6 +127,15 @@
                                 <p class="text-gray-400 text-xs">{{ Auth::user()->role }}</p>
                             </div>
 
+
+                            <a
+                                href="{{ route('password.change') }}"
+                                class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition"
+                            >
+                                <i class="fas fa-key mr-2"></i>
+                                Change Password
+                            </a>
+
                             <form method="POST" action="{{ route('logout') }}">
                                 @csrf
                                 <button
