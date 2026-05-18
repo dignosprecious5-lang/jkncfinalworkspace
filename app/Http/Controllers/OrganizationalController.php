@@ -213,6 +213,263 @@ class OrganizationalController extends Controller
         ], 422);
     }
 
+
+    public function update(Request $request, string $type, int $id)
+    {
+        if (!in_array($type, ['address', 'branch', 'office', 'department', 'division', 'unit', 'position'])) {
+            return response()->json([
+                'message' => 'Invalid type.',
+            ], 422);
+        }
+
+        switch ($type) {
+            case 'address':
+                $record = OrganizationalAddress::findOrFail($id);
+
+                $validated = $request->validate([
+                    'country' => ['required', 'string', 'max:255'],
+                    'region_code' => ['required', 'string', 'max:20'],
+                    'region_name' => ['required', 'string', 'max:255'],
+                    'province_code' => ['nullable', 'string', 'max:20'],
+                    'province_name' => ['nullable', 'string', 'max:255'],
+                    'province_type' => ['nullable', 'string', 'max:50'],
+                    'city_code' => ['required', 'string', 'max:20'],
+                    'city_name' => ['required', 'string', 'max:255'],
+                    'barangay_code' => ['required', 'string', 'max:20'],
+                    'barangay_name' => ['required', 'string', 'max:255'],
+                    'street_address' => ['required', 'string'],
+                    'subdivision_building' => ['nullable', 'string', 'max:255'],
+                    'unit_no' => ['nullable', 'string', 'max:255'],
+                    'postal_code' => ['nullable', 'string', 'max:20'],
+                ]);
+
+                $validated['full_address'] = $this->buildFullAddress($validated);
+                $record->update($validated);
+
+                return response()->json([
+                    'message' => 'Address updated successfully.',
+                    'record' => $this->transformAddress($record->fresh()),
+                ]);
+
+            case 'branch':
+                $record = Branch::findOrFail($id);
+
+                $validated = $request->validate([
+                    'branch_name' => ['required', 'string', 'max:255'],
+                    'address_id' => ['required', Rule::exists('organizational_addresses', 'id')],
+                    'branch_head' => ['required', 'string', 'max:255'],
+                ]);
+
+                $record->update([
+                    'branch_name' => $validated['branch_name'],
+                    'address_id' => $validated['address_id'],
+                    'branch_head' => $validated['branch_head'],
+                ]);
+
+                return response()->json([
+                    'message' => 'Branch updated successfully.',
+                    'record' => $this->transformBranch($record->fresh()->load('address')),
+                ]);
+
+            case 'office':
+                $record = Office::findOrFail($id);
+
+                $validated = $request->validate([
+                    'office_name' => ['required', 'string', 'max:255'],
+                    'branch_id' => ['required', Rule::exists('branches', 'id')],
+                    'office_head' => ['required', 'string', 'max:255'],
+                ]);
+
+                $branch = Branch::findOrFail($validated['branch_id']);
+
+                $record->update([
+                    'office_name' => $validated['office_name'],
+                    'branch_id' => $branch->id,
+                    'address_id' => $branch->address_id,
+                    'office_head' => $validated['office_head'],
+                ]);
+
+                return response()->json([
+                    'message' => 'Office updated successfully.',
+                    'record' => $this->transformOffice($record->fresh()->load(['branch.address', 'address'])),
+                ]);
+
+            case 'department':
+                $record = Department::findOrFail($id);
+
+                $validated = $request->validate([
+                    'department_name' => ['required', 'string', 'max:255'],
+                    'office_id' => ['required', Rule::exists('offices', 'id')],
+                    'department_head' => ['required', 'string', 'max:255'],
+                ]);
+
+                $office = Office::findOrFail($validated['office_id']);
+
+                $record->update([
+                    'department_name' => $validated['department_name'],
+                    'office_id' => $office->id,
+                    'address_id' => $office->address_id,
+                    'department_head' => $validated['department_head'],
+                ]);
+
+                return response()->json([
+                    'message' => 'Department updated successfully.',
+                    'record' => $this->transformDepartment($record->fresh()->load(['office.branch.address', 'address'])),
+                ]);
+
+            case 'division':
+                $record = Division::findOrFail($id);
+
+                $validated = $request->validate([
+                    'division_name' => ['required', 'string', 'max:255'],
+                    'department_id' => ['required', Rule::exists('departments', 'id')],
+                    'division_head' => ['required', 'string', 'max:255'],
+                ]);
+
+                $department = Department::findOrFail($validated['department_id']);
+
+                $record->update([
+                    'division_name' => $validated['division_name'],
+                    'department_id' => $department->id,
+                    'address_id' => $department->address_id,
+                    'division_head' => $validated['division_head'],
+                ]);
+
+                return response()->json([
+                    'message' => 'Division updated successfully.',
+                    'record' => $this->transformDivision($record->fresh()->load(['department.office.branch.address', 'address'])),
+                ]);
+
+            case 'unit':
+                $record = Unit::findOrFail($id);
+
+                $validated = $request->validate([
+                    'unit_name' => ['required', 'string', 'max:255'],
+                    'division_id' => ['required', Rule::exists('divisions', 'id')],
+                    'unit_head' => ['required', 'string', 'max:255'],
+                ]);
+
+                $division = Division::findOrFail($validated['division_id']);
+
+                $record->update([
+                    'unit_name' => $validated['unit_name'],
+                    'division_id' => $division->id,
+                    'address_id' => $division->address_id,
+                    'unit_head' => $validated['unit_head'],
+                ]);
+
+                return response()->json([
+                    'message' => 'Unit updated successfully.',
+                    'record' => $this->transformUnit($record->fresh()->load(['division.department.office.branch.address', 'address'])),
+                ]);
+
+            case 'position':
+                $record = Position::findOrFail($id);
+
+                $validated = $request->validate([
+                    'position_name' => ['required', 'string', 'max:255'],
+                    'unit_id' => ['required', Rule::exists('units', 'id')],
+                ]);
+
+                $unit = Unit::findOrFail($validated['unit_id']);
+
+                $record->update([
+                    'position_name' => $validated['position_name'],
+                    'unit_id' => $unit->id,
+                    'address_id' => $unit->address_id,
+                ]);
+
+                return response()->json([
+                    'message' => 'Position updated successfully.',
+                    'record' => $this->transformPosition($record->fresh()->load(['unit.division.department.office.branch.address', 'address'])),
+                ]);
+        }
+
+        return response()->json([
+            'message' => 'Unable to update record.',
+        ], 422);
+    }
+
+    public function destroy(string $type, int $id)
+    {
+        if (!in_array($type, ['address', 'branch', 'office', 'department', 'division', 'unit', 'position'])) {
+            return response()->json([
+                'message' => 'Invalid type.',
+            ], 422);
+        }
+
+        $check = $this->deleteBlockMessage($type, $id);
+        if ($check !== null) {
+            return response()->json([
+                'message' => $check,
+            ], 422);
+        }
+
+        switch ($type) {
+            case 'address':
+                OrganizationalAddress::findOrFail($id)->delete();
+                break;
+            case 'branch':
+                Branch::findOrFail($id)->delete();
+                break;
+            case 'office':
+                Office::findOrFail($id)->delete();
+                break;
+            case 'department':
+                Department::findOrFail($id)->delete();
+                break;
+            case 'division':
+                Division::findOrFail($id)->delete();
+                break;
+            case 'unit':
+                Unit::findOrFail($id)->delete();
+                break;
+            case 'position':
+                Position::findOrFail($id)->delete();
+                break;
+        }
+
+        return response()->json([
+            'message' => 'Record deleted successfully.',
+        ]);
+    }
+
+    private function deleteBlockMessage(string $type, int $id): ?string
+    {
+        return match ($type) {
+            'address' => (
+                Branch::where('address_id', $id)->exists()
+                || Office::where('address_id', $id)->exists()
+                || Department::where('address_id', $id)->exists()
+                || Division::where('address_id', $id)->exists()
+                || Unit::where('address_id', $id)->exists()
+                || Position::where('address_id', $id)->exists()
+            ) ? 'This address is still used by another organizational record.' : null,
+
+            'branch' => Office::where('branch_id', $id)->exists()
+                ? 'This branch is still used by an office.'
+                : null,
+
+            'office' => Department::where('office_id', $id)->exists()
+                ? 'This office is still used by a department.'
+                : null,
+
+            'department' => Division::where('department_id', $id)->exists()
+                ? 'This department is still used by a division.'
+                : null,
+
+            'division' => Unit::where('division_id', $id)->exists()
+                ? 'This division is still used by a unit.'
+                : null,
+
+            'unit' => Position::where('unit_id', $id)->exists()
+                ? 'This unit is still used by a position.'
+                : null,
+
+            default => null,
+        };
+    }
+
     private function buildFullAddress(array $data): string
     {
         $parts = array_filter([

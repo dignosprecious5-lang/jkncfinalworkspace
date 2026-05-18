@@ -936,6 +936,8 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
         Route::middleware($adminOrSuperAdmin)->group(function () {
             Route::get('/organizational', [OrganizationalController::class, 'index'])->name('organizational');
             Route::post('/organizational', [OrganizationalController::class, 'store'])->name('organizational.store');
+            Route::put('/organizational/{type}/{id}', [OrganizationalController::class, 'update'])->name('organizational.update');
+            Route::delete('/organizational/{type}/{id}', [OrganizationalController::class, 'destroy'])->name('organizational.destroy');
         });
 
         Route::prefix('/organizational/locations')->name('organizational.locations.')->middleware($adminOrSuperAdmin)->group(function () {

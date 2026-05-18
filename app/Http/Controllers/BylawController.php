@@ -31,6 +31,10 @@ class BylawController extends Controller
     {
         $user = Auth::user();
 
+        if (! $user) {
+            return 'Unknown Employee';
+        }
+
         return $user->name
             ?? $user->full_name
             ?? $user->employee_name
@@ -99,7 +103,7 @@ class BylawController extends Controller
             'regular_bodm'       => $request->regular_bodm,
             'bodm_notice'        => $request->bodm_notice,
             'uploaded_by'        => $this->employeeName(),
-            'date_upload'        => $request->date_upload,
+            'date_upload'        => $request->date_upload ?: now()->toDateString(),
             'file_path'          => $draftPath,
             'notary_file_path'   => $notaryPath,
             'approval_status'    => $isApprover ? 'Approved' : 'Pending',
