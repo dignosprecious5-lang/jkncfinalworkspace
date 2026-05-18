@@ -340,7 +340,11 @@ class DealController extends Controller
                     }
                 });
 
-                $dealRecords = $storedDeals
+                $accessibleStoredDeals = $storedDeals
+                    ->filter(fn (Deal $deal): bool => $this->canViewDeal($deal))
+                    ->values();
+
+                $dealRecords = $accessibleStoredDeals
                     ->mapWithKeys(function (Deal $storedDeal): array {
                         $contact = $storedDeal->contact;
                         $stageName = (string) ($storedDeal->stage ?: 'Inquiry');
@@ -382,6 +386,7 @@ class DealController extends Controller
                             $deal->first_name ?: $deal->contact?->first_name,
                             $deal->last_name ?: $deal->contact?->last_name,
                         ])->filter()->implode(' '));
+                        $canAccess = $this->canViewDeal($deal);
 
                         return [
                             'id' => $deal->id,
@@ -393,6 +398,7 @@ class DealController extends Controller
                             'expected_close' => optional($deal->estimated_completion_date)->format('M d, Y') ?: 'TBD',
                             'owner_name' => $deal->assigned_consultant ?: 'Unassigned',
                             'stage' => $deal->stage,
+                            'can_access' => $canAccess,
                             'created_by' => $deal->created_by ?: optional(Auth::user())->name ?: 'System',
                             'created_at_label' => optional($deal->created_at)->format('F d, Y • h:i:s A') ?: now()->format('F d, Y • h:i:s A'),
                             'search_blob' => Str::lower(implode(' ', array_filter([
@@ -885,6 +891,10 @@ class DealController extends Controller
                 return $this->dealStageErrorResponse($request, $id, 'The deal you are trying to update could not be found.', 404);
             }
 
+            if (! $this->canViewDeal($deal)) {
+                return $this->dealStageErrorResponse($request, $id, "You don't have access to this deal.", 403);
+            }
+
             $hasStageTable = Schema::hasTable('deal_stages');
             $stage = null;
             $resolvedStageName = $stageInput;
@@ -968,6 +978,7 @@ class DealController extends Controller
     public function preview(Request $request): RedirectResponse
     {
         $validated = $this->validateDealPayload($request);
+        $validated = $this->applyInternalApprovalDefaults($validated, $request);
 
         try {
             $contact = $this->resolveContact((int) $validated['contact_id']);
@@ -1019,6 +1030,7 @@ class DealController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $validated = $this->validateDealPayload($request);
+        $validated = $this->applyInternalApprovalDefaults($validated, $request);
         $validated = $this->applyCalculatedTimeline($validated);
 
         try {
@@ -1095,6 +1107,7 @@ class DealController extends Controller
         }
 
         $validated = $this->validateDealPayload($request);
+        $validated = $this->applyInternalApprovalDefaults($validated, $request, $existingDeal);
         $validated = $this->applyCalculatedTimeline($validated);
 
         try {
@@ -1123,6 +1136,12 @@ class DealController extends Controller
                 return redirect()
                     ->route('deals.index')
                     ->with('error', 'The deal you are trying to update could not be found.');
+            }
+
+            if (! $this->canViewDeal($deal)) {
+                return redirect()
+                    ->route('deals.index')
+                    ->with('deal_access_denied', "You don't have access to this deal.");
             }
 
             $validated['deal_code'] = Deal::hasValidDealCode($deal->deal_code)
@@ -1197,6 +1216,7 @@ class DealController extends Controller
                         : $deal->stage_id,
                     'approved_at' => now(),
                     'approved_by_name' => $request->user()?->name ?? 'System User',
+                    'reviewed_by' => $request->user()?->name ?? 'System User',
                     'rejected_at' => null,
                     'rejected_by_name' => null,
                     'rejection_reason' => null,
@@ -1745,32 +1765,7 @@ class DealController extends Controller
     {
         $user ??= Auth::user();
 
-        if (! $user) {
-            return false;
-        }
-
-        $userTokens = collect([
-            $user->name,
-            $user->email,
-            (string) $user->id,
-        ])
-            ->filter()
-            ->map(fn ($value): string => Str::lower(trim((string) $value)))
-            ->all();
-
-        $dealRelationTokens = collect([
-            $deal->created_by,
-            $deal->assigned_consultant,
-            $deal->assigned_associate,
-            $deal->assignedFinance?->name,
-            $deal->assignedFinance?->email,
-            $deal->assigned_finance_user_id ? (string) $deal->assigned_finance_user_id : null,
-        ])
-            ->filter()
-            ->map(fn ($value): string => Str::lower(trim((string) $value)))
-            ->all();
-
-        return count(array_intersect($userTokens, $dealRelationTokens)) > 0;
+        return $deal->userCanAccess($user);
     }
 
     private function dealStages(): array
@@ -2620,9 +2615,74 @@ class DealController extends Controller
         $validated['rejected_by_name'] = null;
         $validated['rejection_reason'] = null;
         $validated['stage'] = trim((string) ($validated['stage'] ?? 'Qualification')) ?: 'Qualification';
-        $validated['internal_finance'] = $this->financeNameForUserId((int) ($validated['assigned_finance_user_id'] ?? 0));
+        $validated['internal_finance'] = $this->financeNameForUserId((int) ($validated['assigned_finance_user_id'] ?? 0))
+            ?: $this->truncateStringForColumn($validated['internal_finance'] ?? null);
 
         return $validated;
+    }
+
+    private function applyInternalApprovalDefaults(array $validated, Request $request, ?Deal $existingDeal = null): array
+    {
+        $creatorName = $this->truncateStringForColumn(
+            $existingDeal?->created_by
+                ?: ($request->user()?->name ?: 'System')
+        );
+        $createdDate = optional($existingDeal?->created_at)->format('Y-m-d') ?: now()->toDateString();
+        $clientName = $this->truncateStringForColumn($this->resolveClientSignatureName($validated), 255);
+        $reviewedBy = $this->truncateStringForColumn(
+            $validated['reviewed_by']
+                ?? $existingDeal?->approved_by_name
+                ?? null
+        );
+
+        $validated['prepared_by'] = $this->truncateStringForColumn(
+            $validated['prepared_by']
+                ?? $existingDeal?->prepared_by
+                ?? $creatorName
+        );
+        $validated['reviewed_by'] = $reviewedBy;
+        $validated['internal_date'] = $validated['internal_date']
+            ?? optional($existingDeal?->internal_date)->format('Y-m-d')
+            ?? $createdDate;
+        $validated['client_fullname_signature'] = $this->truncateStringForColumn(
+            $validated['client_fullname_signature']
+                ?? $existingDeal?->client_fullname_signature
+                ?? $clientName
+        );
+        $validated['internal_president'] = $this->truncateStringForColumn(
+            $validated['internal_president']
+                ?? $existingDeal?->internal_president
+                ?? 'John Kelly'
+        );
+        $validated['lead_consultant'] = $this->truncateStringForColumn(
+            $validated['lead_consultant']
+                ?? $existingDeal?->lead_consultant
+                ?? ($validated['assigned_consultant'] ?? null)
+        );
+        $validated['lead_associate_assigned'] = $this->truncateStringForColumn(
+            $validated['lead_associate_assigned']
+                ?? $existingDeal?->lead_associate_assigned
+                ?? ($validated['assigned_associate'] ?? null)
+        );
+
+        return $validated;
+    }
+
+    private function resolveClientSignatureName(array $validated): ?string
+    {
+        $fullName = trim(collect([
+            $validated['salutation'] ?? null,
+            $validated['first_name'] ?? null,
+            $validated['middle_name'] ?? ($validated['middle_initial'] ?? null),
+            $validated['last_name'] ?? null,
+            $validated['name_extension'] ?? null,
+        ])->filter(fn ($value) => filled($value))->implode(' '));
+
+        if ($fullName !== '') {
+            return $fullName;
+        }
+
+        return $this->truncateStringForColumn($validated['company_name'] ?? null);
     }
 
     private function normalizeOtherFees(mixed $storedOtherFees = null, array $payload = []): array

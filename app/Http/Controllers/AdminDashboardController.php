@@ -17,10 +17,20 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class AdminDashboardController extends Controller
 {
-    public function index(Request $request)
+    private const SECTION_TOWN_HALL = 'town-hall';
+    private const SECTION_CONTACTS = 'contacts';
+    private const SECTION_COMPANY = 'company';
+    private const SECTION_DEALS = 'deals';
+    private const SECTION_PROJECT = 'project';
+    private const SECTION_REGULAR = 'regular';
+    private const SECTION_SERVICES = 'services';
+    private const SECTION_PRODUCTS = 'products';
+
+    public function index(Request $request, ?string $section = null)
     {
         if (
             ! Auth::user()->hasPermission('access_admin_dashboard') &&
@@ -29,18 +39,12 @@ class AdminDashboardController extends Controller
             abort(403, 'Unauthorized');
         }
 
+        $section = $section ?: self::SECTION_TOWN_HALL;
+        $sectionConfig = $this->sectionConfigurations()[$section] ?? null;
+        abort_unless($sectionConfig !== null, 404);
+
         $userNames = User::query()->pluck('name', 'id');
-        $items = collect()
-            ->merge($this->townHallItems())
-            ->merge($this->contactApprovalItems())
-            ->merge($this->contactChangeRequestItems())
-            ->merge($this->companyApprovalItems($userNames))
-            ->merge($this->companyChangeRequestItems($userNames))
-            ->merge($this->dealApprovalItems())
-            ->merge($this->startApprovalItems())
-            ->merge($this->serviceApprovalItems($userNames))
-            ->merge($this->productApprovalItems($userNames))
-            ->merge($this->catalogChangeRequestItems());
+        $items = $this->sectionItems($section, $userNames);
 
         $filters = [
             'search' => trim((string) $request->query('search', '')),
@@ -83,7 +87,74 @@ class AdminDashboardController extends Controller
             'moduleOptions' => $items->pluck('module')->filter()->unique()->sort()->values(),
             'departmentOptions' => $items->pluck('department')->filter()->unique()->sort()->values(),
             'statusOptions' => collect(['Pending Approval', 'Approved', 'Rejected', 'Needs Revision', 'Expired']),
+            'dashboardRoute' => $section === self::SECTION_TOWN_HALL
+                ? route('admin.dashboard')
+                : route('admin.dashboard.section', ['section' => $section]),
+            'pageTitle' => $sectionConfig['title'],
+            'pageDescription' => $sectionConfig['description'],
+            'currentSection' => $section,
         ]);
+    }
+
+    private function sectionConfigurations(): array
+    {
+        return [
+            self::SECTION_TOWN_HALL => [
+                'title' => 'Town Hall Approval Dashboard',
+                'description' => 'Review Town Hall submissions and route approvals through admin.',
+            ],
+            self::SECTION_CONTACTS => [
+                'title' => 'Contacts Approval Dashboard',
+                'description' => 'Review CIF submissions and contact change requests awaiting admin approval.',
+            ],
+            self::SECTION_COMPANY => [
+                'title' => 'Company Approval Dashboard',
+                'description' => 'Review company KYC submissions and BIF change requests awaiting admin approval.',
+            ],
+            self::SECTION_DEALS => [
+                'title' => 'Deals Approval Dashboard',
+                'description' => 'Review deal qualification submissions awaiting admin approval.',
+            ],
+            self::SECTION_PROJECT => [
+                'title' => 'Project Approval Dashboard',
+                'description' => 'Review project START submissions awaiting admin approval.',
+            ],
+            self::SECTION_REGULAR => [
+                'title' => 'Regular Approval Dashboard',
+                'description' => 'Review regular engagement START submissions awaiting admin approval.',
+            ],
+            self::SECTION_SERVICES => [
+                'title' => 'Services Approval Dashboard',
+                'description' => 'Review service records and service catalog change requests awaiting admin approval.',
+            ],
+            self::SECTION_PRODUCTS => [
+                'title' => 'Products Approval Dashboard',
+                'description' => 'Review product records and product catalog change requests awaiting admin approval.',
+            ],
+        ];
+    }
+
+    private function sectionItems(string $section, Collection $userNames): Collection
+    {
+        return match ($section) {
+            self::SECTION_TOWN_HALL => $this->townHallItems(),
+            self::SECTION_CONTACTS => collect()
+                ->merge($this->contactApprovalItems())
+                ->merge($this->contactChangeRequestItems()),
+            self::SECTION_COMPANY => collect()
+                ->merge($this->companyApprovalItems($userNames))
+                ->merge($this->companyChangeRequestItems($userNames)),
+            self::SECTION_DEALS => $this->dealApprovalItems(),
+            self::SECTION_PROJECT => $this->startApprovalItems(false),
+            self::SECTION_REGULAR => $this->startApprovalItems(true),
+            self::SECTION_SERVICES => collect()
+                ->merge($this->serviceApprovalItems($userNames))
+                ->merge($this->catalogChangeRequestItems('service')),
+            self::SECTION_PRODUCTS => collect()
+                ->merge($this->productApprovalItems($userNames))
+                ->merge($this->catalogChangeRequestItems('product')),
+            default => collect(),
+        };
     }
 
     private function townHallItems(): Collection
@@ -286,7 +357,7 @@ class AdminDashboardController extends Controller
             });
     }
 
-    private function startApprovalItems(): Collection
+    private function startApprovalItems(?bool $regular = null): Collection
     {
         return ProjectStart::query()
             ->with(['project.deal', 'project.company', 'project.contact'])
@@ -321,18 +392,26 @@ class AdminDashboardController extends Controller
             ->filter(function (ProjectStart $start): bool {
                 return in_array(strtolower((string) ($start->status ?? 'draft')), ['pending_approval', 'approved', 'rejected'], true);
             })
+            ->filter(function (ProjectStart $start) use ($regular): bool {
+                if ($regular === null) {
+                    return true;
+                }
+
+                return $this->isRegularEngagement($start->project?->engagement_type) === $regular;
+            })
             ->map(function (ProjectStart $start): object {
                 $statusKey = strtolower((string) ($start->status ?? 'draft'));
                 $project = $start->project;
+                $isRegular = $this->isRegularEngagement($project?->engagement_type);
                 $contactName = trim(collect([$project?->contact?->first_name, $project?->contact?->last_name])->filter()->implode(' '))
                     ?: ($project?->client_name ?: 'Project #'.$start->project_id);
                 $businessName = $project?->business_name ?: ($project?->company?->company_name ?: 'Project');
 
                 return (object) [
                     'ref_no' => $start->start_code ?: 'START-'.$start->id,
-                    'module' => 'START',
+                    'module' => $isRegular ? 'Regular' : 'Project',
                     'file_name' => $businessName.' - '.$contactName,
-                    'department' => 'Projects',
+                    'department' => $isRegular ? 'Regular' : 'Projects',
                     'uploaded_by' => $project?->assigned_consultant ?: 'Unknown',
                     'date_uploaded' => $this->displayDate($start->updated_at ?: $start->created_at),
                     'approver' => $start->approved_by_name ?: ($start->rejected_by_name ?: '-'),
@@ -407,13 +486,19 @@ class AdminDashboardController extends Controller
             });
     }
 
-    private function catalogChangeRequestItems(): Collection
+    private function catalogChangeRequestItems(?string $moduleFilter = null): Collection
     {
         return CatalogChangeRequest::query()
             ->with(['submitter', 'reviewer'])
             ->latest('updated_at')
             ->get()
-            ->filter(fn (CatalogChangeRequest $request): bool => in_array((string) $request->module, ['product', 'service'], true))
+            ->filter(function (CatalogChangeRequest $request) use ($moduleFilter): bool {
+                if (! in_array((string) $request->module, ['product', 'service'], true)) {
+                    return false;
+                }
+
+                return $moduleFilter === null || (string) $request->module === $moduleFilter;
+            })
             ->map(function (CatalogChangeRequest $changeRequest): object {
                 $module = $changeRequest->module === 'product' ? 'Products' : 'Services';
                 $status = $this->normalizeStatus((string) $changeRequest->status);
@@ -437,6 +522,11 @@ class AdminDashboardController extends Controller
                     'date_sort' => $this->sortTimestamp($changeRequest->updated_at),
                 ];
             });
+    }
+
+    private function isRegularEngagement(?string $engagementType): bool
+    {
+        return Str::contains(Str::lower(trim((string) $engagementType)), 'regular');
     }
 
     private function applyFilters(Collection $items, array $filters): Collection
