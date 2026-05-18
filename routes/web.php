@@ -826,6 +826,7 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     });
 
     Route::get('/finance', [FinanceController::class, 'index'])->name('finance');
+    Route::post('/finance/dropdown-settings', [FinanceController::class, 'updateDropdownSettings'])->name('finance.dropdown-settings.update');
     Route::get('/finance/{financeRecord}', [FinanceController::class, 'show'])->name('finance.show');
     Route::get('/finance/{financeRecord}/preview-html', [FinanceController::class, 'previewHtml'])->name('finance.preview.html');
     Route::get('/finance/{financeRecord}/preview-pdf', [FinanceController::class, 'previewPdf'])->name('finance.preview.pdf');
