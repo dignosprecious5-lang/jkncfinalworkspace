@@ -8,13 +8,31 @@
     previewFrom: @js($communication->from_name),
     previewDepartment: @js(old('department_stakeholder', $communication->department_stakeholder)),
     previewRecipientLabel: @js(old('recipient_label', $communication->recipient_label ?? 'To')),
-    previewTo: @js(old('to_for', $communication->to_for)),
+    previewRecipientType: @js(old('recipient_type', $communication->recipient_type ?? 'all')),
+    previewRecipientUserId: @js(old('recipient_user_id', $communication->recipient_user_id)),
+    employeesForRecipient: @js($employees->map(fn($employee) => ['id' => $employee->id, 'name' => $employee->name])->values()),
+    previewTo: @js(old('to_for', $communication->to_for ?? 'All Employees')),
     previewPriority: @js(old('priority', $communication->priority ?? 'Low')),
     previewSubject: @js(old('subject', $communication->subject)),
     previewBody: @js(old('message', $communication->message ?: '<p style=&quot;color:#9ca3af;&quot;>Write the formal communication here...</p>')),
     previewCc: @js(old('cc', $communication->cc)),
-    previewAdditional: @js(old('additional', $communication->additional))
-}">
+    previewAdditional: @js(old('additional', $communication->additional)),
+    syncRecipientFields() {
+        if (this.previewRecipientType === 'all') {
+            this.previewRecipientUserId = '';
+            this.previewTo = 'All Employees';
+            return;
+        }
+
+        const selected = this.employeesForRecipient.find(employee => String(employee.id) === String(this.previewRecipientUserId));
+
+        if (selected) {
+            this.previewTo = selected.name;
+        } else {
+            this.previewTo = '';
+        }
+    }
+}" x-init="syncRecipientFields()">
 
     @if(session('success'))
         <div class="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
@@ -198,28 +216,54 @@
                 </div>
 
                 <div>
-                    <label class="block text-xs font-semibold text-gray-500 mb-1">Recipient Label and Value</label>
+                    <label class="block text-xs font-semibold text-gray-500 mb-1">Recipient</label>
 
-                    <div class="grid grid-cols-[120px_1fr] gap-3">
-                        <select
-                            x-model="previewRecipientLabel"
-                            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500"
-                        >
-                            <option value="To">To</option>
-                            <option value="For">For</option>
-                        </select>
+                    <div class="space-y-3">
+                        <div class="grid grid-cols-[120px_1fr] gap-3">
+                            <select
+                                x-model="previewRecipientLabel"
+                                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500"
+                            >
+                                <option value="To">To</option>
+                                <option value="For">For</option>
+                            </select>
 
-                        <input
-                            type="text"
-                            name="to_for"
-                            x-model="previewTo"
-                            value="{{ old('to_for', $communication->to_for) }}"
-                            placeholder="Enter recipient"
-                            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500"
-                        >
+                            <select
+                                name="recipient_type"
+                                x-model="previewRecipientType"
+                                @change="syncRecipientFields()"
+                                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500"
+                            >
+                                <option value="all">All Employees</option>
+                                <option value="employee">Specific Employee</option>
+                            </select>
+                        </div>
+
+                        <div x-show="previewRecipientType === 'employee'" x-cloak>
+                            <select
+                                name="recipient_user_id"
+                                x-model="previewRecipientUserId"
+                                @change="syncRecipientFields()"
+                                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500"
+                            >
+                                <option value="">Select employee</option>
+                                @foreach($employees as $employee)
+                                    <option value="{{ $employee->id }}"
+                                        {{ (string) old('recipient_user_id', $communication->recipient_user_id) === (string) $employee->id ? 'selected' : '' }}>
+                                        {{ $employee->name }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+
+                        <div class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
+                            <span class="font-medium" x-text="previewRecipientLabel"></span>:
+                            <span x-text="previewTo || 'All Employees'"></span>
+                        </div>
                     </div>
 
                     <input type="hidden" name="recipient_label" :value="previewRecipientLabel">
+                    <input type="hidden" name="to_for" :value="previewTo">
                 </div>
 
                 <div>

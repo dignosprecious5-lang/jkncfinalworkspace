@@ -317,6 +317,16 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::get('/townhall/recipients/search', [TownHallController::class, 'searchRecipients'])
         ->name('townhall.recipients.search');
 
+
+    /*
+    |--------------------------------------------------------------------------
+    | HUMAN CAPITAL MEMOS
+    |--------------------------------------------------------------------------
+    */
+    Route::get('/human-capital/memos', [TownHallController::class, 'humanCapitalMemos'])
+        ->name('human-capital.memos');
+
+
     /*
     |--------------------------------------------------------------------------
     | CONTACTS MODULE
@@ -1056,8 +1066,8 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
         Route::post('/employee-relations/{employeeRelation}/approve', [EmployeeRelationController::class, 'approve'])->name('employee-relations.approve');
         Route::post('/employee-relations/{employeeRelation}/reject', [EmployeeRelationController::class, 'reject'])->name('employee-relations.reject');
         Route::delete('/employee-relations/{employeeRelation}', [EmployeeRelationController::class, 'destroy'])->name('employee-relations.destroy');
-        Route::view('/memos', 'human-capital.memos')->name('memos');
-        
+
+
         // Performance Management
         Route::get('/performance', [PerformanceController::class, 'index'])->name('performance');
         Route::get('/performance/employee/{id}', [PerformanceController::class, 'getEmployee'])->name('performance.get-employee');
@@ -1075,12 +1085,12 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
             Route::delete('/offboarding/{offboardingRecord}', [OffboardingController::class, 'destroy'])->name('offboarding.destroy');
         });
 
-Route::get('/obf', [OfficialBusinessTripController::class, 'index'])->name('obf');
-Route::post('/obf', [OfficialBusinessTripController::class, 'store'])->name('obf.store');
-Route::put('/obf/{officialBusinessTrip}', [OfficialBusinessTripController::class, 'update'])->name('obf.update');
-Route::delete('/obf/{officialBusinessTrip}', [OfficialBusinessTripController::class, 'destroy'])->name('obf.destroy');
-Route::post('/obf/{officialBusinessTrip}/approve', [OfficialBusinessTripController::class, 'approve'])->name('obf.approve');
-Route::post('/obf/{officialBusinessTrip}/reject', [OfficialBusinessTripController::class, 'reject'])->name('obf.reject');
+        Route::get('/obf', [OfficialBusinessTripController::class, 'index'])->name('obf');
+        Route::post('/obf', [OfficialBusinessTripController::class, 'store'])->name('obf.store');
+        Route::put('/obf/{officialBusinessTrip}', [OfficialBusinessTripController::class, 'update'])->name('obf.update');
+        Route::delete('/obf/{officialBusinessTrip}', [OfficialBusinessTripController::class, 'destroy'])->name('obf.destroy');
+        Route::post('/obf/{officialBusinessTrip}/approve', [OfficialBusinessTripController::class, 'approve'])->name('obf.approve');
+        Route::post('/obf/{officialBusinessTrip}/reject', [OfficialBusinessTripController::class, 'reject'])->name('obf.reject');
 
 
 

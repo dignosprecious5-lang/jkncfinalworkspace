@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Models\User;
+
 use Illuminate\Database\Eloquent\Model;
 
 class TownHallCommunication extends Model
@@ -14,6 +16,8 @@ class TownHallCommunication extends Model
         'from_name',
         'department_stakeholder',
         'recipient_label',
+        'recipient_type',
+        'recipient_user_id',
         'to_for',
         'priority',
         'status',
@@ -75,5 +79,9 @@ class TownHallCommunication extends Model
     public function approver()
     {
         return $this->belongsTo(\App\Models\User::class, 'approved_by');
+    }
+    public function recipientUser()
+    {
+        return $this->belongsTo(User::class, 'recipient_user_id');
     }
 }

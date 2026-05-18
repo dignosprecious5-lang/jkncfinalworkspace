@@ -2,7 +2,7 @@
 @section('title', 'Town Hall')
 
 @section('content')
-<div id="townhall-page" class="w-full h-full px-6 py-5" x-data="townhallContactSuggest()">
+<div id="townhall-page" class="w-full h-full px-6 py-5" x-data="townhallContactSuggest()" x-init="syncRecipientFields()">
 
     @if(session('success'))
         <div class="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
@@ -197,56 +197,53 @@
                     </div>
 
                     <div>
-                        <label class="block text-xs font-semibold text-gray-500 mb-1">Recipient Label and Value</label>
+                        <label class="block text-xs font-semibold text-gray-500 mb-1">Recipient</label>
 
-                        <div class="grid grid-cols-[120px_1fr] gap-3">
-                            <select
-                                x-model="previewRecipientLabel"
-                                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500"
-                            >
-                                <option value="To">To</option>
-                                <option value="For">For</option>
-                            </select>
-
-                            <div class="relative">
-                                <input
-                                    type="text"
-                                    name="to_for"
-                                    x-model="previewTo"
-                                    @focus="openSuggestions('to')"
-                                    @input.debounce.250ms="searchSuggestions('to')"
-                                    @keydown.arrow-down.prevent="highlightNext('to')"
-                                    @keydown.arrow-up.prevent="highlightPrev('to')"
-                                    @keydown.enter.prevent="selectHighlighted('to')"
-                                    @keydown.escape="closeSuggestions('to')"
-                                    autocomplete="off"
-                                    value="{{ old('to_for') }}"
-                                    placeholder="Add one or more recipients separated by comma"
-                                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500"
+                        <div class="space-y-3">
+                            <div class="grid grid-cols-[120px_1fr] gap-3">
+                                <select
+                                    x-model="previewRecipientLabel"
+                                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500"
                                 >
+                                    <option value="To">To</option>
+                                    <option value="For">For</option>
+                                </select>
 
-                                <div
-                                    x-show="dropdowns.to.show && dropdowns.to.items.length > 0"
-                                    x-cloak
-                                    @click.away="closeSuggestions('to')"
-                                    class="absolute z-50 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg overflow-hidden"
+                                <select
+                                    name="recipient_type"
+                                    x-model="previewRecipientType"
+                                    @change="$nextTick(() => syncRecipientFields())"
+                                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500"
                                 >
-                                    <template x-for="(contact, index) in dropdowns.to.items" :key="'to-' + contact.id">
-                                        <button
-                                            type="button"
-                                            @click="selectSuggestion('to', contact)"
-                                            :class="dropdowns.to.highlighted === index ? 'bg-blue-50' : 'bg-white'"
-                                            class="w-full px-3 py-2 text-left hover:bg-blue-50 border-b border-gray-100 last:border-b-0"
-                                        >
-                                            <div class="text-sm font-medium text-gray-800" x-text="contact.name"></div>
-                                            <div class="text-xs text-gray-500" x-text="contact.role + (contact.company_name ? ' • ' + contact.company_name : (contact.email ? ' • ' + contact.email : ''))"></div>
-                                        </button>
-                                    </template>
-                                </div>
+                                    <option value="all">All Employees</option>
+                                    <option value="employee">Specific Employee</option>
+                                </select>
+                            </div>
+
+                            <div x-show="previewRecipientType === 'employee'" x-cloak>
+                                <select
+                                    name="recipient_user_id"
+                                    x-model="previewRecipientUserId"
+                                    @change="$nextTick(() => syncRecipientFields())"
+                                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500"
+                                >
+                                    <option value="">Select employee</option>
+                                    @foreach($employees as $employee)
+                                        <option value="{{ $employee->id }}" {{ (string) old('recipient_user_id') === (string) $employee->id ? 'selected' : '' }}>
+                                            {{ $employee->name }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                            </div>
+
+                            <div class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
+                                <span class="font-medium" x-text="previewRecipientLabel"></span>:
+                                <span x-text="previewTo || 'All Employees'"></span>
                             </div>
                         </div>
 
                         <input type="hidden" name="recipient_label" :value="previewRecipientLabel">
+                        <input type="hidden" name="to_for" :value="previewTo">
                     </div>
 
                     <div>
@@ -500,7 +497,12 @@
                                 <td class="px-3 py-3 border-r border-gray-200">{{ $communication->from_name }}</td>
                                 <td class="px-3 py-3 border-r border-gray-200">{{ $communication->subject }}</td>
                                 <td class="px-3 py-3 border-r border-gray-200">
-                                    {{ ($communication->recipient_label ?? 'To') . ': ' . ($communication->to_for ?? '') }}
+                                    {{ $communication->recipient_label ?? 'To' }}:
+                                    @if(($communication->recipient_type ?? 'all') === 'all')
+                                        All Employees
+                                    @else
+                                        {{ $communication->recipientUser->name ?? $communication->to_for ?? 'Selected Employee' }}
+                                    @endif
                                 </td>
 
                                 <td class="px-3 py-3 border-r border-gray-200">
@@ -1084,13 +1086,30 @@ function townhallContactSuggest() {
         previewFrom: @js(Auth::user()->name),
         previewDepartment: @js(old('department_stakeholder', '')),
         previewRecipientLabel: @js(old('recipient_label', 'To')),
-        previewTo: @js(old('to_for', '')),
+        previewRecipientType: @js(old('recipient_type', 'all')),
+        previewRecipientUserId: @js(old('recipient_user_id', '')),
+        employeesForRecipient: @js($employees->map(fn($employee) => ['id' => $employee->id, 'name' => $employee->name])->values()),
+        previewTo: @js(old('to_for', 'All Employees')),
         previewPriority: @js(old('priority', 'Low')),
         previewSubject: @js(old('subject', '')),
         previewBody: @js(old('message', '<p style="color:#9ca3af;">Write the formal communication here...</p>')),
         previewCc: @js(old('cc', '')),
         previewAdditional: @js(old('additional', '')),
         previewExpiry: @js(old('expires_at', '')),
+
+        syncRecipientFields() {
+            if (this.previewRecipientType === 'all') {
+                this.previewRecipientUserId = '';
+                this.previewTo = 'All Employees';
+                return;
+            }
+
+            const selected = this.employeesForRecipient.find(employee => {
+                return String(employee.id) === String(this.previewRecipientUserId);
+            });
+
+            this.previewTo = selected ? selected.name : '';
+        },
 
         dropdowns: {
             to: { items: [], show: false, highlighted: -1 },
@@ -1328,17 +1347,26 @@ document.addEventListener('DOMContentLoaded', function () {
 
     renderPages(alpineData);
 
-    if (alpineData) {
-        ['previewDate', 'previewFrom', 'previewDepartment', 'previewRecipientLabel', 'previewTo', 'previewPriority', 'previewSubject', 'previewCc', 'previewAdditional', 'previewExpiry'].forEach((key) => {
-            let currentValue = alpineData[key];
-            Object.defineProperty(alpineData, key, {
-                get() {
-                    return currentValue;
-                },
-                set(value) {
-                    currentValue = value;
-                    renderPages(alpineData);
-                }
+    if (alpineData && window.Alpine) {
+        const watchedFields = [
+            'previewDate',
+            'previewFrom',
+            'previewDepartment',
+            'previewRecipientLabel',
+            'previewRecipientType',
+            'previewRecipientUserId',
+            'previewTo',
+            'previewPriority',
+            'previewSubject',
+            'previewCc',
+            'previewAdditional',
+            'previewExpiry'
+        ];
+
+        watchedFields.forEach((key) => {
+            Alpine.effect(() => {
+                alpineData[key];
+                renderPages(alpineData);
             });
         });
     }
