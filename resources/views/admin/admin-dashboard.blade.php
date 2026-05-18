@@ -1,5 +1,5 @@
 @extends('layouts.app')
-@section('title', 'Admin Dashboard')
+@section('title', $pageTitle ?? 'Admin Dashboard')
 
 @section('content')
 <div class="w-full h-full px-6 py-5">
@@ -14,8 +14,8 @@
 
         <div class="px-5 py-4 border-b border-gray-200 flex items-center justify-between">
             <div>
-                <h1 class="text-[30px] font-semibold text-gray-800 leading-none">Admin Dashboard</h1>
-                <p class="text-sm text-gray-500 mt-1">Review module submissions and route approvals through Town Hall/Admin.</p>
+                <h1 class="text-[30px] font-semibold text-gray-800 leading-none">{{ $pageTitle ?? 'Admin Dashboard' }}</h1>
+                <p class="text-sm text-gray-500 mt-1">{{ $pageDescription ?? 'Review module submissions and route approvals through admin.' }}</p>
             </div>
         </div>
 
@@ -82,7 +82,7 @@
         </div>
 
         <div class="px-5 pt-5">
-            <form method="GET" action="{{ route('admin.dashboard') }}" class="bg-gray-50 border border-gray-200 rounded-xl p-4 flex flex-col xl:flex-row xl:items-center gap-3 xl:justify-between">
+            <form method="GET" action="{{ $dashboardRoute }}" class="bg-gray-50 border border-gray-200 rounded-xl p-4 flex flex-col xl:flex-row xl:items-center gap-3 xl:justify-between">
                 <div class="flex flex-col md:flex-row gap-3 w-full xl:w-auto">
                     <div class="relative">
                         <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
@@ -95,19 +95,23 @@
                         >
                     </div>
 
-                    <select name="module" class="border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500">
-                        <option value="all">All Modules</option>
-                        @foreach($moduleOptions as $moduleOption)
-                            <option value="{{ $moduleOption }}" @selected($filters['module'] === $moduleOption)>{{ $moduleOption }}</option>
-                        @endforeach
-                    </select>
+                    @if($moduleOptions->count() > 1)
+                        <select name="module" class="border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500">
+                            <option value="all">All Modules</option>
+                            @foreach($moduleOptions as $moduleOption)
+                                <option value="{{ $moduleOption }}" @selected($filters['module'] === $moduleOption)>{{ $moduleOption }}</option>
+                            @endforeach
+                        </select>
+                    @endif
 
-                    <select name="department" class="border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500">
-                        <option value="all">All Departments</option>
-                        @foreach($departmentOptions as $departmentOption)
-                            <option value="{{ $departmentOption }}" @selected($filters['department'] === $departmentOption)>{{ $departmentOption }}</option>
-                        @endforeach
-                    </select>
+                    @if($departmentOptions->count() > 1)
+                        <select name="department" class="border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500">
+                            <option value="all">All Departments</option>
+                            @foreach($departmentOptions as $departmentOption)
+                                <option value="{{ $departmentOption }}" @selected($filters['department'] === $departmentOption)>{{ $departmentOption }}</option>
+                            @endforeach
+                        </select>
+                    @endif
 
                     <select name="status" class="border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500">
                         <option value="all">All Status</option>
@@ -118,7 +122,7 @@
                 </div>
 
                 <div class="flex items-center gap-2">
-                    <a href="{{ route('admin.dashboard') }}" class="px-4 py-2 text-sm border border-gray-300 rounded-lg text-gray-700 hover:bg-white transition">
+                    <a href="{{ $dashboardRoute }}" class="px-4 py-2 text-sm border border-gray-300 rounded-lg text-gray-700 hover:bg-white transition">
                         Reset
                     </a>
                     <button type="submit" class="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
@@ -162,7 +166,8 @@
                                     'Contacts' => 'bg-purple-50 text-purple-700',
                                     'Company' => 'bg-indigo-50 text-indigo-700',
                                     'Deals' => 'bg-amber-50 text-amber-700',
-                                    'START' => 'bg-cyan-50 text-cyan-700',
+                                    'Project' => 'bg-cyan-50 text-cyan-700',
+                                    'Regular' => 'bg-sky-50 text-sky-700',
                                     'Services' => 'bg-teal-50 text-teal-700',
                                     'Products' => 'bg-emerald-50 text-emerald-700',
                                     default => 'bg-gray-100 text-gray-700',

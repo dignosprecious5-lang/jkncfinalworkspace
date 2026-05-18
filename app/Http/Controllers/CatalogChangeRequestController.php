@@ -20,11 +20,9 @@ class CatalogChangeRequestController extends Controller
 
         if ($catalogChangeRequest->module === 'product') {
             $this->approveProductRequest($catalogChangeRequest, $reviewerId, $now);
-            $redirectRoute = 'products.index';
             $message = 'Product change request approved.';
         } else {
             $this->approveServiceRequest($catalogChangeRequest, $reviewerId, $now);
-            $redirectRoute = 'services.index';
             $message = 'Service change request approved.';
         }
 
@@ -35,8 +33,8 @@ class CatalogChangeRequestController extends Controller
             'rejection_notes' => null,
         ]);
 
-        return redirect()->route($redirectRoute, ['tab' => 'pending_review'])->with(
-            $redirectRoute === 'products.index' ? 'success' : 'services_success',
+        return back()->with(
+            $catalogChangeRequest->module === 'product' ? 'success' : 'services_success',
             $message
         );
     }
@@ -52,12 +50,10 @@ class CatalogChangeRequestController extends Controller
             'reviewed_at' => now(),
         ]);
 
-        return redirect()
-            ->route($catalogChangeRequest->module === 'product' ? 'products.index' : 'services.index', ['tab' => 'pending_review'])
-            ->with(
-                $catalogChangeRequest->module === 'product' ? 'success' : 'services_success',
-                ucfirst($catalogChangeRequest->module).' change request rejected.'
-            );
+        return back()->with(
+            $catalogChangeRequest->module === 'product' ? 'success' : 'services_success',
+            ucfirst($catalogChangeRequest->module).' change request rejected.'
+        );
     }
 
     private function approveProductRequest(CatalogChangeRequest $catalogChangeRequest, ?int $reviewerId, $now): void

@@ -320,6 +320,17 @@
     $draftDealCode = old('deal_code', $draft['deal_code'] ?? 'Auto-generated after save');
     $draftCreatedBy = old('created_by', $draft['created_by'] ?? $currentUserName);
     $draftCreatedAt = old('created_at_label', $draft['created_at_label'] ?? now()->format('F d, Y • h:i:s A'));
+    $defaultPreparedBy = old('prepared_by', $draft['prepared_by'] ?? $currentUserName);
+    $defaultReviewedBy = old('reviewed_by', $draft['reviewed_by'] ?? ($draft['approved_by_name'] ?? ''));
+    $defaultInternalDate = old('internal_date', $draft['internal_date'] ?? (isset($draft['created_at']) ? \Illuminate\Support\Carbon::parse($draft['created_at'])->format('Y-m-d') : now()->format('Y-m-d')));
+    $defaultClientSignature = old('client_fullname_signature', $draft['client_fullname_signature'] ?? trim(collect([
+        $draft['salutation'] ?? null,
+        $draft['first_name'] ?? null,
+        $draft['middle_name'] ?? ($draft['middle_initial'] ?? null),
+        $draft['last_name'] ?? null,
+        $draft['name_extension'] ?? null,
+    ])->filter()->implode(' ')));
+    $defaultPresident = old('internal_president', $draft['internal_president'] ?? 'John Kelly');
     $dealErrorMap = $errors->toArray();
     $dealErrorMessages = $errors->all();
     $dealErrorKeys = $errors->keys();
@@ -921,8 +932,8 @@
                         <section class="rounded-2xl border border-gray-200 p-4">
                             <h3 class="text-base font-semibold text-gray-900">Internal Assignment</h3>
                             <div class="mt-3 grid gap-4 sm:grid-cols-2">
-                                <div><label for="assigned_consultant" class="mb-1 block text-sm font-medium text-gray-700">Assigned Consultant</label><input id="assigned_consultant" name="assigned_consultant" list="deal_employee_options" value="{{ old('assigned_consultant', $draft['assigned_consultant'] ?? '') }}" class="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"></div>
-                                <div><label for="assigned_associate" class="mb-1 block text-sm font-medium text-gray-700">Assigned Associate</label><input id="assigned_associate" name="assigned_associate" list="deal_employee_options" value="{{ old('assigned_associate', $draft['assigned_associate'] ?? '') }}" class="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"></div>
+                                <div class="relative" data-employee-picker><label for="assigned_consultant" class="mb-1 block text-sm font-medium text-gray-700">Assigned Consultant</label><input id="assigned_consultant" name="assigned_consultant" value="{{ old('assigned_consultant', $draft['assigned_consultant'] ?? '') }}" autocomplete="off" data-employee-search-input class="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"><div class="absolute z-20 mt-1 hidden w-full rounded-lg border border-gray-200 bg-white shadow-lg" data-employee-search-results></div><p class="mt-1 text-xs text-gray-500">Search existing employees. If none appears, you can still type manually.</p></div>
+                                <div class="relative" data-employee-picker><label for="assigned_associate" class="mb-1 block text-sm font-medium text-gray-700">Assigned Associate</label><input id="assigned_associate" name="assigned_associate" value="{{ old('assigned_associate', $draft['assigned_associate'] ?? '') }}" autocomplete="off" data-employee-search-input class="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"><div class="absolute z-20 mt-1 hidden w-full rounded-lg border border-gray-200 bg-white shadow-lg" data-employee-search-results></div><p class="mt-1 text-xs text-gray-500">Search existing employees. If none appears, you can still type manually.</p></div>
                                 <div class="sm:col-span-2"><label for="service_department_unit" class="mb-1 block text-sm font-medium text-gray-700">Service Department / Unit</label><input id="service_department_unit" name="service_department_unit" value="{{ old('service_department_unit', $draft['service_department_unit'] ?? '') }}" class="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"></div>
                             </div>
                         </section>
@@ -938,15 +949,15 @@
                         <section class="rounded-2xl border border-gray-200 p-4">
                             <h3 class="text-base font-semibold text-gray-900">Internal Approval</h3>
                             <div class="mt-3 grid gap-4 sm:grid-cols-2">
-                                <div><label for="prepared_by" class="mb-1 block text-sm font-medium text-gray-700">Prepared By</label><input id="prepared_by" name="prepared_by" list="deal_employee_options" value="{{ old('prepared_by', $draft['prepared_by'] ?? '') }}" class="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"></div>
-                                <div><label for="reviewed_by" class="mb-1 block text-sm font-medium text-gray-700">Reviewed By</label><input id="reviewed_by" name="reviewed_by" list="deal_employee_options" value="{{ old('reviewed_by', $draft['reviewed_by'] ?? '') }}" class="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"></div>
-                                <div><label for="internal_name" class="mb-1 block text-sm font-medium text-gray-700">Name</label><input id="internal_name" name="internal_name" list="deal_employee_options" value="{{ old('internal_name', $draft['internal_name'] ?? '') }}" class="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"></div>
-                                <div><label for="internal_date" class="mb-1 block text-sm font-medium text-gray-700">Date</label><input id="internal_date" type="date" name="internal_date" value="{{ old('internal_date', $draft['internal_date'] ?? '') }}" class="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"></div>
-                                <div class="sm:col-span-2"><label for="client_fullname_signature" class="mb-1 block text-sm font-medium text-gray-700">Client Fullname & Signature</label><input id="client_fullname_signature" name="client_fullname_signature" value="{{ old('client_fullname_signature', $draft['client_fullname_signature'] ?? '') }}" class="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"></div>
-                                <div><label for="referred_closed_by" class="mb-1 block text-sm font-medium text-gray-700">Referred By / Closed By</label><input id="referred_closed_by" name="referred_closed_by" list="deal_employee_options" value="{{ old('referred_closed_by', $draft['referred_closed_by'] ?? '') }}" class="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"></div>
-                                <div><label for="internal_sales_marketing" class="mb-1 block text-sm font-medium text-gray-700">Sales & Marketing</label><input id="internal_sales_marketing" name="internal_sales_marketing" list="deal_employee_options" value="{{ old('internal_sales_marketing', $draft['internal_sales_marketing'] ?? '') }}" class="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"></div>
-                                <div><label for="lead_consultant" class="mb-1 block text-sm font-medium text-gray-700">Lead Consultant</label><input id="lead_consultant" name="lead_consultant" list="deal_employee_options" value="{{ old('lead_consultant', $draft['lead_consultant'] ?? '') }}" class="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"></div>
-                                <div><label for="lead_associate_assigned" class="mb-1 block text-sm font-medium text-gray-700">Lead Associate Assigned</label><input id="lead_associate_assigned" name="lead_associate_assigned" list="deal_employee_options" value="{{ old('lead_associate_assigned', $draft['lead_associate_assigned'] ?? '') }}" class="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"></div>
+                                <div class="relative" data-employee-picker><label for="prepared_by" class="mb-1 block text-sm font-medium text-gray-700">Prepared By</label><input id="prepared_by" name="prepared_by" value="{{ $defaultPreparedBy }}" autocomplete="off" data-employee-search-input class="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"><div class="absolute z-20 mt-1 hidden w-full rounded-lg border border-gray-200 bg-white shadow-lg" data-employee-search-results></div><p class="mt-1 text-xs text-gray-500">Auto-filled from the deal creator. You can still change it manually.</p></div>
+                                <div class="relative" data-employee-picker><label for="reviewed_by" class="mb-1 block text-sm font-medium text-gray-700">Reviewed By</label><input id="reviewed_by" name="reviewed_by" data-approved-by="{{ $draft['approved_by_name'] ?? '' }}" value="{{ $defaultReviewedBy }}" autocomplete="off" data-employee-search-input class="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"><div class="absolute z-20 mt-1 hidden w-full rounded-lg border border-gray-200 bg-white shadow-lg" data-employee-search-results></div><p class="mt-1 text-xs text-gray-500">This auto-fills from the approver once the deal is approved.</p></div>
+                                <div class="relative" data-employee-picker><label for="internal_name" class="mb-1 block text-sm font-medium text-gray-700">Name</label><input id="internal_name" name="internal_name" value="{{ old('internal_name', $draft['internal_name'] ?? '') }}" autocomplete="off" data-employee-search-input class="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"><div class="absolute z-20 mt-1 hidden w-full rounded-lg border border-gray-200 bg-white shadow-lg" data-employee-search-results></div><p class="mt-1 text-xs text-gray-500">Search existing employees or type manually.</p></div>
+                                <div><label for="internal_date" class="mb-1 block text-sm font-medium text-gray-700">Date</label><input id="internal_date" type="date" name="internal_date" value="{{ $defaultInternalDate }}" class="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"></div>
+                                <div class="sm:col-span-2"><label for="client_fullname_signature" class="mb-1 block text-sm font-medium text-gray-700">Client Fullname & Signature</label><input id="client_fullname_signature" name="client_fullname_signature" value="{{ $defaultClientSignature }}" class="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"><p class="mt-1 text-xs text-gray-500">Auto-filled from the selected CIF/BIF contact details.</p></div>
+                                <div class="relative" data-employee-picker><label for="referred_closed_by" class="mb-1 block text-sm font-medium text-gray-700">Referred By / Closed By</label><input id="referred_closed_by" name="referred_closed_by" value="{{ old('referred_closed_by', $draft['referred_closed_by'] ?? '') }}" autocomplete="off" data-employee-search-input class="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"><div class="absolute z-20 mt-1 hidden w-full rounded-lg border border-gray-200 bg-white shadow-lg" data-employee-search-results></div><p class="mt-1 text-xs text-gray-500">Search existing employees or type manually.</p></div>
+                                <div class="relative" data-employee-picker><label for="internal_sales_marketing" class="mb-1 block text-sm font-medium text-gray-700">Sales & Marketing</label><input id="internal_sales_marketing" name="internal_sales_marketing" value="{{ old('internal_sales_marketing', $draft['internal_sales_marketing'] ?? '') }}" autocomplete="off" data-employee-search-input class="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"><div class="absolute z-20 mt-1 hidden w-full rounded-lg border border-gray-200 bg-white shadow-lg" data-employee-search-results></div><p class="mt-1 text-xs text-gray-500">Search existing employees or type manually.</p></div>
+                                <div class="relative" data-employee-picker><label for="lead_consultant" class="mb-1 block text-sm font-medium text-gray-700">Lead Consultant</label><input id="lead_consultant" name="lead_consultant" value="{{ old('lead_consultant', $draft['lead_consultant'] ?? '') }}" autocomplete="off" data-employee-search-input class="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"><div class="absolute z-20 mt-1 hidden w-full rounded-lg border border-gray-200 bg-white shadow-lg" data-employee-search-results></div><p class="mt-1 text-xs text-gray-500">Defaults to the assigned consultant if left blank.</p></div>
+                                <div class="relative" data-employee-picker><label for="lead_associate_assigned" class="mb-1 block text-sm font-medium text-gray-700">Lead Associate Assigned</label><input id="lead_associate_assigned" name="lead_associate_assigned" value="{{ old('lead_associate_assigned', $draft['lead_associate_assigned'] ?? '') }}" autocomplete="off" data-employee-search-input class="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"><div class="absolute z-20 mt-1 hidden w-full rounded-lg border border-gray-200 bg-white shadow-lg" data-employee-search-results></div><p class="mt-1 text-xs text-gray-500">Defaults to the assigned associate if left blank.</p></div>
                                 <div>
                                     <label for="assigned_finance_user_id" class="mb-1 block text-sm font-medium text-gray-700">Finance</label>
                                     <select id="assigned_finance_user_id" name="assigned_finance_user_id" class="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" onchange="this.form.querySelector('[name=internal_finance]').value = this.options[this.selectedIndex]?.dataset.name || ''">
@@ -957,9 +968,9 @@
                                             </option>
                                         @endforeach
                                     </select>
-                                    <input type="hidden" name="internal_finance" value="{{ old('internal_finance', $draft['internal_finance'] ?? '') }}">
+                                    <div class="relative mt-2" data-employee-picker><input type="text" id="internal_finance" name="internal_finance" value="{{ old('internal_finance', $draft['internal_finance'] ?? '') }}" placeholder="Or type finance name manually" autocomplete="off" data-employee-search-input class="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"><div class="absolute z-20 mt-1 hidden w-full rounded-lg border border-gray-200 bg-white shadow-lg" data-employee-search-results></div><p class="mt-1 text-xs text-gray-500">Search existing employees. If none appears, you can still type manually.</p></div>
                                 </div>
-                                <div><label for="internal_president" class="mb-1 block text-sm font-medium text-gray-700">President</label><input id="internal_president" name="internal_president" list="deal_employee_options" value="{{ old('internal_president', $draft['internal_president'] ?? '') }}" class="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"></div>
+                                <div class="relative" data-employee-picker><label for="internal_president" class="mb-1 block text-sm font-medium text-gray-700">President</label><input id="internal_president" name="internal_president" value="{{ $defaultPresident }}" autocomplete="off" data-employee-search-input class="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"><div class="absolute z-20 mt-1 hidden w-full rounded-lg border border-gray-200 bg-white shadow-lg" data-employee-search-results></div><p class="mt-1 text-xs text-gray-500">Defaults to John Kelly.</p></div>
                             </div>
                         </section>
                     </div>
@@ -971,19 +982,6 @@
                     <button id="saveDealBtn" type="submit" class="h-10 rounded-lg bg-blue-600 px-5 text-sm font-medium text-white hover:bg-blue-700">{{ $submitLabel }}</button>
                 </div>
             </form>
-            <datalist id="deal_employee_options">
-                @foreach ($employeeOptions as $employeeOption)
-                    @php
-                        $employeeMeta = collect([
-                            $employeeOption['employee_code'] ?? null,
-                            $employeeOption['position'] ?? null,
-                            $employeeOption['department'] ?? null,
-                            $employeeOption['email'] ?? null,
-                        ])->filter()->implode(' - ');
-                    @endphp
-                    <option value="{{ $employeeOption['name'] ?? '' }}" label="{{ $employeeMeta }}"></option>
-                @endforeach
-            </datalist>
         </div>
     </div>
 </div>
@@ -1028,6 +1026,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const selectedProductsPricingRows = document.getElementById('selectedProductsPricingRows');
     const contactRecords = @json($contactRecords);
     const companyRecords = @json($companyRecords ?? []);
+    const employeeRecords = @json($employeeOptions ?? []);
     const servicePricing = @json($servicePricing);
     const serviceRequirementCatalog = @json($serviceRequirementCatalog ?? []);
     const productPricing = @json($productPricing);
@@ -1059,6 +1058,137 @@ document.addEventListener('DOMContentLoaded', function () {
     const selectedCustomerType = () => document.querySelector('input[name="customer_type"]:checked')?.value || '';
     let selectedBusinessRecord = null;
     let selectedContactRecord = null;
+
+    const buildClientDisplayName = (record = {}) => {
+        const prioritizedName = String(record.authorized_contact_name || '').trim();
+        if (prioritizedName !== '') {
+            return prioritizedName;
+        }
+
+        return [
+            record.salutation,
+            record.first_name,
+            record.middle_name || record.middle_initial,
+            record.last_name,
+            record.name_extension,
+        ].filter((value) => String(value || '').trim() !== '').join(' ').trim()
+            || record.label
+            || record.company_name
+            || '';
+    };
+
+    const syncInternalApprovalAutofill = () => {
+        const preparedBy = document.getElementById('prepared_by');
+        const reviewedBy = document.getElementById('reviewed_by');
+        const internalDate = document.getElementById('internal_date');
+        const clientSignature = document.getElementById('client_fullname_signature');
+        const president = document.getElementById('internal_president');
+        const consultant = document.getElementById('assigned_consultant');
+        const associate = document.getElementById('assigned_associate');
+        const leadConsultant = document.getElementById('lead_consultant');
+        const leadAssociate = document.getElementById('lead_associate_assigned');
+
+        if (preparedBy && preparedBy.value.trim() === '') {
+            preparedBy.value = @json($currentUserName);
+        }
+
+        if (internalDate && internalDate.value.trim() === '') {
+            internalDate.value = @json($defaultInternalDate);
+        }
+
+        if (president && president.value.trim() === '') {
+            president.value = 'John Kelly';
+        }
+
+        if (leadConsultant && leadConsultant.value.trim() === '' && consultant?.value.trim()) {
+            leadConsultant.value = consultant.value.trim();
+        }
+
+        if (leadAssociate && leadAssociate.value.trim() === '' && associate?.value.trim()) {
+            leadAssociate.value = associate.value.trim();
+        }
+
+        if (reviewedBy && reviewedBy.value.trim() === '' && reviewedBy.dataset.approvedBy) {
+            reviewedBy.value = reviewedBy.dataset.approvedBy;
+        }
+
+        if (clientSignature && clientSignature.value.trim() === '') {
+            const sourceRecord = selectedBusinessRecord || selectedContactRecord;
+            const derivedName = sourceRecord ? buildClientDisplayName(sourceRecord) : '';
+            if (derivedName !== '') {
+                clientSignature.value = derivedName;
+            }
+        }
+    };
+
+    const hideEmployeeSearchResults = (picker) => {
+        picker?.querySelector('[data-employee-search-results]')?.classList.add('hidden');
+    };
+
+    const renderEmployeeSearchResults = (picker, keyword = '') => {
+        const input = picker?.querySelector('[data-employee-search-input]');
+        const results = picker?.querySelector('[data-employee-search-results]');
+        if (!input || !results) {
+            return;
+        }
+
+        const query = keyword.trim().toLowerCase();
+        const matches = employeeRecords.filter((record) => {
+            if (query === '') {
+                return true;
+            }
+
+            const blob = [
+                record.name,
+                record.employee_code,
+                record.position,
+                record.department,
+                record.email,
+            ].join(' ').toLowerCase();
+
+            return blob.includes(query);
+        }).slice(0, 8);
+
+        if (matches.length === 0) {
+            results.innerHTML = '<div class="px-3 py-2 text-sm text-gray-500">No existing employee. You can still type manually.</div>';
+            results.classList.remove('hidden');
+            return;
+        }
+
+        results.replaceChildren(...matches.map((record) => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'block w-full border-b border-gray-100 px-3 py-2 text-left last:border-b-0 hover:bg-blue-50';
+            button.innerHTML = `<div class="text-sm font-medium text-gray-800">${record.name || ''}</div><div class="text-xs text-gray-500">${[record.employee_code, record.position, record.department].filter(Boolean).join(' • ') || (record.email || '')}</div>`;
+            button.addEventListener('click', () => {
+                input.value = record.name || '';
+                hideEmployeeSearchResults(picker);
+                syncInternalApprovalAutofill();
+                input.dispatchEvent(new Event('change', { bubbles: true }));
+            });
+            return button;
+        }));
+
+        results.classList.remove('hidden');
+    };
+
+    const initEmployeeSearchPickers = () => {
+        Array.from(document.querySelectorAll('[data-employee-picker]')).forEach((picker) => {
+            const input = picker.querySelector('[data-employee-search-input]');
+            if (!input) {
+                return;
+            }
+
+            input.addEventListener('focus', () => renderEmployeeSearchResults(picker, input.value));
+            input.addEventListener('input', () => renderEmployeeSearchResults(picker, input.value));
+            input.addEventListener('change', syncInternalApprovalAutofill);
+            input.addEventListener('keydown', (event) => {
+                if (event.key === 'Escape') {
+                    hideEmployeeSearchResults(picker);
+                }
+            });
+        });
+    };
 
     const markFieldInvalid = (field, message) => {
         if (!field) {
@@ -2171,6 +2301,7 @@ document.addEventListener('DOMContentLoaded', function () {
         syncServiceRequirementRows();
         setDependentDisabled(false);
         contactResults.classList.add('hidden');
+        syncInternalApprovalAutofill();
     };
 
     const applyContactRecord = (record) => {
@@ -2193,6 +2324,7 @@ document.addEventListener('DOMContentLoaded', function () {
         syncServiceRequirementRows();
         setDependentDisabled(false);
         contactResults.classList.add('hidden');
+        syncInternalApprovalAutofill();
     };
 
     const syncCustomerSearchUi = () => {
@@ -2228,6 +2360,7 @@ document.addEventListener('DOMContentLoaded', function () {
         selectedContactRecord = null;
         syncServiceRequirementRows();
         setDependentDisabled(customerType === '');
+        syncInternalApprovalAutofill();
     };
 
     const initSupportRequiredCustomOptions = () => {
@@ -2486,6 +2619,7 @@ document.addEventListener('DOMContentLoaded', function () {
         optionDataAttribute: 'data-complexity-custom-option',
     });
     initClientRequirementsOthers();
+    initEmployeeSearchPickers();
     syncServiceRequirementRows();
     syncProductOptions();
     initOthersTagInput({
@@ -2532,9 +2666,18 @@ document.addEventListener('DOMContentLoaded', function () {
     }
     applyOtherFieldToggles();
     recalculateTotal();
+    syncInternalApprovalAutofill();
 
     if (shouldAutoOpenModal) {
         openModal();
     }
+
+    document.addEventListener('click', (event) => {
+        Array.from(document.querySelectorAll('[data-employee-picker]')).forEach((picker) => {
+            if (!picker.contains(event.target)) {
+                hideEmployeeSearchResults(picker);
+            }
+        });
+    });
 });
 </script>

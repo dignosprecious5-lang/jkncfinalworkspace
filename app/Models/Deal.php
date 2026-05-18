@@ -75,10 +75,22 @@ class Deal extends Model
         'company_name',
         'company_address',
         'position',
+        'prepared_by',
+        'reviewed_by',
+        'internal_name',
+        'internal_date',
+        'client_fullname_signature',
+        'referred_closed_by',
+        'internal_sales_marketing',
+        'lead_consultant',
+        'lead_associate_assigned',
+        'internal_finance',
+        'internal_president',
     ];
 
     protected $casts = [
         'date_of_birth' => 'date',
+        'internal_date' => 'date',
         'planned_start_date' => 'date',
         'estimated_completion_date' => 'date',
         'client_preferred_completion_date' => 'date',
@@ -177,5 +189,45 @@ class Deal extends Model
     public function proposal(): HasOne
     {
         return $this->hasOne(DealProposal::class);
+    }
+
+    public function userCanAccess(?User $user): bool
+    {
+        if (! $user) {
+            return false;
+        }
+
+        if ($user->isAdmin() || $user->isSuperAdmin()) {
+            return true;
+        }
+
+        $userTokens = collect([
+            $user->name,
+            $user->email,
+            (string) $user->id,
+        ])
+            ->filter()
+            ->map(fn ($value): string => mb_strtolower(trim((string) $value)))
+            ->all();
+
+        $dealRelationTokens = collect([
+            $this->created_by,
+            $this->assigned_consultant,
+            $this->assigned_associate,
+            $this->prepared_by,
+            $this->reviewed_by,
+            $this->internal_name,
+            $this->lead_consultant,
+            $this->lead_associate_assigned,
+            $this->internal_finance,
+            $this->assignedFinance?->name,
+            $this->assignedFinance?->email,
+            $this->assigned_finance_user_id ? (string) $this->assigned_finance_user_id : null,
+        ])
+            ->filter()
+            ->map(fn ($value): string => mb_strtolower(trim((string) $value)))
+            ->all();
+
+        return count(array_intersect($userTokens, $dealRelationTokens)) > 0;
     }
 }

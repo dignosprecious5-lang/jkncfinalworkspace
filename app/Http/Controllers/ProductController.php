@@ -357,8 +357,7 @@ class ProductController extends Controller
         $product = Product::query()->where('product_id', $id)->firstOrFail();
 
         if ((string) $product->status !== 'Pending Approval') {
-            return redirect()
-                ->route('admin.dashboard')
+            return back()
                 ->with('success', 'This product review has already been resolved.');
         }
 
@@ -372,8 +371,7 @@ class ProductController extends Controller
             'approved_at' => $now,
         ])->save();
 
-        return redirect()
-            ->route('admin.dashboard')
+        return back()
             ->with('success', 'Product approved successfully.');
     }
 
@@ -382,8 +380,7 @@ class ProductController extends Controller
         $product = Product::query()->where('product_id', $id)->firstOrFail();
 
         if ((string) $product->status !== 'Pending Approval') {
-            return redirect()
-                ->route('admin.dashboard')
+            return back()
                 ->with('success', 'This product review has already been resolved.');
         }
 
@@ -395,8 +392,7 @@ class ProductController extends Controller
             'approved_at' => null,
         ])->save();
 
-        return redirect()
-            ->route('admin.dashboard')
+        return back()
             ->with('success', 'Product rejected successfully.');
     }
 
