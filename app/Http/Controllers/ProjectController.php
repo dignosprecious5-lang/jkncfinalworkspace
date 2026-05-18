@@ -541,8 +541,7 @@ class ProjectController extends Controller
         $this->ensureServiceMemoGenerated($project, $start, $project->sows()->latest()->first());
         $this->moveLinkedDealToStage($project, 'Activation');
 
-        return redirect()
-            ->route('admin.dashboard')
+        return back()
             ->with('success', 'START form approved successfully.');
     }
 
@@ -567,8 +566,7 @@ class ProjectController extends Controller
             'rejection_reason' => trim((string) ($validated['reason'] ?? '')) ?: 'START form rejected during admin review.',
         ])->save();
 
-        return redirect()
-            ->route('admin.dashboard')
+        return back()
             ->with('success', 'START form rejected.');
     }
 

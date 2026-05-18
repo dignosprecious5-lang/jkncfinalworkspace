@@ -243,8 +243,7 @@ class CompanyServiceController extends Controller
         ]);
         $serviceModel->save();
 
-        return redirect()
-            ->route('services.index', ['tab' => 'pending_review'])
+        return back()
             ->with('services_success', "Service {$serviceModel->service_name} approved and activated.");
     }
 
@@ -265,8 +264,7 @@ class CompanyServiceController extends Controller
         ]);
         $serviceModel->save();
 
-        return redirect()
-            ->route('services.index', ['tab' => 'pending_review'])
+        return back()
             ->with('services_success', "Service {$serviceModel->service_name} rejected.");
     }
 

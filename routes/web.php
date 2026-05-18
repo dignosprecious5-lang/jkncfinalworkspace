@@ -240,6 +240,9 @@ Route::middleware('auth')->group(function () {
     |--------------------------------------------------------------------------
     */
     Route::get('/admin-dashboard', [AdminDashboardController::class, 'index'])->name('admin.dashboard');
+    Route::get('/admin-dashboard/{section}', [AdminDashboardController::class, 'index'])
+        ->where('section', 'town-hall|contacts|company|deals|project|regular|services|products')
+        ->name('admin.dashboard.section');
     Route::get('/admin/users', [AdminUserController::class, 'index'])->name('admin.users');
     Route::post('/admin/users', [AdminUserController::class, 'store'])->name('admin.users.store');
     Route::post('/admin/users/{id}', [AdminUserController::class, 'update'])->name('admin.users.update');

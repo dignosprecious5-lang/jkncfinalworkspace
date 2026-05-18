@@ -121,7 +121,7 @@
                                 $ownerInitials = strtoupper(substr($deal['owner_name'], 0, 1).substr(strrchr(' '.$deal['owner_name'], ' '), 1, 1));
                             @endphp
                             <article
-                                class="deal-card group/deal relative rounded-lg border border-gray-200 bg-white p-3 shadow-sm transition hover:cursor-pointer hover:border-blue-300 hover:shadow"
+                                class="deal-card group/deal relative rounded-lg border border-gray-200 bg-white p-3 shadow-sm transition hover:cursor-pointer hover:border-blue-300 hover:shadow {{ !($deal['can_access'] ?? false) ? 'opacity-80' : '' }}"
                                 data-deal-id="{{ $deal['id'] }}"
                                 data-deal-name="{{ $deal['deal_code'] ?? $deal['deal_name'] }}"
                                 data-deal-stage="{{ $column['stage'] }}"
@@ -134,6 +134,7 @@
                                 data-deal-created-at="{{ $deal['created_at_label'] ?? now()->format('F d, Y • h:i:s A') }}"
                                 data-view-url="{{ route('deals.show', $deal['id']) }}"
                                 data-edit-url="{{ route('deals.update', $deal['id']) }}"
+                                data-can-access="{{ ($deal['can_access'] ?? false) ? '1' : '0' }}"
                                 >
                                 <label class="deal-card-checkbox pointer-events-none absolute right-9 top-2 z-10 flex h-5 w-5 items-center justify-center rounded border border-gray-200 bg-white/95 shadow-sm opacity-0 transition duration-150 group-hover/deal:pointer-events-auto group-hover/deal:opacity-100">
                                     <input type="checkbox" class="deal-select-checkbox h-3.5 w-3.5" data-deal-select="{{ $deal['id'] }}">
@@ -144,7 +145,9 @@
                                     </button>
                                     <div class="deal-more-menu absolute right-0 top-7 z-20 hidden w-36 rounded-lg border border-gray-200 bg-white py-1 text-xs text-gray-700 shadow-lg">
                                         <button type="button" class="deal-menu-item flex w-full px-3 py-2 text-left hover:bg-gray-50" data-action="view">View Deal</button>
-                                        <button type="button" class="deal-menu-item flex w-full px-3 py-2 text-left hover:bg-gray-50" data-action="edit">Edit Deal</button>
+                                        @if ($deal['can_access'] ?? false)
+                                            <button type="button" class="deal-menu-item flex w-full px-3 py-2 text-left hover:bg-gray-50" data-action="edit">Edit Deal</button>
+                                        @endif
                                         <button type="button" class="deal-menu-item flex w-full px-3 py-2 text-left text-red-600 hover:bg-red-50" data-action="delete">Delete Deal</button>
                                     </div>
                                 </div>
@@ -157,6 +160,9 @@
                                     <h3 class="pr-16 text-[14px] font-semibold tracking-wide text-blue-700 [overflow-wrap:break-word] line-clamp-2">{{ $deal['deal_code'] ?? 'DEAL' }}</h3>
                                     <p class="mt-2 text-xs text-gray-700">{{ $deal['contact_name'] }}</p>
                                     <p class="text-[11px] text-gray-400">{{ $deal['company_name'] }}</p>
+                                    @unless ($deal['can_access'] ?? false)
+                                        <p class="mt-2 inline-flex rounded-full bg-amber-50 px-2 py-1 text-[10px] font-medium text-amber-700">Visible only. Access restricted.</p>
+                                    @endunless
 
                                     <div class="mt-3" data-price-wrap data-price-visible="false">
                                         <div class="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
@@ -165,9 +171,10 @@
                                                 role="button"
                                                 tabindex="0"
                                                 data-price-toggle
+                                                data-price-access="{{ ($deal['can_access'] ?? false) ? '1' : '0' }}"
                                                 aria-label="Show price"
                                                 title="Show price"
-                                                class="inline-flex h-5 w-5 items-center justify-center rounded-full text-gray-400 hover:bg-blue-50 hover:text-blue-700"
+                                                class="inline-flex h-5 w-5 items-center justify-center rounded-full text-gray-400 hover:bg-blue-50 hover:text-blue-700 {{ ($deal['can_access'] ?? false) ? '' : 'cursor-not-allowed opacity-50' }}"
                                             >
                                                 <i class="fas fa-eye text-[10px]" data-price-icon></i>
                                             </span>
@@ -661,6 +668,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const handleToggle = (event) => {
             event.preventDefault();
             event.stopPropagation();
+
+            if (toggle.dataset.priceAccess === '0') {
+                toggle.setAttribute('aria-label', 'Price access restricted');
+                toggle.setAttribute('title', 'Price access restricted');
+                return;
+            }
 
             const wrap = toggle.closest('[data-price-wrap]');
             if (!wrap) {
@@ -1201,11 +1214,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
+            const canAccess = card.dataset.canAccess === '1';
             if (action === 'view') {
                 window.location.href = card.dataset.viewUrl || '#';
                 return;
             }
             if (action === 'edit') {
+                if (!canAccess) {
+                    window.alert("You don't have access to edit this deal.");
+                    return;
+                }
                 openDealPanel({ mode: 'edit', card });
                 return;
             }
