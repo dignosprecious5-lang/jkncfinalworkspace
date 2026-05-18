@@ -13,27 +13,48 @@ return new class extends Migration
         }
 
         Schema::table('deals', function (Blueprint $table) {
-            $stringColumns = [
-                'prepared_by' => 'associate_notes',
-                'reviewed_by' => 'prepared_by',
-                'internal_name' => 'reviewed_by',
-                'client_fullname_signature' => 'internal_date',
-                'referred_closed_by' => 'client_fullname_signature',
-                'internal_sales_marketing' => 'referred_closed_by',
-                'lead_consultant' => 'internal_sales_marketing',
-                'lead_associate_assigned' => 'lead_consultant',
-                'internal_finance' => 'lead_associate_assigned',
-                'internal_president' => 'internal_finance',
-            ];
+            if (! Schema::hasColumn('deals', 'prepared_by')) {
+                $table->string('prepared_by')->nullable()->after('associate_notes');
+            }
 
-            foreach ($stringColumns as $column => $afterColumn) {
-                if (! Schema::hasColumn('deals', $column)) {
-                    $table->string($column)->nullable()->after($afterColumn);
-                }
+            if (! Schema::hasColumn('deals', 'reviewed_by')) {
+                $table->string('reviewed_by')->nullable()->after('prepared_by');
+            }
+
+            if (! Schema::hasColumn('deals', 'internal_name')) {
+                $table->string('internal_name')->nullable()->after('reviewed_by');
             }
 
             if (! Schema::hasColumn('deals', 'internal_date')) {
                 $table->date('internal_date')->nullable()->after('internal_name');
+            }
+
+            if (! Schema::hasColumn('deals', 'client_fullname_signature')) {
+                $table->string('client_fullname_signature')->nullable()->after('internal_date');
+            }
+
+            if (! Schema::hasColumn('deals', 'referred_closed_by')) {
+                $table->string('referred_closed_by')->nullable()->after('client_fullname_signature');
+            }
+
+            if (! Schema::hasColumn('deals', 'internal_sales_marketing')) {
+                $table->string('internal_sales_marketing')->nullable()->after('referred_closed_by');
+            }
+
+            if (! Schema::hasColumn('deals', 'lead_consultant')) {
+                $table->string('lead_consultant')->nullable()->after('internal_sales_marketing');
+            }
+
+            if (! Schema::hasColumn('deals', 'lead_associate_assigned')) {
+                $table->string('lead_associate_assigned')->nullable()->after('lead_consultant');
+            }
+
+            if (! Schema::hasColumn('deals', 'internal_finance')) {
+                $table->string('internal_finance')->nullable()->after('lead_associate_assigned');
+            }
+
+            if (! Schema::hasColumn('deals', 'internal_president')) {
+                $table->string('internal_president')->nullable()->after('internal_finance');
             }
         });
     }
@@ -46,22 +67,23 @@ return new class extends Migration
 
         Schema::table('deals', function (Blueprint $table) {
             $columns = [
-                'prepared_by',
-                'reviewed_by',
-                'internal_name',
-                'internal_date',
-                'client_fullname_signature',
-                'referred_closed_by',
-                'internal_sales_marketing',
-                'lead_consultant',
-                'lead_associate_assigned',
-                'internal_finance',
                 'internal_president',
+                'internal_finance',
+                'lead_associate_assigned',
+                'lead_consultant',
+                'internal_sales_marketing',
+                'referred_closed_by',
+                'client_fullname_signature',
+                'internal_date',
+                'internal_name',
+                'reviewed_by',
+                'prepared_by',
             ];
 
-            $existingColumns = array_values(array_filter($columns, fn (string $column): bool => Schema::hasColumn('deals', $column)));
-            if ($existingColumns !== []) {
-                $table->dropColumn($existingColumns);
+            foreach ($columns as $column) {
+                if (Schema::hasColumn('deals', $column)) {
+                    $table->dropColumn($column);
+                }
             }
         });
     }
