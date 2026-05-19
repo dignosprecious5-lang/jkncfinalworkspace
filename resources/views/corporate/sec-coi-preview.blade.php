@@ -25,7 +25,8 @@
     $draftUrl = $draftPath ? asset('storage/' . $draftPath) : null;
     $notaryUrl = $notaryPath ? asset('storage/' . $notaryPath) : null;
 
-    $canEditRecord = in_array($record->workflow_status, ['Uploaded', 'Reverted']);
+    $canEditRecord = auth()->user()?->hasPermission('approve_corporate')
+    || in_array($record->workflow_status, ['Uploaded', 'Reverted']);
 @endphp
 
 <div class="w-full px-6 py-6"
