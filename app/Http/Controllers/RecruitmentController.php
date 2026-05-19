@@ -203,13 +203,17 @@ class RecruitmentController extends Controller
     }
 
     public function showPublicApplicationForm()
-    {
-        $positions = JobPosting::where('status', 'Posted')->pluck('position')->unique();
-        if ($positions->isEmpty()) {
-            $positions = JobPosting::pluck('position')->unique(); // Fallback to all if none posted
-        }
-        return view('careers.apply', compact('positions'));
+{
+    $jobPostings = JobPosting::whereIn('status', ['Posted', 'Open'])
+        ->orderBy('position')
+        ->get();
+
+    if ($jobPostings->isEmpty()) {
+        $jobPostings = JobPosting::orderBy('position')->get();
     }
+
+    return view('careers.apply', compact('jobPostings'));
+}
 
 public function onboarding()
 {
