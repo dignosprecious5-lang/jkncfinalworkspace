@@ -9,6 +9,7 @@ use App\Models\Meeting;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 use App\Models\Note;
 
@@ -361,10 +362,7 @@ class ActivityController extends Controller
     {
         $call = Call::findOrFail($id);
         if ($call->audio_path) {
-            $path = public_path($call->audio_path);
-            if (file_exists($path) && is_file($path)) {
-                unlink($path);
-            }
+            $this->deletePublicStoredFile($call->audio_path);
         }
         $call->delete();
         return response()->json(null, 204);
@@ -374,16 +372,10 @@ class ActivityController extends Controller
     {
         $meeting = Meeting::findOrFail($id);
         if ($meeting->video_path) {
-            $path = public_path($meeting->video_path);
-            if (file_exists($path) && is_file($path)) {
-                unlink($path);
-            }
+            $this->deletePublicStoredFile($meeting->video_path);
         }
         if ($meeting->audio_path) {
-            $path = public_path($meeting->audio_path);
-            if (file_exists($path) && is_file($path)) {
-                unlink($path);
-            }
+            $this->deletePublicStoredFile($meeting->audio_path);
         }
         $meeting->delete();
         return response()->json(null, 204);
@@ -393,7 +385,7 @@ class ActivityController extends Controller
     {
         $meeting = Meeting::findOrFail($id);
 
-        $videoDir = public_path('videos');
+        $videoDir = Storage::disk('public')->path('videos');
         if (!file_exists($videoDir)) {
             mkdir($videoDir, 0755, true);
         }
@@ -423,7 +415,7 @@ class ActivityController extends Controller
 
             // If it's the last chunk, update the database
             if ($chunkIndex == $totalChunks - 1) {
-                $meeting->video_path = '/videos/' . $filename;
+                $meeting->video_path = 'storage/videos/' . $filename;
                 $meeting->has_video = true;
                 $meeting->save();
                 return response()->json($meeting);
@@ -439,7 +431,7 @@ class ActivityController extends Controller
     {
         $call = Call::findOrFail($id);
         
-        $audioDir = public_path('audios');
+        $audioDir = Storage::disk('public')->path('audios');
         if (!file_exists($audioDir)) {
             mkdir($audioDir, 0755, true);
         }
@@ -469,7 +461,7 @@ class ActivityController extends Controller
 
             // If it's the last chunk, update the database
             if ($chunkIndex == $totalChunks - 1) {
-                $call->audio_path = '/audios/' . $filename;
+                $call->audio_path = 'storage/audios/' . $filename;
                 $call->save();
                 return response()->json($call);
             }
@@ -485,14 +477,38 @@ class ActivityController extends Controller
         $call = Call::findOrFail($id);
         
         if ($call->audio_path) {
-            $path = public_path($call->audio_path);
-            if (file_exists($path) && is_file($path)) {
-                unlink($path);
-            }
+            $this->deletePublicStoredFile($call->audio_path);
             $call->audio_path = null;
             $call->save();
         }
 
         return response()->json($call);
+    }
+
+    private function deletePublicStoredFile(?string $path): void
+    {
+        $path = $this->normalizePublicStoragePath($path);
+
+        if ($path && Storage::disk('public')->exists($path)) {
+            Storage::disk('public')->delete($path);
+        }
+    }
+
+    private function normalizePublicStoragePath(?string $path): ?string
+    {
+        if (empty($path)) {
+            return null;
+        }
+
+        $path = ltrim($path, '/');
+        $path = preg_replace('#^public/#', '', $path);
+        $path = preg_replace('#^storage/#', '', $path);
+
+        // Backward compatibility for old records saved as /videos/file.mp4 or /audios/file.mp3.
+        if (str_starts_with($path, 'videos/') || str_starts_with($path, 'audios/')) {
+            return $path;
+        }
+
+        return $path;
     }
 }

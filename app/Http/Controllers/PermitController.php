@@ -6,7 +6,7 @@ use App\Models\Permit;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Storage;
 
 class PermitController extends Controller
 {
@@ -89,19 +89,10 @@ class PermitController extends Controller
             $file = $request->file('document');
 
             $originalName = $file->getClientOriginalName();
-            $safeOriginalName = preg_replace('/[^A-Za-z0-9\-\_\.]/', '_', $originalName);
-            $filename = time() . '_' . $safeOriginalName;
-
-            $destinationPath = public_path('documents/permits');
-
-            if (!File::exists($destinationPath)) {
-                File::makeDirectory($destinationPath, 0777, true, true);
-            }
-
-            $file->move($destinationPath, $filename);
+            $filename = time() . '_' . $this->sanitizeFileName($originalName);
 
             $documentName = $originalName;
-            $documentPath = 'documents/permits/' . $filename;
+            $documentPath = $file->storeAs('documents/permits', $filename, 'public');
         }
 
         do {
@@ -219,19 +210,14 @@ class PermitController extends Controller
             abort(403, 'This record can no longer be edited.');
         }
 
-        $file = $request->file('document');
-        $originalName = $file->getClientOriginalName();
-        $safeOriginalName = preg_replace('/[^A-Za-z0-9\-\_\.]/', '_', $originalName);
-        $fileName = time() . '_' . $safeOriginalName;
-
-        $destinationPath = public_path('documents/permits');
-
-        if (!File::exists($destinationPath)) {
-            File::makeDirectory($destinationPath, 0777, true, true);
+        if ($record->document_path && Storage::disk('public')->exists($this->normalizePublicPath($record->document_path))) {
+            Storage::disk('public')->delete($this->normalizePublicPath($record->document_path));
         }
 
-        $file->move($destinationPath, $fileName);
-        $filePath = 'documents/permits/' . $fileName;
+        $file = $request->file('document');
+        $originalName = $file->getClientOriginalName();
+        $fileName = time() . '_' . $this->sanitizeFileName($originalName);
+        $filePath = $file->storeAs('documents/permits', $fileName, 'public');
 
         $record->update([
             'document_name' => $originalName,
@@ -260,6 +246,24 @@ class PermitController extends Controller
         return response()->json([
             'message' => 'LGU submitted for approval.'
         ]);
+    }
+
+    private function sanitizeFileName(string $fileName): string
+    {
+        return preg_replace('/[^A-Za-z0-9.\-_]/', '_', $fileName) ?: 'uploaded_file';
+    }
+
+    private function normalizePublicPath(?string $path): ?string
+    {
+        if (empty($path)) {
+            return null;
+        }
+
+        $path = ltrim($path, '/');
+        $path = preg_replace('#^public/#', '', $path);
+        $path = preg_replace('#^storage/#', '', $path);
+
+        return $path;
     }
 
     public function showMayorPermitTemplate($id)
