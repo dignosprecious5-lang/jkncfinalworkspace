@@ -39,6 +39,18 @@ class CorporateFormationController extends Controller
             ?? 'Unknown Employee';
     }
 
+    private function cleanFileName(string $fileName): string
+    {
+        return preg_replace('/[^A-Za-z0-9.\-_]/', '_', $fileName);
+    }
+
+    private function storeSecCoiFile($file, string $prefix): string
+    {
+        $fileName = time() . '_' . $prefix . '_' . $this->cleanFileName($file->getClientOriginalName());
+
+        return $file->storeAs('uploads/sec-coi', $fileName, 'public');
+    }
+
     public function index()
     {
         if ($this->canApproveCorporate()) {
@@ -65,17 +77,11 @@ class CorporateFormationController extends Controller
         $notaryPath = null;
 
         if ($request->hasFile('draft_file_upload')) {
-            $file = $request->file('draft_file_upload');
-            $fileName = time() . '_draft_' . $file->getClientOriginalName();
-            $file->move(public_path('uploads/sec-coi'), $fileName);
-            $draftPath = 'uploads/sec-coi/' . $fileName;
+            $draftPath = $this->storeSecCoiFile($request->file('draft_file_upload'), 'draft');
         }
 
         if ($request->hasFile('notary_file_upload')) {
-            $file = $request->file('notary_file_upload');
-            $fileName = time() . '_notary_' . $file->getClientOriginalName();
-            $file->move(public_path('uploads/sec-coi'), $fileName);
-            $notaryPath = 'uploads/sec-coi/' . $fileName;
+            $notaryPath = $this->storeSecCoiFile($request->file('notary_file_upload'), 'notary');
         }
 
         $isApprover = $this->canApproveCorporate();
@@ -148,10 +154,7 @@ class CorporateFormationController extends Controller
             abort(403, 'This record can no longer be edited.');
         }
 
-        $file = $request->file('draft_file');
-        $fileName = time() . '_draft_' . $file->getClientOriginalName();
-        $file->move(public_path('uploads/sec-coi'), $fileName);
-        $filePath = 'uploads/sec-coi/' . $fileName;
+        $filePath = $this->storeSecCoiFile($request->file('draft_file'), 'draft');
 
         $record->update([
             'file_path' => $filePath,
@@ -172,10 +175,7 @@ class CorporateFormationController extends Controller
             abort(403, 'This record can no longer be edited.');
         }
 
-        $file = $request->file('notary_file');
-        $fileName = time() . '_notary_' . $file->getClientOriginalName();
-        $file->move(public_path('uploads/sec-coi'), $fileName);
-        $filePath = 'uploads/sec-coi/' . $fileName;
+        $filePath = $this->storeSecCoiFile($request->file('notary_file'), 'notary');
 
         $record->update([
             'notary_file_path' => $filePath,

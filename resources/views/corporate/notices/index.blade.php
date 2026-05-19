@@ -6,7 +6,10 @@
     $today = now()->toDateString();
     $currentUser = auth()->user()?->name ?? '';
     $defaultNoticeBodyText = '';
-    $companyName = 'JOHN KELLY & COMPANY';
+
+    // President requested company name
+    $companyName = 'JK&C INC.';
+
     $companyRegNo = '2025120230900-02';
     $companyAddress = '3RD FLOOR, UNIT 305 CEBU HOLDINGS CENTER CARDINAL ROSALES AVE., CEBU BUSINESS PARK HIPPODROMO, CEBU CITY, 6000';
 @endphp
@@ -461,13 +464,16 @@
             showAddPanel: false,
             defaultsEndpoint,
             initialNoticeNumber,
+
+            companyName: @js($companyName),
+
             bodyMode: 'builder',
             bodyHtml: '',
             livePreviewTitle: 'NOTICE AND AGENDA OF THE SPECIAL BOARD OF DIRECTORS MEETING',
             livePreviewFooterTitle: 'NOTICE FOR SPECIAL BOARD OF DIRECTORS MEETING',
             livePreviewRecipient: 'ALL DIRECTORS',
             livePreviewDate: '________________',
-            livePreviewIntro: 'NOTICE is hereby given that a Special Board of Directors Meeting of JOHN KELLY & COMPANY will be held at __________________ on __________________ at __________________.',
+            livePreviewIntro: @js("NOTICE is hereby given that a Special Board of Directors Meeting of {$companyName} will be held at __________________ on __________________ at __________________."),
             livePreviewBody: '<p style="color:#94a3b8;">Start typing the notice body to preview it here.</p>',
             livePreviewSecretary: 'Corporate Secretary',
             locationParts: {
@@ -686,7 +692,7 @@
                 this.livePreviewFooterTitle = `NOTICE FOR ${meetingTitle}`;
                 this.livePreviewRecipient = recipientLabel;
                 this.livePreviewDate = formattedDate;
-                this.livePreviewIntro = `NOTICE is hereby given that a ${meetingType} ${governingBody} Meeting of {{ $companyName }} will be held at ${this.locationPreview || '________________'} on ${formattedDate} at ${formattedTime}.`;
+                this.livePreviewIntro = `NOTICE is hereby given that a ${meetingType} ${governingBody} Meeting of ${this.companyName} will be held at ${this.locationPreview || '________________'} on ${formattedDate} at ${formattedTime}.`;
                 this.livePreviewBody = this.bodyHtml || '<p style="color:#94a3b8;">Start typing the notice body to preview it here.</p>';
                 this.livePreviewSecretary = secretary;
             },

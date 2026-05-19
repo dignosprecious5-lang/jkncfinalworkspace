@@ -3,8 +3,28 @@
 @section('content')
 
 @php
-    $draftUrl = !empty($record->file_path) ? asset(ltrim($record->file_path, '/')) : null;
-    $notaryUrl = !empty($record->notary_file_path) ? asset(ltrim($record->notary_file_path, '/')) : null;
+    $normalizeFilePath = function ($path) {
+        if (empty($path)) {
+            return null;
+        }
+
+        $path = ltrim($path, '/');
+
+        // Support old saved paths.
+        $path = preg_replace('#^public/#', '', $path);
+        $path = preg_replace('#^storage/#', '', $path);
+
+        // If old database path is uploads/sec-coi/file.pdf,
+        // this will become /storage/uploads/sec-coi/file.pdf.
+        return $path;
+    };
+
+    $draftPath = $normalizeFilePath($record->file_path);
+    $notaryPath = $normalizeFilePath($record->notary_file_path);
+
+    $draftUrl = $draftPath ? asset('storage/' . $draftPath) : null;
+    $notaryUrl = $notaryPath ? asset('storage/' . $notaryPath) : null;
+
     $canEditRecord = in_array($record->workflow_status, ['Uploaded', 'Reverted']);
 @endphp
 
@@ -53,6 +73,14 @@
                         src="{{ $draftUrl }}"
                         class="w-full h-[700px] border rounded">
                     </iframe>
+
+                    <div class="mt-3">
+                        <a href="{{ $draftUrl }}"
+                           target="_blank"
+                           class="inline-flex items-center px-4 py-2 rounded-md bg-blue-600 text-white text-sm hover:bg-blue-700">
+                            Open Draft File
+                        </a>
+                    </div>
                 @else
                     <div class="w-full h-[700px] border rounded flex items-center justify-center bg-gray-50 text-gray-400 text-sm">
                         No draft file attached for this SEC-COI record.
@@ -66,6 +94,14 @@
                         src="{{ $notaryUrl }}"
                         class="w-full h-[700px] border rounded">
                     </iframe>
+
+                    <div class="mt-3">
+                        <a href="{{ $notaryUrl }}"
+                           target="_blank"
+                           class="inline-flex items-center px-4 py-2 rounded-md bg-green-600 text-white text-sm hover:bg-green-700">
+                            Open Notary File
+                        </a>
+                    </div>
                 @else
                     <div class="w-full h-[700px] border rounded flex flex-col items-center justify-center bg-gray-50 text-gray-400 text-sm px-6 text-center">
                         <i class="far fa-file-alt text-4xl mb-4"></i>
@@ -237,7 +273,11 @@
                           class="space-y-3">
                         @csrf
 
-                        <input type="file" name="draft_file" class="w-full border rounded p-2" required>
+                        <input type="file"
+                               name="draft_file"
+                               accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                               class="w-full border rounded p-2"
+                               required>
 
                         <button type="submit"
                                 class="block w-full text-center bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700">
@@ -292,7 +332,11 @@
                           class="space-y-3">
                         @csrf
 
-                        <input type="file" name="notary_file" class="w-full border rounded p-2" required>
+                        <input type="file"
+                               name="notary_file"
+                               accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                               class="w-full border rounded p-2"
+                               required>
 
                         <button type="submit"
                                 class="block w-full text-center bg-green-600 text-white py-2 rounded-md hover:bg-green-700">
