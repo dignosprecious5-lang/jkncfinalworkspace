@@ -167,13 +167,23 @@
 
             <div class="flex-1 min-h-0 grid grid-cols-[58%_42%] bg-gray-50">
                 <!-- LEFT SIDE: PDF PREVIEW -->
-                <div class="min-h-0 overflow-auto p-5 border-r bg-gray-100">
-                    <div class="flex items-center justify-between mb-4 sticky top-0 z-10 bg-gray-100 py-2">
+                <div class="min-h-0 border-r bg-gray-100 flex flex-col">
+                    <!-- STICKY / FIXED TOOLBAR -->
+                    <div class="shrink-0 px-5 py-3 border-b bg-gray-100 flex items-center justify-between z-30">
                         <p class="text-xs font-bold text-gray-500 uppercase tracking-widest">Preview</p>
-                        <button type="button" onclick="window.print()" class="px-3 py-2 border rounded-lg text-xs font-semibold text-gray-700 bg-white">Download PDF</button>
+
+                        <button
+                            type="button"
+                            onclick="window.print()"
+                            class="px-3 py-2 border rounded-lg text-xs font-semibold text-gray-700 bg-white hover:bg-gray-50 shadow-sm"
+                        >
+                            Download PDF
+                        </button>
                     </div>
 
-                    <div class="bg-white mx-auto border border-gray-300 shadow-lg px-10 py-8 text-[11px] leading-tight w-[820px] min-h-[1123px] print-area">
+    <!-- SCROLLABLE PDF AREA ONLY -->
+    <div class="flex-1 min-h-0 overflow-auto p-5">
+        <div class="bg-white mx-auto border border-gray-300 shadow-lg px-10 py-8 text-[11px] leading-tight w-[820px] min-h-[1123px] print-area">
                         <div class="text-center border-b-2 border-blue-700 pb-4 mb-4">
                             <img src="{{ asset('images/jk-logo-template.png') }}" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';" class="h-24 mx-auto mb-2 object-contain" alt="John Kelly & Company Logo">
                             <div style="display:none">
@@ -232,6 +242,7 @@
                             <div><div class="border-b border-gray-700 h-8"></div><p class="mt-1 font-bold">HR / Authorized Reviewer</p></div>
                         </div>
                     </div>
+                </div>
                 </div>
 
                 <!-- RIGHT SIDE: FORM -->
