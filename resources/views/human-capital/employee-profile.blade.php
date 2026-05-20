@@ -22,17 +22,16 @@
                     <p class="text-xs font-bold text-blue-600 uppercase tracking-wider">Human Capital</p>
                     <h1 class="text-xl font-bold text-gray-900">Employee Profile</h1>
                     <p class="text-xs text-gray-500 mt-1">
-                        Employee Master List and individual personnel profile records.
+                        Employee profiles are created after completed onboarding and employee registration. Use On Boarding for new applicants and existing personnel.
                     </p>
                 </div>
 
-                <button
-                    type="button"
-                    @click="openAdd()"
+                <a
+                    href="{{ url('/human-capital/onboarding') }}"
                     class="bg-blue-600 text-white px-6 py-2 rounded-lg text-sm shrink-0 hover:bg-blue-700 transition font-semibold"
                 >
-                    + Add Employee
-                </button>
+                    + Create from Onboarding
+                </a>
             </div>
 
             @if (session('success'))
@@ -157,7 +156,7 @@
                     <tbody>
                         <template x-if="filteredEmployees.length === 0">
                             <tr>
-                                <td colspan="12" class="px-4 py-10 text-center text-gray-400">
+                                <td colspan="13" class="px-4 py-10 text-center text-gray-400">
                                     No employees found.
                                 </td>
                             </tr>
@@ -182,7 +181,20 @@
                                         </div>
                                     </div>
                                 </td>
-                                <td class="px-4 py-3 whitespace-nowrap text-gray-700" x-text="employee.email ?? '-'"></td>
+                                <td class="px-4 py-3 whitespace-nowrap text-gray-700" x-text="employee.work_email || employee.email || '-'"></td>
+                                <td class="px-4 py-3 whitespace-nowrap">
+                                    <template x-if="employee.has_user_account">
+                                        <span class="px-2 py-1 rounded-full text-xs font-semibold bg-green-50 text-green-700">
+                                            Has Account
+                                        </span>
+                                    </template>
+
+                                    <template x-if="!employee.has_user_account">
+                                        <span class="px-2 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-600">
+                                            No Account
+                                        </span>
+                                    </template>
+                                </td>
                                 <td class="px-4 py-3 whitespace-nowrap text-gray-700" x-text="employee.phone_number ?? '-'"></td>
                                 <td class="px-4 py-3 whitespace-nowrap text-gray-700" x-text="employee.position ?? '-'"></td>
                                 <td class="px-4 py-3 whitespace-nowrap text-gray-700" x-text="employee.department_name ?? '-'"></td>
@@ -391,7 +403,7 @@
             <div class="px-5 py-4 border-b flex items-center justify-between bg-blue-700">
                 <div>
                     <p class="text-xs font-bold text-blue-100 uppercase tracking-widest">Employee Profile</p>
-                    <h2 class="text-base font-bold text-white" x-text="isEdit ? 'Edit Employee' : 'Add Employee'"></h2>
+                    <h2 class="text-base font-bold text-white" x-text="isEdit ? 'Edit Employee' : 'Employee Profile'"></h2>
                 </div>
                 <button type="button" @click="closeSlider()" class="text-blue-100 hover:text-white text-xl leading-none">&times;</button>
             </div>

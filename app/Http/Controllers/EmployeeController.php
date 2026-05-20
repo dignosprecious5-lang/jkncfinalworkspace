@@ -94,72 +94,11 @@ class EmployeeController extends Controller
 
     public function store(Request $request)
     {
-        $validated = $request->validate([
-            'profile_photo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
-
-            'first_name' => ['required', 'string', 'max:255'],
-            'last_name' => ['required', 'string', 'max:255'],
-            'age' => ['nullable', 'integer', 'min:18', 'max:100'],
-            'address' => ['nullable', 'string'],
-            'phone_number' => ['nullable', 'string', 'max:255'],
-            'email' => ['nullable', 'email', 'max:255', 'unique:employees,email'],
-            'personal_email' => ['nullable', 'email', 'max:255', 'unique:employees,personal_email'],
-            'work_email' => ['nullable', 'email', 'max:255', 'unique:employees,work_email'],
-
-            'office_id' => ['nullable', Rule::exists('offices', 'id')],
-            'branch_id' => ['nullable', Rule::exists('branches', 'id')],
-            'department_id' => ['nullable', Rule::exists('departments', 'id')],
-            'division_id' => ['nullable', Rule::exists('divisions', 'id')],
-            'unit_id' => ['nullable', Rule::exists('units', 'id')],
-
-            'position' => ['nullable', 'string', 'max:255'],
-            'payroll_type' => ['required', Rule::in(['Monthly Paid', 'Daily Paid'])],
-            'basic_salary' => ['required', 'numeric', 'min:0'],
-            'schedule_start_time' => ['nullable', 'date_format:H:i'],
-            'schedule_end_time' => ['nullable', 'date_format:H:i'],
-        ]);
-
-        $legacyEmail = $validated['work_email'] ?? $validated['personal_email'] ?? $validated['email'] ?? null;
-
-        if (!$legacyEmail) {
-            return back()
-                ->withErrors(['email' => 'Please provide at least one email address.'])
-                ->withInput();
-        }
-
-        $validated['email'] = $legacyEmail;
-        $validated['personal_email'] = $validated['personal_email'] ?? $validated['email'];
-        $validated['work_email'] = $validated['work_email'] ?? $validated['email'];
-
-        $legacyEmail = $validated['work_email'] ?? $validated['personal_email'] ?? $validated['email'] ?? null;
-
-        if (!$legacyEmail) {
-            return back()
-                ->withErrors(['email' => 'Please provide at least one email address.'])
-                ->withInput();
-        }
-
-        $validated['email'] = $legacyEmail;
-        $validated['personal_email'] = $validated['personal_email'] ?? $validated['email'];
-        $validated['work_email'] = $validated['work_email'] ?? $validated['email'];
-
-        if ($request->hasFile('profile_photo')) {
-            $validated['profile_photo'] = $request->file('profile_photo')->store('employee-photos', 'public');
-        }
-
-        $validated['hourly_rate'] = $this->computeHourlyRate(
-            $validated['basic_salary'],
-            $validated['payroll_type']
-        );
-
-        if (!empty($validated['office_id'])) {
-            $office = Office::find($validated['office_id']);
-            $validated['branch_id'] = $office?->branch_id;
-        }
-
-        Employee::create($validated);
-
-        return redirect()->back()->with('success', 'Employee added successfully.');
+        return redirect()
+            ->route('human-capital.employee-profile')
+            ->withErrors([
+                'employee_profile' => 'Direct employee profile creation is disabled. Please create employee profiles through Human Capital → On Boarding → Employee Registration after completed onboarding.',
+            ]);
     }
 
     public function update(Request $request, Employee $employee)
