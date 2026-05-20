@@ -11,9 +11,17 @@
         'rejected' => 'bg-rose-50 text-rose-700 border-rose-100',
     ];
     $formatDateTimeInput = fn ($value) => $value ? $value->format('Y-m-d\TH:i') : '';
+    $attendanceExportParams = [
+        'period' => $period,
+        'date' => $selectedDate->toDateString(),
+    ];
+
+    if ($canManageAttendance && request('employee_id')) {
+        $attendanceExportParams['employee_id'] = request('employee_id');
+    }
 @endphp
 
-<div class="w-full px-6 py-5 space-y-5">
+<div class="w-full px-6 py-5 space-y-5" x-data="{ editingAttendanceId: null }">
     @if(session('success'))
         <div class="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
             {{ session('success') }}
@@ -115,6 +123,25 @@
                     <i class="fas fa-filter"></i>
                     Filter
                 </button>
+
+                @if($attendances->total() > 0)
+                    <a
+                        href="{{ route('human-capital.attendance.export-pdf', $attendanceExportParams) }}"
+                        class="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+                    >
+                        <i class="fas fa-file-pdf"></i>
+                        Download PDF
+                    </a>
+                @else
+                    <button
+                        type="button"
+                        disabled
+                        class="inline-flex cursor-not-allowed items-center justify-center gap-2 rounded-lg bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-400"
+                    >
+                        <i class="fas fa-file-pdf"></i>
+                        Download PDF
+                    </button>
+                @endif
             </div>
         </form>
 
@@ -124,6 +151,7 @@
                     <tr>
                         <th class="px-4 py-3">Date</th>
                         <th class="px-4 py-3">Employee</th>
+                        <th class="px-4 py-3 text-center">Type</th>
                         <th class="px-4 py-3 text-center">Time In</th>
                         <th class="px-4 py-3 text-center">Break 1</th>
                         <th class="px-4 py-3 text-center">Lunch</th>
@@ -145,30 +173,47 @@
                             <td class="px-4 py-3 font-medium text-gray-900">
                                 @if($canManageAttendance)
                                     <input
+                                        x-cloak
+                                        x-show="editingAttendanceId === {{ $attendance->id }}"
                                         form="{{ $updateFormId }}"
                                         type="date"
                                         name="date"
                                         value="{{ $attendance->date->toDateString() }}"
                                         class="w-36 rounded-md border border-gray-300 px-2 py-1 text-xs"
                                     >
+                                    <span x-show="editingAttendanceId !== {{ $attendance->id }}">
+                                        {{ $attendance->date->format('M d, Y') }}
+                                    </span>
                                 @else
                                     {{ $attendance->date->format('M d, Y') }}
                                 @endif
                             </td>
                             <td class="px-4 py-3 text-gray-700">{{ $attendance->employee_name ?: optional($attendance->user)->name }}</td>
+                            <td class="px-4 py-3 text-center">
+                                <span class="inline-flex rounded-full border px-2 py-1 text-[11px] font-semibold uppercase {{ $attendance->work_type === 'overtime' ? 'border-indigo-100 bg-indigo-50 text-indigo-700' : 'border-gray-100 bg-gray-50 text-gray-600' }}">
+                                    {{ $attendance->work_type ?? 'regular' }}
+                                </span>
+                            </td>
                             <td class="px-4 py-3 text-center text-gray-700">
                                 @if($canManageAttendance)
-                                    <input form="{{ $updateFormId }}" type="datetime-local" name="time_in" value="{{ $formatDateTimeInput($attendance->time_in) }}" class="w-40 rounded-md border border-gray-300 px-2 py-1 text-xs">
+                                    <input x-cloak x-show="editingAttendanceId === {{ $attendance->id }}" form="{{ $updateFormId }}" type="datetime-local" name="time_in" value="{{ $formatDateTimeInput($attendance->time_in) }}" class="w-40 rounded-md border border-gray-300 px-2 py-1 text-xs">
+                                    <span x-show="editingAttendanceId !== {{ $attendance->id }}">
+                                        {{ $attendance->time_in?->format('h:i A') ?? '-' }}
+                                    </span>
                                 @else
                                     {{ $attendance->time_in?->format('h:i A') ?? '-' }}
                                 @endif
                             </td>
                             <td class="px-4 py-3 text-center text-gray-500">
                                 @if($canManageAttendance)
-                                    <div class="space-y-1">
+                                    <div x-cloak x-show="editingAttendanceId === {{ $attendance->id }}" class="space-y-1">
                                         <input form="{{ $updateFormId }}" type="datetime-local" name="break_1_start" value="{{ $formatDateTimeInput($attendance->break_1_start) }}" class="w-40 rounded-md border border-gray-300 px-2 py-1 text-xs">
                                         <input form="{{ $updateFormId }}" type="datetime-local" name="break_1_end" value="{{ $formatDateTimeInput($attendance->break_1_end) }}" class="w-40 rounded-md border border-gray-300 px-2 py-1 text-xs">
                                     </div>
+                                    <span x-show="editingAttendanceId !== {{ $attendance->id }}">
+                                        {{ $attendance->break_1_start?->format('h:i A') ?? '-' }}
+                                        @if($attendance->break_1_end) - {{ $attendance->break_1_end->format('h:i A') }} @endif
+                                    </span>
                                 @else
                                     {{ $attendance->break_1_start?->format('h:i A') ?? '-' }}
                                     @if($attendance->break_1_end) - {{ $attendance->break_1_end->format('h:i A') }} @endif
@@ -176,10 +221,14 @@
                             </td>
                             <td class="px-4 py-3 text-center text-gray-500">
                                 @if($canManageAttendance)
-                                    <div class="space-y-1">
+                                    <div x-cloak x-show="editingAttendanceId === {{ $attendance->id }}" class="space-y-1">
                                         <input form="{{ $updateFormId }}" type="datetime-local" name="lunch_start" value="{{ $formatDateTimeInput($attendance->lunch_start) }}" class="w-40 rounded-md border border-gray-300 px-2 py-1 text-xs">
                                         <input form="{{ $updateFormId }}" type="datetime-local" name="lunch_end" value="{{ $formatDateTimeInput($attendance->lunch_end) }}" class="w-40 rounded-md border border-gray-300 px-2 py-1 text-xs">
                                     </div>
+                                    <span x-show="editingAttendanceId !== {{ $attendance->id }}">
+                                        {{ $attendance->lunch_start?->format('h:i A') ?? '-' }}
+                                        @if($attendance->lunch_end) - {{ $attendance->lunch_end->format('h:i A') }} @endif
+                                    </span>
                                 @else
                                     {{ $attendance->lunch_start?->format('h:i A') ?? '-' }}
                                     @if($attendance->lunch_end) - {{ $attendance->lunch_end->format('h:i A') }} @endif
@@ -187,10 +236,14 @@
                             </td>
                             <td class="px-4 py-3 text-center text-gray-500">
                                 @if($canManageAttendance)
-                                    <div class="space-y-1">
+                                    <div x-cloak x-show="editingAttendanceId === {{ $attendance->id }}" class="space-y-1">
                                         <input form="{{ $updateFormId }}" type="datetime-local" name="break_2_start" value="{{ $formatDateTimeInput($attendance->break_2_start) }}" class="w-40 rounded-md border border-gray-300 px-2 py-1 text-xs">
                                         <input form="{{ $updateFormId }}" type="datetime-local" name="break_2_end" value="{{ $formatDateTimeInput($attendance->break_2_end) }}" class="w-40 rounded-md border border-gray-300 px-2 py-1 text-xs">
                                     </div>
+                                    <span x-show="editingAttendanceId !== {{ $attendance->id }}">
+                                        {{ $attendance->break_2_start?->format('h:i A') ?? '-' }}
+                                        @if($attendance->break_2_end) - {{ $attendance->break_2_end->format('h:i A') }} @endif
+                                    </span>
                                 @else
                                     {{ $attendance->break_2_start?->format('h:i A') ?? '-' }}
                                     @if($attendance->break_2_end) - {{ $attendance->break_2_end->format('h:i A') }} @endif
@@ -198,7 +251,10 @@
                             </td>
                             <td class="px-4 py-3 text-center text-gray-700">
                                 @if($canManageAttendance)
-                                    <input form="{{ $updateFormId }}" type="datetime-local" name="time_out" value="{{ $formatDateTimeInput($attendance->time_out) }}" class="w-40 rounded-md border border-gray-300 px-2 py-1 text-xs">
+                                    <input x-cloak x-show="editingAttendanceId === {{ $attendance->id }}" form="{{ $updateFormId }}" type="datetime-local" name="time_out" value="{{ $formatDateTimeInput($attendance->time_out) }}" class="w-40 rounded-md border border-gray-300 px-2 py-1 text-xs">
+                                    <span x-show="editingAttendanceId !== {{ $attendance->id }}">
+                                        {{ $attendance->time_out?->format('h:i A') ?? '-' }}
+                                    </span>
                                 @else
                                     {{ $attendance->time_out?->format('h:i A') ?? '-' }}
                                 @endif
@@ -208,11 +264,14 @@
                             <td class="px-4 py-3 text-center font-semibold text-emerald-700">{{ number_format((float) $attendance->total_working_hours, 2) }}</td>
                             <td class="px-4 py-3 text-center">
                                 @if($canManageAttendance)
-                                    <select form="{{ $updateFormId }}" name="status" class="rounded-md border border-gray-300 px-2 py-1 text-xs">
+                                    <select x-cloak x-show="editingAttendanceId === {{ $attendance->id }}" form="{{ $updateFormId }}" name="status" class="rounded-md border border-gray-300 px-2 py-1 text-xs">
                                         <option value="pending" @selected($attendance->status === 'pending')>Pending</option>
                                         <option value="approved" @selected($attendance->status === 'approved')>Approved</option>
                                         <option value="rejected" @selected($attendance->status === 'rejected')>Rejected</option>
                                     </select>
+                                    <span x-show="editingAttendanceId !== {{ $attendance->id }}" class="inline-flex rounded-full border px-2 py-1 text-[11px] font-semibold uppercase {{ $statusStyles[$attendance->status] ?? 'bg-gray-50 text-gray-600 border-gray-100' }}">
+                                        {{ $attendance->status }}
+                                    </span>
                                 @else
                                     <span class="inline-flex rounded-full border px-2 py-1 text-[11px] font-semibold uppercase {{ $statusStyles[$attendance->status] ?? 'bg-gray-50 text-gray-600 border-gray-100' }}">
                                         {{ $attendance->status }}
@@ -226,21 +285,37 @@
                                             @csrf
                                             @method('PUT')
                                         </form>
-                                        <button form="{{ $updateFormId }}" type="submit" class="inline-flex items-center justify-center gap-2 rounded-md bg-gray-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-gray-800">
-                                            <i class="fas fa-save"></i>
-                                            Save
+                                        <button
+                                            x-show="editingAttendanceId !== {{ $attendance->id }}"
+                                            type="button"
+                                            @click="editingAttendanceId = {{ $attendance->id }}"
+                                            class="inline-flex w-full items-center justify-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+                                        >
+                                            <i class="fas fa-pen"></i>
+                                            Edit
                                         </button>
-                                        <div class="grid grid-cols-2 gap-2">
-                                            <form method="POST" action="{{ route('human-capital.attendance.approve', $attendance) }}">
-                                                @csrf
-                                                @method('PATCH')
-                                                <button type="submit" class="block w-full whitespace-nowrap rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700">Approve</button>
-                                            </form>
-                                            <form method="POST" action="{{ route('human-capital.attendance.reject', $attendance) }}">
-                                                @csrf
-                                                @method('PATCH')
-                                                <button type="submit" class="block w-full whitespace-nowrap rounded-md bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-700">Reject</button>
-                                            </form>
+                                        <div x-cloak x-show="editingAttendanceId === {{ $attendance->id }}" class="space-y-2">
+                                            <div class="grid grid-cols-2 gap-2">
+                                                <button form="{{ $updateFormId }}" type="submit" class="inline-flex items-center justify-center gap-2 rounded-md bg-gray-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-gray-800">
+                                                    <i class="fas fa-save"></i>
+                                                    Save
+                                                </button>
+                                                <button type="button" @click="editingAttendanceId = null" class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50">
+                                                    Cancel
+                                                </button>
+                                            </div>
+                                            <div class="grid grid-cols-2 gap-2">
+                                                <form method="POST" action="{{ route('human-capital.attendance.approve', $attendance) }}">
+                                                    @csrf
+                                                    @method('PATCH')
+                                                    <button type="submit" class="block w-full whitespace-nowrap rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700">Approve</button>
+                                                </form>
+                                                <form method="POST" action="{{ route('human-capital.attendance.reject', $attendance) }}">
+                                                    @csrf
+                                                    @method('PATCH')
+                                                    <button type="submit" class="block w-full whitespace-nowrap rounded-md bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-700">Reject</button>
+                                                </form>
+                                            </div>
                                         </div>
                                     </div>
                                 </td>
@@ -248,7 +323,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="{{ $canManageAttendance ? 12 : 11 }}" class="px-4 py-12 text-center text-sm text-gray-500">
+                            <td colspan="{{ $canManageAttendance ? 13 : 12 }}" class="px-4 py-12 text-center text-sm text-gray-500">
                                 No attendance records found for this period.
                             </td>
                         </tr>

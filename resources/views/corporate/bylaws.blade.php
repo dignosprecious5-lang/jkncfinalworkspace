@@ -302,11 +302,27 @@ style="display:none;">
         <input type="text" name="bodm_notice" placeholder="BODM Notice Time"
         class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
 
-        <input type="text" name="uploaded_by" placeholder="Uploaded By"
-        class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
+        <div>
+            <label class="block text-[13px] font-medium text-gray-700 mb-2">Uploaded By</label>
+            <input
+                type="text"
+                name="uploaded_by_display"
+                value="{{ Auth::user()->name ?? Auth::user()->email ?? 'Current User' }}"
+                readonly
+                class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm bg-gray-100 text-gray-700 cursor-not-allowed"
+            >
+            <p class="text-[11px] text-gray-400 mt-1">This is automatically saved from the logged-in user.</p>
+        </div>
 
-        <input type="date" name="date_upload"
-        class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
+        <div>
+            <label class="block text-[13px] font-medium text-gray-700 mb-2">Date Upload</label>
+            <input
+                type="date"
+                name="date_upload"
+                value="{{ old('date_upload', now()->toDateString()) }}"
+                class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm"
+            >
+        </div>
 
         <div class="pt-2">
             <label class="block text-[13px] font-medium text-gray-700 mb-2">Draft File Upload</label>

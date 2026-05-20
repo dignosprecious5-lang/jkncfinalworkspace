@@ -2,8 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Employee;
 use App\Models\EmployeeRequest;
+use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 
 class EmployeeRequestController extends Controller
 {
@@ -21,10 +24,26 @@ class EmployeeRequestController extends Controller
             ->latest()
             ->get();
 
+        $employees = $canManageEmployeeRequests
+            ? Employee::with('department')
+                ->orderBy('last_name')
+                ->orderBy('first_name')
+                ->get()
+                ->map(fn (Employee $employee) => $this->formatEmployee($employee))
+                ->values()
+            : collect();
+
+        $currentEmployee = $this->currentEmployee();
+        $currentEmployeeProfile = $currentEmployee
+            ? $this->formatEmployee($currentEmployee)
+            : null;
+
         return view('human-capital.employee-requests', compact(
             'employeeRequests',
             'myEmployeeRequests',
-            'canManageEmployeeRequests'
+            'canManageEmployeeRequests',
+            'employees',
+            'currentEmployeeProfile'
         ));
     }
 
@@ -32,23 +51,27 @@ class EmployeeRequestController extends Controller
     {
         $request->validate([
             'request_type' => 'required|string|max:255',
+            'employee_id' => ($this->canManageRequests() ? 'required' : 'nullable').'|nullable|exists:employees,id',
         ]);
 
+        $employee = $this->resolveEmployee($request->integer('employee_id') ?: null);
+        $requestUser = $this->userForEmployee($employee);
+
         EmployeeRequest::create([
-            'user_id' => auth()->id(),
-            'employee_name' => auth()->user()->name ?? 'Unknown Employee',
+            'user_id' => $requestUser->id,
+            'employee_name' => $employee->full_name,
 
             // Main request type
             'request_type' => $request->request_type,
 
             // Common fields
-            'department' => $request->department,
+            'department' => $employee->department?->department_name,
             'request_date' => $request->request_date,
 
             // Overtime Request fields
             'overtime_date' => $request->overtime_date,
             'start_time' => $request->start_time,
-            'end_time' => $request->end_time,
+            'end_time' => $this->calculateOvertimeEndTime($request),
             'total_hours' => $request->total_hours,
 
             // Leave Application fields
@@ -116,13 +139,15 @@ class EmployeeRequestController extends Controller
             'remarks' => 'nullable|string',
         ]);
 
+        $employee = $this->currentEmployee();
+
         $employeeRequest->update([
-            'department' => $request->department,
+            'department' => $employee?->department?->department_name,
             'request_date' => $request->request_date,
 
             'overtime_date' => $request->overtime_date,
             'start_time' => $request->start_time,
-            'end_time' => $request->end_time,
+            'end_time' => $this->calculateOvertimeEndTime($request),
             'total_hours' => $request->total_hours,
 
             'leave_type' => $request->leave_type,
@@ -150,17 +175,25 @@ class EmployeeRequestController extends Controller
             'reviewed_by' => null,
             'reviewed_at' => null,
         ]);
+
+        return redirect()
+            ->route('human-capital.employee-requests.index')
+            ->with('success', 'Employee request revision submitted successfully.');
     }
 
-    public function approve(EmployeeRequest $employeeRequest)
+    public function approve(Request $request, EmployeeRequest $employeeRequest)
     {
         $this->authorizeAdminAccess();
+
+        $request->validate([
+            'admin_note' => 'nullable|string|max:1000',
+        ]);
 
         $employeeRequest->update([
             'status' => 'Approved',
             'reviewed_by' => auth()->id(),
             'reviewed_at' => now(),
-            'admin_note' => null,
+            'admin_note' => $request->admin_note,
         ]);
 
         return redirect()
@@ -213,5 +246,68 @@ class EmployeeRequestController extends Controller
         $user = auth()->user();
 
         abort_unless($user && ($user->isAdmin() || $user->isSuperAdmin()), 403);
+    }
+
+    private function canManageRequests(): bool
+    {
+        $user = auth()->user();
+
+        return $user && ($user->isAdmin() || $user->isSuperAdmin());
+    }
+
+    private function currentEmployee(): ?Employee
+    {
+        return Employee::with('department')
+            ->where('email', auth()->user()?->email)
+            ->first();
+    }
+
+    private function resolveEmployee(?int $employeeId): Employee
+    {
+        if ($this->canManageRequests() && $employeeId) {
+            return Employee::with('department')->findOrFail($employeeId);
+        }
+
+        $employee = $this->currentEmployee();
+
+        if (! $employee) {
+            abort(403, 'No employee profile is linked to your account email.');
+        }
+
+        return $employee;
+    }
+
+    private function userForEmployee(Employee $employee): User
+    {
+        $user = User::where('email', $employee->email)->first();
+
+        if (! $user) {
+            abort(422, 'The selected employee does not have a linked user account email.');
+        }
+
+        return $user;
+    }
+
+    private function formatEmployee(Employee $employee): array
+    {
+        return [
+            'id' => $employee->id,
+            'employee_code' => $employee->employee_code,
+            'full_name' => $employee->full_name,
+            'email' => $employee->email,
+            'position' => $employee->position,
+            'department' => $employee->department?->department_name,
+        ];
+    }
+
+    private function calculateOvertimeEndTime(Request $request): ?string
+    {
+        if ($request->request_type !== 'Overtime Request' || ! $request->start_time || ! is_numeric($request->total_hours)) {
+            return $request->end_time;
+        }
+
+        return Carbon::createFromFormat('H:i', substr($request->start_time, 0, 5))
+            ->addMinutes((int) round(((float) $request->total_hours) * 60))
+            ->format('H:i');
     }
 }

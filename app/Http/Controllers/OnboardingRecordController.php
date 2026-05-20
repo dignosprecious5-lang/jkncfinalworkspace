@@ -265,8 +265,11 @@ class OnboardingRecordController extends Controller
         'fullName' => ['required', 'string', 'max:255'],
         'employeeId' => ['required', 'string', 'max:255', 'unique:onboarding_employee_registrations,employee_id'],
         'department' => ['nullable', 'string', 'max:255'],
+        'position' => ['required', 'string', 'max:255'],
+        'payrollType' => ['required', Rule::in(['Monthly Paid', 'Daily Paid'])],
+        'basicSalary' => ['required', 'numeric', 'min:0'],
         'startDate' => ['nullable', 'date'],
-        'workEmail' => ['nullable', 'email', 'max:255'],
+        'workEmail' => ['required', 'email', 'max:255'],
         'manager' => ['nullable', 'string', 'max:255'],
     ]);
 
@@ -298,22 +301,32 @@ class OnboardingRecordController extends Controller
     }
 
     $address = $this->buildPdsAddress($pdsData);
-    $employeeEmail = $validated['workEmail'] ?: ($checklist->employee_email ?? $pds->email ?? $jobOffer?->candidate_email ?? null);
 
-    if (!$employeeEmail) {
+    // CAF/PDS email remains the applicant personal/contact email.
+    $personalEmail = $checklist->employee_email
+        ?: ($pds->email ?? ($jobOffer?->candidate_email ?? null));
+
+    // Work email is the official company email and will be used for login account creation.
+    $workEmail = $validated['workEmail'];
+
+    if (Employee::where('email', $workEmail)->orWhere('work_email', $workEmail)->exists()) {
         return response()->json([
-            'message' => 'Employee email is required before creating an Employee Profile.',
+            'message' => 'This work email is already used in Employee Profile.',
         ], 422);
     }
 
-    if (Employee::where('email', $employeeEmail)->exists()) {
-        return response()->json([
-            'message' => 'This email is already used in Employee Profile.',
-        ], 422);
-    }
+    // New applicants normally have Job Offer data.
+    // Existing employees/personnel do not, so use HR/Admin manual input from Employee Registration.
+    $basicSalary = $jobOffer
+        ? $this->parseMoneyAmount($jobOffer?->salary)
+        : (float) $validated['basicSalary'];
 
-    $basicSalary = $this->parseMoneyAmount($jobOffer?->salary);
-    $payrollType = $this->inferPayrollType($jobOffer?->employment_type);
+    $payrollType = $jobOffer
+        ? $this->inferPayrollType($jobOffer?->employment_type)
+        : $validated['payrollType'];
+
+    $position = $jobOffer?->position ?: $validated['position'];
+
     $hourlyRate = $this->computeEmployeeHourlyRate($basicSalary, $payrollType);
 
     $employeeProfile = Employee::create([
@@ -322,7 +335,11 @@ class OnboardingRecordController extends Controller
         'last_name' => $lastName,
         'address' => $address ?: $jobOffer?->company_address,
         'phone_number' => $pds->phone ?? ($pdsData['mobileNo'] ?? $pdsData['phone'] ?? null),
-        'email' => $employeeEmail,
+
+        // Keep legacy email as work email so old modules continue working.
+        'email' => $workEmail,
+        'personal_email' => $personalEmail,
+        'work_email' => $workEmail,
 
         // Organizational assignment from Job Offer
         'office_id' => $jobOffer?->office_id,
@@ -331,8 +348,8 @@ class OnboardingRecordController extends Controller
         'division_id' => $jobOffer?->division_id,
         'unit_id' => $jobOffer?->unit_id,
 
-        // Position and payroll from Job Offer
-        'position' => $jobOffer?->position ?: $checklist->position,
+        // Position and payroll from Job Offer for new applicants, or HR manual input for existing employees.
+        'position' => $position,
         'payroll_type' => $payrollType,
         'basic_salary' => $basicSalary,
         'hourly_rate' => $hourlyRate,
@@ -343,9 +360,9 @@ class OnboardingRecordController extends Controller
         'employee_profile_id' => $employeeProfile->id,
         'full_name' => $validated['fullName'],
         'employee_id' => $validated['employeeId'],
-        'department' => $jobOffer?->department ?: ($validated['department'] ?? $checklist->position),
+        'department' => $jobOffer?->department ?: ($validated['department'] ?? null),
         'start_date' => $validated['startDate'] ?? $jobOffer?->start_date,
-        'work_email' => $employeeEmail,
+        'work_email' => $workEmail,
         'manager' => $validated['manager'] ?? null,
         'created_by' => Auth::id(),
     ]);
@@ -355,7 +372,7 @@ class OnboardingRecordController extends Controller
     }
 
     return response()->json([
-        'message' => 'Employee registration saved successfully and reflected in Employee Profile.',
+        'message' => 'Employee registration saved successfully and reflected in Employee Profile. Create the login account from Admin Panel → Users using this work email.',
         'record' => $this->formatEmployee($employee->fresh()),
     ]);
 }

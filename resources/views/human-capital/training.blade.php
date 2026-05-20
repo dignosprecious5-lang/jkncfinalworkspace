@@ -25,13 +25,15 @@
 
     <div class="bg-white rounded-xl border border-gray-200 flex flex-col flex-grow min-h-0">
 
-        <!-- HEADER -->
-        <div class="flex items-center justify-between px-4 py-3 border-b">
+        <div class="flex items-center justify-between px-5 py-4 border-b">
 
-            <h1 class="text-lg font-semibold text-gray-900">
-                Training Library
-            </h1>
+            <div>
+                <p class="text-xs font-bold text-blue-600 uppercase tracking-wider">Human Capital</p>
+                <h1 class="text-lg font-semibold text-gray-900">Training Library</h1>
+                <p class="text-xs text-gray-500">Programs, assignments, completion, and certificate issuance.</p>
+            </div>
 
+            @if($canManageTraining)
             <button
                 @click="
                     openSlider = true;
@@ -50,10 +52,11 @@
                         duration_unit: 'days',
                     };
                 "
-                class="bg-blue-600 text-white px-5 py-2 rounded text-sm"
+                class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg text-sm font-semibold"
             >
                 + Add Training
             </button>
+            @endif
 
         </div>
 
@@ -67,9 +70,9 @@
         <!-- TABLE -->
         <div class="p-4 flex-grow overflow-hidden">
 
-            <div class="border rounded-md h-full overflow-auto bg-white">
+            <div class="border rounded-xl h-full overflow-auto bg-white">
 
-                <table class="w-full text-sm table-fixed border-collapse">
+                <table class="w-full min-w-[1280px] text-sm border-collapse">
 
                     <!-- TABLE HEADER -->
                     <thead class="bg-gray-50 text-gray-600 sticky top-0">
@@ -92,12 +95,12 @@
                                 Duration
                             </th>
 
-                            <th class="w-72 p-3 text-left">
+                            <th class="w-[520px] p-3 text-left">
                                 Assigned Employees
                             </th>
 
-                            <th class="w-40 p-3 text-left">
-                                Action
+                            <th class="w-40 p-3 text-right">
+                                Actions
                             </th>
 
                         </tr>
@@ -111,31 +114,39 @@
 
                             <tr class="border-t hover:bg-gray-50">
 
-                                <td class="p-3 font-medium">
-                                    {{ $training->title }}
+                                <td class="p-3 align-top">
+                                    <div class="font-semibold text-gray-900">{{ $training->title }}</div>
+                                    <div class="mt-1 text-xs text-gray-500">{{ $training->assignments->count() }} assigned</div>
                                 </td>
 
-                                <td class="p-3">
+                                <td class="p-3 align-top text-gray-600">
                                     {{ $training->description }}
                                 </td>
 
-                                <td class="p-3">
+                                <td class="p-3 align-top text-gray-600">
                                     {{ $training->provider }}
                                 </td>
 
-                                <td class="p-3">
+                                <td class="p-3 align-top text-gray-600">
                                     {{ $training->formatted_duration }}
                                 </td>
 
-                                <td class="p-3">
+                                <td class="p-3 align-top">
 
                                     @forelse($training->assignments->take(4) as $assignment)
 
-                                    <div class="mb-1 flex items-center justify-between gap-2 rounded border border-gray-100 bg-gray-50 px-2 py-1 text-xs">
+                                    <div class="mb-2 grid grid-cols-[minmax(0,1fr)_auto] gap-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs">
 
-                                        <span class="truncate">
-                                            {{ $assignment->employee?->full_name ?? 'Employee deleted' }}
-                                        </span>
+                                        <div class="min-w-0">
+                                            <div class="truncate font-semibold text-gray-900">
+                                                {{ $assignment->employee?->full_name ?? 'Employee deleted' }}
+                                            </div>
+                                            <div class="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-gray-500">
+                                                <span>{{ $assignment->start_date?->format('M d, Y') ?? 'No start date' }}</span>
+                                                <span>to</span>
+                                                <span>{{ $assignment->due_date?->format('M d, Y') ?? 'No due date' }}</span>
+                                            </div>
+                                        </div>
 
                                         <div class="flex items-center gap-2">
 
@@ -145,30 +156,28 @@
                                                 {{ $assignment->status }}
                                             </span>
 
-                                            <!-- COMPLETE -->
-                                            @if(!$assignment->completed_at)
+                                            @if($canManageTraining && !$assignment->completed_at)
                                                 <form method="POST" action="{{ route('human-capital.training.complete', $assignment->id) }}">
                                                     @csrf
-                                                    <button class="text-[10px] text-green-600">
+                                                    <button class="rounded-md bg-emerald-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-emerald-700">
                                                         Complete
                                                     </button>
                                                 </form>
                                             @endif
 
-                                            <!-- CERTIFICATE -->
-                                            @if($assignment->completed_at && !$assignment->certificate_issued)
+                                            @if($canManageTraining && $assignment->completed_at && !$assignment->certificate_issued)
                                                 <form method="POST" action="{{ route('human-capital.training.certificate', $assignment->id) }}">
                                                     @csrf
-                                                    <button class="text-[10px] text-blue-600">
-                                                        Cert
+                                                    <button class="rounded-md bg-blue-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-blue-700">
+                                                        Issue Cert
                                                     </button>
                                                 </form>
                                             @endif
 
                                             <!-- CERTIFIED -->
                                             @if($assignment->certificate_issued)
-                                                <span class="text-[10px] text-emerald-600 font-semibold">
-                                                    Awarded
+                                                <span class="rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700">
+                                                    Certificate Issued
                                                 </span>
                                             @endif
 
@@ -190,15 +199,15 @@
 
                                 </td>
 
-                                <!-- ACTION -->
-                                <td class="p-3">
+                                <td class="p-3 align-top text-right">
 
-                                    <div class="flex items-center gap-3">
+                                    @if($canManageTraining)
+                                    <div class="inline-flex overflow-hidden rounded-lg border border-gray-200 bg-white">
 
                                         <!-- EDIT -->
                                         <button
                                             type="button"
-                                            class="text-blue-600 text-sm hover:underline"
+                                            class="px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50"
                                             @click="
                                                 openSlider = true;
 
@@ -232,7 +241,7 @@
 
                                             <button
                                                 type="submit"
-                                                class="text-red-600 text-sm hover:underline"
+                                                class="border-l border-gray-200 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50"
                                             >
                                                 Delete
                                             </button>
@@ -240,6 +249,9 @@
                                         </form>
 
                                     </div>
+                                    @else
+                                        <span class="text-xs text-gray-400">View only</span>
+                                    @endif
 
                                 </td>
 

@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Model;
 class Contact extends Model
 {
     protected $fillable = [
+        'user_id',
         'business_date',
         'intake_date',
         'customer_type',
@@ -97,6 +98,11 @@ class Contact extends Model
         'lead_source_channels' => 'array',
     ];
 
+    public function user()
+    {
+        return $this->belongsTo(\App\Models\User::class);
+    }
+
     public function deals(): HasMany
     {
         return $this->hasMany(Deal::class);
@@ -120,5 +126,15 @@ class Contact extends Model
     public function projects(): HasMany
     {
         return $this->hasMany(Project::class);
+    }
+
+    public function getFullNameAttribute(): string
+    {
+        return trim(implode(' ', array_filter([
+            $this->first_name,
+            $this->middle_initial,
+            $this->last_name,
+            $this->name_extension,
+        ])));
     }
 }

@@ -28,6 +28,7 @@ use App\Mail\InterviewScheduleMail;
 use App\Mail\JobOfferMail;
 use App\Mail\PdsInvitationMail;
 use App\Mail\ChecklistSubmissionMail;
+use App\Models\Training;
 
 class RecruitmentController extends Controller
 {
@@ -202,13 +203,17 @@ class RecruitmentController extends Controller
     }
 
     public function showPublicApplicationForm()
-    {
-        $positions = JobPosting::where('status', 'Posted')->pluck('position')->unique();
-        if ($positions->isEmpty()) {
-            $positions = JobPosting::pluck('position')->unique(); // Fallback to all if none posted
-        }
-        return view('careers.apply', compact('positions'));
+{
+    $jobPostings = JobPosting::whereIn('status', ['Posted', 'Open'])
+        ->orderBy('position')
+        ->get();
+
+    if ($jobPostings->isEmpty()) {
+        $jobPostings = JobPosting::orderBy('position')->get();
     }
+
+    return view('careers.apply', compact('jobPostings'));
+}
 
 public function onboarding()
 {
@@ -227,7 +232,9 @@ public function onboarding()
         ]);
     });
 
-    return view('human-capital.onboarding', compact('pdsData'));
+    $trainingPrograms = Training::orderBy('title')->get();
+
+    return view('human-capital.onboarding', compact('pdsData', 'trainingPrograms'));
 }
 
 

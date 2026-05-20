@@ -57,7 +57,7 @@ class CompanyCorporateFormationController extends Controller
             'issued_by' => $validated['issued_by'],
             'issued_on' => $validated['issued_on'],
             'date_upload' => $validated['date_upload'],
-            'file_path' => $this->storeMovedFile($request, 'file_upload', public_path('uploads/sec-coi'), 'uploads/sec-coi'),
+            'file_path' => $this->storeUploadedFile($request, 'file_upload', 'uploads/sec-coi'),
         ];
 
         $this->createCompanyScopedRecord(new SecCoi(), $payload, $company);
@@ -88,7 +88,7 @@ class CompanyCorporateFormationController extends Controller
             'date_upload' => $validated['date_upload'],
         ];
 
-        if ($filePath = $this->storeMovedFile($request, 'file_upload', public_path('uploads/sec-coi'), 'uploads/sec-coi')) {
+        if ($filePath = $this->storeUploadedFile($request, 'file_upload', 'uploads/sec-coi')) {
             $payload['file_path'] = $filePath;
         }
 
@@ -325,17 +325,21 @@ class CompanyCorporateFormationController extends Controller
         return $scopedQuery->findOrFail($record);
     }
 
-    private function storeMovedFile(Request $request, string $key, string $targetDirectory, string $relativeDirectory): ?string
+    private function storeUploadedFile(Request $request, string $key, string $directory): ?string
     {
         if (! $request->hasFile($key)) {
             return null;
         }
 
         $file = $request->file($key);
-        $fileName = time() . '_' . $file->getClientOriginalName();
-        $file->move($targetDirectory, $fileName);
+        $fileName = time() . '_' . $this->sanitizeFileName($file->getClientOriginalName());
 
-        return $relativeDirectory . '/' . $fileName;
+        return $file->storeAs($directory, $fileName, 'public');
+    }
+
+    private function sanitizeFileName(string $fileName): string
+    {
+        return preg_replace('/[^A-Za-z0-9.\-_]/', '_', $fileName) ?: 'uploaded_file';
     }
 
     private function findCompanyOrAbort(Request $request, int $company): array

@@ -5,17 +5,50 @@ namespace App\Http\Controllers;
 use App\Models\Training;
 use App\Models\TrainingAssignment;
 use App\Models\Award;
+use App\Models\Employee;
 use Illuminate\Http\Request;
 
 class TrainingController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $trainings = Training::with(['assignments.employee'])
+        $user = auth()->user();
+        $canManageTraining = $user && ($user->isAdmin() || $user->isSuperAdmin());
+        $currentEmployee = $canManageTraining
+            ? null
+            : Employee::where('email', $user?->email)->first();
+
+        $trainings = Training::query()
+            ->with(['assignments' => function ($query) use ($canManageTraining, $currentEmployee) {
+                $query->with('employee');
+
+                if (! $canManageTraining) {
+                    $query->where('employee_id', $currentEmployee?->id ?: 0);
+                }
+            }])
+            ->when(! $canManageTraining, function ($query) use ($currentEmployee) {
+                $query->whereHas('assignments', fn ($assignmentQuery) => $assignmentQuery->where('employee_id', $currentEmployee?->id ?: 0));
+            })
             ->latest()
             ->get();
 
-        return view('human-capital.training', compact('trainings'));
+        if ($request->wantsJson()) {
+            return response()->json(
+                $trainings->map(function ($training) {
+                    return [
+                        'id' => $training->id,
+                        'title' => $training->title,
+                        'description' => $training->description,
+                        'provider' => $training->provider,
+                        'duration_value' => $training->duration_value,
+                        'duration_unit' => $training->duration_unit,
+                        'formatted_duration' => $training->formatted_duration,
+                    ];
+                })->values()
+            );
+        }
+
+        return view('human-capital.training', compact('trainings', 'canManageTraining'));
     }
 
     public function store(Request $request)
@@ -75,7 +108,6 @@ class TrainingController extends Controller
             return back()->with('error', 'Training must be completed first.');
         }
 
-        // generate certificate code
         $code = 'CERT-' . strtoupper(uniqid());
 
         $assignment->update([

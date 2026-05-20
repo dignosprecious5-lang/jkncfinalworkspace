@@ -5,7 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Legal;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Storage;
 
 class LegalController extends Controller
 {
@@ -43,7 +43,7 @@ class LegalController extends Controller
             'approved_by' => $item->approved_by,
             'approved_at' => optional($item->approved_at)->format('Y-m-d H:i:s'),
             'review_note' => $item->review_note,
-            'document_url' => $item->document_path ? asset($item->document_path) : null,
+            'document_url' => $this->publicFileUrl($item->document_path),
             'can_edit' => $this->canEditRecord($item),
             'can_submit' => (
                 (int) $item->submitted_by === (int) Auth::id()
@@ -105,15 +105,8 @@ class LegalController extends Controller
 
         if ($request->hasFile('document')) {
             $file = $request->file('document');
-            $documentName = time() . '_' . preg_replace('/\s+/', '_', $file->getClientOriginalName());
-
-            $destinationPath = public_path('documents/legal');
-            if (!File::exists($destinationPath)) {
-                File::makeDirectory($destinationPath, 0755, true);
-            }
-
-            $file->move($destinationPath, $documentName);
-            $relativePath = 'documents/legal/' . $documentName;
+            $documentName = time() . '_' . $this->sanitizeFileName($file->getClientOriginalName());
+            $relativePath = $file->storeAs('documents/legal', $documentName, 'public');
         }
 
         $isApprover = $this->canApproveCorporate();
@@ -170,18 +163,16 @@ class LegalController extends Controller
         ];
 
         if ($request->hasFile('document')) {
-            $file = $request->file('document');
-            $documentName = time() . '_' . preg_replace('/\s+/', '_', $file->getClientOriginalName());
-
-            $destinationPath = public_path('documents/legal');
-            if (!File::exists($destinationPath)) {
-                File::makeDirectory($destinationPath, 0755, true);
+            if ($record->document_path && Storage::disk('public')->exists($this->normalizePublicPath($record->document_path))) {
+                Storage::disk('public')->delete($this->normalizePublicPath($record->document_path));
             }
 
-            $file->move($destinationPath, $documentName);
+            $file = $request->file('document');
+            $documentName = time() . '_' . $this->sanitizeFileName($file->getClientOriginalName());
+            $filePath = $file->storeAs('documents/legal', $documentName, 'public');
 
             $payload['document_name'] = $documentName;
-            $payload['document_path'] = 'documents/legal/' . $documentName;
+            $payload['document_path'] = $filePath;
         }
 
         if (($record->workflow_status ?? 'Uploaded') === 'Reverted') {
@@ -195,6 +186,31 @@ class LegalController extends Controller
             'message' => 'Legal document updated successfully.',
             'data' => $this->transformRecord($record->fresh()),
         ]);
+    }
+
+    private function sanitizeFileName(string $fileName): string
+    {
+        return preg_replace('/[^A-Za-z0-9.\-_]/', '_', $fileName) ?: 'uploaded_file';
+    }
+
+    private function normalizePublicPath(?string $path): ?string
+    {
+        if (empty($path)) {
+            return null;
+        }
+
+        $path = ltrim($path, '/');
+        $path = preg_replace('#^public/#', '', $path);
+        $path = preg_replace('#^storage/#', '', $path);
+
+        return $path;
+    }
+
+    private function publicFileUrl(?string $path): ?string
+    {
+        $path = $this->normalizePublicPath($path);
+
+        return $path ? asset('storage/' . $path) : null;
     }
 
     public function submit($id)

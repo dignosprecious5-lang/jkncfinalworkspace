@@ -150,28 +150,28 @@
                     </div>
 
                     {{-- A4 PAPER PREVIEW --}}
-                    <div class="bg-white mx-auto border border-gray-300 shadow-lg px-10 py-8 text-[11px] leading-tight w-[820px] min-h-[1123px] print-area">
-                        <div class="text-center border-b-2 border-blue-700 pb-4 mb-4">
+                    <div class="obf-paper print-area">
+                        <div class="obf-letterhead">
                             {{-- Change the image path below if your logo uses another public path. You can copy the src from app.blade.php. --}}
-                            <img src="{{ asset('images/jk-logo-template.png') }}" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';" class="h-24 mx-auto mb-2 object-contain" alt="John Kelly & Company Logo">
+                            <img src="{{ asset('images/jk-logo-template.png') }}" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';" class="obf-logo" alt="John Kelly & Company Logo">
                             <div style="display:none">
                                 <div class="text-3xl font-serif font-bold text-gray-900">John Kelly</div>
                                 <div class="text-2xl font-serif italic text-gray-800">& Company</div>
                             </div>
-                            <p class="mt-2 text-[11px] font-semibold">3F, Cebu Holdings Center, Cebu Business Park, Cebu City, Philippines 6000</p>
+                            <p class="obf-partners">Atty. Jose B. Ogang, CPA, MMPSM • Jose Tomayo Rio, MM-BA, CPA •<br>Lyndon Earl P. Rio, RN, CB • John Kelly Abalde, CLSSBB, CPM</p>
+                            <p>3F, Cebu Holdings Center, Cebu Business Park, Cebu City, Philippines 6000</p>
                             <p>Email: start@jknc.io · Website: https://jknc.io/ · Phone: 0995-535-8729</p>
-                            <p class="mt-1">Form Code: OBF-F001 · Version: 1.0 · Effective Date: December 1, 2025 · Issued by: Office of the President</p>
+                            <p class="obf-form-meta">Form Code: OBF-F001 · Version: 1 · Effective Date: December 1, 2025 · Issued By: Office of the President</p>
                         </div>
 
-                        <div class="bg-blue-700 text-white px-3 py-2 font-bold uppercase tracking-widest text-sm mb-3 rounded-sm">
+                        <div class="obf-title">
                             Official Business Travel Form
                         </div>
 
-                        <div class="grid grid-cols-2 gap-2 mb-3">
-                            <div><span class="font-bold">OB Reference No:</span> <span x-text="form.ob_reference_no || 'Auto-generated'"></span></div>
-                            <div><span class="font-bold">Status:</span> <span x-text="form.status || 'Pending'"></span></div>
-                            <div><span class="font-bold">Date & Time:</span> {{ now()->format('m/d/Y h:i A') }}</div>
-                            <div><span class="font-bold">Trip Type:</span> <span x-text="form.trip_type || '-'"></span></div>
+                        <div class="obf-reference">
+                            <div><b>OB Reference No.:</b><strong x-text="form.ob_reference_no || 'Auto-generated'"></strong></div>
+                            <div><b>Date & Time:</b><strong>{{ now()->format('n/j/Y h:i:s A') }}</strong></div>
+                            <div class="obf-config">Config loaded</div>
                         </div>
 
                         <div class="section-title">A. Travel Information</div>
@@ -179,6 +179,9 @@
                             <tr>
                                 <td class="w-1/2"><b>Primary Destination:</b> <span x-text="form.destination || '-'"></span></td>
                                 <td><b>Additional Stops:</b> <span x-text="form.additional_stops || 'None'"></span></td>
+                            </tr>
+                            <tr>
+                                <td colspan="2"><b>Maps:</b> <span>Open in Google Maps    Tip: type a place/address and click Maps.</span></td>
                             </tr>
                             <tr>
                                 <td><b>Travel Purpose:</b> <span x-text="purposeText()"></span></td>
@@ -458,10 +461,21 @@
                             <div class="grid grid-cols-2 gap-4">
                                 <div>
                                     <label class="label">Is this travel for a client?</label>
-                                    <select name="is_client_travel" x-model="form.is_client_travel" :disabled="isView" class="input">
+                                    <select name="is_client_travel" x-model="form.is_client_travel" @change="handleClientTravelChange()" :disabled="isView" class="input">
                                         <option value="0">No</option>
                                         <option value="1">Yes</option>
                                     </select>
+                                </div>
+
+                                <div x-show="form.is_client_travel == '1'" x-cloak>
+                                    <label class="label">Select Client Contact</label>
+                                    <select x-model="form.client_contact_id" @change="selectClientContact()" :disabled="isView" class="input">
+                                        <option value="">Select contact from Contacts</option>
+                                        <template x-for="contact in contacts" :key="contact.id">
+                                            <option :value="contact.id" x-text="contact.label"></option>
+                                        </template>
+                                    </select>
+                                    <p class="mt-1 text-[11px] text-gray-400">This auto-fills the client details below from the Contacts module.</p>
                                 </div>
 
                                 <div>
@@ -473,9 +487,11 @@
                                     </select>
                                 </div>
 
-                                <div><label class="label">Client ID</label><input name="client_id_no" x-model="form.client_id_no" :readonly="isView" class="input"></div>
+                                <div><label class="label">Client ID / CIF No.</label><input name="client_id_no" x-model="form.client_id_no" :readonly="isView" class="input"></div>
                                 <div><label class="label">Client Name</label><input name="client_name" x-model="form.client_name" :readonly="isView" class="input"></div>
                                 <div><label class="label">Client Email</label><input type="email" name="client_email" x-model="form.client_email" :readonly="isView" class="input"></div>
+                                <div><label class="label">Client Contact Number</label><input x-model="selectedClientPhone" readonly class="input bg-gray-100"></div>
+                                <div><label class="label">Company / Business Name</label><input x-model="selectedClientCompany" readonly class="input bg-gray-100"></div>
                                 <div><label class="label">Contract Number</label><input name="client_contract_number" x-model="form.client_contract_number" :readonly="isView" class="input"></div>
                                 <div><label class="label">Contract Type</label><input name="contract_type" x-model="form.contract_type" :readonly="isView" class="input"></div>
 
@@ -677,29 +693,115 @@
     border-radius: 0.5rem;
     padding: 0.55rem 0.7rem;
 }
+.obf-paper {
+    background: white;
+    border-left: 3px solid #1d4ed8;
+    box-shadow: 0 10px 22px rgb(15 23 42 / 0.16);
+    color: #001b5f;
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 11px;
+    line-height: 1.35;
+    margin: 0 auto;
+    min-height: 1123px;
+    padding: 28px 28px 40px;
+    width: 794px;
+}
+.obf-letterhead {
+    border-bottom: 4px solid #2654e8;
+    color: #0b1b3f;
+    margin-bottom: 30px;
+    padding-bottom: 18px;
+    text-align: center;
+}
+.obf-logo {
+    height: 76px;
+    margin: 0 auto 8px;
+    object-fit: contain;
+}
+.obf-partners {
+    color: #000;
+    font-size: 12px;
+    font-weight: 800;
+}
+.obf-letterhead p {
+    margin: 4px 0;
+}
+.obf-title {
+    background: #2654e8;
+    border-radius: 7px;
+    color: white;
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    margin-bottom: 18px;
+    padding: 10px 18px;
+    text-transform: uppercase;
+}
+.obf-reference {
+    display: grid;
+    gap: 16px 26px;
+    grid-template-columns: max-content 1fr;
+    margin-bottom: 28px;
+}
+.obf-reference b {
+    color: #06236d;
+    display: inline-block;
+    min-width: 132px;
+}
+.obf-reference strong {
+    color: #000;
+    font-size: 13px;
+}
+.obf-config {
+    align-self: center;
+    border: 1px solid #22c55e;
+    border-radius: 999px;
+    color: #047857;
+    font-size: 11px;
+    font-weight: 700;
+    justify-self: end;
+    padding: 4px 12px;
+}
 .section-title {
-    background: rgb(219 234 254);
-    color: rgb(30 64 175);
-    border: 1px solid rgb(147 197 253);
+    background: #173684;
+    color: white;
+    border: 0;
+    border-radius: 5px;
     font-weight: 800;
     text-transform: uppercase;
     letter-spacing: 0.08em;
-    padding: 0.35rem 0.6rem;
-    margin-top: 0.75rem;
+    padding: 0.5rem 0.9rem;
+    margin: 1.25rem 0 0.75rem;
 }
 .preview-table {
     width: 100%;
-    border-collapse: collapse;
-    margin-bottom: 0.25rem;
+    border-collapse: separate;
+    border-spacing: 0 0.6rem;
+    margin-bottom: 0;
 }
 .preview-table td {
-    border: 1px solid rgb(156 163 175);
-    padding: 0.38rem 0.45rem;
+    border: 0;
+    padding: 0 0.75rem 0 0;
     vertical-align: top;
-    min-height: 28px;
 }
 .preview-table b {
-    color: rgb(31 41 55);
+    color: #001b5f;
+    display: block;
+    font-size: 11px;
+    margin-bottom: 0.3rem;
+}
+.preview-table td > span {
+    background: #f8fafc;
+    border: 1px solid #1d4ed8;
+    border-radius: 5px;
+    color: #111827;
+    display: block;
+    min-height: 32px;
+    padding: 8px 10px;
+    white-space: pre-line;
+}
+.preview-table td[colspan="2"] > span {
+    min-height: 44px;
 }
 @media print {
     body * {
@@ -710,7 +812,7 @@
     }
     @page {
         size: A4;
-        margin: 10mm;
+        margin: 0;
     }
     .print-area {
         position: fixed;
@@ -719,6 +821,7 @@
         min-height: 1123px;
         box-shadow: none;
         border: none;
+        padding: 28px;
     }
 }
 </style>
@@ -727,15 +830,16 @@
 function obfPage() {
     return {
         employees: @json($employees),
+        contacts: @json($contacts ?? []),
         trips: @json($trips),
 
         showPanel: false,
         isEdit: false,
         isView: false,
 
-        purposeOptionList: ['Client Meeting', 'Government Filing', 'Business Development', 'Training / Seminar', 'Field Work', 'Others'],
-        clientPaymentOptionList: ['Fare', 'Fuel', 'Meals', 'Accommodation', 'Parking', 'Others'],
-        attachmentTypeList: ['Invitation', 'Client Request', 'Meeting Agenda', 'Travel Itinerary', 'Quotation', 'Others'],
+        purposeOptionList: ['Official Business Travel', 'Site Inspection', 'Training / Seminar', 'Operations Support', 'Field Work', 'Audit', 'Client Meeting', 'Delivery / Pickup', 'Others'],
+        clientPaymentOptionList: ['Transportation', 'Meals Per Diem', 'Miscellaneous', 'Vehicle Rental', 'Fuel', 'Airline Boat Tickets', 'Driver Fee', 'Toll Parking', 'Accommodation', 'Others'],
+        attachmentTypeList: ['Rental Contract', 'Flight Ticket', 'Transmital form', 'Memo', 'Client Contract', 'Clients Approval', 'Picture of Meter', 'Others'],
 
         form: {},
         preview: {},
@@ -772,6 +876,7 @@ function obfPage() {
                 superior_email: '',
 
                 is_client_travel: '0',
+                client_contact_id: '',
                 client_type: '',
                 client_id_no: '',
                 client_name: '',
@@ -865,6 +970,7 @@ function obfPage() {
                 purpose_options: trip.purpose_options || [],
                 team_members: trip.team_members && trip.team_members.length ? [...trip.team_members, '', '', ''].slice(0, 3) : ['', '', ''],
                 is_client_travel: trip.is_client_travel ? '1' : '0',
+                client_contact_id: trip.client_contact_id || '',
                 client_payment_items: trip.client_payment_items || [],
                 attachment_paths: trip.attachment_paths || [],
                 attachment_types: trip.attachment_types || [],
@@ -914,6 +1020,50 @@ function obfPage() {
                 position: trip.position || employee?.position || '',
                 department: trip.department || employee?.department || '',
             };
+        },
+
+
+        selectedClientContact() {
+            return this.contacts.find(item => String(item.id) === String(this.form.client_contact_id));
+        },
+
+        get selectedClientPhone() {
+            return this.selectedClientContact()?.phone || '';
+        },
+
+        get selectedClientCompany() {
+            return this.selectedClientContact()?.company_name || '';
+        },
+
+        handleClientTravelChange() {
+            if (this.form.is_client_travel == '1') {
+                return;
+            }
+
+            this.form.client_contact_id = '';
+            this.form.client_type = '';
+            this.form.client_id_no = '';
+            this.form.client_name = '';
+            this.form.client_email = '';
+            this.form.client_contract_number = '';
+            this.form.contract_type = '';
+            this.form.travel_billability = '';
+        },
+
+        selectClientContact() {
+            const contact = this.selectedClientContact();
+
+            if (!contact) {
+                return;
+            }
+
+            this.form.is_client_travel = '1';
+            this.form.client_type = contact.client_type || this.form.client_type || 'Local';
+            this.form.client_id_no = contact.cif_no || contact.tin || contact.id || '';
+            this.form.client_name = contact.full_name || '';
+            this.form.client_email = contact.email || '';
+            this.form.client_contract_number = contact.cif_no || this.form.client_contract_number || '';
+            this.form.contract_type = contact.contract_type || this.form.contract_type || '';
         },
 
         purposeText() {

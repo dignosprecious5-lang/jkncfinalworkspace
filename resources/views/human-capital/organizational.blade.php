@@ -328,6 +328,8 @@ let divisionOptions = @json($divisionOptions);
 let unitOptions = @json($unitOptions);
 
 const storeUrl = @json(route('human-capital.organizational.store'));
+const updateUrlTemplate = @json(route('human-capital.organizational.update', ['type' => '__TYPE__', 'id' => '__ID__']));
+const deleteUrlTemplate = @json(route('human-capital.organizational.destroy', ['type' => '__TYPE__', 'id' => '__ID__']));
 const csrfToken = @json(csrf_token());
 
 const regionsUrl = @json(route('human-capital.organizational.locations.regions'));
@@ -336,6 +338,8 @@ const citiesUrlTemplate = @json(route('human-capital.organizational.locations.ci
 const barangaysUrlTemplate = @json(route('human-capital.organizational.locations.barangays', ['cityCode' => '__CITY__']));
 
 let currentProvinceType = 'province';
+let isEditMode = false;
+let editingRecordId = null;
 
 const tableColumns = {
     address: [
@@ -401,20 +405,25 @@ const formTitles = {
     position: 'Add Position',
 };
 
+const editFormTitles = {
+    address: 'Edit Address',
+    branch: 'Edit Branch',
+    office: 'Edit Office',
+    department: 'Edit Department',
+    division: 'Edit Division',
+    unit: 'Edit Unit',
+    position: 'Edit Position',
+};
+
 function openAddSection() {
+    isEditMode = false;
+    editingRecordId = null;
     resetFormDefaults();
     populateAllSelects();
-    document.getElementById('formTitle').textContent = formTitles[activeTab] || 'Add Entry';
+    document.getElementById('formTitle').textContent = isEditMode ? (editFormTitles[activeTab] || 'Edit Entry') : (formTitles[activeTab] || 'Add Entry');
+    document.getElementById('saveButton').textContent = 'Save';
     showFormSection(activeTab);
-
-    const addSection = document.getElementById('addSection');
-    const addPanel = document.getElementById('addPanel');
-
-    addSection.classList.remove('hidden');
-
-    requestAnimationFrame(() => {
-        addPanel.classList.remove('translate-x-full');
-    });
+    showPanel();
 
     if (activeTab === 'address') {
         loadRegions();
@@ -427,8 +436,22 @@ function openAddSection() {
     syncPositionReadonlyFields();
 }
 
+function showPanel() {
+    const addSection = document.getElementById('addSection');
+    const addPanel = document.getElementById('addPanel');
+
+    addSection.classList.remove('hidden');
+
+    requestAnimationFrame(() => {
+        addPanel.classList.remove('translate-x-full');
+    });
+}
+
 function closeAddSection() {
     resetFormDefaults();
+    isEditMode = false;
+    editingRecordId = null;
+    document.getElementById('saveButton').textContent = 'Save';
 
     const addSection = document.getElementById('addSection');
     const addPanel = document.getElementById('addPanel');
@@ -444,7 +467,7 @@ function changeTab(tab, button) {
     activeTab = tab;
     updateTabStyles(button);
     drawTableRows();
-    document.getElementById('formTitle').textContent = formTitles[activeTab] || 'Add Entry';
+    document.getElementById('formTitle').textContent = isEditMode ? (editFormTitles[activeTab] || 'Edit Entry') : (formTitles[activeTab] || 'Add Entry');
     showFormSection(activeTab);
     hideFormError();
 }
@@ -484,7 +507,7 @@ function drawTableHead() {
 
     head.innerHTML = columns.map(column => {
         return `<th class="p-3 text-left font-medium ${column.width || ''}">${column.label}</th>`;
-    }).join('');
+    }).join('') + `<th class="p-3 text-left font-medium w-36">Actions</th>`;
 }
 
 function drawTableRows() {
@@ -497,7 +520,7 @@ function drawTableRows() {
     tableBody.innerHTML = '';
 
     if (!rows.length) {
-        tableBody.innerHTML = `<tr class="border-t"><td colspan="${columns.length}" class="p-10 text-center text-gray-400 italic">No data found</td></tr>`;
+        tableBody.innerHTML = `<tr class="border-t"><td colspan="${columns.length + 1}" class="p-10 text-center text-gray-400 italic">No data found</td></tr>`;
         return;
     }
 
@@ -506,11 +529,110 @@ function drawTableRows() {
         tr.className = 'border-t hover:bg-gray-50';
 
         tr.innerHTML = columns.map(column => {
-            return `<td class="p-3 text-gray-900 align-top break-words">${row[column.key] ?? ''}</td>`;
-        }).join('');
+            return `<td class="p-3 text-gray-900 align-top break-words">${escapeHtml(row[column.key] ?? '')}</td>`;
+        }).join('') + `
+            <td class="p-3 align-top">
+                <div class="flex gap-2">
+                    <button type="button"
+                            onclick='openEditSection(${JSON.stringify(activeTab)}, ${JSON.stringify(row).replaceAll("'", "&#039;")})'
+                            class="px-2.5 py-1 rounded bg-amber-50 text-amber-700 text-xs font-medium hover:bg-amber-100">
+                        Edit
+                    </button>
+                    <button type="button"
+                            onclick="deleteOrganizationalEntry('${activeTab}', ${row.id})"
+                            class="px-2.5 py-1 rounded bg-red-50 text-red-700 text-xs font-medium hover:bg-red-100">
+                        Delete
+                    </button>
+                </div>
+            </td>
+        `;
 
         tableBody.appendChild(tr);
     });
+}
+
+
+async function openEditSection(tab, row) {
+    activeTab = tab;
+    isEditMode = true;
+    editingRecordId = row.id;
+    hideFormError();
+    populateAllSelects();
+    updateTabStyles();
+    showFormSection(activeTab);
+    document.getElementById('formTitle').textContent = editFormTitles[activeTab] || 'Edit Entry';
+    document.getElementById('saveButton').textContent = 'Update';
+    showPanel();
+
+    await fillFormForEdit(tab, row);
+}
+
+async function fillFormForEdit(tab, row) {
+    resetFormDefaults();
+    populateAllSelects();
+
+    if (tab === 'address') {
+        document.getElementById('address_country').value = row.country || 'Philippines';
+        document.getElementById('address_street_address').value = row.street_address || '';
+        document.getElementById('address_subdivision_building').value = row.subdivision_building || '';
+        document.getElementById('address_unit_no').value = row.unit_no || '';
+        document.getElementById('address_postal_code').value = row.postal_code || '';
+
+        await loadRegions();
+        document.getElementById('address_region_code').value = row.region_code || '';
+        await onRegionChange();
+        document.getElementById('address_province_code').value = row.province_code || '';
+        await onProvinceChange();
+        document.getElementById('address_city_code').value = row.city_code || '';
+        await onCityChange();
+        document.getElementById('address_barangay_code').value = row.barangay_code || '';
+        return;
+    }
+
+    if (tab === 'branch') {
+        document.getElementById('branch_name').value = row.branch_name || '';
+        document.getElementById('branch_address_id').value = row.address_id || '';
+        document.getElementById('branch_head').value = row.branch_head || '';
+        return;
+    }
+
+    if (tab === 'office') {
+        document.getElementById('office_name').value = row.office_name || '';
+        document.getElementById('office_head').value = row.office_head || '';
+        document.getElementById('office_branch_id').value = row.branch_id || '';
+        syncOfficeReadonlyFields();
+        return;
+    }
+
+    if (tab === 'department') {
+        document.getElementById('department_name').value = row.department_name || '';
+        document.getElementById('department_head').value = row.department_head || '';
+        document.getElementById('department_office_id').value = row.office_id || '';
+        syncDepartmentReadonlyFields();
+        return;
+    }
+
+    if (tab === 'division') {
+        document.getElementById('division_name').value = row.division_name || '';
+        document.getElementById('division_head').value = row.division_head || '';
+        document.getElementById('division_department_id').value = row.department_id || '';
+        syncDivisionReadonlyFields();
+        return;
+    }
+
+    if (tab === 'unit') {
+        document.getElementById('unit_name').value = row.unit_name || '';
+        document.getElementById('unit_head').value = row.unit_head || '';
+        document.getElementById('unit_division_id').value = row.division_id || '';
+        syncUnitReadonlyFields();
+        return;
+    }
+
+    if (tab === 'position') {
+        document.getElementById('position_name').value = row.position_name || '';
+        document.getElementById('position_unit_id').value = row.unit_id || '';
+        syncPositionReadonlyFields();
+    }
 }
 
 function populateSelect(selectId, items, placeholder, labelKey) {
@@ -924,6 +1046,76 @@ function refreshOptions(recordType, record) {
     }
 }
 
+
+function upsertOption(recordType, record) {
+    const optionMaps = {
+        address: { list: addressOptions, labelKey: 'full_address' },
+        branch: { list: branchOptions, labelKey: 'branch_name' },
+        office: { list: officeOptions, labelKey: 'office_name' },
+        department: { list: departmentOptions, labelKey: 'department_name' },
+        division: { list: divisionOptions, labelKey: 'division_name' },
+        unit: { list: unitOptions, labelKey: 'unit_name' },
+    };
+
+    const config = optionMaps[recordType];
+    if (!config) return;
+
+    const index = config.list.findIndex(item => String(item.id) === String(record.id));
+    const option = { id: record.id };
+    option[config.labelKey] = record[config.labelKey];
+
+    if (record.address_id !== undefined) option.address_id = record.address_id;
+    if (record.branch_id !== undefined) option.branch_id = record.branch_id;
+    if (record.office_id !== undefined) option.office_id = record.office_id;
+    if (record.department_id !== undefined) option.department_id = record.department_id;
+    if (record.division_id !== undefined) option.division_id = record.division_id;
+
+    if (index >= 0) {
+        config.list[index] = option;
+    } else {
+        config.list.unshift(option);
+    }
+}
+
+function removeOption(recordType, id) {
+    const optionLists = {
+        address: addressOptions,
+        branch: branchOptions,
+        office: officeOptions,
+        department: departmentOptions,
+        division: divisionOptions,
+        unit: unitOptions,
+    };
+
+    const list = optionLists[recordType];
+    if (!list) return;
+
+    const index = list.findIndex(item => String(item.id) === String(id));
+    if (index >= 0) {
+        list.splice(index, 1);
+    }
+}
+
+function replaceRow(recordType, record) {
+    const rows = organizationalRows[recordType] || [];
+    const index = rows.findIndex(item => String(item.id) === String(record.id));
+
+    if (index >= 0) {
+        rows[index] = record;
+    } else {
+        rows.unshift(record);
+    }
+}
+
+function removeRow(recordType, id) {
+    const rows = organizationalRows[recordType] || [];
+    const index = rows.findIndex(item => String(item.id) === String(id));
+
+    if (index >= 0) {
+        rows.splice(index, 1);
+    }
+}
+
 async function saveOrganizationalEntry() {
     hideFormError();
 
@@ -931,11 +1123,17 @@ async function saveOrganizationalEntry() {
     const originalText = saveButton.textContent;
 
     saveButton.disabled = true;
-    saveButton.textContent = 'Saving...';
+    saveButton.textContent = isEditMode ? 'Updating...' : 'Saving...';
 
     try {
-        const response = await fetch(storeUrl, {
-            method: 'POST',
+        const url = isEditMode
+            ? updateUrlTemplate
+                .replace('__TYPE__', encodeURIComponent(activeTab))
+                .replace('__ID__', encodeURIComponent(editingRecordId))
+            : storeUrl;
+
+        const response = await fetch(url, {
+            method: isEditMode ? 'PUT' : 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'Accept': 'application/json',
@@ -964,19 +1162,61 @@ async function saveOrganizationalEntry() {
             return false;
         }
 
-        organizationalRows[activeTab].unshift(data.record);
-        refreshOptions(activeTab, data.record);
+        if (isEditMode) {
+            replaceRow(activeTab, data.record);
+            upsertOption(activeTab, data.record);
+        } else {
+            organizationalRows[activeTab].unshift(data.record);
+            refreshOptions(activeTab, data.record);
+        }
+
         populateAllSelects();
         drawTableRows();
         closeAddSection();
         return true;
     } catch (error) {
         console.error(error);
-        showFormError('Something went wrong while saving.');
+        showFormError(isEditMode ? 'Something went wrong while updating.' : 'Something went wrong while saving.');
         return false;
     } finally {
         saveButton.disabled = false;
-        saveButton.textContent = originalText;
+        saveButton.textContent = isEditMode ? 'Update' : originalText;
+    }
+}
+
+async function deleteOrganizationalEntry(type, id) {
+    if (!confirm('Delete this record? This cannot be undone.')) {
+        return;
+    }
+
+    try {
+        const url = deleteUrlTemplate
+            .replace('__TYPE__', encodeURIComponent(type))
+            .replace('__ID__', encodeURIComponent(id));
+
+        const response = await fetch(url, {
+            method: 'DELETE',
+            headers: {
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': csrfToken,
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+        });
+
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+            alert(data.message || 'Unable to delete record.');
+            return;
+        }
+
+        removeRow(type, id);
+        removeOption(type, id);
+        populateAllSelects();
+        drawTableRows();
+    } catch (error) {
+        console.error(error);
+        alert('Something went wrong while deleting.');
     }
 }
 

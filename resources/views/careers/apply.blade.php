@@ -19,7 +19,7 @@
     </style>
 </head>
 <body class="bg-gray-50 text-gray-900">
-    <div class="min-h-screen py-12 px-4 sm:px-6 lg:px-8" x-data="publicApplication({{ $jobPostings->toJson() }})">
+    <div class="min-h-screen py-12 px-4 sm:px-6 lg:px-8" x-data='publicApplication(@json($jobPostings ?? []))'>
         <div class="max-w-4xl mx-auto">
             {{-- Header --}}
             <div class="text-center mb-12">

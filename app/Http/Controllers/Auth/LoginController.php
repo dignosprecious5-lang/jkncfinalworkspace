@@ -8,11 +8,20 @@ use Illuminate\Support\Facades\Auth;
 
 class LoginController extends Controller
 {
-
     public function showLoginForm()
     {
         if (Auth::check()) {
-            return redirect()->route('corporate');
+            $user = Auth::user();
+
+            if ($user->role === 'SuperAdmin' || $user->role === 'Admin') {
+                return redirect()->route('admin.users');
+            }
+
+            if (strtolower((string) $user->role) === 'client') {
+                return redirect()->route('contacts.index');
+            }
+
+            return redirect()->route('townhall');
         }
 
         return view('auth.login');
@@ -20,32 +29,34 @@ class LoginController extends Controller
 
     public function login(Request $request)
     {
-
-        $request->validate([
-            'email' => 'required|email',
-            'password' => 'required'
+        $credentials = $request->validate([
+            'email' => ['required', 'email'],
+            'password' => ['required'],
         ]);
 
-        if (Auth::attempt($request->only('email', 'password'))) {
-
+        if (Auth::attempt($credentials)) {
             $request->session()->regenerate();
 
-            // ROLE REDIRECT
-            if (Auth::user()->role === 'SuperAdmin' || Auth::user()->role === 'Admin') {
+            $user = Auth::user();
+
+            if ($user->role === 'SuperAdmin' || $user->role === 'Admin') {
                 return redirect()->route('admin.users');
+            }
+
+            if (strtolower((string) $user->role) === 'client') {
+                return redirect()->route('contacts.index');
             }
 
             return redirect()->route('townhall');
         }
 
-        return back()->withErrors([
-            'email' => 'Invalid credentials.'
-        ]);
+        return back()
+            ->withErrors(['email' => 'Invalid credentials.'])
+            ->onlyInput('email');
     }
 
     public function logout(Request $request)
     {
-
         Auth::logout();
 
         $request->session()->invalidate();

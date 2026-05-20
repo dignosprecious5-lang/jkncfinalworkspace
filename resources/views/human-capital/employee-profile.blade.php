@@ -22,17 +22,16 @@
                     <p class="text-xs font-bold text-blue-600 uppercase tracking-wider">Human Capital</p>
                     <h1 class="text-xl font-bold text-gray-900">Employee Profile</h1>
                     <p class="text-xs text-gray-500 mt-1">
-                        Employee Master List and individual personnel profile records.
+                        Employee profiles are created after completed onboarding and employee registration. Use On Boarding for new applicants and existing personnel.
                     </p>
                 </div>
 
-                <button
-                    type="button"
-                    @click="openAdd()"
+                <a
+                    href="{{ url('/human-capital/onboarding') }}"
                     class="bg-blue-600 text-white px-6 py-2 rounded-lg text-sm shrink-0 hover:bg-blue-700 transition font-semibold"
                 >
-                    + Add Employee
-                </button>
+                    + Create from Onboarding
+                </a>
             </div>
 
             @if (session('success'))
@@ -140,12 +139,14 @@
                         <tr>
                             <th class="px-4 py-3 text-left font-semibold text-gray-700">Employee ID</th>
                             <th class="px-4 py-3 text-left font-semibold text-gray-700">Full Name</th>
-                            <th class="px-4 py-3 text-left font-semibold text-gray-700">Email</th>
+                            <th class="px-4 py-3 text-left font-semibold text-gray-700">Work Email</th>
+                            <th class="px-4 py-3 text-left font-semibold text-gray-700">Account</th>
                             <th class="px-4 py-3 text-left font-semibold text-gray-700">Phone</th>
                             <th class="px-4 py-3 text-left font-semibold text-gray-700">Position</th>
                             <th class="px-4 py-3 text-left font-semibold text-gray-700">Department</th>
                             <th class="px-4 py-3 text-left font-semibold text-gray-700">Office</th>
                             <th class="px-4 py-3 text-left font-semibold text-gray-700">Branch</th>
+                            <th class="px-4 py-3 text-left font-semibold text-gray-700">Schedule</th>
                             <th class="px-4 py-3 text-left font-semibold text-gray-700">Payroll Type</th>
                             <th class="px-4 py-3 text-left font-semibold text-gray-700">Basic Salary</th>
                             <th class="px-4 py-3 text-right font-semibold text-gray-700">Actions</th>
@@ -155,7 +156,7 @@
                     <tbody>
                         <template x-if="filteredEmployees.length === 0">
                             <tr>
-                                <td colspan="11" class="px-4 py-10 text-center text-gray-400">
+                                <td colspan="13" class="px-4 py-10 text-center text-gray-400">
                                     No employees found.
                                 </td>
                             </tr>
@@ -180,12 +181,26 @@
                                         </div>
                                     </div>
                                 </td>
-                                <td class="px-4 py-3 whitespace-nowrap text-gray-700" x-text="employee.email ?? '-'"></td>
+                                <td class="px-4 py-3 whitespace-nowrap text-gray-700" x-text="employee.work_email || employee.email || '-'"></td>
+                                <td class="px-4 py-3 whitespace-nowrap">
+                                    <template x-if="employee.has_user_account">
+                                        <span class="px-2 py-1 rounded-full text-xs font-semibold bg-green-50 text-green-700">
+                                            Has Account
+                                        </span>
+                                    </template>
+
+                                    <template x-if="!employee.has_user_account">
+                                        <span class="px-2 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-600">
+                                            No Account
+                                        </span>
+                                    </template>
+                                </td>
                                 <td class="px-4 py-3 whitespace-nowrap text-gray-700" x-text="employee.phone_number ?? '-'"></td>
                                 <td class="px-4 py-3 whitespace-nowrap text-gray-700" x-text="employee.position ?? '-'"></td>
                                 <td class="px-4 py-3 whitespace-nowrap text-gray-700" x-text="employee.department_name ?? '-'"></td>
                                 <td class="px-4 py-3 whitespace-nowrap text-gray-700" x-text="employee.office_name ?? '-'"></td>
                                 <td class="px-4 py-3 whitespace-nowrap text-gray-700" x-text="employee.branch_name ?? '-'"></td>
+                                <td class="px-4 py-3 whitespace-nowrap text-gray-700" x-text="scheduleLabel(employee)"></td>
                                 <td class="px-4 py-3 whitespace-nowrap">
                                     <span class="px-2 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700" x-text="employee.payroll_type ?? '-'"></span>
                                 </td>
@@ -300,7 +315,7 @@
                             <div class="grid grid-cols-3 gap-4">
                                 <div class="profile-card"><p class="profile-label">Basic Salary</p><p class="profile-value text-green-700" x-text="formatMoney(selectedEmployee.basic_salary)"></p></div>
                                 <div class="profile-card"><p class="profile-label">Hourly Rate</p><p class="profile-value" x-text="formatMoney(selectedEmployee.hourly_rate)"></p></div>
-                                <div class="profile-card"><p class="profile-label">Contact</p><p class="profile-value" x-text="selectedEmployee.phone_number ?? '-'"></p></div>
+                                <div class="profile-card"><p class="profile-label">Work Schedule</p><p class="profile-value" x-text="scheduleLabel(selectedEmployee)"></p></div>
                             </div>
                         </div>
 
@@ -336,6 +351,9 @@
                                 <div class="profile-card"><p class="profile-label">Payroll Type</p><p class="profile-value" x-text="selectedEmployee.payroll_type ?? '-'"></p></div>
                                 <div class="profile-card"><p class="profile-label">Basic Salary</p><p class="profile-value text-green-700" x-text="formatMoney(selectedEmployee.basic_salary)"></p></div>
                                 <div class="profile-card"><p class="profile-label">Hourly Rate</p><p class="profile-value" x-text="formatMoney(selectedEmployee.hourly_rate)"></p></div>
+                            </div>
+                            <div class="grid grid-cols-1 gap-4">
+                                <div class="profile-card"><p class="profile-label">Work Schedule</p><p class="profile-value" x-text="scheduleLabel(selectedEmployee)"></p></div>
                             </div>
                             <div class="rounded-xl border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-800">
                                 Payroll profile, payslip records, deductions, and payroll summaries can be connected here later.
@@ -385,7 +403,7 @@
             <div class="px-5 py-4 border-b flex items-center justify-between bg-blue-700">
                 <div>
                     <p class="text-xs font-bold text-blue-100 uppercase tracking-widest">Employee Profile</p>
-                    <h2 class="text-base font-bold text-white" x-text="isEdit ? 'Edit Employee' : 'Add Employee'"></h2>
+                    <h2 class="text-base font-bold text-white" x-text="isEdit ? 'Edit Employee' : 'Employee Profile'"></h2>
                 </div>
                 <button type="button" @click="closeSlider()" class="text-blue-100 hover:text-white text-xl leading-none">&times;</button>
             </div>
@@ -425,7 +443,15 @@
                         <div><label class="form-label">Last Name <span class="text-red-500">*</span></label><input type="text" name="last_name" x-model="form.last_name" required class="form-input"></div>
                         <div><label class="form-label">Age</label><input type="number" name="age" x-model="form.age" class="form-input"></div>
                         <div><label class="form-label">Phone Number</label><input type="text" name="phone_number" x-model="form.phone_number" class="form-input"></div>
-                        <div class="col-span-2"><label class="form-label">Email Address <span class="text-red-500">*</span></label><input type="email" name="email" x-model="form.email" required class="form-input"></div>
+                        <div class="col-span-2">
+                            <label class="form-label">Personal Email</label>
+                            <input type="email" name="personal_email" x-model="form.personal_email" class="form-input" placeholder="Personal/applicant email">
+                        </div>
+                        <div class="col-span-2">
+                            <label class="form-label">Work Email <span class="text-red-500">*</span></label>
+                            <input type="email" name="work_email" x-model="form.work_email" required class="form-input" placeholder="Official company email">
+                            <input type="hidden" name="email" :value="form.work_email || form.personal_email || form.email">
+                        </div>
                         <div class="col-span-2"><label class="form-label">Address</label><textarea name="address" x-model="form.address" rows="3" class="form-input"></textarea></div>
                     </div>
                 </div>
@@ -449,6 +475,15 @@
                         <div><label class="form-label">Basic Salary <span class="text-red-500">*</span></label><input type="number" step="0.01" name="basic_salary" x-model="form.basic_salary" required class="form-input"></div>
                         <div><label class="form-label">Computed Hourly Rate</label><input type="text" :value="hourlyRate" readonly class="form-input bg-gray-50 text-gray-700"></div>
                     </div>
+                </div>
+
+                <div class="rounded-xl border border-gray-200 p-4">
+                    <h3 class="text-sm font-bold text-gray-900 mb-4">Work Schedule</h3>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div><label class="form-label">Shift Start</label><input type="time" name="schedule_start_time" x-model="form.schedule_start_time" class="form-input"></div>
+                        <div><label class="form-label">Shift End</label><input type="time" name="schedule_end_time" x-model="form.schedule_end_time" class="form-input"></div>
+                    </div>
+                    <p class="mt-2 text-xs text-gray-500">Employees can clock in starting 10 minutes before shift start. Active shifts auto close 4 hours after shift end.</p>
                 </div>
 
                 <div class="sticky bottom-0 bg-white border-t py-4">
@@ -504,6 +539,8 @@ function employeePage(config) {
             address: '',
             phone_number: '',
             email: '',
+            personal_email: '',
+            work_email: '',
             profile_photo_url: '',
             office_id: '',
             branch_id: '',
@@ -512,7 +549,9 @@ function employeePage(config) {
             unit_id: '',
             position: '',
             payroll_type: 'Monthly Paid',
-            basic_salary: 0
+            basic_salary: 0,
+            schedule_start_time: '',
+            schedule_end_time: ''
         },
 
         get filteredEmployees() {
@@ -523,11 +562,15 @@ function employeePage(config) {
                     employee.employee_code,
                     employee.full_name,
                     employee.email,
+                    employee.personal_email,
+                    employee.work_email,
+                    employee.user_email,
                     employee.phone_number,
                     employee.position,
                     employee.department_name,
                     employee.office_name,
                     employee.branch_name,
+                    this.scheduleLabel(employee),
                     employee.payroll_type
                 ].join(' ').toLowerCase();
 
@@ -625,6 +668,8 @@ function employeePage(config) {
                 address: employee.address ?? '',
                 phone_number: employee.phone_number ?? '',
                 email: employee.email ?? '',
+                personal_email: employee.personal_email ?? '',
+                work_email: employee.work_email ?? employee.email ?? '',
                 profile_photo_url: employee.profile_photo_url ?? '',
                 office_id: employee.office_id ?? '',
                 branch_id: employee.branch_id ?? '',
@@ -633,7 +678,9 @@ function employeePage(config) {
                 unit_id: employee.unit_id ?? '',
                 position: employee.position ?? '',
                 payroll_type: employee.payroll_type ?? 'Monthly Paid',
-                basic_salary: employee.basic_salary ?? 0
+                basic_salary: employee.basic_salary ?? 0,
+                schedule_start_time: employee.schedule_start_time ?? '',
+                schedule_end_time: employee.schedule_end_time ?? ''
             };
 
             this.showSlider = true;
@@ -652,6 +699,8 @@ function employeePage(config) {
                 address: '',
                 phone_number: '',
                 email: '',
+                personal_email: '',
+                work_email: '',
                 profile_photo_url: '',
                 office_id: '',
                 branch_id: '',
@@ -660,7 +709,9 @@ function employeePage(config) {
                 unit_id: '',
                 position: '',
                 payroll_type: 'Monthly Paid',
-                basic_salary: 0
+                basic_salary: 0,
+                schedule_start_time: '',
+                schedule_end_time: ''
             };
         },
 
@@ -698,6 +749,24 @@ function employeePage(config) {
             const first = employee?.first_name?.charAt(0) ?? '';
             const last = employee?.last_name?.charAt(0) ?? '';
             return (first + last).toUpperCase() || 'EP';
+        },
+
+        formatTime(value) {
+            if (!value) return '';
+            const [hours, minutes] = String(value).slice(0, 5).split(':').map(Number);
+            if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return '';
+
+            const date = new Date();
+            date.setHours(hours, minutes, 0, 0);
+
+            return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+        },
+
+        scheduleLabel(employee) {
+            const start = this.formatTime(employee?.schedule_start_time);
+            const end = this.formatTime(employee?.schedule_end_time);
+
+            return start && end ? `${start} - ${end}` : 'Not set';
         },
 
         formatMoney(value) {

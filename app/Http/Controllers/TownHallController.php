@@ -22,21 +22,21 @@ class TownHallController extends Controller
             abort(403, 'Unauthorized');
         }
 
-        $query = TownHallCommunication::where('approval_status', 'Approved');
+        $query = TownHallCommunication::with('recipientUser')
+            ->where('approval_status', 'Approved');
 
         if (Schema::hasColumn('townhall_communications', 'is_archived')) {
             $query->where('is_archived', false);
         }
+
+        $this->applyRecipientVisibility($query, Auth::user());
 
         if ($request->filled('department')) {
             $query->where('department_stakeholder', $request->department);
         }
 
         $communications = $query->latest()->paginate(10);
-        $todayAttendance = Attendance::firstOrNew([
-            'user_id' => Auth::id(),
-            'date' => now()->toDateString(),
-        ]);
+        $todayAttendance = app(AttendanceController::class)->currentClockAttendance(Auth::user());
 
         $departmentQuery = TownHallCommunication::query();
         if (Schema::hasColumn('townhall_communications', 'is_archived')) {
@@ -46,9 +46,14 @@ class TownHallController extends Controller
             ->distinct()
             ->pluck('department_stakeholder');
 
+        $employees = User::where('role', 'Employee')
+            ->orderBy('name')
+            ->get();
+
         return view('townhall.townhall', compact(
             'communications',
             'departments',
+            'employees',
             'todayAttendance'
         ));
     }
@@ -64,6 +69,8 @@ class TownHallController extends Controller
             'department_stakeholder' => ['nullable', 'string', 'max:255'],
             'recipient_label' => ['nullable', 'in:To,For'],
             'to_for' => ['nullable', 'string', 'max:255'],
+            'recipient_type' => ['nullable', 'in:all,employee'],
+            'recipient_user_id' => ['nullable', 'required_if:recipient_type,employee', 'exists:users,id'],
             'priority' => ['nullable', 'in:High,Low'],
             'subject' => ['nullable', 'string', 'max:255'],
             'message' => ['nullable', 'string'],
@@ -84,6 +91,8 @@ class TownHallController extends Controller
 
             $validated['attachment'] = $file->store('townhall_attachments', 'public');
         }
+
+        $validated = $this->normalizeRecipientFields($validated, $request);
 
         $validated['from_name'] = Auth::user()->name;
         $validated['priority'] = $request->priority ?? 'Low';
@@ -181,7 +190,7 @@ class TownHallController extends Controller
             abort(403, 'Unauthorized');
         }
 
-        $communication = TownHallCommunication::findOrFail($id);
+        $communication = TownHallCommunication::with('recipientUser')->findOrFail($id);
 
         if ($communication->created_by !== Auth::id()) {
             abort(403, 'You can only edit your own communication.');
@@ -191,7 +200,11 @@ class TownHallController extends Controller
             abort(403, 'Only communications marked for revision can be edited.');
         }
 
-        return view('townhall.edit', compact('communication'));
+        $employees = User::where('role', 'Employee')
+            ->orderBy('name')
+            ->get();
+
+        return view('townhall.edit', compact('communication', 'employees'));
     }
 
     public function update(Request $request, $id)
@@ -215,6 +228,8 @@ class TownHallController extends Controller
             'department_stakeholder' => ['nullable', 'string', 'max:255'],
             'recipient_label' => ['nullable', 'in:To,For'],
             'to_for' => ['nullable', 'string', 'max:255'],
+            'recipient_type' => ['nullable', 'in:all,employee'],
+            'recipient_user_id' => ['nullable', 'required_if:recipient_type,employee', 'exists:users,id'],
             'priority' => ['nullable', 'in:High,Low'],
             'subject' => ['nullable', 'string', 'max:255'],
             'message' => ['nullable', 'string'],
@@ -240,6 +255,8 @@ class TownHallController extends Controller
             $validated['attachment'] = $file->store('townhall_attachments', 'public');
         }
 
+        $validated = $this->normalizeRecipientFields($validated, $request);
+
         $validated['approval_status'] = 'Pending';
         $validated['approved_by'] = null;
         $validated['approved_at'] = null;
@@ -260,11 +277,15 @@ class TownHallController extends Controller
             abort(403, 'Unauthorized');
         }
 
-        $communication = TownHallCommunication::findOrFail($id);
+        $communication = TownHallCommunication::with('recipientUser')->findOrFail($id);
 
         // If user is not admin approver, hide expired/archived memos completely
         if (!Auth::user()->hasPermission('approve_townhall')) {
             if ($communication->approval_status !== 'Approved' || $communication->is_archived) {
+                abort(404);
+            }
+
+            if (!$this->canUserViewCommunication(Auth::user(), $communication)) {
                 abort(404);
             }
         }
@@ -395,10 +416,14 @@ class TownHallController extends Controller
             abort(403, 'Unauthorized');
         }
 
-        $communication = TownHallCommunication::findOrFail($id);
+        $communication = TownHallCommunication::with('recipientUser')->findOrFail($id);
 
         if ($communication->approval_status !== 'Approved' || $communication->is_archived) {
             abort(403, 'This communication is not available for acknowledgment.');
+        }
+
+        if (!$this->canUserViewCommunication(Auth::user(), $communication)) {
+            abort(403, 'This communication is not assigned to you.');
         }
 
         if (Auth::user()->hasPermission('approve_townhall')) {
@@ -429,6 +454,201 @@ class TownHallController extends Controller
         $pdf = Pdf::loadView('townhall.show-pdf', compact('communication'));
 
         return $pdf->download($communication->ref_no . '.pdf');
+    }
+
+
+    public function humanCapitalMemos(Request $request)
+    {
+        if (!Auth::check()) {
+            abort(403, 'Unauthorized');
+        }
+
+        $user = Auth::user();
+
+        $role = strtolower(trim((string) $user->role));
+
+        $isAdmin = in_array($role, [
+            'admin',
+            'superadmin',
+            'super admin',
+            'system super admin',
+        ]);
+
+        $selectedEmployee = $request->employee_id;
+
+        $employees = collect();
+
+        $query = TownHallCommunication::with('recipientUser')
+            ->where('approval_status', 'Approved');
+
+        if (Schema::hasColumn('townhall_communications', 'is_archived')) {
+            $query->where('is_archived', false);
+        }
+
+        if ($isAdmin) {
+            $employees = User::where(function ($q) {
+                $q->where('role', 'Employee')
+                    ->orWhere('role', 'employee');
+            })
+                ->orderBy('name')
+                ->get();
+
+            if ($selectedEmployee) {
+                /*
+             * STRICT FILTER:
+             * Shows only memos specifically sent to the selected employee.
+             * It will NOT include "All Employees" memos.
+             */
+                $query->where('recipient_type', 'employee')
+                    ->where('recipient_user_id', $selectedEmployee);
+            }
+        } else {
+            /*
+         * EMPLOYEE VIEW:
+         * Employee can only see:
+         * 1. Memos for all employees
+         * 2. Memos specifically sent to their user ID
+         */
+            $query->where(function ($q) use ($user) {
+                $q->where('recipient_type', 'all')
+                    ->orWhere(function ($sub) use ($user) {
+                        $sub->where('recipient_type', 'employee')
+                            ->where('recipient_user_id', $user->id);
+                    });
+            });
+        }
+
+        $communications = $query->latest()->paginate(10)->withQueryString();
+
+        return view('human-capital.memos', compact(
+            'communications',
+            'employees',
+            'isAdmin',
+            'selectedEmployee'
+        ));
+    }
+
+    private function normalizeRecipientFields(array $validated, Request $request): array
+    {
+        if (!Schema::hasColumn('townhall_communications', 'recipient_type')) {
+            unset($validated['recipient_type'], $validated['recipient_user_id']);
+            return $validated;
+        }
+
+        $recipientType = $request->input('recipient_type', 'all');
+
+        $validated['recipient_type'] = $recipientType;
+
+        if ($recipientType === 'all') {
+            $validated['recipient_user_id'] = null;
+            $validated['to_for'] = 'All Employees';
+            return $validated;
+        }
+
+        if ($recipientType === 'employee') {
+            $recipient = User::find($request->input('recipient_user_id'));
+
+            if ($recipient) {
+                $validated['recipient_user_id'] = $recipient->id;
+                $validated['to_for'] = $recipient->name;
+            }
+        }
+
+        return $validated;
+    }
+
+    private function applyRecipientVisibility($query, User $user): void
+    {
+        if ($user->hasPermission('approve_townhall')) {
+            return;
+        }
+
+        if (
+            Schema::hasColumn('townhall_communications', 'recipient_type')
+            && Schema::hasColumn('townhall_communications', 'recipient_user_id')
+        ) {
+            $query->where(function ($q) use ($user) {
+                $q->where('recipient_type', 'all')
+                    ->orWhere('recipient_user_id', $user->id)
+                    ->orWhere(function ($legacy) use ($user) {
+                        $legacy->whereNull('recipient_type')
+                            ->where(function ($old) use ($user) {
+                                $old->where('to_for', 'like', '%' . $user->name . '%')
+                                    ->orWhere('to_for', 'like', '%All%')
+                                    ->orWhere('to_for', 'like', '%Everyone%')
+                                    ->orWhere('to_for', 'like', '%All Employees%');
+                            });
+                    });
+            });
+
+            return;
+        }
+
+        $query->where(function ($q) use ($user) {
+            $q->where('to_for', 'like', '%' . $user->name . '%')
+                ->orWhere('to_for', 'like', '%All%')
+                ->orWhere('to_for', 'like', '%Everyone%')
+                ->orWhere('to_for', 'like', '%All Employees%');
+        });
+    }
+
+    private function applyRecipientFilterForEmployee($query, User $employee): void
+    {
+        if (
+            Schema::hasColumn('townhall_communications', 'recipient_type')
+            && Schema::hasColumn('townhall_communications', 'recipient_user_id')
+        ) {
+            $query->where(function ($q) use ($employee) {
+                $q->where('recipient_type', 'all')
+                    ->orWhere('recipient_user_id', $employee->id)
+                    ->orWhere(function ($legacy) use ($employee) {
+                        $legacy->whereNull('recipient_type')
+                            ->where(function ($old) use ($employee) {
+                                $old->where('to_for', 'like', '%' . $employee->name . '%')
+                                    ->orWhere('to_for', 'like', '%All%')
+                                    ->orWhere('to_for', 'like', '%Everyone%')
+                                    ->orWhere('to_for', 'like', '%All Employees%');
+                            });
+                    });
+            });
+
+            return;
+        }
+
+        $query->where(function ($q) use ($employee) {
+            $q->where('to_for', 'like', '%' . $employee->name . '%')
+                ->orWhere('to_for', 'like', '%All%')
+                ->orWhere('to_for', 'like', '%Everyone%')
+                ->orWhere('to_for', 'like', '%All Employees%');
+        });
+    }
+
+    private function canUserViewCommunication(User $user, TownHallCommunication $communication): bool
+    {
+        if ($user->hasPermission('approve_townhall')) {
+            return true;
+        }
+
+        if (
+            Schema::hasColumn('townhall_communications', 'recipient_type')
+            && Schema::hasColumn('townhall_communications', 'recipient_user_id')
+        ) {
+            if ($communication->recipient_type === 'all') {
+                return true;
+            }
+
+            if ((int) $communication->recipient_user_id === (int) $user->id) {
+                return true;
+            }
+        }
+
+        $toFor = strtolower((string) $communication->to_for);
+        $userName = strtolower((string) $user->name);
+
+        return str_contains($toFor, $userName)
+            || str_contains($toFor, 'all')
+            || str_contains($toFor, 'everyone')
+            || str_contains($toFor, 'all employees');
     }
 
     public function searchRecipients(Request $request)

@@ -32,13 +32,15 @@
         'data.release_schedule': 'Release schedule',
         'data.release_count': 'Number of releases',
         'data.amount_per_release': 'Amount per release',
-        'data.liquidation_calculation': 'Liquidation calculation',
         'data.cash_release_date': 'Cash release date',
         'data.cash_release_time': 'Cash release time',
         'data.paid_through': 'Paid through',
         'data.linked_lr_id': 'Linked LR',
         'data.linked_po_id': 'Linked PO',
         'data.linked_dv_id': 'Linked DV',
+        'data.cash_receiver_name': 'Name of receiver',
+        'data.recipient_bank_account': 'Bank account',
+        'data.recipient_bank_number': 'Bank number',
         'data.bank_account_id': 'Bank account',
         'data.funding_bank_account_id': 'Funding bank account',
         'data.receiving_bank_account_id': 'Receiving bank / cash account',
@@ -46,6 +48,7 @@
         'data.destination_bank_account_id': 'Destination bank account',
         'data.source_document_type': 'Linked document type',
         'data.source_document_id': 'Linked source document',
+        'data.payroll_period_id': 'Payroll period',
         'data.master_item_type': 'Item type',
         'data.master_item_id': 'Item',
         'data.linked_item_type': 'Item type',
@@ -189,7 +192,223 @@
         `;
     }
 
-    function renderArfAssetTagCard(assetCode, location, serialNumber, barcodeSvg) {
+    function generateFinanceTapeBarcodeSvg(value) {
+        const text = String(value || '').trim();
+        if (!text) return '';
+
+        const normalized = text.replace(/\s+/g, '').toUpperCase();
+        if (!normalized) return '';
+
+        let seed = 0;
+        Array.from(normalized).forEach((char, index) => {
+            seed += char.charCodeAt(0) * (index + 5);
+        });
+
+        let bits = '101';
+        Array.from(normalized).forEach((char) => {
+            const code = char.charCodeAt(0) ^ (seed & 0xff);
+            bits += code.toString(2).padStart(8, '0');
+        });
+        bits += '1101';
+
+        const unit = 1.35;
+        const quietZone = 5;
+        const height = 28;
+        let cursor = quietZone;
+        let current = bits[0] || '0';
+        let runLength = 0;
+        let rects = '';
+
+        const flushRun = () => {
+            if (runLength > 0 && current === '1') {
+                rects += `<rect x="${cursor.toFixed(2)}" y="3" width="${(runLength * unit).toFixed(2)}" height="${height}" fill="#111827"></rect>`;
+            }
+            cursor += runLength * unit;
+            runLength = 0;
+        };
+
+        Array.from(bits).forEach((bit) => {
+            if (bit === current) {
+                runLength += 1;
+                return;
+            }
+
+            flushRun();
+            current = bit;
+            runLength = 1;
+        });
+
+        flushRun();
+
+        const width = Math.max(150, cursor + quietZone);
+        const label = escapeHtml(text);
+
+        return `
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} 34" role="img" aria-label="Barcode for ${label}">
+                <rect x="0" y="0" width="${width}" height="34" fill="#ffffff"></rect>
+                ${rects}
+            </svg>
+        `;
+    }
+
+    function printArfAssetTag(assetCode, location = '', serialNumber = '') {
+        const code = String(assetCode || '').trim() || 'N/A';
+        const labelLocation = String(location || '').trim();
+        const labelSerial = String(serialNumber || '').trim();
+        const barcodeSvg = generateFinanceTapeBarcodeSvg(code === 'N/A' ? '' : code);
+        const doc = window.open('', '_blank', 'width=520,height=260');
+        if (!doc) return;
+
+        doc.document.write(`
+            <html>
+                <head>
+                    <title>15mm Asset Tag - ${escapeHtml(code)}</title>
+                    <style>
+                        @page { size: 70mm 15mm; margin: 0; }
+                        * { box-sizing: border-box; }
+                        html, body {
+                            width: 70mm;
+                            height: 15mm;
+                            margin: 0;
+                            padding: 0;
+                            background: #fff;
+                            color: #111827;
+                            font-family: Arial, Helvetica, sans-serif;
+                            -webkit-print-color-adjust: exact;
+                            print-color-adjust: exact;
+                        }
+                        body {
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                        }
+                        .tape {
+                            width: 68mm;
+                            height: 13mm;
+                            display: grid;
+                            grid-template-columns: 22mm 1fr;
+                            gap: 1.5mm;
+                            align-items: center;
+                            overflow: hidden;
+                            border: 0.2mm solid #111827;
+                            border-radius: 1mm;
+                            padding: 1mm;
+                        }
+                        .brand {
+                            min-width: 0;
+                            border-right: 0.2mm solid #111827;
+                            padding-right: 1.2mm;
+                            height: 100%;
+                            display: flex;
+                            flex-direction: column;
+                            justify-content: center;
+                        }
+                        .company {
+                            font-size: 4.5pt;
+                            font-weight: 700;
+                            letter-spacing: 0.7pt;
+                            text-transform: uppercase;
+                            white-space: nowrap;
+                        }
+                        .title {
+                            margin-top: 0.5mm;
+                            font-size: 5pt;
+                            font-weight: 900;
+                            letter-spacing: 0.8pt;
+                            text-transform: uppercase;
+                        }
+                        .meta {
+                            margin-top: 0.7mm;
+                            font-size: 3.8pt;
+                            line-height: 1.05;
+                            white-space: nowrap;
+                            overflow: hidden;
+                            text-overflow: ellipsis;
+                        }
+                        .main {
+                            min-width: 0;
+                            height: 100%;
+                            display: grid;
+                            grid-template-rows: auto 1fr;
+                            gap: 0.5mm;
+                        }
+                        .code {
+                            font-family: "Arial Narrow", Arial, Helvetica, sans-serif;
+                            font-size: 7pt;
+                            line-height: 1;
+                            font-weight: 900;
+                            letter-spacing: 0.2pt;
+                            white-space: nowrap;
+                            overflow: hidden;
+                            text-overflow: ellipsis;
+                        }
+                        .barcode {
+                            width: 100%;
+                            height: 7mm;
+                            overflow: hidden;
+                        }
+                        .barcode svg {
+                            display: block;
+                            width: 100%;
+                            height: 100%;
+                        }
+                        @media screen {
+                            html, body {
+                                width: 100%;
+                                height: 100%;
+                                min-height: 180px;
+                                background: #f3f4f6;
+                            }
+                            .tape {
+                                background: #fff;
+                                transform: scale(2.4);
+                                transform-origin: center;
+                                box-shadow: 0 12px 30px rgba(15, 23, 42, 0.16);
+                            }
+                        }
+                    </style>
+                </head>
+                <body>
+                    <div class="tape">
+                        <div class="brand">
+                            <div class="company">JK&amp;C INC.</div>
+                            <div class="title">Asset</div>
+                            <div class="meta">${escapeHtml(labelLocation || 'No location')}</div>
+                            <div class="meta">${escapeHtml(labelSerial || 'No serial')}</div>
+                        </div>
+                        <div class="main">
+                            <div class="code">${escapeHtml(code)}</div>
+                            <div class="barcode">${barcodeSvg || '<div style="height:7mm;border:0.2mm dashed #9ca3af;"></div>'}</div>
+                        </div>
+                    </div>
+                    <script>window.onload = function(){ window.print(); };</script>
+                </body>
+            </html>
+        `);
+        doc.document.close();
+    }
+
+    function renderArfAssetTagPrintButton(assetCode, location, serialNumber, classes = '') {
+        const printArgs = [assetCode || '', location || '', serialNumber || '']
+            .map((value) => JSON.stringify(String(value)))
+            .join(', ');
+
+        return `
+            <button
+                type="button"
+                onclick="window.financeModule.printArfAssetTag(${escapeHtml(printArgs)})"
+                class="${classes || 'inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50'}"
+            >
+                Print 15mm Tape
+            </button>
+        `;
+    }
+
+    function renderArfAssetTagCard(assetCode, location, serialNumber, barcodeSvg, options = {}) {
+        const printButton = options.withPrintButton
+            ? `<div class="border-t border-gray-200 bg-gray-50 px-4 py-3 text-right">${renderArfAssetTagPrintButton(assetCode, location, serialNumber)}</div>`
+            : '';
+
         return `
             <div class="rounded-2xl border border-gray-300 bg-white overflow-hidden shadow-sm">
                 <div class="border-b border-gray-300 bg-gray-50 px-4 py-3 text-center">
@@ -210,6 +429,7 @@
                         </div>
                     </div>
                 </div>
+                ${printButton}
             </div>
         `;
     }
@@ -566,6 +786,7 @@
                     ],
                     required: true,
                 }),
+                selectField('requester_employee_id', 'Employee List', { source: 'employee', placeholder: 'Select employee profile' }),
                 textField('requestor', 'Employee Name', { required: true }),
                 selectField('request_type', 'Type', {
                     options: [
@@ -616,6 +837,7 @@
                 textField('employee_email', 'Email', { inputType: 'email' }),
                 textField('contact_number', 'Contact #'),
                 textField('position', 'Position'),
+                textField('department', 'Department'),
                 textField('superior', 'Superior'),
                 textField('superior_email', 'Superior Email', { inputType: 'email' }),
                 textField('vendor_id_number', 'Vendor ID Number'),
@@ -630,10 +852,11 @@
                 selectField('master_item_type', 'Item Type', {
                     options: [
                         { value: 'product', label: 'Product' },
+                        { value: 'service', label: 'Service' },
                     ],
                 }),
                 selectField('master_item_id', 'Item Selected', {
-                    sourceMap: { product: 'product' },
+                    sourceMap: { product: 'product', service: 'service' },
                     sourceKey: 'master_item_type',
                 }),
                 textareaField('description_specification', 'Description / Specification'),
@@ -715,6 +938,7 @@
                     ],
                     required: true,
                 }),
+                selectField('requester_employee_id', 'Employee List', { source: 'employee', placeholder: 'Select employee profile' }),
                 textField('requestor', 'Requestor', { required: true }),
                 textField('employee_id', 'Employee ID'),
                 textField('employee_name', 'Employee Name'),
@@ -777,10 +1001,6 @@
                 }),
                 numberField('release_count', 'Number of Releases', { help: 'Used to compute Amount per Release.' }),
                 numberField('amount_per_release', 'Amount per Release', { readOnly: true }),
-                calculationField('liquidation_calculation', 'Liquidation Calculation', {
-                    fullWidth: true,
-                    help: 'Shows how the cash advance release is computed and how the liquidation balance will be read in the liquidation report.',
-                }),
                 dateField('cash_release_date', 'Cash Release Date'),
                 timeField('cash_release_time', 'Cash Release Time'),
                 selectField('mode_of_release', 'Mode of Release', {
@@ -815,6 +1035,7 @@
                     ],
                     required: true,
                 }),
+                selectField('requester_employee_id', 'Employee List', { source: 'employee', placeholder: 'Select employee profile' }),
                 selectField('linked_ca_id', 'CA Reference No.', { source: 'ca', required: true }),
                 numberField('total_cash_advance', 'CA Amount', { required: true }),
                 textareaField('purpose', 'Justification / Business Need', { required: true, fullWidth: true }),
@@ -836,7 +1057,7 @@
             recordNumberLabel: 'ERR Number',
             recordTitleLabel: 'Requestor',
             recordDateLabel: 'Date',
-            summaryKeys: ['linked_lr_id', 'amount', 'supplier_id', 'bank_account_id'],
+            summaryKeys: ['linked_lr_id', 'amount', 'reimbursement_mode', 'bank_account_id'],
             fields: [
                 selectField('requester_mode', 'Requester Option', {
                     options: [
@@ -845,22 +1066,25 @@
                     ],
                     required: true,
                 }),
+                selectField('requester_employee_id', 'Employee List', { source: 'employee', placeholder: 'Select employee profile' }),
                 textField('requestor', 'Requestor', { required: true }),
                 selectField('linked_lr_id', 'Linked LR', { source: 'lr_shortage', required: true }),
                 textareaField('expense_details', 'Expense Details'),
                 numberField('amount', 'Amount', { required: true }),
                 textField('reimbursement_payment_details', 'Reimbursement Payment Details', { fullWidth: true }),
                 checkboxField('manual_liquidation_entry', 'Manually edit reimbursement details', { fullWidth: true, help: 'Use this when the linked liquidation needs to be reviewed or entered again manually.' }),
-                selectField('supplier_id', 'Supplier', { source: 'supplier' }),
-                selectField('coa_id', 'Account from Chart of Accounts', { source: 'chart_account' }),
                 selectField('reimbursement_mode', 'Mode of Reimbursement', {
+                    required: true,
                     options: [
                         { value: 'Cash', label: 'Cash' },
                         { value: 'Bank Transfer', label: 'Bank Transfer' },
                         { value: 'Check', label: 'Check' },
                     ],
                 }),
-                selectField('bank_account_id', 'Bank Account', { source: 'bank_account' }),
+                textField('cash_receiver_name', 'Name of Receiver'),
+                textField('recipient_bank_account', 'Bank Account'),
+                textField('recipient_bank_number', 'Bank Number'),
+                selectField('bank_account_id', 'Bank Account Source', { source: 'bank_account' }),
                 textareaField('remarks', 'Remarks'),
             ],
         },
@@ -874,6 +1098,8 @@
             fields: [
                 selectField('source_document_type', 'Linked Source Document Type', {
                     options: [
+                        { value: 'pr', label: 'PR' },
+                        { value: 'po', label: 'PO' },
                         { value: 'ca', label: 'CA' },
                         { value: 'lr', label: 'LR' },
                         { value: 'err', label: 'ERR' },
@@ -928,9 +1154,6 @@
                 numberField('net_amount', 'Net Amount', { readOnly: true }),
                 textField('currency', 'Currency'),
                 numberField('exchange_rate', 'Exchange Rate'),
-                textField('prepared_by', 'Prepared By'),
-                textField('checked_by', 'Verified / Checked By'),
-                textField('approved_by_name', 'Approved By'),
                 textField('received_by_name', 'Received By'),
                 textField('received_by_signature', 'Signature'),
                 dateField('date_received', 'Date Received'),
@@ -943,13 +1166,32 @@
             recordNumberLabel: 'PDA Number',
             recordTitleLabel: 'Payroll Period',
             recordDateLabel: 'Date',
-            summaryKeys: ['total_payroll_amount', 'department', 'funding_bank_account_id', 'payroll_expense_coa_id'],
+            summaryKeys: ['payroll_period_id', 'employee_count', 'basic_salary_total', 'gross_pay_total', 'deductions_total', 'total_payroll_amount', 'funding_bank_account_id', 'payroll_expense_coa_id'],
             fields: [
-                numberField('total_payroll_amount', 'Total Payroll Amount', { required: true }),
+                selectField('payroll_period_id', 'Payroll Period', { source: 'payroll_period', required: true }),
+                dateField('period_start', 'Period Start', { readOnly: true }),
+                dateField('period_end', 'Period End', { readOnly: true }),
+                dateField('payroll_start', 'Payroll Start', { readOnly: true }),
+                dateField('payroll_end', 'Payroll End', { readOnly: true }),
+                dateField('pay_date', 'Pay Date', { readOnly: true }),
+                numberField('total_payroll_amount', 'Total Payroll Amount', { required: true, readOnly: true }),
+                textField('employee_count', 'Employees Included', { readOnly: true }),
+                numberField('basic_salary_total', 'Basic Salary Total', { readOnly: true }),
+                numberField('yearly_basic_total', 'Yearly Basic Total', { readOnly: true }),
+                numberField('daily_rate_total', 'Daily Rate Total', { readOnly: true }),
+                numberField('hourly_rate_total', 'Hourly Rate Total', { readOnly: true }),
+                numberField('minute_rate_total', 'Minute Rate Total', { readOnly: true }),
+                numberField('gross_pay_total', 'Gross Pay', { readOnly: true }),
+                numberField('benefits_total', 'Benefits', { readOnly: true }),
+                numberField('allowances_total', 'Allowances', { readOnly: true }),
+                numberField('deductions_total', 'Deductions', { readOnly: true }),
+                numberField('night_differential_total', 'Night Differential', { readOnly: true }),
+                numberField('holiday_pay_total', 'Holiday Pay', { readOnly: true }),
                 textField('department', 'Department / Coverage'),
                 selectField('funding_bank_account_id', 'Funding Bank Account', { source: 'bank_account' }),
                 selectField('payroll_expense_coa_id', 'Payroll Expense Account', { source: 'chart_account' }),
                 textareaField('supporting_payroll_summary', 'Supporting Payroll Summary'),
+                textareaField('employee_payroll_breakdown', 'Employee Payroll Breakdown', { readOnly: true }),
                 textareaField('remarks', 'Remarks'),
             ],
         },
@@ -968,6 +1210,7 @@
                     ],
                     required: true,
                 }),
+                selectField('requester_employee_id', 'Employee List', { source: 'employee', placeholder: 'Select employee profile' }),
                 textField('requestor', 'Returnee', { required: true }),
                 selectField('linked_lr_id', 'Linked LR', { source: 'lr_overage', required: true }),
                 numberField('amount_returned', 'Amount Returned', { required: true }),
@@ -1032,9 +1275,11 @@
     };
 
     const moduleKeys = Object.keys(financeModules);
+    const canManageFinanceSettings = Boolean(bootstrap.canManageFinanceSettings);
     let financeRecords = Array.isArray(bootstrap.records) ? bootstrap.records.slice() : [];
     let financeSourceRecords = Array.isArray(bootstrap.sourceRecords) ? bootstrap.sourceRecords.slice() : [];
     let financeLookupOptions = bootstrap.lookupOptions || {};
+    let financeDropdownOptions = normalizeDropdownSettings(bootstrap.financeDropdownOptions || {});
     let currentModuleKey = financeModules[bootstrap.currentModule] ? bootstrap.currentModule : 'supplier';
     let currentWorkflowFilter = workflowFilters.includes(bootstrap.currentWorkflowFilter) ? bootstrap.currentWorkflowFilter : 'all';
     let currentPreviewRecord = null;
@@ -1047,6 +1292,7 @@
     let activeLookupSelector = null;
     let activeBankAccountLookupQuery = '';
     let financeDraftContext = null;
+    let activeDropdownSettingsModuleKey = currentModuleKey;
 
     const $ = (id) => document.getElementById(id);
 
@@ -1066,15 +1312,470 @@
         return num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
 
-    function getCashAdvanceLiquidationCalculation(values = {}) {
-        const rawAmount = values['data[amount_requested]'] ?? values.amount_requested ?? 0;
-        const amount = Number(rawAmount) || 0;
-        const rawCount = values['data[release_count]'] ?? values.release_count ?? 1;
-        const releaseCount = Math.max(parseInt(rawCount || '1', 10) || 1, 1);
-        const amountPerRelease = amount / releaseCount;
-        const releaseLabel = releaseCount === 1 ? 'release' : 'releases';
+    function blank(value) {
+        if (value === null || value === undefined) return true;
+        if (Array.isArray(value)) return value.length === 0;
+        return String(value).trim() === '';
+    }
 
-        return `CA ${formatCurrency(amount)} / ${releaseCount} ${releaseLabel} = ${formatCurrency(amountPerRelease)} per release. LR: CA - actual expenses = balance.`;
+    function numericAmount(value) {
+        const numeric = Number(String(value ?? '').replace(/,/g, ''));
+        return Number.isFinite(numeric) ? numeric : 0;
+    }
+
+    function getCashAdvanceDraftValue(values = {}, name, fallback = '') {
+        return values[`data[${name}]`] ?? values[name] ?? fallback;
+    }
+
+    function normalizeCashAdvancePaymentEntries(entries = []) {
+        const rows = Array.isArray(entries)
+            ? entries
+            : (entries && typeof entries === 'object' ? Object.values(entries) : []);
+
+        return rows
+            .map((entry, index) => {
+                const row = entry && typeof entry === 'object' ? entry : {};
+                const releaseNo = Math.max(parseInt(row.release_no ?? row.releaseNo ?? index + 1, 10) || index + 1, 1);
+                const paymentAmount = numericAmount(row.payment_amount ?? row.paymentAmount ?? row.amount ?? 0);
+                const paymentDate = String(row.payment_date ?? row.paymentDate ?? '').trim();
+                const paymentRemarks = String(row.payment_remarks ?? row.paymentRemarks ?? row.remarks ?? '').trim();
+
+                return {
+                    release_no: releaseNo,
+                    payment_date: paymentDate,
+                    payment_amount: paymentAmount.toFixed(2),
+                    payment_remarks: paymentRemarks,
+                };
+            })
+            .filter((entry) => entry.payment_date || numericAmount(entry.payment_amount) > 0 || entry.payment_remarks);
+    }
+
+    function collectCashAdvancePaymentEntriesFromForm(form = $('financeForm')) {
+        if (!form) return [];
+
+        return normalizeCashAdvancePaymentEntries(Array.from(form.querySelectorAll('[data-ca-payment-entry-row]')).map((row) => ({
+            release_no: row.querySelector('[data-ca-payment-entry-field="release_no"]')?.value || '',
+            payment_date: row.querySelector('[data-ca-payment-entry-field="payment_date"]')?.value || '',
+            payment_amount: row.querySelector('[data-ca-payment-entry-field="payment_amount"]')?.value || '',
+            payment_remarks: row.querySelector('[data-ca-payment-entry-field="payment_remarks"]')?.value || '',
+        })));
+    }
+
+    function getCurrentCashAdvanceDraftValues() {
+        const form = $('financeForm');
+        const values = {};
+        if (!form) return values;
+
+        new FormData(form).forEach((value, key) => {
+            const match = String(key).match(/^data\[([^\]]+)\]$/);
+            if (!match) return;
+
+            if (Object.prototype.hasOwnProperty.call(values, match[1])) {
+                const current = values[match[1]];
+                values[match[1]] = Array.isArray(current) ? [...current, value] : [current, value];
+            } else {
+                values[match[1]] = value;
+            }
+            values[`data[${match[1]}]`] = values[match[1]];
+        });
+
+        values.ca_payment_entries = collectCashAdvancePaymentEntriesFromForm(form);
+        return values;
+    }
+
+    function buildCashAdvancePaymentState(values = {}) {
+        const amount = numericAmount(getCashAdvanceDraftValue(values, 'amount_requested', values.amount ?? 0));
+        const releaseCount = Math.max(parseInt(getCashAdvanceDraftValue(values, 'release_count', 1), 10) || 1, 1);
+        const amountPerRelease = numericAmount(getCashAdvanceDraftValue(values, 'amount_per_release', 0)) || (amount / releaseCount);
+        const baseEntries = normalizeCashAdvancePaymentEntries(values.ca_payment_entries ?? values['data[ca_payment_entries]'] ?? []);
+        const entriesByRelease = baseEntries.reduce((map, entry) => {
+            const key = String(entry.release_no);
+            map[key] = map[key] || [];
+            map[key].push(entry);
+            return map;
+        }, {});
+
+        const rows = Array.from({ length: releaseCount }).map((_, index) => {
+            const releaseNo = index + 1;
+            const releaseEntries = entriesByRelease[String(releaseNo)] || [];
+            const paidAmount = releaseEntries.reduce((sum, entry) => sum + numericAmount(entry.payment_amount), 0);
+            const latestPayment = releaseEntries[releaseEntries.length - 1] || {};
+            const scheduledAmount = releaseNo === releaseCount
+                ? Math.max(amount - (amountPerRelease * (releaseCount - 1)), 0)
+                : amountPerRelease;
+            const status = paidAmount >= scheduledAmount && scheduledAmount > 0
+                ? 'Paid'
+                : (paidAmount > 0 ? 'Partial' : 'Pending');
+
+            return {
+                no: releaseNo,
+                scheduled_date: releaseNo === 1 ? String(getCashAdvanceDraftValue(values, 'cash_release_date', '') || '') : '',
+                amount_value: scheduledAmount,
+                paid_amount_value: paidAmount,
+                remaining_amount_value: Math.max(scheduledAmount - paidAmount, 0),
+                payment_date: latestPayment.payment_date || '',
+                payment_remarks: releaseEntries.map((entry) => entry.payment_remarks).filter(Boolean).join(' | '),
+                status,
+            };
+        });
+
+        const totalPaid = baseEntries.reduce((sum, entry) => sum + numericAmount(entry.payment_amount), 0);
+        const remainingBalance = Math.max(amount - totalPaid, 0);
+        const paidCount = rows.filter((row) => row.status === 'Paid').length;
+        const remainingCount = Math.max(rows.length - paidCount, 0);
+        const nextPaymentRow = rows.find((row) => row.status !== 'Paid') || null;
+
+        return {
+            amount,
+            releaseCount,
+            amountPerRelease,
+            entries: baseEntries,
+            rows,
+            totalPaid,
+            remainingBalance,
+            paidCount,
+            remainingCount,
+            nextPaymentRow,
+            status: remainingBalance <= 0 && amount > 0 ? 'Fully Released' : (totalPaid > 0 ? 'Partially Released' : 'Pending Release'),
+        };
+    }
+
+    function renderCashAdvancePaymentEntryInputs(entries = []) {
+        return normalizeCashAdvancePaymentEntries(entries).map((entry, index) => `
+            <span data-ca-payment-entry-row>
+                <input type="hidden" name="data[ca_payment_entries][${index}][release_no]" data-ca-payment-entry-field="release_no" value="${escapeHtml(entry.release_no)}">
+                <input type="hidden" name="data[ca_payment_entries][${index}][payment_date]" data-ca-payment-entry-field="payment_date" value="${escapeHtml(entry.payment_date)}">
+                <input type="hidden" name="data[ca_payment_entries][${index}][payment_amount]" data-ca-payment-entry-field="payment_amount" value="${escapeHtml(entry.payment_amount)}">
+                <input type="hidden" name="data[ca_payment_entries][${index}][payment_remarks]" data-ca-payment-entry-field="payment_remarks" value="${escapeHtml(entry.payment_remarks)}">
+            </span>
+        `).join('');
+    }
+
+    function renderCashAdvancePaymentSummaryPanel(values = {}, { editable = false } = {}) {
+        const state = buildCashAdvancePaymentState(values);
+        const statusClass = state.status === 'Fully Released'
+            ? 'bg-green-100 text-green-800'
+            : (state.status === 'Partially Released' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-700');
+
+        return `
+            <div class="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                    <h4 class="text-sm font-semibold text-gray-900">Cash Advance Payment Summary</h4>
+                    <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${statusClass}">${escapeHtml(state.status)}</span>
+                </div>
+                <div class="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                    ${[
+                        ['Per Release', formatCurrency(state.amountPerRelease)],
+                        ['Total Cash Advance', formatCurrency(state.amount)],
+                        ['Released / Paid', formatCurrency(state.totalPaid)],
+                        ['Remaining for Release', formatCurrency(state.remainingBalance)],
+                        ['Releases Paid', state.paidCount],
+                        ['Releases Remaining', state.remainingCount],
+                    ].map(([label, value]) => `
+                        <div class="rounded-lg border border-white/80 bg-white px-3 py-2">
+                            <p class="text-[11px] uppercase tracking-[0.18em] text-gray-500">${escapeHtml(label)}</p>
+                            <p class="mt-1 text-sm font-semibold text-gray-900">${escapeHtml(value)}</p>
+                        </div>
+                    `).join('')}
+                </div>
+                ${editable ? renderCashAdvancePaymentEntryInputs(state.entries) : ''}
+            </div>
+        `;
+    }
+
+    function renderCashAdvancePaymentTrackerPanel(values = {}) {
+        const state = buildCashAdvancePaymentState(values);
+
+        return `
+            <div class="rounded-xl border border-gray-200 bg-white p-4">
+                <h4 class="text-sm font-semibold text-gray-900">Cash Advance Payment Tracker</h4>
+                <div class="mt-4 space-y-2">
+                    ${state.rows.length ? state.rows.map((row) => {
+                        const badgeClass = row.status === 'Paid'
+                            ? 'bg-green-100 text-green-800'
+                            : (row.status === 'Partial' ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800');
+
+                        return `
+                            <div class="rounded-lg border border-gray-100 bg-gray-50 px-3 py-3">
+                                <div class="flex items-start justify-between gap-3">
+                                    <div>
+                                        <p class="text-xs uppercase tracking-[0.18em] text-gray-500">Release ${escapeHtml(row.no)}</p>
+                                        <p class="mt-1 text-sm font-semibold text-gray-900">Scheduled ${escapeHtml(row.scheduled_date || '-')}</p>
+                                        <p class="mt-1 text-xs text-gray-500">Payment Date: ${escapeHtml(row.payment_date || '-')}</p>
+                                        ${row.payment_remarks ? `<p class="mt-1 text-xs text-gray-500">${escapeHtml(row.payment_remarks)}</p>` : ''}
+                                    </div>
+                                    <div class="text-right">
+                                        <p class="text-sm font-semibold text-gray-900">${escapeHtml(formatCurrency(row.amount_value))}</p>
+                                        ${row.paid_amount_value > 0 && row.status !== 'Paid' ? `<p class="mt-1 text-xs text-gray-500">Paid ${escapeHtml(formatCurrency(row.paid_amount_value))}</p>` : ''}
+                                        <span class="mt-2 inline-flex rounded-full px-2 py-1 text-xs font-semibold ${badgeClass}">${escapeHtml(row.status)}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    }).join('') : '<p class="text-sm text-gray-500">No release schedule saved yet.</p>'}
+                </div>
+            </div>
+        `;
+    }
+
+    function renderCashAdvanceRecordPaymentPanel(values = {}) {
+        const state = buildCashAdvancePaymentState(values);
+        const next = state.nextPaymentRow;
+
+        return `
+            <div class="rounded-xl border ${next ? 'border-emerald-200 bg-emerald-50' : 'border-gray-200 bg-gray-50'} p-4">
+                <h4 class="text-sm font-semibold text-gray-900">Record Cash Advance Payment</h4>
+                ${next ? `
+                    <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+                        <div>
+                            <label class="text-xs text-gray-600">Release</label>
+                            <input type="text" value="Release ${escapeHtml(next.no)}" class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900" readonly>
+                        </div>
+                        <div>
+                            <label class="text-xs text-gray-600">Scheduled Date</label>
+                            <input type="text" value="${escapeHtml(next.scheduled_date || '-')}" class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900" readonly>
+                        </div>
+                        <div>
+                            <label class="text-xs text-gray-600">Amount</label>
+                            <input type="text" value="${escapeHtml(formatCurrency(next.remaining_amount_value || next.amount_value))}" class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900" readonly>
+                        </div>
+                        <div>
+                            <label class="text-xs text-gray-600">Payment Date</label>
+                            <input type="date" data-ca-payment-date value="${escapeHtml(todayDateValue())}" class="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900">
+                        </div>
+                        <div class="md:col-span-2">
+                            <label class="text-xs text-gray-600">Payment Option</label>
+                            <select data-ca-payment-scope class="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900">
+                                <option value="next">Pay next release only</option>
+                                <option value="all_remaining">Pay all remaining releases</option>
+                            </select>
+                        </div>
+                        <div class="md:col-span-2">
+                            <label class="text-xs text-gray-600">Payment Remarks</label>
+                            <textarea data-ca-payment-remarks rows="3" class="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900" placeholder="Optional note for this cash advance payment."></textarea>
+                        </div>
+                    </div>
+                    <button type="button" onclick="window.financeModule.recordCashAdvancePayment()" class="mt-4 w-full rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700">
+                        Record Payment
+                    </button>
+                    <p class="mt-2 text-xs text-emerald-700">Save the cash advance record after recording payments to keep this tracker.</p>
+                ` : '<p class="mt-3 text-sm text-gray-600">All scheduled cash advance releases have already been recorded.</p>'}
+            </div>
+        `;
+    }
+
+    function renderCashAdvancePaymentTracker(values = {}) {
+        return `
+            <div data-ca-payment-tracker class="md:col-span-2 space-y-4">
+                ${renderCashAdvancePaymentSummaryPanel(values, { editable: true })}
+                ${renderCashAdvancePaymentTrackerPanel(values)}
+                ${renderCashAdvanceRecordPaymentPanel(values)}
+            </div>
+        `;
+    }
+
+    function refreshCashAdvancePaymentTracker(nextValues = null) {
+        const form = $('financeForm');
+        const section = form?.querySelector('[data-ca-payment-tracker]');
+        if (!form || !section) return;
+
+        const values = nextValues || getCurrentCashAdvanceDraftValues();
+        financeFormValues = { ...financeFormValues, ...values, ca_payment_entries: values.ca_payment_entries };
+        section.outerHTML = renderCashAdvancePaymentTracker(values);
+    }
+
+    function recordCashAdvancePayment() {
+        const form = $('financeForm');
+        if (!form || currentModuleKey !== 'ca') return;
+
+        const values = getCurrentCashAdvanceDraftValues();
+        const state = buildCashAdvancePaymentState(values);
+        if (!state.nextPaymentRow) {
+            showFinanceToast('All scheduled cash advance releases have already been recorded.', 'info');
+            return;
+        }
+
+        const paymentDate = form.querySelector('[data-ca-payment-date]')?.value || todayDateValue();
+        const paymentScope = form.querySelector('[data-ca-payment-scope]')?.value || 'next';
+        const paymentRemarks = String(form.querySelector('[data-ca-payment-remarks]')?.value || '').trim();
+        const targets = paymentScope === 'all_remaining'
+            ? state.rows.filter((row) => row.status !== 'Paid')
+            : [state.nextPaymentRow];
+
+        const newEntries = targets.map((row) => {
+            const scheduleNote = `Release ${row.no}${row.scheduled_date ? ` scheduled ${row.scheduled_date}` : ''}`;
+            return {
+                release_no: row.no,
+                payment_date: paymentDate,
+                payment_amount: (row.remaining_amount_value || row.amount_value || 0).toFixed(2),
+                payment_remarks: paymentRemarks ? `${paymentRemarks} | ${scheduleNote}` : `${scheduleNote} payment recorded from cash advance tracker.`,
+            };
+        });
+
+        const nextValues = {
+            ...values,
+            ca_payment_entries: normalizeCashAdvancePaymentEntries([...state.entries, ...newEntries]),
+        };
+        financeFormValues.ca_payment_entries = nextValues.ca_payment_entries;
+        refreshCashAdvancePaymentTracker(nextValues);
+        renderDrawerPreview();
+        showFinanceToast(paymentScope === 'all_remaining' ? 'All remaining cash advance payments were recorded.' : 'Cash advance payment recorded.', 'success');
+    }
+
+    function renderCashAdvancePaymentPreview(recordOrValues = {}) {
+        const values = recordOrValues?.data ? recordOrValues.data : recordOrValues;
+
+        return `
+            <div class="finance-preview-box">
+                <div class="finance-preview-section-title">Cash Advance Payment Tracking</div>
+                <div class="finance-preview-inner">
+                    ${renderCashAdvancePaymentSummaryPanel(values)}
+                    <div class="mt-3">
+                        ${renderCashAdvancePaymentTrackerPanel(values)}
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    function renderCashAdvancePreviewPaymentManager(record) {
+        const values = record?.data || {};
+        const state = buildCashAdvancePaymentState(values);
+        const next = state.nextPaymentRow;
+
+        return `
+            <div data-ca-preview-payment-root="${escapeHtml(record.id)}" class="rounded-2xl border border-emerald-100 bg-emerald-50/50 p-4">
+                <h4 class="text-[15px] font-semibold text-gray-900">Cash Advance Payment Tracking</h4>
+                <div class="mt-4 space-y-4">
+                    ${renderCashAdvancePaymentSummaryPanel(values)}
+                    ${renderCashAdvancePaymentTrackerPanel(values)}
+                    <div class="rounded-xl border ${next && record.can_edit ? 'border-emerald-200 bg-white' : 'border-gray-200 bg-gray-50'} p-4">
+                        <h5 class="text-sm font-semibold text-gray-900">Record Cash Advance Payment</h5>
+                        ${next && record.can_edit ? `
+                            <div class="mt-4 grid grid-cols-1 gap-3">
+                                <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                                    <div>
+                                        <label class="text-xs text-gray-600">Release</label>
+                                        <input type="text" value="Release ${escapeHtml(next.no)}" class="mt-1 w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-900" readonly>
+                                    </div>
+                                    <div>
+                                        <label class="text-xs text-gray-600">Amount</label>
+                                        <input type="text" value="${escapeHtml(formatCurrency(next.remaining_amount_value || next.amount_value))}" class="mt-1 w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-900" readonly>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="text-xs text-gray-600">Payment Date</label>
+                                    <input type="date" data-ca-preview-payment-date value="${escapeHtml(todayDateValue())}" class="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900">
+                                </div>
+                                <div>
+                                    <label class="text-xs text-gray-600">Payment Option</label>
+                                    <select data-ca-preview-payment-scope class="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900">
+                                        <option value="next">Pay next release only</option>
+                                        <option value="all_remaining">Pay all remaining releases</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="text-xs text-gray-600">Payment Remarks</label>
+                                    <textarea data-ca-preview-payment-remarks rows="3" class="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900" placeholder="Optional note for this cash advance payment."></textarea>
+                                </div>
+                            </div>
+                            <button type="button" onclick="window.financeModule.recordCashAdvancePreviewPayment(${Number(record.id)})" class="mt-4 w-full rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700">
+                                Record Payment
+                            </button>
+                        ` : `<p class="mt-3 text-sm text-gray-600">${next ? 'This record can no longer be edited from preview.' : 'All scheduled cash advance releases have already been recorded.'}</p>`}
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    function appendFinanceDataToFormData(formData, value, path) {
+        if (Array.isArray(value)) {
+            value.forEach((item, index) => {
+                if (item && typeof item === 'object' && !Array.isArray(item)) {
+                    appendFinanceDataToFormData(formData, item, `${path}[${index}]`);
+                    return;
+                }
+                formData.append(`${path}[]`, item ?? '');
+            });
+            return;
+        }
+
+        if (value && typeof value === 'object') {
+            Object.entries(value).forEach(([key, item]) => {
+                appendFinanceDataToFormData(formData, item, `${path}[${key}]`);
+            });
+            return;
+        }
+
+        formData.set(path, value ?? '');
+    }
+
+    async function recordCashAdvancePreviewPayment(recordId) {
+        const record = getRecordById(recordId);
+        if (!record || record.module_key !== 'ca') return;
+
+        const root = document.querySelector(`[data-ca-preview-payment-root="${cssIdentifier(recordId)}"]`);
+        const state = buildCashAdvancePaymentState(record.data || {});
+        if (!state.nextPaymentRow) {
+            showFinanceToast('All scheduled cash advance releases have already been recorded.', 'info');
+            return;
+        }
+
+        const paymentDate = root?.querySelector('[data-ca-preview-payment-date]')?.value || todayDateValue();
+        const paymentScope = root?.querySelector('[data-ca-preview-payment-scope]')?.value || 'next';
+        const paymentRemarks = String(root?.querySelector('[data-ca-preview-payment-remarks]')?.value || '').trim();
+        const targets = paymentScope === 'all_remaining'
+            ? state.rows.filter((row) => row.status !== 'Paid')
+            : [state.nextPaymentRow];
+        const nextEntries = targets.map((row) => {
+            const scheduleNote = `Release ${row.no}${row.scheduled_date ? ` scheduled ${row.scheduled_date}` : ''}`;
+            return {
+                release_no: row.no,
+                payment_date: paymentDate,
+                payment_amount: (row.remaining_amount_value || row.amount_value || 0).toFixed(2),
+                payment_remarks: paymentRemarks ? `${paymentRemarks} | ${scheduleNote}` : `${scheduleNote} payment recorded from finance preview.`,
+            };
+        });
+        const nextData = {
+            ...(record.data || {}),
+            ca_payment_entries: normalizeCashAdvancePaymentEntries([...(record.data?.ca_payment_entries || []), ...nextEntries]),
+        };
+        const formData = new FormData();
+
+        formData.set('_method', 'PUT');
+        formData.set('module_key', record.module_key);
+        formData.set('record_number', record.record_number || generateModuleRecordNumber(record.module_key));
+        formData.set('record_title', record.record_title || generateDefaultRecordTitle(record.module_key, record));
+        formData.set('record_date', record.record_date || todayDateValue());
+        formData.set('amount', record.amount || nextData.amount_requested || '');
+        formData.set('status', record.status || 'Active');
+        formData.set('existing_attachments_json', JSON.stringify(record.attachments || []));
+        Object.entries(nextData).forEach(([key, value]) => appendFinanceDataToFormData(formData, value, `data[${key}]`));
+
+        const res = await fetch(`/finance/${record.id}`, {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': csrfToken,
+                'Accept': 'application/json',
+            },
+            body: formData,
+        });
+        const data = await res.json().catch(() => ({}));
+
+        if (!res.ok) {
+            const firstErrorKey = data.errors ? Object.keys(data.errors)[0] : null;
+            const firstErrorMessage = firstErrorKey && data.errors[firstErrorKey] ? data.errors[firstErrorKey][0] : '';
+            showFinanceToast(getFriendlyErrorMessage(firstErrorMessage || data.message || 'Unable to record cash advance payment.'), 'error');
+            return;
+        }
+
+        upsertFinanceRecord(data.data);
+        currentPreviewRecord = data.data;
+        renderPreviewTabContent(data.data);
+        renderPreviewDocument(data.data);
+        renderPreviewActions(data.data);
+        showFinanceToast(paymentScope === 'all_remaining' ? 'All remaining cash advance payments were recorded.' : 'Cash advance payment recorded.', 'success');
     }
 
     function formatDate(value) {
@@ -1083,6 +1784,235 @@
 
     function getModuleConfig(moduleKey) {
         return financeModules[moduleKey] || financeModules.supplier;
+    }
+
+    function normalizeOption(option) {
+        const value = String(option?.value ?? option?.id ?? option?.label ?? option ?? '').trim();
+        const label = String(option?.label ?? option?.value ?? option?.id ?? option ?? '').trim();
+
+        if (!value) return null;
+
+        return {
+            value,
+            label: label || value,
+        };
+    }
+
+    function normalizeDropdownSettings(settings = {}) {
+        const normalized = {};
+
+        Object.entries(settings || {}).forEach(([moduleKey, fields]) => {
+            if (!financeModules[moduleKey] || !fields || typeof fields !== 'object') return;
+
+            Object.entries(fields).forEach(([fieldName, options]) => {
+                if (!Array.isArray(options)) return;
+
+                normalized[moduleKey] = normalized[moduleKey] || {};
+                normalized[moduleKey][fieldName] = options
+                    .map(normalizeOption)
+                    .filter(Boolean);
+            });
+        });
+
+        return normalized;
+    }
+
+    function isEditableDropdownField(field) {
+        return field
+            && field.type === 'select'
+            && !field.source
+            && !field.sourceMap
+            && !field.readOnly;
+    }
+
+    function getEditableDropdownFields(moduleKey) {
+        const seen = new Set();
+
+        return (getModuleConfig(moduleKey).fields || []).filter((field) => {
+            if (!isEditableDropdownField(field) || seen.has(field.name)) {
+                return false;
+            }
+
+            seen.add(field.name);
+            return true;
+        });
+    }
+
+    function getCustomFieldOptions(moduleKey, fieldName) {
+        const moduleOptions = financeDropdownOptions[moduleKey] || {};
+
+        if (!Object.prototype.hasOwnProperty.call(moduleOptions, fieldName)) {
+            return null;
+        }
+
+        return Array.isArray(moduleOptions[fieldName]) ? moduleOptions[fieldName] : [];
+    }
+
+    function formatOptionsForTextarea(moduleKey, field) {
+        const options = getCustomFieldOptions(moduleKey, field.name) ?? (field.options || []);
+
+        return options
+            .map(normalizeOption)
+            .filter(Boolean)
+            .map((option) => option.label === option.value ? option.value : `${option.label} | ${option.value}`)
+            .join('\n');
+    }
+
+    function parseDropdownTextareaOptions(value) {
+        const options = [];
+        const seen = new Set();
+
+        String(value || '').split(/\r?\n/).forEach((line) => {
+            const trimmed = line.trim();
+            if (!trimmed) return;
+
+            const separatorIndex = trimmed.indexOf('|');
+            const label = separatorIndex >= 0 ? trimmed.slice(0, separatorIndex).trim() : trimmed;
+            const optionValue = separatorIndex >= 0 ? trimmed.slice(separatorIndex + 1).trim() : trimmed;
+            const normalized = normalizeOption({ value: optionValue, label: label || optionValue });
+
+            if (!normalized || seen.has(normalized.value)) return;
+
+            seen.add(normalized.value);
+            options.push(normalized);
+        });
+
+        return options;
+    }
+
+    function renderDropdownSettingsModal() {
+        const modal = $('financeDropdownSettingsModal');
+        const moduleList = $('financeDropdownSettingsModules');
+        const title = $('financeDropdownSettingsTitle');
+        const fieldsHost = $('financeDropdownSettingsFields');
+
+        if (!modal || !moduleList || !title || !fieldsHost) return;
+
+        if (!financeModules[activeDropdownSettingsModuleKey]) {
+            activeDropdownSettingsModuleKey = currentModuleKey;
+        }
+
+        moduleList.innerHTML = moduleKeys.map((moduleKey) => {
+            const active = moduleKey === activeDropdownSettingsModuleKey;
+            const fieldsCount = getEditableDropdownFields(moduleKey).length;
+
+            return `
+                <button
+                    type="button"
+                    onclick="window.financeModule.changeDropdownSettingsModule('${escapeHtml(moduleKey)}')"
+                    class="w-full rounded-lg px-3 py-2 text-left text-sm transition ${active ? 'bg-white text-blue-700 shadow-sm border border-blue-100 font-semibold' : 'text-gray-600 hover:bg-white'}"
+                >
+                    <span class="block truncate">${escapeHtml(getModuleConfig(moduleKey).label)}</span>
+                    <span class="mt-0.5 block text-[11px] text-gray-400">${fieldsCount} editable dropdown${fieldsCount === 1 ? '' : 's'}</span>
+                </button>
+            `;
+        }).join('');
+
+        const fields = getEditableDropdownFields(activeDropdownSettingsModuleKey);
+        title.textContent = `${getModuleConfig(activeDropdownSettingsModuleKey).label} Dropdowns`;
+        fieldsHost.innerHTML = fields.length ? fields.map((field) => `
+            <div class="rounded-xl border border-gray-200 bg-white p-4">
+                <div class="flex items-start justify-between gap-3">
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-900" for="financeDropdownField_${escapeHtml(activeDropdownSettingsModuleKey)}_${escapeHtml(field.name)}">${escapeHtml(field.label)}</label>
+                        <p class="mt-1 text-xs text-gray-500">One option per line. Use <span class="font-mono">Label | value</span> when the saved value should differ from the label.</p>
+                    </div>
+                    <button
+                        type="button"
+                        onclick="window.financeModule.resetDropdownSettingsField('${escapeHtml(activeDropdownSettingsModuleKey)}', '${escapeHtml(field.name)}')"
+                        class="shrink-0 rounded-md border border-gray-200 px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-50"
+                    >
+                        Reset
+                    </button>
+                </div>
+                <textarea
+                    id="financeDropdownField_${escapeHtml(activeDropdownSettingsModuleKey)}_${escapeHtml(field.name)}"
+                    data-finance-dropdown-setting
+                    data-module-key="${escapeHtml(activeDropdownSettingsModuleKey)}"
+                    data-field-name="${escapeHtml(field.name)}"
+                    rows="5"
+                    class="mt-3 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm font-mono leading-6 outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
+                >${escapeHtml(formatOptionsForTextarea(activeDropdownSettingsModuleKey, field))}</textarea>
+            </div>
+        `).join('') : `
+            <div class="rounded-xl border border-gray-200 bg-gray-50 p-8 text-center">
+                <p class="text-sm font-medium text-gray-700">No standalone dropdowns in this finance tab.</p>
+                <p class="mt-1 text-xs text-gray-500">Linked lookup dropdowns are managed by their source records.</p>
+            </div>
+        `;
+    }
+
+    function openDropdownSettings() {
+        if (!canManageFinanceSettings) return;
+
+        activeDropdownSettingsModuleKey = currentModuleKey;
+        renderDropdownSettingsModal();
+        $('financeDropdownSettingsModal')?.classList.remove('hidden');
+        $('financeDropdownSettingsModal')?.setAttribute('aria-hidden', 'false');
+    }
+
+    function closeDropdownSettings() {
+        $('financeDropdownSettingsModal')?.classList.add('hidden');
+        $('financeDropdownSettingsModal')?.setAttribute('aria-hidden', 'true');
+    }
+
+    function changeDropdownSettingsModule(moduleKey) {
+        if (!financeModules[moduleKey]) return;
+
+        activeDropdownSettingsModuleKey = moduleKey;
+        renderDropdownSettingsModal();
+    }
+
+    function resetDropdownSettingsField(moduleKey, fieldName) {
+        const field = getEditableDropdownFields(moduleKey).find((item) => item.name === fieldName);
+        const textarea = document.querySelector(`[data-finance-dropdown-setting][data-module-key="${cssIdentifier(moduleKey)}"][data-field-name="${cssIdentifier(fieldName)}"]`);
+
+        if (!field || !textarea) return;
+
+        textarea.value = (field.options || [])
+            .map(normalizeOption)
+            .filter(Boolean)
+            .map((option) => option.label === option.value ? option.value : `${option.label} | ${option.value}`)
+            .join('\n');
+    }
+
+    async function saveDropdownSettings() {
+        if (!canManageFinanceSettings) return;
+
+        const payload = normalizeDropdownSettings(financeDropdownOptions);
+        const activeModuleOptions = {};
+
+        document.querySelectorAll('[data-finance-dropdown-setting]').forEach((textarea) => {
+            const moduleKey = textarea.getAttribute('data-module-key') || '';
+            const fieldName = textarea.getAttribute('data-field-name') || '';
+            if (moduleKey !== activeDropdownSettingsModuleKey || !fieldName) return;
+
+            activeModuleOptions[fieldName] = parseDropdownTextareaOptions(textarea.value);
+        });
+
+        payload[activeDropdownSettingsModuleKey] = activeModuleOptions;
+
+        const res = await fetch('/finance/dropdown-settings', {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': csrfToken,
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ options: payload }),
+        });
+
+        const data = await res.json().catch(() => ({}));
+
+        if (!res.ok) {
+            showFinanceToast(data.message || 'Unable to save finance dropdown settings.', 'error');
+            return;
+        }
+
+        financeDropdownOptions = normalizeDropdownSettings(data.options || payload);
+        renderDropdownSettingsModal();
+        refreshFinanceView();
+        showFinanceToast(data.message || 'Finance dropdown settings saved.', 'success');
     }
 
     function shouldShowGenericAmount(recordOrModuleKey) {
@@ -1388,7 +2318,14 @@
         });
     }
 
-    function getFieldOptions(field, formValues = {}) {
+    function getFieldOptions(field, formValues = {}, moduleKey = currentModuleKey) {
+        if (isEditableDropdownField(field)) {
+            const customOptions = getCustomFieldOptions(moduleKey, field.name);
+            if (customOptions !== null) {
+                return customOptions;
+            }
+        }
+
         if (Array.isArray(field.options) && field.options.length) {
             return field.options;
         }
@@ -1486,8 +2423,6 @@
                     requestor: linkedLrRecord?.data?.employee_name || bootstrap.currentUserName || '',
                     expense_details: detailsText || `Shortage from ${linkedCaLabel}`,
                     amount,
-                    supplier_id: linkedLrRecord?.data?.supplier_id || '',
-                    coa_id: linkedLrRecord?.data?.coa_id || '',
                     reimbursement_mode: linkedLrRecord?.data?.mode_of_release || 'Bank Transfer',
                     bank_account_id: linkedLrRecord?.data?.bank_account_id || '',
                     reimbursement_payment_details: `Pay reimbursement for shortage amount ${amount} from ${linkedCaLabel}.`,
@@ -1698,7 +2633,7 @@
             ca: ['record_number', 'record_title', 'record_date', 'requestor', 'department', 'amount_requested', 'mode_of_release', 'purpose', 'remarks'],
             lr: ['record_number', 'record_title', 'record_date', 'linked_ca_id', 'total_cash_advance', 'actual_expenses', 'variance', 'variance_indicator', 'purpose', 'remarks'],
             err: ['record_number', 'record_title', 'record_date', 'linked_lr_id', 'amount', 'expense_details', 'reimbursement_mode', 'purpose', 'remarks'],
-            pda: ['record_number', 'record_title', 'record_date', 'total_payroll_amount', 'department', 'funding_bank_account_id', 'payroll_expense_coa_id', 'remarks'],
+            pda: ['record_number', 'record_title', 'record_date', 'payroll_period_id', 'period_start', 'period_end', 'payroll_start', 'payroll_end', 'pay_date', 'employee_count', 'basic_salary_total', 'yearly_basic_total', 'daily_rate_total', 'hourly_rate_total', 'minute_rate_total', 'gross_pay_total', 'benefits_total', 'allowances_total', 'deductions_total', 'night_differential_total', 'holiday_pay_total', 'total_payroll_amount', 'department', 'funding_bank_account_id', 'payroll_expense_coa_id', 'remarks'],
             crf: ['record_number', 'record_title', 'record_date', 'linked_lr_id', 'amount_returned', 'mode_of_return', 'remarks'],
             ibtf: ['record_number', 'record_title', 'record_date', 'source_bank_account_id', 'destination_bank_account_id', 'amount', 'reason', 'remarks'],
             arf: ['record_number', 'record_title', 'record_date', 'linked_po_id', 'linked_dv_id', 'asset_description', 'asset_category', 'acquisition_cost', 'acquisition_date', 'remarks'],
@@ -1715,6 +2650,88 @@
         if (text.includes('bank transfer') || text.includes('transfer')) return 'Bank Transfer';
         if (text.includes('wallet') || text.includes('ewallet') || text.includes('e-wallet')) return 'E-Wallet';
         return String(value);
+    }
+
+    function firstLookupValue(source) {
+        const option = (financeLookupOptions[source] || [])[0] || null;
+        return option ? String(option.id ?? option.value ?? '') : '';
+    }
+
+    function getDvSourceBankAccountId(data = {}) {
+        return [
+            data.bank_account_id,
+            data.funding_bank_account_id,
+            data.receiving_bank_account_id,
+            data.source_bank_account_id,
+            data.destination_bank_account_id,
+        ].find((value) => !blank(value)) || firstLookupValue('bank_account');
+    }
+
+    function getDvAccountCode(value) {
+        if (blank(value)) return '';
+        return getLookupLabel('chart_account', value) || String(value || '');
+    }
+
+    function getDvSourceLineItemAmount(row = {}) {
+        const quantity = numericAmount(row.quantity || 0);
+        const unitAmount = numericAmount(row.amount || row.unit_cost || row.default_cost || 0);
+        return numericAmount(row.total || row.line_total || row.debit || row.credit || 0) || (quantity * unitAmount) || unitAmount;
+    }
+
+    function buildDvLineItemsFromSource(sourceType, sourceRecord, payload = {}) {
+        const data = sourceRecord?.data || {};
+        const sourceRows = Array.isArray(data.line_items) ? data.line_items : [];
+        const accountCode = getDvAccountCode(payload.coa_id || data.coa_id || data.payroll_expense_coa_id || data.asset_coa_id);
+
+        if (sourceRows.length) {
+            return sourceRows
+                .filter((row) => row && Object.values(row).some((value) => !blank(value)))
+                .map((row, index) => {
+                    const amount = getDvSourceLineItemAmount(row);
+                    const description = [
+                        row.item_id || row.description || row.account_code || `Line ${index + 1}`,
+                        row.category ? `(${row.category})` : '',
+                    ].filter(Boolean).join(' ');
+
+                    return {
+                        description,
+                        account_code: getDvAccountCode(row.coa_id || row.account_code || payload.coa_id || data.coa_id) || accountCode,
+                        debit: amount ? amount.toFixed(2) : '',
+                        credit: '',
+                    };
+                });
+        }
+
+        if (sourceType === 'ibtf') {
+            const amount = numericAmount(payload.amount || data.amount || sourceRecord?.amount || 0);
+            return [
+                {
+                    description: `Transfer to ${getLookupLabel('bank_account', data.destination_bank_account_id) || data.destination_bank_account_id || 'destination account'}`,
+                    account_code: data.destination_account_code || '',
+                    debit: amount ? amount.toFixed(2) : '',
+                    credit: '',
+                },
+                {
+                    description: `Transfer from ${getLookupLabel('bank_account', data.source_bank_account_id) || data.source_bank_account_id || 'source account'}`,
+                    account_code: data.source_account_code || '',
+                    debit: '',
+                    credit: amount ? amount.toFixed(2) : '',
+                },
+            ];
+        }
+
+        const amount = numericAmount(payload.amount || sourceRecord?.amount || data.amount || data.grand_total || data.amount_requested || data.total_payroll_amount || data.acquisition_cost || 0);
+        const description = [
+            sourceRecord?.record_number || String(sourceType || '').toUpperCase(),
+            data.purpose || data.expense_details || data.reason || data.asset_description || data.supporting_payroll_summary || sourceRecord?.record_title || 'Source document amount',
+        ].filter(Boolean).join(' - ');
+
+        return [{
+            description,
+            account_code: accountCode,
+            debit: amount ? amount.toFixed(2) : '',
+            credit: '',
+        }];
     }
 
     function getDvSourceDocumentOptionsHtml(sourceType, selectedValue = '') {
@@ -1852,13 +2869,7 @@
             data.acquisition_cost,
         ].find((value) => !blank(value));
 
-        const bankAccountId = [
-            data.bank_account_id,
-            data.funding_bank_account_id,
-            data.receiving_bank_account_id,
-            data.source_bank_account_id,
-            data.destination_bank_account_id,
-        ].find((value) => !blank(value));
+        const bankAccountId = getDvSourceBankAccountId(data);
 
         const paymentType = normalizeDvPaymentType([
             payload.payment_type,
@@ -1867,14 +2878,14 @@
             data.reimbursement_mode,
             data.mode_of_return,
             data.paid_through,
-        ].find((value) => !blank(value)));
+        ].find((value) => !blank(value))) || 'Cash';
 
         const coaId = [
             payload.coa_id,
             data.coa_id,
             data.payroll_expense_coa_id,
             data.asset_coa_id,
-        ].find((value) => !blank(value));
+        ].find((value) => !blank(value)) || firstLookupValue('chart_account');
 
         const supplierId = payload.supplier_id || data.supplier_id || '';
         const purpose = [
@@ -1897,17 +2908,28 @@
             amount: amount ?? '',
             supplier_id: supplierId,
             coa_id: coaId || '',
+            bank_account_id: bankAccountId || '',
             payment_type: paymentType,
             disbursement_type: paymentType || 'Cash',
+            fund_source: data.fund_source || data.project || data.department || '',
+            department: data.department || data.requesting_department || '',
             purpose,
             payment_date: paymentDate,
+            due_date: data.due_date || data.needed_date || data.expected_delivery_date || data.pay_date || data.acquisition_date || '',
             reference_number: referenceNumber,
+            withholding_tax: data.withholding_tax || data.wht_amount || data.wht_total || '',
+            vat_amount: data.vat_amount || data.tax_amount || data.tax_total || '',
+            currency: data.currency || 'PHP',
+            exchange_rate: data.exchange_rate || '',
+            received_by_name: data.received_by_name || '',
+            received_by_signature: data.received_by_signature || '',
+            date_received: data.date_received || '',
             remarks: payload.remarks || data.remarks || '',
         };
 
         if (moduleKey === 'ca') {
             prefill.supplier_id = data.supplier_id || '';
-            prefill.bank_account_id = data.bank_account_id || '';
+            prefill.bank_account_id = data.bank_account_id || bankAccountId || '';
         }
 
         if (moduleKey === 'lr') {
@@ -1918,7 +2940,7 @@
         if (moduleKey === 'err') {
             prefill.amount = data.amount || amount || '';
             prefill.supplier_id = data.supplier_id || '';
-            prefill.bank_account_id = data.bank_account_id || '';
+            prefill.bank_account_id = data.bank_account_id || bankAccountId || '';
         }
 
         if (moduleKey === 'crf') {
@@ -1937,17 +2959,19 @@
         const form = $('financeForm');
         if (!form) return;
 
-        ['source_document_id', 'supplier_id', 'amount', 'coa_id', 'payment_type', 'disbursement_type', 'purpose', 'payment_date', 'reference_number', 'remarks'].forEach((fieldName) => {
+        ['source_document_id', 'supplier_id', 'amount', 'bank_account_id', 'coa_id', 'payment_type', 'disbursement_type', 'fund_source', 'department', 'purpose', 'payment_date', 'due_date', 'withholding_tax', 'vat_amount', 'net_amount', 'currency', 'exchange_rate', 'received_by_name', 'received_by_signature', 'date_received', 'reference_number', 'remarks'].forEach((fieldName) => {
             const input = form.querySelector(`[name="data[${fieldName}]"]`);
             if (input) {
                 input.value = '';
             }
         });
         financeFormValues = financeFormValues || {};
-        ['source_document_id', 'supplier_id', 'amount', 'coa_id', 'payment_type', 'disbursement_type', 'purpose', 'payment_date', 'reference_number', 'remarks'].forEach((fieldName) => {
+        ['source_document_id', 'supplier_id', 'amount', 'bank_account_id', 'coa_id', 'payment_type', 'disbursement_type', 'fund_source', 'department', 'purpose', 'payment_date', 'due_date', 'withholding_tax', 'vat_amount', 'net_amount', 'currency', 'exchange_rate', 'received_by_name', 'received_by_signature', 'date_received', 'reference_number', 'remarks'].forEach((fieldName) => {
             financeFormValues[fieldName] = '';
             financeFormValues[`data[${fieldName}]`] = '';
         });
+        financeFormValues.dv_line_items = [];
+        replaceDvLineItemsTable([]);
         const info = $('dvSourceDocumentInfo');
         if (info) {
             info.innerHTML = '<div class="rounded-xl border border-dashed border-gray-200 bg-white/70 p-4 text-sm text-gray-500">Select a source document to auto-load its details.</div>';
@@ -1966,13 +2990,25 @@
             source_document_id: sourceId || sourceRecord.id || '',
             supplier_id: prefill?.prefill?.supplier_id || '',
             amount: prefill?.prefill?.amount || '',
+            bank_account_id: prefill?.prefill?.bank_account_id || '',
             payment_type: prefill?.prefill?.payment_type || '',
             disbursement_type: prefill?.prefill?.disbursement_type || prefill?.prefill?.payment_type || 'Cash',
             coa_id: prefill?.prefill?.coa_id || '',
+            fund_source: prefill?.prefill?.fund_source || '',
+            department: prefill?.prefill?.department || '',
             purpose: prefill?.prefill?.purpose || '',
             payment_date: prefill?.prefill?.payment_date || '',
+            due_date: prefill?.prefill?.due_date || '',
+            withholding_tax: prefill?.prefill?.withholding_tax || '',
+            vat_amount: prefill?.prefill?.vat_amount || '',
+            currency: prefill?.prefill?.currency || 'PHP',
+            exchange_rate: prefill?.prefill?.exchange_rate || '',
+            received_by_name: prefill?.prefill?.received_by_name || '',
+            received_by_signature: prefill?.prefill?.received_by_signature || '',
+            date_received: prefill?.prefill?.date_received || '',
             reference_number: prefill?.prefill?.reference_number || '',
             remarks: prefill?.prefill?.remarks || '',
+            line_items: buildDvLineItemsFromSource(resolvedSourceType, sourceRecord, prefill?.prefill || {}),
             record_title: prefill?.recordTitle || sourceRecord.record_title || sourceRecord.record_number || '',
             summary: prefill?.summary || '',
         };
@@ -1996,11 +3032,22 @@
         setField('source_document_id', payload.source_document_id);
         setField('supplier_id', payload.supplier_id);
         setField('amount', payload.amount);
+        setField('bank_account_id', payload.bank_account_id);
         setField('payment_type', payload.payment_type);
         setField('disbursement_type', payload.disbursement_type);
         setField('coa_id', payload.coa_id);
+        setField('fund_source', payload.fund_source);
+        setField('department', payload.department);
         setField('purpose', payload.purpose);
         setField('payment_date', payload.payment_date);
+        setField('due_date', payload.due_date);
+        setField('withholding_tax', payload.withholding_tax);
+        setField('vat_amount', payload.vat_amount);
+        setField('currency', payload.currency);
+        setField('exchange_rate', payload.exchange_rate);
+        setField('received_by_name', payload.received_by_name);
+        setField('received_by_signature', payload.received_by_signature);
+        setField('date_received', payload.date_received);
         setField('reference_number', payload.reference_number);
         setField('remarks', payload.remarks);
 
@@ -2019,6 +3066,7 @@
             $('amountInput').value = payload.amount || '';
         }
 
+        replaceDvLineItemsTable(payload.line_items || []);
         updateDvNetAmount();
         renderDvSourceDocumentInfo(payload.source_document_type, sourceRecord);
         renderDrawerPreview();
@@ -2067,21 +3115,10 @@
             select.value = String(sourceId || '');
         }
 
-        const currentBankAccountValue = form.querySelector('[name="data[bank_account_id]"]')?.value || financeFormValues['data[bank_account_id]'] || '';
-        financeFormValues = financeFormValues || {};
-        financeFormValues.bank_account_id = currentBankAccountValue;
-        financeFormValues['data[bank_account_id]'] = currentBankAccountValue;
-        if (form.querySelector('[name="data[bank_account_id]"]')) {
-            form.querySelector('[name="data[bank_account_id]"]').value = currentBankAccountValue;
-        }
-
         financeDraftContext = sourceRecord ? {
             moduleKey: 'dv',
             linkedRecord: sourceRecord,
-            prefill: {
-                ...getDvFieldPayload(resolvedSourceType, sourceRecord, sourceId),
-                bank_account_id: currentBankAccountValue,
-            },
+            prefill: getDvFieldPayload(resolvedSourceType, sourceRecord, sourceId),
         } : null;
         renderFinanceForm(currentEditRecordId ? getRecordById(currentEditRecordId) : null);
         requestAnimationFrame(() => {
@@ -2138,16 +3175,96 @@
         ` : '<div class="px-4 py-6 text-sm text-gray-500">No matching accounts found.</div>';
     }
 
+    function isTruthyFormValue(value) {
+        if (Array.isArray(value)) {
+            return value.length > 0;
+        }
+
+        if (typeof value === 'boolean') {
+            return value;
+        }
+
+        const normalized = String(value ?? '').trim().toLowerCase();
+        return normalized !== '' && normalized !== '0' && normalized !== 'false' && normalized !== 'no' && normalized !== 'off';
+    }
+
+    function fieldNameFromInputName(inputName = '') {
+        const match = String(inputName).match(/^data\[(.+)\]$/);
+        return match ? match[1] : inputName;
+    }
+
+    function cssIdentifier(value) {
+        if (window.CSS && typeof window.CSS.escape === 'function') {
+            return window.CSS.escape(value);
+        }
+
+        return String(value).replace(/[^a-zA-Z0-9_-]/g, '\\$&');
+    }
+
+    function syncDependentFieldState(controllerInput) {
+        if (!controllerInput) return;
+
+        const controllerName = fieldNameFromInputName(controllerInput.name);
+        const enabled = controllerInput.type === 'checkbox'
+            ? controllerInput.checked
+            : isTruthyFormValue(controllerInput.value);
+        const controllerValue = controllerInput.type === 'checkbox'
+            ? (controllerInput.checked ? '1' : '')
+            : controllerInput.value;
+
+        financeFormValues[controllerName] = controllerValue;
+        financeFormValues[`data[${controllerName}]`] = controllerValue;
+
+        document.querySelectorAll(`[data-depends-on-checkbox="${cssIdentifier(controllerName)}"]`).forEach((dependentInput) => {
+            dependentInput.disabled = !enabled;
+            dependentInput.classList.toggle('bg-gray-100', !enabled);
+            dependentInput.classList.toggle('cursor-not-allowed', !enabled);
+
+            if (!enabled) {
+                dependentInput.value = '';
+                const dependentName = fieldNameFromInputName(dependentInput.name);
+                financeFormValues[dependentName] = '';
+                financeFormValues[`data[${dependentName}]`] = '';
+            }
+        });
+    }
+
+    function syncErrReimbursementModeFields() {
+        if (currentModuleKey !== 'err') return;
+
+        const form = $('financeForm');
+        const mode = form?.querySelector('[name="data[reimbursement_mode]"]')?.value || '';
+        const requiredFieldsByMode = {
+            Cash: ['cash_receiver_name'],
+            'Bank Transfer': ['recipient_bank_account', 'recipient_bank_number'],
+            Check: ['bank_account_id'],
+        };
+
+        form?.querySelectorAll('[data-err-reimbursement-fields]').forEach((section) => {
+            const sectionMode = section.getAttribute('data-err-reimbursement-fields') || '';
+            const active = sectionMode === mode;
+            const requiredFields = requiredFieldsByMode[sectionMode] || [];
+
+            section.classList.toggle('hidden', !active);
+            section.querySelectorAll('input, select, textarea').forEach((input) => {
+                const fieldName = fieldNameFromInputName(input.name);
+                input.disabled = !active;
+                input.required = active && requiredFields.includes(fieldName);
+            });
+        });
+    }
+
     function renderDynamicField(field, value, formValues = {}) {
         const required = field.required ? 'required' : '';
         const label = escapeHtml(field.label);
         const hint = field.help ? `<p class="mt-1 text-xs text-gray-500">${escapeHtml(field.help)}</p>` : '';
         const fieldName = `data[${field.name}]`;
         const dependencyValue = field.dependsOnCheckbox ? formValues[`data[${field.dependsOnCheckbox}]`] : null;
-        const disabledAttr = field.dependsOnCheckbox && !dependencyValue ? 'disabled' : '';
+        const dependencyEnabled = !field.dependsOnCheckbox || isTruthyFormValue(dependencyValue);
+        const disabledAttr = field.dependsOnCheckbox && !dependencyEnabled ? 'disabled' : '';
         const emptyOption = field.placeholder || `Select ${field.label}`;
         const readOnlyAttr = field.readOnly ? 'readonly' : '';
-        const readOnlyClass = field.readOnly ? 'bg-gray-100 cursor-not-allowed' : '';
+        const readOnlyClass = field.readOnly || (field.dependsOnCheckbox && !dependencyEnabled) ? 'bg-gray-100 cursor-not-allowed' : '';
 
         let control = '';
 
@@ -2174,9 +3291,7 @@
                 </div>
             `;
         } else if (field.type === 'calculation') {
-            const displayValue = field.name === 'liquidation_calculation'
-                ? getCashAdvanceLiquidationCalculation(formValues)
-                : (value || 'N/A');
+            const displayValue = value || 'N/A';
             control = `
                 <div class="w-full rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-900">
                     ${escapeHtml(displayValue)}
@@ -2187,7 +3302,7 @@
                 .map((option) => `<option value="${escapeHtml(option.id ?? option.value)}" ${String(value) === String(option.id ?? option.value) ? 'selected' : ''}>${escapeHtml(option.label ?? option.value)}</option>`)
                 .join('');
             control = `
-                <select name="${fieldName}" class="w-full border rounded-md p-2 ${readOnlyClass}" ${disabledAttr} ${required} ${field.readOnly ? 'disabled' : ''}>
+                <select name="${fieldName}" class="w-full border rounded-md p-2 ${readOnlyClass}" ${field.dependsOnCheckbox ? `data-depends-on-checkbox="${escapeHtml(field.dependsOnCheckbox)}"` : ''} ${disabledAttr} ${required} ${field.readOnly ? 'disabled' : ''}>
                     <option value="">${escapeHtml(emptyOption)}</option>
                 ${options}
             </select>
@@ -2232,7 +3347,7 @@
         } else if (field.type === 'checkbox') {
             control = `
                 <label class="inline-flex items-center gap-2 mt-2">
-                    <input type="checkbox" name="${fieldName}" value="1" ${value ? 'checked' : ''} class="rounded border-gray-300">
+                    <input type="checkbox" name="${fieldName}" value="1" ${isTruthyFormValue(value) ? 'checked' : ''} data-checkbox-field="${escapeHtml(field.name)}" class="rounded border-gray-300">
                     <span class="text-sm text-gray-700">${label}</span>
                 </label>
             `;
@@ -2247,7 +3362,7 @@
         }
 
         return `
-            <div class="${field.fullWidth ? 'md:col-span-2' : ''}">
+            <div class="${field.fullWidth ? 'md:col-span-2' : ''}" data-finance-field="${escapeHtml(field.name)}">
                 <label class="block text-sm font-medium mb-1">${label}${field.required ? ' <span class="text-red-500">*</span>' : ''}</label>
                 ${control}
             ${hint}
@@ -2375,6 +3490,9 @@
             if (!fieldValue && field.autoFillCurrentUser) {
                 fieldValue = bootstrap.currentUserName || '';
             }
+            if (!record && !fieldValue && isRequestOwnershipModule() && shouldUseCurrentUserRequesterDefaults(values)) {
+                fieldValue = getRequesterDefaultForField(field.name);
+            }
             values[field.name] = fieldValue;
             values[`data[${field.name}]`] = fieldValue;
             return renderDynamicField(field, fieldValue, values);
@@ -2391,6 +3509,8 @@
 
         if (lineItems.length) {
             return lineItems.map((item) => ({
+                item_module: item.item_module || item.linked_item_type || item.master_item_type || '',
+                item_record_id: item.item_record_id || item.linked_item_id || item.master_item_id || '',
                 item_id: item.item_id || '',
                 description: item.description || '',
                 category: item.category || '',
@@ -2411,6 +3531,8 @@
 
         if (record?.module_key === 'po') {
             const legacyItem = {
+                item_module: record ? (getModuleFieldValue(record, { name: 'linked_item_type' }) || '') : '',
+                item_record_id: record ? (getModuleFieldValue(record, { name: 'linked_item_id' }) || '') : '',
                 item_id: record ? (getModuleFieldValue(record, { name: 'linked_item_id' }) || '') : '',
                 description: record ? (getModuleFieldValue(record, { name: 'purpose' }) || '') : '',
                 category: record ? (getModuleFieldValue(record, { name: 'linked_item_type' }) || '') : '',
@@ -2434,6 +3556,8 @@
         }
 
         const legacyItem = {
+            item_module: record ? (getModuleFieldValue(record, { name: 'master_item_type' }) || '') : '',
+            item_record_id: record ? (getModuleFieldValue(record, { name: 'master_item_id' }) || '') : '',
             item_id: record ? (getModuleFieldValue(record, { name: 'master_item_id' }) || '') : '',
             description: record ? (getModuleFieldValue(record, { name: 'description_specification' }) || '') : '',
             category: record ? (getModuleFieldValue(record, { name: 'master_item_type' }) || '') : '',
@@ -2456,6 +3580,8 @@
         }
 
         return [{
+            item_module: '',
+            item_record_id: '',
             item_id: '',
             description: '',
             category: '',
@@ -2475,13 +3601,10 @@
     }
 
     function getPrItemDisplayValue(value) {
-        if (currentModuleKey === 'po') {
-            const lookups = [financeLookupOptions.product || [], financeLookupOptions.service || []];
-            for (const lookup of lookups) {
-                const matchById = lookup.find((option) => String(option.id) === String(value));
-                if (matchById) {
-                    return matchById.label;
-                }
+        if (currentModuleKey === 'po' || currentModuleKey === 'pr') {
+            const match = findLineItemMasterOption(value);
+            if (match?.option?.label) {
+                return match.option.label;
             }
         }
 
@@ -2494,23 +3617,200 @@
         return value || '';
     }
 
+    function normalizeLineItemLookupValue(value) {
+        return String(value || '').trim().toLowerCase();
+    }
+
+    function lineItemMasterSources() {
+        if (currentModuleKey === 'pr' || currentModuleKey === 'po') {
+            return ['product', 'service'];
+        }
+
+        return ['product'];
+    }
+
+    function findLineItemMasterOption(value) {
+        const cleaned = normalizeLineItemLookupValue(value);
+        if (!cleaned) return null;
+
+        for (const moduleKey of lineItemMasterSources()) {
+            const options = financeLookupOptions[moduleKey] || [];
+            const option = options.find((item) => {
+                return [
+                    item.id,
+                    item.value,
+                    item.label,
+                    item.record_number,
+                    item.record_title,
+                ].some((candidate) => normalizeLineItemLookupValue(candidate) === cleaned);
+            });
+
+            if (option) {
+                return { moduleKey, option };
+            }
+        }
+
+        return null;
+    }
+
+    function getLineItemMasterDefaults(value) {
+        const match = findLineItemMasterOption(value);
+        if (!match) return null;
+
+        const data = match.option.data || {};
+        const isService = match.moduleKey === 'service';
+        const description = isService
+            ? (data.service_description || data.products_services_provided || match.option.record_title || '')
+            : (data.product_description || match.option.record_title || '');
+
+        return {
+            moduleKey: match.moduleKey,
+            id: match.option.id ?? '',
+            label: match.option.label || match.option.record_title || match.option.record_number || '',
+            description,
+            category: data.category || (isService ? 'Service' : 'Product'),
+            amount: data.default_cost ?? '',
+            supplier_id: data.supplier_id ?? '',
+            tax_type: data.tax_type ?? '',
+        };
+    }
+
+    function setLineItemFieldValue(row, fieldName, value) {
+        const input = row.querySelector(`[data-pr-line-item-field="${fieldName}"]`);
+        if (!input) return;
+
+        input.value = blank(value) ? '' : String(value);
+    }
+
+    function autofillLineItemFromMaster(row, { force = false } = {}) {
+        if (!row || (currentModuleKey !== 'pr' && currentModuleKey !== 'po')) return false;
+
+        const itemInput = row.querySelector('[data-pr-line-item-field="item_id"]');
+        const defaults = getLineItemMasterDefaults(itemInput?.value || '');
+
+        if (!defaults) return false;
+
+        const autofillKey = `${defaults.moduleKey}:${defaults.id}`;
+        if (!force && row.dataset.lastAutofilledMaster === autofillKey) {
+            return false;
+        }
+
+        row.dataset.lastAutofilledMaster = autofillKey;
+
+        if (itemInput && defaults.label) {
+            itemInput.value = defaults.label;
+        }
+
+        setLineItemFieldValue(row, 'item_module', defaults.moduleKey);
+        setLineItemFieldValue(row, 'item_record_id', defaults.id);
+        setLineItemFieldValue(row, 'description', defaults.description);
+        setLineItemFieldValue(row, 'category', defaults.category);
+        setLineItemFieldValue(row, 'amount', defaults.amount);
+
+        if (defaults.supplier_id) {
+            setLineItemFieldValue(row, 'supplier_id', defaults.supplier_id);
+        }
+
+        if (defaults.tax_type) {
+            setLineItemFieldValue(row, 'tax_type', defaults.tax_type);
+        }
+
+        return true;
+    }
+
     function getPrCategoryDisplayValue(value) {
         return value || '';
     }
 
     function getFinanceCurrentUserProfile() {
+        const contact = bootstrap.currentUserContact || {};
+        const contactName = contact.name || contact.full_name || '';
+        const contactEmail = contact.email || '';
+
         return {
-            name: bootstrap.currentUserName || '',
-            email: bootstrap.currentUserEmail || '',
+            name: contactName || bootstrap.currentUserName || '',
+            email: contactEmail || bootstrap.currentUserEmail || '',
+            phone: contact.phone || contact.contact_number || '',
+            contact_number: contact.contact_number || contact.phone || '',
+            position: contact.position || '',
+            department: contact.department || contact.company_name || '',
+            company_name: contact.company_name || '',
+            address: contact.address || contact.contact_address || '',
+            contact_address: contact.contact_address || contact.address || '',
+            contact_id: contact.id || '',
+            employee_id: contact.employee_id || contact.employee_code || '',
+            employee_code: contact.employee_code || contact.employee_id || '',
+            superior: contact.superior || '',
+            superior_email: contact.superior_email || '',
+            cif_no: contact.cif_no || '',
+            tin: contact.tin || '',
         };
     }
 
     function getPrRequesterDefaults() {
         const currentUser = getFinanceCurrentUserProfile();
         return {
+            requester_employee_id: '',
             requestor: currentUser.name,
+            employee_name: currentUser.name,
             employee_email: currentUser.email,
+            contact_number: currentUser.contact_number || currentUser.phone,
+            position: currentUser.position,
+            department: currentUser.department,
+            company_name: currentUser.company_name,
+            address: currentUser.contact_address || currentUser.address,
+            contact_id: currentUser.contact_id,
+            employee_id: currentUser.employee_id || currentUser.employee_code,
+            superior: currentUser.superior,
+            superior_email: currentUser.superior_email,
         };
+    }
+
+    function getEmployeeRequesterOption(employeeId) {
+        const targetId = String(employeeId || '').trim();
+        if (!targetId) return null;
+
+        return (financeLookupOptions.employee || []).find((option) => {
+            return String(option.id ?? option.value ?? '') === targetId
+                || String(option.employee_id || '') === targetId
+                || String(option.employee_code || '') === targetId;
+        }) || null;
+    }
+
+    function getEmployeeRequesterDefaults(employeeId) {
+        const employee = getEmployeeRequesterOption(employeeId);
+        if (!employee) return null;
+
+        const name = employee.full_name || employee.record_title || employee.name || employee.label || '';
+
+        return {
+            requester_employee_id: employee.id ?? employee.value ?? '',
+            requestor: name,
+            employee_name: name,
+            employee_email: employee.employee_email || employee.email || '',
+            contact_number: employee.contact_number || employee.phone_number || employee.phone || '',
+            position: employee.position || '',
+            department: employee.department || employee.department_name || '',
+            employee_id: employee.employee_id || employee.employee_code || '',
+            superior: employee.superior || '',
+            superior_email: employee.superior_email || '',
+        };
+    }
+
+    function getRequesterDefaultForField(fieldName) {
+        const defaults = getPrRequesterDefaults();
+
+        return defaults[fieldName] ?? '';
+    }
+
+    function shouldUseCurrentUserRequesterDefaults(values = {}) {
+        const requesterMode = values['data[requester_mode]']
+            || values.requester_mode
+            || financeFormValues?.requester_mode
+            || financeFormValues?.['data[requester_mode]']
+            || 'own_request';
+
+        return requesterMode !== 'request_for_another';
     }
 
     function getRequestOwnershipConfig(moduleKey = currentModuleKey) {
@@ -2542,9 +3842,24 @@
             || financeFormValues[config.modeField]
             || 'own_request';
         const shouldUseOwnRequest = requesterMode !== 'request_for_another';
+        const requesterEmployeeInput = form.querySelector('select[name="data[requester_employee_id]"]');
+        const requesterEmployeeWrapper = form.querySelector('[data-finance-field="requester_employee_id"]');
+        const requesterEmployeeId = shouldUseOwnRequest
+            ? ''
+            : (requesterEmployeeInput?.value || financeFormValues.requester_employee_id || financeFormValues['data[requester_employee_id]'] || '');
+        const employeeValues = getEmployeeRequesterDefaults(requesterEmployeeId);
 
         if (requesterModeInput) {
             requesterModeInput.value = requesterMode;
+        }
+
+        if (requesterEmployeeInput) {
+            requesterEmployeeInput.value = requesterEmployeeId;
+            requesterEmployeeInput.required = !shouldUseOwnRequest;
+        }
+
+        if (requesterEmployeeWrapper) {
+            requesterEmployeeWrapper.classList.toggle('hidden', shouldUseOwnRequest);
         }
 
         const syncField = (fieldName, autoValue, { readOnlyWhenOwn = true } = {}) => {
@@ -2552,28 +3867,92 @@
             if (!input) return;
 
             const currentValue = String(input.value || '').trim();
+            const employeeValue = employeeValues?.[fieldName] ?? '';
             const nextValue = shouldUseOwnRequest
                 ? (preserveExisting && currentValue ? currentValue : (autoValue || ''))
-                : (preserveExisting && currentValue && currentValue !== (autoValue || '') ? currentValue : '');
+                : (employeeValues
+                    ? (preserveExisting && currentValue ? currentValue : employeeValue)
+                    : (preserveExisting && currentValue && currentValue !== (autoValue || '') ? currentValue : ''));
 
             input.value = nextValue;
             if (readOnlyWhenOwn) {
-                setReadonlyState(input, shouldUseOwnRequest && Boolean(autoValue));
+                setReadonlyState(input, (shouldUseOwnRequest && Boolean(autoValue)) || (!shouldUseOwnRequest && Boolean(employeeValues) && Boolean(employeeValue)));
             }
             financeFormValues[fieldName] = nextValue;
             financeFormValues[`data[${fieldName}]`] = nextValue;
         };
 
         syncField(config.nameField, autoValues.requestor);
+        syncField('employee_name', autoValues.employee_name);
         if (config.mirrorNameField) {
             syncField(config.mirrorNameField, autoValues.requestor);
         }
         if (config.emailField) {
             syncField(config.emailField, autoValues.employee_email);
         }
+        syncField('contact_number', autoValues.contact_number);
+        syncField('position', autoValues.position);
+        syncField('department', autoValues.department);
+        syncField('employee_id', autoValues.employee_id);
+        syncField('superior', autoValues.superior);
+        syncField('superior_email', autoValues.superior_email);
 
+        financeFormValues.requester_employee_id = requesterEmployeeId;
+        financeFormValues['data[requester_employee_id]'] = requesterEmployeeId;
         financeFormValues[config.modeField] = requesterMode;
         financeFormValues[`data[${config.modeField}]`] = requesterMode;
+    }
+
+    function forceFillOwnRequesterDetails({ preserveExisting = true } = {}) {
+        if (!isRequestOwnershipModule()) return;
+
+        const form = $('financeForm');
+        if (!form) return;
+
+        const modeInput = form.querySelector('select[name="data[requester_mode]"]');
+        const requesterMode = modeInput?.value
+            || financeFormValues?.requester_mode
+            || financeFormValues?.['data[requester_mode]']
+            || 'own_request';
+
+        if (requesterMode === 'request_for_another') {
+            return;
+        }
+
+        const requesterEmployeeInput = form.querySelector('[name="data[requester_employee_id]"]');
+        if (requesterEmployeeInput) {
+            requesterEmployeeInput.value = '';
+            financeFormValues.requester_employee_id = '';
+            financeFormValues['data[requester_employee_id]'] = '';
+        }
+
+        const defaults = getPrRequesterDefaults();
+        const fieldMap = {
+            requestor: defaults.requestor,
+            employee_name: defaults.employee_name || defaults.requestor,
+            employee_email: defaults.employee_email,
+            employee_id: defaults.employee_id,
+            contact_number: defaults.contact_number,
+            position: defaults.position,
+            department: defaults.department,
+            superior: defaults.superior,
+            superior_email: defaults.superior_email,
+        };
+
+        Object.entries(fieldMap).forEach(([fieldName, value]) => {
+            const input = form.querySelector(`[name="data[${fieldName}]"]`);
+            if (!input || value === undefined || value === null || value === '') return;
+
+            const currentValue = String(input.value || '').trim();
+            if (preserveExisting && currentValue && currentValue !== bootstrap.currentUserName && currentValue !== bootstrap.currentUserEmail) {
+                return;
+            }
+
+            input.value = value;
+            setReadonlyState(input, true);
+            financeFormValues[fieldName] = value;
+            financeFormValues[`data[${fieldName}]`] = value;
+        });
     }
 
     function getPrSupplierRecord(value) {
@@ -2636,23 +4015,26 @@
 
     function renderDvLineItemsTable(record = null) {
         const rows = getDvLineItemRows(record);
+        const lockSourceFields = currentModuleKey === 'dv';
+        const sourceFieldAttr = lockSourceFields ? 'readonly' : '';
+        const sourceFieldClass = lockSourceFields ? 'bg-gray-100 cursor-not-allowed' : 'bg-white';
 
         return `
             <div class="md:col-span-2 rounded-xl border border-gray-200 bg-white p-4" data-dv-line-items-section>
                 <div class="flex items-center justify-between gap-3">
                     <h4 class="text-sm font-semibold uppercase tracking-[0.24em] text-gray-700">Breakdown / Line Items</h4>
-                    <button type="button" onclick="window.financeModule.addDvLineItemRow()" class="rounded-md border border-blue-200 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-50">Add Line</button>
+                    ${lockSourceFields ? '<span class="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">Debit/Credit editable</span>' : '<button type="button" onclick="window.financeModule.addDvLineItemRow()" class="rounded-md border border-blue-200 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-50">Add Line</button>'}
                 </div>
                 <div class="mt-4 space-y-3">
                     ${rows.map((row, index) => `
                         <div class="grid grid-cols-1 md:grid-cols-12 gap-3 rounded-lg border border-gray-100 bg-slate-50 p-3" data-dv-line-item-row>
                             <div class="md:col-span-5">
                                 <label class="block text-xs font-medium text-gray-600">Description</label>
-                                <input type="text" name="data[line_items][${index}][description]" data-dv-line-item-field="description" value="${escapeHtml(row.description || '')}" class="mt-1 w-full border rounded-md p-2 bg-white">
+                                <input type="text" name="data[line_items][${index}][description]" data-dv-line-item-field="description" value="${escapeHtml(row.description || '')}" class="mt-1 w-full border rounded-md p-2 ${sourceFieldClass}" ${sourceFieldAttr}>
                             </div>
                             <div class="md:col-span-3">
                                 <label class="block text-xs font-medium text-gray-600">Account Code</label>
-                                <input type="text" name="data[line_items][${index}][account_code]" data-dv-line-item-field="account_code" value="${escapeHtml(row.account_code || '')}" class="mt-1 w-full border rounded-md p-2 bg-white">
+                                <input type="text" name="data[line_items][${index}][account_code]" data-dv-line-item-field="account_code" value="${escapeHtml(row.account_code || '')}" class="mt-1 w-full border rounded-md p-2 ${sourceFieldClass}" ${sourceFieldAttr}>
                             </div>
                             <div class="md:col-span-2">
                                 <label class="block text-xs font-medium text-gray-600">Debit</label>
@@ -2662,7 +4044,7 @@
                                 <label class="block text-xs font-medium text-gray-600">Credit</label>
                                 <input type="number" step="0.01" min="0" name="data[line_items][${index}][credit]" data-dv-line-item-field="credit" value="${escapeHtml(row.credit || '')}" class="mt-1 w-full border rounded-md p-2 bg-white">
                             </div>
-                            <div class="md:col-span-12 flex justify-end">
+                            <div class="md:col-span-12 ${lockSourceFields ? 'hidden' : 'flex'} justify-end">
                                 <button type="button" onclick="window.financeModule.removeDvLineItemRow(${index})" class="text-xs font-semibold text-red-600 hover:text-red-700">Remove</button>
                             </div>
                         </div>
@@ -2974,42 +4356,83 @@
         });
     }
 
-    function syncPrRequesterFields({ preserveExisting = false } = {}) {
-        if (currentModuleKey !== 'pr') return;
+    function syncPdaPayrollPeriod({ preserveExisting = false } = {}) {
+        if (currentModuleKey !== 'pda') return;
 
         const form = $('financeForm');
         if (!form) return;
 
-        const requesterMode = form.querySelector('select[name="data[requester_mode]"]')?.value || financeFormValues.requester_mode || 'own_request';
-        const autoValues = getPrRequesterDefaults();
-        const shouldUseOwnRequest = requesterMode !== 'request_for_another';
-        const requestorInput = form.querySelector('[name="data[requestor]"]');
-        const emailInput = form.querySelector('[name="data[employee_email]"]');
+        const periodSelect = form.querySelector('[name="data[payroll_period_id]"]');
+        const selectedPeriod = (financeLookupOptions.payroll_period || [])
+            .find((period) => String(period.id) === String(periodSelect?.value || ''));
 
-        if (requestorInput) {
-            const currentValue = String(requestorInput.value || '').trim();
-            const nextValue = shouldUseOwnRequest
-                ? (preserveExisting && currentValue ? currentValue : autoValues.requestor)
-                : (preserveExisting && currentValue && currentValue !== autoValues.requestor ? currentValue : '');
-            requestorInput.value = nextValue;
-            setReadonlyState(requestorInput, shouldUseOwnRequest);
-            financeFormValues.requestor = nextValue;
-            financeFormValues['data[requestor]'] = nextValue;
+        const setFieldValue = (fieldName, value) => {
+            const input = form.querySelector(`[name="data[${fieldName}]"]`);
+            if (!input) return;
+            const currentValue = String(input.value || '').trim();
+            if (preserveExisting && currentValue) return;
+            input.value = blank(value) ? '' : String(value);
+            financeFormValues[fieldName] = input.value;
+            financeFormValues[`data[${fieldName}]`] = input.value;
+        };
+
+        if (!selectedPeriod) {
+            ['period_start', 'period_end', 'payroll_start', 'payroll_end', 'pay_date', 'total_payroll_amount', 'employee_count', 'basic_salary_total', 'yearly_basic_total', 'daily_rate_total', 'hourly_rate_total', 'minute_rate_total', 'gross_pay_total', 'benefits_total', 'allowances_total', 'deductions_total', 'night_differential_total', 'holiday_pay_total', 'employee_payroll_breakdown'].forEach((fieldName) => {
+                setFieldValue(fieldName, '');
+            });
+            return;
         }
 
-        if (emailInput) {
-            const currentValue = String(emailInput.value || '').trim();
-            const nextValue = shouldUseOwnRequest
-                ? (preserveExisting && currentValue ? currentValue : autoValues.employee_email)
-                : (preserveExisting && currentValue && currentValue !== autoValues.employee_email ? currentValue : '');
-            emailInput.value = nextValue;
-            setReadonlyState(emailInput, shouldUseOwnRequest && Boolean(autoValues.employee_email));
-            financeFormValues.employee_email = nextValue;
-            financeFormValues['data[employee_email]'] = nextValue;
+        setFieldValue('period_start', selectedPeriod.period_start || '');
+        setFieldValue('period_end', selectedPeriod.period_end || '');
+        setFieldValue('payroll_start', selectedPeriod.payroll_start || '');
+        setFieldValue('payroll_end', selectedPeriod.payroll_end || '');
+        setFieldValue('pay_date', selectedPeriod.pay_date || '');
+        setFieldValue('total_payroll_amount', selectedPeriod.total_payroll_amount || 0);
+        setFieldValue('employee_count', selectedPeriod.employee_count || 0);
+        setFieldValue('basic_salary_total', selectedPeriod.basic_salary_total || 0);
+        setFieldValue('yearly_basic_total', selectedPeriod.yearly_basic_total || 0);
+        setFieldValue('daily_rate_total', selectedPeriod.daily_rate_total || 0);
+        setFieldValue('hourly_rate_total', selectedPeriod.hourly_rate_total || 0);
+        setFieldValue('minute_rate_total', selectedPeriod.minute_rate_total || 0);
+        setFieldValue('gross_pay_total', selectedPeriod.gross_pay_total || 0);
+        setFieldValue('benefits_total', selectedPeriod.benefits_total || 0);
+        setFieldValue('allowances_total', selectedPeriod.allowances_total || 0);
+        setFieldValue('deductions_total', selectedPeriod.deductions_total || 0);
+        setFieldValue('night_differential_total', selectedPeriod.night_differential_total || 0);
+        setFieldValue('holiday_pay_total', selectedPeriod.holiday_pay_total || 0);
+
+        const recordTitleInput = $('recordTitleInput');
+        if (recordTitleInput && (!recordTitleInput.value || recordTitleInput.value === getModuleConfig('pda').recordTitleLabel)) {
+            recordTitleInput.value = selectedPeriod.record_title || selectedPeriod.label || 'Payroll Period';
         }
 
-        financeFormValues.requester_mode = requesterMode;
-        financeFormValues['data[requester_mode]'] = requesterMode;
+        const recordDateInput = $('recordDateInput');
+        if (recordDateInput && !recordDateInput.value && selectedPeriod.pay_date) {
+            recordDateInput.value = selectedPeriod.pay_date;
+        }
+
+        const summaryInput = form.querySelector('[name="data[supporting_payroll_summary]"]');
+        if (summaryInput && (!preserveExisting || blank(summaryInput.value))) {
+            summaryInput.value = `${selectedPeriod.employee_count || 0} payroll summaries. Basic: ${formatCurrency(selectedPeriod.basic_salary_total || 0)}; Gross: ${formatCurrency(selectedPeriod.gross_pay_total || 0)}; Benefits: ${formatCurrency(selectedPeriod.benefits_total || 0)}; Allowances: ${formatCurrency(selectedPeriod.allowances_total || 0)}; Deductions: ${formatCurrency(selectedPeriod.deductions_total || 0)}; Night Differential: ${formatCurrency(selectedPeriod.night_differential_total || 0)}; Holiday Pay: ${formatCurrency(selectedPeriod.holiday_pay_total || 0)}; Net Payroll: ${formatCurrency(selectedPeriod.total_payroll_amount || 0)}.`;
+            financeFormValues.supporting_payroll_summary = summaryInput.value;
+            financeFormValues['data[supporting_payroll_summary]'] = summaryInput.value;
+        }
+
+        const breakdownInput = form.querySelector('[name="data[employee_payroll_breakdown]"]');
+        if (breakdownInput && (!preserveExisting || blank(breakdownInput.value))) {
+            const employeeLines = Array.isArray(selectedPeriod.employee_lines) ? selectedPeriod.employee_lines : [];
+            breakdownInput.value = employeeLines.length
+                ? employeeLines.map((line, index) => `${index + 1}. ${line.employee_name || line.employee_code || 'Employee'} | ${line.salary_grade || 'No grade'} / ${line.payroll_level || 'No level'} | Basic ${formatCurrency(line.monthly_basic_salary || 0)} | Gross ${formatCurrency(line.gross_pay || 0)} | Deduct ${formatCurrency(line.total_deductions || 0)} | Net ${formatCurrency(line.net_pay || 0)}`).join('\n')
+                : 'No employee payroll profiles or summaries found for this period.';
+            financeFormValues.employee_payroll_breakdown = breakdownInput.value;
+            financeFormValues['data[employee_payroll_breakdown]'] = breakdownInput.value;
+        }
+    }
+
+    function syncPrRequesterFields({ preserveExisting = false } = {}) {
+        if (currentModuleKey !== 'pr') return;
+        syncRequestOwnershipFields({ preserveExisting });
     }
 
     function syncPrVendorFields({ preserveExisting = false } = {}) {
@@ -3105,6 +4528,10 @@
         if ($('amountInput')) {
             $('amountInput').value = amount.toFixed(2);
         }
+
+        if (changedFieldName === 'amount_requested' || changedFieldName === 'release_count' || changedFieldName === 'cash_release_date') {
+            refreshCashAdvancePaymentTracker();
+        }
     }
 
     function formatPrQuantity(value) {
@@ -3177,7 +4604,12 @@
         }
 
         const productLookup = financeLookupOptions.product || [];
-        return productLookup.map((option) => option.label || option.value || '').filter(Boolean);
+        const serviceLookup = financeLookupOptions.service || [];
+
+        return [
+            ...productLookup.map((option) => option.label || option.value || ''),
+            ...serviceLookup.map((option) => option.label || option.value || ''),
+        ].filter(Boolean);
     }
 
     function getLineItemCategorySuggestions() {
@@ -3355,7 +4787,7 @@
             case 'pr':
                 return [
                     { title: 'Request Details', fieldNames: ['requesting_department', 'request_type', 'priority', 'needed_date', 'for_client', 'pr_reason_categories'] },
-                    { title: 'Requester Details', fieldNames: ['requester_mode', 'requestor', 'employee_id', 'employee_email', 'contact_number', 'position', 'superior', 'superior_email'] },
+                    { title: 'Requester Details', fieldNames: ['requester_mode', 'requester_employee_id', 'requestor', 'employee_id', 'employee_email', 'contact_number', 'position', 'department', 'superior', 'superior_email'] },
                     { title: 'Vendor Details', fieldNames: ['supplier_id', 'new_vendor', 'vendor_id_number', 'vendors_tin', 'company_name', 'vendor_phone', 'vendor_email', 'vendor_address', 'city', 'province', 'zip'] },
                     { title: 'Items / Cost Details', renderer: () => renderPrPreviewTable(record) },
                     { type: 'notes', renderer: () => renderFinanceReviewNotesSection(record) },
@@ -3369,22 +4801,28 @@
                 ];
             case 'ca':
                 return [
-                    { title: 'Request Details', fieldNames: ['requester_mode', 'requestor', 'department', 'purpose', 'needed_date', 'mode_of_release', 'amount_requested', 'release_schedule', 'release_count', 'amount_per_release', 'liquidation_calculation', 'cash_release_date', 'cash_release_time', 'paid_through'] },
+                    { title: 'Request Details', fieldNames: ['requester_mode', 'requester_employee_id', 'requestor', 'department', 'purpose', 'needed_date', 'mode_of_release', 'amount_requested', 'release_schedule', 'release_count', 'amount_per_release', 'cash_release_date', 'cash_release_time', 'paid_through'] },
+                    { type: 'ca_payment_tracking', renderer: () => renderCashAdvancePaymentPreview(record) },
                     { title: 'Funding & Notes', fieldNames: ['bank_account_id', 'coa_id', 'remarks'] },
                     { type: 'notes', renderer: () => renderFinanceReviewNotesSection(record) },
                 ];
             case 'lr':
                 return [
                     { title: 'Liquidation Details', fieldNames: ['requester_mode', 'linked_ca_id', 'total_cash_advance', 'purpose'] },
-                    { title: 'Requester Details', fieldNames: ['employee_id', 'employee_name', 'employee_email', 'contact_number', 'position', 'department', 'superior', 'superior_email'] },
+                    { title: 'Requester Details', fieldNames: ['requester_employee_id', 'employee_id', 'employee_name', 'employee_email', 'contact_number', 'position', 'department', 'superior', 'superior_email'] },
                     { type: 'line_items', renderer: () => renderLiquidationPreviewTable(record) },
                     { type: 'cost_summary', renderer: () => renderLiquidationPreviewSummary(record) },
                     { type: 'notes', renderer: () => renderFinanceReviewNotesSection(record) },
                 ];
             case 'err':
+                const errPaymentFieldNames = {
+                    Cash: ['cash_receiver_name'],
+                    'Bank Transfer': ['recipient_bank_account', 'recipient_bank_number'],
+                    Check: ['bank_account_id'],
+                }[data.reimbursement_mode] || [];
+
                 return [
-                    { title: 'Reimbursement Details', fieldNames: ['requester_mode', 'linked_lr_id', 'requestor', 'expense_details', 'amount', 'reimbursement_payment_details', 'supplier_id', 'reimbursement_mode'] },
-                    { title: 'Accounting & Funding', fieldNames: ['coa_id', 'bank_account_id', 'remarks'] },
+                    { title: 'Reimbursement Details', fieldNames: ['requester_mode', 'requester_employee_id', 'linked_lr_id', 'requestor', 'expense_details', 'amount', 'reimbursement_payment_details', 'reimbursement_mode', ...errPaymentFieldNames, 'remarks'] },
                     { type: 'notes', renderer: () => renderFinanceReviewNotesSection(record) },
                 ];
             case 'dv':
@@ -3393,18 +4831,19 @@
                     { title: 'Accounting & Notes', fieldNames: ['bank_account_id', 'coa_id', 'fund_source', 'department', 'reference_number', 'purpose', 'remarks'] },
                     { renderer: () => renderDvPreviewLineItems(record) },
                     { title: 'Tax & Receipt', fieldNames: ['withholding_tax', 'vat_amount', 'net_amount', 'currency', 'exchange_rate', 'received_by_name', 'received_by_signature', 'date_received'] },
-                    { title: 'Signatories', fieldNames: ['prepared_by', 'checked_by', 'approved_by_name'] },
                     { type: 'notes', renderer: () => renderFinanceReviewNotesSection(record) },
                 ];
             case 'pda':
                 return [
-                    { title: 'Payroll Details', fieldNames: ['total_payroll_amount', 'department', 'funding_bank_account_id', 'payroll_expense_coa_id'] },
-                    { title: 'Supporting Notes', fieldNames: ['supporting_payroll_summary', 'remarks'] },
+                    { title: 'Payroll Period', fieldNames: ['payroll_period_id', 'period_start', 'period_end', 'payroll_start', 'payroll_end', 'pay_date'] },
+                    { title: 'Payroll Variables', fieldNames: ['employee_count', 'basic_salary_total', 'yearly_basic_total', 'daily_rate_total', 'hourly_rate_total', 'minute_rate_total', 'gross_pay_total', 'benefits_total', 'allowances_total', 'deductions_total', 'night_differential_total', 'holiday_pay_total', 'total_payroll_amount'] },
+                    { title: 'Funding', fieldNames: ['department', 'funding_bank_account_id', 'payroll_expense_coa_id'] },
+                    { title: 'Supporting Notes', fieldNames: ['supporting_payroll_summary', 'employee_payroll_breakdown', 'remarks'] },
                     { type: 'notes', renderer: () => renderFinanceReviewNotesSection(record) },
                 ];
             case 'crf':
                 return [
-                    { title: 'Return Details', fieldNames: ['requester_mode', 'requestor', 'linked_lr_id', 'amount_returned', 'mode_of_return', 'receiving_bank_account_id', 'coa_id'] },
+                    { title: 'Return Details', fieldNames: ['requester_mode', 'requester_employee_id', 'requestor', 'linked_lr_id', 'amount_returned', 'mode_of_return', 'receiving_bank_account_id', 'coa_id'] },
                     { title: 'Reference & Notes', fieldNames: ['reference_number', 'remarks'] },
                     { type: 'notes', renderer: () => renderFinanceReviewNotesSection(record) },
                 ];
@@ -3437,24 +4876,7 @@
     }
 
     function resolvePrItemId(value) {
-        const cleaned = String(value || '').trim().toLowerCase();
-        const lookups = currentModuleKey === 'po'
-            ? [financeLookupOptions.product || [], financeLookupOptions.service || []]
-            : [financeLookupOptions.product || []];
-
-        for (const lookup of lookups) {
-            const match = lookup.find((option) => {
-                const optionId = String(option.id || '').trim().toLowerCase();
-                const optionLabel = String(option.label || '').trim().toLowerCase();
-                return optionId === cleaned || optionLabel === cleaned;
-            });
-
-            if (match) {
-                return match.id;
-            }
-        }
-
-        return '';
+        return findLineItemMasterOption(value)?.option?.id || '';
     }
 
     function resolvePrCategory(value) {
@@ -3519,6 +4941,8 @@
                                             placeholder="${escapeHtml(isLiquidation ? 'Type or select item' : 'Type or select item')}"
                                             list="prItemOptions"
                                         >
+                                        <input type="hidden" name="data[line_items][${index}][item_module]" data-pr-line-item-field="item_module" value="${escapeHtml(row.item_module || '')}">
+                                        <input type="hidden" name="data[line_items][${index}][item_record_id]" data-pr-line-item-field="item_record_id" value="${escapeHtml(row.item_record_id || '')}">
                                     </div>
                                     <div>
                                         <label class="block text-xs font-semibold uppercase tracking-[0.18em] text-gray-500 mb-1">Description</label>
@@ -4133,15 +5557,21 @@
             const discountInput = row.querySelector('[data-pr-line-item-field="discount_amount"]');
             const shippingInput = row.querySelector('[data-pr-line-item-field="shipping_amount"]');
             const taxInput = row.querySelector('[data-pr-line-item-field="tax_amount"]');
+            const taxTypeInput = row.querySelector('[data-pr-line-item-field="tax_type"]');
             const whtInput = row.querySelector('[data-pr-line-item-field="wht_amount"]');
             const totalInput = row.querySelector('[data-pr-line-item-field="total"]');
             const formulaText = row.querySelector('[data-pr-line-item-formula]');
             const rowSubtotal = quantity * amount;
             const discountPercent = parseFloat(String(discountPercentInput?.value || '0').replace('%', '')) || 0;
             const manualDiscountAmount = parseFloat(discountInput?.value || '0') || 0;
-            const discountAmount = discountPercent > 0 ? rowSubtotal * (discountPercent / 100) : manualDiscountAmount;
+            const discountAmount = discountPercentInput
+                ? rowSubtotal * (discountPercent / 100)
+                : manualDiscountAmount;
             const shippingAmount = parseFloat(shippingInput?.value || '0') || 0;
-            const taxAmount = parseFloat(taxInput?.value || '0') || 0;
+            const taxableAmount = Math.max(rowSubtotal - discountAmount, 0);
+            const taxType = String(taxTypeInput?.value || 'N/A').trim();
+            const taxRate = taxType === 'VAT' ? 0.12 : (taxType === 'Non-VAT' ? 0.03 : 0);
+            const taxAmount = taxableAmount * taxRate;
             const whtAmount = parseFloat(whtInput?.value || '0') || 0;
             const lineTotal = rowSubtotal - discountAmount + shippingAmount + taxAmount - whtAmount;
 
@@ -4155,8 +5585,11 @@
             if (subtotalInput) {
                 subtotalInput.value = rowSubtotal.toFixed(2);
             }
-            if (discountInput && discountPercent > 0) {
+            if (discountInput && (discountPercent > 0 || discountPercentInput)) {
                 discountInput.value = discountAmount.toFixed(2);
+            }
+            if (taxInput) {
+                taxInput.value = taxAmount.toFixed(2);
             }
             if (totalInput) {
                 totalInput.value = lineTotal.toFixed(2);
@@ -4165,7 +5598,7 @@
                 totalInput.classList.remove('bg-white');
             }
             if (formulaText) {
-                formulaText.textContent = `${formatPrQuantity(quantity)} x ${formatCurrency(amount)} = ${formatCurrency(lineTotal)}`;
+                formulaText.textContent = `Subtotal ${formatCurrency(rowSubtotal)} - Discount ${formatCurrency(discountAmount)} + Shipping ${formatCurrency(shippingAmount)} + Tax ${formatCurrency(taxAmount)} - WHT ${formatCurrency(whtAmount)} = ${formatCurrency(lineTotal)}`;
             }
         });
 
@@ -4267,6 +5700,22 @@
         if (!row || row.dataset.prBound === '1') return;
         row.dataset.prBound = '1';
 
+        const itemInput = row.querySelector('[data-pr-line-item-field="item_id"]');
+        if (itemInput) {
+            itemInput.addEventListener('input', () => {
+                if (autofillLineItemFromMaster(row)) {
+                    updatePrTotals();
+                    renderDrawerPreview();
+                }
+            });
+            itemInput.addEventListener('change', () => {
+                if (autofillLineItemFromMaster(row, { force: true })) {
+                    updatePrTotals();
+                    renderDrawerPreview();
+                }
+            });
+        }
+
         row.querySelectorAll('input, select, textarea').forEach((input) => {
             input.addEventListener('input', () => {
                 updatePrTotals();
@@ -4310,17 +5759,14 @@
 
         const typeTarget = form.querySelector('[data-pr-primary-field="master_item_type"]');
         if (typeTarget) {
-            typeTarget.value = 'product';
+            const itemValue = firstRow?.querySelector('[data-pr-line-item-field="item_id"]')?.value || '';
+            typeTarget.value = findLineItemMasterOption(itemValue)?.moduleKey || 'product';
         }
 
         const poTypeTarget = form.querySelector('[data-pr-primary-field="linked_item_type"]');
         if (poTypeTarget) {
-            const itemLabel = String(firstRow?.querySelector('[data-pr-line-item-field="item_id"]')?.value || '').trim().toLowerCase();
-            const serviceLookup = financeLookupOptions.service || [];
-            const productLookup = financeLookupOptions.product || [];
-            const matchedService = serviceLookup.find((option) => String(option.label || option.value || '').trim().toLowerCase() === itemLabel);
-            const matchedProduct = productLookup.find((option) => String(option.label || option.value || '').trim().toLowerCase() === itemLabel);
-            poTypeTarget.value = matchedService ? 'service' : (matchedProduct ? 'product' : 'product');
+            const itemValue = firstRow?.querySelector('[data-pr-line-item-field="item_id"]')?.value || '';
+            poTypeTarget.value = findLineItemMasterOption(itemValue)?.moduleKey || 'product';
         }
     }
 
@@ -4333,6 +5779,8 @@
         const rows = Array.from(tbody.querySelectorAll('[data-pr-line-item-row]')).map((row) => {
             const getValue = (field) => row.querySelector(`[data-pr-line-item-field="${field}"]`)?.value || '';
             return {
+                item_module: getValue('item_module'),
+                item_record_id: getValue('item_record_id'),
                 item_id: getValue('item_id'),
                 description: getValue('description'),
                 category: getValue('category'),
@@ -4426,10 +5874,6 @@
         }
 
         if (field.type === 'calculation') {
-            if (field.name === 'liquidation_calculation') {
-                return getCashAdvanceLiquidationCalculation(formValues);
-            }
-
             return value || 'N/A';
         }
 
@@ -4451,7 +5895,7 @@
                 return getLookupLabel(moduleKey, value) || value;
             }
 
-            const option = (field.options || []).find((item) => String(item.value) === String(value));
+            const option = getFieldOptions(field, formValues).find((item) => String(item.value) === String(value));
             return option ? option.label : value;
         }
 
@@ -4484,6 +5928,9 @@
             }
 
             input.addEventListener('input', () => {
+                if (input.matches('[data-checkbox-field]')) {
+                    syncDependentFieldState(input);
+                }
                 if (isLineItemModule()) {
                     updatePrTotals();
                 }
@@ -4493,6 +5940,9 @@
                 renderDrawerPreview();
             });
             input.addEventListener('change', () => {
+                if (input.matches('[data-checkbox-field]')) {
+                    syncDependentFieldState(input);
+                }
                 if (isLineItemModule()) {
                     updatePrTotals();
                 }
@@ -4524,6 +5974,16 @@
             });
         }
 
+        if (currentModuleKey === 'pda') {
+            const payrollPeriodSelect = form.querySelector('[name="data[payroll_period_id]"]');
+            if (payrollPeriodSelect) {
+                payrollPeriodSelect.addEventListener('change', () => {
+                    syncPdaPayrollPeriod({ preserveExisting: false });
+                    renderDrawerPreview();
+                });
+            }
+        }
+
         if (currentModuleKey === 'err' || currentModuleKey === 'crf') {
             const linkedLrSelect = form.querySelector('select[name="data[linked_lr_id]"]');
             if (linkedLrSelect) {
@@ -4541,6 +6001,16 @@
                         prefill: getLiquidationBranchPrefill(currentModuleKey, linkedLrRecord),
                     };
                     renderFinanceForm(currentEditRecordId ? getRecordById(currentEditRecordId) : null);
+                    renderDrawerPreview();
+                });
+            }
+        }
+
+        if (currentModuleKey === 'err') {
+            const reimbursementModeSelect = form.querySelector('select[name="data[reimbursement_mode]"]');
+            if (reimbursementModeSelect) {
+                reimbursementModeSelect.addEventListener('change', () => {
+                    syncErrReimbursementModeFields();
                     renderDrawerPreview();
                 });
             }
@@ -4597,6 +6067,7 @@
             if (requesterModeSelect) {
                 requesterModeSelect.addEventListener('change', () => {
                     syncRequestOwnershipFields({ preserveExisting: false });
+                    forceFillOwnRequesterDetails({ preserveExisting: false });
                     renderDrawerPreview();
                 });
             }
@@ -4620,6 +6091,17 @@
             const requesterModeSelect = form.querySelector('select[name="data[requester_mode]"]');
             if (requesterModeSelect) {
                 requesterModeSelect.addEventListener('change', () => {
+                    syncRequestOwnershipFields({ preserveExisting: false });
+                    forceFillOwnRequesterDetails({ preserveExisting: false });
+                    renderDrawerPreview();
+                });
+            }
+        }
+
+        if (isRequestOwnershipModule()) {
+            const requesterEmployeeSelect = form.querySelector('select[name="data[requester_employee_id]"]');
+            if (requesterEmployeeSelect) {
+                requesterEmployeeSelect.addEventListener('change', () => {
                     syncRequestOwnershipFields({ preserveExisting: false });
                     renderDrawerPreview();
                 });
@@ -4856,7 +6338,7 @@
                         <h4 class="text-sm font-semibold uppercase tracking-[0.24em] text-gray-700">Requester Details</h4>
                         <p class="mt-2 text-xs text-gray-500">Choose Own Request to auto-fill your account details, or Request for Another to enter someone else&apos;s information.</p>
                         <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                            ${renderFieldsByNames(moduleConfig, ['requester_mode', 'requestor', 'employee_id', 'employee_name', 'employee_email', 'contact_number', 'position', 'department', 'superior', 'superior_email'], values, record)}
+                            ${renderFieldsByNames(moduleConfig, ['requester_mode', 'requester_employee_id', 'requestor', 'employee_id', 'employee_name', 'employee_email', 'contact_number', 'position', 'department', 'superior', 'superior_email'], values, record)}
                         </div>
                     </div>
 
@@ -4879,9 +6361,10 @@
                 const requesterModeValue = getDraftValue('requester_mode', record) || 'own_request';
                 const requestorValue = getDraftValue('requestor', record);
                 const expenseDetails = getDraftValue('expense_details', record);
-                const supplierValue = getDraftValue('supplier_id', record);
-                const coaValue = getDraftValue('coa_id', record);
                 const reimbursementModeValue = getDraftValue('reimbursement_mode', record);
+                const cashReceiverNameValue = getDraftValue('cash_receiver_name', record);
+                const recipientBankAccountValue = getDraftValue('recipient_bank_account', record);
+                const recipientBankNumberValue = getDraftValue('recipient_bank_number', record);
                 const bankAccountValue = getDraftValue('bank_account_id', record);
                 const reimbursementPaymentDetails = getDraftValue('reimbursement_payment_details', record);
                 const manualLiquidationEntry = getDraftValue('manual_liquidation_entry', record);
@@ -4899,12 +6382,14 @@
                 values['data[requestor]'] = values.requestor;
                 values.expense_details = expenseDetails || linkedPrefill.expense_details || '';
                 values['data[expense_details]'] = values.expense_details;
-                values.supplier_id = supplierValue;
-                values['data[supplier_id]'] = supplierValue;
-                values.coa_id = coaValue || linkedPrefill.coa_id || '';
-                values['data[coa_id]'] = values.coa_id;
                 values.reimbursement_mode = reimbursementModeValue || linkedPrefill.reimbursement_mode || '';
                 values['data[reimbursement_mode]'] = values.reimbursement_mode;
+                values.cash_receiver_name = cashReceiverNameValue;
+                values['data[cash_receiver_name]'] = cashReceiverNameValue;
+                values.recipient_bank_account = recipientBankAccountValue;
+                values['data[recipient_bank_account]'] = recipientBankAccountValue;
+                values.recipient_bank_number = recipientBankNumberValue;
+                values['data[recipient_bank_number]'] = recipientBankNumberValue;
                 values.bank_account_id = bankAccountValue || linkedPrefill.bank_account_id || '';
                 values['data[bank_account_id]'] = values.bank_account_id;
                 values.reimbursement_payment_details = reimbursementPaymentDetails || linkedPrefill.reimbursement_payment_details || '';
@@ -4920,7 +6405,20 @@
                         <h4 class="text-sm font-semibold uppercase tracking-[0.24em] text-blue-700">Reimbursement Details</h4>
                         <p class="mt-2 text-xs text-gray-500">Choose Own Request to auto-fill your account details, or Request for Another to enter someone else&apos;s information.</p>
                         <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                            ${renderFieldsByNames(moduleConfig, ['requester_mode', 'requestor', 'linked_lr_id', 'expense_details', 'amount', 'reimbursement_payment_details', 'manual_liquidation_entry', 'supplier_id', 'coa_id', 'reimbursement_mode', 'bank_account_id', 'remarks'], values, record)}
+                            ${renderFieldsByNames(moduleConfig, ['requester_mode', 'requester_employee_id', 'requestor', 'linked_lr_id', 'expense_details', 'amount', 'reimbursement_payment_details', 'manual_liquidation_entry', 'reimbursement_mode'], values, record)}
+                            <div data-err-reimbursement-fields="Cash">
+                                ${renderDynamicField(textField('cash_receiver_name', 'Name of Receiver', { required: values.reimbursement_mode === 'Cash' }), values.cash_receiver_name, values)}
+                            </div>
+                            <div data-err-reimbursement-fields="Bank Transfer">
+                                ${renderDynamicField(textField('recipient_bank_account', 'Bank Account', { required: values.reimbursement_mode === 'Bank Transfer' }), values.recipient_bank_account, values)}
+                            </div>
+                            <div data-err-reimbursement-fields="Bank Transfer">
+                                ${renderDynamicField(textField('recipient_bank_number', 'Bank Number', { required: values.reimbursement_mode === 'Bank Transfer' }), values.recipient_bank_number, values)}
+                            </div>
+                            <div data-err-reimbursement-fields="Check">
+                                ${renderDynamicField(selectField('bank_account_id', 'Bank Account Source', { source: 'bank_account', required: values.reimbursement_mode === 'Check' }), values.bank_account_id, values)}
+                            </div>
+                            ${renderFieldsByNames(moduleConfig, ['remarks'], values, record)}
                         </div>
                     </div>
                 `;
@@ -4967,7 +6465,7 @@
                         <h4 class="text-sm font-semibold uppercase tracking-[0.24em] text-blue-700">Return Details</h4>
                         <p class="mt-2 text-xs text-gray-500">Choose Own Request to auto-fill your account details, or Request for Another to enter someone else&apos;s information.</p>
                         <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                            ${renderFieldsByNames(moduleConfig, ['requester_mode', 'requestor', 'linked_lr_id', 'amount_returned', 'manual_liquidation_entry', 'mode_of_return', 'receiving_bank_account_id', 'coa_id', 'reference_number', 'remarks'], values, record)}
+                            ${renderFieldsByNames(moduleConfig, ['requester_mode', 'requester_employee_id', 'requestor', 'linked_lr_id', 'amount_returned', 'manual_liquidation_entry', 'mode_of_return', 'receiving_bank_account_id', 'coa_id', 'reference_number', 'remarks'], values, record)}
                         </div>
                     </div>
                 `;
@@ -4993,9 +6491,6 @@
                 const netAmountValue = getDraftValue('net_amount', record);
                 const currencyValue = getDraftValue('currency', record) || 'PHP';
                 const exchangeRateValue = getDraftValue('exchange_rate', record);
-                const preparedByValue = getDraftValue('prepared_by', record) || bootstrap.currentUserName || '';
-                const checkedByValue = getDraftValue('checked_by', record);
-                const approvedByNameValue = getDraftValue('approved_by_name', record);
                 const receivedByNameValue = getDraftValue('received_by_name', record);
                 const receivedBySignatureValue = getDraftValue('received_by_signature', record);
                 const dateReceivedValue = getDraftValue('date_received', record);
@@ -5041,12 +6536,6 @@
                 values['data[currency]'] = currencyValue;
                 values.exchange_rate = exchangeRateValue;
                 values['data[exchange_rate]'] = exchangeRateValue;
-                values.prepared_by = preparedByValue;
-                values['data[prepared_by]'] = preparedByValue;
-                values.checked_by = checkedByValue;
-                values['data[checked_by]'] = checkedByValue;
-                values.approved_by_name = approvedByNameValue;
-                values['data[approved_by_name]'] = approvedByNameValue;
                 values.received_by_name = receivedByNameValue;
                 values['data[received_by_name]'] = receivedByNameValue;
                 values.received_by_signature = receivedBySignatureValue;
@@ -5064,6 +6553,8 @@
                                 ${renderDynamicField(selectField('source_document_type', 'Linked Source Document Type', {
                                     required: true,
                                     options: [
+                                        { value: 'pr', label: 'PR' },
+                                        { value: 'po', label: 'PO' },
                                         { value: 'ca', label: 'CA' },
                                         { value: 'lr', label: 'LR' },
                                         { value: 'err', label: 'ERR' },
@@ -5085,7 +6576,7 @@
                                 >
                                     ${getDvSourceDocumentOptionsHtml(resolvedSourceTypeValue, sourceDocumentValue)}
                                 </select>
-                                <p id="dvSourceDocumentHint" class="mt-2 text-xs text-gray-500">${escapeHtml(resolvedSourceTypeValue ? 'Choose the exact document to auto-fill the internal voucher values. The bank account stays manual.' : 'Choose a source type first.')}</p>
+                                <p id="dvSourceDocumentHint" class="mt-2 text-xs text-gray-500">${escapeHtml(resolvedSourceTypeValue ? 'Choose the exact document to auto-fill the voucher values and breakdown.' : 'Choose a source type first.')}</p>
                             </div>
                             <div class="md:col-span-2">
                                 <div id="dvSourceDocumentInfo">
@@ -5097,7 +6588,7 @@
 
                     <div class="md:col-span-2 rounded-xl border border-gray-200 bg-white p-4">
                         <h4 class="text-sm font-semibold uppercase tracking-[0.24em] text-gray-700">Voucher Details</h4>
-                        <p class="mt-2 text-xs text-gray-500">Amount, supplier, account, payment date, purpose, and remarks are locked from the source document. Bank account, payment type, disbursement type, and reference no. stay editable.</p>
+                        <p class="mt-2 text-xs text-gray-500">These values are generated from the selected source document.</p>
                         <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                                 ${renderDynamicField(textField('supplier_id', 'Supplier', { readOnly: true }), supplierValue, values)}
@@ -5106,39 +6597,25 @@
                                 ${renderDynamicField(numberField('amount', 'Amount', { readOnly: true }), amountValue, values)}
                             </div>
                             <div>
-                                ${renderDynamicField(selectField('payment_type', 'Payment Type', {
-                                    options: [
-                                        { value: 'Cash', label: 'Cash' },
-                                        { value: 'Check', label: 'Check' },
-                                        { value: 'Bank Transfer', label: 'Bank Transfer' },
-                                        { value: 'E-Wallet', label: 'E-Wallet' },
-                                    ],
-                                }), paymentTypeValue, values)}
+                                ${renderDynamicField(textField('payment_type', 'Payment Type', { readOnly: true }), paymentTypeValue, values)}
                             </div>
                             <div>
-                                ${renderDynamicField(selectField('disbursement_type', 'Disbursement Type', {
-                                    options: [
-                                        { value: 'Cash', label: 'Cash' },
-                                        { value: 'Check', label: 'Check' },
-                                        { value: 'Bank Transfer', label: 'Bank Transfer' },
-                                        { value: 'Petty Cash', label: 'Petty Cash' },
-                                    ],
-                                }), disbursementTypeValue, values)}
+                                ${renderDynamicField(textField('disbursement_type', 'Disbursement Type', { readOnly: true }), disbursementTypeValue, values)}
                             </div>
                             <div>
-                                ${renderDynamicField(selectField('bank_account_id', 'Bank Account', { source: 'bank_account' }), bankAccountValue, values)}
+                                ${renderDynamicField(textField('bank_account_id', 'Bank Account', { readOnly: true }), bankAccountValue, values)}
                             </div>
                             <div>
                                 ${renderDynamicField(textField('coa_id', 'Account', { readOnly: true }), coaValue, values)}
                             </div>
                             <div>
-                                ${renderDynamicField(textField('fund_source', 'Fund Source / Project'), fundSourceValue, values)}
+                                ${renderDynamicField(textField('fund_source', 'Fund Source / Project', { readOnly: true }), fundSourceValue, values)}
                             </div>
                             <div>
-                                ${renderDynamicField(textField('department', 'Department'), departmentValue, values)}
+                                ${renderDynamicField(textField('department', 'Department', { readOnly: true }), departmentValue, values)}
                             </div>
                             <div>
-                                ${renderDynamicField(textField('reference_number', 'Reference Number'), referenceNumberValue, values)}
+                                ${renderDynamicField(textField('reference_number', 'Reference Number', { readOnly: true }), referenceNumberValue, values)}
                             </div>
                             <div class="md:col-span-2">
                                 ${renderDynamicField(textareaField('purpose', 'Purpose', { readOnly: true }), purposeValue, values)}
@@ -5147,7 +6624,7 @@
                                 ${renderDynamicField(dateField('payment_date', 'Payment Date', { readOnly: true }), paymentDateValue, values)}
                             </div>
                             <div>
-                                ${renderDynamicField(dateField('due_date', 'Due Date'), dueDateValue, values)}
+                                ${renderDynamicField(dateField('due_date', 'Due Date', { readOnly: true }), dueDateValue, values)}
                             </div>
                             <div class="md:col-span-2">
                                 ${renderDynamicField(textareaField('remarks', 'Remarks', { readOnly: true }), remarksValue, values)}
@@ -5162,29 +6639,21 @@
                     <div class="md:col-span-2 rounded-xl border border-gray-200 bg-white p-4">
                         <h4 class="text-sm font-semibold uppercase tracking-[0.24em] text-gray-700">Tax, Currency & Receipt</h4>
                         <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                            ${renderDynamicField(numberField('withholding_tax', 'Withholding Tax (EWT)'), withholdingTaxValue, values)}
-                            ${renderDynamicField(numberField('vat_amount', 'VAT'), vatAmountValue, values)}
+                            ${renderDynamicField(numberField('withholding_tax', 'Withholding Tax (EWT)', { readOnly: true }), withholdingTaxValue, values)}
+                            ${renderDynamicField(numberField('vat_amount', 'VAT', { readOnly: true }), vatAmountValue, values)}
                             ${renderDynamicField(numberField('net_amount', 'Net Amount', { readOnly: true }), netAmountValue, values)}
-                            ${renderDynamicField(textField('currency', 'Currency'), currencyValue, values)}
-                            ${renderDynamicField(numberField('exchange_rate', 'Exchange Rate'), exchangeRateValue, values)}
-                            ${renderDynamicField(textField('received_by_name', 'Received By'), receivedByNameValue, values)}
-                            ${renderDynamicField(textField('received_by_signature', 'Signature'), receivedBySignatureValue, values)}
-                            ${renderDynamicField(dateField('date_received', 'Date Received'), dateReceivedValue, values)}
-                        </div>
-                    </div>
-
-                    <div class="md:col-span-2 rounded-xl border border-gray-200 bg-white p-4">
-                        <h4 class="text-sm font-semibold uppercase tracking-[0.24em] text-gray-700">Signatories</h4>
-                        <div class="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
-                            ${renderDynamicField(textField('prepared_by', 'Prepared By'), preparedByValue, values)}
-                            ${renderDynamicField(textField('checked_by', 'Verified / Checked By'), checkedByValue, values)}
-                            ${renderDynamicField(textField('approved_by_name', 'Approved By'), approvedByNameValue, values)}
+                            ${renderDynamicField(textField('currency', 'Currency', { readOnly: true }), currencyValue, values)}
+                            ${renderDynamicField(numberField('exchange_rate', 'Exchange Rate', { readOnly: true }), exchangeRateValue, values)}
+                            ${renderDynamicField(textField('received_by_name', 'Received By', { readOnly: true }), receivedByNameValue, values)}
+                            ${renderDynamicField(textField('received_by_signature', 'Signature', { readOnly: true }), receivedBySignatureValue, values)}
+                            ${renderDynamicField(dateField('date_received', 'Date Received', { readOnly: true }), dateReceivedValue, values)}
                         </div>
                     </div>
                 `;
             }
 
             if (currentModuleKey === 'ca') {
+                values.ca_payment_entries = normalizeCashAdvancePaymentEntries(record?.data?.ca_payment_entries || values.ca_payment_entries || []);
                 return `
                     <div class="md:col-span-2 rounded-xl border border-blue-100 bg-blue-50/40 p-4">
                         <h4 class="text-sm font-semibold uppercase tracking-[0.24em] text-blue-700">Request Details</h4>
@@ -5197,7 +6666,7 @@
                         <h4 class="text-sm font-semibold uppercase tracking-[0.24em] text-gray-700">Requester Details</h4>
                         <p class="mt-2 text-xs text-gray-500">Choose Own Request to auto-fill your account details, or Request for Another to enter someone else&apos;s information.</p>
                         <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                            ${renderFieldsByNames(moduleConfig, ['requester_mode', 'requestor', 'employee_id', 'employee_name', 'employee_email', 'contact_number', 'position', 'department', 'superior', 'superior_email'], values, record)}
+                            ${renderFieldsByNames(moduleConfig, ['requester_mode', 'requester_employee_id', 'requestor', 'employee_id', 'employee_name', 'employee_email', 'contact_number', 'position', 'department', 'superior', 'superior_email'], values, record)}
                         </div>
                     </div>
 
@@ -5211,9 +6680,11 @@
                     <div class="md:col-span-2 rounded-xl border border-gray-200 bg-white p-4">
                         <h4 class="text-sm font-semibold uppercase tracking-[0.24em] text-gray-700">Cash Advance Details</h4>
                         <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                            ${renderFieldsByNames(moduleConfig, ['amount_requested', 'release_schedule', 'release_count', 'amount_per_release', 'liquidation_calculation', 'cash_release_date', 'cash_release_time', 'mode_of_release', 'paid_through'], values, record)}
+                            ${renderFieldsByNames(moduleConfig, ['amount_requested', 'release_schedule', 'release_count', 'amount_per_release', 'cash_release_date', 'cash_release_time', 'mode_of_release', 'paid_through'], values, record)}
                         </div>
                     </div>
+
+                    ${renderCashAdvancePaymentTracker(values)}
 
                     <div class="md:col-span-2 rounded-xl border border-gray-200 bg-white p-4">
                         <h4 class="text-sm font-semibold uppercase tracking-[0.24em] text-gray-700">Declarations & Authorizations</h4>
@@ -5225,6 +6696,7 @@
             }
 
             if (currentModuleKey === 'ca') {
+                values.ca_payment_entries = normalizeCashAdvancePaymentEntries(record?.data?.ca_payment_entries || values.ca_payment_entries || []);
                 return `
                     <div class="md:col-span-2 rounded-xl border border-blue-100 bg-blue-50/40 p-4">
                         <h4 class="text-sm font-semibold uppercase tracking-[0.24em] text-blue-700">Request Details</h4>
@@ -5237,7 +6709,7 @@
                         <h4 class="text-sm font-semibold uppercase tracking-[0.24em] text-gray-700">Requester Details</h4>
                         <p class="mt-2 text-xs text-gray-500">Choose Own Request to auto-fill your account details, or Request for Another to enter someone else&apos;s information.</p>
                         <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                            ${renderFieldsByNames(moduleConfig, ['requester_mode', 'employee_name', 'employee_id', 'employee_email', 'contact_number', 'position', 'department', 'superior', 'superior_email'], values, record)}
+                            ${renderFieldsByNames(moduleConfig, ['requester_mode', 'requester_employee_id', 'employee_name', 'employee_id', 'employee_email', 'contact_number', 'position', 'department', 'superior', 'superior_email'], values, record)}
                         </div>
                     </div>
 
@@ -5251,9 +6723,11 @@
                     <div class="md:col-span-2 rounded-xl border border-gray-200 bg-white p-4">
                         <h4 class="text-sm font-semibold uppercase tracking-[0.24em] text-gray-700">Cash Advance Details</h4>
                         <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                            ${renderFieldsByNames(moduleConfig, ['amount_requested', 'release_schedule', 'release_count', 'amount_per_release', 'liquidation_calculation', 'cash_release_date', 'cash_release_time', 'mode_of_release', 'paid_through'], values, record)}
+                            ${renderFieldsByNames(moduleConfig, ['amount_requested', 'release_schedule', 'release_count', 'amount_per_release', 'cash_release_date', 'cash_release_time', 'mode_of_release', 'paid_through'], values, record)}
                         </div>
                     </div>
+
+                    ${renderCashAdvancePaymentTracker(values)}
 
                     <div class="md:col-span-2 rounded-xl border border-gray-200 bg-white p-4">
                         <h4 class="text-sm font-semibold uppercase tracking-[0.24em] text-gray-700">Declarations & Authorizations</h4>
@@ -5272,26 +6746,41 @@
                 const supplierValue = getDraftValue('supplier_id', record);
                 const supplierRecord = getPrSupplierRecord(supplierValue);
                 const supplierDefaults = getPrSupplierAutofillValues(supplierRecord);
+                const requesterEmployeeValue = requesterModeValue === 'request_for_another'
+                    ? getDraftValue('requester_employee_id', record)
+                    : '';
+                const requesterEmployeeDefaults = getEmployeeRequesterDefaults(requesterEmployeeValue);
                 const requestorBaseValue = getDraftValue('requestor', record);
                 const employeeEmailBaseValue = getDraftValue('employee_email', record);
                 const requesterValue = requesterModeValue === 'own_request'
                     ? (requestorBaseValue || requesterDefaults.requestor)
-                    : requestorBaseValue;
+                    : (requestorBaseValue || requesterEmployeeDefaults?.requestor || '');
                 const employeeEmailValue = requesterModeValue === 'own_request'
                     ? (employeeEmailBaseValue || requesterDefaults.employee_email)
-                    : employeeEmailBaseValue;
+                    : (employeeEmailBaseValue || requesterEmployeeDefaults?.employee_email || '');
                 const requestorField = {
                     ...((moduleConfig.fields || []).find((field) => field.name === 'requestor')
                         || textField('requestor', 'Employee Name', { required: true })),
-                    readOnly: requesterModeValue === 'own_request',
+                    readOnly: requesterModeValue === 'own_request' || Boolean(requesterEmployeeDefaults),
                 };
                 const requestorFieldValue = requesterValue || '';
                 values.requester_mode = requesterModeValue;
                 values['data[requester_mode]'] = requesterModeValue;
+                values.requester_employee_id = requesterEmployeeValue;
+                values['data[requester_employee_id]'] = requesterEmployeeValue;
                 values.requestor = requestorFieldValue;
                 values['data[requestor]'] = requestorFieldValue;
                 values.employee_email = employeeEmailValue || '';
                 values['data[employee_email]'] = employeeEmailValue || '';
+                ['employee_id', 'employee_name', 'contact_number', 'position', 'department', 'superior', 'superior_email'].forEach((fieldName) => {
+                    const existingValue = getDraftValue(fieldName, record);
+                    const defaultValue = getRequesterDefaultForField(fieldName);
+                    const nextValue = requesterModeValue === 'own_request'
+                        ? (existingValue || defaultValue || '')
+                        : (existingValue || requesterEmployeeDefaults?.[fieldName] || '');
+                    values[fieldName] = nextValue;
+                    values[`data[${fieldName}]`] = nextValue;
+                });
                 values.supplier_id = supplierValue;
                 values['data[supplier_id]'] = supplierValue;
                 values.new_vendor = supplierRecord ? 'No' : (getDraftValue('new_vendor', record) || '');
@@ -5314,9 +6803,9 @@
                         <h4 class="text-sm font-semibold uppercase tracking-[0.24em] text-gray-700">Requester Details</h4>
                         <p class="mt-2 text-xs text-gray-500">Choose Own Request to auto-fill your signed-in account details. Choose Request for Another when the request belongs to someone else.</p>
                         <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                            ${renderFieldsByNames(moduleConfig, ['requester_mode'], values, record)}
+                            ${renderFieldsByNames(moduleConfig, ['requester_mode', 'requester_employee_id'], values, record)}
                             ${renderDynamicField(requestorField, requestorFieldValue, values)}
-                            ${renderFieldsByNames(moduleConfig, ['employee_id', 'employee_email', 'contact_number', 'position', 'superior', 'superior_email'], values, record)}
+                            ${renderFieldsByNames(moduleConfig, ['employee_id', 'employee_email', 'contact_number', 'position', 'department', 'superior', 'superior_email'], values, record)}
                         </div>
                     </div>
 
@@ -5442,7 +6931,7 @@
                         <h4 class="text-sm font-semibold uppercase tracking-[0.24em] text-gray-700">Asset Tag</h4>
                         <p class="mt-2 text-xs text-gray-500">This tag mirrors the printable plate and updates automatically from the asset code, location, and serial number.</p>
                         <div class="mt-4">
-                            ${renderArfAssetTagCard(assetCodeValue, locationValue, serialNumberValue, barcodeSvg)}
+                            ${renderArfAssetTagCard(assetCodeValue, locationValue, serialNumberValue, barcodeSvg, { withPrintButton: true })}
                         </div>
                     </div>
 
@@ -5521,6 +7010,7 @@
         $('dynamicFields').innerHTML = fieldsHtml;
         renderAttachmentList(existingAttachments);
         wireDynamicFieldEvents();
+        syncErrReimbursementModeFields();
         if (currentModuleKey === 'pr') {
             syncPrRequestDetails({ preserveExisting: true });
         }
@@ -5536,12 +7026,16 @@
         if (currentModuleKey === 'ibtf') {
             syncIbtfAccountCodes({ preserveExisting: true });
         }
+        if (currentModuleKey === 'pda') {
+            syncPdaPayrollPeriod({ preserveExisting: Boolean(record) });
+        }
         if (currentModuleKey === 'arf') {
             syncArfLinkedDocumentFields({ preserveExisting: true });
         }
         if (currentModuleKey === 'bank_account') {
             renderBankAccountLookupList(activeBankAccountLookupQuery);
         }
+        forceFillOwnRequesterDetails({ preserveExisting: true });
         bindPurchaseRequestLineItems();
         renderDrawerPreview();
     }
@@ -5690,7 +7184,10 @@
 
                         <div class="relative border-t border-gray-300">
                             <div class="bg-gray-50 px-4 py-2 border-b border-gray-300">
-                                <h4 class="text-[12px] font-semibold uppercase tracking-[0.26em] text-gray-700">Asset Tag</h4>
+                                <div class="flex flex-wrap items-center justify-between gap-2">
+                                    <h4 class="text-[12px] font-semibold uppercase tracking-[0.26em] text-gray-700">Asset Tag</h4>
+                                    ${renderArfAssetTagPrintButton(assetCode, location, serialNumber, 'inline-flex items-center justify-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-[11px] font-semibold text-gray-700 hover:bg-gray-50')}
+                                </div>
                             </div>
                             <div class="relative px-5 py-5 text-center border-b border-gray-300 bg-white">
                                 <div class="mt-1 text-[10px] font-semibold uppercase tracking-[0.3em] text-gray-500">JK&amp;C INC.</div>
@@ -5998,9 +7495,8 @@
                 cash_release_time: $('financeForm').querySelector('input[name="data[cash_release_time]"]')?.value || 'N/A',
                 mode_of_release: $('financeForm').querySelector('select[name="data[mode_of_release]"]')?.value || 'N/A',
                 paid_through: getLookupLabel('chart_account', paidThroughValue) || paidThroughValue || 'N/A',
+                ca_payment_entries: collectCashAdvancePaymentEntriesFromForm(),
             };
-            summaryValues.liquidation_calculation = getCashAdvanceLiquidationCalculation(summaryValues);
-
             $('drawerPreview').innerHTML = `
                 <div class="rounded-2xl border border-slate-200 bg-slate-100 p-4">
                     <div class="mb-3 flex items-center justify-between rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-medium text-slate-500 shadow-sm">
@@ -6078,10 +7574,6 @@
                                     <p class="text-[11px] uppercase tracking-[0.22em] text-gray-500">Amount per Release</p>
                                     <p class="mt-2 min-h-[20px] border-b border-gray-300 text-[14px] font-semibold text-gray-900 break-words">${escapeHtml(summaryValues.amount_per_release)}</p>
                                 </div>
-                                <div class="border-t border-gray-300 px-4 py-3">
-                                    <p class="text-[11px] uppercase tracking-[0.22em] text-gray-500">Liquidation Calculation</p>
-                                    <p class="mt-2 min-h-[20px] border-b border-gray-300 text-[14px] font-semibold text-gray-900 break-words">${escapeHtml(summaryValues.liquidation_calculation)}</p>
-                                </div>
                                 <div class="border-r border-t border-gray-300 px-4 py-3">
                                     <p class="text-[11px] uppercase tracking-[0.22em] text-gray-500">Cash Release Date / Time</p>
                                     <p class="mt-2 min-h-[20px] border-b border-gray-300 text-[14px] font-semibold text-gray-900 break-words">${escapeHtml([summaryValues.cash_release_date, summaryValues.cash_release_time].filter((value) => value && value !== 'N/A').join(' ') || 'N/A')}</p>
@@ -6093,6 +7585,18 @@
                                 <div class="border-r border-t border-gray-300 px-4 py-3">
                                     <p class="text-[11px] uppercase tracking-[0.22em] text-gray-500">Other Business Purpose</p>
                                     <p class="mt-2 min-h-[20px] border-b border-gray-300 text-[14px] font-semibold text-gray-900 break-words">${escapeHtml(formValues['data[other_business_purpose_specify]'] || formValues['data[other_expense_specify]'] || 'Not filled yet')}</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="relative border-t border-gray-300">
+                            <div class="bg-gray-50 px-4 py-2 border-b border-gray-300">
+                                <h4 class="text-[12px] font-semibold uppercase tracking-[0.26em] text-gray-700">Cash Advance Payment Tracking</h4>
+                            </div>
+                            <div class="p-4">
+                                ${renderCashAdvancePaymentSummaryPanel(summaryValues)}
+                                <div class="mt-4">
+                                    ${renderCashAdvancePaymentTrackerPanel(summaryValues)}
                                 </div>
                             </div>
                         </div>
@@ -6260,6 +7764,18 @@
             .filter((field) => {
                 if (currentModuleKey === 'supplier' && isSendToSupplierMode()) {
                     return field.name === 'email_address';
+                }
+
+                if (currentModuleKey === 'err') {
+                    const mode = formValues['data[reimbursement_mode]'] || '';
+                    const modeFields = ['cash_receiver_name', 'recipient_bank_account', 'recipient_bank_number', 'bank_account_id'];
+                    const visibleModeFields = {
+                        Cash: ['cash_receiver_name'],
+                        'Bank Transfer': ['recipient_bank_account', 'recipient_bank_number'],
+                        Check: ['bank_account_id'],
+                    }[mode] || [];
+
+                    return !modeFields.includes(field.name) || visibleModeFields.includes(field.name);
                 }
 
                 return true;
@@ -6530,7 +8046,7 @@
                     <div class="finance-preview-box">
                         <div class="finance-preview-section-title">${escapeHtml(section.title || 'Asset Tag')}</div>
                         <div class="finance-preview-inner">
-                            ${renderArfAssetTagCard(section.assetCode, section.location, section.serialNumber, section.barcodeSvg)}
+                            ${renderArfAssetTagCard(section.assetCode, section.location, section.serialNumber, section.barcodeSvg, { withPrintButton: true })}
                         </div>
                     </div>
                 `;
@@ -6550,7 +8066,8 @@
                 <style>
                     .finance-preview-source {
                         width: 816px;
-                        padding: 28px;
+                        min-height: 1056px;
+                        padding: 12px;
                         background: #ffffff;
                         color: #111827;
                         font-family: Arial, Helvetica, sans-serif;
@@ -6564,30 +8081,30 @@
                         display: flex;
                         align-items: center;
                         justify-content: space-between;
-                        gap: 24px;
-                        padding: 18px 20px;
+                        gap: 12px;
+                        padding: 10px 12px;
                         border: 1px solid #dbe2ea;
-                        border-radius: 16px 16px 0 0;
+                        border-radius: 8px 8px 0 0;
                         background: linear-gradient(90deg, #fff 0%, #fff 75%, #eff6ff 100%);
                     }
                     .finance-preview-brand {
                         display: flex;
                         align-items: center;
-                        gap: 14px;
+                        gap: 8px;
                     }
                     .finance-preview-logo {
-                        width: 76px;
-                        height: 76px;
+                        width: 52px;
+                        height: 52px;
                         border: 1px solid #dbeafe;
-                        border-radius: 18px;
+                        border-radius: 10px;
                         display: flex;
                         align-items: center;
                         justify-content: center;
                         background: #fff;
                     }
                     .finance-preview-logo img {
-                        width: 64px;
-                        height: 64px;
+                        width: 44px;
+                        height: 44px;
                         object-fit: contain;
                     }
                     .finance-preview-eyebrow,
@@ -6601,42 +8118,42 @@
                     .finance-preview-status-title {
                         text-transform: uppercase;
                         letter-spacing: .24em;
-                        font-size: 10px;
+                        font-size: 8px;
                         color: #6b7280;
                     }
                     .finance-preview-title {
-                        font-size: 28px;
+                        font-size: 17px;
                         line-height: 1.1;
                         font-weight: 700;
                     }
                     .finance-preview-subtitle {
-                        margin-top: 5px;
+                        margin-top: 3px;
                         color: #1d4ed8;
                         font-weight: 700;
-                        font-size: 12px;
+                        font-size: 9px;
                     }
                     .finance-preview-note {
-                        margin-top: 4px;
+                        margin-top: 2px;
                         color: #6b7280;
-                        font-size: 11px;
+                        font-size: 8.5px;
                     }
                     .finance-preview-status {
                         text-align: right;
                     }
                     .finance-preview-status p {
                         margin: 0;
-                        font-size: 12px;
+                        font-size: 9px;
                         font-weight: 700;
                         line-height: 1.5;
                     }
                     .finance-preview-section-title {
                         margin: 0;
-                        padding: 10px 14px;
+                        padding: 6px 8px;
                         background: #1d4ed8;
                         color: #fff;
                         text-transform: uppercase;
                         letter-spacing: .24em;
-                        font-size: 11px;
+                        font-size: 8.5px;
                         font-weight: 700;
                     }
                     .finance-preview-summary,
@@ -6651,19 +8168,19 @@
                     .finance-preview-lineitems th {
                         border: 1px solid #dbe2ea;
                         vertical-align: top;
-                        padding: 10px 12px;
+                        padding: 6px 7px;
                     }
-                    .finance-preview-summary td { width: 25%; height: 62px; }
+                    .finance-preview-summary td { width: 25%; height: 42px; }
                     .finance-preview-label {
                         margin: 0;
                         text-transform: uppercase;
                         letter-spacing: .18em;
                         color: #6b7280;
-                        font-size: 10px;
+                        font-size: 7.5px;
                     }
                     .finance-preview-value {
-                        margin: 5px 0 0;
-                        font-size: 13px;
+                        margin: 3px 0 0;
+                        font-size: 10px;
                         font-weight: 700;
                         word-break: break-word;
                     }
@@ -6672,19 +8189,19 @@
                         border-top: 0;
                     }
                     .finance-preview-inner {
-                        padding: 14px;
+                        padding: 7px;
                     }
                     .finance-preview-lineitems th {
                         background: #f8fafc;
                         text-align: left;
-                        font-size: 10px;
+                        font-size: 8px;
                     }
                     .finance-preview-lineitems td {
-                        font-size: 10.5px;
+                        font-size: 8px;
                     }
                     .finance-preview-muted {
                         color: #6b7280;
-                        font-size: 12px;
+                        font-size: 9px;
                     }
                     .finance-preview-two-col {
                         width: 100%;
@@ -6693,7 +8210,7 @@
                     .finance-preview-two-col td {
                         width: 50%;
                         border: 1px solid #dbe2ea;
-                        padding: 10px 12px;
+                        padding: 6px 7px;
                         vertical-align: top;
                     }
                 </style>
@@ -6932,7 +8449,11 @@
             </div>
         `;
 
-        $('previewTabContent').innerHTML = currentPreviewTab === 'attachments' ? attachmentsHtml : `${detailItems}${notesHtml}`;
+        const moduleTrackingHtml = record.module_key === 'ca'
+            ? renderCashAdvancePreviewPaymentManager(record)
+            : '';
+
+        $('previewTabContent').innerHTML = currentPreviewTab === 'attachments' ? attachmentsHtml : `${detailItems}${moduleTrackingHtml}${notesHtml}`;
     }
 
     function updatePreviewTabButtons() {
@@ -6976,6 +8497,12 @@
         actions.push(`<button type="button" onclick="window.financeModule.openFinanceDrawer(window.financeModule.getRecordById(${record.id}))" class="w-full border border-gray-300 rounded-md py-2 hover:bg-gray-50">Edit</button>`);
         if (!supplierPending) {
             actions.push(`<button type="button" onclick="window.financeModule.printFinanceRecord(${record.id})" class="w-full border border-gray-300 rounded-md py-2 hover:bg-gray-50">Print</button>`);
+        }
+        if (!supplierPending && record.module_key === 'arf') {
+            const assetCode = record.data?.asset_code || record.record_number || '';
+            const location = record.data?.location || '';
+            const serialNumber = record.data?.serial_number || '';
+            actions.push(renderArfAssetTagPrintButton(assetCode, location, serialNumber, 'w-full border border-gray-300 rounded-md py-2 hover:bg-gray-50'));
         }
 
         if (record.can_submit) {
@@ -7361,28 +8888,29 @@
                 <head>
                     <title>${escapeHtml(moduleConfig.label)} - ${escapeHtml(record.record_number || '')}</title>
                     <style>
-                        body { font-family: Arial, sans-serif; margin: 32px; color: #111827; }
-                        .card { border: 1px solid #e5e7eb; border-radius: 16px; padding: 24px; }
-                        .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-                        .item { border: 1px solid #f3f4f6; border-radius: 12px; padding: 12px; }
-                        .label { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: #6b7280; }
-                        .value { margin-top: 6px; font-weight: 600; }
-                        .section { margin-top: 20px; }
-                        .row { display: flex; justify-content: space-between; gap: 16px; border-bottom: 1px dashed #e5e7eb; padding: 8px 0; }
+                        @page { size: letter; margin: 10mm; }
+                        body { font-family: Arial, sans-serif; margin: 0; color: #111827; font-size: 9px; line-height: 1.18; }
+                        .card { border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px; }
+                        .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; }
+                        .item { border: 1px solid #f3f4f6; border-radius: 6px; padding: 5px; }
+                        .label { font-size: 7px; text-transform: uppercase; letter-spacing: .08em; color: #6b7280; }
+                        .value { margin-top: 2px; font-weight: 600; }
+                        .section { margin-top: 8px; }
+                        .row { display: flex; justify-content: space-between; gap: 8px; border-bottom: 1px dashed #e5e7eb; padding: 3px 0; break-inside: avoid; }
                     </style>
                 </head>
                 <body>
                     <div class="card">
-                        <div style="display:flex; justify-content:space-between; gap:16px; border-bottom:1px solid #f3f4f6; padding-bottom:16px; margin-bottom:20px;">
+                        <div style="display:flex; justify-content:space-between; gap:10px; border-bottom:1px solid #f3f4f6; padding-bottom:8px; margin-bottom:8px;">
                             <div>
-                                <div style="font-size:11px; color:#6b7280; text-transform:uppercase; letter-spacing:.08em;">Finance Operations</div>
-                                <h1 style="margin:8px 0 4px; font-size:28px;">${escapeHtml(moduleConfig.label)}</h1>
+                                <div style="font-size:7px; color:#6b7280; text-transform:uppercase; letter-spacing:.08em;">Finance Operations</div>
+                                <h1 style="margin:4px 0 2px; font-size:16px;">${escapeHtml(moduleConfig.label)}</h1>
                                 <div style="color:#6b7280;">${escapeHtml(record.display_label || '')}</div>
                             </div>
                             <div style="text-align:right;">
-                                <div style="font-size:11px; color:#6b7280;">Workflow</div>
+                                <div style="font-size:7px; color:#6b7280;">Workflow</div>
                                 <div style="font-weight:600;">${escapeHtml(record.workflow_status || '')}</div>
-                                <div style="font-size:11px; color:#6b7280; margin-top:12px;">Approval</div>
+                                <div style="font-size:7px; color:#6b7280; margin-top:5px;">Approval</div>
                                 <div style="font-weight:600;">${escapeHtml(record.approval_status || '')}</div>
                             </div>
                         </div>
@@ -7470,6 +8998,11 @@
         changeModule,
         changeWorkflow,
         changeSupplierCompletionMode,
+        openDropdownSettings,
+        closeDropdownSettings,
+        changeDropdownSettingsModule,
+        resetDropdownSettingsField,
+        saveDropdownSettings,
         fetchLiquidationSource,
         openPendingLiquidationBranch,
         dismissPendingLiquidationBranch,
@@ -7495,7 +9028,10 @@
         previewAttachment,
         copySupplierLink,
         printFinanceRecord,
+        printArfAssetTag,
         scrollFinanceModuleTabs,
+        recordCashAdvancePayment,
+        recordCashAdvancePreviewPayment,
         addPrLineItemRow,
         removePrLineItemRow,
         addDvLineItemRow,
@@ -7521,6 +9057,7 @@
     $('financeLookupSelectorSearch')?.addEventListener('keydown', (event) => {
         if (event.key === 'Escape') {
             closeLookupSelector();
+            closeDropdownSettings();
         }
     });
 

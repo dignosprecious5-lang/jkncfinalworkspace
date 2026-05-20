@@ -2,7 +2,7 @@
 
 use App\Http\Controllers\ActivityController;
 use App\Http\Controllers\Auth\LoginController;
-use App\Http\Controllers\Auth\RegisterController;
+use App\Http\Controllers\Auth\ChangePasswordController;
 use App\Http\Controllers\BylawController;
 use App\Http\Controllers\CapitalStructureController;
 use App\Http\Controllers\CatalogChangeRequestController;
@@ -29,6 +29,7 @@ use App\Http\Controllers\DealProposalController;
 use App\Http\Controllers\DirectorOfficerController;
 use App\Http\Controllers\GisController;
 use App\Http\Controllers\AdminDashboardController;
+use App\Http\Controllers\AdminHumanCapitalDashboardController;
 use App\Http\Controllers\AdminUserController;
 use App\Http\Controllers\AdminUserPermissionController;
 use App\Http\Controllers\ProductController;
@@ -81,6 +82,8 @@ use App\Http\Controllers\DeploymentController;
 use App\Http\Controllers\OfficialBusinessTripController;
 use App\Http\Controllers\EmployeeRelationController;
 use App\Http\Controllers\AwardController;
+use App\Http\Controllers\PerformanceController;
+use App\Http\Controllers\OffboardingController;
 
 /*
 |--------------------------------------------------------------------------
@@ -90,9 +93,17 @@ use App\Http\Controllers\AwardController;
 
 Route::get('/', function () {
     if (Auth::check()) {
-        Auth::logout();
-        request()->session()->invalidate();
-        request()->session()->regenerateToken();
+        $user = Auth::user();
+
+        if ($user->isSuperAdmin() || $user->isAdmin()) {
+            return redirect()->route('admin.users');
+        }
+
+        if ($user->isClient()) {
+            return redirect()->route('contacts.index');
+        }
+
+        return redirect()->route('townhall');
     }
 
     return redirect()->route('login');
@@ -181,12 +192,11 @@ Route::prefix('api')->group(function () {
 Route::middleware('guest')->group(function () {
     Route::get('/login', [LoginController::class, 'showLoginForm'])->name('login');
     Route::post('/login', [LoginController::class, 'login'])->name('login.post');
-
-    Route::get('/register', [RegisterController::class, 'show'])->name('register');
-    Route::post('/register', [RegisterController::class, 'submit'])->name('register.post');
 });
 
 Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
+
+$adminOrSuperAdmin = \App\Http\Middleware\AdminOrSuperAdmin::class;
 
 /*
 |--------------------------------------------------------------------------
@@ -224,7 +234,15 @@ Route::get('/job-offer/{token}/decline', [RecruitmentController::class, 'decline
 |--------------------------------------------------------------------------
 */
 
-Route::middleware('auth')->group(function () {
+Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adminOrSuperAdmin) {
+    /*
+    |--------------------------------------------------------------------------
+    | ACCOUNT SETTINGS
+    |--------------------------------------------------------------------------
+    */
+    Route::get('/change-password', [ChangePasswordController::class, 'edit'])->name('password.change');
+    Route::post('/change-password', [ChangePasswordController::class, 'update'])->name('password.change.update');
+
     /*
     |--------------------------------------------------------------------------
     | FILES / UPLOADS
@@ -256,6 +274,17 @@ Route::middleware('auth')->group(function () {
     Route::post('/admin/user-permissions/{id}', [AdminUserPermissionController::class, 'update'])->name('admin.user-permissions.update');
 
     Route::get('/admin/corporate-dashboard', [CorporateApprovalController::class, 'dashboard'])->name('admin.corporate.dashboard');
+
+    Route::get('/admin/human-capital-dashboard', [AdminHumanCapitalDashboardController::class, 'index'])->name('admin.human-capital.dashboard');
+    Route::post('/admin/human-capital/employee-requests/{employeeRequest}/approve', [AdminHumanCapitalDashboardController::class, 'approveEmployeeRequest'])->name('admin.human-capital.employee-requests.approve');
+    Route::post('/admin/human-capital/employee-requests/{employeeRequest}/reject', [AdminHumanCapitalDashboardController::class, 'rejectEmployeeRequest'])->name('admin.human-capital.employee-requests.reject');
+    Route::post('/admin/human-capital/employee-requests/{employeeRequest}/revise', [AdminHumanCapitalDashboardController::class, 'reviseEmployeeRequest'])->name('admin.human-capital.employee-requests.revise');
+    Route::post('/admin/human-capital/obf/{officialBusinessTrip}/approve', [AdminHumanCapitalDashboardController::class, 'approveObf'])->name('admin.human-capital.obf.approve');
+    Route::post('/admin/human-capital/obf/{officialBusinessTrip}/reject', [AdminHumanCapitalDashboardController::class, 'rejectObf'])->name('admin.human-capital.obf.reject');
+    Route::post('/admin/human-capital/employee-relations/{employeeRelation}/approve', [AdminHumanCapitalDashboardController::class, 'approveEmployeeRelation'])->name('admin.human-capital.employee-relations.approve');
+    Route::post('/admin/human-capital/employee-relations/{employeeRelation}/reject', [AdminHumanCapitalDashboardController::class, 'rejectEmployeeRelation'])->name('admin.human-capital.employee-relations.reject');
+    Route::post('/admin/human-capital/training-assignments/{trainingAssignment}/complete', [AdminHumanCapitalDashboardController::class, 'completeTrainingAssignment'])->name('admin.human-capital.training-assignments.complete');
+    Route::post('/admin/human-capital/training-assignments/{trainingAssignment}/certificate', [AdminHumanCapitalDashboardController::class, 'issueTrainingCertificate'])->name('admin.human-capital.training-assignments.certificate');
     Route::post('/admin/corporate-approvals/{module}/{id}/approve', [CorporateApprovalController::class, 'approve'])->name('corporate.approvals.approve');
     Route::post('/admin/corporate-approvals/{module}/{id}/reject', [CorporateApprovalController::class, 'reject'])->name('corporate.approvals.reject');
     Route::post('/admin/corporate-approvals/{module}/{id}/revise', [CorporateApprovalController::class, 'revise'])->name('corporate.approvals.revise');
@@ -287,6 +316,16 @@ Route::middleware('auth')->group(function () {
     Route::post('/townhall/{id}/acknowledge', [TownHallController::class, 'acknowledge'])->name('townhall.acknowledge');
     Route::get('/townhall/recipients/search', [TownHallController::class, 'searchRecipients'])
         ->name('townhall.recipients.search');
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | HUMAN CAPITAL MEMOS
+    |--------------------------------------------------------------------------
+    */
+    Route::get('/human-capital/memos', [TownHallController::class, 'humanCapitalMemos'])
+        ->name('human-capital.memos');
+
 
     /*
     |--------------------------------------------------------------------------
@@ -797,6 +836,7 @@ Route::middleware('auth')->group(function () {
     });
 
     Route::get('/finance', [FinanceController::class, 'index'])->name('finance');
+    Route::post('/finance/dropdown-settings', [FinanceController::class, 'updateDropdownSettings'])->name('finance.dropdown-settings.update');
     Route::get('/finance/{financeRecord}', [FinanceController::class, 'show'])->name('finance.show');
     Route::get('/finance/{financeRecord}/preview-html', [FinanceController::class, 'previewHtml'])->name('finance.preview.html');
     Route::get('/finance/{financeRecord}/preview-pdf', [FinanceController::class, 'previewPdf'])->name('finance.preview.pdf');
@@ -892,13 +932,25 @@ Route::middleware('auth')->group(function () {
     | HUMAN CAPITAL MODULE
     |--------------------------------------------------------------------------
     */
-    Route::prefix('human-capital')->name('human-capital.')->group(function () {
-        Route::view('/', 'human-capital')->name('dashboard');
+    Route::prefix('human-capital')->name('human-capital.')->group(function () use ($adminOrSuperAdmin) {
+        Route::get('/', function () {
+            $user = Auth::user();
 
-        Route::get('/organizational', [OrganizationalController::class, 'index'])->name('organizational');
-        Route::post('/organizational', [OrganizationalController::class, 'store'])->name('organizational.store');
+            return redirect()->route(
+                ($user->isAdmin() || $user->isSuperAdmin())
+                    ? 'human-capital.organizational'
+                    : 'human-capital.attendance'
+            );
+        })->name('dashboard');
 
-        Route::prefix('/organizational/locations')->name('organizational.locations.')->group(function () {
+        Route::middleware($adminOrSuperAdmin)->group(function () {
+            Route::get('/organizational', [OrganizationalController::class, 'index'])->name('organizational');
+            Route::post('/organizational', [OrganizationalController::class, 'store'])->name('organizational.store');
+            Route::put('/organizational/{type}/{id}', [OrganizationalController::class, 'update'])->name('organizational.update');
+            Route::delete('/organizational/{type}/{id}', [OrganizationalController::class, 'destroy'])->name('organizational.destroy');
+        });
+
+        Route::prefix('/organizational/locations')->name('organizational.locations.')->middleware($adminOrSuperAdmin)->group(function () {
             Route::get('/regions', [PhilippineLocationController::class, 'regions'])->name('regions');
             Route::get('/provinces-or-districts/{regionCode}', [PhilippineLocationController::class, 'provincesOrDistricts'])->name('provinces-or-districts');
             Route::get('/cities-municipalities/{type}/{code}', [PhilippineLocationController::class, 'citiesMunicipalities'])->name('cities-municipalities');
@@ -912,95 +964,98 @@ Route::middleware('auth')->group(function () {
         | PAYROLL
         |--------------------------------------------------------------------------
         */
-        Route::get('/payroll', [PayrollController::class, 'index'])->name('payroll');
-        Route::post('/payroll/salary-grades', [PayrollController::class, 'storeSalaryGrade'])->name('payroll.salary-grades.store');
-        Route::post('/payroll/levels', [PayrollController::class, 'storePayrollLevel'])->name('payroll.levels.store');
-        Route::post('/payroll/benefits', [PayrollController::class, 'storeBenefit'])->name('payroll.benefits.store');
-        Route::post('/payroll/allowances', [PayrollController::class, 'storeAllowance'])->name('payroll.allowances.store');
-        Route::post('/payroll/deductions', [PayrollController::class, 'storeDeduction'])->name('payroll.deductions.store');
-        Route::post('/payroll/holidays', [PayrollController::class, 'storeHoliday'])->name('payroll.holidays.store');
-        Route::post('/payroll/periods', [PayrollController::class, 'storePayrollPeriod'])->name('payroll.periods.store');
-        Route::post('/payroll/profiles', [PayrollController::class, 'storeEmployeeProfile'])->name('payroll.profiles.store');
-        Route::post('/payroll/generate-summary', [PayrollController::class, 'generateSummary'])->name('payroll.generate-summary');
-        Route::get('/payroll/payslip/{summary}', [PayrollController::class, 'showPayslip'])->name('payroll.payslip.show');
+        Route::middleware($adminOrSuperAdmin)->group(function () {
+            Route::get('/payroll', [PayrollController::class, 'index'])->name('payroll');
+            Route::post('/payroll/salary-grades', [PayrollController::class, 'storeSalaryGrade'])->name('payroll.salary-grades.store');
+            Route::post('/payroll/levels', [PayrollController::class, 'storePayrollLevel'])->name('payroll.levels.store');
+            Route::post('/payroll/benefits', [PayrollController::class, 'storeBenefit'])->name('payroll.benefits.store');
+            Route::post('/payroll/allowances', [PayrollController::class, 'storeAllowance'])->name('payroll.allowances.store');
+            Route::post('/payroll/deductions', [PayrollController::class, 'storeDeduction'])->name('payroll.deductions.store');
+            Route::post('/payroll/holidays', [PayrollController::class, 'storeHoliday'])->name('payroll.holidays.store');
+            Route::post('/payroll/periods', [PayrollController::class, 'storePayrollPeriod'])->name('payroll.periods.store');
+            Route::post('/payroll/profiles', [PayrollController::class, 'storeEmployeeProfile'])->name('payroll.profiles.store');
+            Route::post('/payroll/generate-summary', [PayrollController::class, 'generateSummary'])->name('payroll.generate-summary');
+            Route::get('/payroll/payslip/{summary}', [PayrollController::class, 'showPayslip'])->name('payroll.payslip.show');
+        });
 
         /*
         |--------------------------------------------------------------------------
         | EMPLOYEE PROFILE
         |--------------------------------------------------------------------------
         */
-        Route::get('/employee-profile', [EmployeeController::class, 'index'])->name('employee-profile');
-        Route::post('/employee-profile', [EmployeeController::class, 'store'])->name('employee-profile.store');
-        Route::put('/employee-profile/{employee}', [EmployeeController::class, 'update'])->name('employee-profile.update');
+        Route::middleware($adminOrSuperAdmin)->group(function () {
+            Route::get('/employee-profile', [EmployeeController::class, 'index'])->name('employee-profile');
+            Route::post('/employee-profile', [EmployeeController::class, 'store'])->name('employee-profile.store');
+            Route::put('/employee-profile/{employee}', [EmployeeController::class, 'update'])->name('employee-profile.update');
+        });
 
         /*
         |--------------------------------------------------------------------------
         | RECRUITMENT
         |--------------------------------------------------------------------------
         */
-        Route::get('/recruitment', [RecruitmentController::class, 'index'])->name('recruitment');
+        Route::middleware($adminOrSuperAdmin)->group(function () {
+            Route::get('/recruitment', [RecruitmentController::class, 'index'])->name('recruitment');
 
-        // MRF
-        Route::post('/recruitment/mrf', [RecruitmentController::class, 'storeMRF'])->name('recruitment.store_mrf');
-        Route::put('/recruitment/mrf/{id}', [RecruitmentController::class, 'updateMRF'])->name('recruitment.update_mrf');
-        Route::post('/recruitment/mrf/{id}/approve', [RecruitmentController::class, 'approveMRF'])->name('recruitment.approve_mrf');
-        Route::post('/recruitment/mrf/{id}/cancel', [RecruitmentController::class, 'cancelMRF'])->name('recruitment.cancel_mrf');
-        Route::delete('/recruitment/mrf/{id}', [RecruitmentController::class, 'deleteMRF'])->name('recruitment.delete_mrf');
+            Route::post('/recruitment/mrf', [RecruitmentController::class, 'storeMRF'])->name('recruitment.store_mrf');
+            Route::put('/recruitment/mrf/{id}', [RecruitmentController::class, 'updateMRF'])->name('recruitment.update_mrf');
+            Route::post('/recruitment/mrf/{id}/approve', [RecruitmentController::class, 'approveMRF'])->name('recruitment.approve_mrf');
+            Route::post('/recruitment/mrf/{id}/cancel', [RecruitmentController::class, 'cancelMRF'])->name('recruitment.cancel_mrf');
+            Route::delete('/recruitment/mrf/{id}', [RecruitmentController::class, 'deleteMRF'])->name('recruitment.delete_mrf');
 
-        // JPF
-        Route::post('/recruitment/jpf', [RecruitmentController::class, 'storeJPF'])->name('recruitment.store_jpf');
-        Route::put('/recruitment/jpf/{id}', [RecruitmentController::class, 'updateJPF'])->name('recruitment.update_jpf');
-        Route::delete('/recruitment/jpf/{id}', [RecruitmentController::class, 'deleteJPF'])->name('recruitment.delete_jpf');
+            Route::post('/recruitment/jpf', [RecruitmentController::class, 'storeJPF'])->name('recruitment.store_jpf');
+            Route::put('/recruitment/jpf/{id}', [RecruitmentController::class, 'updateJPF'])->name('recruitment.update_jpf');
+            Route::delete('/recruitment/jpf/{id}', [RecruitmentController::class, 'deleteJPF'])->name('recruitment.delete_jpf');
 
-        // CAF
-        Route::post('/recruitment/caf', [RecruitmentController::class, 'storeCAF'])->name('recruitment.store_caf');
-        Route::put('/recruitment/caf/{id}', [RecruitmentController::class, 'updateCAF'])->name('recruitment.update_caf');
-        Route::post('/recruitment/caf/{id}/proceed', [RecruitmentController::class, 'proceedToAssessment'])->name('recruitment.proceed_to_assessment');
-        Route::delete('/recruitment/caf/{id}', [RecruitmentController::class, 'deleteCAF'])->name('recruitment.delete_caf');
+            Route::post('/recruitment/caf', [RecruitmentController::class, 'storeCAF'])->name('recruitment.store_caf');
+            Route::put('/recruitment/caf/{id}', [RecruitmentController::class, 'updateCAF'])->name('recruitment.update_caf');
+            Route::post('/recruitment/caf/{id}/proceed', [RecruitmentController::class, 'proceedToAssessment'])->name('recruitment.proceed_to_assessment');
+            Route::delete('/recruitment/caf/{id}', [RecruitmentController::class, 'deleteCAF'])->name('recruitment.delete_caf');
 
-        // Assessment
-        Route::post('/recruitment/assessment', [RecruitmentController::class, 'storeAssessment'])->name('recruitment.store_assessment');
-        Route::post('/recruitment/assessment/{id}/status', [RecruitmentController::class, 'updateAssessmentStatus'])->name('recruitment.update_assessment_status');
-        Route::get('/recruitment/assessment/latest', [RecruitmentController::class, 'latestAssessments'])->name('recruitment.assessment.latest');
-        Route::post('/recruitment/assessment/{id}/send-test', [RecruitmentController::class, 'sendAssessmentTest'])->name('recruitment.send_assessment_test');
-        Route::post('/recruitment/assessment/{id}/result', [RecruitmentController::class, 'updateAssessmentResult'])->name('recruitment.update_assessment_result');
-        Route::delete('/recruitment/assessment/{id}', [RecruitmentController::class, 'deleteAssessment'])->name('recruitment.delete_assessment');
+            Route::post('/recruitment/assessment', [RecruitmentController::class, 'storeAssessment'])->name('recruitment.store_assessment');
+            Route::post('/recruitment/assessment/{id}/status', [RecruitmentController::class, 'updateAssessmentStatus'])->name('recruitment.update_assessment_status');
+            Route::get('/recruitment/assessment/latest', [RecruitmentController::class, 'latestAssessments'])->name('recruitment.assessment.latest');
+            Route::post('/recruitment/assessment/{id}/send-test', [RecruitmentController::class, 'sendAssessmentTest'])->name('recruitment.send_assessment_test');
+            Route::post('/recruitment/assessment/{id}/result', [RecruitmentController::class, 'updateAssessmentResult'])->name('recruitment.update_assessment_result');
+            Route::delete('/recruitment/assessment/{id}', [RecruitmentController::class, 'deleteAssessment'])->name('recruitment.delete_assessment');
 
-        // Interview
-        Route::post('/recruitment/interview', [RecruitmentController::class, 'storeInterview'])->name('recruitment.store_interview');
-        Route::delete('/recruitment/interview/{id}', [RecruitmentController::class, 'deleteInterview'])->name('recruitment.delete_interview');
-        Route::post('/recruitment/interview/{id}/status', [RecruitmentController::class, 'updateInterviewStatus'])
-            ->name('recruitment.interview_status');
+            Route::post('/recruitment/interview', [RecruitmentController::class, 'storeInterview'])->name('recruitment.store_interview');
+            Route::delete('/recruitment/interview/{id}', [RecruitmentController::class, 'deleteInterview'])->name('recruitment.delete_interview');
+            Route::post('/recruitment/interview/{id}/status', [RecruitmentController::class, 'updateInterviewStatus'])
+                ->name('recruitment.interview_status');
 
-        // Job Offer
-        Route::get('/recruitment/job-offer/latest', [RecruitmentController::class, 'latestJobOffers'])->name('recruitment.job_offer.latest');
-        Route::post('/recruitment/job-offer', [RecruitmentController::class, 'storeJobOffer'])->name('recruitment.store_job_offer');
-        Route::post('/recruitment/job-offer/{id}/resend-email', [RecruitmentController::class, 'resendJobOfferEmail'])->name('recruitment.resend_job_offer_email');
-        Route::delete('/recruitment/job-offer/{id}', [RecruitmentController::class, 'deleteJobOffer'])->name('recruitment.delete_job_offer');
+            Route::get('/recruitment/job-offer/latest', [RecruitmentController::class, 'latestJobOffers'])->name('recruitment.job_offer.latest');
+            Route::post('/recruitment/job-offer', [RecruitmentController::class, 'storeJobOffer'])->name('recruitment.store_job_offer');
+            Route::post('/recruitment/job-offer/{id}/resend-email', [RecruitmentController::class, 'resendJobOfferEmail'])->name('recruitment.resend_job_offer_email');
+            Route::delete('/recruitment/job-offer/{id}', [RecruitmentController::class, 'deleteJobOffer'])->name('recruitment.delete_job_offer');
+        });
 
         /*
         |--------------------------------------------------------------------------
         | ONBOARDING
         |--------------------------------------------------------------------------
         */
-        Route::get('/onboarding', [RecruitmentController::class, 'onboarding'])->name('onboarding');
-        Route::delete('/onboarding/pds/{id}', [RecruitmentController::class, 'deletePDS'])->name('onboarding.pds.delete');
+        Route::middleware($adminOrSuperAdmin)->group(function () {
+            Route::get('/onboarding', [RecruitmentController::class, 'onboarding'])->name('onboarding');
+            Route::delete('/onboarding/pds/{id}', [RecruitmentController::class, 'deletePDS'])->name('onboarding.pds.delete');
 
-        Route::get('/onboarding/records', [OnboardingRecordController::class, 'records'])->name('onboarding.records');
-        Route::post('/onboarding/checklists', [OnboardingRecordController::class, 'storeChecklist'])->name('onboarding.checklists.store');
-        Route::patch('/onboarding/checklists/{checklist}/review-document', [OnboardingRecordController::class, 'reviewChecklistDocument'])->name('onboarding.checklists.review-document');
-        Route::delete('/onboarding/checklists/{checklist}', [OnboardingRecordController::class, 'destroyChecklist'])->name('onboarding.checklists.destroy');
-        Route::post('/onboarding/employees', [OnboardingRecordController::class, 'storeEmployee'])->name('onboarding.employees.store');
-        Route::delete('/onboarding/employees/{employee}', [OnboardingRecordController::class, 'destroyEmployee'])->name('onboarding.employees.destroy');
-        Route::post('/onboarding/trainings', [OnboardingRecordController::class, 'storeTraining'])->name('onboarding.trainings.store');
-        Route::patch('/onboarding/trainings/{training}/status', [OnboardingRecordController::class, 'updateTrainingStatus'])->name('onboarding.trainings.status');
-        Route::delete('/onboarding/trainings/{training}', [OnboardingRecordController::class, 'destroyTraining'])->name('onboarding.trainings.destroy');
+            Route::get('/onboarding/records', [OnboardingRecordController::class, 'records'])->name('onboarding.records');
+            Route::post('/onboarding/checklists', [OnboardingRecordController::class, 'storeChecklist'])->name('onboarding.checklists.store');
+            Route::patch('/onboarding/checklists/{checklist}/review-document', [OnboardingRecordController::class, 'reviewChecklistDocument'])->name('onboarding.checklists.review-document');
+            Route::delete('/onboarding/checklists/{checklist}', [OnboardingRecordController::class, 'destroyChecklist'])->name('onboarding.checklists.destroy');
+            Route::post('/onboarding/employees', [OnboardingRecordController::class, 'storeEmployee'])->name('onboarding.employees.store');
+            Route::delete('/onboarding/employees/{employee}', [OnboardingRecordController::class, 'destroyEmployee'])->name('onboarding.employees.destroy');
+            Route::post('/onboarding/trainings', [OnboardingRecordController::class, 'storeTraining'])->name('onboarding.trainings.store');
+            Route::patch('/onboarding/trainings/{training}/status', [OnboardingRecordController::class, 'updateTrainingStatus'])->name('onboarding.trainings.status');
+            Route::delete('/onboarding/trainings/{training}', [OnboardingRecordController::class, 'destroyTraining'])->name('onboarding.trainings.destroy');
 
-        Route::get('/deployment', [DeploymentController::class, 'index'])->name('deployment');
-        Route::post('/deployment', [DeploymentController::class, 'store'])->name('deployment.store');
-        Route::put('/deployment/{deployment}', [DeploymentController::class, 'update'])->name('deployment.update');
-        Route::delete('/deployment/{deployment}', [DeploymentController::class, 'destroy'])->name('deployment.destroy');
+            Route::get('/deployment', [DeploymentController::class, 'index'])->name('deployment');
+            Route::post('/deployment', [DeploymentController::class, 'store'])->name('deployment.store');
+            Route::put('/deployment/{deployment}', [DeploymentController::class, 'update'])->name('deployment.update');
+            Route::delete('/deployment/{deployment}', [DeploymentController::class, 'destroy'])->name('deployment.destroy');
+        });
         Route::get('/attendance', [AttendanceController::class, 'index'])->name('attendance');
+        Route::get('/attendance/export-pdf', [AttendanceController::class, 'exportPdf'])->name('attendance.export-pdf');
         Route::post('/attendance/clock', [AttendanceController::class, 'clock'])->name('attendance.clock');
         Route::put('/attendance/{attendance}', [AttendanceController::class, 'update'])->name('attendance.update');
         Route::patch('/attendance/{attendance}/approve', [AttendanceController::class, 'approve'])->name('attendance.approve');
@@ -1011,31 +1066,48 @@ Route::middleware('auth')->group(function () {
         Route::post('/employee-relations/{employeeRelation}/approve', [EmployeeRelationController::class, 'approve'])->name('employee-relations.approve');
         Route::post('/employee-relations/{employeeRelation}/reject', [EmployeeRelationController::class, 'reject'])->name('employee-relations.reject');
         Route::delete('/employee-relations/{employeeRelation}', [EmployeeRelationController::class, 'destroy'])->name('employee-relations.destroy');
-        Route::view('/memos', 'human-capital.memos')->name('memos');
-        Route::view('/performance', 'human-capital.performance')->name('performance');
-        Route::view('/offboarding', 'human-capital.offboarding')->name('offboarding');
 
-Route::get('/obf', [OfficialBusinessTripController::class, 'index'])->name('obf');
-Route::post('/obf', [OfficialBusinessTripController::class, 'store'])->name('obf.store');
-Route::put('/obf/{officialBusinessTrip}', [OfficialBusinessTripController::class, 'update'])->name('obf.update');
-Route::delete('/obf/{officialBusinessTrip}', [OfficialBusinessTripController::class, 'destroy'])->name('obf.destroy');
-Route::post('/obf/{officialBusinessTrip}/approve', [OfficialBusinessTripController::class, 'approve'])->name('obf.approve');
-Route::post('/obf/{officialBusinessTrip}/reject', [OfficialBusinessTripController::class, 'reject'])->name('obf.reject');
+
+        // Performance Management
+        Route::get('/performance', [PerformanceController::class, 'index'])->name('performance');
+        Route::get('/performance/employee/{id}', [PerformanceController::class, 'getEmployee'])->name('performance.get-employee');
+        Route::post('/performance/evaluation', [PerformanceController::class, 'storeEvaluation'])->name('performance.evaluation.store');
+        Route::put('/performance/evaluation/{id}', [PerformanceController::class, 'updateEvaluation'])->name('performance.evaluation.update');
+        Route::delete('/performance/evaluation/{id}', [PerformanceController::class, 'destroyEvaluation'])->name('performance.evaluation.destroy');
+        Route::post('/performance/pip', [PerformanceController::class, 'storePIP'])->name('performance.pip.store');
+        Route::put('/performance/pip/{id}', [PerformanceController::class, 'updatePIP'])->name('performance.pip.update');
+        Route::delete('/performance/pip/{id}', [PerformanceController::class, 'destroyPIP'])->name('performance.pip.destroy');
+
+        Route::middleware($adminOrSuperAdmin)->group(function () {
+            Route::get('/offboarding', [OffboardingController::class, 'index'])->name('offboarding');
+            Route::post('/offboarding', [OffboardingController::class, 'store'])->name('offboarding.store');
+            Route::put('/offboarding/{offboardingRecord}', [OffboardingController::class, 'update'])->name('offboarding.update');
+            Route::delete('/offboarding/{offboardingRecord}', [OffboardingController::class, 'destroy'])->name('offboarding.destroy');
+        });
+
+        Route::get('/obf', [OfficialBusinessTripController::class, 'index'])->name('obf');
+        Route::post('/obf', [OfficialBusinessTripController::class, 'store'])->name('obf.store');
+        Route::put('/obf/{officialBusinessTrip}', [OfficialBusinessTripController::class, 'update'])->name('obf.update');
+        Route::delete('/obf/{officialBusinessTrip}', [OfficialBusinessTripController::class, 'destroy'])->name('obf.destroy');
+        Route::post('/obf/{officialBusinessTrip}/approve', [OfficialBusinessTripController::class, 'approve'])->name('obf.approve');
+        Route::post('/obf/{officialBusinessTrip}/reject', [OfficialBusinessTripController::class, 'reject'])->name('obf.reject');
 
 
 
         // Training
         Route::get('/training', [TrainingController::class, 'index'])->name('training');
-        Route::post('/training', [TrainingController::class, 'store'])->name('training.store');
-        Route::put('/training/{training}', [TrainingController::class, 'update'])->name('training.update');
-        Route::delete('/training/{training}', [TrainingController::class, 'destroy'])->name('training.destroy');
+        Route::middleware($adminOrSuperAdmin)->group(function () {
+            Route::post('/training', [TrainingController::class, 'store'])->name('training.store');
+            Route::put('/training/{training}', [TrainingController::class, 'update'])->name('training.update');
+            Route::delete('/training/{training}', [TrainingController::class, 'destroy'])->name('training.destroy');
 
-        // Assignment actions
-        Route::post('/training/assignment/{id}/complete', [TrainingController::class, 'markCompleted'])
-            ->name('training.complete');
+            // Assignment actions
+            Route::post('/training/assignment/{id}/complete', [TrainingController::class, 'markCompleted'])
+                ->name('training.complete');
 
-        Route::post('/training/assignment/{id}/certificate', [TrainingController::class, 'issueCertificate'])
-            ->name('training.certificate');
+            Route::post('/training/assignment/{id}/certificate', [TrainingController::class, 'issueCertificate'])
+                ->name('training.certificate');
+        });
 
         // Awards page
         Route::get('/awards', [AwardController::class, 'index'])->name('awards');

@@ -39,6 +39,16 @@ class User extends Authenticatable
         return $this->hasOne(\App\Models\UserPermission::class);
     }
 
+    public function employeeProfile()
+    {
+        return $this->hasOne(\App\Models\Employee::class, 'user_id');
+    }
+
+    public function contactProfile()
+    {
+        return $this->hasOne(\App\Models\Contact::class, 'user_id');
+    }
+
     public function isSuperAdmin(): bool
     {
         return strtolower((string) $this->role) === 'superadmin';
@@ -49,6 +59,16 @@ class User extends Authenticatable
         return strtolower((string) $this->role) === 'admin';
     }
 
+    public function isEmployee(): bool
+    {
+        return strtolower((string) $this->role) === 'employee';
+    }
+
+    public function isClient()
+    {
+        return strtolower((string) $this->role) === 'client';
+    }
+
     public function canManageRoles(): bool
     {
         return $this->isSuperAdmin() || ($this->isAdmin() && $this->can_edit_user_roles);
@@ -57,11 +77,6 @@ class User extends Authenticatable
     public function canDeleteUsers(): bool
     {
         return $this->isSuperAdmin() || ($this->isAdmin() && $this->can_delete_users);
-    }
-
-    public function isClient()
-    {
-        return strtolower($this->role) === 'client';
     }
 
     public function hasPermission(string $permission): bool

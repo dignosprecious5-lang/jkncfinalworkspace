@@ -270,20 +270,37 @@
                                 <span :class="trainingStatusClass(row.status)" class="px-2 py-0.5 rounded-full text-xs font-medium" x-text="row.status || 'Pending'"></span>
                             </td>
                             <td class="px-4 py-3">
-                                <div class="flex items-center gap-2">
-                                    <select
-                                        :value="row.status || 'Pending'"
-                                        @change="updateTrainingStatus(row, $event.target.value)"
-                                        class="rounded border border-gray-300 px-2 py-1 text-xs bg-white"
+                                <div class="flex items-center justify-end gap-2">
+                                    <button
+                                        type="button"
+                                        x-show="(row.status || 'Pending') !== 'Completed'"
+                                        @click="updateTrainingStatus(row, nextTrainingStatus(row.status))"
+                                        class="inline-flex items-center rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700"
+                                        x-text="trainingActionLabel(row.status)"
+                                    ></button>
+                                    <button
+                                        type="button"
+                                        x-show="(row.status || 'Pending') === 'Completed'"
+                                        @click="updateTrainingStatus(row, 'In Progress')"
+                                        class="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50"
                                     >
-                                        <option value="Pending">Pending</option>
-                                        <option value="Scheduled">Scheduled</option>
-                                        <option value="In Progress">In Progress</option>
-                                        <option value="Completed">Completed</option>
-                                        <option value="Failed">Failed</option>
-                                        <option value="Cancelled">Cancelled</option>
-                                    </select>
-                                    <button @click="deleteTraining(i)" class="text-xs text-red-500 hover:underline">Delete</button>
+                                        Reopen
+                                    </button>
+                                    <button
+                                        type="button"
+                                        @click="updateTrainingStatus(row, 'Cancelled')"
+                                        x-show="!['Completed', 'Cancelled'].includes(row.status || 'Pending')"
+                                        class="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="button"
+                                        @click="deleteTraining(i)"
+                                        class="inline-flex items-center rounded-md border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100"
+                                    >
+                                        Delete
+                                    </button>
                                 </div>
                             </td>
                         </tr>
@@ -980,7 +997,7 @@
             x-show="showEmpRegModal"
             x-transition:enter="transform transition ease-out duration-300" x-transition:enter-start="translate-x-full" x-transition:enter-end="translate-x-0"
             x-transition:leave="transform transition ease-in duration-200" x-transition:leave-start="translate-x-0" x-transition:leave-end="translate-x-full"
-            class="bg-white shadow-2xl w-full max-w-xl h-full flex flex-col overflow-hidden"
+            class="bg-white shadow-2xl w-full max-w-2xl h-full flex flex-col overflow-hidden"
         >
             <div class="flex items-center justify-between px-6 py-3 bg-blue-700 shrink-0">
                 <h2 class="text-sm font-bold text-white uppercase tracking-widest">New Employee Registration</h2>
@@ -1020,9 +1037,10 @@
     </div>
 
     <div>
-        <label class="block text-xs font-semibold text-gray-600 mb-1">Position</label>
-        <input type="text" x-model="empRegForm.position" readonly
-            class="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg bg-gray-100 text-gray-700 outline-none">
+        <label class="block text-xs font-semibold text-gray-600 mb-1">Position <span class="text-red-500">*</span></label>
+        <input type="text" x-model="empRegForm.position" required placeholder="e.g. President, Treasurer, HR Officer"
+            class="w-full text-sm px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none">
+        <p class="text-[11px] text-gray-400 mt-1">For applicants, this may auto-fill from Job Offer. For existing employees, HR can type it manually.</p>
     </div>
 
     <div>
@@ -1045,20 +1063,27 @@
 
     <div class="col-span-2">
         <label class="block text-xs font-semibold text-gray-600 mb-1">Work Email</label>
-        <input type="email" x-model="empRegForm.workEmail" placeholder="employee@company.com"
+        <input type="email" x-model="empRegForm.workEmail" placeholder="employee@company.com" required
             class="w-full text-sm px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none">
+        <p class="text-[11px] text-gray-400 mt-1">This should be the official work email used for the future login account.</p>
     </div>
 
     <div>
-        <label class="block text-xs font-semibold text-gray-600 mb-1">Salary from Job Offer</label>
-        <input type="text" x-model="empRegForm.salary" readonly
-            class="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg bg-gray-100 text-gray-700 outline-none">
+        <label class="block text-xs font-semibold text-gray-600 mb-1">Basic Salary <span class="text-red-500">*</span></label>
+        <input type="number" step="0.01" min="0" x-model="empRegForm.basicSalary" required placeholder="e.g. 25000"
+            class="w-full text-sm px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none">
+        <p class="text-[11px] text-gray-400 mt-1">Auto-filled from Job Offer when available. For existing employees, enter manually.</p>
     </div>
 
     <div>
-        <label class="block text-xs font-semibold text-gray-600 mb-1">Employment Type from Job Offer</label>
-        <input type="text" x-model="empRegForm.employmentType" readonly
-            class="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg bg-gray-100 text-gray-700 outline-none">
+        <label class="block text-xs font-semibold text-gray-600 mb-1">Payroll Type <span class="text-red-500">*</span></label>
+        <select x-model="empRegForm.payrollType" required
+            class="w-full text-sm px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none bg-white">
+            <option value="">Select payroll type</option>
+            <option value="Monthly Paid">Monthly Paid</option>
+            <option value="Daily Paid">Daily Paid</option>
+        </select>
+        <p class="text-[11px] text-gray-400 mt-1">Auto-filled from Job Offer when available. For existing employees, select manually.</p>
     </div>
 
     <div class="col-span-2">
@@ -1188,7 +1213,7 @@ function onboardingPage() {
             { key: 'Training', label: 'Training' },
         ],
 
-        trainings: [],
+        trainings: @json($trainingPrograms ?? []),
         employees: [],
 
         data: {
@@ -1229,8 +1254,8 @@ function onboardingPage() {
             department: '',
             position: '',
             personalEmail: '',
-            salary: '',
-            employmentType: '',
+            basicSalary: '',
+            payrollType: '',
             startDate: '',
             workEmail: '',
             manager: '',
@@ -1269,9 +1294,15 @@ function onboardingPage() {
                     throw new Error('Failed to fetch training programs');
                 }
 
-                this.trainings = await response.json();
+                const programs = await response.json();
+                this.trainings = Array.isArray(programs) ? programs : [];
             } catch (error) {
                 console.error('Error fetching training programs:', error);
+
+                // Keep server-rendered training programs if the JSON fetch fails.
+                if (!Array.isArray(this.trainings)) {
+                    this.trainings = [];
+                }
             }
         },
 
@@ -1663,6 +1694,30 @@ trainingStatusClass(status) {
     return map[status] || 'bg-gray-100 text-gray-700';
 },
 
+nextTrainingStatus(status) {
+    const current = status || 'Pending';
+
+    return {
+        'Pending': 'Scheduled',
+        'Scheduled': 'In Progress',
+        'In Progress': 'Completed',
+        'Failed': 'In Progress',
+        'Cancelled': 'Scheduled',
+    }[current] || 'Completed';
+},
+
+trainingActionLabel(status) {
+    const current = status || 'Pending';
+
+    return {
+        'Pending': 'Schedule',
+        'Scheduled': 'Start',
+        'In Progress': 'Complete',
+        'Failed': 'Restart',
+        'Cancelled': 'Reschedule',
+    }[current] || 'Complete';
+},
+
 async reviewChecklistDocument(doc, status) {
     if (!this.viewChecklistData || !this.viewChecklistData.id) {
         alert('Checklist record was not found.');
@@ -1818,6 +1873,8 @@ openEmpRegModal() {
         department: '',
         position: '',
         personalEmail: '',
+        basicSalary: '',
+        payrollType: '',
         startDate: '',
         workEmail: '',
         manager: '',
@@ -1835,22 +1892,56 @@ onEmpRegChecklistChange() {
         this.empRegForm.fullName = '';
         this.empRegForm.position = '';
         this.empRegForm.personalEmail = '';
+        this.empRegForm.basicSalary = '';
+        this.empRegForm.payrollType = '';
         return;
     }
 
     this.empRegForm.fullName = selected.employeeName || '';
     this.empRegForm.position = selected.position || '';
     this.empRegForm.personalEmail = selected.employeeEmail || '';
-    this.empRegForm.workEmail = selected.employeeEmail || '';
-    this.empRegForm.department = selected.jobOfferDepartment || selected.position || this.empRegForm.department;
+    this.empRegForm.workEmail = '';
+    this.empRegForm.department = selected.jobOfferDepartment || this.empRegForm.department || '';
+    this.empRegForm.startDate = selected.startDate || '';
+    this.empRegForm.basicSalary = this.extractSalaryAmount(selected.jobOfferSalary || '');
+    this.empRegForm.payrollType = this.inferPayrollType(selected.jobOfferEmploymentType || '');
+},
 
-            this.empRegForm.startDate = selected.startDate || '';
-            this.empRegForm.salary = selected.jobOfferSalary || '';
-            this.empRegForm.employmentType = selected.jobOfferEmploymentType || '';},
+extractSalaryAmount(value) {
+    if (value === null || value === undefined || value === '') return '';
+    const match = String(value).replace(/,/g, '').match(/\d+(?:\.\d+)?/);
+    return match ? match[0] : '';
+},
+
+inferPayrollType(value) {
+    const text = String(value || '').toLowerCase();
+    if (!text) return '';
+    return text.includes('daily') ? 'Daily Paid' : 'Monthly Paid';
+},
 
         async submitEmpReg() {
             if (!this.empRegForm.checklistId) {
                 alert('Please select an applicant with a Completed checklist.');
+                return;
+            }
+
+            if (!this.empRegForm.position) {
+                alert('Please enter the employee position.');
+                return;
+            }
+
+            if (!this.empRegForm.workEmail) {
+                alert('Please enter the official work email for this new employee.');
+                return;
+            }
+
+            if (!this.empRegForm.payrollType) {
+                alert('Please select the payroll type.');
+                return;
+            }
+
+            if (this.empRegForm.basicSalary === '' || Number(this.empRegForm.basicSalary) < 0) {
+                alert('Please enter a valid basic salary.');
                 return;
             }
 
