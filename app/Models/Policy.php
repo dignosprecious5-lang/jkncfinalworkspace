@@ -14,6 +14,7 @@ class Policy extends Model
         'prepared_by',
         'reviewed_by',
         'approved_by',
+        'review_cycle',
         'classification',
         'description',
         'attachment',
@@ -25,5 +26,12 @@ class Policy extends Model
         'approved_by_user_id',
         'approved_at',
         'review_note',
+    ];
+
+    protected $casts = [
+        'effectivity_date' => 'date',
+        'is_archived' => 'boolean',
+        'archived_at' => 'datetime',
+        'approved_at' => 'datetime',
     ];
 }
