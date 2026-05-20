@@ -5,11 +5,14 @@ namespace App\Http\Controllers;
 use App\Models\Task;
 use App\Models\Event;
 use App\Models\Call;
+use App\Models\Company;
+use App\Models\Contact;
 use App\Models\Meeting;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 use App\Models\Note;
 
@@ -65,7 +68,80 @@ class ActivityController extends Controller
             'calls' => Call::with('notes')->latest()->get(),
             'meetings' => Meeting::with('notes')->latest()->get(),
             'users' => User::pluck('email'),
+            'relatedOptions' => $this->relatedOptions()->pluck('label')->all(),
+            'relatedRecords' => $this->relatedOptions()->values()->all(),
         ]);
+    }
+
+    private function relatedOptions()
+    {
+        $contacts = Contact::query()
+            ->latest('updated_at')
+            ->get()
+            ->map(function (Contact $contact): array {
+                $fullName = trim(collect([
+                    $contact->first_name,
+                    $contact->middle_name,
+                    $contact->last_name,
+                    $contact->name_extension,
+                ])->filter()->implode(' '));
+
+                $label = $fullName !== '' ? $fullName : ($contact->email ?: $contact->phone ?: 'Contact #'.$contact->id);
+                $metaParts = array_values(array_filter([
+                    $contact->email,
+                    $contact->phone,
+                ]));
+
+                return [
+                    'key' => 'contact-'.$contact->id,
+                    'type' => 'contact',
+                    'id' => $contact->id,
+                    'label' => $label,
+                    'meta' => implode(' | ', $metaParts),
+                    'tokens' => $this->searchTokens([
+                        $label,
+                        $contact->email,
+                        $contact->phone,
+                    ]),
+                ];
+            });
+
+        $companies = Company::query()
+            ->whereNotNull('company_name')
+            ->latest('updated_at')
+            ->get()
+            ->map(function (Company $company): array {
+                return [
+                    'key' => 'company-'.$company->id,
+                    'type' => 'company',
+                    'id' => $company->id,
+                    'label' => trim((string) $company->company_name),
+                    'meta' => implode(' | ', array_values(array_filter([
+                        $company->email,
+                        $company->phone,
+                    ]))),
+                    'tokens' => $this->searchTokens([
+                        $company->company_name,
+                        $company->email,
+                        $company->phone,
+                    ]),
+                ];
+            });
+
+        return collect()
+            ->merge($contacts)
+            ->merge($companies)
+            ->filter(fn (array $record) => filled($record['label']))
+            ->unique(fn (array $record) => Str::lower(trim($record['type'].'|'.$record['label'])))
+            ->values();
+    }
+
+    private function searchTokens(array $values): string
+    {
+        return collect($values)
+            ->filter(fn ($value) => filled($value))
+            ->map(fn ($value) => Str::lower(Str::squish((string) $value)))
+            ->implode(' ');
     }
 
     public function storeNote(Request $request)

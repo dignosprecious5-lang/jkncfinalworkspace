@@ -43,9 +43,11 @@
                 <p style="margin:28px 0 0;font-size:13px;line-height:1.8;color:#64748b;">
                     For strict implementation.
                 </p>
-                <p style="margin:20px 0 0;font-size:13px;line-height:1.8;color:#64748b;">
-                    John Kelly &amp; Company (JK&amp;C Inc.)
-                </p>
+                <div style="margin:20px 0 0;font-size:13px;line-height:1.8;color:#64748b;">
+                    <p style="margin:0 0 8px;">ordo.jknc.io is the official system of John Kelly &amp; Company.</p>
+                    <p style="margin:0 0 8px;">This is a system-generated message. Do not reply to this email.</p>
+                    <p style="margin:0;">For assistance, please contact your assigned JK&amp;C Associate or Consultant.</p>
+                </div>
             </div>
         </div>
     </div>

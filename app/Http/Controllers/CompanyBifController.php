@@ -141,8 +141,8 @@ class CompanyBifController extends Controller
         $payload = $this->validatedPayload($request);
         $action = $request->input('action', 'submit');
         $isSubmit = $action !== 'draft';
-        $status = $this->resolveSubmittedStatus($isSubmit);
         $isReviewer = $this->isKycReviewer($request);
+        $status = $isReviewer ? 'approved' : $this->resolveSubmittedStatus($isSubmit);
         $requiresChangeRequest = ! $isReviewer && (string) $bifRecord->status === 'approved';
         $userName = $request->user()?->name ?? 'System User';
 
@@ -183,9 +183,9 @@ class CompanyBifController extends Controller
             ...$payload,
             'title' => $this->resolveTitle($payload),
             'status' => $status,
-            'submitted_at' => $isSubmit ? ($bifRecord->submitted_at ?? now()) : null,
-            'approved_at' => $this->resolveApprovedAt($isSubmit),
-            'approved_by_name' => $this->resolveApprovedByName($request, $isSubmit),
+            'submitted_at' => ($isSubmit || $isReviewer) ? ($bifRecord->submitted_at ?? now()) : null,
+            'approved_at' => $isReviewer ? now() : $this->resolveApprovedAt($isSubmit),
+            'approved_by_name' => $isReviewer ? $userName : $this->resolveApprovedByName($request, $isSubmit),
             'rejected_at' => null,
             'rejected_by_name' => null,
             'rejection_reason' => null,
@@ -903,6 +903,15 @@ class CompanyBifController extends Controller
 
     private function isKycReviewer(Request $request): bool
     {
-        return in_array((string) ($request->user()?->role ?? ''), ['Admin', 'SuperAdmin'], true);
+        $user = $request->user();
+
+        if (! $user) {
+            return false;
+        }
+
+        return $user->isAdmin()
+            || $user->isSuperAdmin()
+            || $user->hasPermission('approve_corporate')
+            || $user->hasPermission('access_admin_dashboard');
     }
 }

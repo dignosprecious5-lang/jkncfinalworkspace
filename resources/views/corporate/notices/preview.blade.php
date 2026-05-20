@@ -4,6 +4,11 @@
 @section('content')
 @php
     $selected = $notice;
+    $sectionRibbonPartial = $sectionRibbonPartial ?? 'corporate.partials.section-ribbon';
+    $backRoute = $backRoute ?? route('notices');
+    $companyName = $companyName ?? strtoupper($selected->corporation_name ?: 'JOHN KELLY & COMPANY');
+    $companyRegNo = $companyRegNo ?? ($selected->company_reg_no ?: '2025120230900-02');
+    $companyAddress = $companyAddress ?? ($selected->company_address ?: '3RD FLOOR, UNIT 305 CEBU HOLDINGS CENTER CARDINAL ROSALES AVE., CEBU BUSINESS PARK HIPPODROMO, CEBU CITY, 6000');
     $documentPathCandidates = collect([
         $selected->document_path,
         preg_replace('#^/?storage/#', '', (string) $selected->document_path),
@@ -37,9 +42,6 @@
         default => 'ALL DIRECTORS',
     };
 
-    $companyName = strtoupper($selected->corporation_name ?: 'JOHN KELLY & COMPANY');
-    $companyRegNo = $selected->company_reg_no ?: '2025120230900-02';
-    $companyAddress = $selected->company_address ?: '3RD FLOOR, UNIT 305 CEBU HOLDINGS CENTER CARDINAL ROSALES AVE., CEBU BUSINESS PARK HIPPODROMO, CEBU CITY, 6000';
     $meetingTypeLabel = $selected->type_of_meeting ?: 'Special';
     $governingBodyLabel = $selected->governing_body ?: 'Board of Directors';
     $meetingLocation = $selected->location ?: '________________';
@@ -258,8 +260,12 @@ HTML;
 
 <div class="w-full px-4 sm:px-6 lg:px-8 mt-4">
     <div class="bg-white border border-gray-100 rounded-2xl overflow-hidden">
+        @if (isset($company))
+            @include('company.partials.company-header', ['company' => $company])
+        @endif
+
         <div class="flex items-center gap-3 px-4 py-3 border-b border-gray-100">
-            @include('corporate.partials.section-ribbon', ['activeTab' => 'notices', 'topButtonLabel' => 'Add Notice'])
+            @include($sectionRibbonPartial, ['activeTab' => 'notices', 'topButtonLabel' => 'Add Notice'])
         </div>
     </div>
 </div>
@@ -289,7 +295,7 @@ HTML;
 <div class="w-full px-4 sm:px-6 lg:px-8 mt-4">
     <div class="bg-white border border-gray-100 rounded-xl overflow-hidden">
         <div class="flex items-center gap-3 px-4 py-4 border-b border-gray-100">
-            <a href="{{ route('notices') }}" class="text-gray-500 hover:text-gray-700">
+            <a href="{{ $backRoute }}" class="text-gray-500 hover:text-gray-700">
                 <i class="fas fa-arrow-left"></i>
             </a>
 

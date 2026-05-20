@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Company;
+use App\Models\Deal;
+use App\Models\Product;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
@@ -19,7 +21,9 @@ class CompanyProductController extends Controller
         $status = trim((string) $request->query('status', 'all'));
         $category = trim((string) $request->query('category', 'all'));
 
-        $linkedProducts = collect($request->session()->get($this->linkedKey($company), $this->defaultLinkedProducts($company)))
+        $linkedProducts = (Schema::hasTable('products') && Schema::hasTable('deals')
+            ? $this->databaseProductsForCompany($companyData)
+            : collect($request->session()->get($this->linkedKey($company), $this->defaultLinkedProducts($company))))
             ->when($search !== '', function (Collection $collection) use ($search) {
                 $term = strtolower($search);
 
@@ -51,6 +55,37 @@ class CompanyProductController extends Controller
             'category' => $category,
             'categoryOptions' => $productCatalog->pluck('category')->filter()->unique()->sort()->values(),
         ]);
+    }
+
+    private function databaseProductsForCompany(array $companyData): Collection
+    {
+        $companyName = trim((string) ($companyData['company_name'] ?? ''));
+
+        $dealIds = Deal::query()
+            ->when($companyName !== '', fn ($query) => $query->where('company_name', $companyName))
+            ->pluck('id');
+
+        return Product::query()
+            ->whereIn('deal_id', $dealIds)
+            ->latest('updated_at')
+            ->get()
+            ->map(function (Product $product): array {
+                return [
+                    'id' => $product->id,
+                    'name' => $product->product_name ?: ($product->product_id ?: 'Unnamed product'),
+                    'sku' => $product->sku ?: '-',
+                    'category' => $product->category ?: 'General',
+                    'description' => $product->product_description ?: '',
+                    'price' => (float) ($product->price ?? 0),
+                    'pricing_type' => $product->pricing_type ?: 'One-Time',
+                    'status' => $product->status ?: 'Open',
+                    'notes' => '',
+                    'updated_at' => optional($product->updated_at)->format('M d, Y h:i A') ?: now()->format('M d, Y h:i A'),
+                    'show_url' => route('products.show', $product->product_id),
+                    'readonly' => true,
+                ];
+            })
+            ->values();
     }
 
     public function link(Request $request, int $company): RedirectResponse

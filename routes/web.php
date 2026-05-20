@@ -10,6 +10,7 @@ use App\Http\Controllers\CompanyActivityController;
 use App\Http\Controllers\CompanyConsultationNoteController;
 use App\Http\Controllers\CompanyController;
 use App\Http\Controllers\CompanyCorporateFormationController;
+use App\Http\Controllers\CompanyCorporateRecordController;
 use App\Http\Controllers\CompanyDealController;
 use App\Http\Controllers\CompanyAccountingController;
 use App\Http\Controllers\CompanyBankingController;
@@ -22,6 +23,7 @@ use App\Http\Controllers\CompanyOperationsController;
 use App\Http\Controllers\CompanyProductController;
 use App\Http\Controllers\CompanyServiceController;
 use App\Http\Controllers\ContactsController;
+use App\Http\Controllers\ContactConsultationNoteController;
 use App\Http\Controllers\CorporateApprovalController;
 use App\Http\Controllers\CorporateFormationController;
 use App\Http\Controllers\DealController;
@@ -350,6 +352,9 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::post('/contacts/{contact}/kyc/change-request/reject', [ContactsController::class, 'rejectKycChange'])->name('contacts.kyc.change-request.reject');
     Route::post('/contacts/{contact}/kyc/cif/send', [ContactsController::class, 'sendCifClientForm'])->name('contacts.cif.send');
     Route::post('/contacts/{contact}/kyc/specimen/send', [ContactsController::class, 'sendSpecimenClientForm'])->name('contacts.specimen.send');
+    Route::post('/contacts/{contact}/consultation-notes', [ContactConsultationNoteController::class, 'store'])->name('contacts.consultation-notes.store');
+    Route::match(['put', 'patch'], '/contacts/{contact}/consultation-notes/{note}', [ContactConsultationNoteController::class, 'update'])->name('contacts.consultation-notes.update');
+    Route::delete('/contacts/{contact}/consultation-notes/{note}', [ContactConsultationNoteController::class, 'destroy'])->name('contacts.consultation-notes.destroy');
     Route::get('/contacts/{contact}/cif/preview', [ContactsController::class, 'previewCif'])->name('contacts.cif.preview');
     Route::get('/contacts/{contact}/cif/download', [ContactsController::class, 'downloadCif'])->name('contacts.cif.download');
     Route::delete('/contacts/{contact}/companies/{company}', [ContactsController::class, 'unlinkCompany'])->name('contacts.companies.unlink');
@@ -568,20 +573,6 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::match(['put', 'patch'], '/company/{company}/bir-tax/{record}', [CompanyBirTaxController::class, 'update'])->name('company.bir-tax.update');
     Route::delete('/company/{company}/bir-tax/{record}', [CompanyBirTaxController::class, 'destroy'])->name('company.bir-tax.destroy');
 
-    Route::get('/company/{company}/corporate-formation', [CompanyCorporateFormationController::class, 'index'])->name('company.corporate-formation');
-    Route::get('/company/{company}/corporate-formation/sec-coi', [CompanyCorporateFormationController::class, 'secCoi'])->name('company.corporate-formation.sec-coi');
-    Route::post('/company/{company}/corporate-formation/sec-coi', [CompanyCorporateFormationController::class, 'storeSecCoi'])->name('company.corporate-formation.sec-coi.store');
-    Route::match(['put', 'patch'], '/company/{company}/corporate-formation/sec-coi/{record}', [CompanyCorporateFormationController::class, 'updateSecCoi'])->name('company.corporate-formation.sec-coi.update');
-    Route::get('/company/{company}/corporate-formation/sec-aoi', [CompanyCorporateFormationController::class, 'secAoi'])->name('company.corporate-formation.sec-aoi');
-    Route::post('/company/{company}/corporate-formation/sec-aoi', [CompanyCorporateFormationController::class, 'storeSecAoi'])->name('company.corporate-formation.sec-aoi.store');
-    Route::match(['put', 'patch'], '/company/{company}/corporate-formation/sec-aoi/{record}', [CompanyCorporateFormationController::class, 'updateSecAoi'])->name('company.corporate-formation.sec-aoi.update');
-    Route::get('/company/{company}/corporate-formation/bylaws', [CompanyCorporateFormationController::class, 'bylaws'])->name('company.corporate-formation.bylaws');
-    Route::post('/company/{company}/corporate-formation/bylaws', [CompanyCorporateFormationController::class, 'storeBylaw'])->name('company.corporate-formation.bylaws.store');
-    Route::match(['put', 'patch'], '/company/{company}/corporate-formation/bylaws/{record}', [CompanyCorporateFormationController::class, 'updateBylaw'])->name('company.corporate-formation.bylaws.update');
-    Route::get('/company/{company}/corporate-formation/gis', [CompanyCorporateFormationController::class, 'gis'])->name('company.corporate-formation.gis');
-    Route::post('/company/{company}/corporate-formation/gis', [CompanyCorporateFormationController::class, 'storeGis'])->name('company.corporate-formation.gis.store');
-    Route::match(['put', 'patch'], '/company/{company}/corporate-formation/gis/{record}', [CompanyCorporateFormationController::class, 'updateGis'])->name('company.corporate-formation.gis.update');
-
     Route::get('/company/{company}/kyc/bif/create', [CompanyBifController::class, 'create'])->name('company.bif.create');
     Route::post('/company/{company}/kyc/bif', [CompanyBifController::class, 'store'])->name('company.bif.store');
     Route::post('/company/{company}/kyc/bif/send', [CompanyBifController::class, 'sendClientForm'])->name('company.bif.send');
@@ -597,6 +588,65 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::get('/company/{company}/services/{service}', [CompanyServiceController::class, 'showForCompany'])->name('company.services.show');
     Route::match(['put', 'patch'], '/company/{company}/services/{service}', [CompanyServiceController::class, 'updateForCompany'])->name('company.services.update');
     Route::delete('/company/{company}/services/{service}', [CompanyServiceController::class, 'destroyForCompany'])->name('company.services.destroy');
+
+    Route::get('/company/{company}/corporate-formation', [CompanyCorporateFormationController::class, 'index'])->name('company.corporate-formation');
+    Route::get('/company/{company}/corporate-formation/sec-coi', [CompanyCorporateFormationController::class, 'secCoi'])->name('company.corporate-formation.sec-coi');
+    Route::post('/company/{company}/corporate-formation/sec-coi', [CompanyCorporateFormationController::class, 'storeSecCoi'])->name('company.corporate-formation.sec-coi.store');
+    Route::match(['put', 'patch'], '/company/{company}/corporate-formation/sec-coi/{record}', [CompanyCorporateFormationController::class, 'updateSecCoi'])->name('company.corporate-formation.sec-coi.update');
+    Route::get('/company/{company}/corporate-formation/sec-aoi', [CompanyCorporateFormationController::class, 'secAoi'])->name('company.corporate-formation.sec-aoi');
+    Route::post('/company/{company}/corporate-formation/sec-aoi', [CompanyCorporateFormationController::class, 'storeSecAoi'])->name('company.corporate-formation.sec-aoi.store');
+    Route::match(['put', 'patch'], '/company/{company}/corporate-formation/sec-aoi/{record}', [CompanyCorporateFormationController::class, 'updateSecAoi'])->name('company.corporate-formation.sec-aoi.update');
+    Route::get('/company/{company}/corporate-formation/bylaws', [CompanyCorporateFormationController::class, 'bylaws'])->name('company.corporate-formation.bylaws');
+    Route::post('/company/{company}/corporate-formation/bylaws', [CompanyCorporateFormationController::class, 'storeBylaw'])->name('company.corporate-formation.bylaws.store');
+    Route::match(['put', 'patch'], '/company/{company}/corporate-formation/bylaws/{record}', [CompanyCorporateFormationController::class, 'updateBylaw'])->name('company.corporate-formation.bylaws.update');
+    Route::get('/company/{company}/corporate-formation/gis', [CompanyCorporateFormationController::class, 'gis'])->name('company.corporate-formation.gis');
+    Route::get('/company/{company}/corporate-formation/notices', [CompanyCorporateRecordController::class, 'notices'])->name('company.corporate-formation.notices');
+    Route::post('/company/{company}/corporate-formation/notices', [CompanyCorporateRecordController::class, 'storeNotice'])->name('company.corporate-formation.notices.store');
+    Route::get('/company/{company}/corporate-formation/notices/{notice}', [CompanyCorporateRecordController::class, 'showNotice'])->name('company.corporate-formation.notices.preview');
+    Route::match(['put', 'patch'], '/company/{company}/corporate-formation/notices/{notice}', [CompanyCorporateRecordController::class, 'updateNotice'])->name('company.corporate-formation.notices.update');
+    Route::delete('/company/{company}/corporate-formation/notices/{notice}', [CompanyCorporateRecordController::class, 'destroyNotice'])->name('company.corporate-formation.notices.destroy');
+    Route::get('/company/{company}/corporate-formation/minutes', [CompanyCorporateRecordController::class, 'minutes'])->name('company.corporate-formation.minutes');
+    Route::post('/company/{company}/corporate-formation/minutes', [CompanyCorporateRecordController::class, 'storeMinute'])->name('company.corporate-formation.minutes.store');
+    Route::get('/company/{company}/corporate-formation/minutes/{minute}', [CompanyCorporateRecordController::class, 'showMinute'])->name('company.corporate-formation.minutes.preview');
+    Route::match(['put', 'patch'], '/company/{company}/corporate-formation/minutes/{minute}', [CompanyCorporateRecordController::class, 'updateMinute'])->name('company.corporate-formation.minutes.update');
+    Route::post('/company/{company}/corporate-formation/minutes/{minute}/approve', [CompanyCorporateRecordController::class, 'approveMinute'])->name('company.corporate-formation.minutes.approve');
+    Route::post('/company/{company}/corporate-formation/minutes/{minute}/workspace-save', [CompanyCorporateRecordController::class, 'saveMinuteWorkspace'])->name('company.corporate-formation.minutes.workspace-save');
+    Route::post('/company/{company}/corporate-formation/minutes/{minute}/final-audio', [CompanyCorporateRecordController::class, 'saveMinuteFinalRecording'])->name('company.corporate-formation.minutes.final-audio');
+    Route::post('/company/{company}/corporate-formation/minutes/{minute}/final-save', [CompanyCorporateRecordController::class, 'saveMinuteFinalPreview'])->name('company.corporate-formation.minutes.final-save');
+    Route::delete('/company/{company}/corporate-formation/minutes/{minute}', [CompanyCorporateRecordController::class, 'destroyMinute'])->name('company.corporate-formation.minutes.destroy');
+    Route::get('/company/{company}/corporate-formation/resolutions', [CompanyCorporateRecordController::class, 'resolutions'])->name('company.corporate-formation.resolutions');
+    Route::post('/company/{company}/corporate-formation/resolutions', [CompanyCorporateRecordController::class, 'storeResolution'])->name('company.corporate-formation.resolutions.store');
+    Route::get('/company/{company}/corporate-formation/resolutions/{resolution}', [CompanyCorporateRecordController::class, 'showResolution'])->name('company.corporate-formation.resolutions.preview');
+    Route::match(['put', 'patch'], '/company/{company}/corporate-formation/resolutions/{resolution}', [CompanyCorporateRecordController::class, 'updateResolution'])->name('company.corporate-formation.resolutions.update');
+    Route::delete('/company/{company}/corporate-formation/resolutions/{resolution}', [CompanyCorporateRecordController::class, 'destroyResolution'])->name('company.corporate-formation.resolutions.destroy');
+    Route::get('/company/{company}/corporate-formation/secretary-certificates', [CompanyCorporateRecordController::class, 'secretaryCertificates'])->name('company.corporate-formation.secretary-certificates');
+    Route::post('/company/{company}/corporate-formation/secretary-certificates', [CompanyCorporateRecordController::class, 'storeSecretaryCertificate'])->name('company.corporate-formation.secretary-certificates.store');
+    Route::get('/company/{company}/corporate-formation/secretary-certificates/{certificate}', [CompanyCorporateRecordController::class, 'showSecretaryCertificate'])->name('company.corporate-formation.secretary-certificates.preview');
+    Route::match(['put', 'patch'], '/company/{company}/corporate-formation/secretary-certificates/{certificate}', [CompanyCorporateRecordController::class, 'updateSecretaryCertificate'])->name('company.corporate-formation.secretary-certificates.update');
+    Route::delete('/company/{company}/corporate-formation/secretary-certificates/{certificate}', [CompanyCorporateRecordController::class, 'destroySecretaryCertificate'])->name('company.corporate-formation.secretary-certificates.destroy');
+    Route::post('/company/{company}/corporate-formation/gis', [CompanyCorporateFormationController::class, 'storeGis'])->name('company.corporate-formation.gis.store');
+    Route::match(['put', 'patch'], '/company/{company}/corporate-formation/gis/{record}', [CompanyCorporateFormationController::class, 'updateGis'])->name('company.corporate-formation.gis.update');
+
+    // Company corporate-formation — show / upload-draft / upload-notary / submit (all 4 document types)
+    Route::get('/company/{company}/corporate-formation/sec-coi/{record}', [CompanyCorporateFormationController::class, 'showSecCoi'])->name('company.corporate-formation.sec-coi.show');
+    Route::post('/company/{company}/corporate-formation/sec-coi/{record}/upload-draft', [CompanyCorporateFormationController::class, 'uploadDraftSecCoi'])->name('company.corporate-formation.sec-coi.upload-draft');
+    Route::post('/company/{company}/corporate-formation/sec-coi/{record}/upload-notary', [CompanyCorporateFormationController::class, 'uploadNotarySecCoi'])->name('company.corporate-formation.sec-coi.upload-notary');
+    Route::post('/company/{company}/corporate-formation/sec-coi/{record}/submit', [CompanyCorporateFormationController::class, 'submitSecCoi'])->name('company.corporate-formation.sec-coi.submit');
+
+    Route::get('/company/{company}/corporate-formation/sec-aoi/{record}', [CompanyCorporateFormationController::class, 'showSecAoi'])->name('company.corporate-formation.sec-aoi.show');
+    Route::post('/company/{company}/corporate-formation/sec-aoi/{record}/upload-draft', [CompanyCorporateFormationController::class, 'uploadDraftSecAoi'])->name('company.corporate-formation.sec-aoi.upload-draft');
+    Route::post('/company/{company}/corporate-formation/sec-aoi/{record}/upload-notary', [CompanyCorporateFormationController::class, 'uploadNotarySecAoi'])->name('company.corporate-formation.sec-aoi.upload-notary');
+    Route::post('/company/{company}/corporate-formation/sec-aoi/{record}/submit', [CompanyCorporateFormationController::class, 'submitSecAoi'])->name('company.corporate-formation.sec-aoi.submit');
+
+    Route::get('/company/{company}/corporate-formation/bylaws/{record}', [CompanyCorporateFormationController::class, 'showBylaw'])->name('company.corporate-formation.bylaws.show');
+    Route::post('/company/{company}/corporate-formation/bylaws/{record}/upload-draft', [CompanyCorporateFormationController::class, 'uploadDraftBylaw'])->name('company.corporate-formation.bylaws.upload-draft');
+    Route::post('/company/{company}/corporate-formation/bylaws/{record}/upload-notary', [CompanyCorporateFormationController::class, 'uploadNotaryBylaw'])->name('company.corporate-formation.bylaws.upload-notary');
+    Route::post('/company/{company}/corporate-formation/bylaws/{record}/submit', [CompanyCorporateFormationController::class, 'submitBylaw'])->name('company.corporate-formation.bylaws.submit');
+
+    Route::get('/company/{company}/corporate-formation/gis/{record}', [CompanyCorporateFormationController::class, 'showGis'])->name('company.corporate-formation.gis.show');
+    Route::post('/company/{company}/corporate-formation/gis/{record}/upload-draft', [CompanyCorporateFormationController::class, 'uploadDraftGis'])->name('company.corporate-formation.gis.upload-draft');
+    Route::post('/company/{company}/corporate-formation/gis/{record}/upload-notary', [CompanyCorporateFormationController::class, 'uploadNotaryGis'])->name('company.corporate-formation.gis.upload-notary');
+    Route::post('/company/{company}/corporate-formation/gis/{record}/submit', [CompanyCorporateFormationController::class, 'submitGis'])->name('company.corporate-formation.gis.submit');
 
     /*
     |--------------------------------------------------------------------------

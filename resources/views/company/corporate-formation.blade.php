@@ -1,237 +1,434 @@
 @extends('layouts.app')
 @section('title', 'Corporate Formation')
 
-@php
-    $tabs = [
-        'sec-coi' => [
-            'label' => 'SEC-COI',
-            'route' => route('company.corporate-formation.sec-coi', $company->id),
-            'store' => route('company.corporate-formation.sec-coi.store', $company->id),
-            'update' => route('company.corporate-formation.sec-coi.update', [$company->id, '__RECORD__']),
-            'preview' => 'corporate.formation.show',
-            'button' => 'SEC-COI',
-            'title' => 'Add SEC-COI Record',
-            'columns' => [
-                ['label' => 'Date Upload', 'key' => 'date_upload'],
-                ['label' => 'Date Created', 'render' => fn ($row) => optional($row->created_at)->format('M d, Y')],
-                ['label' => 'Company Reg No.', 'key' => 'company_reg_no'],
-                ['label' => 'Corporation Name', 'key' => 'corporate_name', 'class' => 'font-semibold text-gray-800'],
-                ['label' => 'Issued On', 'key' => 'issued_on'],
-                ['label' => 'Issued By', 'key' => 'issued_by'],
-                ['label' => 'File Upload', 'render' => fn ($row) => $row->file_path ? basename($row->file_path) : '-', 'class' => 'text-blue-600 font-medium'],
-            ],
-            'fields' => [
-                ['name' => 'corporate_name', 'label' => 'Corporate Name', 'type' => 'text', 'required' => true],
-                ['name' => 'company_reg_no', 'label' => 'Company Reg No.', 'type' => 'text', 'required' => true],
-                ['name' => 'issued_by', 'label' => 'Issued By', 'type' => 'text', 'required' => true],
-                ['name' => 'issued_on', 'label' => 'Issued On', 'type' => 'date', 'required' => true, 'group' => 'dates'],
-                ['name' => 'date_upload', 'label' => 'Date Upload', 'type' => 'date', 'required' => true, 'group' => 'dates'],
-                ['name' => 'file_upload', 'label' => 'File Upload', 'type' => 'file'],
-            ],
-        ],
-        'sec-aoi' => [
-            'label' => 'SEC-AOI',
-            'route' => route('company.corporate-formation.sec-aoi', $company->id),
-            'store' => route('company.corporate-formation.sec-aoi.store', $company->id),
-            'update' => route('company.corporate-formation.sec-aoi.update', [$company->id, '__RECORD__']),
-            'preview' => 'corporate.sec_aoi.show',
-            'button' => 'SEC-AOI',
-            'title' => 'Add SEC-AOI Record',
-            'columns' => [
-                ['label' => 'Date Upload', 'key' => 'date_upload'],
-                ['label' => 'Uploaded By', 'key' => 'uploaded_by'],
-                ['label' => 'Company Reg No.', 'key' => 'company_reg_no'],
-                ['label' => 'Corporation Name', 'key' => 'corporation_name'],
-                ['label' => 'Principal Address', 'key' => 'principal_address'],
-                ['label' => 'Par Value', 'key' => 'par_value'],
-                ['label' => 'Authorized Capital Stock', 'key' => 'authorized_capital_stock'],
-                ['label' => 'Number of Directors', 'key' => 'directors'],
-                ['label' => 'Type of Formation', 'key' => 'type_of_formation'],
-                ['label' => 'SEC-AOI Version', 'key' => 'aoi_version'],
-                ['label' => 'Type of SEC-AOI Version', 'key' => 'aoi_type'],
-            ],
-            'fields' => [
-                ['name' => 'corporation_name', 'label' => 'Corporation Name', 'type' => 'text', 'required' => true],
-                ['name' => 'company_reg_no', 'label' => 'Company Reg No.', 'type' => 'text', 'required' => true],
-                ['name' => 'principal_address', 'label' => 'Principal Address', 'type' => 'text'],
-                ['name' => 'par_value', 'label' => 'Par Value', 'type' => 'text', 'group' => 'pair_a'],
-                ['name' => 'directors', 'label' => 'No. of Directors', 'type' => 'number', 'group' => 'pair_a'],
-                ['name' => 'authorized_capital_stock', 'label' => 'Authorized Capital Stock', 'type' => 'text'],
-                ['name' => 'type_of_formation', 'label' => 'Type of Formation', 'type' => 'select', 'options' => ['Stock Corporation', 'Non-Stock Corporation'], 'group' => 'pair_b'],
-                ['name' => 'aoi_version', 'label' => 'SEC-AOI Version', 'type' => 'text', 'group' => 'pair_b'],
-                ['name' => 'aoi_type', 'label' => 'Type of SEC-AOI Version', 'type' => 'select', 'options' => ['Original', 'Amended', 'Revised']],
-                ['name' => 'uploaded_by', 'label' => 'Uploaded By', 'type' => 'text', 'group' => 'pair_c'],
-                ['name' => 'date_upload', 'label' => 'Date Upload', 'type' => 'date', 'required' => true, 'group' => 'pair_c'],
-                ['name' => 'file_upload', 'label' => 'File Upload', 'type' => 'file'],
-            ],
-        ],
-        'bylaws' => [
-            'label' => 'bylaws',
-            'route' => route('company.corporate-formation.bylaws', $company->id),
-            'store' => route('company.corporate-formation.bylaws.store', $company->id),
-            'update' => route('company.corporate-formation.bylaws.update', [$company->id, '__RECORD__']),
-            'preview' => 'corporate.bylaws.show',
-            'button' => 'SEC-BYLAWS',
-            'title' => 'Add Bylaws Record',
-            'columns' => [
-                ['label' => 'Date Upload', 'key' => 'date_upload'],
-                ['label' => 'Uploaded By', 'key' => 'uploaded_by'],
-                ['label' => 'Company Reg No.', 'key' => 'company_reg_no'],
-                ['label' => 'Corporation Name', 'key' => 'corporation_name'],
-                ['label' => 'Type of Formation', 'key' => 'type_of_formation'],
-                ['label' => 'SEC-AOI Version', 'key' => 'aoi_version'],
-                ['label' => 'Type of Version', 'key' => 'aoi_type'],
-                ['label' => 'Date of Version', 'key' => 'aoi_date'],
-                ['label' => 'Regular ASM', 'key' => 'regular_asm'],
-                ['label' => 'Notice Time', 'key' => 'asm_notice'],
-                ['label' => 'Regular BODM', 'key' => 'regular_bodm'],
-                ['label' => 'Notice Time', 'key' => 'bodm_notice'],
-            ],
-            'fields' => [
-                ['name' => 'corporation_name', 'label' => 'Corporation Name', 'type' => 'text', 'required' => true],
-                ['name' => 'company_reg_no', 'label' => 'Company Reg No.', 'type' => 'text', 'required' => true],
-                ['name' => 'type_of_formation', 'label' => 'Type of Formation', 'type' => 'text'],
-                ['name' => 'aoi_version', 'label' => 'SEC-AOI Version', 'type' => 'text'],
-                ['name' => 'aoi_type', 'label' => 'Type of Version', 'type' => 'text'],
-                ['name' => 'aoi_date', 'label' => 'Date of Version', 'type' => 'date'],
-                ['name' => 'regular_asm', 'label' => 'Regular ASM', 'type' => 'text'],
-                ['name' => 'asm_notice', 'label' => 'ASM Notice Time', 'type' => 'text'],
-                ['name' => 'regular_bodm', 'label' => 'Regular BODM', 'type' => 'text'],
-                ['name' => 'bodm_notice', 'label' => 'BODM Notice Time', 'type' => 'text'],
-                ['name' => 'uploaded_by', 'label' => 'Uploaded By', 'type' => 'text'],
-                ['name' => 'date_upload', 'label' => 'Date Upload', 'type' => 'date', 'required' => true],
-                ['name' => 'file_upload', 'label' => 'File Upload', 'type' => 'file'],
-            ],
-        ],
-        'gis' => [
-            'label' => 'GIS',
-            'route' => route('company.corporate-formation.gis', $company->id),
-            'store' => route('company.corporate-formation.gis.store', $company->id),
-            'update' => route('company.corporate-formation.gis.update', [$company->id, '__RECORD__']),
-            'preview' => 'gis.show',
-            'button' => 'SEC-GIS',
-            'title' => 'Add GIS Record',
-            'columns' => [
-                ['label' => 'Date Upload', 'render' => fn ($row) => optional($row->created_at)->format('M d, Y')],
-                ['label' => 'Uploaded By', 'key' => 'uploaded_by'],
-                ['label' => 'Sec-Submission Status', 'key' => 'submission_status'],
-                ['label' => 'Sec-Receive on', 'key' => 'receive_on'],
-                ['label' => 'Sec-Period Date', 'key' => 'period_date'],
-                ['label' => 'Company Reg No.', 'key' => 'company_reg_no'],
-                ['label' => 'Corporation Name', 'key' => 'corporation_name'],
-                ['label' => 'Date of Annual Meeting', 'key' => 'annual_meeting'],
-                ['label' => 'Type of Meeting', 'key' => 'meeting_type'],
-            ],
-            'fields' => [
-                ['name' => 'uploaded_by', 'label' => 'Uploaded By', 'type' => 'text'],
-                ['name' => 'submission_status', 'label' => 'Submission Status', 'type' => 'select', 'options' => ['Submitted', 'Received', 'Pending']],
-                ['name' => 'receive_on', 'label' => 'Receive On', 'type' => 'date'],
-                ['name' => 'period_date', 'label' => 'Period Date', 'type' => 'text'],
-                ['name' => 'company_reg_no', 'label' => 'Company Reg No.', 'type' => 'text', 'required' => true],
-                ['name' => 'corporation_name', 'label' => 'Corporation Name', 'type' => 'text', 'required' => true],
-                ['name' => 'annual_meeting', 'label' => 'Annual Meeting', 'type' => 'date'],
-                ['name' => 'meeting_type', 'label' => 'Meeting Type', 'type' => 'select', 'options' => ['Regular Annual Meeting', 'Special Meeting']],
-                ['name' => 'file', 'label' => 'File Upload', 'type' => 'file'],
-            ],
-        ],
-    ];
-    $module = $tabs[$activeTab];
-    $recordsForJs = $records->map(fn ($record) => array_merge($record->toArray(), [
-        'preview_url' => route($module['preview'], $record->id),
-    ]));
-@endphp
-
 @section('content')
-<div class="w-full px-4 sm:px-6 lg:px-8 mt-4 pb-8" x-data="{ openPanel: false }">
+@php
+    $tabConfig = [
+        ['key' => 'sec-coi', 'label' => 'SEC-COI', 'href' => route('company.corporate-formation.sec-coi', $company->id)],
+        ['key' => 'sec-aoi', 'label' => 'SEC-AOI', 'href' => route('company.corporate-formation.sec-aoi', $company->id)],
+        ['key' => 'bylaws', 'label' => 'Bylaws', 'href' => route('company.corporate-formation.bylaws', $company->id)],
+        ['key' => 'gis', 'label' => 'GIS', 'href' => route('company.corporate-formation.gis', $company->id)],
+        ['key' => 'notices', 'label' => 'Notices of Meeting...', 'href' => route('company.corporate-formation.notices', $company->id)],
+        ['key' => 'minutes', 'label' => 'Minutes of Meeting...', 'href' => route('company.corporate-formation.minutes', $company->id)],
+        ['key' => 'resolution', 'label' => 'Resolution', 'href' => route('company.corporate-formation.resolutions', $company->id)],
+        ['key' => 'secretary', 'label' => 'Secretary...', 'href' => route('company.corporate-formation.secretary-certificates', $company->id)],
+    ];
+    $activeRibbonIndex = collect($tabConfig)->search(fn ($item) => $item['key'] === $activeTab);
+    $initialRibbonScroll = $activeRibbonIndex === false ? 0 : max(0, ($activeRibbonIndex - 1) * 180);
+    $topButtonLabel = match ($activeTab) {
+        'sec-coi' => 'SEC-COI',
+        'sec-aoi' => 'SEC-AOI',
+        'bylaws' => 'SEC-BYLAWS',
+        default => 'SEC-GIS',
+    };
+@endphp
+<div class="w-full px-4 sm:px-6 lg:px-8 mt-4 pb-8"
+     x-data="{ openPanel: false, statusTab: null }">
+
     <div class="bg-white border border-gray-100 rounded-md overflow-hidden">
         @include('company.partials.company-header', ['company' => $company])
 
         <section class="bg-gray-50 p-4 min-h-[760px]">
             <div class="bg-white border border-gray-100 rounded-2xl overflow-hidden">
+
                 <div class="flex items-center gap-3 px-4 py-3 border-b border-gray-100 bg-white">
-                    <div class="flex items-center gap-0 overflow-x-auto">
-                        @foreach ($tabs as $key => $tab)
-                            <a href="{{ $tab['route'] }}" class="min-w-[118px] px-6 py-3 text-sm font-medium border {{ $activeTab === $key ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 bg-white text-gray-800 hover:bg-gray-50' }} text-center {{ $loop->first ? '' : 'border-l-0' }}">
-                                {{ $tab['label'] }}
-                            </a>
-                        @endforeach
-                    </div>
+                    <div x-data="{
+                            scrollStep() {
+                                const ribbon = this.$refs.ribbon;
+                                const card = ribbon?.querySelector('[data-ribbon-card]');
+                                return card ? card.getBoundingClientRect().width * 3 : 540;
+                            },
+                            prev() {
+                                this.$refs.ribbon?.scrollBy({ left: -this.scrollStep(), behavior: 'smooth' });
+                            },
+                            next() {
+                                this.$refs.ribbon?.scrollBy({ left: this.scrollStep(), behavior: 'smooth' });
+                            }
+                        }"
+                        class="flex items-center justify-between gap-3 w-full min-w-0">
 
-                    <div class="flex-1"></div>
-
-                    <div class="flex items-center gap-2">
-                        <button class="w-9 h-9 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center">
-                            <i class="fas fa-bars text-sm"></i>
-                        </button>
-
-                        <button class="w-9 h-9 rounded-full border border-gray-200 text-gray-500 flex items-center justify-center hover:bg-gray-50">
-                            <i class="fas fa-table-cells-large text-sm"></i>
-                        </button>
-
-                        <div class="flex items-center">
-                            <button type="button" id="openFormationDrawer" class="px-4 h-9 rounded-l-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium flex items-center gap-2">
-                                <span class="text-base leading-none">+</span>
-                                {{ $module['button'] }}
+                        <div class="flex items-center gap-2 flex-1 min-w-0">
+                            <button type="button"
+                                    class="h-9 w-9 shrink-0 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 transition flex items-center justify-center"
+                                    @click="prev()"
+                                    aria-label="Scroll ribbon left">
+                                <i class="fas fa-chevron-left text-xs"></i>
                             </button>
 
-                            <button class="w-10 h-9 rounded-r-full bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center border-l border-white/20">
-                                <i class="fas fa-caret-down text-xs"></i>
+                            <div x-ref="ribbon"
+                                 x-init="$nextTick(() => { $el.scrollLeft = {{ $initialRibbonScroll }}; })"
+                                 class="min-w-0 flex-1 overflow-x-auto whitespace-nowrap scroll-smooth no-scrollbar">
+                                <div class="flex items-stretch min-w-max">
+                                    @foreach ($tabConfig as $tabItem)
+                                        <a href="{{ $tabItem['href'] }}"
+                                           data-ribbon-card
+                                           class="shrink-0 w-[180px] px-4 py-3 text-sm font-medium text-center border-t border-b border-r border-gray-200 first:border-l {{ $activeTab === $tabItem['key'] ? 'bg-blue-50 text-blue-700 border-blue-500' : 'bg-white text-gray-800 hover:bg-gray-50' }}">
+                                            <span class="block truncate">{{ $tabItem['label'] }}</span>
+                                        </a>
+                                    @endforeach
+                                </div>
+                            </div>
+
+                            <button type="button"
+                                    class="h-9 w-9 shrink-0 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 transition flex items-center justify-center"
+                                    @click="next()"
+                                    aria-label="Scroll ribbon right">
+                                <i class="fas fa-chevron-right text-xs"></i>
                             </button>
                         </div>
 
-                        <button class="w-9 h-9 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center">
-                            <i class="fas fa-ellipsis-v text-sm"></i>
-                        </button>
+                        <div class="flex items-center gap-2 shrink-0">
+                            <button type="button" class="w-9 h-9 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center">
+                                <i class="fas fa-bars text-sm"></i>
+                            </button>
+
+                            <button type="button" class="w-9 h-9 rounded-full border border-gray-200 text-gray-500 flex items-center justify-center hover:bg-gray-50">
+                                <i class="fas fa-table-cells-large text-sm"></i>
+                            </button>
+
+                            <div class="flex items-center">
+                                <button type="button" @click="openPanel = true"
+                                        class="px-4 h-9 rounded-l-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium flex items-center gap-2">
+                                    <span class="text-base leading-none">+</span>
+                                    {{ $topButtonLabel }}
+                                </button>
+
+                                <button type="button"
+                                        class="w-10 h-9 rounded-r-full bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center border-l border-white/20">
+                                    <i class="fas fa-caret-down text-xs"></i>
+                                </button>
+                            </div>
+
+                            <button type="button" class="w-9 h-9 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center">
+                                <i class="fas fa-ellipsis-v text-sm"></i>
+                            </button>
+                        </div>
                     </div>
                 </div>
 
-                <div class="bg-gray-50 min-h-[680px]">
-                    <div class="p-3">
-                        @if (session('corporate_formation_success'))
+                <div class="px-4 pt-4 bg-white border-b border-gray-100">
+                    <div class="flex gap-8 text-[15px] text-gray-700 overflow-x-auto">
+                        <button @click="statusTab = 'uploaded'"
+                                :class="statusTab === 'uploaded' ? 'text-green-800 border-b-[3px] border-green-800 font-medium' : 'text-gray-700'"
+                                class="pb-3 whitespace-nowrap">Uploaded</button>
+                        <button @click="statusTab = 'submitted'"
+                                :class="statusTab === 'submitted' ? 'text-green-800 border-b-[3px] border-green-800 font-medium' : 'text-gray-700'"
+                                class="pb-3 whitespace-nowrap">Submitted</button>
+                        <button @click="statusTab = 'accepted'"
+                                :class="statusTab === 'accepted' ? 'text-green-800 border-b-[3px] border-green-800 font-medium' : 'text-gray-700'"
+                                class="pb-3 whitespace-nowrap">Accepted</button>
+                        <button @click="statusTab = 'reverted'"
+                                :class="statusTab === 'reverted' ? 'text-green-800 border-b-[3px] border-green-800 font-medium' : 'text-gray-700'"
+                                class="pb-3 whitespace-nowrap">Reverted</button>
+                        <button @click="statusTab = 'archived'"
+                                :class="statusTab === 'archived' ? 'text-green-800 border-b-[3px] border-green-800 font-medium' : 'text-gray-700'"
+                                class="pb-3 whitespace-nowrap">Archived</button>
+                    </div>
+                </div>
+
+                <div class="bg-gray-50 min-h-[620px]">
+
+                    <div class="px-4 pt-4">
+                        @if(session('corporate_formation_success'))
                             <div class="mb-3 rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-700">
                                 {{ session('corporate_formation_success') }}
                             </div>
                         @endif
 
+                        <div class="border border-green-200 bg-green-50 text-green-800 text-[14px] px-4 py-3 rounded-md"
+                             x-show="statusTab === null || statusTab === 'accepted'">
+                            These records were already accepted and approved.
+                        </div>
+                        <div class="border border-green-200 bg-green-50 text-green-800 text-[14px] px-4 py-3 rounded-md"
+                             x-show="statusTab === 'uploaded'">
+                            These records are uploaded drafts and not yet submitted for approval.
+                        </div>
+                        <div class="border border-blue-200 bg-blue-50 text-blue-800 text-[14px] px-4 py-3 rounded-md"
+                             x-show="statusTab === 'submitted'">
+                            These records have already been submitted and are waiting for review.
+                        </div>
+                        <div class="border border-yellow-200 bg-yellow-50 text-yellow-800 text-[14px] px-4 py-3 rounded-md"
+                             x-show="statusTab === 'reverted'">
+                            These records were reverted and need correction before resubmission.
+                        </div>
+                        <div class="border border-gray-200 bg-gray-50 text-gray-700 text-[14px] px-4 py-3 rounded-md"
+                             x-show="statusTab === 'archived'">
+                            These records are archived for reference.
+                        </div>
+                    </div>
+
+                    <div class="p-3">
                         <div class="overflow-x-auto border border-gray-200 rounded-md bg-white">
+
+                            {{-- ================================================================ --}}
+                            {{-- SEC-COI TABLE --}}
+                            {{-- ================================================================ --}}
+                            @if($activeTab === 'sec-coi')
                             <table class="min-w-full text-[11px] text-left text-gray-700">
                                 <thead class="bg-white border-b border-gray-200">
                                     <tr>
-                                        @foreach ($module['columns'] as $column)
-                                            <th class="px-3 py-2 font-semibold">{{ $column['label'] }}</th>
-                                        @endforeach
-                                        <th class="px-3 py-2 font-semibold text-right">Actions</th>
+                                        <th class="px-3 py-2 font-semibold">Date Upload</th>
+                                        <th class="px-3 py-2 font-semibold">Date Created</th>
+                                        <th class="px-3 py-2 font-semibold">Company Reg No.</th>
+                                        <th class="px-3 py-2 font-semibold">Corporation Name</th>
+                                        <th class="px-3 py-2 font-semibold">Issued On</th>
+                                        <th class="px-3 py-2 font-semibold">Issued By</th>
+                                        <th class="px-3 py-2 font-semibold">Workflow Status</th>
+                                        <th class="px-3 py-2 font-semibold">Files</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    @forelse($records as $row)
-                                        <tr class="border-b border-gray-200 hover:bg-blue-50 transition">
-                                            @foreach ($module['columns'] as $column)
-                                                @php
-                                                    $value = isset($column['render']) ? $column['render']($row) : data_get($row, $column['key']);
-                                                @endphp
-                                                <td class="px-3 py-2 {{ $column['class'] ?? '' }}">{{ $value }}</td>
-                                            @endforeach
-                                            <td class="px-3 py-2">
-                                                <div class="flex items-center justify-end gap-2">
-                                                    <a href="{{ route($module['preview'], $row->id) }}" class="inline-flex h-8 items-center rounded-full border border-gray-200 px-3 text-xs font-medium text-gray-700 hover:bg-gray-50">
-                                                        View
-                                                    </a>
-                                                    <button type="button" class="inline-flex h-8 items-center rounded-full border border-gray-200 px-3 text-xs font-medium text-gray-700 hover:bg-gray-50" data-edit-record='@json(array_merge($row->toArray(), ['preview_url' => route($module['preview'], $row->id)]))'>
-                                                        Edit
-                                                    </button>
+                                    @foreach($records as $row)
+                                        @php
+                                            $workflow = $row->workflow_status ?: ($row->approval_status === 'Approved' ? 'Accepted' : (in_array($row->approval_status, ['Needs Revision','Rejected']) ? 'Reverted' : 'Uploaded'));
+                                            $hasDraft  = !empty($row->file_path);
+                                            $hasNotary = !empty($row->notary_file_path);
+                                            $canSubmit = $hasDraft && $hasNotary;
+                                            $fileLabel = match(true) { $hasDraft && $hasNotary => 'Draft + Notary', $hasDraft => 'Draft Only', $hasNotary => 'Notary Only', default => 'No File' };
+                                            $badgeClass = match($workflow) { 'Accepted' => 'bg-green-50 text-green-700', 'Reverted' => 'bg-yellow-50 text-yellow-700', 'Archived' => 'bg-gray-100 text-gray-700', 'Submitted' => 'bg-blue-50 text-blue-700', default => 'bg-orange-50 text-orange-700' };
+                                        @endphp
+                                        <tr x-show="(statusTab===null&&{{ $workflow==='Accepted'?'true':'false' }})||(statusTab==='uploaded'&&{{ $workflow==='Uploaded'?'true':'false' }})||(statusTab==='submitted'&&{{ $workflow==='Submitted'?'true':'false' }})||(statusTab==='accepted'&&{{ $workflow==='Accepted'?'true':'false' }})||(statusTab==='reverted'&&{{ $workflow==='Reverted'?'true':'false' }})||(statusTab==='archived'&&{{ $workflow==='Archived'?'true':'false' }})"
+                                            data-url="{{ route('company.corporate-formation.sec-coi.show', [$company->id, $row->id]) }}"
+                                            onclick="window.location.href=this.dataset.url"
+                                            class="border-b border-gray-200 hover:bg-blue-50 transition cursor-pointer">
+                                            <td class="px-3 py-2">{{ $row->date_upload }}</td>
+                                            <td class="px-3 py-2">{{ $row->created_at?->format('M d, Y') }}</td>
+                                            <td class="px-3 py-2">{{ $row->company_reg_no }}</td>
+                                            <td class="px-3 py-2 font-semibold text-gray-800">{{ $row->corporate_name }}</td>
+                                            <td class="px-3 py-2">{{ $row->issued_on }}</td>
+                                            <td class="px-3 py-2">{{ $row->issued_by }}</td>
+                                            <td class="px-3 py-2"><span class="px-2 py-1 rounded-full text-[10px] font-medium {{ $badgeClass }}">{{ $workflow }}</span></td>
+                                            <td class="px-3 py-2 text-blue-600 font-medium">
+                                                <div class="flex flex-col items-start gap-2">
+                                                    <span>{{ $fileLabel }}</span>
+                                                    @if(in_array($workflow, ['Uploaded','Reverted']))
+                                                        @if($canSubmit)
+                                                            <form action="{{ route('company.corporate-formation.sec-coi.submit', [$company->id, $row->id]) }}" method="POST" onclick="event.stopPropagation();">@csrf
+                                                                <button type="submit" class="px-3 py-1.5 text-xs rounded-md bg-blue-600 text-white hover:bg-blue-700">Submit</button>
+                                                            </form>
+                                                        @else
+                                                            <button type="button" onclick="event.stopPropagation();" disabled title="Both Draft and Notary files are required before submitting" class="px-3 py-1.5 text-xs rounded-md bg-gray-200 text-gray-500 cursor-not-allowed">Incomplete</button>
+                                                        @endif
+                                                    @endif
                                                 </div>
                                             </td>
                                         </tr>
-                                    @empty
-                                        <tr>
-                                            <td colspan="{{ count($module['columns']) + 1 }}" class="px-4 py-12 text-center text-sm text-gray-500">
-                                                No {{ strtolower($module['label']) }} records found for {{ $company->company_name }}.
-                                            </td>
-                                        </tr>
-                                    @endforelse
+                                    @endforeach
+                                    @if($records->isEmpty())
+                                        <tr><td colspan="8" class="px-3 py-6 text-center text-gray-400">No SEC-COI records found for {{ $company->company_name }}.</td></tr>
+                                    @endif
                                 </tbody>
                             </table>
+
+                            {{-- ================================================================ --}}
+                            {{-- SEC-AOI TABLE --}}
+                            {{-- ================================================================ --}}
+                            @elseif($activeTab === 'sec-aoi')
+                            <table class="min-w-full text-[11px] text-left text-gray-700">
+                                <thead class="bg-white border-b border-gray-200">
+                                    <tr>
+                                        <th class="px-3 py-2 font-semibold">Date Upload</th>
+                                        <th class="px-3 py-2 font-semibold">Uploaded By</th>
+                                        <th class="px-3 py-2 font-semibold">Company Reg No.</th>
+                                        <th class="px-3 py-2 font-semibold">Corporation Name</th>
+                                        <th class="px-3 py-2 font-semibold">Principal Address</th>
+                                        <th class="px-3 py-2 font-semibold">Par Value</th>
+                                        <th class="px-3 py-2 font-semibold">Authorized Capital Stock</th>
+                                        <th class="px-3 py-2 font-semibold">Number of Directors</th>
+                                        <th class="px-3 py-2 font-semibold">Type of Formation</th>
+                                        <th class="px-3 py-2 font-semibold">SEC-AOI Version</th>
+                                        <th class="px-3 py-2 font-semibold">Type of Version</th>
+                                        <th class="px-3 py-2 font-semibold">Workflow Status</th>
+                                        <th class="px-3 py-2 font-semibold">Files</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach($records as $row)
+                                        @php
+                                            $workflow = $row->workflow_status ?: ($row->approval_status === 'Approved' ? 'Accepted' : (in_array($row->approval_status, ['Needs Revision','Rejected']) ? 'Reverted' : 'Uploaded'));
+                                            $hasDraft  = !empty($row->file_path);
+                                            $hasNotary = !empty($row->notary_file_path);
+                                            $canSubmit = $hasDraft && $hasNotary;
+                                            $fileLabel = match(true) { $hasDraft && $hasNotary => 'Draft + Notary', $hasDraft => 'Draft Only', $hasNotary => 'Notary Only', default => 'No File' };
+                                            $badgeClass = match($workflow) { 'Accepted' => 'bg-green-50 text-green-700', 'Reverted' => 'bg-yellow-50 text-yellow-700', 'Archived' => 'bg-gray-100 text-gray-700', 'Submitted' => 'bg-blue-50 text-blue-700', default => 'bg-orange-50 text-orange-700' };
+                                        @endphp
+                                        <tr x-show="(statusTab===null&&{{ $workflow==='Accepted'?'true':'false' }})||(statusTab==='uploaded'&&{{ $workflow==='Uploaded'?'true':'false' }})||(statusTab==='submitted'&&{{ $workflow==='Submitted'?'true':'false' }})||(statusTab==='accepted'&&{{ $workflow==='Accepted'?'true':'false' }})||(statusTab==='reverted'&&{{ $workflow==='Reverted'?'true':'false' }})||(statusTab==='archived'&&{{ $workflow==='Archived'?'true':'false' }})"
+                                            data-url="{{ route('company.corporate-formation.sec-aoi.show', [$company->id, $row->id]) }}"
+                                            onclick="window.location.href=this.dataset.url"
+                                            class="border-b border-gray-200 hover:bg-blue-50 transition cursor-pointer">
+                                            <td class="px-3 py-2">{{ $row->date_upload }}</td>
+                                            <td class="px-3 py-2 font-semibold text-gray-800">{{ $row->uploaded_by }}</td>
+                                            <td class="px-3 py-2">{{ $row->company_reg_no }}</td>
+                                            <td class="px-3 py-2">{{ $row->corporation_name }}</td>
+                                            <td class="px-3 py-2">{{ $row->principal_address }}</td>
+                                            <td class="px-3 py-2">{{ $row->par_value }}</td>
+                                            <td class="px-3 py-2">{{ $row->authorized_capital_stock }}</td>
+                                            <td class="px-3 py-2">{{ $row->directors }}</td>
+                                            <td class="px-3 py-2">{{ $row->type_of_formation }}</td>
+                                            <td class="px-3 py-2">{{ $row->aoi_version }}</td>
+                                            <td class="px-3 py-2">{{ $row->aoi_type }}</td>
+                                            <td class="px-3 py-2"><span class="px-2 py-1 rounded-full text-[10px] font-medium {{ $badgeClass }}">{{ $workflow }}</span></td>
+                                            <td class="px-3 py-2 text-blue-600 font-medium">
+                                                <div class="flex flex-col items-start gap-2">
+                                                    <span>{{ $fileLabel }}</span>
+                                                    @if(in_array($workflow, ['Uploaded','Reverted']))
+                                                        @if($canSubmit)
+                                                            <form action="{{ route('company.corporate-formation.sec-aoi.submit', [$company->id, $row->id]) }}" method="POST" onclick="event.stopPropagation();">@csrf
+                                                                <button type="submit" class="px-3 py-1.5 text-xs rounded-md bg-blue-600 text-white hover:bg-blue-700">Submit</button>
+                                                            </form>
+                                                        @else
+                                                            <button type="button" onclick="event.stopPropagation();" disabled title="Both Draft and Notary files are required before submitting" class="px-3 py-1.5 text-xs rounded-md bg-gray-200 text-gray-500 cursor-not-allowed">Incomplete</button>
+                                                        @endif
+                                                    @endif
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    @endforeach
+                                    @if($records->isEmpty())
+                                        <tr><td colspan="13" class="px-3 py-6 text-center text-gray-400">No SEC-AOI records found for {{ $company->company_name }}.</td></tr>
+                                    @endif
+                                </tbody>
+                            </table>
+
+                            {{-- ================================================================ --}}
+                            {{-- BYLAWS TABLE --}}
+                            {{-- ================================================================ --}}
+                            @elseif($activeTab === 'bylaws')
+                            <table class="min-w-full text-[10px] text-left text-gray-700">
+                                <thead class="bg-white border-b border-gray-200 align-top">
+                                    <tr>
+                                        <th class="px-2 py-2 font-semibold">Date Upload</th>
+                                        <th class="px-2 py-2 font-semibold">Uploaded By</th>
+                                        <th class="px-2 py-2 font-semibold">Company Reg No.</th>
+                                        <th class="px-2 py-2 font-semibold">Corporation Name</th>
+                                        <th class="px-2 py-2 font-semibold">Type of Formation</th>
+                                        <th class="px-2 py-2 font-semibold">SEC-AOI Version</th>
+                                        <th class="px-2 py-2 font-semibold">Type of Version</th>
+                                        <th class="px-2 py-2 font-semibold">Date of Version</th>
+                                        <th class="px-2 py-2 font-semibold">Regular ASM</th>
+                                        <th class="px-2 py-2 font-semibold">Notice Time</th>
+                                        <th class="px-2 py-2 font-semibold">Regular BODM</th>
+                                        <th class="px-2 py-2 font-semibold">Notice Time</th>
+                                        <th class="px-2 py-2 font-semibold">Workflow Status</th>
+                                        <th class="px-2 py-2 font-semibold">Files</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach($records as $row)
+                                        @php
+                                            $workflow = $row->workflow_status ?: ($row->approval_status === 'Approved' ? 'Accepted' : (in_array($row->approval_status, ['Needs Revision','Rejected']) ? 'Reverted' : 'Uploaded'));
+                                            $hasDraft  = !empty($row->file_path);
+                                            $hasNotary = !empty($row->notary_file_path);
+                                            $canSubmit = $hasDraft && $hasNotary;
+                                            $fileLabel = match(true) { $hasDraft && $hasNotary => 'Draft + Notary', $hasDraft => 'Draft Only', $hasNotary => 'Notary Only', default => 'No File' };
+                                            $badgeClass = match($workflow) { 'Accepted' => 'bg-green-50 text-green-700', 'Reverted' => 'bg-yellow-50 text-yellow-700', 'Archived' => 'bg-gray-100 text-gray-700', 'Submitted' => 'bg-blue-50 text-blue-700', default => 'bg-orange-50 text-orange-700' };
+                                        @endphp
+                                        <tr x-show="(statusTab===null&&{{ $workflow==='Accepted'?'true':'false' }})||(statusTab==='uploaded'&&{{ $workflow==='Uploaded'?'true':'false' }})||(statusTab==='submitted'&&{{ $workflow==='Submitted'?'true':'false' }})||(statusTab==='accepted'&&{{ $workflow==='Accepted'?'true':'false' }})||(statusTab==='reverted'&&{{ $workflow==='Reverted'?'true':'false' }})||(statusTab==='archived'&&{{ $workflow==='Archived'?'true':'false' }})"
+                                            data-url="{{ route('company.corporate-formation.bylaws.show', [$company->id, $row->id]) }}"
+                                            onclick="window.location.href=this.dataset.url"
+                                            class="border-b border-gray-200 hover:bg-blue-50 transition cursor-pointer">
+                                            <td class="px-2 py-2">{{ $row->date_upload }}</td>
+                                            <td class="px-2 py-2 font-semibold text-gray-800">{{ $row->uploaded_by }}</td>
+                                            <td class="px-2 py-2">{{ $row->company_reg_no }}</td>
+                                            <td class="px-2 py-2">{{ $row->corporation_name }}</td>
+                                            <td class="px-2 py-2">{{ $row->type_of_formation }}</td>
+                                            <td class="px-2 py-2">{{ $row->aoi_version }}</td>
+                                            <td class="px-2 py-2">{{ $row->aoi_type }}</td>
+                                            <td class="px-2 py-2">{{ $row->aoi_date }}</td>
+                                            <td class="px-2 py-2">{{ $row->regular_asm }}</td>
+                                            <td class="px-2 py-2">{{ $row->asm_notice }}</td>
+                                            <td class="px-2 py-2">{{ $row->regular_bodm }}</td>
+                                            <td class="px-2 py-2">{{ $row->bodm_notice }}</td>
+                                            <td class="px-2 py-2"><span class="px-2 py-1 rounded-full text-[10px] font-medium {{ $badgeClass }}">{{ $workflow }}</span></td>
+                                            <td class="px-2 py-2 text-blue-600 font-medium">
+                                                <div class="flex flex-col items-start gap-2">
+                                                    <span>{{ $fileLabel }}</span>
+                                                    @if(in_array($workflow, ['Uploaded','Reverted']))
+                                                        @if($canSubmit)
+                                                            <form action="{{ route('company.corporate-formation.bylaws.submit', [$company->id, $row->id]) }}" method="POST" onclick="event.stopPropagation();">@csrf
+                                                                <button type="submit" class="px-3 py-1.5 text-xs rounded-md bg-blue-600 text-white hover:bg-blue-700">Submit</button>
+                                                            </form>
+                                                        @else
+                                                            <button type="button" onclick="event.stopPropagation();" disabled title="Both Draft and Notary files are required before submitting" class="px-3 py-1.5 text-xs rounded-md bg-gray-200 text-gray-500 cursor-not-allowed">Incomplete</button>
+                                                        @endif
+                                                    @endif
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    @endforeach
+                                    @if($records->isEmpty())
+                                        <tr><td colspan="14" class="px-3 py-6 text-center text-gray-400">No Bylaws records found for {{ $company->company_name }}.</td></tr>
+                                    @endif
+                                </tbody>
+                            </table>
+
+                            {{-- ================================================================ --}}
+                            {{-- GIS TABLE --}}
+                            {{-- ================================================================ --}}
+                            @else
+                            <table class="min-w-full text-[11px] text-left text-gray-700">
+                                <thead class="bg-white border-b border-gray-200">
+                                    <tr>
+                                        <th class="px-3 py-2 font-semibold">Date Upload</th>
+                                        <th class="px-3 py-2 font-semibold">Uploaded By</th>
+                                        <th class="px-3 py-2 font-semibold">Sec-Submission Status</th>
+                                        <th class="px-3 py-2 font-semibold">Sec-Receive on</th>
+                                        <th class="px-3 py-2 font-semibold">Sec-Period Date</th>
+                                        <th class="px-3 py-2 font-semibold">Company Reg No.</th>
+                                        <th class="px-3 py-2 font-semibold">Corporation Name</th>
+                                        <th class="px-3 py-2 font-semibold">Date of Annual Meeting</th>
+                                        <th class="px-3 py-2 font-semibold">Type of Meeting</th>
+                                        <th class="px-3 py-2 font-semibold">Workflow Status</th>
+                                        <th class="px-3 py-2 font-semibold">Files</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach($records as $row)
+                                        @php
+                                            $workflow = $row->workflow_status ?: ($row->approval_status === 'Approved' ? 'Accepted' : (in_array($row->approval_status, ['Needs Revision','Rejected']) ? 'Reverted' : 'Uploaded'));
+                                            $hasDraft  = !empty($row->file);
+                                            $hasNotary = !empty($row->notary_file_path);
+                                            $canSubmit = $hasDraft && $hasNotary;
+                                            $fileLabel = match(true) { $hasDraft && $hasNotary => 'Draft + Notary', $hasDraft => 'Draft Only', $hasNotary => 'Notary Only', default => 'No File' };
+                                            $badgeClass = match($workflow) { 'Accepted' => 'bg-green-50 text-green-700', 'Reverted' => 'bg-yellow-50 text-yellow-700', 'Archived' => 'bg-gray-100 text-gray-700', 'Submitted' => 'bg-blue-50 text-blue-700', default => 'bg-orange-50 text-orange-700' };
+                                        @endphp
+                                        <tr x-show="(statusTab===null&&{{ $workflow==='Accepted'?'true':'false' }})||(statusTab==='uploaded'&&{{ $workflow==='Uploaded'?'true':'false' }})||(statusTab==='submitted'&&{{ $workflow==='Submitted'?'true':'false' }})||(statusTab==='accepted'&&{{ $workflow==='Accepted'?'true':'false' }})||(statusTab==='reverted'&&{{ $workflow==='Reverted'?'true':'false' }})||(statusTab==='archived'&&{{ $workflow==='Archived'?'true':'false' }})"
+                                            data-url="{{ route('company.corporate-formation.gis.show', [$company->id, $row->id]) }}"
+                                            onclick="window.location.href=this.dataset.url"
+                                            class="border-b border-gray-200 hover:bg-blue-50 transition cursor-pointer">
+                                            <td class="px-3 py-2">{{ $row->created_at?->format('M d, Y') }}</td>
+                                            <td class="px-3 py-2 font-semibold text-gray-800">{{ $row->uploaded_by }}</td>
+                                            <td class="px-3 py-2">{{ $row->submission_status }}</td>
+                                            <td class="px-3 py-2">{{ $row->receive_on }}</td>
+                                            <td class="px-3 py-2">{{ $row->period_date }}</td>
+                                            <td class="px-3 py-2">{{ $row->company_reg_no }}</td>
+                                            <td class="px-3 py-2">{{ $row->corporation_name }}</td>
+                                            <td class="px-3 py-2">{{ $row->annual_meeting }}</td>
+                                            <td class="px-3 py-2">{{ $row->meeting_type }}</td>
+                                            <td class="px-3 py-2"><span class="px-2 py-1 rounded-full text-[10px] font-medium {{ $badgeClass }}">{{ $workflow }}</span></td>
+                                            <td class="px-3 py-2 text-blue-600 font-medium">
+                                                <div class="flex flex-col items-start gap-2">
+                                                    <span>{{ $fileLabel }}</span>
+                                                    @if(in_array($workflow, ['Uploaded','Reverted']))
+                                                        @if($canSubmit)
+                                                            <form action="{{ route('company.corporate-formation.gis.submit', [$company->id, $row->id]) }}" method="POST" onclick="event.stopPropagation();">@csrf
+                                                                <button type="submit" class="px-3 py-1.5 text-xs rounded-md bg-blue-600 text-white hover:bg-blue-700">Submit</button>
+                                                            </form>
+                                                        @else
+                                                            <button type="button" onclick="event.stopPropagation();" disabled title="Both Draft and Notary files are required before submitting" class="px-3 py-1.5 text-xs rounded-md bg-gray-200 text-gray-500 cursor-not-allowed">Incomplete</button>
+                                                        @endif
+                                                    @endif
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    @endforeach
+                                    @if($records->isEmpty())
+                                        <tr><td colspan="11" class="px-3 py-6 text-center text-gray-400">No GIS records found for {{ $company->company_name }}.</td></tr>
+                                    @endif
+                                </tbody>
+                            </table>
+                            @endif
+
                         </div>
                     </div>
                 </div>
@@ -239,158 +436,360 @@
         </section>
     </div>
 
-    <div id="formationDrawerOverlay" class="fixed inset-0 z-[70] bg-black/35 hidden"></div>
+    {{-- Overlay --}}
+    <div x-show="openPanel"
+         x-transition.opacity
+         class="fixed inset-0 z-[70] bg-black/35"
+         style="display:none;"
+         @click="openPanel = false">
+    </div>
 
-    <div id="formationDrawer" class="fixed top-0 right-0 bottom-0 z-[80] w-[430px] bg-white border-l border-gray-300 shadow-2xl translate-x-full transition-transform duration-300 ease-out">
-        <form id="formationForm" action="{{ $module['store'] }}" method="POST" enctype="multipart/form-data" class="h-full flex flex-col">
+    {{-- Side panel drawer --}}
+    <div x-show="openPanel"
+         x-transition:enter="transform transition ease-out duration-300"
+         x-transition:enter-start="translate-x-full"
+         x-transition:enter-end="translate-x-0"
+         x-transition:leave="transform transition ease-in duration-200"
+         x-transition:leave-start="translate-x-0"
+         x-transition:leave-end="translate-x-full"
+         class="fixed top-0 right-0 bottom-0 z-[80] w-[430px] bg-white border-l border-gray-300 shadow-2xl"
+         style="display:none;">
+
+        {{-- ============================================================ --}}
+        {{-- SEC-COI FORM --}}
+        {{-- ============================================================ --}}
+        @if($activeTab === 'sec-coi')
+        <form action="{{ route('company.corporate-formation.sec-coi.store', $company->id) }}" method="POST" enctype="multipart/form-data" class="h-full flex flex-col">
             @csrf
-            <input type="hidden" id="formationFormMethod" name="_method" value="POST">
-
             <div class="h-16 px-6 border-b border-gray-200 flex items-center justify-between">
                 <div>
-                    <h2 id="formationDrawerTitle" class="text-[26px] font-semibold text-gray-900 leading-none">{{ $module['title'] }}</h2>
-                    <p class="mt-1 text-xs text-gray-500">This record is automatically scoped to {{ $company->company_name }}.</p>
+                    <h2 class="text-[26px] font-semibold text-gray-900 leading-none">Add SEC-COI Record</h2>
+                    <p class="mt-1 text-xs text-gray-500">Scoped to {{ $company->company_name }}.</p>
                 </div>
-
-                <button type="button" id="closeFormationDrawer" class="w-9 h-9 rounded-full hover:bg-gray-100 text-gray-500 hover:text-gray-800 flex items-center justify-center transition">
+                <button type="button" @click="openPanel = false" class="w-9 h-9 rounded-full hover:bg-gray-100 text-gray-500 flex items-center justify-center">
                     <i class="fas fa-times text-sm"></i>
                 </button>
             </div>
-
-            <div class="flex-1 overflow-y-auto px-6 py-6">
-                <div class="space-y-5">
-                    @php($groupedFields = collect($module['fields'])->groupBy(fn ($field) => $field['group'] ?? '__single__'))
-                    @foreach ($groupedFields as $group => $fields)
-                        @if ($group !== '__single__' && $fields->count() === 2)
-                            <div class="grid grid-cols-2 gap-4">
-                                @foreach ($fields as $field)
-                                    <div>
-                                        <label class="block text-[13px] font-medium text-gray-700 mb-2">{{ $field['label'] }}@if(!empty($field['required'])) <span class="text-red-500">*</span>@endif</label>
-                                        @if ($field['type'] === 'select')
-                                            <select name="{{ $field['name'] }}" id="field_{{ $field['name'] }}" class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm bg-white">
-                                                @foreach ($field['options'] as $option)
-                                                    <option value="{{ $option }}">{{ $option }}</option>
-                                                @endforeach
-                                            </select>
-                                        @else
-                                            <input type="{{ $field['type'] }}" name="{{ $field['name'] }}" id="field_{{ $field['name'] }}" class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm" @if(!empty($field['required'])) required @endif>
-                                        @endif
-                                    </div>
-                                @endforeach
-                            </div>
-                        @else
-                            @foreach ($fields as $field)
-                                <div>
-                                    <label class="block text-[13px] font-medium text-gray-700 mb-2">{{ $field['label'] }}@if(!empty($field['required'])) <span class="text-red-500">*</span>@endif</label>
-                                    @if ($field['type'] === 'select')
-                                        <select name="{{ $field['name'] }}" id="field_{{ $field['name'] }}" class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm bg-white">
-                                            @foreach ($field['options'] as $option)
-                                                <option value="{{ $option }}">{{ $option }}</option>
-                                            @endforeach
-                                        </select>
-                                    @elseif ($field['type'] === 'file')
-                                        <label class="w-full min-h-[84px] border border-dashed border-gray-300 rounded-lg bg-gray-50 hover:bg-gray-100 flex flex-col items-center justify-center gap-2 px-4 cursor-pointer transition">
-                                            <i class="far fa-file-alt text-[26px] text-gray-500"></i>
-                                            <span class="text-[14px] text-blue-600 font-medium">Choose file to upload</span>
-                                            <span class="text-[11px] text-gray-400">PDF, DOC, DOCX supported</span>
-                                            <input type="file" name="{{ $field['name'] }}" id="field_{{ $field['name'] }}" class="hidden">
-                                        </label>
-                                    @else
-                                        <input type="{{ $field['type'] }}" name="{{ $field['name'] }}" id="field_{{ $field['name'] }}" class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm" @if(!empty($field['required'])) required @endif>
-                                    @endif
-                                </div>
-                            @endforeach
-                        @endif
-                    @endforeach
+            <div class="flex-1 overflow-y-auto px-6 py-6 space-y-5">
+                <div>
+                    <label class="block text-[13px] font-medium text-gray-700 mb-2">Corporate Name <span class="text-red-500">*</span></label>
+                    <input type="text" name="corporate_name" value="{{ old('corporate_name', $company->company_name ?? '') }}" required class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
+                </div>
+                <div>
+                    <label class="block text-[13px] font-medium text-gray-700 mb-2">Company Reg No. <span class="text-red-500">*</span></label>
+                    <input type="text" name="company_reg_no" required class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
+                </div>
+                <div>
+                    <label class="block text-[13px] font-medium text-gray-700 mb-2">Issued By</label>
+                    <input type="text" value="{{ auth()->user()->name ?? auth()->user()->full_name ?? auth()->user()->employee_name ?? auth()->user()->username ?? auth()->user()->email }}"
+                           class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm bg-gray-50" readonly>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-[13px] font-medium text-gray-700 mb-2">Issued On <span class="text-red-500">*</span></label>
+                        <input type="date" name="issued_on" required class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-[13px] font-medium text-gray-700 mb-2">Date Upload <span class="text-red-500">*</span></label>
+                        <input type="date" name="date_upload" value="{{ old('date_upload', now()->toDateString()) }}" required class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
+                    </div>
+                </div>
+                <div class="pt-2">
+                    <label class="block text-[13px] font-medium text-gray-700 mb-2">Draft File Upload</label>
+                    <label class="w-full min-h-[84px] border border-dashed border-gray-300 rounded-lg bg-gray-50 hover:bg-gray-100 flex flex-col items-center justify-center gap-2 px-4 cursor-pointer transition">
+                        <i class="far fa-file-alt text-[26px] text-gray-500"></i>
+                        <span class="text-[14px] text-blue-600 font-medium">Choose draft file</span>
+                        <span class="text-[11px] text-gray-400">Optional • PDF, DOC, DOCX supported</span>
+                        <input type="file" name="draft_file_upload" class="hidden">
+                    </label>
+                </div>
+                <div class="pt-2">
+                    <label class="block text-[13px] font-medium text-gray-700 mb-2">Notary File Upload</label>
+                    <label class="w-full min-h-[84px] border border-dashed border-gray-300 rounded-lg bg-gray-50 hover:bg-gray-100 flex flex-col items-center justify-center gap-2 px-4 cursor-pointer transition">
+                        <i class="far fa-file-alt text-[26px] text-gray-500"></i>
+                        <span class="text-[14px] text-blue-600 font-medium">Choose notary file</span>
+                        <span class="text-[11px] text-gray-400">Optional • PDF, DOC, DOCX supported</span>
+                        <input type="file" name="notary_file_upload" class="hidden">
+                    </label>
                 </div>
             </div>
-
             <div class="px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
-                <button type="button" id="cancelFormationDrawer" class="min-w-[92px] px-6 py-2.5 border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-50">
-                    Cancel
-                </button>
-
-                <button type="submit" id="formationSubmitButton" class="min-w-[92px] px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium">
-                    Save
-                </button>
+                <button type="button" @click="openPanel = false" class="min-w-[92px] px-6 py-2.5 border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-50">Cancel</button>
+                <button type="submit" class="min-w-[92px] px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium">Save</button>
             </div>
         </form>
+
+        {{-- ============================================================ --}}
+        {{-- SEC-AOI FORM --}}
+        {{-- ============================================================ --}}
+        @elseif($activeTab === 'sec-aoi')
+        <form action="{{ route('company.corporate-formation.sec-aoi.store', $company->id) }}" method="POST" enctype="multipart/form-data" class="h-full flex flex-col">
+            @csrf
+            <div class="h-16 px-6 border-b border-gray-200 flex items-center justify-between">
+                <div>
+                    <h2 class="text-[26px] font-semibold text-gray-900 leading-none">Add SEC-AOI Record</h2>
+                    <p class="mt-1 text-xs text-gray-500">Scoped to {{ $company->company_name }}.</p>
+                </div>
+                <button type="button" @click="openPanel = false" class="w-9 h-9 rounded-full hover:bg-gray-100 text-gray-500 flex items-center justify-center">
+                    <i class="fas fa-times text-sm"></i>
+                </button>
+            </div>
+            <div class="flex-1 overflow-y-auto px-6 py-6 space-y-5">
+                <div>
+                    <label class="block text-[13px] font-medium text-gray-700 mb-2">Corporation Name <span class="text-red-500">*</span></label>
+                    <input type="text" name="corporation_name" value="{{ old('corporation_name', $company->company_name ?? '') }}" required class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
+                </div>
+                <div>
+                    <label class="block text-[13px] font-medium text-gray-700 mb-2">Company Reg No. <span class="text-red-500">*</span></label>
+                    <input type="text" name="company_reg_no" required class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
+                </div>
+                <div>
+                    <label class="block text-[13px] font-medium text-gray-700 mb-2">Principal Address</label>
+                    <input type="text" name="principal_address" value="{{ old('principal_address', $company->address ?? '') }}" class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-[13px] font-medium text-gray-700 mb-2">Par Value</label>
+                        <input type="text" name="par_value" class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-[13px] font-medium text-gray-700 mb-2">No. of Directors</label>
+                        <input type="number" name="directors" class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-[13px] font-medium text-gray-700 mb-2">Authorized Capital Stock</label>
+                    <input type="text" name="authorized_capital_stock" class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-[13px] font-medium text-gray-700 mb-2">Type of Formation</label>
+                        <select name="type_of_formation" class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm bg-white">
+                            <option>Stock Corporation</option>
+                            <option>Non-Stock Corporation</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-[13px] font-medium text-gray-700 mb-2">SEC-AOI Version</label>
+                        <input type="text" name="aoi_version" class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-[13px] font-medium text-gray-700 mb-2">Type of SEC-AOI Version</label>
+                    <select name="aoi_type" class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm bg-white">
+                        <option>Original</option>
+                        <option>Amended</option>
+                        <option>Revised</option>
+                    </select>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-[13px] font-medium text-gray-700 mb-2">Uploaded By</label>
+                        <input type="text" value="{{ auth()->user()->name ?? auth()->user()->full_name ?? auth()->user()->employee_name ?? auth()->user()->username ?? auth()->user()->email }}"
+                               class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm bg-gray-50" readonly>
+                    </div>
+                    <div>
+                        <label class="block text-[13px] font-medium text-gray-700 mb-2">Date Upload <span class="text-red-500">*</span></label>
+                        <input type="date" name="date_upload" value="{{ old('date_upload', now()->toDateString()) }}" required class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
+                    </div>
+                </div>
+                <div class="pt-2">
+                    <label class="block text-[13px] font-medium text-gray-700 mb-2">Draft File Upload</label>
+                    <label class="w-full min-h-[84px] border border-dashed border-gray-300 rounded-lg bg-gray-50 hover:bg-gray-100 flex flex-col items-center justify-center gap-2 px-4 cursor-pointer transition">
+                        <i class="far fa-file-alt text-[26px] text-gray-500"></i>
+                        <span class="text-[14px] text-blue-600 font-medium">Choose draft file</span>
+                        <span class="text-[11px] text-gray-400">Optional • PDF, DOC, DOCX supported</span>
+                        <input type="file" name="draft_file_upload" class="hidden">
+                    </label>
+                </div>
+                <div class="pt-2">
+                    <label class="block text-[13px] font-medium text-gray-700 mb-2">Notary File Upload</label>
+                    <label class="w-full min-h-[84px] border border-dashed border-gray-300 rounded-lg bg-gray-50 hover:bg-gray-100 flex flex-col items-center justify-center gap-2 px-4 cursor-pointer transition">
+                        <i class="far fa-file-alt text-[26px] text-gray-500"></i>
+                        <span class="text-[14px] text-blue-600 font-medium">Choose notary file</span>
+                        <span class="text-[11px] text-gray-400">Optional • PDF, DOC, DOCX supported</span>
+                        <input type="file" name="notary_file_upload" class="hidden">
+                    </label>
+                </div>
+            </div>
+            <div class="px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
+                <button type="button" @click="openPanel = false" class="min-w-[92px] px-6 py-2.5 border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-50">Cancel</button>
+                <button type="submit" class="min-w-[92px] px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium">Save</button>
+            </div>
+        </form>
+
+        {{-- ============================================================ --}}
+        {{-- BYLAWS FORM --}}
+        {{-- ============================================================ --}}
+        @elseif($activeTab === 'bylaws')
+        <form action="{{ route('company.corporate-formation.bylaws.store', $company->id) }}" method="POST" enctype="multipart/form-data" class="h-full flex flex-col">
+            @csrf
+            <div class="h-16 px-6 border-b border-gray-200 flex items-center justify-between">
+                <div>
+                    <h2 class="text-[26px] font-semibold text-gray-900 leading-none">Add Bylaws Record</h2>
+                    <p class="mt-1 text-xs text-gray-500">Scoped to {{ $company->company_name }}.</p>
+                </div>
+                <button type="button" @click="openPanel = false" class="w-9 h-9 rounded-full hover:bg-gray-100 text-gray-500 flex items-center justify-center">
+                    <i class="fas fa-times text-sm"></i>
+                </button>
+            </div>
+            <div class="flex-1 overflow-y-auto px-6 py-6 space-y-5">
+                <div>
+                    <label class="block text-[13px] font-medium text-gray-700 mb-2">Corporation Name <span class="text-red-500">*</span></label>
+                    <input type="text" name="corporation_name" value="{{ old('corporation_name', $company->company_name ?? '') }}" required class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
+                </div>
+                <div>
+                    <label class="block text-[13px] font-medium text-gray-700 mb-2">Company Reg No. <span class="text-red-500">*</span></label>
+                    <input type="text" name="company_reg_no" required class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
+                </div>
+                <div>
+                    <label class="block text-[13px] font-medium text-gray-700 mb-2">Type of Formation</label>
+                    <input type="text" name="type_of_formation" class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
+                </div>
+                <div>
+                    <label class="block text-[13px] font-medium text-gray-700 mb-2">SEC-AOI Version</label>
+                    <input type="text" name="aoi_version" class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
+                </div>
+                <div>
+                    <label class="block text-[13px] font-medium text-gray-700 mb-2">Type of Version</label>
+                    <input type="text" name="aoi_type" class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
+                </div>
+                <div>
+                    <label class="block text-[13px] font-medium text-gray-700 mb-2">Date of Version</label>
+                    <input type="date" name="aoi_date" class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
+                </div>
+                <div>
+                    <label class="block text-[13px] font-medium text-gray-700 mb-2">Regular ASM</label>
+                    <input type="text" name="regular_asm" class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
+                </div>
+                <div>
+                    <label class="block text-[13px] font-medium text-gray-700 mb-2">ASM Notice Time</label>
+                    <input type="text" name="asm_notice" class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
+                </div>
+                <div>
+                    <label class="block text-[13px] font-medium text-gray-700 mb-2">Regular BODM</label>
+                    <input type="text" name="regular_bodm" class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
+                </div>
+                <div>
+                    <label class="block text-[13px] font-medium text-gray-700 mb-2">BODM Notice Time</label>
+                    <input type="text" name="bodm_notice" class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
+                </div>
+                <div>
+                    <label class="block text-[13px] font-medium text-gray-700 mb-2">Uploaded By</label>
+                    <input type="text" value="{{ auth()->user()->name ?? auth()->user()->full_name ?? auth()->user()->employee_name ?? auth()->user()->username ?? auth()->user()->email }}"
+                           class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm bg-gray-50" readonly>
+                </div>
+                <div>
+                    <label class="block text-[13px] font-medium text-gray-700 mb-2">Date Upload <span class="text-red-500">*</span></label>
+                    <input type="date" name="date_upload" value="{{ old('date_upload', now()->toDateString()) }}" required class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
+                </div>
+                <div class="pt-2">
+                    <label class="block text-[13px] font-medium text-gray-700 mb-2">Draft File Upload</label>
+                    <label class="w-full min-h-[84px] border border-dashed border-gray-300 rounded-lg bg-gray-50 hover:bg-gray-100 flex flex-col items-center justify-center gap-2 px-4 cursor-pointer transition">
+                        <i class="far fa-file-alt text-[26px] text-gray-500"></i>
+                        <span class="text-[14px] text-blue-600 font-medium">Choose draft file</span>
+                        <span class="text-[11px] text-gray-400">Optional • PDF, DOC, DOCX supported</span>
+                        <input type="file" name="draft_file_upload" class="hidden">
+                    </label>
+                </div>
+                <div class="pt-2">
+                    <label class="block text-[13px] font-medium text-gray-700 mb-2">Notary File Upload</label>
+                    <label class="w-full min-h-[84px] border border-dashed border-gray-300 rounded-lg bg-gray-50 hover:bg-gray-100 flex flex-col items-center justify-center gap-2 px-4 cursor-pointer transition">
+                        <i class="far fa-file-alt text-[26px] text-gray-500"></i>
+                        <span class="text-[14px] text-blue-600 font-medium">Choose notary file</span>
+                        <span class="text-[11px] text-gray-400">Optional • PDF, DOC, DOCX supported</span>
+                        <input type="file" name="notary_file_upload" class="hidden">
+                    </label>
+                </div>
+            </div>
+            <div class="px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
+                <button type="button" @click="openPanel = false" class="min-w-[92px] px-6 py-2.5 border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-50">Cancel</button>
+                <button type="submit" class="min-w-[92px] px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium">Save</button>
+            </div>
+        </form>
+
+        {{-- ============================================================ --}}
+        {{-- GIS FORM --}}
+        {{-- ============================================================ --}}
+        @else
+        <form action="{{ route('company.corporate-formation.gis.store', $company->id) }}" method="POST" enctype="multipart/form-data" class="h-full flex flex-col">
+            @csrf
+            <div class="h-16 px-6 border-b border-gray-200 flex items-center justify-between">
+                <div>
+                    <h2 class="text-[26px] font-semibold text-gray-900 leading-none">Add GIS Record</h2>
+                    <p class="mt-1 text-xs text-gray-500">Scoped to {{ $company->company_name }}.</p>
+                </div>
+                <button type="button" @click="openPanel = false" class="w-9 h-9 rounded-full hover:bg-gray-100 text-gray-500 flex items-center justify-center">
+                    <i class="fas fa-times text-sm"></i>
+                </button>
+            </div>
+            <div class="flex-1 overflow-y-auto px-6 py-6 space-y-4">
+                <div>
+                    <label class="block text-[13px] font-medium text-gray-700 mb-2">Uploaded By</label>
+                    <input type="text" value="{{ auth()->user()->name ?? auth()->user()->full_name ?? auth()->user()->employee_name ?? auth()->user()->username ?? auth()->user()->email }}"
+                           class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm bg-gray-50" readonly>
+                </div>
+                <div>
+                    <label class="block text-[13px] font-medium text-gray-700 mb-2">Submission Status</label>
+                    <select name="submission_status" class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm bg-white">
+                        <option>Submitted</option>
+                        <option>Received</option>
+                        <option>Pending</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-[13px] font-medium text-gray-700 mb-2">Receive On</label>
+                    <input type="date" name="receive_on" class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
+                </div>
+                <div>
+                    <label class="block text-[13px] font-medium text-gray-700 mb-2">Period Date</label>
+                    <input type="text" name="period_date" class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
+                </div>
+                <div>
+                    <label class="block text-[13px] font-medium text-gray-700 mb-2">Company Reg No. <span class="text-red-500">*</span></label>
+                    <input type="text" name="company_reg_no" required class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
+                </div>
+                <div>
+                    <label class="block text-[13px] font-medium text-gray-700 mb-2">Corporation Name <span class="text-red-500">*</span></label>
+                    <input type="text" name="corporation_name" value="{{ old('corporation_name', $company->company_name ?? '') }}" required class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
+                </div>
+                <div>
+                    <label class="block text-[13px] font-medium text-gray-700 mb-2">Date of Annual Meeting</label>
+                    <input type="date" name="annual_meeting" class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
+                </div>
+                <div>
+                    <label class="block text-[13px] font-medium text-gray-700 mb-2">Type of Meeting</label>
+                    <select name="meeting_type" class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm bg-white">
+                        <option>Regular Annual Meeting</option>
+                        <option>Special Meeting</option>
+                    </select>
+                </div>
+                <div class="pt-2">
+                    <label class="block text-[13px] font-medium text-gray-700 mb-2">Draft File Upload</label>
+                    <label class="w-full min-h-[84px] border border-dashed border-gray-300 rounded-lg bg-gray-50 hover:bg-gray-100 flex flex-col items-center justify-center gap-2 px-4 cursor-pointer transition">
+                        <i class="far fa-file-alt text-[26px] text-gray-500"></i>
+                        <span class="text-[14px] text-blue-600 font-medium">Choose draft file</span>
+                        <span class="text-[11px] text-gray-400">Optional • PDF, DOC, DOCX supported</span>
+                        <input type="file" name="draft_file_upload" class="hidden">
+                    </label>
+                </div>
+                <div class="pt-2">
+                    <label class="block text-[13px] font-medium text-gray-700 mb-2">Notary File Upload</label>
+                    <label class="w-full min-h-[84px] border border-dashed border-gray-300 rounded-lg bg-gray-50 hover:bg-gray-100 flex flex-col items-center justify-center gap-2 px-4 cursor-pointer transition">
+                        <i class="far fa-file-alt text-[26px] text-gray-500"></i>
+                        <span class="text-[14px] text-blue-600 font-medium">Choose notary file</span>
+                        <span class="text-[11px] text-gray-400">Optional • PDF, DOC, DOCX supported</span>
+                        <input type="file" name="notary_file_upload" class="hidden">
+                    </label>
+                </div>
+            </div>
+            <div class="px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
+                <button type="button" @click="openPanel = false" class="min-w-[92px] px-6 py-2.5 border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-50">Cancel</button>
+                <button type="submit" class="min-w-[92px] px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium">Save</button>
+            </div>
+        </form>
+        @endif
+
     </div>
 </div>
-
-<script>
-    document.addEventListener('DOMContentLoaded', function () {
-        const drawer = document.getElementById('formationDrawer');
-        const overlay = document.getElementById('formationDrawerOverlay');
-        const openButton = document.getElementById('openFormationDrawer');
-        const closeButtons = [document.getElementById('closeFormationDrawer'), document.getElementById('cancelFormationDrawer')].filter(Boolean);
-        const form = document.getElementById('formationForm');
-        const formMethod = document.getElementById('formationFormMethod');
-        const drawerTitle = document.getElementById('formationDrawerTitle');
-        const submitButton = document.getElementById('formationSubmitButton');
-        const editButtons = document.querySelectorAll('[data-edit-record]');
-        const updateUrlTemplate = @json($module['update']);
-        const defaultTitle = @json($module['title']);
-        const records = @json($recordsForJs);
-
-        const openDrawer = () => {
-            overlay.classList.remove('hidden');
-            drawer.classList.remove('translate-x-full');
-        };
-
-        const closeDrawer = () => {
-            overlay.classList.add('hidden');
-            drawer.classList.add('translate-x-full');
-        };
-
-        const resetForm = () => {
-            form.reset();
-            form.action = @json($module['store']);
-            formMethod.value = 'POST';
-            drawerTitle.textContent = defaultTitle;
-            submitButton.textContent = 'Save';
-        };
-
-        const fillForm = (record) => {
-            @foreach ($module['fields'] as $field)
-                @if ($field['type'] !== 'file')
-                    if (document.getElementById('field_{{ $field['name'] }}')) {
-                        document.getElementById('field_{{ $field['name'] }}').value = record.{{ $field['name'] }} ?? '';
-                    }
-                @endif
-            @endforeach
-        };
-
-        openButton?.addEventListener('click', function () {
-            resetForm();
-            openDrawer();
-        });
-
-        closeButtons.forEach((button) => button?.addEventListener('click', closeDrawer));
-        overlay?.addEventListener('click', closeDrawer);
-
-        editButtons.forEach((button) => {
-            button.addEventListener('click', function () {
-                const record = JSON.parse(this.dataset.editRecord);
-                resetForm();
-                form.action = updateUrlTemplate.replace('__RECORD__', record.id);
-                formMethod.value = 'PUT';
-                drawerTitle.textContent = defaultTitle.replace('Add', 'Edit');
-                submitButton.textContent = 'Update';
-                fillForm(record);
-                openDrawer();
-            });
-        });
-
-        document.addEventListener('keydown', function (event) {
-            if (event.key === 'Escape') {
-                closeDrawer();
-            }
-        });
-
-        @if ($errors->any())
-            openDrawer();
-        @endif
-    });
-</script>
 @endsection

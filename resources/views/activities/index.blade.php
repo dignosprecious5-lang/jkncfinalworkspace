@@ -625,10 +625,10 @@
                     <input type="date" x-model="newTask.dueDate" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-800 outline-none focus:border-[#1d54e2] focus:ring-1 focus:ring-[#1d54e2] transition" />
                 </div>
 
-                <!-- Related To (Tagging UI) -->
+                <!-- Related To -->
                 <div>
                     <label class="block text-xs font-semibold text-gray-600 mb-1">Related To</label>
-                    <div class="relative">
+                    <div class="relative" @click.away="closeRelatedPicker('tasks')">
                         <div class="flex flex-wrap gap-1.5 p-2 bg-white border border-gray-300 rounded-md focus-within:border-[#1d54e2] focus-within:ring-1 focus-within:ring-[#1d54e2] transition min-h-[40px]">
                             <template x-for="tag in newTask.relatedTo" :key="tag">
                                 <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs font-medium border border-blue-200">
@@ -638,11 +638,33 @@
                             </template>
                             <input 
                                 type="text" 
-                                x-model="tagSearch" 
-                                @keydown.enter.prevent="tagSearch && addTag('tasks', tagSearch)"
+                                x-model="relatedSearch.tasks" 
+                                @focus="openRelatedPicker('tasks')"
+                                @input="openRelatedPicker('tasks')"
+                                @keydown.enter.prevent="selectFirstRelatedOption('tasks')"
                                 placeholder="Search Contacts/Companies..." 
                                 class="flex-1 min-w-[150px] border-none p-0 text-sm text-gray-800 outline-none focus:ring-0 bg-transparent"
                             />
+                        </div>
+                        <div x-show="relatedPickerOpen.tasks" x-transition class="absolute left-0 right-0 top-full z-[120] mt-2 overflow-hidden rounded-xl border border-blue-100 bg-white shadow-2xl" style="display:none;">
+                            <div class="border-b border-blue-50 bg-gradient-to-r from-blue-50 to-white px-4 py-2">
+                                <p class="text-[11px] font-semibold uppercase tracking-[0.2em] text-blue-700">Select Related Record</p>
+                            </div>
+                            <div class="max-h-64 overflow-y-auto py-2">
+                                <template x-for="option in filteredRelatedOptions('tasks')" :key="option.key">
+                                    <button type="button" @click="selectRelatedOption('tasks', option)" class="flex w-full items-start gap-3 px-4 py-3 text-left transition hover:bg-blue-50">
+                                        <span class="mt-0.5 inline-flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold" :class="option.type === 'company' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'">
+                                            <i class="fas" :class="option.type === 'company' ? 'fa-building' : 'fa-user'"></i>
+                                        </span>
+                                        <span class="min-w-0 flex-1">
+                                            <span class="block truncate text-sm font-semibold text-gray-900" x-text="option.label"></span>
+                                            <span class="block truncate text-xs text-gray-500" x-text="option.meta || (option.type === 'company' ? 'Company record' : 'Contact record')"></span>
+                                        </span>
+                                        <span class="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide" :class="option.type === 'company' ? 'bg-emerald-50 text-emerald-700' : 'bg-blue-50 text-blue-700'" x-text="option.type"></span>
+                                    </button>
+                                </template>
+                                <div x-show="!filteredRelatedOptions('tasks').length" class="px-4 py-6 text-center text-sm text-gray-500">No matching contacts or companies found.</div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -760,10 +782,10 @@
                     </div>
                 </div>
 
-                <!-- Attendees (Tagging UI) -->
+                <!-- Related To -->
                 <div>
-                    <label class="block text-xs font-semibold text-gray-600 mb-1">Attendees</label>
-                    <div class="relative">
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Related To</label>
+                    <div class="relative" @click.away="closeRelatedPicker('meetings')">
                         <div class="flex flex-wrap gap-1.5 p-2 bg-white border border-gray-300 rounded-md focus-within:border-[#1d54e2] focus-within:ring-1 focus-within:ring-[#1d54e2] transition min-h-[40px]">
                             <template x-for="tag in newMeeting.attendees" :key="tag">
                                 <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs font-medium border border-blue-200">
@@ -773,11 +795,33 @@
                             </template>
                             <input 
                                 type="text" 
-                                x-model="tagSearch" 
-                                @keydown.enter.prevent="tagSearch && addTag('meetings', tagSearch)"
-                                placeholder="Add attendee and press Enter" 
+                                x-model="relatedSearch.meetings" 
+                                @focus="openRelatedPicker('meetings')"
+                                @input="openRelatedPicker('meetings')"
+                                @keydown.enter.prevent="selectFirstRelatedOption('meetings')"
+                                placeholder="Search Contacts/Companies..." 
                                 class="flex-1 min-w-[150px] border-none p-0 text-sm text-gray-800 outline-none focus:ring-0 bg-transparent"
                             />
+                        </div>
+                        <div x-show="relatedPickerOpen.meetings" x-transition class="absolute left-0 right-0 top-full z-[120] mt-2 overflow-hidden rounded-xl border border-blue-100 bg-white shadow-2xl" style="display:none;">
+                            <div class="border-b border-blue-50 bg-gradient-to-r from-blue-50 to-white px-4 py-2">
+                                <p class="text-[11px] font-semibold uppercase tracking-[0.2em] text-blue-700">Select Related Record</p>
+                            </div>
+                            <div class="max-h-64 overflow-y-auto py-2">
+                                <template x-for="option in filteredRelatedOptions('meetings')" :key="option.key">
+                                    <button type="button" @click="selectRelatedOption('meetings', option)" class="flex w-full items-start gap-3 px-4 py-3 text-left transition hover:bg-blue-50">
+                                        <span class="mt-0.5 inline-flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold" :class="option.type === 'company' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'">
+                                            <i class="fas" :class="option.type === 'company' ? 'fa-building' : 'fa-user'"></i>
+                                        </span>
+                                        <span class="min-w-0 flex-1">
+                                            <span class="block truncate text-sm font-semibold text-gray-900" x-text="option.label"></span>
+                                            <span class="block truncate text-xs text-gray-500" x-text="option.meta || (option.type === 'company' ? 'Company record' : 'Contact record')"></span>
+                                        </span>
+                                        <span class="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide" :class="option.type === 'company' ? 'bg-emerald-50 text-emerald-700' : 'bg-blue-50 text-blue-700'" x-text="option.type"></span>
+                                    </button>
+                                </template>
+                                <div x-show="!filteredRelatedOptions('meetings').length" class="px-4 py-6 text-center text-sm text-gray-500">No matching contacts or companies found.</div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1495,10 +1539,10 @@
 
 
 
-                <!-- Related To (Tagging UI) -->
+                <!-- Related To -->
                 <div>
                     <label class="block text-xs font-semibold text-gray-600 mb-1">Related To</label>
-                    <div class="relative">
+                    <div class="relative" @click.away="closeRelatedPicker('calls')">
                         <div class="flex flex-wrap gap-1.5 p-2 bg-white border border-gray-300 rounded-md focus-within:border-[#1d54e2] focus-within:ring-1 focus-within:ring-[#1d54e2] transition min-h-[40px]">
                             <template x-for="tag in newCall.relatedTo" :key="tag">
                                 <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs font-medium border border-blue-200">
@@ -1508,11 +1552,33 @@
                             </template>
                             <input 
                                 type="text" 
-                                x-model="tagSearch" 
-                                @keydown.enter.prevent="tagSearch && addTag('calls', tagSearch)"
+                                x-model="relatedSearch.calls" 
+                                @focus="openRelatedPicker('calls')"
+                                @input="openRelatedPicker('calls')"
+                                @keydown.enter.prevent="selectFirstRelatedOption('calls')"
                                 placeholder="Search Contacts/Companies..." 
                                 class="flex-1 min-w-[150px] border-none p-0 text-sm text-gray-800 outline-none focus:ring-0 bg-transparent"
                             />
+                        </div>
+                        <div x-show="relatedPickerOpen.calls" x-transition class="absolute left-0 right-0 top-full z-[120] mt-2 overflow-hidden rounded-xl border border-blue-100 bg-white shadow-2xl" style="display:none;">
+                            <div class="border-b border-blue-50 bg-gradient-to-r from-blue-50 to-white px-4 py-2">
+                                <p class="text-[11px] font-semibold uppercase tracking-[0.2em] text-blue-700">Select Related Record</p>
+                            </div>
+                            <div class="max-h-64 overflow-y-auto py-2">
+                                <template x-for="option in filteredRelatedOptions('calls')" :key="option.key">
+                                    <button type="button" @click="selectRelatedOption('calls', option)" class="flex w-full items-start gap-3 px-4 py-3 text-left transition hover:bg-blue-50">
+                                        <span class="mt-0.5 inline-flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold" :class="option.type === 'company' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'">
+                                            <i class="fas" :class="option.type === 'company' ? 'fa-building' : 'fa-user'"></i>
+                                        </span>
+                                        <span class="min-w-0 flex-1">
+                                            <span class="block truncate text-sm font-semibold text-gray-900" x-text="option.label"></span>
+                                            <span class="block truncate text-xs text-gray-500" x-text="option.meta || (option.type === 'company' ? 'Company record' : 'Contact record')"></span>
+                                        </span>
+                                        <span class="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide" :class="option.type === 'company' ? 'bg-emerald-50 text-emerald-700' : 'bg-blue-50 text-blue-700'" x-text="option.type"></span>
+                                    </button>
+                                </template>
+                                <div x-show="!filteredRelatedOptions('calls').length" class="px-4 py-6 text-center text-sm text-gray-500">No matching contacts or companies found.</div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1663,10 +1729,10 @@
                     <input type="text" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-800 outline-none focus:border-[#1d54e2] focus:ring-1 focus:ring-[#1d54e2] transition" />
                 </div>
 
-                <!-- Related To (Tagging UI) -->
+                <!-- Related To -->
                 <div>
                     <label class="block text-xs font-semibold text-gray-600 mb-1">Related To</label>
-                    <div class="relative">
+                    <div class="relative" @click.away="closeRelatedPicker('events')">
                         <div class="flex flex-wrap gap-1.5 p-2 bg-white border border-gray-300 rounded-md focus-within:border-[#1d54e2] focus-within:ring-1 focus-within:ring-[#1d54e2] transition min-h-[40px]">
                             <template x-for="tag in newEvent.relatedTo" :key="tag">
                                 <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs font-medium border border-blue-200">
@@ -1676,11 +1742,33 @@
                             </template>
                             <input 
                                 type="text" 
-                                x-model="tagSearch" 
-                                @keydown.enter.prevent="tagSearch && addTag('events', tagSearch)"
+                                x-model="relatedSearch.events" 
+                                @focus="openRelatedPicker('events')"
+                                @input="openRelatedPicker('events')"
+                                @keydown.enter.prevent="selectFirstRelatedOption('events')"
                                 placeholder="Search Contacts/Companies..." 
                                 class="flex-1 min-w-[150px] border-none p-0 text-sm text-gray-800 outline-none focus:ring-0 bg-transparent"
                             />
+                        </div>
+                        <div x-show="relatedPickerOpen.events" x-transition class="absolute left-0 right-0 top-full z-[120] mt-2 overflow-hidden rounded-xl border border-blue-100 bg-white shadow-2xl" style="display:none;">
+                            <div class="border-b border-blue-50 bg-gradient-to-r from-blue-50 to-white px-4 py-2">
+                                <p class="text-[11px] font-semibold uppercase tracking-[0.2em] text-blue-700">Select Related Record</p>
+                            </div>
+                            <div class="max-h-64 overflow-y-auto py-2">
+                                <template x-for="option in filteredRelatedOptions('events')" :key="option.key">
+                                    <button type="button" @click="selectRelatedOption('events', option)" class="flex w-full items-start gap-3 px-4 py-3 text-left transition hover:bg-blue-50">
+                                        <span class="mt-0.5 inline-flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold" :class="option.type === 'company' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'">
+                                            <i class="fas" :class="option.type === 'company' ? 'fa-building' : 'fa-user'"></i>
+                                        </span>
+                                        <span class="min-w-0 flex-1">
+                                            <span class="block truncate text-sm font-semibold text-gray-900" x-text="option.label"></span>
+                                            <span class="block truncate text-xs text-gray-500" x-text="option.meta || (option.type === 'company' ? 'Company record' : 'Contact record')"></span>
+                                        </span>
+                                        <span class="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide" :class="option.type === 'company' ? 'bg-emerald-50 text-emerald-700' : 'bg-blue-50 text-blue-700'" x-text="option.type"></span>
+                                    </button>
+                                </template>
+                                <div x-show="!filteredRelatedOptions('events').length" class="px-4 py-6 text-center text-sm text-gray-500">No matching contacts or companies found.</div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1788,6 +1876,10 @@ document.addEventListener('alpine:init', () => {
         selectedTasks: [],
         tasks: [],
         systemUsers: [],
+        relatedOptions: [],
+        relatedRecords: [],
+        relatedSearch: { tasks: '', events: '', calls: '', meetings: '' },
+        relatedPickerOpen: { tasks: false, events: false, calls: false, meetings: false },
         newTask: { name: '', dueDate: '', relatedTo: [], description: '', priority: false, completed: false, owner: '' },
         
         events: [],
@@ -1795,7 +1887,6 @@ document.addEventListener('alpine:init', () => {
 
         calls: [],
         newCall: { contact: '', to: '', from: '', type: 'Outbound', startTime: '', startHour: '', duration: '', relatedTo: [], owner: '', agenda: '', purpose: '', status: '' },
-        tagSearch: '',
 
         meetings: [],
         newMeeting: { title: '', owner: '', date: '', time: '', duration: '', durationHour: '0', durationMin: '30', location: '', attendees: [], description: '', hasVideo: false, hasAudio: false, hasTranscript: false, hasMinutes: false },
@@ -2346,6 +2437,8 @@ document.addEventListener('alpine:init', () => {
                 this.events = data.events;
                 this.calls = data.calls;
                 this.meetings = data.meetings;
+                this.relatedOptions = data.relatedOptions || [];
+                this.relatedRecords = data.relatedRecords || [];
                 if (data.users) {
                     this.systemUsers = data.users;
                     const defaultUser = this.systemUsers[0] || '';
@@ -2406,6 +2499,8 @@ document.addEventListener('alpine:init', () => {
                 }
                 this.showTaskModal = false;
                 this.newTask = { id: null, name: '', dueDate: '', relatedTo: [], description: '', priority: false, completed: false, owner: (this.systemUsers[0] || '') };
+                this.relatedSearch.tasks = '';
+                this.relatedPickerOpen.tasks = false;
             } catch (error) {
                 console.error('Error saving task:', error);
             }
@@ -2441,6 +2536,8 @@ document.addEventListener('alpine:init', () => {
                 }
                 this.showEventModal = false;
                 this.newEvent = { id: null, title: '', from: '', to: '', relatedTo: [], host: (this.systemUsers[0] || '') };
+                this.relatedSearch.events = '';
+                this.relatedPickerOpen.events = false;
             } catch (error) {
                 console.error('Error saving event:', error);
             }
@@ -2488,7 +2585,8 @@ document.addEventListener('alpine:init', () => {
                 this.showCallModal = false;
                 const defaultUser = (this.systemUsers[0] || '');
                 this.newCall = { id: null, contact: '', to: '', from: defaultUser, type: 'Outbound', startTime: '', startHour: '', duration: '', relatedTo: [], owner: defaultUser, agenda: '', purpose: '', completed: false };
-                this.tagSearch = '';
+                this.relatedSearch.calls = '';
+                this.relatedPickerOpen.calls = false;
             } catch (error) {
                 console.error('Error saving call:', error);
             }
@@ -2550,6 +2648,8 @@ document.addEventListener('alpine:init', () => {
                 this.showMeetingModal = false;
                 this.recordingError = '';
                 this.newMeeting = { id: null, title: '', owner: (this.systemUsers[0] || ''), date: '', time: '', duration: '', durationHour: '0', durationMin: '30', location: '', attendees: [], description: '', hasVideo: false, hasAudio: false, hasTranscript: false, hasMinutes: false, status: 'upcoming' };
+                this.relatedSearch.meetings = '';
+                this.relatedPickerOpen.meetings = false;
             } catch (error) {
                 console.error('Error saving meeting:', error);
             }
@@ -2566,6 +2666,8 @@ document.addEventListener('alpine:init', () => {
                 completed: task.status === 'Completed', 
                 owner: task.owner 
             };
+            this.relatedSearch.tasks = '';
+            this.relatedPickerOpen.tasks = false;
             this.showTaskModal = true;
         },
 
@@ -2578,6 +2680,8 @@ document.addEventListener('alpine:init', () => {
                 relatedTo: event.related_to ? event.related_to.split(', ').filter(Boolean) : [],
                 host: event.host
             };
+            this.relatedSearch.events = '';
+            this.relatedPickerOpen.events = false;
             this.showEventModal = true;
         },
 
@@ -2606,6 +2710,8 @@ document.addEventListener('alpine:init', () => {
                 purpose: call.purpose,
                 completed: call.completed
             };
+            this.relatedSearch.calls = '';
+            this.relatedPickerOpen.calls = false;
             this.showCallModal = true;
         },
 
@@ -2621,17 +2727,60 @@ document.addEventListener('alpine:init', () => {
             }
         },
 
+        openRelatedPicker(type) {
+            this.relatedPickerOpen[type] = true;
+        },
+
+        closeRelatedPicker(type) {
+            this.relatedPickerOpen[type] = false;
+        },
+
+        filteredRelatedOptions(type) {
+            const query = (this.relatedSearch[type] || '').toLowerCase().trim();
+            const selected = this.currentRelatedSelections(type);
+
+            return this.relatedRecords
+                .filter((option) => !selected.includes(option.label))
+                .filter((option) => {
+                    if (!query) return true;
+                    const haystack = `${option.label} ${option.meta || ''} ${option.tokens || ''}`.toLowerCase();
+                    return haystack.includes(query);
+                })
+                .slice(0, 8);
+        },
+
+        selectFirstRelatedOption(type) {
+            const [first] = this.filteredRelatedOptions(type);
+            if (first) {
+                this.selectRelatedOption(type, first);
+            }
+        },
+
+        selectRelatedOption(type, option) {
+            this.addTag(type, option.label);
+            this.relatedSearch[type] = '';
+            this.relatedPickerOpen[type] = false;
+        },
+
+        currentRelatedSelections(type) {
+            if (type === 'calls') return this.newCall.relatedTo;
+            if (type === 'events') return this.newEvent.relatedTo;
+            if (type === 'meetings') return this.newMeeting.attendees;
+
+            return this.newTask.relatedTo;
+        },
+
         addTag(type, tag) {
+            const value = (tag || '').trim();
             let list;
             if (type === 'calls') list = this.newCall.relatedTo;
             else if (type === 'events') list = this.newEvent.relatedTo;
             else if (type === 'meetings') list = this.newMeeting.attendees;
             else list = this.newTask.relatedTo;
 
-            if (tag && !list.includes(tag)) {
-                list.push(tag);
+            if (value && !list.includes(value)) {
+                list.push(value);
             }
-            this.tagSearch = '';
         },
 
         removeTag(type, tag) {
@@ -2674,6 +2823,8 @@ document.addEventListener('alpine:init', () => {
                 hasMinutes: meeting.has_minutes,
                 status: meeting.status
             };
+            this.relatedSearch.meetings = '';
+            this.relatedPickerOpen.meetings = false;
             this.showMeetingModal = true;
         },
 

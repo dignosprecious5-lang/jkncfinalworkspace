@@ -4,9 +4,16 @@ namespace App\Http\Controllers;
 
 use App\Models\Company;
 use App\Models\Contact;
+use App\Models\ContactConsultationNote;
+use App\Models\ContactHistoryEntry;
+use App\Models\Deal;
+use App\Models\Product;
+use App\Models\Project;
+use App\Models\Service;
 use App\Models\SpecimenSignature;
 use App\Models\User;
 use App\Support\ActivityTimelineBuilder;
+use App\Support\ContactHistoryLogger;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -16,6 +23,7 @@ use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Validator;
 use Illuminate\View\View;
 
 class ContactsController extends Controller
@@ -367,7 +375,15 @@ class ContactsController extends Controller
             ]);
         }
 
-        $this->syncCompanyFromContact($contact, $attributes);
+        ContactHistoryLogger::log($contact->id, [
+            'type' => 'profile',
+            'title' => 'Contact created',
+            'description' => 'Contact record created in the system',
+            'extra_label' => 'Profile',
+            'extra_value' => trim($contact->first_name.' '.$contact->last_name) ?: 'New contact record',
+            'user_name' => $request->user()?->name ?? ($owner['name'] ?? 'System'),
+            'user_initials' => $this->initialsForHistory($request->user()?->name ?? ($owner['name'] ?? 'System')),
+        ]);
 
         return redirect()->route('contacts.index')->with('success', 'Contact created successfully.');
     }
@@ -543,46 +559,19 @@ class ContactsController extends Controller
 
         $contactModel->update($this->filterPersistableContactAttributes($attributes));
 
-        $this->syncCompanyFromContact($contactModel->fresh(), $attributes);
+        ContactHistoryLogger::log($contactModel->id, [
+            'type' => 'profile',
+            'title' => 'Contact profile updated',
+            'description' => 'Contact details were updated',
+            'extra_label' => 'Profile',
+            'extra_value' => trim($contactModel->first_name.' '.$contactModel->last_name) ?: 'Contact updated',
+            'user_name' => $request->user()?->name ?? ($owner['name'] ?? 'System'),
+            'user_initials' => $this->initialsForHistory($request->user()?->name ?? ($owner['name'] ?? 'System')),
+        ]);
 
         return redirect()
             ->route('contacts.show', ['contact' => $contactModel->id, 'tab' => 'kyc'])
             ->with('success', 'Contact KYC form updated successfully.');
-    }
-
-    private function syncCompanyFromContact(Contact $contact, array $attributes): void
-    {
-        $companyName = trim((string) ($attributes['company_name'] ?? $contact->company_name ?? ''));
-
-        if ($companyName === '' || ! Schema::hasTable('companies')) {
-            return;
-        }
-
-        $companyData = [
-            'company_name' => $companyName,
-            'address' => $attributes['company_address'] ?? $contact->company_address,
-            'email' => $attributes['email'] ?? $contact->email,
-            'phone' => $attributes['phone'] ?? $contact->phone,
-            'owner_name' => trim(collect([
-                $attributes['first_name'] ?? $contact->first_name,
-                $attributes['last_name'] ?? $contact->last_name,
-            ])->filter()->implode(' ')),
-        ];
-
-        if (Schema::hasColumn('companies', 'primary_contact_id')) {
-            $companyData['primary_contact_id'] = $contact->id;
-        }
-
-        $company = Company::query()->firstOrNew(['company_name' => $companyName]);
-        $company->fill(array_filter(
-            $companyData,
-            fn ($value) => $value !== null && $value !== ''
-        ));
-        $company->save();
-
-        if (Schema::hasTable('company_contact')) {
-            $contact->companies()->syncWithoutDetaching([$company->id]);
-        }
     }
 
     public function assignOwner(Request $request): RedirectResponse
@@ -1109,9 +1098,54 @@ class ContactsController extends Controller
             ...$validated,
         ];
 
+        $this->syncContactFromCifPayload($contactModel, $validated);
+        $contactModel->refresh();
+        $nextCifData = [
+            ...$this->loadCifData($contactModel),
+            ...$validated,
+        ];
+
         $this->saveCifDataToStorage($contactModel, $nextCifData);
 
+        if ($this->isKycReviewer($request->user()) && Schema::hasColumn('contacts', 'cif_status')) {
+            $approvedPayload = $this->filterPersistableContactAttributes([
+                'kyc_status' => 'Verified',
+                'cif_status' => 'approved',
+                'cif_reviewed_at' => now(),
+                'cif_reviewed_by' => $request->user()?->name ?? ($contactModel->owner_name ?: 'System'),
+                'cif_rejection_reason' => null,
+            ]);
+
+            if (! empty($approvedPayload)) {
+                $contactModel->forceFill($approvedPayload)->save();
+            }
+
+            $nextCifData['kyc_status'] = 'Verified';
+            $nextCifData['date_verified'] = now()->toDateString();
+            $nextCifData['verified_by'] = $request->user()?->name ?? ($contactModel->owner_name ?: 'System');
+            $nextCifData['change_request_status'] = '';
+            $nextCifData['change_request_note'] = '';
+            $nextCifData['change_requested_at'] = '';
+            $nextCifData['change_requested_by'] = '';
+            $nextCifData['change_reviewed_at'] = '';
+            $nextCifData['change_reviewed_by'] = '';
+            $nextCifData['change_rejection_reason'] = '';
+            $this->saveCifDataToStorage($contactModel, $nextCifData);
+        }
+
+        ContactHistoryLogger::log($contactModel->id, [
+            'type' => 'kyc',
+            'title' => 'Client intake form updated',
+            'description' => 'Client Information Form details were updated',
+            'extra_label' => 'CIF',
+            'extra_value' => $nextCifData['cif_no'] ?? $contactModel->cif_no,
+            'user_name' => $request->user()?->name ?? ($contactModel->owner_name ?: 'System'),
+            'user_initials' => $this->initialsForHistory($request->user()?->name ?? ($contactModel->owner_name ?: 'System')),
+        ]);
+
         if (
+            ! $this->isKycReviewer($request->user())
+            &&
             Schema::hasColumn('contacts', 'cif_status')
             && $this->hasCifDataChanges($existingCifData, $nextCifData)
             && in_array(Str::lower((string) ($contactModel->cif_status ?? 'draft')), ['approved', 'pending', 'rejected'], true)
@@ -1552,13 +1586,6 @@ class ContactsController extends Controller
                 ->withErrors(['kyc' => 'CIF is already approved. Edit the CIF details first before submitting again.']);
         }
 
-        $missingRequirements = $this->missingKycRequirementLabelsForSubmission($contactModel);
-        if ($missingRequirements !== []) {
-            return redirect()
-                ->route('contacts.show', ['contact' => $contactModel->id, 'tab' => 'kyc'])
-                ->withErrors(['kyc' => 'Please complete the following before submitting for verification: '.implode(', ', $missingRequirements).'.']);
-        }
-
         $statusPayload = $this->filterPersistableContactAttributes([
             'kyc_status' => 'Pending Verification',
             'cif_status' => 'pending',
@@ -1571,6 +1598,16 @@ class ContactsController extends Controller
         if (! empty($statusPayload)) {
             $contactModel->forceFill($statusPayload)->save();
         }
+
+        ContactHistoryLogger::log($contactModel->id, [
+            'type' => 'kyc',
+            'title' => 'KYC submitted for verification',
+            'description' => 'Client Information Form submitted for admin review',
+            'extra_label' => 'Status',
+            'extra_value' => 'Pending Verification',
+            'user_name' => $request->user()?->name ?? ($contactModel->owner_name ?: 'System'),
+            'user_initials' => $this->initialsForHistory($request->user()?->name ?? ($contactModel->owner_name ?: 'System')),
+        ]);
 
         return redirect()
             ->route('contacts.show', ['contact' => $contactModel->id, 'tab' => 'kyc'])
@@ -1611,6 +1648,16 @@ class ContactsController extends Controller
         $cifData['change_reviewed_by'] = '';
         $cifData['change_rejection_reason'] = '';
         $this->saveCifDataToStorage($contactModel, $cifData);
+
+        ContactHistoryLogger::log($contactModel->id, [
+            'type' => 'kyc',
+            'title' => 'KYC approved',
+            'description' => 'Client Information Form approved',
+            'extra_label' => 'Status',
+            'extra_value' => 'Verified',
+            'user_name' => $request->user()?->name ?? 'System',
+            'user_initials' => $this->initialsForHistory($request->user()?->name ?? 'System'),
+        ]);
 
         return redirect()
             ->route('contacts.show', ['contact' => $contactModel->id, 'tab' => 'kyc'])
@@ -1653,6 +1700,16 @@ class ContactsController extends Controller
             $cifData['verified_by'] = '';
             $this->saveCifDataToStorage($contactModel, $cifData);
         }
+
+        ContactHistoryLogger::log($contactModel->id, [
+            'type' => 'kyc',
+            'title' => 'KYC rejected',
+            'description' => $reason !== '' ? $reason : 'Client Information Form rejected',
+            'extra_label' => 'Status',
+            'extra_value' => 'Rejected',
+            'user_name' => $request->user()?->name ?? 'System',
+            'user_initials' => $this->initialsForHistory($request->user()?->name ?? 'System'),
+        ]);
 
         return redirect()
             ->route('contacts.show', ['contact' => $contactModel->id, 'tab' => 'kyc'])
@@ -1886,13 +1943,13 @@ class ContactsController extends Controller
         if (Storage::disk('local')->exists($path)) {
             $stored = json_decode((string) Storage::disk('local')->get($path), true) ?: [];
 
-            return [
+            return $this->applyContactBackedCifFallbacks($contact, [
                 ...$this->defaultCifData($contact),
                 ...$stored,
-            ];
+            ]);
         }
 
-        return $this->defaultCifData($contact);
+        return $this->applyContactBackedCifFallbacks($contact, $this->defaultCifData($contact));
     }
 
     private function relatedCompaniesForContact(Contact $contact, string $search = ''): array
@@ -2019,8 +2076,10 @@ class ContactsController extends Controller
 
     private function defaultCifData(Contact $contact): array
     {
+        $contactCreatedDate = optional($contact->business_date ?: $contact->intake_date ?: $contact->created_at)->toDateString() ?? now()->toDateString();
+
         return [
-            'cif_date' => now()->toDateString(),
+            'cif_date' => $contactCreatedDate,
             'cif_no' => $contact->cif_no ?: ($contact->id ? $this->generateCifNumber($contact) : ''),
             'is_new_client' => true,
             'is_existing_client' => false,
@@ -2087,6 +2146,60 @@ class ContactsController extends Controller
         ];
     }
 
+    private function applyContactBackedCifFallbacks(Contact $contact, array $cifData): array
+    {
+        $contactCreatedDate = optional($contact->business_date ?: $contact->intake_date ?: $contact->created_at)->toDateString() ?? now()->toDateString();
+        $contactBackedFields = [
+            'cif_date' => $contactCreatedDate,
+            'cif_no' => $contact->cif_no ?: ($contact->id ? $this->generateCifNumber($contact) : ''),
+            'first_name' => $contact->first_name,
+            'middle_name' => $contact->middle_name,
+            'last_name' => $contact->last_name,
+            'name_extension' => $contact->name_extension,
+            'present_address_line1' => $contact->contact_address,
+            'date_of_birth' => optional($contact->date_of_birth)->toDateString() ?? '',
+            'gender' => $this->normalizeContactGender($contact->sex),
+            'nature_of_work_business' => $contact->position,
+            'tin' => $contact->tin ?? '',
+            'referred_by_footer' => $contact->referred_by,
+            'email' => $contact->email,
+            'mobile' => $contact->phone,
+            'owner_name' => $contact->owner_name,
+        ];
+
+        foreach ($contactBackedFields as $key => $value) {
+            if (filled($value)) {
+                $cifData[$key] = $value;
+            } elseif (array_key_exists($key, $cifData)) {
+                $cifData[$key] = is_string($cifData[$key]) ? '' : null;
+            }
+        }
+
+        return $cifData;
+    }
+
+    private function syncContactFromCifPayload(Contact $contact, array $validated): void
+    {
+        $contactUpdates = $this->filterPersistableContactAttributes([
+            'first_name' => $validated['first_name'] ?? $contact->first_name,
+            'middle_name' => $validated['middle_name'] ?? $contact->middle_name,
+            'last_name' => $validated['last_name'] ?? $contact->last_name,
+            'name_extension' => $validated['name_extension'] ?? $contact->name_extension,
+            'contact_address' => $validated['present_address_line1'] ?? $contact->contact_address,
+            'date_of_birth' => $validated['date_of_birth'] ?? $contact->date_of_birth,
+            'sex' => $validated['gender'] ?? $contact->sex,
+            'position' => $validated['nature_of_work_business'] ?? $contact->position,
+            'tin' => $validated['tin'] ?? $contact->tin,
+            'email' => $validated['email'] ?? $contact->email,
+            'phone' => $validated['mobile'] ?? $contact->phone,
+            'owner_name' => $validated['owner_name'] ?? $contact->owner_name,
+        ]);
+
+        if ($contactUpdates !== []) {
+            $contact->forceFill($contactUpdates)->save();
+        }
+    }
+
     private function cifSignedDocumentDefaults(Contact $contact): array
     {
         $cifData = $this->loadCifData($contact);
@@ -2102,7 +2215,14 @@ class ContactsController extends Controller
 
     private function isKycReviewer(?User $user): bool
     {
-        return in_array((string) ($user?->role ?? ''), ['Admin', 'SuperAdmin'], true);
+        if (! $user) {
+            return false;
+        }
+
+        return $user->isAdmin()
+            || $user->isSuperAdmin()
+            || $user->hasPermission('approve_corporate')
+            || $user->hasPermission('access_admin_dashboard');
     }
 
     private function hasApprovedChangeRequest(Contact $contact): bool
@@ -2681,8 +2801,26 @@ class ContactsController extends Controller
 
     private function tabData(Contact $contact): array
     {
-        $owner = $contact->owner_name ?: 'John Admin';
-        $linkedActivities = app(ActivityTimelineBuilder::class)->forContact($contact);
+        $deals = $this->linkedDealsForContact($contact);
+        $projects = $this->linkedProjectsForContact($contact);
+        $regular = $this->linkedRegularsForContact($contact);
+        $products = $this->linkedProductsForContact($contact);
+        $services = $this->linkedServicesForContact($contact);
+
+        return [
+            'history' => [
+                'filters' => ['All Activities', 'Profile Changes', 'KYC Updates', 'Deals', 'Files', 'Notes'],
+                'items' => $this->contactHistoryItems($contact),
+            ],
+            'consultation-notes' => $this->contactConsultationNotes($contact),
+            'activities' => $this->contactActivities($contact),
+            'deals' => $deals,
+            'projects' => $projects,
+            'regular' => $regular,
+            'products' => $products,
+            'services' => $services,
+        ];
+
         $deals = [
             [
                 'name' => 'Corporate Software License',
@@ -2728,6 +2866,12 @@ class ContactsController extends Controller
                 'status' => 'Open',
             ]);
         }
+
+        $deals = $this->linkedDealsForContact($contact);
+        $projects = $this->linkedProjectsForContact($contact);
+        $regular = $this->linkedRegularsForContact($contact);
+        $products = $this->linkedProductsForContact($contact);
+        $services = $this->linkedServicesForContact($contact);
 
         return [
             'history' => [
@@ -2903,84 +3047,341 @@ class ContactsController extends Controller
                 ],
             ],
             'deals' => $deals,
-            'projects' => [
-                [
-                    'name' => 'Software Implementation Phase 1',
-                    'type' => 'Implementation',
-                    'status' => 'In Progress',
-                    'start_date' => 'Mar 01, 2026',
-                    'team' => 'Tech Team A',
-                ],
-                [
-                    'name' => 'Security Audit 2026',
-                    'type' => 'Audit',
-                    'status' => 'Planning',
-                    'start_date' => 'Apr 15, 2026',
-                    'team' => 'Security Team',
-                ],
-            ],
-            'regular' => [
-                'items' => [
-                    [
-                        'service' => 'Monthly IT Support & Maintenance',
-                        'frequency' => 'Monthly',
-                        'fee' => 'P25,000',
-                        'start_date' => 'Jan 01, 2026',
-                        'status' => 'Active',
-                    ],
-                    [
-                        'service' => 'Quarterly Security Review',
-                        'frequency' => 'Quarterly',
-                        'fee' => 'P50,000',
-                        'start_date' => 'Jan 01, 2026',
-                        'status' => 'Active',
-                    ],
-                ],
-                'revenue' => 'P25,000',
-            ],
-            'products' => [
-                'items' => [
-                    [
-                        'name' => 'Enterprise Software License (Annual)',
-                        'price' => 'P150,000',
-                        'quantity' => '1',
-                        'total' => 'P150,000',
-                        'date' => 'Feb 24, 2026',
-                    ],
-                    [
-                        'name' => 'Cloud Storage Package (500GB)',
-                        'price' => 'P5,000',
-                        'quantity' => '2',
-                        'total' => 'P10,000',
-                        'date' => 'Feb 24, 2026',
-                    ],
-                ],
-                'grand_total' => 'P160,000',
-                'total_products' => 2,
-                'total_quantity' => 3,
-                'total_revenue' => 'P160,000',
-            ],
-            'services' => [
-                'items' => [
-                    [
-                        'name' => 'Software Implementation & Training',
-                        'description' => 'Full implementation of enterprise software with on-site training for all users',
-                        'fee' => 'P180,000',
-                        'staff' => 'Tech Team A',
-                        'status' => 'In Progress',
-                    ],
-                    [
-                        'name' => 'IT Infrastructure Assessment',
-                        'description' => 'Comprehensive assessment of current IT infrastructure and recommendations',
-                        'fee' => 'P85,000',
-                        'staff' => $owner,
-                        'status' => 'Completed',
-                    ],
-                ],
-                'total_services' => 2,
-                'completed' => 1,
-                'total_value' => 'P265,000',
-            ],
+            'projects' => $projects,
+            'regular' => $regular,
+            'products' => $products,
+            'services' => $services,
+        ];
+    }
+
+    private function contactHistoryItems(Contact $contact): array
+    {
+        if (Schema::hasTable('contact_history_entries')) {
+            $history = ContactHistoryEntry::query()
+                ->where('contact_id', $contact->id)
+                ->latest('occurred_at')
+                ->get()
+                ->map(function (ContactHistoryEntry $entry): array {
+                    return [
+                        'id' => $entry->id,
+                        'type' => $entry->type,
+                        'icon' => $this->historyIconForType($entry->type),
+                        'title' => $entry->title,
+                        'description' => $entry->description,
+                        'extraLabel' => $entry->extra_label,
+                        'extraValue' => $entry->extra_value,
+                        'user' => $entry->user_name,
+                        'initials' => $entry->user_initials,
+                        'datetime' => optional($entry->occurred_at)->format('M j, Y, h:i A'),
+                    ];
+                })
+                ->all();
+
+            if (! empty($history)) {
+                return $history;
+            }
+        }
+
+        $owner = $contact->created_by ?: ($contact->owner_name ?: 'System');
+
+        return [[
+            'id' => 'contact-created-'.$contact->id,
+            'type' => 'profile',
+            'icon' => 'fa-user-plus',
+            'title' => 'Contact created',
+            'description' => 'Contact record created in the system',
+            'extraLabel' => 'Profile',
+            'extraValue' => trim(($contact->first_name ?? '').' '.($contact->last_name ?? '')) ?: 'New contact record added',
+            'user' => $owner,
+            'initials' => $this->initialsForHistory($owner),
+            'datetime' => optional($contact->created_at)->format('M j, Y, h:i A'),
+        ]];
+    }
+
+    private function contactConsultationNotes(Contact $contact): array
+    {
+        if (! Schema::hasTable('contact_consultation_notes')) {
+            return [];
+        }
+
+        return ContactConsultationNote::query()
+            ->where('contact_id', $contact->id)
+            ->latest('consultation_date')
+            ->latest('updated_at')
+            ->get()
+            ->map(function (ContactConsultationNote $note): array {
+                return [
+                    'id' => $note->id,
+                    'title' => $note->title,
+                    'consultationDate' => optional($note->consultation_date)->format('Y-m-d'),
+                    'author' => $note->author,
+                    'summary' => $note->summary,
+                    'details' => $note->details,
+                    'category' => $note->category,
+                    'linkedDeal' => $note->linked_deal,
+                    'linkedActivity' => $note->linked_activity,
+                    'attachments' => $note->attachments ?? [],
+                    'createdAt' => optional($note->created_at)->toIso8601String(),
+                    'updatedAt' => optional($note->updated_at)->toIso8601String(),
+                ];
+            })
+            ->all();
+    }
+
+    private function contactActivities(Contact $contact): array
+    {
+        return collect(app(ActivityTimelineBuilder::class)->forContact($contact))
+            ->map(function (array $activity): array {
+                $showUrl = route('activities');
+
+                if (! empty($activity['id'])) {
+                    $showUrl .= '#'.$activity['type'].'-'.$activity['id'];
+                }
+
+                return [
+                    ...$activity,
+                    'show_url' => $showUrl,
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    private function historyIconForType(?string $type): string
+    {
+        return match (Str::lower((string) $type)) {
+            'deals' => 'fa-arrow-trend-up',
+            'notes' => 'fa-note-sticky',
+            'kyc' => 'fa-shield-check',
+            'files' => 'fa-file-arrow-up',
+            default => 'fa-pen',
+        };
+    }
+
+    private function initialsForHistory(?string $name): string
+    {
+        $initials = collect(explode(' ', trim((string) $name)))
+            ->filter()
+            ->take(2)
+            ->map(fn (string $part): string => strtoupper(substr($part, 0, 1)))
+            ->implode('');
+
+        return $initials !== '' ? $initials : 'NA';
+    }
+
+    private function linkedDealsForContact(Contact $contact): array
+    {
+        if (! Schema::hasTable('deals')) {
+            return [];
+        }
+
+        return Deal::query()
+            ->where('contact_id', $contact->id)
+            ->latest('updated_at')
+            ->get()
+            ->map(function (Deal $deal): array {
+                $stage = trim((string) ($deal->stage ?: 'Qualification'));
+
+                return [
+                    'id' => $deal->id,
+                    'name' => $deal->deal_name ?: ($deal->deal_code ?: 'Untitled deal'),
+                    'stage' => $stage,
+                    'amount' => 'P'.number_format((float) ($deal->total_estimated_engagement_value ?? 0), 2),
+                    'closing_date' => optional($deal->confirmed_delivery_date ?: $deal->estimated_completion_date ?: $deal->client_preferred_completion_date)->format('M d, Y') ?: '-',
+                    'owner' => $deal->assigned_consultant ?: $deal->lead_consultant ?: $deal->created_by ?: 'Unassigned',
+                    'status' => in_array($stage, ['Won', 'Lost', 'Closed Lost'], true) ? ($stage === 'Won' ? 'Won' : 'Lost') : 'Open',
+                    'show_url' => route('deals.show', $deal->id),
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    private function linkedProjectsForContact(Contact $contact): array
+    {
+        if (! Schema::hasTable('projects')) {
+            return [];
+        }
+
+        return Project::query()
+            ->where('contact_id', $contact->id)
+            ->where(function ($query) {
+                $query
+                    ->whereNull('engagement_type')
+                    ->orWhereRaw('LOWER(COALESCE(engagement_type, "")) NOT LIKE ?', ['%regular%']);
+            })
+            ->latest('updated_at')
+            ->get()
+            ->map(function (Project $project): array {
+                $owner = $project->assigned_project_manager ?: $project->assigned_consultant ?: 'Unassigned';
+
+                return [
+                    'id' => $project->id,
+                    'name' => $project->name ?: ($project->project_code ?: 'Untitled project'),
+                    'status' => $project->status ?: 'Open',
+                    'start_date' => optional($project->planned_start_date)->format('M d, Y') ?: '-',
+                    'end_date' => optional($project->target_completion_date)->format('M d, Y') ?: '-',
+                    'owner' => $owner,
+                    'owner_initials' => $this->initialsFromName($owner),
+                    'show_url' => route('project.show', $project->id),
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    private function linkedRegularsForContact(Contact $contact): array
+    {
+        if (! Schema::hasTable('projects')) {
+            return [];
+        }
+
+        return Project::query()
+            ->where('contact_id', $contact->id)
+            ->whereRaw('LOWER(COALESCE(engagement_type, "")) LIKE ?', ['%regular%'])
+            ->latest('updated_at')
+            ->get()
+            ->map(function (Project $project): array {
+                $owner = $project->assigned_project_manager ?: $project->assigned_consultant ?: $project->assigned_associate ?: 'Unassigned';
+                $frequency = data_get($project->metadata, 'frequency');
+
+                return [
+                    'id' => $project->id,
+                    'name' => $project->name ?: ($project->project_code ?: 'Regular engagement'),
+                    'frequency' => $frequency ?: 'Regular',
+                    'status' => $project->status ?: 'Open',
+                    'start_date' => optional($project->planned_start_date)->format('M d, Y') ?: '-',
+                    'next_billing_date' => optional($project->target_completion_date)->format('M d, Y') ?: '-',
+                    'owner' => $owner,
+                    'owner_initials' => $this->initialsFromName($owner),
+                    'show_url' => route('regular.show', $project->id),
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    private function initialsFromName(?string $name): string
+    {
+        $initials = collect(explode(' ', trim((string) $name)))
+            ->filter()
+            ->take(2)
+            ->map(fn (string $part): string => strtoupper(substr($part, 0, 1)))
+            ->implode('');
+
+        return $initials !== '' ? $initials : 'NA';
+    }
+
+    private function linkedProductsForContact(Contact $contact): array
+    {
+        if (! Schema::hasTable('products') || ! Schema::hasTable('deals')) {
+            return [
+                'items' => [],
+                'grand_total' => 'P0.00',
+                'total_products' => 0,
+                'total_quantity' => 0,
+                'total_revenue' => 'P0.00',
+            ];
+        }
+
+        $dealIds = Deal::query()
+            ->where('contact_id', $contact->id)
+            ->pluck('id');
+
+        $items = Product::query()
+            ->whereIn('deal_id', $dealIds)
+            ->latest('updated_at')
+            ->get()
+            ->map(function (Product $product): array {
+                $price = (float) ($product->price ?? 0);
+                $quantity = 1;
+
+                return [
+                    'id' => $product->id,
+                    'name' => $product->product_name ?: ($product->product_id ?: 'Unnamed product'),
+                    'sku' => $product->sku ?: '-',
+                    'category' => $product->category ?: 'General',
+                    'price' => 'P'.number_format($price, 2),
+                    'pricing_type' => $product->pricing_type ?: 'One-Time',
+                    'status' => $product->status ?: 'Open',
+                    'linked_at' => optional($product->updated_at)->format('M d, Y h:i A') ?: '-',
+                    'owner' => $product->owner_name ?: '-',
+                    'quantity' => (string) $quantity,
+                    'total' => 'P'.number_format($price * $quantity, 2),
+                    'show_url' => route('products.show', $product->product_id),
+                ];
+            })
+            ->values();
+
+        $totalRevenue = $items->sum(function (array $item) {
+            return (float) str_replace([',', 'P'], '', $item['total']);
+        });
+
+        return [
+            'items' => $items->all(),
+            'grand_total' => 'P'.number_format($totalRevenue, 2),
+            'total_products' => $items->count(),
+            'total_quantity' => $items->count(),
+            'total_revenue' => 'P'.number_format($totalRevenue, 2),
+        ];
+    }
+
+    private function linkedServicesForContact(Contact $contact): array
+    {
+        if (! Schema::hasTable('services')) {
+            return ['items' => [], 'total_services' => 0, 'completed' => 0, 'total_value' => 'P0.00'];
+        }
+
+        $relatedCompanies = collect($this->relatedCompaniesForContact($contact))
+            ->pluck('id')
+            ->filter()
+            ->values();
+
+        if ($relatedCompanies->isEmpty() && filled($contact->company_name) && Schema::hasTable('companies')) {
+            $relatedCompanies = Company::query()
+                ->where('company_name', 'like', $contact->company_name)
+                ->pluck('id');
+        }
+
+        $items = Service::query()
+            ->when($relatedCompanies->isNotEmpty(), fn ($query) => $query->whereIn('company_id', $relatedCompanies->all()))
+            ->when($relatedCompanies->isEmpty(), fn ($query) => $query->whereRaw('1 = 0'))
+            ->latest('updated_at')
+            ->get()
+            ->map(function (Service $service): array {
+                $assignedStaff = $service->assigned_unit ?: '-';
+                $priceRate = '-';
+
+                if ($service->rate_per_unit) {
+                    $priceRate = number_format((float) $service->rate_per_unit, 2).' / '.($service->unit ?: 'Unit');
+                } elseif ($service->price_fee) {
+                    $priceRate = number_format((float) $service->price_fee, 2);
+                }
+
+                return [
+                    'id' => $service->id,
+                    'name' => $service->service_name ?: ($service->service_id ?: 'Unnamed service'),
+                    'category' => $service->category ?: '-',
+                    'frequency' => $service->frequency ?: '-',
+                    'engagement_type' => implode(', ', $service->engagement_structure ?? []) ?: '-',
+                    'price_rate' => $priceRate,
+                    'assigned_unit' => $assignedStaff,
+                    'status' => $service->status ?: 'Open',
+                    'owner' => $service->reviewed_by ?: $service->approved_by ?: $service->created_by ?: 'Unassigned',
+                    'show_url' => route('services.show', $service->id),
+                ];
+            })
+            ->values();
+
+        $totalValue = $items->sum(function (array $item) {
+            return (float) str_replace([',', 'P'], '', $item['price_rate']);
+        });
+
+        return [
+            'items' => $items->all(),
+            'total_services' => $items->count(),
+            'completed' => $items->where('status', 'Completed')->count(),
+            'total_value' => 'P'.number_format($totalValue, 2),
         ];
     }
 

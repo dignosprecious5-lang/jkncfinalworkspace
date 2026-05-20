@@ -100,3 +100,43 @@ it('uses contact precedence over bif for business organization while preserving 
         ->and($payload['alternative_business_name'])->toBe('Trade Style')
         ->and($payload['zip_code'])->toBe('7000');
 });
+
+it('does not fall back business name to the contact full name when no company value exists', function () {
+    $contact = new Contact([
+        'first_name' => 'Chris',
+        'last_name' => 'Lee',
+        'company_name' => null,
+        'position' => 'President',
+        'contact_address' => 'Fallback Address',
+        'phone' => '09171234567',
+        'email' => 'contact@example.com',
+    ]);
+
+    $payload = invokeCompanyAutofillMapper($contact, [], []);
+
+    expect($payload['business_name'])->toBeNull()
+        ->and($payload['authorized_contact_person_name'])->toBe('Chris Lee');
+});
+
+it('prefers CIF signature position then contact position for authorized contact person position', function () {
+    $contact = new Contact([
+        'first_name' => 'Chris',
+        'last_name' => 'Lee',
+        'company_name' => 'Contact Company',
+        'position' => 'Managing Director',
+        'phone' => '09171234567',
+        'email' => 'contact@example.com',
+    ]);
+
+    $payloadFromSignature = invokeCompanyAutofillMapper($contact, [
+        'sig_position_left' => 'Authorized Representative',
+        'nature_of_work_business' => 'Consulting',
+    ], []);
+
+    $payloadFromContact = invokeCompanyAutofillMapper($contact, [
+        'nature_of_work_business' => 'Consulting',
+    ], []);
+
+    expect($payloadFromSignature['authorized_contact_person_position'])->toBe('Authorized Representative')
+        ->and($payloadFromContact['authorized_contact_person_position'])->toBe('Managing Director');
+});

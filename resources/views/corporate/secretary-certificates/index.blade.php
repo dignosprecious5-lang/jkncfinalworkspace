@@ -5,6 +5,9 @@
 @php
     $today = now()->toDateString();
     $currentUser = auth()->user()?->name ?? '';
+    $sectionRibbonPartial = $sectionRibbonPartial ?? 'corporate.partials.section-ribbon';
+    $documentDefaultsUrl = $documentDefaultsUrl ?? route('corporate-document-defaults');
+    $certificateStoreUrl = $certificateStoreUrl ?? route('secretary-certificates.store');
     $resolutionOptions = $resolutions->map(fn ($resolution) => [
         'id' => $resolution->id,
         'resolution_no' => $resolution->resolution_no,
@@ -43,8 +46,12 @@
 
 <div class="w-full px-4 sm:px-6 lg:px-8 mt-4">
     <div class="bg-white border border-gray-100 rounded-2xl overflow-hidden">
+        @if (isset($company))
+            @include('company.partials.company-header', ['company' => $company])
+        @endif
+
         <div class="flex items-center gap-3 px-4 py-3 border-b border-gray-100">
-            @include('corporate.partials.section-ribbon', ['activeTab' => 'secretary', 'topButtonLabel' => 'Add Certificate'])
+            @include($sectionRibbonPartial, ['activeTab' => 'secretary', 'topButtonLabel' => 'Add Certificate'])
         </div>
     </div>
 </div>
@@ -57,7 +64,7 @@
     }
 </style>
 
-<div class="w-full px-4 sm:px-6 lg:px-8 mt-4" x-data="secretaryCertificateForm({{ Js::from($resolutionOptions) }}, {{ Js::from($minuteOptions) }}, @js(route('corporate-document-defaults')), @js($nextCertificateNumber ?? ''))" @keydown.escape.window="showAddPanel = false">
+<div class="w-full px-4 sm:px-6 lg:px-8 mt-4" x-data="secretaryCertificateForm({{ Js::from($resolutionOptions) }}, {{ Js::from($minuteOptions) }}, @js($documentDefaultsUrl), @js($nextCertificateNumber ?? ''))" @keydown.escape.window="showAddPanel = false">
     <div class="bg-white border border-gray-100 rounded-xl overflow-hidden">
         <div class="flex items-center gap-3 px-4 py-4 border-b border-gray-100">
             <div class="text-lg font-semibold">Secretary Certificates</div>
@@ -84,7 +91,7 @@
                     </thead>
                     <tbody class="text-sm text-gray-900">
                         @forelse ($certificates as $certificate)
-                            <tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer" onclick="window.location='{{ route('secretary-certificates.preview', $certificate) }}'">
+                            <tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer" onclick="window.location='{{ $certificate->preview_url ?? route('secretary-certificates.preview', $certificate) }}'">
                                 <td class="px-4 py-3 font-medium">{{ $certificate->certificate_no }}</td>
                                 <td class="px-4 py-3">
                                     <div>{{ $certificate->resolution_no }}</div>
@@ -135,7 +142,7 @@
                 </button>
             </div>
 
-            <form method="POST" action="{{ route('secretary-certificates.store') }}" enctype="multipart/form-data" class="flex-1 overflow-y-auto p-6 space-y-6" @submit="prepareSubmit()">
+            <form method="POST" action="{{ $certificateStoreUrl }}" enctype="multipart/form-data" class="flex-1 overflow-y-auto p-6 space-y-6" @submit="prepareSubmit()">
                 @csrf
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">

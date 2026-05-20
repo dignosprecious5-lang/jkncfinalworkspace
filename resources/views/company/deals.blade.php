@@ -123,19 +123,21 @@
                                             <td class="px-4 py-3">{{ $deal['updated_at'] }}</td>
                                             <td class="px-4 py-3">
                                                 <div class="flex items-center justify-end gap-2">
-                                                    <a href="{{ route('company.deals.show', [$company->id, $deal['id']]) }}" class="inline-flex h-8 items-center rounded-full border border-gray-200 px-3 text-xs font-medium text-gray-700 hover:bg-gray-50">
+                                                    <a href="{{ $deal['show_url'] ?? route('company.deals.show', [$company->id, $deal['id']]) }}" class="inline-flex h-8 items-center rounded-full border border-gray-200 px-3 text-xs font-medium text-gray-700 hover:bg-gray-50">
                                                         View
                                                     </a>
-                                                    <button type="button" class="inline-flex h-8 items-center rounded-full border border-gray-200 px-3 text-xs font-medium text-gray-700 hover:bg-gray-50" data-deal-edit='@json($deal)'>
-                                                        Edit
-                                                    </button>
-                                                    <form method="POST" action="{{ route('company.deals.destroy', [$company->id, $deal['id']]) }}" onsubmit="return confirm('Delete this deal?');">
-                                                        @csrf
-                                                        @method('DELETE')
-                                                        <button type="submit" class="inline-flex h-8 items-center rounded-full border border-red-200 px-3 text-xs font-medium text-red-600 hover:bg-red-50">
-                                                            Delete
+                                                    @if (!($deal['readonly'] ?? false))
+                                                        <button type="button" class="inline-flex h-8 items-center rounded-full border border-gray-200 px-3 text-xs font-medium text-gray-700 hover:bg-gray-50" data-deal-edit='@json($deal)'>
+                                                            Edit
                                                         </button>
-                                                    </form>
+                                                        <form method="POST" action="{{ route('company.deals.destroy', [$company->id, $deal['id']]) }}" onsubmit="return confirm('Delete this deal?');">
+                                                            @csrf
+                                                            @method('DELETE')
+                                                            <button type="submit" class="inline-flex h-8 items-center rounded-full border border-red-200 px-3 text-xs font-medium text-red-600 hover:bg-red-50">
+                                                                Delete
+                                                            </button>
+                                                        </form>
+                                                    @endif
                                                 </div>
                                             </td>
                                         </tr>

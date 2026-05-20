@@ -1,3 +1,8 @@
+@php
+    $defaultReferredBy = old('referred_by', auth()->user()->name ?? '');
+    $defaultPresident = old('president_use_only_name', 'John Kelly Abalde');
+@endphp
+
 <x-slide-over id="addCompanyModal" width="sm:max-w-[720px] lg:max-w-[820px]">
     <div class="border-b border-gray-100 px-6 py-5 sm:px-8">
         <div class="flex items-start justify-between gap-4">
@@ -329,10 +334,30 @@
             <section class="rounded-2xl border border-gray-200 bg-gray-50/70 p-4">
                 <h3 class="text-base font-semibold text-gray-900">JK&C Internal Use</h3>
                 <div class="grid gap-4 sm:grid-cols-2">
-                    <div><label class="mb-2 block text-sm font-medium text-gray-700">Referred By</label><input type="text" name="referred_by" value="{{ old('referred_by') }}" class="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"></div>
-                    <div><label class="mb-2 block text-sm font-medium text-gray-700">Consultant Lead</label><input type="text" name="consultant_lead" value="{{ old('consultant_lead') }}" class="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"></div>
-                    <div><label class="mb-2 block text-sm font-medium text-gray-700">Lead Associate</label><input type="text" name="lead_associate" value="{{ old('lead_associate') }}" class="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"></div>
-                    <div><label class="mb-2 block text-sm font-medium text-gray-700">President</label><input type="text" name="president_use_only_name" value="{{ old('president_use_only_name') }}" class="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"></div>
+                    <div class="relative" data-employee-picker>
+                        <label class="mb-2 block text-sm font-medium text-gray-700">Referred By</label>
+                        <input type="text" name="referred_by" value="{{ $defaultReferredBy }}" autocomplete="off" data-employee-search-input class="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
+                        <div class="absolute z-20 mt-1 hidden w-full rounded-lg border border-gray-200 bg-white shadow-lg" data-employee-search-results></div>
+                        <p class="mt-1 text-xs text-gray-500">Defaults to the company creator. You can still change it manually.</p>
+                    </div>
+                    <div class="relative" data-employee-picker>
+                        <label class="mb-2 block text-sm font-medium text-gray-700">Consultant Lead</label>
+                        <input type="text" name="consultant_lead" value="{{ old('consultant_lead') }}" autocomplete="off" data-employee-search-input class="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
+                        <div class="absolute z-20 mt-1 hidden w-full rounded-lg border border-gray-200 bg-white shadow-lg" data-employee-search-results></div>
+                        <p class="mt-1 text-xs text-gray-500">Search existing employees from Human Capital. You can still type manually.</p>
+                    </div>
+                    <div class="relative" data-employee-picker>
+                        <label class="mb-2 block text-sm font-medium text-gray-700">Lead Associate</label>
+                        <input type="text" name="lead_associate" value="{{ old('lead_associate') }}" autocomplete="off" data-employee-search-input class="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
+                        <div class="absolute z-20 mt-1 hidden w-full rounded-lg border border-gray-200 bg-white shadow-lg" data-employee-search-results></div>
+                        <p class="mt-1 text-xs text-gray-500">Search existing employees from Human Capital. You can still type manually.</p>
+                    </div>
+                    <div class="relative" data-employee-picker>
+                        <label class="mb-2 block text-sm font-medium text-gray-700">President</label>
+                        <input type="text" name="president_use_only_name" value="{{ $defaultPresident }}" autocomplete="off" data-employee-search-input class="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
+                        <div class="absolute z-20 mt-1 hidden w-full rounded-lg border border-gray-200 bg-white shadow-lg" data-employee-search-results></div>
+                        <p class="mt-1 text-xs text-gray-500">Defaults to John Kelly Abalde.</p>
+                    </div>
                 </div>
             </section>
 
@@ -352,6 +377,8 @@
 
 <script>
 function companyBifForm() {
+    const employeeRecords = @json($employeeOptions ?? []);
+
     return {
         businessOrganization: @js(old('business_organization', '')),
         officeType: @js(old('office_type', '')),
@@ -367,6 +394,8 @@ function companyBifForm() {
             this.syncEmployeeTotal();
             if (!Array.isArray(this.signatories) || this.signatories.length === 0) this.signatories = [this.emptyRow()];
             if (!Array.isArray(this.ubos) || this.ubos.length === 0) this.ubos = [this.emptyRow()];
+            this.initEmployeeSearchPickers();
+            this.syncInternalUseDefaults();
             const selectedContact = document.querySelector('select[name="contact_id"]');
             if (selectedContact && selectedContact.value) {
                 this.hydrateFromContact({ target: selectedContact });
@@ -392,6 +421,85 @@ function companyBifForm() {
             const nextValue = String(value || '').trim();
             if (nextValue === '' && String(input.value || '').trim() !== '') return;
             input.value = String(value || '');
+        },
+        syncInternalUseDefaults() {
+            this.fillIfBlank('referred_by', @js(auth()->user()->name ?? ''));
+            this.fillIfBlank('president_use_only_name', 'John Kelly Abalde');
+        },
+        hideEmployeeSearchResults(picker) {
+            picker?.querySelector('[data-employee-search-results]')?.classList.add('hidden');
+        },
+        renderEmployeeSearchResults(picker, keyword = '') {
+            const input = picker?.querySelector('[data-employee-search-input]');
+            const results = picker?.querySelector('[data-employee-search-results]');
+            if (!input || !results) {
+                return;
+            }
+
+            const query = keyword.trim().toLowerCase();
+            const matches = employeeRecords.filter((record) => {
+                if (query === '') {
+                    return true;
+                }
+
+                const blob = [
+                    record.name,
+                    record.employee_code,
+                    record.position,
+                    record.department,
+                    record.email,
+                ].join(' ').toLowerCase();
+
+                return blob.includes(query);
+            }).slice(0, 8);
+
+            if (matches.length === 0) {
+                results.innerHTML = '<div class="px-3 py-2 text-sm text-gray-500">No existing employee. You can still type manually.</div>';
+                results.classList.remove('hidden');
+                return;
+            }
+
+            results.replaceChildren(...matches.map((record) => {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'block w-full border-b border-gray-100 px-3 py-2 text-left last:border-b-0 hover:bg-blue-50';
+                button.innerHTML = `<div class="text-sm font-medium text-gray-800">${record.name || ''}</div><div class="text-xs text-gray-500">${[record.employee_code, record.position, record.department].filter(Boolean).join(' • ') || (record.email || '')}</div>`;
+                button.addEventListener('click', () => {
+                    input.value = record.name || '';
+                    this.hideEmployeeSearchResults(picker);
+                    this.syncInternalUseDefaults();
+                    input.dispatchEvent(new Event('change', { bubbles: true }));
+                });
+
+                return button;
+            }));
+
+            results.classList.remove('hidden');
+        },
+        initEmployeeSearchPickers() {
+            Array.from(document.querySelectorAll('[data-employee-picker]')).forEach((picker) => {
+                const input = picker.querySelector('[data-employee-search-input]');
+                if (!input) {
+                    return;
+                }
+
+                input.addEventListener('focus', () => this.renderEmployeeSearchResults(picker, input.value));
+                input.addEventListener('input', () => this.renderEmployeeSearchResults(picker, input.value));
+                input.addEventListener('change', () => this.syncInternalUseDefaults());
+                input.addEventListener('keydown', (event) => {
+                    if (event.key === 'Escape') {
+                        this.hideEmployeeSearchResults(picker);
+                    }
+                });
+            });
+
+            document.addEventListener('click', (event) => {
+                Array.from(document.querySelectorAll('[data-employee-picker]')).forEach((picker) => {
+                    if (!picker.contains(event.target)) {
+                        this.hideEmployeeSearchResults(picker);
+                    }
+                });
+            });
         },
         hydrateFromContact(event) {
             const option = event?.target?.selectedOptions?.[0];
@@ -440,6 +548,8 @@ function companyBifForm() {
                     nationalityInput.checked = true;
                 }
             }
+
+            this.syncInternalUseDefaults();
         },
         syncEmployeeTotal() {
             this.employees.total = (Number(this.employees.male) || 0) + (Number(this.employees.female) || 0) + (Number(this.employees.pwd) || 0);

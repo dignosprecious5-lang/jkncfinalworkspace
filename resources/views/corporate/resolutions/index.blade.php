@@ -5,6 +5,9 @@
 @php
     $today = now()->toDateString();
     $currentUser = auth()->user()?->name ?? '';
+    $sectionRibbonPartial = $sectionRibbonPartial ?? 'corporate.partials.section-ribbon';
+    $documentDefaultsUrl = $documentDefaultsUrl ?? route('corporate-document-defaults');
+    $resolutionStoreUrl = $resolutionStoreUrl ?? route('resolutions.store');
     $minuteOptions = $minutes->map(fn ($minute) => [
         'id' => $minute->id,
         'minutes_ref' => $minute->minutes_ref,
@@ -23,8 +26,12 @@
 
 <div class="w-full px-4 sm:px-6 lg:px-8 mt-4">
     <div class="bg-white border border-gray-100 rounded-2xl overflow-hidden">
+        @if (isset($company))
+            @include('company.partials.company-header', ['company' => $company])
+        @endif
+
         <div class="flex items-center gap-3 px-4 py-3 border-b border-gray-100">
-            @include('corporate.partials.section-ribbon', ['activeTab' => 'resolution', 'topButtonLabel' => 'Add Resolution'])
+            @include($sectionRibbonPartial, ['activeTab' => 'resolution', 'topButtonLabel' => 'Add Resolution'])
         </div>
     </div>
 </div>
@@ -37,7 +44,7 @@
     }
 </style>
 
-<div class="w-full px-4 sm:px-6 lg:px-8 mt-4" x-data="resolutionForm({{ Js::from($minuteOptions) }}, @js($currentUser), @js(route('corporate-document-defaults')), @js($nextResolutionNumber ?? ''))" @keydown.escape.window="showAddPanel = false">
+<div class="w-full px-4 sm:px-6 lg:px-8 mt-4" x-data="resolutionForm({{ Js::from($minuteOptions) }}, @js($currentUser), @js($documentDefaultsUrl), @js($nextResolutionNumber ?? ''))" @keydown.escape.window="showAddPanel = false">
     <div class="bg-white border border-gray-100 rounded-xl overflow-hidden">
         <div class="flex items-center gap-3 px-4 py-4 border-b border-gray-100">
             <div class="text-lg font-semibold">Resolutions</div>
@@ -69,7 +76,7 @@
                     </thead>
                     <tbody class="text-sm text-gray-900">
                         @forelse ($resolutions as $resolution)
-                            <tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer" onclick="window.location='{{ route('resolutions.preview', $resolution) }}'">
+                            <tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer" onclick="window.location='{{ $resolution->preview_url ?? route('resolutions.preview', $resolution) }}'">
                                 <td class="px-4 py-3 font-medium">{{ $resolution->resolution_no }}</td>
                                 <td class="px-4 py-3">
                                     <div>{{ $resolution->notice_ref }}</div>
@@ -123,7 +130,7 @@
                 </button>
             </div>
 
-            <form method="POST" action="{{ route('resolutions.store') }}" enctype="multipart/form-data" class="flex-1 overflow-y-auto p-6 space-y-6">
+            <form method="POST" action="{{ $resolutionStoreUrl }}" enctype="multipart/form-data" class="flex-1 overflow-y-auto p-6 space-y-6">
                 @csrf
 
                 <div class="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">

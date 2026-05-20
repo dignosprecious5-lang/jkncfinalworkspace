@@ -3,6 +3,7 @@
 
 @section('content')
 @php
+    $sectionRibbonPartial = $sectionRibbonPartial ?? 'corporate.partials.section-ribbon';
     $draftUrl = $generatedDraftUrl ?? null;
     $documentUrl = $certificate->document_path ? route('uploads.show', ['path' => $certificate->document_path]) : null;
     $defaultSecretary = 'MA. LOURDES T. MATA';
@@ -16,8 +17,12 @@
 
 <div class="w-full px-4 sm:px-6 lg:px-8 mt-4">
     <div class="bg-white border border-gray-100 rounded-2xl overflow-hidden">
+        @if (isset($company))
+            @include('company.partials.company-header', ['company' => $company])
+        @endif
+
         <div class="flex items-center gap-3 px-4 py-3 border-b border-gray-100">
-            @include('corporate.partials.section-ribbon', ['activeTab' => 'secretary', 'topButtonLabel' => 'Add Certificate'])
+            @include($sectionRibbonPartial, ['activeTab' => 'secretary', 'topButtonLabel' => 'Add Certificate'])
         </div>
     </div>
 </div>
@@ -146,7 +151,7 @@
             <div class="rounded-2xl border border-gray-200 bg-white overflow-hidden flex flex-col certificate-workspace-card">
                 <div class="flex-1 overflow-y-auto">
                     <div class="px-6 py-5 space-y-5">
-                <form method="POST" action="{{ route('secretary-certificates.update', $certificate) }}" enctype="multipart/form-data" class="rounded-2xl border border-gray-200 bg-white p-4 space-y-4 sticky top-0 z-10 shadow-sm" id="certificate-live-form">
+                <form method="POST" action="{{ $updateRoute }}" enctype="multipart/form-data" class="rounded-2xl border border-gray-200 bg-white p-4 space-y-4 sticky top-0 z-10 shadow-sm" id="certificate-live-form">
                     @csrf
                     @method('PUT')
                     <div>
