@@ -22,7 +22,8 @@ class PolicyController extends Controller
                 $q->where('code', 'like', "%{$search}%")
                     ->orWhere('classification', 'like', "%{$search}%")
                     ->orWhere('policy', 'like', "%{$search}%")
-                    ->orWhere('description', 'like', "%{$search}%");
+                    ->orWhere('description', 'like', "%{$search}%")
+                    ->orWhere('review_cycle', 'like', "%{$search}%");
             });
         }
 
@@ -34,12 +35,14 @@ class PolicyController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
+            'code' => 'nullable|string|max:255',
             'policy' => 'nullable|string|max:255',
             'version' => 'nullable|string|max:50',
             'effectivity_date' => 'nullable|date',
             'prepared_by' => 'nullable|string|max:255',
             'reviewed_by' => 'nullable|string|max:255',
             'approved_by' => 'nullable|string|max:255',
+            'review_cycle' => 'nullable|string|max:255',
             'classification' => 'nullable|string|max:100',
             'description' => 'nullable|string',
             'attachment' => 'nullable|file|mimes:jpg,jpeg,png,gif,webp,pdf,doc,docx|max:5120',
@@ -58,13 +61,14 @@ class PolicyController extends Controller
         }
 
         $policy = Policy::create([
-            'code' => null,
+            'code' => $validated['code'] ?? null,
             'policy' => $validated['policy'] ?? null,
             'version' => $validated['version'] ?? '1.0',
             'effectivity_date' => $validated['effectivity_date'] ?? null,
             'prepared_by' => $validated['prepared_by'] ?? (Auth::user()->name ?? 'System Admin'),
             'reviewed_by' => $validated['reviewed_by'] ?? null,
-            'approved_by' => null,
+            'approved_by' => $validated['approved_by'] ?? null,
+            'review_cycle' => $validated['review_cycle'] ?? null,
             'classification' => $validated['classification'] ?? 'Internal Use',
             'description' => $validated['description'] ?? null,
             'attachment' => $validated['attachment'] ?? null,
@@ -75,8 +79,10 @@ class PolicyController extends Controller
             'submitted_by' => Auth::id(),
         ]);
 
-        $policy->code = 'POL-' . str_pad((string) $policy->id, 5, '0', STR_PAD_LEFT);
-        $policy->save();
+        if (empty($policy->code)) {
+            $policy->code = 'POL-' . str_pad((string) $policy->id, 5, '0', STR_PAD_LEFT);
+            $policy->save();
+        }
 
         return redirect()
             ->route('policies.index')
@@ -115,6 +121,7 @@ class PolicyController extends Controller
             'prepared_by' => $request->input('prepared_by', auth()->user()->name ?? 'System Admin'),
             'reviewed_by' => $request->input('reviewed_by', ''),
             'approved_by' => $request->input('approved_by', ''),
+            'review_cycle' => $request->input('review_cycle', ''),
             'classification' => $request->input('classification', 'Internal Use'),
             'description' => $description,
         ];
@@ -148,7 +155,8 @@ class PolicyController extends Controller
                 $q->where('policy', 'like', "%{$search}%")
                     ->orWhere('code', 'like', "%{$search}%")
                     ->orWhere('prepared_by', 'like', "%{$search}%")
-                    ->orWhere('classification', 'like', "%{$search}%");
+                    ->orWhere('classification', 'like', "%{$search}%")
+                    ->orWhere('review_cycle', 'like', "%{$search}%");
             });
         }
 

@@ -5,12 +5,14 @@
 <div id="policy-page" class="w-full h-full bg-[#f8f8f8]" x-data="{
     showSlideOver: false,
     previewPolicy: '',
+    previewCode: '',
     previewVersion: '1.0',
     previewDate: '',
     previewPrepared: '{{ Auth::user()->name }}',
     previewReviewed: '',
     previewApproved: '',
-    previewClassification: 'Internal Use',
+    previewReviewCycle: '',
+    previewClassification: 'Internal Use Only',
     previewBody: '<p style=&quot;color:#9ca3af;&quot;>Define the policy scope and rules here...</p>'
 }">
 
@@ -51,7 +53,6 @@
             </button>
         </div>
 
-        {{-- SEARCH BAR --}}
         <form method="GET" action="{{ route('policies.index') }}" class="mb-4">
             <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
                 <div class="flex flex-col md:flex-row gap-3 md:items-center">
@@ -60,7 +61,7 @@
                             type="text"
                             name="search"
                             value="{{ request('search') }}"
-                            placeholder="Search code, classification, title, or policy content..."
+                            placeholder="Search code, classification, title, review cycle, or policy content..."
                             class="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500"
                         >
                     </div>
@@ -81,27 +82,23 @@
                         </a>
                     </div>
                 </div>
-
-                @if(request('search'))
-                    <p class="mt-3 text-xs text-gray-500">
-                        Search results for: <span class="font-semibold text-gray-700">{{ request('search') }}</span>
-                    </p>
-                @endif
             </div>
         </form>
 
         <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
             <div class="overflow-x-auto no-scrollbar">
-                <table class="min-w-[1500px] w-full border-collapse text-sm text-gray-700">
+                <table class="min-w-[1600px] w-full border-collapse text-sm text-gray-700">
                     <thead>
                         <tr class="bg-gray-50 border-b border-gray-200">
                             <th class="px-4 py-3 text-left font-semibold text-gray-600 border-r border-gray-100 w-[140px]">Status</th>
-                            <th class="px-4 py-3 text-left font-semibold text-gray-600 border-r border-gray-100 w-[140px]">Code</th>
+                            <th class="px-4 py-3 text-left font-semibold text-gray-600 border-r border-gray-100 w-[190px]">Code</th>
+                            <th class="px-4 py-3 text-left font-semibold text-gray-600 border-r border-gray-100 w-[240px]">Policy Title</th>
                             <th class="px-4 py-3 text-left font-semibold text-gray-600 border-r border-gray-100 w-[100px]">Version</th>
                             <th class="px-4 py-3 text-left font-semibold text-gray-600 border-r border-gray-100 w-[150px]">Effectivity</th>
-                            <th class="px-4 py-3 text-left font-semibold text-gray-600 border-r border-gray-100 w-[150px]">Prepared by</th>
-                            <th class="px-4 py-3 text-left font-semibold text-gray-600 border-r border-gray-100 w-[150px]">Reviewed by</th>
-                            <th class="px-4 py-3 text-left font-semibold text-gray-600 border-r border-gray-100 w-[150px]">Approved by</th>
+                            <th class="px-4 py-3 text-left font-semibold text-gray-600 border-r border-gray-100 w-[170px]">Prepared by</th>
+                            <th class="px-4 py-3 text-left font-semibold text-gray-600 border-r border-gray-100 w-[170px]">Reviewed by</th>
+                            <th class="px-4 py-3 text-left font-semibold text-gray-600 border-r border-gray-100 w-[170px]">Approved by</th>
+                            <th class="px-4 py-3 text-left font-semibold text-gray-600 border-r border-gray-100 w-[130px]">Review Cycle</th>
                             <th class="px-4 py-3 text-left font-semibold text-gray-600 border-r border-gray-100 w-[160px]">Classification</th>
                             <th class="px-4 py-3 text-left font-semibold text-gray-600 border-r border-gray-100 w-[130px]">Attachment</th>
                             <th class="px-4 py-3 text-center font-semibold text-gray-600 w-[120px]">Action</th>
@@ -112,19 +109,17 @@
                             <tr class="hover:bg-blue-50/30 transition-colors">
                                 <td class="px-4 py-3 border-r border-gray-100">{{ $policy->workflow_status ?? $policy->status ?? 'Draft' }}</td>
                                 <td class="px-4 py-3 border-r border-gray-100 font-mono text-xs">{{ $policy->code ?? '-' }}</td>
+                                <td class="px-4 py-3 border-r border-gray-100 font-medium">{{ $policy->policy ?? '-' }}</td>
                                 <td class="px-4 py-3 border-r border-gray-100">{{ $policy->version ?? '-' }}</td>
-                                <td class="px-4 py-3 border-r border-gray-100">{{ $policy->effectivity_date ?? '-' }}</td>
+                                <td class="px-4 py-3 border-r border-gray-100">{{ $policy->effectivity_date ? \Carbon\Carbon::parse($policy->effectivity_date)->format('M d, Y') : '-' }}</td>
                                 <td class="px-4 py-3 border-r border-gray-100">{{ $policy->prepared_by ?? '-' }}</td>
                                 <td class="px-4 py-3 border-r border-gray-100">{{ $policy->reviewed_by ?? '-' }}</td>
                                 <td class="px-4 py-3 border-r border-gray-100">{{ $policy->approved_by ?? '-' }}</td>
+                                <td class="px-4 py-3 border-r border-gray-100">{{ $policy->review_cycle ?? '-' }}</td>
                                 <td class="px-4 py-3 border-r border-gray-100">{{ $policy->classification ?? '-' }}</td>
                                 <td class="px-4 py-3 border-r border-gray-100">
                                     @if(!empty($policy->attachment))
-                                        <a
-                                            href="{{ asset('storage/' . $policy->attachment) }}"
-                                            target="_blank"
-                                            class="text-blue-600 hover:underline text-xs"
-                                        >
+                                        <a href="{{ asset('storage/' . $policy->attachment) }}" target="_blank" class="text-blue-600 hover:underline text-xs">
                                             View File
                                         </a>
                                     @else
@@ -133,19 +128,11 @@
                                 </td>
                                 <td class="px-4 py-3 text-center">
                                     <div class="flex items-center justify-center gap-2">
-                                        <a
-                                            href="{{ route('policies.show', $policy->id) }}"
-                                            class="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition"
-                                            title="View Policy"
-                                        >
+                                        <a href="{{ route('policies.show', $policy->id) }}" class="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition" title="View Policy">
                                             <i class="far fa-eye"></i>
                                         </a>
 
-                                        <a
-                                            href="{{ route('policies.edit', $policy->id) }}"
-                                            class="p-1.5 text-gray-500 hover:bg-gray-100 rounded transition"
-                                            title="Edit Policy"
-                                        >
+                                        <a href="{{ route('policies.edit', $policy->id) }}" class="p-1.5 text-gray-500 hover:bg-gray-100 rounded transition" title="Edit Policy">
                                             <i class="far fa-edit"></i>
                                         </a>
                                     </div>
@@ -153,7 +140,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="10" class="px-4 py-8 text-center text-gray-500">
+                                <td colspan="12" class="px-4 py-8 text-center text-gray-500">
                                     No policies found.
                                 </td>
                             </tr>
@@ -174,7 +161,6 @@
         <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" @click="showSlideOver = false"></div>
 
         <div class="absolute inset-0 flex">
-            {{-- LEFT PREVIEW PANEL --}}
             <div
                 x-show="showSlideOver"
                 x-transition:enter="transform transition ease-in-out duration-300"
@@ -198,43 +184,38 @@
 
                 <div class="max-w-[850px] mx-auto">
                     <div id="policy-preview-sheet" class="policy-preview bg-white border border-gray-300 shadow min-h-[1100px] px-[72px] py-[72px] overflow-hidden">
-                        <div class="flex items-start justify-between border-b border-gray-300 pb-6 mb-8">
-                            <div class="ml-auto text-right">
-                                <h1 class="text-[22px] font-bold tracking-wide text-[#2b6cb0]">John Kelly &amp; Company</h1>
-                                <p class="text-[12px] text-gray-500 mt-1">Enterprise Operating System | Corporate Policy</p>
+
+                        <div class="policy-memo-header">
+                            <div class="policy-memo-logo">
+                                <img src="{{ asset('images/jk-logo.png') }}" alt="John Kelly & Company Logo">
+                            </div>
+
+                            <div class="policy-memo-names">
+                                <p>
+                                    Atty. Jose B. Ogang, CPA, MMPSM · Jose Tamayo Rio,<br>
+                                    MM-BM, CPA · Lyndon Earl P. Rio, RN, CB · John Kelly Abalde,<br>
+                                    CLSSBB, CPM
+                                </p>
                             </div>
                         </div>
 
-                        <div class="text-center mb-8">
-                            <h2 class="text-[20px] font-bold text-gray-900 uppercase" x-text="previewPolicy || 'NEW POLICY DOCUMENT'"></h2>
+                        <div class="policy-memo-title">
+                            <h2 x-text="previewPolicy || 'POLICY TITLE'"></h2>
                         </div>
 
-                        <div class="mb-8 overflow-hidden">
-                            <table class="w-full border-collapse text-[13px] text-gray-700 table-fixed">
-                                <tr>
-                                    <td class="w-[140px] border border-gray-300 bg-gray-50 font-semibold px-3 py-2">Document Code</td>
-                                    <td class="border border-gray-300 px-3 py-2">AUTO-GENERATED</td>
-                                    <td class="w-[140px] border border-gray-300 bg-gray-50 font-semibold px-3 py-2">Version</td>
-                                    <td class="border border-gray-300 px-3 py-2" x-text="previewVersion || '1.0'"></td>
-                                </tr>
-                                <tr>
-                                    <td class="border border-gray-300 bg-gray-50 font-semibold px-3 py-2">Effectivity Date</td>
-                                    <td class="border border-gray-300 px-3 py-2" x-text="previewDate || '-'"></td>
-                                    <td class="border border-gray-300 bg-gray-50 font-semibold px-3 py-2">Classification</td>
-                                    <td class="border border-gray-300 px-3 py-2" x-text="previewClassification || 'Internal Use'"></td>
-                                </tr>
-                                <tr>
-                                    <td class="border border-gray-300 bg-gray-50 font-semibold px-3 py-2">Prepared By</td>
-                                    <td colspan="3" class="border border-gray-300 px-3 py-2" x-text="previewPrepared || 'System Admin'"></td>
-                                </tr>
-                                <tr>
-                                    <td class="border border-gray-300 bg-gray-50 font-semibold px-3 py-2">Reviewed By</td>
-                                    <td class="border border-gray-300 px-3 py-2" x-text="previewReviewed || '-'"></td>
-                                    <td class="border border-gray-300 bg-gray-50 font-semibold px-3 py-2">Approved By</td>
-                                    <td class="border border-gray-300 px-3 py-2" x-text="previewApproved || '-'"></td>
-                                </tr>
-                            </table>
+                        <div class="policy-memo-meta">
+                            <p><strong>Policy Title:</strong> <span x-text="previewPolicy || '______________________________'"></span></p>
+                            <p><strong>Code:</strong> <span x-text="previewCode || 'AUTO-GENERATED'"></span></p>
+                            <p><strong>Version:</strong> <span x-text="previewVersion || '1.0'"></span></p>
+                            <p><strong>Effectivity Date:</strong> <span x-text="previewDate || '______________________________'"></span></p>
+                            <p><strong>Prepared by:</strong> <span x-text="previewPrepared || '______________________________'"></span></p>
+                            <p><strong>Reviewed by:</strong> <span x-text="previewReviewed || '______________________________'"></span></p>
+                            <p><strong>Approved by:</strong> <span x-text="previewApproved || '______________________________'"></span></p>
+                            <p><strong>Review Cycle:</strong> <span x-text="previewReviewCycle || '______________________________'"></span></p>
+                            <p><strong>Classification:</strong> <span x-text="previewClassification || 'Internal Use Only'"></span></p>
                         </div>
+
+                        <div class="policy-memo-divider"></div>
 
                         <div class="text-[15px] leading-8 text-gray-900 min-h-[420px] max-w-full overflow-hidden">
                             <div
@@ -246,7 +227,6 @@
                 </div>
             </div>
 
-            {{-- RIGHT FORM PANEL --}}
             <div
                 x-show="showSlideOver"
                 x-transition:enter="transform transition ease-in-out duration-300"
@@ -267,15 +247,25 @@
                 <form id="policyFormSubmit" method="POST" action="{{ route('policies.store') }}" enctype="multipart/form-data" class="flex-1 overflow-y-auto px-6 py-6 space-y-5">
                     @csrf
 
-                    <input type="hidden" name="code" value="AUTO-GENERATED">
-
                     <div>
                         <label class="text-[11px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Policy Title</label>
                         <input
                             type="text"
                             name="policy"
                             x-model="previewPolicy"
-                            placeholder="e.g. Employee Conduct Policy"
+                            placeholder="e.g. Policy Development, Drafting, and Document Control Policy"
+                            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition"
+                            oninput="syncPreview()"
+                        >
+                    </div>
+
+                    <div>
+                        <label class="text-[11px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Code</label>
+                        <input
+                            type="text"
+                            name="code"
+                            x-model="previewCode"
+                            placeholder="e.g. JKNC-POL-POLDDEV-2025-001"
                             class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition"
                             oninput="syncPreview()"
                         >
@@ -294,29 +284,15 @@
                         </div>
 
                         <div>
-                            <label class="text-[11px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Classification</label>
-                            <select
-                                name="classification"
-                                x-model="previewClassification"
+                            <label class="text-[11px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Effectivity Date</label>
+                            <input
+                                type="date"
+                                name="effectivity_date"
+                                x-model="previewDate"
                                 class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition"
-                                onchange="syncPreview()"
+                                oninput="syncPreview()"
                             >
-                                <option value="Confidential">Confidential</option>
-                                <option value="Internal Use">Internal Use</option>
-                                <option value="Public">Public</option>
-                            </select>
                         </div>
-                    </div>
-
-                    <div>
-                        <label class="text-[11px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Effectivity Date</label>
-                        <input
-                            type="date"
-                            name="effectivity_date"
-                            x-model="previewDate"
-                            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition"
-                            oninput="syncPreview()"
-                        >
                     </div>
 
                     <div class="space-y-4 pt-4 border-t border-gray-100">
@@ -327,7 +303,6 @@
                                 name="prepared_by"
                                 x-model="previewPrepared"
                                 class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-gray-50"
-                                readonly
                             >
                         </div>
 
@@ -337,6 +312,7 @@
                                 type="text"
                                 name="reviewed_by"
                                 x-model="previewReviewed"
+                                placeholder="e.g. Policy Development Committee (PDC)"
                                 class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition"
                                 oninput="syncPreview()"
                             >
@@ -348,14 +324,42 @@
                                 type="text"
                                 name="approved_by"
                                 x-model="previewApproved"
+                                placeholder="e.g. Board of Directors"
                                 class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition"
                                 oninput="syncPreview()"
                             >
                         </div>
+
+                        <div>
+                            <label class="text-[11px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Review Cycle</label>
+                            <input
+                                type="text"
+                                name="review_cycle"
+                                x-model="previewReviewCycle"
+                                placeholder="e.g. Annual"
+                                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition"
+                                oninput="syncPreview()"
+                            >
+                        </div>
+
+                        <div>
+                            <label class="text-[11px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Classification</label>
+                            <select
+                                name="classification"
+                                x-model="previewClassification"
+                                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition"
+                                onchange="syncPreview()"
+                            >
+                                <option value="Confidential">Confidential</option>
+                                <option value="Internal Use Only">Internal Use Only</option>
+                                <option value="Internal Use">Internal Use</option>
+                                <option value="Public">Public</option>
+                            </select>
+                        </div>
                     </div>
 
                     <div>
-                        <label class="text-[11px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Policy Description</label>
+                        <label class="text-[11px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Policy Body</label>
 
                         <div class="rounded-xl border border-gray-300 bg-[#fafafa] overflow-hidden shadow-sm">
                             <div class="word-ribbon border-b border-gray-200 bg-white px-3 py-2">
@@ -379,24 +383,14 @@
                             accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx"
                             class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm file:mr-4 file:rounded-md file:border-0 file:bg-blue-50 file:px-3 file:py-2 file:text-sm file:font-medium file:text-blue-700 hover:file:bg-blue-100"
                         >
-                        <p class="mt-1 text-xs text-gray-400">
-                            Allowed: JPG, JPEG, PNG, GIF, WEBP, PDF, DOC, DOCX
-                        </p>
                     </div>
 
                     <div class="pt-6 border-t border-gray-200 flex items-center gap-3 bg-white sticky bottom-0">
-                        <button
-                            type="button"
-                            @click="showSlideOver = false"
-                            class="flex-1 border border-gray-300 text-gray-700 rounded-xl py-2.5 text-sm font-semibold hover:bg-gray-50 transition"
-                        >
+                        <button type="button" @click="showSlideOver = false" class="flex-1 border border-gray-300 text-gray-700 rounded-xl py-2.5 text-sm font-semibold hover:bg-gray-50 transition">
                             Cancel
                         </button>
 
-                        <button
-                            type="submit"
-                            class="flex-1 bg-blue-600 text-white rounded-xl py-2.5 text-sm font-bold hover:bg-blue-700 shadow-md transition"
-                        >
+                        <button type="submit" class="flex-1 bg-blue-600 text-white rounded-xl py-2.5 text-sm font-bold hover:bg-blue-700 shadow-md transition">
                             Save Policy
                         </button>
                     </div>
@@ -412,8 +406,80 @@
 <link href="https://cdn.jsdelivr.net/npm/quill-table-better@1/dist/quill-table-better.css" rel="stylesheet">
 
 <style>
+    [x-cloak] {
+        display: none !important;
+    }
+
     .policy-preview {
         box-shadow: 0 10px 25px rgba(0,0,0,0.08);
+        font-family: "Times New Roman", Georgia, serif;
+    }
+
+    .policy-memo-header {
+        display: flex;
+        align-items: flex-start;
+        gap: 34px;
+        margin-bottom: 34px;
+    }
+
+    .policy-memo-logo {
+        flex: 0 0 auto;
+        padding-top: 4px;
+    }
+
+    .policy-memo-logo img {
+        height: 76px;
+        width: auto;
+        object-fit: contain;
+    }
+
+    .policy-memo-names {
+        flex: 1 1 auto;
+        padding-top: 8px;
+    }
+
+    .policy-memo-names p {
+        font-size: 12px;
+        line-height: 1.35;
+        color: #111827;
+        font-family: "Times New Roman", Georgia, serif;
+        margin: 0;
+    }
+
+    .policy-memo-title {
+        text-align: center;
+        margin-bottom: 30px;
+    }
+
+    .policy-memo-title h2 {
+        font-size: 24px;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        color: #4b5563;
+        font-family: "Times New Roman", Georgia, serif;
+        text-transform: uppercase;
+        margin: 0;
+    }
+
+    .policy-memo-meta {
+        font-size: 14px;
+        line-height: 1.45;
+        color: #111827;
+        font-family: "Times New Roman", Georgia, serif;
+        margin-bottom: 10px;
+    }
+
+    .policy-memo-meta p {
+        margin: 2px 0;
+    }
+
+    .policy-memo-meta strong {
+        font-weight: 700;
+    }
+
+    .policy-memo-divider {
+        border-bottom: 1px solid #6b7280;
+        margin: 12px 0 26px 0;
     }
 
     .word-ribbon {
@@ -442,69 +508,7 @@
         font-family: "Calibri", "Arial", sans-serif;
     }
 
-    #policy-editor .ql-editor.ql-blank::before {
-        left: 26px;
-        right: 26px;
-        font-style: italic;
-        color: #9ca3af;
-    }
-
-    #policy-editor .ql-picker-label,
-    #policy-editor .ql-picker-item,
-    #policy-editor .ql-stroke,
-    #policy-editor .ql-fill {
-        color: #374151;
-        stroke: #374151;
-    }
-
-    #policy-editor .ql-editor p {
-        margin-bottom: 0.65rem;
-    }
-
-    #policy-editor .ql-editor h1,
-    #policy-editor .ql-editor h2,
-    #policy-editor .ql-editor h3 {
-        line-height: 1.35;
-        margin: 0.75rem 0;
-    }
-
-    .policy-preview-body table {
-        width: 100% !important;
-        max-width: 100% !important;
-        table-layout: fixed !important;
-        border-collapse: collapse !important;
-        border-spacing: 0 !important;
-        margin: 12px 0 !important;
-    }
-
-    .policy-preview-body table tbody,
-    .policy-preview-body table thead,
-    .policy-preview-body table tr {
-        width: 100% !important;
-    }
-
-    .policy-preview-body table colgroup,
-    .policy-preview-body table col {
-        width: auto !important;
-    }
-
-    .policy-preview-body th,
-    .policy-preview-body td {
-        width: auto !important;
-        min-width: 0 !important;
-        border: 1px solid #94a3b8 !important;
-        padding: 10px 12px !important;
-        vertical-align: top !important;
-        word-break: break-word !important;
-        overflow-wrap: anywhere !important;
-        white-space: normal !important;
-    }
-
-    .policy-preview-body th {
-        background: #f8fafc !important;
-        font-weight: 600 !important;
-    }
-
+    .policy-preview-body table,
     .ql-editor table {
         width: 100% !important;
         max-width: 100% !important;
@@ -514,11 +518,8 @@
         margin: 12px 0 !important;
     }
 
-    .ql-editor table colgroup,
-    .ql-editor table col {
-        width: auto !important;
-    }
-
+    .policy-preview-body th,
+    .policy-preview-body td,
     .ql-editor th,
     .ql-editor td {
         min-width: 0 !important;
@@ -528,9 +529,9 @@
         word-break: break-word !important;
         overflow-wrap: anywhere !important;
         white-space: normal !important;
-        background: #fff !important;
     }
 
+    .policy-preview-body th,
     .ql-editor th {
         background: #f8fafc !important;
         font-weight: 600 !important;
@@ -546,13 +547,6 @@
     .ql-editor div {
         word-break: break-word;
         overflow-wrap: anywhere;
-    }
-
-    .policy-preview-body h1,
-    .policy-preview-body h2,
-    .policy-preview-body h3 {
-        line-height: 1.35;
-        margin: 0.75rem 0;
     }
 
     .policy-preview-body ul,
@@ -635,6 +629,7 @@
         });
 
         hiddenInput.value = '';
+
         if (alpineData) {
             alpineData.previewBody = defaultHtml;
         }

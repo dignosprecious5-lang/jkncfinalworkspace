@@ -13,71 +13,87 @@
         }
 
         body {
-            font-family: DejaVu Sans, Arial, Helvetica, sans-serif;
-            color: #2d3748;
+            font-family: "Times New Roman", Georgia, serif;
+            color: #111827;
             margin: 0;
             padding: 20px;
             line-height: 1.5;
             background: #ffffff;
+            font-size: 14px;
+        }
+
+        .policy-memo-header {
+            width: 100%;
+            margin-bottom: 34px;
+        }
+
+        .policy-memo-logo {
+            display: inline-block;
+            width: 220px;
+            vertical-align: top;
+            padding-top: 4px;
+        }
+
+        .policy-memo-logo img {
+            height: 76px;
+            width: auto;
+        }
+
+        .policy-memo-names {
+            display: inline-block;
+            width: 390px;
+            vertical-align: top;
+            padding-top: 8px;
+        }
+
+        .policy-memo-names p {
             font-size: 12px;
-        }
-
-        .letterhead {
-            border-bottom: 2px solid #2b6cb0;
-            padding-bottom: 10px;
-            margin-bottom: 25px;
-            text-align: right;
-        }
-
-        .company-name {
-            font-size: 18px;
-            font-weight: bold;
-            color: #2b6cb0;
+            line-height: 1.35;
+            color: #111827;
+            font-family: "Times New Roman", Georgia, serif;
             margin: 0;
         }
 
-        .company-subtitle {
-            font-size: 10px;
-            color: #718096;
-            margin: 2px 0 0;
-        }
-
-        .policy-title {
+        .policy-memo-title {
             text-align: center;
-            font-size: 18px;
-            font-weight: bold;
+            margin-bottom: 30px;
+        }
+
+        .policy-memo-title h2 {
+            font-size: 24px;
+            font-weight: 700;
+            letter-spacing: 0.12em;
+            color: #4b5563;
+            font-family: "Times New Roman", Georgia, serif;
             text-transform: uppercase;
-            margin: 20px 0;
-            color: #2d3748;
+            margin: 0;
         }
 
-        .info-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 24px;
-            table-layout: fixed;
+        .policy-memo-meta {
+            font-size: 14px;
+            line-height: 1.45;
+            color: #111827;
+            font-family: "Times New Roman", Georgia, serif;
+            margin-bottom: 10px;
         }
 
-        .info-table td {
-            padding: 8px 12px;
-            border: 1px solid #cbd5e0;
-            font-size: 11px;
-            vertical-align: top;
-            word-wrap: break-word;
-            overflow-wrap: break-word;
+        .policy-memo-meta p {
+            margin: 2px 0;
         }
 
-        .label {
-            background-color: #f8fafc;
-            font-weight: bold;
-            width: 140px;
-            color: #4a5568;
+        .policy-memo-meta strong {
+            font-weight: 700;
+        }
+
+        .policy-memo-divider {
+            border-bottom: 1px solid #6b7280;
+            margin: 12px 0 26px 0;
         }
 
         .description-content {
             margin-top: 20px;
             width: 100%;
-            font-size: 12px;
+            font-size: 14px;
         }
 
         .description-content p {
@@ -134,7 +150,6 @@
             height: auto !important;
         }
 
-        /* TABLE FIX FOR DOMPDF */
         .description-content table {
             width: 100% !important;
             max-width: 100% !important;
@@ -143,12 +158,6 @@
             margin: 12px 0 !important;
             border: 1px solid #94a3b8 !important;
             page-break-inside: auto;
-        }
-
-        .description-content thead,
-        .description-content tbody,
-        .description-content tfoot {
-            width: 100% !important;
         }
 
         .description-content tr {
@@ -201,39 +210,37 @@
 </head>
 <body>
 
-    <div class="letterhead">
-        <p class="company-name">John Kelly & Company</p>
-        <p class="company-subtitle">Enterprise Operating System | Corporate Policy</p>
+    <div class="policy-memo-header">
+        <div class="policy-memo-logo">
+            <img src="{{ public_path('images/jk-logo.png') }}" alt="John Kelly & Company Logo">
+        </div>
+
+        <div class="policy-memo-names">
+            <p>
+                Atty. Jose B. Ogang, CPA, MMPSM · Jose Tamayo Rio,<br>
+                MM-BM, CPA · Lyndon Earl P. Rio, RN, CB · John Kelly Abalde,<br>
+                CLSSBB, CPM
+            </p>
+        </div>
     </div>
 
-    <div class="policy-title">
-        {{ $data['policy'] ?: 'NEW POLICY DOCUMENT' }}
+    <div class="policy-memo-title">
+        <h2>{{ $data['policy'] ?: 'POLICY TITLE' }}</h2>
     </div>
 
-    <table class="info-table">
-        <tr>
-            <td class="label">Document Code</td>
-            <td>AUTO-GENERATED</td>
-            <td class="label">Version</td>
-            <td>{{ $data['version'] ?? '1.0' }}</td>
-        </tr>
-        <tr>
-            <td class="label">Effectivity Date</td>
-            <td>{{ $data['effectivity_date'] ?: '-' }}</td>
-            <td class="label">Classification</td>
-            <td>{{ $data['classification'] ?? 'Internal Use' }}</td>
-        </tr>
-        <tr>
-            <td class="label">Prepared By</td>
-            <td colspan="3">{{ $data['prepared_by'] ?? 'System Admin' }}</td>
-        </tr>
-        <tr>
-            <td class="label">Reviewed By</td>
-            <td>{{ $data['reviewed_by'] ?: '-' }}</td>
-            <td class="label">Approved By</td>
-            <td>{{ $data['approved_by'] ?: '-' }}</td>
-        </tr>
-    </table>
+    <div class="policy-memo-meta">
+        <p><strong>Policy Title:</strong> {{ $data['policy'] ?: '______________________________' }}</p>
+        <p><strong>Code:</strong> {{ $data['code'] ?: 'AUTO-GENERATED' }}</p>
+        <p><strong>Version:</strong> {{ $data['version'] ?: '1.0' }}</p>
+        <p><strong>Effectivity Date:</strong> {{ !empty($data['effectivity_date']) ? \Carbon\Carbon::parse($data['effectivity_date'])->format('F d, Y') : '______________________________' }}</p>
+        <p><strong>Prepared by:</strong> {{ $data['prepared_by'] ?: '______________________________' }}</p>
+        <p><strong>Reviewed by:</strong> {{ $data['reviewed_by'] ?: '______________________________' }}</p>
+        <p><strong>Approved by:</strong> {{ $data['approved_by'] ?: '______________________________' }}</p>
+        <p><strong>Review Cycle:</strong> {{ $data['review_cycle'] ?: '______________________________' }}</p>
+        <p><strong>Classification:</strong> {{ $data['classification'] ?: 'Internal Use Only' }}</p>
+    </div>
+
+    <div class="policy-memo-divider"></div>
 
     <div class="description-content">
         {!! $data['description'] ?? '<p style="color:#cbd5e0;">No description provided.</p>' !!}
