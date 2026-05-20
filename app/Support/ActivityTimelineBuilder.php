@@ -110,9 +110,9 @@ class ActivityTimelineBuilder
                 'readonly' => true,
                 'type' => 'Call',
                 'icon' => 'fa-phone',
-                'description' => $call->purpose ?: $call->agenda ?: $call->contact,
+                'description' => $call->purpose ?: $call->agenda ?: $call->contact ?: $call->to,
                 'when' => $this->formatWhen(trim(collect([$call->start_time, $call->start_hour])->filter()->implode(' '))),
-                'owner' => $call->owner ?: '-',
+                'owner' => $call->owner ?: $call->from ?: '-',
                 'status' => $call->completed ? 'Completed' : 'Pending',
                 'notes' => $call->agenda,
                 'dueAt' => null,
@@ -152,12 +152,33 @@ class ActivityTimelineBuilder
 
     private function matchesTags(?string $relatedTo, array $tags): bool
     {
+        if (blank($relatedTo) || $tags === []) {
+            return false;
+        }
+
         $activityTags = collect(explode(',', (string) $relatedTo))
             ->map(fn (string $tag): string => $this->normalizeTag($tag))
             ->filter()
+            ->values()
             ->all();
 
-        return count(array_intersect($activityTags, $tags)) > 0;
+        foreach ($activityTags as $activityTag) {
+            foreach ($tags as $tag) {
+                if ($activityTag === $tag) {
+                    return true;
+                }
+
+                if (Str::contains($activityTag, $tag)) {
+                    return true;
+                }
+
+                if (Str::contains($tag, $activityTag)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     private function contactTags(Contact $contact): array
@@ -169,11 +190,21 @@ class ActivityTimelineBuilder
             $contact->name_extension,
         ])->filter()->implode(' '));
 
+        $simpleName = trim(($contact->first_name ?? '').' '.($contact->last_name ?? ''));
+
+        $labelWithCompany = trim(collect([
+            $simpleName,
+            $contact->company_name,
+        ])->filter()->implode(' - '));
+
         return $this->normalizeTags([
             $fullName,
-            trim(($contact->first_name ?? '').' '.($contact->last_name ?? '')),
+            $simpleName,
+            $labelWithCompany,
+            $contact->company_name,
             $contact->email,
             $contact->phone,
+            $contact->cif_no ?? null,
         ]);
     }
 
