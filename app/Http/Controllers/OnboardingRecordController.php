@@ -265,6 +265,9 @@ class OnboardingRecordController extends Controller
         'fullName' => ['required', 'string', 'max:255'],
         'employeeId' => ['required', 'string', 'max:255', 'unique:onboarding_employee_registrations,employee_id'],
         'department' => ['nullable', 'string', 'max:255'],
+        'position' => ['required', 'string', 'max:255'],
+        'payrollType' => ['required', Rule::in(['Monthly Paid', 'Daily Paid'])],
+        'basicSalary' => ['required', 'numeric', 'min:0'],
         'startDate' => ['nullable', 'date'],
         'workEmail' => ['required', 'email', 'max:255'],
         'manager' => ['nullable', 'string', 'max:255'],
@@ -312,8 +315,18 @@ class OnboardingRecordController extends Controller
         ], 422);
     }
 
-    $basicSalary = $this->parseMoneyAmount($jobOffer?->salary);
-    $payrollType = $this->inferPayrollType($jobOffer?->employment_type);
+    // New applicants normally have Job Offer data.
+    // Existing employees/personnel do not, so use HR/Admin manual input from Employee Registration.
+    $basicSalary = $jobOffer
+        ? $this->parseMoneyAmount($jobOffer?->salary)
+        : (float) $validated['basicSalary'];
+
+    $payrollType = $jobOffer
+        ? $this->inferPayrollType($jobOffer?->employment_type)
+        : $validated['payrollType'];
+
+    $position = $jobOffer?->position ?: $validated['position'];
+
     $hourlyRate = $this->computeEmployeeHourlyRate($basicSalary, $payrollType);
 
     $employeeProfile = Employee::create([
@@ -335,8 +348,8 @@ class OnboardingRecordController extends Controller
         'division_id' => $jobOffer?->division_id,
         'unit_id' => $jobOffer?->unit_id,
 
-        // Position and payroll from Job Offer
-        'position' => $jobOffer?->position ?: $checklist->position,
+        // Position and payroll from Job Offer for new applicants, or HR manual input for existing employees.
+        'position' => $position,
         'payroll_type' => $payrollType,
         'basic_salary' => $basicSalary,
         'hourly_rate' => $hourlyRate,
@@ -347,7 +360,7 @@ class OnboardingRecordController extends Controller
         'employee_profile_id' => $employeeProfile->id,
         'full_name' => $validated['fullName'],
         'employee_id' => $validated['employeeId'],
-        'department' => $jobOffer?->department ?: ($validated['department'] ?? $checklist->position),
+        'department' => $jobOffer?->department ?: ($validated['department'] ?? null),
         'start_date' => $validated['startDate'] ?? $jobOffer?->start_date,
         'work_email' => $workEmail,
         'manager' => $validated['manager'] ?? null,

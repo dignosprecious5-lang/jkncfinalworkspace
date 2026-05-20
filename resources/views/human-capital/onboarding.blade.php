@@ -997,7 +997,7 @@
             x-show="showEmpRegModal"
             x-transition:enter="transform transition ease-out duration-300" x-transition:enter-start="translate-x-full" x-transition:enter-end="translate-x-0"
             x-transition:leave="transform transition ease-in duration-200" x-transition:leave-start="translate-x-0" x-transition:leave-end="translate-x-full"
-            class="bg-white shadow-2xl w-full max-w-xl h-full flex flex-col overflow-hidden"
+            class="bg-white shadow-2xl w-full max-w-2xl h-full flex flex-col overflow-hidden"
         >
             <div class="flex items-center justify-between px-6 py-3 bg-blue-700 shrink-0">
                 <h2 class="text-sm font-bold text-white uppercase tracking-widest">New Employee Registration</h2>
@@ -1037,9 +1037,10 @@
     </div>
 
     <div>
-        <label class="block text-xs font-semibold text-gray-600 mb-1">Position</label>
-        <input type="text" x-model="empRegForm.position" readonly
-            class="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg bg-gray-100 text-gray-700 outline-none">
+        <label class="block text-xs font-semibold text-gray-600 mb-1">Position <span class="text-red-500">*</span></label>
+        <input type="text" x-model="empRegForm.position" required placeholder="e.g. President, Treasurer, HR Officer"
+            class="w-full text-sm px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none">
+        <p class="text-[11px] text-gray-400 mt-1">For applicants, this may auto-fill from Job Offer. For existing employees, HR can type it manually.</p>
     </div>
 
     <div>
@@ -1068,15 +1069,21 @@
     </div>
 
     <div>
-        <label class="block text-xs font-semibold text-gray-600 mb-1">Salary from Job Offer</label>
-        <input type="text" x-model="empRegForm.salary" readonly
-            class="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg bg-gray-100 text-gray-700 outline-none">
+        <label class="block text-xs font-semibold text-gray-600 mb-1">Basic Salary <span class="text-red-500">*</span></label>
+        <input type="number" step="0.01" min="0" x-model="empRegForm.basicSalary" required placeholder="e.g. 25000"
+            class="w-full text-sm px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none">
+        <p class="text-[11px] text-gray-400 mt-1">Auto-filled from Job Offer when available. For existing employees, enter manually.</p>
     </div>
 
     <div>
-        <label class="block text-xs font-semibold text-gray-600 mb-1">Employment Type from Job Offer</label>
-        <input type="text" x-model="empRegForm.employmentType" readonly
-            class="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg bg-gray-100 text-gray-700 outline-none">
+        <label class="block text-xs font-semibold text-gray-600 mb-1">Payroll Type <span class="text-red-500">*</span></label>
+        <select x-model="empRegForm.payrollType" required
+            class="w-full text-sm px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none bg-white">
+            <option value="">Select payroll type</option>
+            <option value="Monthly Paid">Monthly Paid</option>
+            <option value="Daily Paid">Daily Paid</option>
+        </select>
+        <p class="text-[11px] text-gray-400 mt-1">Auto-filled from Job Offer when available. For existing employees, select manually.</p>
     </div>
 
     <div class="col-span-2">
@@ -1247,8 +1254,8 @@ function onboardingPage() {
             department: '',
             position: '',
             personalEmail: '',
-            salary: '',
-            employmentType: '',
+            basicSalary: '',
+            payrollType: '',
             startDate: '',
             workEmail: '',
             manager: '',
@@ -1866,6 +1873,8 @@ openEmpRegModal() {
         department: '',
         position: '',
         personalEmail: '',
+        basicSalary: '',
+        payrollType: '',
         startDate: '',
         workEmail: '',
         manager: '',
@@ -1883,6 +1892,8 @@ onEmpRegChecklistChange() {
         this.empRegForm.fullName = '';
         this.empRegForm.position = '';
         this.empRegForm.personalEmail = '';
+        this.empRegForm.basicSalary = '';
+        this.empRegForm.payrollType = '';
         return;
     }
 
@@ -1890,11 +1901,23 @@ onEmpRegChecklistChange() {
     this.empRegForm.position = selected.position || '';
     this.empRegForm.personalEmail = selected.employeeEmail || '';
     this.empRegForm.workEmail = '';
-    this.empRegForm.department = selected.jobOfferDepartment || selected.position || this.empRegForm.department;
+    this.empRegForm.department = selected.jobOfferDepartment || this.empRegForm.department || '';
+    this.empRegForm.startDate = selected.startDate || '';
+    this.empRegForm.basicSalary = this.extractSalaryAmount(selected.jobOfferSalary || '');
+    this.empRegForm.payrollType = this.inferPayrollType(selected.jobOfferEmploymentType || '');
+},
 
-            this.empRegForm.startDate = selected.startDate || '';
-            this.empRegForm.salary = selected.jobOfferSalary || '';
-            this.empRegForm.employmentType = selected.jobOfferEmploymentType || '';},
+extractSalaryAmount(value) {
+    if (value === null || value === undefined || value === '') return '';
+    const match = String(value).replace(/,/g, '').match(/\d+(?:\.\d+)?/);
+    return match ? match[0] : '';
+},
+
+inferPayrollType(value) {
+    const text = String(value || '').toLowerCase();
+    if (!text) return '';
+    return text.includes('daily') ? 'Daily Paid' : 'Monthly Paid';
+},
 
         async submitEmpReg() {
             if (!this.empRegForm.checklistId) {
@@ -1902,8 +1925,23 @@ onEmpRegChecklistChange() {
                 return;
             }
 
+            if (!this.empRegForm.position) {
+                alert('Please enter the employee position.');
+                return;
+            }
+
             if (!this.empRegForm.workEmail) {
                 alert('Please enter the official work email for this new employee.');
+                return;
+            }
+
+            if (!this.empRegForm.payrollType) {
+                alert('Please select the payroll type.');
+                return;
+            }
+
+            if (this.empRegForm.basicSalary === '' || Number(this.empRegForm.basicSalary) < 0) {
+                alert('Please enter a valid basic salary.');
                 return;
             }
 
