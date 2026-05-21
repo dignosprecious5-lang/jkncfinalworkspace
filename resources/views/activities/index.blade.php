@@ -18,11 +18,7 @@
     }
 </style>
 <div class="flex w-full" x-data="activitiesData()">
-    <datalist id="activityContactOptions">
-        <template x-for="contact in contacts" :key="contact.id">
-            <option :value="contact.label"></option>
-        </template>
-    </datalist>
+
 
     <!-- Left Sidebar -->
     <aside class="w-52 shrink-0 bg-white border-r border-gray-200 min-h-[calc(100vh-4rem)] flex flex-col pt-4">
@@ -181,13 +177,13 @@
                             Title <i class="fas fa-sort text-blue-400 text-[10px] ml-1 opacity-0 group-hover:opacity-100 transition-opacity"></i>
                         </th>
                         <th class="py-3 px-4 text-xs font-bold text-gray-700 uppercase tracking-wider group cursor-pointer">
-                            Start Date <i class="fas fa-sort text-blue-400 text-[10px] ml-1 opacity-0 group-hover:opacity-100 transition-opacity"></i>
+                            From <i class="fas fa-sort text-blue-400 text-[10px] ml-1 opacity-0 group-hover:opacity-100 transition-opacity"></i>
                         </th>
                         <th class="py-3 px-4 text-xs font-bold text-gray-700 uppercase tracking-wider group cursor-pointer">
-                            End Date <i class="fas fa-sort text-blue-400 text-[10px] ml-1 opacity-0 group-hover:opacity-100 transition-opacity"></i>
+                            To <i class="fas fa-sort text-blue-400 text-[10px] ml-1 opacity-0 group-hover:opacity-100 transition-opacity"></i>
                         </th>
                         <th class="py-3 px-4 text-xs font-bold text-gray-700 uppercase tracking-wider group cursor-pointer">
-                            Related Contact <i class="fas fa-sort text-blue-400 text-[10px] ml-1 opacity-0 group-hover:opacity-100 transition-opacity"></i>
+                            Related to <i class="fas fa-sort text-blue-400 text-[10px] ml-1 opacity-0 group-hover:opacity-100 transition-opacity"></i>
                         </th>
                         <th class="py-3 px-4 text-xs font-bold text-gray-700 uppercase tracking-wider">Host</th>
                         <th class="py-3 px-4 text-xs font-bold text-gray-700 uppercase tracking-wider text-right">Actions</th>
@@ -210,7 +206,7 @@
                             <td class="py-3 px-4 text-sm text-gray-600" x-text="task.due_date"></td>
                             <td class="py-3 px-4 text-sm text-gray-600" x-text="task.status"></td>
                             <td class="py-3 px-4 text-sm text-gray-600" x-text="task.priority"></td>
-                            <td class="py-3 px-4 text-sm text-gray-600" x-text="relatedText(task.related_to)"></td>
+                            <td class="py-3 px-4 text-sm text-gray-600" x-text="task.related_to"></td>
                             <td class="py-3 px-4">
                                 <template x-if="task.owner">
                                     <div class="inline-flex items-center gap-1.5 px-2.5 py-1 bg-[#D1F1DE] text-[#0A5632] rounded-full text-xs font-medium border border-[#BCE8CD]">
@@ -257,7 +253,7 @@
                             </td>
                             <td class="py-3 px-4 text-sm text-gray-600" x-text="event.from"></td>
                             <td class="py-3 px-4 text-sm text-gray-600" x-text="event.to"></td>
-                            <td class="py-3 px-4 text-sm text-gray-600" x-text="relatedText(event.related_to)"></td>
+                            <td class="py-3 px-4 text-sm text-gray-600" x-text="event.related_to"></td>
                             <td class="py-3 px-4">
                                 <template x-if="event.host">
                                     <div class="inline-flex items-center gap-1.5 px-2 py-0.5 bg-[#D1F1DE] text-[#0A5632] rounded text-xs font-medium border border-[#BCE8CD]">
@@ -292,10 +288,10 @@
                              <input type="checkbox" class="rounded text-blue-600 focus:ring-blue-500 border-gray-300 transition-colors">
                         </th>
                         <th class="py-3 px-4 text-xs font-bold text-gray-700 uppercase tracking-wider group cursor-pointer">
-                            Client / Contact
+                            To
                         </th>
                         <th class="py-3 px-4 text-xs font-bold text-gray-700 uppercase tracking-wider group cursor-pointer">
-                            Handled By
+                            From
                         </th>
                         <th class="py-3 px-4 text-xs font-bold text-gray-700 uppercase tracking-wider group cursor-pointer">
                             Call Type
@@ -307,7 +303,7 @@
                             Call Duration
                         </th>
                         <th class="py-3 px-4 text-xs font-bold text-gray-700 uppercase tracking-wider group cursor-pointer">
-                            Related Contact
+                            Related to
                         </th>
                         <th class="py-3 px-4 text-xs font-bold text-gray-700 uppercase tracking-wider group cursor-pointer">
                             Purpose
@@ -340,7 +336,7 @@
                                 <div class="text-xs text-gray-400" x-text="call.start_hour"></div>
                             </td>
                             <td class="py-3 px-4 text-sm text-gray-600" x-text="call.duration"></td>
-                            <td class="py-3 px-4 text-sm text-gray-600" x-text="relatedText(call.related_to)"></td>
+                            <td class="py-3 px-4 text-sm text-gray-600" x-text="call.related_to"></td>
                             <td class="py-3 px-4 text-sm text-gray-600" x-text="call.purpose"></td>
 
                             <td class="py-3 px-4 text-right">
@@ -413,11 +409,11 @@
                         </label>
                         <label class="flex items-center gap-2.5 cursor-pointer group">
                             <input type="checkbox" x-model="meetingFilters.transcription" class="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 transition">
-                            <span class="text-sm text-gray-600 group-hover:text-gray-900 transition">Uploaded Transcript</span>
+                            <span class="text-sm text-gray-600 group-hover:text-gray-900 transition">Transcription</span>
                         </label>
                         <label class="flex items-center gap-2.5 cursor-pointer group">
                             <input type="checkbox" x-model="meetingFilters.minutes" class="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 transition">
-                            <span class="text-sm text-gray-600 group-hover:text-gray-900 transition">Uploaded Minutes</span>
+                            <span class="text-sm text-gray-600 group-hover:text-gray-900 transition">Minutes</span>
                         </label>
                     </div>
                 </div>
@@ -464,25 +460,25 @@
                                         Scheduled
                                     </span>
                                 </template>
-                                <template x-if="meeting.video_url || meeting.video_path">
+                                <template x-if="meeting.has_video">
                                     <span class="inline-flex items-center gap-1.5 px-3 py-1 bg-green-50 text-green-700 rounded-full text-xs font-medium border border-green-200">
                                         <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>
                                         Video Recording
                                     </span>
                                 </template>
-                                <template x-if="meeting.audio_url || meeting.audio_path">
+                                <template x-if="meeting.has_audio">
                                     <span class="inline-flex items-center gap-1.5 px-3 py-1 bg-green-50 text-green-700 rounded-full text-xs font-medium border border-green-200">
                                         <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>
                                         Audio Recording
                                     </span>
                                 </template>
-                                <template x-if="meetingHasDocument(meeting, 'transcript')">
+                                <template x-if="meeting.has_transcript">
                                     <span class="inline-flex items-center gap-1.5 px-3 py-1 bg-gray-50 text-gray-600 rounded-full text-xs font-medium border border-gray-200">
                                         <i class="fas fa-file-alt text-gray-400 text-[10px]"></i>
                                         Transcript
                                     </span>
                                 </template>
-                                <template x-if="meetingHasDocument(meeting, 'minutes')">
+                                <template x-if="meeting.has_minutes">
                                     <span class="inline-flex items-center gap-1.5 px-3 py-1 bg-gray-50 text-gray-600 rounded-full text-xs font-medium border border-gray-200">
                                         <i class="far fa-file text-gray-400 text-[10px]"></i>
                                         Minutes
@@ -629,9 +625,9 @@
                     <input type="date" x-model="newTask.dueDate" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-800 outline-none focus:border-[#1d54e2] focus:ring-1 focus:ring-[#1d54e2] transition" />
                 </div>
 
-                <!-- Related Contact (Tagging UI) -->
+                <!-- Related To (Tagging UI) -->
                 <div>
-                    <label class="block text-xs font-semibold text-gray-600 mb-1">Related Contact</label>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Related To</label>
                     <div class="relative">
                         <div class="flex flex-wrap gap-1.5 p-2 bg-white border border-gray-300 rounded-md focus-within:border-[#1d54e2] focus-within:ring-1 focus-within:ring-[#1d54e2] transition min-h-[40px]">
                             <template x-for="tag in newTask.relatedTo" :key="tag">
@@ -643,9 +639,8 @@
                             <input 
                                 type="text" 
                                 x-model="tagSearch" 
-                                list="activityContactOptions"
                                 @keydown.enter.prevent="tagSearch && addTag('tasks', tagSearch)"
-                                placeholder="Search/select related contact, then press Enter" 
+                                placeholder="Search Contacts/Companies..." 
                                 class="flex-1 min-w-[150px] border-none p-0 text-sm text-gray-800 outline-none focus:ring-0 bg-transparent"
                             />
                         </div>
@@ -779,9 +774,8 @@
                             <input 
                                 type="text" 
                                 x-model="tagSearch" 
-                                list="activityContactOptions"
                                 @keydown.enter.prevent="tagSearch && addTag('meetings', tagSearch)"
-                                placeholder="Search/select attendee/contact, then press Enter" 
+                                placeholder="Add attendee and press Enter" 
                                 class="flex-1 min-w-[150px] border-none p-0 text-sm text-gray-800 outline-none focus:ring-0 bg-transparent"
                             />
                         </div>
@@ -806,13 +800,13 @@
                             <input type="checkbox" x-model="newMeeting.hasAudio" class="w-4 h-4 rounded border-gray-300 text-[#1d54e2] focus:ring-[#1d54e2]">
                             Record Audio
                         </label>
-                        <label class="flex items-center gap-2 cursor-pointer text-sm text-gray-600"><input type="checkbox" x-model="newMeeting.hasTranscript" class="w-4 h-4 rounded border-gray-300 text-[#1d54e2] focus:ring-[#1d54e2]"> Transcript will be uploaded manually</label>
-                        <label class="flex items-center gap-2 cursor-pointer text-sm text-gray-600"><input type="checkbox" x-model="newMeeting.hasMinutes" class="w-4 h-4 rounded border-gray-300 text-[#1d54e2] focus:ring-[#1d54e2]"> Minutes will be uploaded manually</label>
+                        <label class="flex items-center gap-2 cursor-pointer text-sm text-gray-600"><input type="checkbox" x-model="newMeeting.hasTranscript" class="w-4 h-4 rounded border-gray-300 text-[#1d54e2] focus:ring-[#1d54e2]"> Generate transcript automatically</label>
+                        <label class="flex items-center gap-2 cursor-pointer text-sm text-gray-600"><input type="checkbox" x-model="newMeeting.hasMinutes" class="w-4 h-4 rounded border-gray-300 text-[#1d54e2] focus:ring-[#1d54e2]"> Generate meeting minutes automatically</label>
                     </div>
                     <!-- Scheduling info note -->
                     <div class="mt-3 flex items-start gap-2 p-2.5 bg-blue-50 border border-blue-100 rounded-lg">
                         <i class="far fa-clock text-blue-400 mt-0.5 text-xs shrink-0"></i>
-                        <p class="text-xs text-blue-600">Video/audio/transcript/minutes are uploaded manually. Automatic transcription and email reminders are not enabled yet.</p>
+                        <p class="text-xs text-blue-600">Recording will start automatically at the scheduled date &amp; time and will continue until the page is closed or the meeting is deleted.</p>
                     </div>
                 </div>
             </div>
@@ -899,7 +893,12 @@
                         </div>
                     </div>
 
-                    {{-- Reminder details hidden for now because scheduled email notifications are not implemented yet. --}}
+                    <div class="flex group">
+                        <div class="w-32 text-sm text-gray-500">Reminder</div>
+                        <div class="flex-1 text-sm text-gray-900 group-hover:bg-gray-50 rounded px-1 -mx-1 transition">
+                            <span>-</span>
+                        </div>
+                    </div>
 
                     <div class="flex group">
                         <div class="w-32 text-sm text-gray-500">Description</div>
@@ -909,9 +908,9 @@
                     </div>
 
                     <div class="flex group">
-                        <div class="w-32 text-sm text-gray-500">Related Contact</div>
+                        <div class="w-32 text-sm text-gray-500">Related To</div>
                         <div class="flex-1 text-sm text-gray-900 group-hover:bg-gray-50 rounded px-1 -mx-1 transition">
-                            <span x-text="relatedText(selectedTaskDetails?.related_to)"></span>
+                            <span x-text="selectedTaskDetails?.related_to || '-'"></span>
                         </div>
                     </div>
 
@@ -1150,7 +1149,7 @@
                     <h4 class="font-bold text-gray-900 text-sm mt-6 mb-3">Download Options</h4>
                     <div class="space-y-3">
                         <!-- Video -->
-                        <div class="flex items-center" x-show="selectedMeetingDetails?.video_url || selectedMeetingDetails?.video_path">
+                        <div class="flex items-center" x-show="selectedMeetingDetails?.has_video">
                             <div class="w-24 text-sm text-gray-500">Video</div>
                             <div class="flex items-center gap-2">
                                 <button @click="downloadFile('video', 'mp4')" 
@@ -1167,7 +1166,7 @@
                         </div>
                         
                         <!-- Audio -->
-                        <div class="flex items-center" x-show="selectedMeetingDetails?.audio_url || selectedMeetingDetails?.audio_path">
+                        <div class="flex items-center" x-show="selectedMeetingDetails?.has_audio">
                             <div class="w-24 text-sm text-gray-500">Audio</div>
                             <div class="flex items-center gap-2">
                                 <button @click="downloadFile('audio', 'mp3')" 
@@ -1180,7 +1179,7 @@
                         </div>
 
                         <!-- Transcript -->
-                        <div class="flex items-center" x-show="meetingHasDocument(selectedMeetingDetails, 'transcript')">
+                        <div class="flex items-center" x-show="selectedMeetingDetails?.has_transcript">
                             <div class="w-24 text-sm text-gray-500">Transcript</div>
                             <div class="relative">
                                 <button @click="activeDownloadMenu = activeDownloadMenu === 'transcript' ? null : 'transcript'" 
@@ -1206,7 +1205,7 @@
                         </div>
 
                         <!-- Minutes -->
-                        <div class="flex items-center" x-show="meetingHasDocument(selectedMeetingDetails, 'minutes')">
+                        <div class="flex items-center" x-show="selectedMeetingDetails?.has_minutes">
                             <div class="w-24 text-sm text-gray-500">Minutes</div>
                             <div class="relative">
                                 <button @click="activeDownloadMenu = activeDownloadMenu === 'minutes' ? null : 'minutes'" 
@@ -1247,7 +1246,7 @@
                         </div>
 
                         <!-- Open Recording Button -->
-                        <div class="pt-1" x-show="selectedMeetingDetails?.video_url || selectedMeetingDetails?.video_path">
+                        <div class="pt-1" x-show="selectedMeetingDetails?.has_video">
                             <button @click="showVideoPlayer = true" 
                                     class="w-full inline-flex items-center justify-center gap-2 px-4 py-2 bg-[#1d54e2] text-white rounded-xl text-sm font-bold hover:bg-[#1541b0] transition-all shadow-md group">
                                 <i class="fas fa-play-circle text-xs group-hover:scale-110 transition-transform"></i>
@@ -1256,30 +1255,13 @@
                         </div>
 
 
-                        <!-- Manual Transcript / Minutes Upload -->
-                        <div class="pt-4 border-t border-gray-100" x-show="selectedMeetingDetails?.status === 'completed'">
-                            <div class="grid grid-cols-1 gap-2">
-                                <button
-                                    type="button"
-                                    @click="document.getElementById('transcriptUploadInput').click()"
-                                    class="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-50 border border-gray-200 text-gray-700 rounded-xl text-sm font-bold hover:bg-white hover:border-[#1d54e2] hover:text-[#1d54e2] transition-all shadow-sm"
-                                    :class="isUploadingTranscript ? 'opacity-50 cursor-wait pointer-events-none' : ''"
-                                >
-                                    <i class="fas" :class="isUploadingTranscript ? 'fa-spinner fa-spin' : 'fa-file-upload'"></i>
-                                    <span x-text="isUploadingTranscript ? 'Uploading Transcript...' : 'Upload Transcript'"></span>
-                                </button>
-
-                                <button
-                                    type="button"
-                                    @click="document.getElementById('minutesUploadInput').click()"
-                                    class="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-50 border border-gray-200 text-gray-700 rounded-xl text-sm font-bold hover:bg-white hover:border-[#1d54e2] hover:text-[#1d54e2] transition-all shadow-sm"
-                                    :class="isUploadingMinutes ? 'opacity-50 cursor-wait pointer-events-none' : ''"
-                                >
-                                    <i class="fas" :class="isUploadingMinutes ? 'fa-spinner fa-spin' : 'fa-file-alt'"></i>
-                                    <span x-text="isUploadingMinutes ? 'Uploading Minutes...' : 'Upload Minutes'"></span>
-                                </button>
-                            </div>
-                            <p class="text-[10px] text-gray-400 text-center mt-2 italic">AI transcript is not enabled yet. Upload transcript/minutes file manually.</p>
+                        <!-- AI Generation Button -->
+                        <div class="pt-4 border-t border-gray-100" x-show="selectedMeetingDetails?.status === 'completed' && (!selectedMeetingDetails?.has_transcript || !selectedMeetingDetails?.has_minutes)">
+                            <button @click="generateMeetingAI(selectedMeetingDetails.id)" class="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-700 text-white rounded-xl text-sm font-bold hover:from-blue-700 hover:to-indigo-800 transition-all shadow-md group">
+                                <i class="fas fa-robot animate-pulse group-hover:scale-110 transition-transform"></i>
+                                Generate AI Transcript & Minutes
+                            </button>
+                            <p class="text-[10px] text-gray-400 text-center mt-2 italic">Powered by CRM-AI Engine</p>
                         </div>
                         </div>
                     </div>
@@ -1291,18 +1273,6 @@
                            class="hidden" 
                            accept="video/*" 
                            @change="uploadVideo($event, selectedMeetingDetails.id)">
-
-                    <input type="file"
-                           id="transcriptUploadInput"
-                           class="hidden"
-                           accept=".pdf,.doc,.docx,.txt"
-                           @change="uploadTranscriptFile($event, selectedMeetingDetails.id)">
-
-                    <input type="file"
-                           id="minutesUploadInput"
-                           class="hidden"
-                           accept=".pdf,.doc,.docx,.txt"
-                           @change="uploadMinutesFile($event, selectedMeetingDetails.id)">
 
 
                 <!-- Notes Tab -->
@@ -1511,39 +1481,23 @@
             <!-- Body -->
             <div class="px-5 py-4 space-y-4 overflow-y-auto custom-scrollbar flex-1">
                     
-                    <!-- Client / Contact -->
+                    <!-- To -->
                 <div>
-                    <label class="block text-xs font-semibold text-gray-600 mb-1">Client / Contact <span class="text-red-500">*</span></label>
-                    <input type="text" x-model="newCall.to" placeholder="Select or type the client/contact name" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-800 outline-none focus:border-[#1d54e2] focus:ring-1 focus:ring-[#1d54e2] transition" />
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">To <span class="text-red-500">*</span></label>
+                    <input type="text" x-model="newCall.to" placeholder="Recipient (e.g. contact name)" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-800 outline-none focus:border-[#1d54e2] focus:ring-1 focus:ring-[#1d54e2] transition" />
                 </div>
 
-                <!-- Handled By -->
+                <!-- From -->
                 <div>
-                    <label class="block text-xs font-semibold text-gray-600 mb-1">Handled By</label>
-                    <select
-                        x-model="newCall.from"
-                        class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-800 outline-none focus:border-[#1d54e2] focus:ring-1 focus:ring-[#1d54e2] transition bg-white"
-                    >
-                        <option value="">Select user</option>
-                        <template x-for="user in systemUsers" :key="user">
-                            <option :value="user" x-text="user"></option>
-                        </template>
-                        <option value="__manual__">Manual entry</option>
-                    </select>
-
-                    <div x-show="newCall.from === '__manual__'" class="mt-2" style="display: none;">
-                        <input
-                            type="text"
-                            x-model="newCall.manualFrom"
-                            placeholder="Type handler name or email"
-                            class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-800 outline-none focus:border-[#1d54e2] focus:ring-1 focus:ring-[#1d54e2] transition"
-                        />
-                    </div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">From</label>
+                    <input type="text" x-model="newCall.from" placeholder="Caller (e.g. your name)" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-800 outline-none focus:border-[#1d54e2] focus:ring-1 focus:ring-[#1d54e2] transition" />
                 </div>
 
-                <!-- Related Contact (Tagging UI) -->
+
+
+                <!-- Related To (Tagging UI) -->
                 <div>
-                    <label class="block text-xs font-semibold text-gray-600 mb-1">Related Contact</label>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Related To</label>
                     <div class="relative">
                         <div class="flex flex-wrap gap-1.5 p-2 bg-white border border-gray-300 rounded-md focus-within:border-[#1d54e2] focus-within:ring-1 focus-within:ring-[#1d54e2] transition min-h-[40px]">
                             <template x-for="tag in newCall.relatedTo" :key="tag">
@@ -1555,11 +1509,8 @@
                             <input 
                                 type="text" 
                                 x-model="tagSearch" 
-                                list="activityContactOptions"
                                 @keydown.enter.prevent="tagSearch && addTag('calls', tagSearch)"
-                                @change="tagSearch && addTag('calls', tagSearch)"
-                                @blur="tagSearch && addTag('calls', tagSearch)"
-                                placeholder="Search/select related contact" 
+                                placeholder="Search Contacts/Companies..." 
                                 class="flex-1 min-w-[150px] border-none p-0 text-sm text-gray-800 outline-none focus:ring-0 bg-transparent"
                             />
                         </div>
@@ -1596,29 +1547,9 @@
                     </div>
                 </div>
 
-                <!-- Call Duration -->
-                <div>
-                    <label class="block text-xs font-semibold text-gray-600 mb-1">Call Duration</label>
-                    <select
-                        x-model="newCall.duration"
-                        class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-800 outline-none focus:border-[#1d54e2] focus:ring-1 focus:ring-[#1d54e2] transition bg-white"
-                    >
-                        <option value="">Not set / Scheduled call</option>
-                        <option value="5 mins">5 mins</option>
-                        <option value="10 mins">10 mins</option>
-                        <option value="15 mins">15 mins</option>
-                        <option value="30 mins">30 mins</option>
-                        <option value="45 mins">45 mins</option>
-                        <option value="1 hr">1 hr</option>
-                        <option value="1 hr 30 mins">1 hr 30 mins</option>
-                        <option value="2 hrs">2 hrs</option>
-                    </select>
-                    <p class="text-[11px] text-gray-400 mt-1">Leave blank if this is only a scheduled call.</p>
-                </div>
-
                 <!-- Call Purpose -->
                 <div class="relative" x-data="{ purposeOpen: false, selectedPurpose: '-None-' }">
-                    <label class="block text-xs font-semibold text-gray-600 mb-1">Purpose</label>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Call Purpose</label>
                     <button @click="purposeOpen = !purposeOpen" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-800 flex items-center justify-between bg-white hover:border-[#1d54e2] transition outline-none">
                         <span x-text="selectedPurpose"></span>
                         <i class="fas fa-chevron-down text-[10px] text-gray-400 transition-transform" :class="purposeOpen ? 'rotate-180' : ''"></i>
@@ -1639,11 +1570,16 @@
 
                 <!-- Call Agenda -->
                 <div>
-                    <label class="block text-xs font-semibold text-gray-600 mb-1">Agenda / Notes</label>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Call Agenda</label>
                     <input type="text" x-model="newCall.agenda" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-800 outline-none focus:border-[#1d54e2] focus:ring-1 focus:ring-[#1d54e2] transition" />
                 </div>
 
-                {{-- Reminder hidden for now: no scheduled email notification logic yet. --}}
+                <!-- Reminder -->
+                <div>
+                    <label class="flex items-center gap-2 cursor-pointer text-sm text-gray-600">
+                        <input type="checkbox" class="w-4 h-4 rounded border-gray-300 text-[#1d54e2] focus:ring-[#1d54e2]"> Reminder
+                    </label>
+                </div>
             </div>
 
             <!-- Footer -->
@@ -1703,18 +1639,18 @@
                     </div>
                 </div>
 
-                <!-- Event Start Date -->
+                <!-- Date & Time From -->
                 <div>
-                    <label class="block text-xs font-semibold text-gray-600 mb-1">Start Date / Time</label>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">From</label>
                     <div class="flex gap-2">
                         <input type="date" x-model="newEvent.from" class="flex-1 border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-800 outline-none focus:border-[#1d54e2] focus:ring-1 focus:ring-[#1d54e2] transition" />
                         <input type="time" class="w-32 border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-800 outline-none focus:border-[#1d54e2] focus:ring-1 focus:ring-[#1d54e2] transition" />
                     </div>
                 </div>
 
-                <!-- Event End Date -->
+                <!-- Date & Time To -->
                 <div>
-                    <label class="block text-xs font-semibold text-gray-600 mb-1">End Date / Time</label>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">To</label>
                     <div class="flex gap-2">
                         <input type="date" x-model="newEvent.to" class="flex-1 border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-800 outline-none focus:border-[#1d54e2] focus:ring-1 focus:ring-[#1d54e2] transition" />
                         <input type="time" class="w-32 border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-800 outline-none focus:border-[#1d54e2] focus:ring-1 focus:ring-[#1d54e2] transition" />
@@ -1727,9 +1663,9 @@
                     <input type="text" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-800 outline-none focus:border-[#1d54e2] focus:ring-1 focus:ring-[#1d54e2] transition" />
                 </div>
 
-                <!-- Related Contact (Tagging UI) -->
+                <!-- Related To (Tagging UI) -->
                 <div>
-                    <label class="block text-xs font-semibold text-gray-600 mb-1">Related Contact</label>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Related To</label>
                     <div class="relative">
                         <div class="flex flex-wrap gap-1.5 p-2 bg-white border border-gray-300 rounded-md focus-within:border-[#1d54e2] focus-within:ring-1 focus-within:ring-[#1d54e2] transition min-h-[40px]">
                             <template x-for="tag in newEvent.relatedTo" :key="tag">
@@ -1741,9 +1677,8 @@
                             <input 
                                 type="text" 
                                 x-model="tagSearch" 
-                                list="activityContactOptions"
                                 @keydown.enter.prevent="tagSearch && addTag('events', tagSearch)"
-                                placeholder="Search/select related contact, then press Enter" 
+                                placeholder="Search Contacts/Companies..." 
                                 class="flex-1 min-w-[150px] border-none p-0 text-sm text-gray-800 outline-none focus:ring-0 bg-transparent"
                             />
                         </div>
@@ -1764,7 +1699,8 @@
 
                 <!-- Checkboxes -->
                 <div class="flex flex-col gap-2">
-                    {{-- Repeat and Reminder are hidden for now because scheduled email notifications are not implemented yet. --}}
+                    <label class="flex items-center gap-2 cursor-pointer text-sm text-gray-600"><input type="checkbox" class="w-4 h-4 rounded border-gray-300 text-[#1d54e2] focus:ring-[#1d54e2]"> Repeat</label>
+                    <label class="flex items-center gap-2 cursor-pointer text-sm text-gray-600"><input type="checkbox" class="w-4 h-4 rounded border-gray-300 text-[#1d54e2] focus:ring-[#1d54e2]"> Reminder</label>
                     <label class="flex items-center gap-2 cursor-pointer text-sm text-gray-600"><input type="checkbox" class="w-4 h-4 rounded border-gray-300 text-[#1d54e2] focus:ring-[#1d54e2]"> Online Meeting</label>
                 </div>
             </div>
@@ -1852,14 +1788,13 @@ document.addEventListener('alpine:init', () => {
         selectedTasks: [],
         tasks: [],
         systemUsers: [],
-        contacts: [],
         newTask: { name: '', dueDate: '', relatedTo: [], description: '', priority: false, completed: false, owner: '' },
         
         events: [],
         newEvent: { title: '', from: '', to: '', relatedTo: [], host: '' },
 
         calls: [],
-        newCall: { contact: '', to: '', from: '', manualFrom: '', type: 'Outbound', startTime: '', startHour: '', duration: '', relatedTo: [], owner: '', agenda: '', purpose: '', status: '' },
+        newCall: { contact: '', to: '', from: '', type: 'Outbound', startTime: '', startHour: '', duration: '', relatedTo: [], owner: '', agenda: '', purpose: '', status: '' },
         tagSearch: '',
 
         meetings: [],
@@ -1890,7 +1825,6 @@ document.addEventListener('alpine:init', () => {
         activeDownloadMenu: null,
         isUploading: false,
         isUploadingMinutes: false,
-        isUploadingTranscript: false,
         isUploadingAudio: false,
         isCallAudioPlaying: false,
         callAudioCurrentTime: 0,
@@ -2214,7 +2148,8 @@ document.addEventListener('alpine:init', () => {
                     if (this.selectedMeetingDetails && this.selectedMeetingDetails.id === meetingId) {
                         this.selectedMeetingDetails = updatedMeeting;
                     }
-                    // AI transcription is not enabled yet. Transcript/minutes are uploaded manually.
+                    // Automatically trigger AI transcription and analysis
+                    await this.generateMeetingAI(meetingId);
                 }
             } catch (error) {
                 console.error('Error uploading video:', error);
@@ -2395,7 +2330,7 @@ document.addEventListener('alpine:init', () => {
             this.$watch('perPage', () => this.currentPage = 1);
 
             // Initial fetch (scheduleRecording is called inside fetchActivities)
-            this.fetchActivities().then(() => this.applyContactPrefillFromShortcut());
+            this.fetchActivities();
 
             // Refresh every 60 s — re-schedule any newly added meetings
             setInterval(() => {
@@ -2411,14 +2346,13 @@ document.addEventListener('alpine:init', () => {
                 this.events = data.events;
                 this.calls = data.calls;
                 this.meetings = data.meetings;
-                this.contacts = data.contacts || [];
                 if (data.users) {
                     this.systemUsers = data.users;
                     const defaultUser = this.systemUsers[0] || '';
                     if (!this.newTask.owner) this.newTask.owner = defaultUser;
                     if (!this.newEvent.host) this.newEvent.host = defaultUser;
                     if (!this.newCall.owner) this.newCall.owner = defaultUser;
-                    // For new calls, default to Outbound with logged/staff user as Handled By
+                    // For new calls, default to Outbound with user as 'From'
                     if (this.newCall && !this.newCall.id && !this.newCall.from && !this.newCall.to) {
                         this.newCall.from = defaultUser;
                         this.newCall.type = 'Outbound';
@@ -2440,140 +2374,7 @@ document.addEventListener('alpine:init', () => {
             }
         },
 
-        finalizePendingTag(type) {
-            const pending = (this.tagSearch || '').trim();
-            if (!pending) return;
-
-            if (type === 'tasks') {
-                if (!this.newTask.relatedTo.includes(pending)) this.newTask.relatedTo.push(pending);
-            } else if (type === 'events') {
-                if (!this.newEvent.relatedTo.includes(pending)) this.newEvent.relatedTo.push(pending);
-            } else if (type === 'calls') {
-                if (!this.newCall.relatedTo.includes(pending)) this.newCall.relatedTo.push(pending);
-                this.syncCallClientFromRelatedContact(pending);
-            } else if (type === 'meetings') {
-                if (!this.newMeeting.attendees.includes(pending)) this.newMeeting.attendees.push(pending);
-            }
-
-            this.tagSearch = '';
-        },
-
-        relatedText(value) {
-            return value && String(value).trim() ? value : '-';
-        },
-
-        contactNameFromLabel(value) {
-            const label = String(value || '').trim();
-            if (!label) return '';
-
-            // Example label: "ken Dimpas - AWERAWREAWR"
-            // Client / Contact should only show the person/client name part.
-            return label.split(' - ')[0].trim() || label;
-        },
-
-        syncCallClientFromRelatedContact(tag) {
-            const clientName = this.contactNameFromLabel(tag);
-            if (clientName) {
-                this.newCall.to = clientName;
-            }
-        },
-
-        applyContactPrefillFromShortcut() {
-            let payload = null;
-
-            try {
-                payload = JSON.parse(localStorage.getItem('activity_contact_prefill') || 'null');
-            } catch (error) {
-                payload = null;
-            }
-
-            if (!payload) return;
-
-            localStorage.removeItem('activity_contact_prefill');
-
-            const urlParams = new URLSearchParams(window.location.search);
-            const requestedType = urlParams.get('open') || payload.type || 'task';
-            const relatedContact = payload.related_contact || payload.contact_name || '';
-            const contactName = payload.contact_name || this.contactNameFromLabel(relatedContact);
-            const defaultUser = this.systemUsers[0] || '';
-            const today = new Date().toISOString().slice(0, 10);
-
-            if (requestedType === 'call') {
-                this.activeTab = 'call';
-                this.newCall = {
-                    id: null,
-                    contact: contactName,
-                    to: contactName,
-                    from: defaultUser,
-                    manualFrom: '',
-                    type: 'Outbound',
-                    startTime: today,
-                    startHour: '',
-                    duration: '',
-                    relatedTo: relatedContact ? [relatedContact] : [],
-                    owner: defaultUser,
-                    agenda: '',
-                    purpose: '',
-                    completed: false
-                };
-                this.showCallModal = true;
-                return;
-            }
-
-            if (requestedType === 'meetings') {
-                this.activeTab = 'meetings';
-                this.newMeeting = {
-                    id: null,
-                    title: contactName ? `Meeting with ${contactName}` : '',
-                    owner: defaultUser,
-                    date: today,
-                    time: '',
-                    duration: '',
-                    durationHour: '0',
-                    durationMin: '30',
-                    location: '',
-                    attendees: relatedContact ? [relatedContact] : [],
-                    description: '',
-                    hasVideo: false,
-                    hasAudio: false,
-                    hasTranscript: false,
-                    hasMinutes: false,
-                    status: 'upcoming'
-                };
-                this.showMeetingModal = true;
-                return;
-            }
-
-            if (requestedType === 'events') {
-                this.activeTab = 'events';
-                this.newEvent = {
-                    id: null,
-                    title: contactName ? `Event for ${contactName}` : '',
-                    from: today,
-                    to: today,
-                    relatedTo: relatedContact ? [relatedContact] : [],
-                    host: defaultUser
-                };
-                this.showEventModal = true;
-                return;
-            }
-
-            this.activeTab = 'task';
-            this.newTask = {
-                id: null,
-                name: contactName ? `Follow up with ${contactName}` : '',
-                dueDate: today,
-                relatedTo: relatedContact ? [relatedContact] : [],
-                description: '',
-                priority: false,
-                completed: false,
-                owner: defaultUser
-            };
-            this.showTaskModal = true;
-        },
-
         async saveTask() {
-            this.finalizePendingTag('tasks');
             if (!this.newTask.name) return;
             try {
                 const isEdit = !!this.newTask.id;
@@ -2611,7 +2412,6 @@ document.addEventListener('alpine:init', () => {
         },
 
         async saveEvent() {
-            this.finalizePendingTag('events');
             if (!this.newEvent.title) return;
             try {
                 const isEdit = !!this.newEvent.id;
@@ -2647,17 +2447,10 @@ document.addEventListener('alpine:init', () => {
         },
 
         async saveCall() {
-            this.finalizePendingTag('calls');
-
-            const handledBy = this.newCall.from === '__manual__'
-                ? (this.newCall.manualFrom || '').trim()
-                : (this.newCall.from || '').trim();
-
-            if (!this.newCall.to && !handledBy && !this.newCall.contact) return;
-
-            // Build combined contact from client/contact and handler fields
+            if (!this.newCall.to && !this.newCall.from && !this.newCall.contact) return;
+            // Build combined contact from to/from fields
             const toVal = this.newCall.to || '';
-            const fromVal = handledBy;
+            const fromVal = this.newCall.from || '';
             const combinedContact = toVal && fromVal ? toVal + ' / ' + fromVal : (toVal || fromVal || this.newCall.contact);
             try {
                 const isEdit = !!this.newCall.id;
@@ -2673,13 +2466,13 @@ document.addEventListener('alpine:init', () => {
                     body: JSON.stringify({
                         contact: combinedContact,
                         to: this.newCall.to,
-                        from: handledBy,
+                        from: this.newCall.from,
                         type: this.newCall.type,
                         start_time: this.newCall.startTime,
                         start_hour: this.newCall.startHour,
                         duration: this.newCall.duration,
                         related_to: Array.isArray(this.newCall.relatedTo) ? this.newCall.relatedTo.join(', ') : this.newCall.relatedTo,
-                        owner: handledBy,
+                        owner: this.newCall.owner,
                         purpose: this.newCall.purpose,
                         agenda: this.newCall.agenda,
                         completed: this.newCall.completed || false
@@ -2694,7 +2487,7 @@ document.addEventListener('alpine:init', () => {
                 }
                 this.showCallModal = false;
                 const defaultUser = (this.systemUsers[0] || '');
-                this.newCall = { id: null, contact: '', to: '', from: defaultUser, manualFrom: '', type: 'Outbound', startTime: '', startHour: '', duration: '', relatedTo: [], owner: defaultUser, agenda: '', purpose: '', completed: false };
+                this.newCall = { id: null, contact: '', to: '', from: defaultUser, type: 'Outbound', startTime: '', startHour: '', duration: '', relatedTo: [], owner: defaultUser, agenda: '', purpose: '', completed: false };
                 this.tagSearch = '';
             } catch (error) {
                 console.error('Error saving call:', error);
@@ -2702,7 +2495,6 @@ document.addEventListener('alpine:init', () => {
         },
 
         async saveMeeting() {
-            this.finalizePendingTag('meetings');
             if (!this.newMeeting.title) return;
             try {
                 // Determine DB-friendly duration string
@@ -2799,14 +2591,11 @@ document.addEventListener('alpine:init', () => {
             } else {
                 toVal = call.contact || '';
             }
-            const userExists = this.systemUsers.includes(fromVal);
-
             this.newCall = { 
                 id: call.id,
                 contact: call.contact,
                 to: toVal,
-                from: userExists || !fromVal ? fromVal : '__manual__',
-                manualFrom: userExists ? '' : fromVal,
+                from: fromVal,
                 type: call.type,
                 startTime: call.start_time,
                 startHour: call.start_hour,
@@ -2823,12 +2612,13 @@ document.addEventListener('alpine:init', () => {
         handleCallDirection(type) {
             this.newCall.type = type;
             const currentUser = this.systemUsers[0] || '';
-
-            // Keep the selected/typed client intact. Only default the handler.
-            if (!this.newCall.from) {
+            if (type === 'Inbound') {
+                this.newCall.to = currentUser;
+                this.newCall.from = '';
+            } else {
                 this.newCall.from = currentUser;
+                this.newCall.to = '';
             }
-            this.newCall.manualFrom = this.newCall.from === '__manual__' ? this.newCall.manualFrom : '';
         },
 
         addTag(type, tag) {
@@ -2841,11 +2631,6 @@ document.addEventListener('alpine:init', () => {
             if (tag && !list.includes(tag)) {
                 list.push(tag);
             }
-
-            if (type === 'calls') {
-                this.syncCallClientFromRelatedContact(tag);
-            }
-
             this.tagSearch = '';
         },
 
@@ -3015,12 +2800,12 @@ document.addEventListener('alpine:init', () => {
                 dataToExport = this.tasks;
                 filename = 'tasks_export.csv';
                 if (this.exportFieldSelection === 'view') {
-                    csvContent += 'Task Name,Due Date,Status,Priority,Related Contact,Owner\n';
+                    csvContent += 'Task Name,Due Date,Status,Priority,Related To,Owner\n';
                     dataToExport.forEach(item => {
                         csvContent += [item.name, item.due_date, item.status, item.priority, item.related_to, item.owner].map(v => q + (v || '') + q).join(',') + '\n';
                     });
                 } else {
-                    csvContent += 'Task Name,Due Date,Status,Priority,Related Contact,Owner,Description\n';
+                    csvContent += 'Task Name,Due Date,Status,Priority,Related To,Owner,Description\n';
                     dataToExport.forEach(item => {
                         csvContent += [item.name, item.due_date, item.status, item.priority, item.related_to, item.owner, item.description].map(v => q + (v || '') + q).join(',') + '\n';
                     });
@@ -3029,12 +2814,12 @@ document.addEventListener('alpine:init', () => {
                 dataToExport = this.events;
                 filename = 'events_export.csv';
                 if (this.exportFieldSelection === 'view') {
-                    csvContent += 'Title,Start Date,End Date,Related Contact,Host\n';
+                    csvContent += 'Title,From,To,Related To,Host\n';
                     dataToExport.forEach(item => {
                         csvContent += [item.title, item.from, item.to, item.related_to, item.host].map(v => q + (v || '') + q).join(',') + '\n';
                     });
                 } else {
-                     csvContent += 'Title,Start Date,End Date,Related Contact,Host\n';
+                     csvContent += 'Title,From,To,Related To,Host\n';
                      dataToExport.forEach(item => {
                         csvContent += [item.title, item.from, item.to, item.related_to, item.host].map(v => q + (v || '') + q).join(',') + '\n';
                     });
@@ -3043,12 +2828,12 @@ document.addEventListener('alpine:init', () => {
                 dataToExport = this.calls;
                 filename = 'calls_export.csv';
                 if (this.exportFieldSelection === 'view') {
-                    csvContent += 'Contact,Type,Start Date,Start Time,Duration,Related Contact,Owner\n';
+                    csvContent += 'Contact,Type,Start Time,Start Hour,Duration,Related To,Owner\n';
                     dataToExport.forEach(item => {
                         csvContent += [item.contact, item.type, item.start_time, item.start_hour, item.duration, item.related_to, item.owner].map(v => q + (v || '') + q).join(',') + '\n';
                     });
                 } else {
-                     csvContent += 'Contact,Type,Start Date,Start Time,Duration,Related Contact,Owner,Purpose,Agenda,Completed\n';
+                     csvContent += 'Contact,Type,Start Time,Start Hour,Duration,Related To,Owner,Purpose,Agenda,Completed\n';
                      dataToExport.forEach(item => {
                         const completedStr = item.completed ? 'Yes' : 'No';
                         csvContent += [item.contact, item.type, item.start_time, item.start_hour, item.duration, item.related_to, item.owner, item.purpose, item.agenda, completedStr].map(v => q + (v || '') + q).join(',') + '\n';
@@ -3132,91 +2917,23 @@ document.addEventListener('alpine:init', () => {
         },
 
         async generateMeetingAI(meetingId) {
-            alert('Automatic AI transcript is not enabled yet. Please upload transcript or meeting minutes manually.');
-        },
-
-        async uploadTranscriptFile(event, meetingId) {
-            const file = event.target.files[0];
-            if (!file || !meetingId) return;
-
-            this.isUploadingTranscript = true;
             try {
-                const formData = new FormData();
-                formData.append('transcript', file);
-
-                const response = await fetch(`/api/meetings/${meetingId}/upload-transcript`, {
+                const response = await fetch(`/api/meetings/${meetingId}/analyze`, {
                     method: 'POST',
                     headers: {
                         'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').getAttribute('content')
-                    },
-                    body: formData
+                    }
                 });
-
-                if (!response.ok) {
-                    const errData = await response.json().catch(() => ({}));
-                    throw new Error(errData.message || errData.error || 'Server returned ' + response.status);
-                }
-
                 const updatedMeeting = await response.json();
-                this.refreshMeetingRecord(updatedMeeting);
-                alert('Transcript uploaded successfully.');
-            } catch (error) {
-                console.error('Error uploading transcript:', error);
-                alert('Transcript upload failed: ' + error.message);
-            } finally {
-                this.isUploadingTranscript = false;
-                event.target.value = '';
-            }
-        },
-
-        async uploadMinutesFile(event, meetingId) {
-            const file = event.target.files[0];
-            if (!file || !meetingId) return;
-
-            this.isUploadingMinutes = true;
-            try {
-                const formData = new FormData();
-                formData.append('minutes', file);
-
-                const response = await fetch(`/api/meetings/${meetingId}/upload-minutes`, {
-                    method: 'POST',
-                    headers: {
-                        'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').getAttribute('content')
-                    },
-                    body: formData
-                });
-
-                if (!response.ok) {
-                    const errData = await response.json().catch(() => ({}));
-                    throw new Error(errData.message || errData.error || 'Server returned ' + response.status);
-                }
-
-                const updatedMeeting = await response.json();
-                this.refreshMeetingRecord(updatedMeeting);
-                alert('Meeting minutes uploaded successfully.');
-            } catch (error) {
-                console.error('Error uploading minutes:', error);
-                alert('Minutes upload failed: ' + error.message);
-            } finally {
-                this.isUploadingMinutes = false;
-                event.target.value = '';
-            }
-        },
-
-        meetingHasDocument(meeting, type) {
-            if (!meeting || !Array.isArray(meeting.notes)) return false;
-            const keyword = String(type || '').toLowerCase();
-            return meeting.notes.some(note => String(note.content || '').toLowerCase().includes(keyword));
-        },
-
-        refreshMeetingRecord(updatedMeeting) {
-            const index = this.meetings.findIndex(m => m.id === updatedMeeting.id);
-            if (index !== -1) {
-                this.meetings[index] = updatedMeeting;
-            }
-
-            if (this.selectedMeetingDetails && this.selectedMeetingDetails.id === updatedMeeting.id) {
+                
+                // Update the meeting in the list
+                const idx = this.meetings.findIndex(m => m.id === meetingId);
+                if (idx !== -1) this.meetings[idx] = updatedMeeting;
+                
+                // Update the selected details view
                 this.selectedMeetingDetails = updatedMeeting;
+            } catch (error) {
+                console.error('Error generating AI content:', error);
             }
         },
 
@@ -3239,11 +2956,7 @@ document.addEventListener('alpine:init', () => {
                 return;
             }
 
-            const content = this.selectedMeetingDetails?.notes?.find(n => String(n.content || '').toLowerCase().includes(type.toLowerCase()))?.content;
-            if (!content) {
-                alert('No ' + type + ' file/content uploaded yet. Please upload it first.');
-                return;
-            }
+            const content = this.selectedMeetingDetails?.notes?.find(n => n.content.toLowerCase().includes(type.toLowerCase()))?.content || 'No content found.';
             const filename = `${type}_${this.selectedMeetingDetails?.title?.replace(/\s+/g, '_') || 'doc'}.${format === 'pdf' ? 'pdf' : 'docx'}`;
 
             if (format === 'pdf') {

@@ -1802,84 +1802,12 @@
             @endif
 
             @if ($tab === 'activities')
-                @php
-                    $activityContactName = trim($contact->first_name.' '.$contact->last_name) ?: ($contact->company_name ?: 'Contact');
-                    $activityContactLabel = trim(collect([$activityContactName, $contact->company_name])->filter()->implode(' - '));
-                    $activityContactEmail = $contact->email ?: '';
-                    $activityContactPayload = [
-                        'name' => $activityContactName,
-                        'label' => $activityContactLabel,
-                        'email' => $activityContactEmail,
-                        'company' => $contact->company_name ?: '',
-                        'phone' => $contact->phone ?: '',
-                    ];
-                @endphp
-
                 <div class="mb-4 grid grid-cols-1 gap-3 md:grid-cols-4">
-                    <button
-                        type="button"
-                        onclick="openContactActivityShortcut('call')"
-                        class="h-10 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50"
-                    >
-                        <i class="fas fa-phone mr-1"></i>Log Call
-                    </button>
-
-                    <button
-                        type="button"
-                        onclick="openContactActivityShortcut('meetings')"
-                        class="h-10 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50"
-                    >
-                        <i class="fas fa-video mr-1"></i>Schedule Meeting
-                    </button>
-
-                    <button
-                        type="button"
-                        onclick="openContactEmailShortcut()"
-                        class="h-10 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50"
-                    >
-                        <i class="fas fa-envelope mr-1"></i>Send Email
-                    </button>
-
-                    <button
-                        type="button"
-                        onclick="openContactActivityShortcut('task')"
-                        class="h-10 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50"
-                    >
-                        <i class="fas fa-square-check mr-1"></i>Add Task
-                    </button>
+                    <button class="h-10 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50"><i class="fas fa-phone mr-1"></i>Log Call</button>
+                    <button class="h-10 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50"><i class="fas fa-video mr-1"></i>Schedule Meeting</button>
+                    <button class="h-10 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50"><i class="fas fa-envelope mr-1"></i>Send Email</button>
+                    <button class="h-10 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50"><i class="fas fa-square-check mr-1"></i>Add Task</button>
                 </div>
-
-                <script>
-                    window.contactActivityPayload = @json($activityContactPayload);
-
-                    function openContactActivityShortcut(type) {
-                        const payload = window.contactActivityPayload || {};
-
-                        localStorage.setItem('activity_contact_prefill', JSON.stringify({
-                            type: type,
-                            contact_name: payload.name || '',
-                            related_contact: payload.label || payload.name || '',
-                            email: payload.email || '',
-                            company: payload.company || '',
-                            phone: payload.phone || ''
-                        }));
-
-                        window.location.href = "{{ url('/activities') }}?open=" + encodeURIComponent(type);
-                    }
-
-                    function openContactEmailShortcut() {
-                        const payload = window.contactActivityPayload || {};
-                        const email = payload.email || '';
-
-                        if (!email) {
-                            alert('This contact has no email address.');
-                            return;
-                        }
-
-                        window.location.href = 'mailto:' + encodeURIComponent(email);
-                    }
-                </script>
-
                 <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
                     <h2 class="mb-4 text-2xl font-semibold text-gray-900">Activity Timeline</h2>
                     <div class="space-y-3">
