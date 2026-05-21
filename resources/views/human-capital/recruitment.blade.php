@@ -182,6 +182,7 @@
                         <th class="px-4 py-3 text-left font-semibold">Position</th>
                         <th class="px-4 py-3 text-left font-semibold">Email</th>
                         <th class="px-4 py-3 text-left font-semibold">Phone</th>
+                        <th class="px-4 py-3 text-left font-semibold">Type</th>
                         <th class="px-4 py-3 text-left font-semibold">Status</th>
                         <th class="px-4 py-3 text-left font-semibold">Applied</th>
                         <th class="px-4 py-3 text-left font-semibold">Actions</th>
@@ -189,7 +190,7 @@
                 </thead>
                 <tbody>
                     <template x-if="filteredRows.length === 0">
-                        <tr><td colspan="6" class="px-4 py-16 text-center text-gray-400"><div class="flex flex-col items-center gap-2"><svg class="w-10 h-10 text-gray-300" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5.586a1 1 0 0 1 .707.293l5.414 5.414a1 1 0 0 1 .293.707V19a2 2 0 0 1-2 2z"/></svg><span class="text-sm" x-text="'No ' + activeTab + ' records found.'"></span></div></td></tr>
+                        <tr><td colspan="7" class="px-4 py-16 text-center text-gray-400"><div class="flex flex-col items-center gap-2"><svg class="w-10 h-10 text-gray-300" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5.586a1 1 0 0 1 .707.293l5.414 5.414a1 1 0 0 1 .293.707V19a2 2 0 0 1-2 2z"/></svg><span class="text-sm" x-text="'No ' + activeTab + ' records found.'"></span></div></td></tr>
                     </template>
                     <template x-for="(row, i) in paginatedRows" :key="i">
                         <tr class="border-t border-gray-100 hover:bg-gray-50 transition">
@@ -197,6 +198,13 @@
                             <td class="px-4 py-3 text-gray-600" x-text="row.position"></td>
                             <td class="px-4 py-3 text-gray-600" x-text="row.email"></td>
                             <td class="px-4 py-3 text-gray-600" x-text="row.phone"></td>
+                            <td class="px-4 py-3">
+                                <span
+                                    x-text="row.applicant_type || 'New Applicant'"
+                                    :class="String(row.applicant_type || '').toLowerCase().includes('existing') ? 'bg-indigo-50 text-indigo-700' : 'bg-gray-100 text-gray-700'"
+                                    class="px-2 py-0.5 rounded-full text-xs font-semibold"
+                                ></span>
+                            </td>
                             <td class="px-4 py-3"><span x-text="row.status" :class="statusClass(row.status)" class="px-2 py-0.5 rounded-full text-xs font-medium"></span></td>
                             <td class="px-4 py-3 text-gray-500" x-text="row.applied_date || row.applied"></td>
                             <td class="px-4 py-3">
@@ -2264,18 +2272,32 @@
                                     <input type="text" x-model="cafForm.fullName" required placeholder="Enter full name"
                                         class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 text-gray-700 text-sm transition-all shadow-sm">
                                 </div>
+
+                                <div>
+                                    <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Applicant Type</label>
+                                    <div class="grid grid-cols-2 gap-2">
+                                        <template x-for="type in ['New Applicant', 'Existing Employee / Internal Personnel']" :key="type">
+                                            <label class="flex items-center gap-2 text-xs text-gray-700 cursor-pointer bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 hover:bg-blue-50 hover:border-blue-300 transition"
+                                                :class="cafForm.applicantType === type ? 'bg-blue-50 border-blue-400 text-blue-700 font-semibold' : ''">
+                                                <input type="radio" x-model="cafForm.applicantType" :value="type" class="accent-blue-600">
+                                                <span x-text="type"></span>
+                                            </label>
+                                        </template>
+                                    </div>
+                                    <p class="text-[11px] text-gray-500 mt-1">Use Existing Employee / Internal Personnel when the person is already connected with the company but must still pass through MRF, JPF, CAF, Assessment, Interview, Job Offer, PDS, Checklist, and Employee Registration.</p>
+                                </div>
                                 <div>
                                     <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Applied Job / JPF</label>
                                     <select x-model="cafForm.jobPostingId" @change="onCafJpfChange()" required
                                         class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 text-gray-700 text-sm transition-all bg-white cursor-pointer shadow-sm">
-                                        <option value="">Select Posted JPF</option>
+                                        <option value="">Select Posted/Open JPF</option>
                                         <template x-for="jpf in postedJPFs" :key="jpf.id || jpf.job_id">
                                             <option :value="jpf.id" x-text="`${jpf.job_id || 'JPF'} - ${jpf.position || 'No position'} (${jpf.department_unit || jpf.departmentUnit || 'No department'})`"></option>
                                         </template>
                                     </select>
                                     <p class="text-[11px] mt-1"
                                        :class="postedJPFs.length ? 'text-gray-500' : 'text-red-500'"
-                                       x-text="postedJPFs.length ? 'Only Posted JPF records are available for applicants.' : 'No Posted JPF available. Post a JPF first.'"></p>
+                                       x-text="postedJPFs.length ? 'Only Posted/Open JPF records are available for applicants.' : 'No Posted/Open JPF available. Post or open a JPF first.'"></p>
 
                                     <input type="hidden" x-model="cafForm.positionApplied">
 
@@ -2300,6 +2322,12 @@
                                 <input type="text" x-model="cafForm.phone" required placeholder="+63 9xx xxx xxxx"
                                     class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 text-gray-700 text-sm transition-all shadow-sm">
                             </div>
+                        </div>
+
+                        <div x-show="cafForm.applicantType === 'Existing Employee / Internal Personnel'" x-transition>
+                            <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Internal Remarks / Current Role</label>
+                            <textarea x-model="cafForm.internalRemarks" rows="2" placeholder="Example: Existing president/treasurer/personnel for record completion, internal onboarding, or account creation requirement."
+                                class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 text-gray-700 text-sm transition-all shadow-sm resize-none"></textarea>
                         </div>
 
                         <div class="grid grid-cols-2 gap-4">
@@ -2382,6 +2410,7 @@
                                 <div class="flex-1">
                                     <h1 class="text-4xl font-black text-gray-900 tracking-tighter uppercase mb-2" x-text="cafForm.fullName || 'Candidate Name'"></h1>
                                     <p class="text-xl text-blue-600 font-bold uppercase tracking-widest" x-text="cafForm.positionApplied || 'Position Title'"></p>
+                                    <p class="mt-2 inline-flex px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-[10px] font-black uppercase tracking-widest" x-text="cafForm.applicantType || 'New Applicant'"></p>
                                     <div class="mt-4 text-xs font-bold text-gray-500 space-y-1">
                                         <p x-text="cafForm.email || 'email@example.com'"></p>
                                         <p x-text="cafForm.phone || '+63 9xx xxx xxxx'"></p>
@@ -2541,6 +2570,7 @@
                                 <div class="text-center">
                                     <h2 class="text-3xl font-black text-gray-900 tracking-tight capitalize" x-text="viewCafData.name"></h2>
                                     <p class="text-teal-600 font-bold tracking-[0.2em] uppercase text-[11px] mt-1" x-text="viewCafData.position"></p>
+                                    <span class="inline-flex mt-3 px-3 py-1 rounded-full bg-indigo-50 text-indigo-700 text-[10px] font-black uppercase tracking-widest" x-text="viewCafData.applicant_type || 'New Applicant'"></span>
                                 </div>
 
                                 <div class="grid grid-cols-1 gap-5">
@@ -3627,6 +3657,8 @@ refreshJobOffers() {
 
         cafForm: {
             jobPostingId: '',
+            applicantType: 'New Applicant',
+            internalRemarks: '',
             fullName: '', positionApplied: '', email: '', phone: '', 
             photo: null, cv: null, coverLetterFile: null, coverLetter: ''
         },
@@ -4758,6 +4790,8 @@ onJpfPayrollLevelChange() {
             this.editingId = row.id;
             this.cafForm = {
                 jobPostingId: row.job_posting_id || '',
+                applicantType: row.applicant_type || 'New Applicant',
+                internalRemarks: row.internal_remarks || '',
                 fullName: row.name,
                 positionApplied: row.position,
                 email: row.email,
@@ -4829,12 +4863,14 @@ onJpfPayrollLevelChange() {
                 this.showJpfModal = true;
             } else if (this.activeTab === 'CAF') {
                 if (this.postedJPFs.length === 0) {
-                    alert('No Posted JPF available. Please post a JPF first before adding applicants.');
+                    alert('No Posted/Open JPF available. Please post or open a JPF first before adding applicants.');
                     return;
                 }
 
                 this.cafForm = {
                     jobPostingId: '',
+                    applicantType: 'New Applicant',
+                    internalRemarks: '',
                     fullName: '', positionApplied: '', email: '', phone: '', 
                     photo: null, photo_path: null, cv: null, coverLetterFile: null, coverLetter: ''
                 };
@@ -4947,6 +4983,8 @@ onJpfPayrollLevelChange() {
         submitCAF() {
             let formData = new FormData();
             formData.append('jobPostingId', this.cafForm.jobPostingId);
+            formData.append('applicantType', this.cafForm.applicantType || 'New Applicant');
+            formData.append('internalRemarks', this.cafForm.internalRemarks || '');
             formData.append('fullName', this.cafForm.fullName);
             formData.append('positionApplied', this.cafForm.positionApplied);
             formData.append('email', this.cafForm.email);
@@ -5227,7 +5265,7 @@ onJpfPayrollLevelChange() {
         get postedJPFs() {
             return this.data['JPF'].filter(jpf => {
                 const status = String(jpf.status || '').toLowerCase();
-                return status === 'posted';
+                return ['posted', 'open'].includes(status);
             });
         },
 
@@ -5245,8 +5283,8 @@ onJpfPayrollLevelChange() {
 
             const status = String(jpf.status || '').toLowerCase();
 
-            if (status !== 'posted') {
-                alert('Only Posted JPF records can be selected for applicant/CAF.');
+            if (!['posted', 'open'].includes(status)) {
+                alert('Only Posted/Open JPF records can be selected for applicant/CAF.');
                 this.cafForm.jobPostingId = '';
                 this.cafForm.positionApplied = '';
                 return;

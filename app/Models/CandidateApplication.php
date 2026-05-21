@@ -19,6 +19,8 @@ class CandidateApplication extends Model
         'cv_path',
         'cover_letter_path',
         'cover_letter',
+        'applicant_type',
+        'internal_remarks',
         'status',
         'applied_date',
     ];
@@ -30,5 +32,11 @@ class CandidateApplication extends Model
     public function jobPosting()
     {
         return $this->belongsTo(JobPosting::class, 'job_posting_id');
+    }
+
+    public function getIsInternalAttribute(): bool
+    {
+        return str_contains(strtolower((string) $this->applicant_type), 'existing')
+            || str_contains(strtolower((string) $this->applicant_type), 'internal');
     }
 }

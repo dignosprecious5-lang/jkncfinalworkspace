@@ -642,15 +642,36 @@ public function storePDS(Request $request)
             $coverLetterPath = $request->file('cover_letter_file')->store('cover_letters', 'public');
         }
 
+        $jobPosting = JobPosting::find($request->jobPostingId);
+
+        if (!$jobPosting) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Please select a valid JPF before creating a candidate record.'
+            ], 422);
+        }
+
+        if (!in_array(strtolower((string) $jobPosting->status), ['posted', 'open'], true)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Only Posted/Open JPF records can be used for candidate records.'
+            ], 422);
+        }
+
+        $applicantType = $request->applicantType ?: 'New Applicant';
+
         $caf = CandidateApplication::create([
+            'job_posting_id' => $jobPosting->id,
             'name' => $request->fullName,
-            'position' => $request->positionApplied,
+            'position' => $request->positionApplied ?: $jobPosting->position,
             'email' => $request->email,
             'phone' => $request->phone,
             'photo_path' => $photoPath,
             'cv_path' => $cvPath,
             'cover_letter_path' => $coverLetterPath,
             'cover_letter' => $request->coverLetter,
+            'applicant_type' => $applicantType,
+            'internal_remarks' => $request->internalRemarks,
             'status' => 'Pending',
             'applied_date' => date('Y-m-d')
         ]);
@@ -661,12 +682,31 @@ public function storePDS(Request $request)
     public function updateCAF(Request $request, $id)
     {
         $caf = CandidateApplication::findOrFail($id);
+        $jobPosting = JobPosting::find($request->jobPostingId);
+
+        if (!$jobPosting) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Please select a valid JPF before updating this candidate record.'
+            ], 422);
+        }
+
+        if (!in_array(strtolower((string) $jobPosting->status), ['posted', 'open'], true)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Only Posted/Open JPF records can be used for candidate records.'
+            ], 422);
+        }
+
         $data = [
+            'job_posting_id' => $jobPosting->id,
             'name' => $request->fullName,
-            'position' => $request->positionApplied,
+            'position' => $request->positionApplied ?: $jobPosting->position,
             'email' => $request->email,
             'phone' => $request->phone,
             'cover_letter' => $request->coverLetter,
+            'applicant_type' => $request->applicantType ?: ($caf->applicant_type ?: 'New Applicant'),
+            'internal_remarks' => $request->internalRemarks,
             'status' => $request->status ?: $caf->status,
         ];
 
@@ -692,9 +732,10 @@ public function storePDS(Request $request)
         $caf->update(['status' => 'Assessment']);
 
         // Check if assessment already exists to avoid duplicates
-        $assessment = CandidateAssessment::where('name', $caf->name)
+        $assessment = CandidateAssessment::where('email', $caf->email)
             ->where('position', $caf->position)
-            ->where('status', 'Pending Assessment')
+            ->whereIn('status', ['Pending Assessment', 'In Progress', 'Passed'])
+            ->latest()
             ->first();
 
         if (!$assessment) {
@@ -707,7 +748,7 @@ public function storePDS(Request $request)
                 'cover_letter_path' => $caf->cover_letter_path,
                 'test_type' => 'Technical Test', // Default
                 'assessment_date' => date('Y-m-d'),
-                'notes' => 'Automatically created from CAF',
+                'notes' => trim('Automatically created from CAF. Applicant Type: ' . ($caf->applicant_type ?: 'New Applicant') . '. ' . ($caf->internal_remarks ?: '')),
                 'status' => 'Pending Assessment'
             ]);
         }
