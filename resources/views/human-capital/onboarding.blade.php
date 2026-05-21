@@ -152,7 +152,10 @@
                             <td class="px-4 py-3 text-gray-600" x-text="row.phone"></td>
                             <td class="px-4 py-3"><span class="px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">Submitted</span></td>
                             <td class="px-4 py-3 text-gray-500" x-text="row.submittedDate"></td>
-                            <td class="px-4 py-3">
+                            <td class="px-4 py-3 whitespace-nowrap">
+    <button @click="viewPds(row)" class="text-xs text-blue-600 hover:underline mr-3">
+        View
+    </button>
     <button @click="deletePds(row.db_id)" class="text-xs text-red-500 hover:underline">
         Delete
     </button>
@@ -861,6 +864,108 @@
     </div>
 </div>
 
+
+    {{-- ===================== PDS VIEW SLIDE-OVER ===================== --}}
+    <div
+        x-show="showPdsViewModal"
+        x-transition.opacity
+        class="fixed inset-0 z-50 flex justify-end bg-black/50 backdrop-blur-sm"
+        style="display:none;"
+        @click.self="showPdsViewModal = false"
+    >
+        <div
+            x-show="showPdsViewModal"
+            x-transition:enter="transform transition ease-out duration-300"
+            x-transition:enter-start="translate-x-full"
+            x-transition:enter-end="translate-x-0"
+            x-transition:leave="transform transition ease-in duration-200"
+            x-transition:leave-start="translate-x-0"
+            x-transition:leave-end="translate-x-full"
+            class="bg-white shadow-2xl w-full max-w-5xl h-full flex flex-col overflow-hidden"
+        >
+            <div class="flex items-center justify-between px-6 py-4 bg-blue-700 shrink-0">
+                <div>
+                    <p class="text-[11px] font-black text-blue-100 uppercase tracking-widest">Submitted Personal Data Sheet</p>
+                    <h2 class="text-base font-bold text-white" x-text="viewPdsData?.fullName || 'PDS Details'"></h2>
+                </div>
+                <button @click="showPdsViewModal = false" class="text-blue-100 hover:text-white transition">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+
+            <template x-if="viewPdsData">
+                <div class="flex-1 overflow-y-auto p-6 bg-gray-50 space-y-5">
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div class="bg-white border border-gray-200 rounded-xl p-4">
+                            <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Name</p>
+                            <p class="text-sm font-bold text-gray-900 mt-1" x-text="viewPdsData.fullName || '—'"></p>
+                        </div>
+                        <div class="bg-white border border-gray-200 rounded-xl p-4">
+                            <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Position</p>
+                            <p class="text-sm font-bold text-gray-900 mt-1" x-text="viewPdsData.position || '—'"></p>
+                        </div>
+                        <div class="bg-white border border-gray-200 rounded-xl p-4">
+                            <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Email</p>
+                            <p class="text-sm font-bold text-gray-900 mt-1 break-all" x-text="viewPdsData.email || '—'"></p>
+                        </div>
+                        <div class="bg-white border border-gray-200 rounded-xl p-4">
+                            <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Date Submitted</p>
+                            <p class="text-sm font-bold text-gray-900 mt-1" x-text="viewPdsData.submittedDate || '—'"></p>
+                        </div>
+                    </div>
+
+                    <div class="bg-white border border-gray-200 rounded-xl overflow-hidden">
+                        <div class="px-5 py-4 border-b bg-white flex items-center justify-between">
+                            <div>
+                                <h3 class="text-sm font-bold text-gray-900">PDS Submitted Details</h3>
+                                <p class="text-xs text-gray-500 mt-1">All information filled up by the applicant or existing employee.</p>
+                            </div>
+                            <span class="px-2 py-1 rounded-full text-xs font-bold bg-green-100 text-green-700" x-text="viewPdsData.status || 'Submitted'"></span>
+                        </div>
+
+                        <div class="divide-y divide-gray-100">
+                            <template x-for="section in pdsDetailSections(viewPdsData)" :key="section.title">
+                                <div class="p-5">
+                                    <h4 class="text-[11px] font-black text-blue-700 uppercase tracking-widest mb-3" x-text="section.title"></h4>
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                        <template x-for="field in section.fields" :key="section.title + '-' + field.label">
+                                            <div class="rounded-lg border border-gray-100 bg-gray-50 px-4 py-3">
+                                                <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest" x-text="field.label"></p>
+                                                <p class="text-sm font-semibold text-gray-800 mt-1 whitespace-pre-line break-words" x-text="field.value"></p>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                    <div class="bg-white border border-gray-200 rounded-xl overflow-hidden">
+                        <div class="px-5 py-4 border-b bg-white">
+                            <h3 class="text-sm font-bold text-gray-900">Raw Data Check</h3>
+                            <p class="text-xs text-gray-500 mt-1">This section is useful if some new PDS fields were added later.</p>
+                        </div>
+                        <div class="p-5 grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <template x-for="field in pdsAllRawFields(viewPdsData)" :key="field.key">
+                                <div class="rounded-lg border border-gray-100 bg-gray-50 px-4 py-3">
+                                    <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest" x-text="field.label"></p>
+                                    <p class="text-sm font-semibold text-gray-800 mt-1 whitespace-pre-line break-words" x-text="field.value"></p>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+            </template>
+
+            <div class="px-6 py-4 border-t bg-white flex justify-end gap-3">
+                <button type="button" @click="showPdsViewModal = false"
+                    class="px-4 py-2 text-sm border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+
 {{-- ===================== CHECKLIST REVIEW SLIDE-OVER ===================== --}}
 <div
     x-show="showChecklistViewModal"
@@ -1202,9 +1307,11 @@ function onboardingPage() {
         showPdsModal: false,
         showChecklistModal: false,
         showChecklistViewModal: false,
+        showPdsViewModal: false,
         showEmpRegModal: false,
         showTrainingModal: false,
         viewChecklistData: null,
+        viewPdsData: null,
 
         tabs: [
             { key: 'PDS', label: 'PDS' },
@@ -1358,6 +1465,7 @@ function onboardingPage() {
         closeAllModals() {
             this.showPdsModal = false;
             this.showChecklistModal = false;
+            this.showPdsViewModal = false;
             this.showEmpRegModal = false;
             this.showTrainingModal = false;
         },
@@ -1567,6 +1675,272 @@ function onboardingPage() {
                 console.error(error);
                 alert('PDS was not saved. Please check your route/controller.');
             });
+        },
+
+
+        viewPds(row) {
+            this.viewPdsData = JSON.parse(JSON.stringify(row || {}));
+            this.showPdsViewModal = true;
+        },
+
+        pdsDetailSections(row) {
+            const data = row?.data || {};
+
+            const makeFields = (items) => items.map(([label, keys]) => ({
+                label,
+                value: this.pdsValue(data, keys),
+            }));
+
+            const sections = [
+                {
+                    title: 'Personal Information',
+                    fields: makeFields([
+                        ['Full Name', ['fullName']],
+                        ['Surname', ['surname']],
+                        ['First Name', ['firstName']],
+                        ['Middle Name', ['middleName']],
+                        ['Name Extension', ['nameExt']],
+                        ['Date of Birth', ['dob']],
+                        ['Place of Birth', ['pob']],
+                        ['Citizenship', ['citizenship']],
+                        ['Sex', ['sex']],
+                        ['Civil Status', ['civilStatus']],
+                        ['Height', ['height']],
+                        ['Weight', ['weight']],
+                        ['Blood Type', ['bloodType']],
+                    ]),
+                },
+                {
+                    title: 'Contact and Government Numbers',
+                    fields: makeFields([
+                        ['Email Address', ['email']],
+                        ['Phone / Mobile No.', ['mobileNo', 'phone']],
+                        ['Telephone No.', ['telNo']],
+                        ['SSS Number', ['sss']],
+                        ['PhilHealth Number', ['philhealth']],
+                        ['Pag-IBIG ID Number', ['pagibig']],
+                        ['TIN Number', ['tin']],
+                    ]),
+                },
+                {
+                    title: 'Residential Address',
+                    fields: makeFields([
+                        ['House / Block / Lot No.', ['resHouse']],
+                        ['Street', ['resStreet']],
+                        ['Subdivision / Village', ['resSubdiv']],
+                        ['Barangay', ['resBrgy']],
+                        ['City / Municipality', ['resCity']],
+                        ['Province', ['resProv']],
+                        ['ZIP Code', ['resZip']],
+                    ]),
+                },
+                {
+                    title: 'Permanent Address',
+                    fields: makeFields([
+                        ['Same as Residential', ['permSameAsRes']],
+                        ['House / Block / Lot No.', ['permHouse']],
+                        ['Street', ['permStreet']],
+                        ['Subdivision / Village', ['permSubdiv']],
+                        ['Barangay', ['permBrgy']],
+                        ['City / Municipality', ['permCity']],
+                        ['Province', ['permProv']],
+                        ['ZIP Code', ['permZip']],
+                    ]),
+                },
+                {
+                    title: 'Family Background',
+                    fields: makeFields([
+                        ['Spouse Name', ['spouseFullName']],
+                        ['Spouse Occupation', ['spouseOccupation']],
+                        ['Spouse Employer', ['spouseEmployer']],
+                        ['Spouse Business Address', ['spouseBusinessAddress']],
+                        ['Spouse Tel. No.', ['spouseTelNo']],
+                        ['Father Name', ['fatherFullName']],
+                        ['Mother Maiden Name', ['motherFullName']],
+                        ['Children', ['children']],
+                    ]),
+                },
+                {
+                    title: 'Education and Trainings',
+                    fields: makeFields([
+                        ['Elementary', ['elementaryEducation']],
+                        ['Secondary', ['secondaryEducation']],
+                        ['College', ['collegeEducation']],
+                        ['Masteral', ['masteralEducation']],
+                        ['Doctoral', ['doctoralEducation']],
+                        ['Learning and Development', ['lnd']],
+                    ]),
+                },
+                {
+                    title: 'Consent and Signature',
+                    fields: makeFields([
+                        ['Consent', ['consent']],
+                        ['Signature File', ['signatureName']],
+                        ['Submitted Date', ['submittedDate']],
+                    ]),
+                },
+            ];
+
+            return sections.map(section => ({
+                ...section,
+                fields: section.fields.filter(field => field.value !== '—'),
+            })).filter(section => section.fields.length > 0);
+        },
+
+        pdsAllRawFields(row) {
+            const data = row?.data || {};
+            return Object.keys(data)
+                .sort()
+                .filter(key => !['signaturePreview'].includes(key))
+                .map(key => ({
+                    key,
+                    label: this.prettyPdsLabel(key),
+                    value: this.formatPdsValue(data[key]),
+                }))
+                .filter(field => field.value !== '—');
+        },
+
+        pdsValue(data, keys) {
+            for (const key of keys) {
+                const value = data?.[key];
+
+                if (key === 'spouseFullName') {
+                    const fullName = [data.spouseSurname, data.spouseFirstName, data.spouseMiddleName, data.spouseNameExt]
+                        .filter(Boolean)
+                        .join(' ');
+                    if (fullName.trim()) return fullName;
+                }
+
+                if (key === 'fatherFullName') {
+                    const fullName = [data.fatherSurname, data.fatherFirstName, data.fatherMiddleName, data.fatherNameExt]
+                        .filter(Boolean)
+                        .join(' ');
+                    if (fullName.trim()) return fullName;
+                }
+
+                if (key === 'motherFullName') {
+                    const fullName = [data.motherMaidenSurname, data.motherFirstName, data.motherMiddleName]
+                        .filter(Boolean)
+                        .join(' ');
+                    if (fullName.trim()) return fullName;
+                }
+
+                if (key === 'elementaryEducation') {
+                    const text = this.educationLine(data.educElemSchool, data.educElemDegree, data.educElemFrom, data.educElemTo);
+                    if (text !== '—') return text;
+                }
+
+                if (key === 'secondaryEducation') {
+                    const text = this.educationLine(data.educSecSchool, data.educSecDegree, data.educSecFrom, data.educSecTo);
+                    if (text !== '—') return text;
+                }
+
+                if (key === 'collegeEducation') {
+                    const text = this.educationLine(data.educCollSchool, data.educCollDegree, data.educCollFrom, data.educCollTo);
+                    if (text !== '—') return text;
+                }
+
+                if (key === 'masteralEducation') {
+                    const text = this.educationLine(data.educMastSchool, data.educMastDegree, data.educMastFrom, data.educMastTo);
+                    if (text !== '—') return text;
+                }
+
+                if (key === 'doctoralEducation') {
+                    const text = this.educationLine(data.educDoctSchool, data.educDoctDegree, data.educDoctFrom, data.educDoctTo);
+                    if (text !== '—') return text;
+                }
+
+                const formatted = this.formatPdsValue(value);
+                if (formatted !== '—') return formatted;
+            }
+
+            return '—';
+        },
+
+        educationLine(school, degree, from, to) {
+            const parts = [];
+            if (school) parts.push(String(school));
+            if (degree) parts.push(String(degree));
+            if (from || to) parts.push(`${from || ''} - ${to || ''}`.trim());
+            return parts.length ? parts.join(' | ') : '—';
+        },
+
+        formatPdsValue(value) {
+            if (value === null || value === undefined || value === '') {
+                return '—';
+            }
+
+            if (typeof value === 'boolean') {
+                return value ? 'Yes' : 'No';
+            }
+
+            if (Array.isArray(value)) {
+                const rows = value
+                    .map(item => {
+                        if (item === null || item === undefined || item === '') return '';
+                        if (typeof item === 'object') {
+                            return Object.values(item)
+                                .filter(v => v !== null && v !== undefined && v !== '')
+                                .join(' | ');
+                        }
+                        return String(item);
+                    })
+                    .filter(Boolean);
+
+                return rows.length ? rows.join('\n') : '—';
+            }
+
+            if (typeof value === 'object') {
+                const rows = Object.entries(value)
+                    .filter(([, v]) => v !== null && v !== undefined && v !== '')
+                    .map(([k, v]) => `${this.prettyPdsLabel(k)}: ${this.formatPdsValue(v)}`);
+
+                return rows.length ? rows.join('\n') : '—';
+            }
+
+            return String(value);
+        },
+
+        prettyPdsLabel(key) {
+            const labels = {
+                fullName: 'Full Name',
+                nameExt: 'Name Extension',
+                dob: 'Date of Birth',
+                pob: 'Place of Birth',
+                civilStatus: 'Civil Status',
+                bloodType: 'Blood Type',
+                mobileNo: 'Mobile No.',
+                telNo: 'Telephone No.',
+                resHouse: 'Residential House / Block / Lot No.',
+                resStreet: 'Residential Street',
+                resSubdiv: 'Residential Subdivision / Village',
+                resBrgy: 'Residential Barangay',
+                resCity: 'Residential City / Municipality',
+                resProv: 'Residential Province',
+                resZip: 'Residential ZIP Code',
+                permSameAsRes: 'Permanent Same as Residential',
+                permHouse: 'Permanent House / Block / Lot No.',
+                permStreet: 'Permanent Street',
+                permSubdiv: 'Permanent Subdivision / Village',
+                permBrgy: 'Permanent Barangay',
+                permCity: 'Permanent City / Municipality',
+                permProv: 'Permanent Province',
+                permZip: 'Permanent ZIP Code',
+                sss: 'SSS Number',
+                philhealth: 'PhilHealth Number',
+                pagibig: 'Pag-IBIG ID Number',
+                tin: 'TIN Number',
+                lnd: 'Learning and Development',
+            };
+
+            if (labels[key]) {
+                return labels[key];
+            }
+
+            return String(key)
+                .replace(/_/g, ' ')
+                .replace(/([a-z])([A-Z])/g, '$1 $2')
+                .replace(/\b\w/g, char => char.toUpperCase());
         },
 
         async deletePds(id) {

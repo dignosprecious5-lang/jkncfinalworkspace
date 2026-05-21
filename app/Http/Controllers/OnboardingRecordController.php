@@ -33,7 +33,8 @@ class OnboardingRecordController extends Controller
     public function records(): JsonResponse
     {
         return response()->json([
-            'pdsApplicants' => PersonalDataSheet::latest()
+            'pdsApplicants' => PersonalDataSheet::with('jobOffer')
+                ->latest()
                 ->get()
                 ->map(fn ($item) => $this->formatPdsApplicant($item)),
 
@@ -460,15 +461,40 @@ class OnboardingRecordController extends Controller
     {
         $data = is_array($item->data) ? $item->data : (json_decode($item->data, true) ?: []);
 
+        $jobOffer = $item->jobOffer;
+        $applicantType = $data['applicant_type']
+            ?? $data['applicantType']
+            ?? $data['type']
+            ?? null;
+
+        if (!$applicantType && $jobOffer) {
+            $applicantType = 'New Applicant / Recruitment';
+        }
+
         return [
             'id' => $item->id,
             'db_id' => $item->id,
+            'jobOfferId' => $item->job_offer_id,
             'fullName' => $item->full_name ?: ($data['fullName'] ?? ''),
-            'position' => $item->position ?: ($data['position'] ?? ''),
-            'email' => $item->email ?: ($data['email'] ?? ''),
-            'phone' => $item->phone ?: ($data['phone'] ?? ''),
+            'position' => $item->position ?: ($data['position'] ?? ($jobOffer?->position ?? '')),
+            'email' => $item->email ?: ($data['email'] ?? ($jobOffer?->candidate_email ?? '')),
+            'phone' => $item->phone ?: ($data['phone'] ?? ($data['mobileNo'] ?? '')),
             'status' => $item->status,
+            'applicantType' => $applicantType ?: 'Not specified',
             'submittedDate' => optional($item->created_at)->format('Y-m-d'),
+            'createdAt' => optional($item->created_at)->toDateTimeString(),
+            'updatedAt' => optional($item->updated_at)->toDateTimeString(),
+            'data' => $data,
+            'jobOffer' => $jobOffer ? [
+                'id' => $jobOffer->id,
+                'name' => $jobOffer->name,
+                'position' => $jobOffer->position,
+                'salary' => $jobOffer->salary,
+                'start_date' => optional($jobOffer->start_date)->format('Y-m-d'),
+                'employment_type' => $jobOffer->employment_type,
+                'department' => $jobOffer->department,
+                'status' => $jobOffer->status,
+            ] : null,
         ];
     }
 
