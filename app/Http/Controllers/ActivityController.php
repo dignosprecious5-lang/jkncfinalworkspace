@@ -70,6 +70,19 @@ class ActivityController extends Controller
             'users' => User::pluck('email'),
             'relatedOptions' => $this->relatedOptions()->pluck('label')->all(),
             'relatedRecords' => $this->relatedOptions()->values()->all(),
+            'contacts' => Contact::query()
+                ->orderBy('first_name')
+                ->orderBy('last_name')
+                ->get()
+                ->map(fn ($contact) => [
+                    'id' => $contact->id,
+                    'name' => trim(($contact->first_name ?? '') . ' ' . ($contact->last_name ?? '')) ?: ($contact->company_name ?? $contact->email ?? 'Contact #' . $contact->id),
+                    'company_name' => $contact->company_name,
+                    'email' => $contact->email,
+                    'phone' => $contact->phone,
+                    'label' => trim(($contact->first_name ?? '') . ' ' . ($contact->last_name ?? '')) . (($contact->company_name ?? '') ? ' - ' . $contact->company_name : ''),
+                ])
+                ->values(),
         ]);
     }
 
@@ -182,31 +195,57 @@ class ActivityController extends Controller
     public function analyzeMeeting($id)
     {
         $meeting = Meeting::findOrFail($id);
-        
-        // Mark as having transcript and minutes
+
+        return response()->json([
+            'message' => 'Automatic AI transcript is not enabled yet. Please upload transcript or meeting minutes manually.',
+            'meeting' => $meeting->load('notes'),
+        ], 422);
+    }
+
+    public function uploadTranscript(Request $request, $id)
+    {
+        $meeting = Meeting::findOrFail($id);
+
+        $validated = $request->validate([
+            'transcript' => ['required', 'file', 'mimes:pdf,doc,docx,txt', 'max:10240'],
+        ]);
+
+        $path = $validated['transcript']->store('activities/meeting-transcripts/' . $meeting->id, 'public');
+
         $meeting->has_transcript = true;
+        $meeting->save();
+
+        Note::create([
+            'content' => "TRANSCRIPT UPLOADED:\n" . $validated['transcript']->getClientOriginalName() . "\n" . asset('storage/' . $path),
+            'owner' => auth()->user()?->name ?? 'System',
+            'noteable_id' => $meeting->id,
+            'noteable_type' => Meeting::class,
+        ]);
+
+        return response()->json($meeting->fresh()->load('notes'));
+    }
+
+    public function uploadMinutes(Request $request, $id)
+    {
+        $meeting = Meeting::findOrFail($id);
+
+        $validated = $request->validate([
+            'minutes' => ['required', 'file', 'mimes:pdf,doc,docx,txt', 'max:10240'],
+        ]);
+
+        $path = $validated['minutes']->store('activities/meeting-minutes/' . $meeting->id, 'public');
+
         $meeting->has_minutes = true;
         $meeting->save();
 
-        $videoInfo = $meeting->video_path ? "based on the uploaded video file (" . basename($meeting->video_path) . ")" : "based on the meeting recording";
-
-        // Simulate producing a transcript note
         Note::create([
-            'content' => "AI TRANSCRIPT SUMMARY ($videoInfo):\n\n[00:00:05] Host: Welcome everyone. Let's discuss the project milestones.\n[00:00:15] Lead Dev: Core modules are ready for integration. We've completed the authentication and data mapping layers.\n[00:01:30] UI Team: We've finalized the dashboard mockups. The new sidebar layout is much more intuitive.\n[00:02:45] PM: Great. Let's schedule the integration testing for next Tuesday.\n[00:03:10] Host: Agreed. Meeting adjourned.",
-            'owner' => 'AI Assistant',
+            'content' => "MEETING MINUTES UPLOADED:\n" . $validated['minutes']->getClientOriginalName() . "\n" . asset('storage/' . $path),
+            'owner' => auth()->user()?->name ?? 'System',
             'noteable_id' => $meeting->id,
-            'noteable_type' => Meeting::class
+            'noteable_type' => Meeting::class,
         ]);
 
-        // Simulate producing a minutes note
-        Note::create([
-            'content' => "MEETING MINUTES ($videoInfo):\n\nKey Decisions:\n- Authentication and data mapping modules are 100% complete and verified.\n- New UI dashboard designs were approved by all stakeholders.\n\nAction Items:\n- Lead Dev to coordinate integration testing starting Tuesday morning.\n- UI Team to implement the sidebar adjustments by Friday EOD.\n- Next Sync: Monday 10:00 AM.",
-            'owner' => 'AI Assistant',
-            'noteable_id' => $meeting->id,
-            'noteable_type' => Meeting::class
-        ]);
-
-        return response()->json($meeting->load('notes'));
+        return response()->json($meeting->fresh()->load('notes'));
     }
 
     public function storeTask(Request $request)

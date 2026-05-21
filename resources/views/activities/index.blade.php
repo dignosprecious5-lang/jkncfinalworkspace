@@ -163,7 +163,7 @@
                         <th class="py-3 px-4 text-xs font-bold text-gray-700 uppercase tracking-wider">Due Date</th>
                         <th class="py-3 px-4 text-xs font-bold text-gray-700 uppercase tracking-wider">Status</th>
                         <th class="py-3 px-4 text-xs font-bold text-gray-700 uppercase tracking-wider">Priority</th>
-                        <th class="py-3 px-4 text-xs font-bold text-gray-700 uppercase tracking-wider">Related to</th>
+                        <th class="py-3 px-4 text-xs font-bold text-gray-700 uppercase tracking-wider">Related Contact</th>
                         <th class="py-3 px-4 text-xs font-bold text-gray-700 uppercase tracking-wider">Task Owner</th>
                         <th class="py-3 px-4 text-xs font-bold text-gray-700 uppercase tracking-wider text-right">Actions</th>
                     </tr>
@@ -183,7 +183,7 @@
                             To <i class="fas fa-sort text-blue-400 text-[10px] ml-1 opacity-0 group-hover:opacity-100 transition-opacity"></i>
                         </th>
                         <th class="py-3 px-4 text-xs font-bold text-gray-700 uppercase tracking-wider group cursor-pointer">
-                            Related to <i class="fas fa-sort text-blue-400 text-[10px] ml-1 opacity-0 group-hover:opacity-100 transition-opacity"></i>
+                            Related Contact <i class="fas fa-sort text-blue-400 text-[10px] ml-1 opacity-0 group-hover:opacity-100 transition-opacity"></i>
                         </th>
                         <th class="py-3 px-4 text-xs font-bold text-gray-700 uppercase tracking-wider">Host</th>
                         <th class="py-3 px-4 text-xs font-bold text-gray-700 uppercase tracking-wider text-right">Actions</th>
@@ -303,7 +303,7 @@
                             Call Duration
                         </th>
                         <th class="py-3 px-4 text-xs font-bold text-gray-700 uppercase tracking-wider group cursor-pointer">
-                            Related to
+                            Related Contact
                         </th>
                         <th class="py-3 px-4 text-xs font-bold text-gray-700 uppercase tracking-wider group cursor-pointer">
                             Purpose
@@ -627,7 +627,7 @@
 
                 <!-- Related To -->
                 <div>
-                    <label class="block text-xs font-semibold text-gray-600 mb-1">Related To</label>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Related Contact</label>
                     <div class="relative" @click.away="closeRelatedPicker('tasks')">
                         <div class="flex flex-wrap gap-1.5 p-2 bg-white border border-gray-300 rounded-md focus-within:border-[#1d54e2] focus-within:ring-1 focus-within:ring-[#1d54e2] transition min-h-[40px]">
                             <template x-for="tag in newTask.relatedTo" :key="tag">
@@ -784,7 +784,7 @@
 
                 <!-- Related To -->
                 <div>
-                    <label class="block text-xs font-semibold text-gray-600 mb-1">Related To</label>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Related Contact</label>
                     <div class="relative" @click.away="closeRelatedPicker('meetings')">
                         <div class="flex flex-wrap gap-1.5 p-2 bg-white border border-gray-300 rounded-md focus-within:border-[#1d54e2] focus-within:ring-1 focus-within:ring-[#1d54e2] transition min-h-[40px]">
                             <template x-for="tag in newMeeting.attendees" :key="tag">
@@ -1299,13 +1299,30 @@
                         </div>
 
 
-                        <!-- AI Generation Button -->
-                        <div class="pt-4 border-t border-gray-100" x-show="selectedMeetingDetails?.status === 'completed' && (!selectedMeetingDetails?.has_transcript || !selectedMeetingDetails?.has_minutes)">
-                            <button @click="generateMeetingAI(selectedMeetingDetails.id)" class="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-700 text-white rounded-xl text-sm font-bold hover:from-blue-700 hover:to-indigo-800 transition-all shadow-md group">
-                                <i class="fas fa-robot animate-pulse group-hover:scale-110 transition-transform"></i>
-                                Generate AI Transcript & Minutes
-                            </button>
-                            <p class="text-[10px] text-gray-400 text-center mt-2 italic">Powered by CRM-AI Engine</p>
+                        <!-- Manual Transcript / Minutes Upload -->
+                        <div class="pt-4 border-t border-gray-100" x-show="selectedMeetingDetails?.status === 'completed'">
+                            <div class="grid grid-cols-1 gap-2">
+                                <button
+                                    type="button"
+                                    @click="document.getElementById('transcriptUploadInput').click()"
+                                    class="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-50 border border-gray-200 text-gray-700 rounded-xl text-sm font-bold hover:bg-white hover:border-[#1d54e2] hover:text-[#1d54e2] transition-all shadow-sm"
+                                    :class="isUploadingTranscript ? 'opacity-50 cursor-wait pointer-events-none' : ''"
+                                >
+                                    <i class="fas" :class="isUploadingTranscript ? 'fa-spinner fa-spin' : 'fa-file-upload'"></i>
+                                    <span x-text="isUploadingTranscript ? 'Uploading Transcript...' : 'Upload Transcript'"></span>
+                                </button>
+
+                                <button
+                                    type="button"
+                                    @click="document.getElementById('minutesUploadInput').click()"
+                                    class="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-50 border border-gray-200 text-gray-700 rounded-xl text-sm font-bold hover:bg-white hover:border-[#1d54e2] hover:text-[#1d54e2] transition-all shadow-sm"
+                                    :class="isUploadingMinutes ? 'opacity-50 cursor-wait pointer-events-none' : ''"
+                                >
+                                    <i class="fas" :class="isUploadingMinutes ? 'fa-spinner fa-spin' : 'fa-file-alt'"></i>
+                                    <span x-text="isUploadingMinutes ? 'Uploading Minutes...' : 'Upload Minutes'"></span>
+                                </button>
+                            </div>
+                            <p class="text-[10px] text-gray-400 text-center mt-2 italic">AI transcript is not enabled yet. Upload transcript/minutes file manually.</p>
                         </div>
                         </div>
                     </div>
@@ -1317,6 +1334,18 @@
                            class="hidden" 
                            accept="video/*" 
                            @change="uploadVideo($event, selectedMeetingDetails.id)">
+
+                    <input type="file"
+                           id="transcriptUploadInput"
+                           class="hidden"
+                           accept=".pdf,.doc,.docx,.txt"
+                           @change="uploadTranscriptFile($event, selectedMeetingDetails.id)">
+
+                    <input type="file"
+                           id="minutesUploadInput"
+                           class="hidden"
+                           accept=".pdf,.doc,.docx,.txt"
+                           @change="uploadMinutesFile($event, selectedMeetingDetails.id)">
 
 
                 <!-- Notes Tab -->
@@ -1525,23 +1554,13 @@
             <!-- Body -->
             <div class="px-5 py-4 space-y-4 overflow-y-auto custom-scrollbar flex-1">
                     
-                    <!-- To -->
+                    
+                <!-- Related Contact -->
                 <div>
-                    <label class="block text-xs font-semibold text-gray-600 mb-1">To <span class="text-red-500">*</span></label>
-                    <input type="text" x-model="newCall.to" placeholder="Recipient (e.g. contact name)" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-800 outline-none focus:border-[#1d54e2] focus:ring-1 focus:ring-[#1d54e2] transition" />
-                </div>
-
-                <!-- From -->
-                <div>
-                    <label class="block text-xs font-semibold text-gray-600 mb-1">From</label>
-                    <input type="text" x-model="newCall.from" placeholder="Caller (e.g. your name)" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-800 outline-none focus:border-[#1d54e2] focus:ring-1 focus:ring-[#1d54e2] transition" />
-                </div>
-
-
-
-                <!-- Related To -->
-                <div>
-                    <label class="block text-xs font-semibold text-gray-600 mb-1">Related To</label>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Related Contact</label>
+                    <p class="text-[11px] text-gray-400 mb-1">Select the contact/company first. For contacts, Client / Contact will auto-fill.</p>
+                    
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Related Contact</label>
                     <div class="relative" @click.away="closeRelatedPicker('calls')">
                         <div class="flex flex-wrap gap-1.5 p-2 bg-white border border-gray-300 rounded-md focus-within:border-[#1d54e2] focus-within:ring-1 focus-within:ring-[#1d54e2] transition min-h-[40px]">
                             <template x-for="tag in newCall.relatedTo" :key="tag">
@@ -1583,7 +1602,38 @@
                     </div>
                 </div>
 
-                <!-- Call Type Selector -->
+                
+                <!-- Client / Contact -->
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Client / Contact <span class="text-red-500">*</span></label>
+                    <input type="text" x-model="newCall.to" placeholder="Auto-filled from Related Contact, or type manually" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-800 outline-none focus:border-[#1d54e2] focus:ring-1 focus:ring-[#1d54e2] transition" />
+                </div>
+
+                <!-- Handled By -->
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Handled By</label>
+                    <select
+                        x-model="newCall.from"
+                        class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-800 outline-none focus:border-[#1d54e2] focus:ring-1 focus:ring-[#1d54e2] transition"
+                    >
+                        <option value="">Select user</option>
+                        <template x-for="user in systemUsers" :key="user">
+                            <option :value="user" x-text="user"></option>
+                        </template>
+                        <option value="__manual__">Manual entry</option>
+                    </select>
+
+                    <div x-show="newCall.from === '__manual__'" class="mt-2" style="display: none;">
+                        <input
+                            type="text"
+                            x-model="newCall.manualFrom"
+                            placeholder="Type handler name or email"
+                            class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-800 outline-none focus:border-[#1d54e2] focus:ring-1 focus:ring-[#1d54e2] transition"
+                        >
+                    </div>
+                </div>
+
+<!-- Call Type Selector -->
                 <div class="relative" x-data="{ typeOpen: false }">
                     <label class="block text-xs font-semibold text-gray-600 mb-1">Call Type</label>
                     <button @click="typeOpen = !typeOpen" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-800 flex items-center justify-between bg-white hover:border-[#1d54e2] transition outline-none">
@@ -1613,7 +1663,28 @@
                     </div>
                 </div>
 
-                <!-- Call Purpose -->
+                
+                <!-- Call Duration -->
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Call Duration</label>
+                    <select
+                        x-model="newCall.duration"
+                        class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-800 outline-none focus:border-[#1d54e2] focus:ring-1 focus:ring-[#1d54e2] transition"
+                    >
+                        <option value="">Not set / Scheduled call</option>
+                        <option value="5 mins">5 mins</option>
+                        <option value="10 mins">10 mins</option>
+                        <option value="15 mins">15 mins</option>
+                        <option value="30 mins">30 mins</option>
+                        <option value="45 mins">45 mins</option>
+                        <option value="1 hr">1 hr</option>
+                        <option value="1 hr 30 mins">1 hr 30 mins</option>
+                        <option value="2 hrs">2 hrs</option>
+                    </select>
+                    <p class="text-[11px] text-gray-400 mt-1">Leave blank if this is only a scheduled call and not yet completed.</p>
+                </div>
+
+<!-- Call Purpose -->
                 <div class="relative" x-data="{ purposeOpen: false, selectedPurpose: '-None-' }">
                     <label class="block text-xs font-semibold text-gray-600 mb-1">Call Purpose</label>
                     <button @click="purposeOpen = !purposeOpen" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-800 flex items-center justify-between bg-white hover:border-[#1d54e2] transition outline-none">
@@ -1707,7 +1778,7 @@
 
                 <!-- Date & Time From -->
                 <div>
-                    <label class="block text-xs font-semibold text-gray-600 mb-1">From</label>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Start Date</label>
                     <div class="flex gap-2">
                         <input type="date" x-model="newEvent.from" class="flex-1 border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-800 outline-none focus:border-[#1d54e2] focus:ring-1 focus:ring-[#1d54e2] transition" />
                         <input type="time" class="w-32 border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-800 outline-none focus:border-[#1d54e2] focus:ring-1 focus:ring-[#1d54e2] transition" />
@@ -1716,7 +1787,7 @@
 
                 <!-- Date & Time To -->
                 <div>
-                    <label class="block text-xs font-semibold text-gray-600 mb-1">To</label>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">End Date</label>
                     <div class="flex gap-2">
                         <input type="date" x-model="newEvent.to" class="flex-1 border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-800 outline-none focus:border-[#1d54e2] focus:ring-1 focus:ring-[#1d54e2] transition" />
                         <input type="time" class="w-32 border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-800 outline-none focus:border-[#1d54e2] focus:ring-1 focus:ring-[#1d54e2] transition" />
@@ -1731,7 +1802,7 @@
 
                 <!-- Related To -->
                 <div>
-                    <label class="block text-xs font-semibold text-gray-600 mb-1">Related To</label>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Related Contact</label>
                     <div class="relative" @click.away="closeRelatedPicker('events')">
                         <div class="flex flex-wrap gap-1.5 p-2 bg-white border border-gray-300 rounded-md focus-within:border-[#1d54e2] focus-within:ring-1 focus-within:ring-[#1d54e2] transition min-h-[40px]">
                             <template x-for="tag in newEvent.relatedTo" :key="tag">
@@ -1886,7 +1957,7 @@ document.addEventListener('alpine:init', () => {
         newEvent: { title: '', from: '', to: '', relatedTo: [], host: '' },
 
         calls: [],
-        newCall: { contact: '', to: '', from: '', type: 'Outbound', startTime: '', startHour: '', duration: '', relatedTo: [], owner: '', agenda: '', purpose: '', status: '' },
+        newCall: { contact: '', to: '', from: '', manualFrom: '', type: 'Outbound', startTime: '', startHour: '', duration: '', relatedTo: [], owner: '', agenda: '', purpose: '', status: '' },
 
         meetings: [],
         newMeeting: { title: '', owner: '', date: '', time: '', duration: '', durationHour: '0', durationMin: '30', location: '', attendees: [], description: '', hasVideo: false, hasAudio: false, hasTranscript: false, hasMinutes: false },
@@ -2239,8 +2310,6 @@ document.addEventListener('alpine:init', () => {
                     if (this.selectedMeetingDetails && this.selectedMeetingDetails.id === meetingId) {
                         this.selectedMeetingDetails = updatedMeeting;
                     }
-                    // Automatically trigger AI transcription and analysis
-                    await this.generateMeetingAI(meetingId);
                 }
             } catch (error) {
                 console.error('Error uploading video:', error);
@@ -2421,7 +2490,7 @@ document.addEventListener('alpine:init', () => {
             this.$watch('perPage', () => this.currentPage = 1);
 
             // Initial fetch (scheduleRecording is called inside fetchActivities)
-            this.fetchActivities();
+            this.fetchActivities().then(() => this.applyContactPrefillFromShortcut());
 
             // Refresh every 60 s — re-schedule any newly added meetings
             setInterval(() => {
@@ -2439,6 +2508,7 @@ document.addEventListener('alpine:init', () => {
                 this.meetings = data.meetings;
                 this.relatedOptions = data.relatedOptions || [];
                 this.relatedRecords = data.relatedRecords || [];
+                this.contacts = data.contacts || [];
                 if (data.users) {
                     this.systemUsers = data.users;
                     const defaultUser = this.systemUsers[0] || '';
@@ -2544,10 +2614,15 @@ document.addEventListener('alpine:init', () => {
         },
 
         async saveCall() {
-            if (!this.newCall.to && !this.newCall.from && !this.newCall.contact) return;
-            // Build combined contact from to/from fields
+            const handledBy = this.newCall.from === '__manual__'
+                ? (this.newCall.manualFrom || '')
+                : (this.newCall.from || '');
+
+            if (!this.newCall.to && !handledBy && !this.newCall.contact) return;
+
+            // Build combined contact from client/contact and handled-by fields
             const toVal = this.newCall.to || '';
-            const fromVal = this.newCall.from || '';
+            const fromVal = handledBy;
             const combinedContact = toVal && fromVal ? toVal + ' / ' + fromVal : (toVal || fromVal || this.newCall.contact);
             try {
                 const isEdit = !!this.newCall.id;
@@ -2563,13 +2638,13 @@ document.addEventListener('alpine:init', () => {
                     body: JSON.stringify({
                         contact: combinedContact,
                         to: this.newCall.to,
-                        from: this.newCall.from,
+                        from: handledBy,
                         type: this.newCall.type,
                         start_time: this.newCall.startTime,
                         start_hour: this.newCall.startHour,
                         duration: this.newCall.duration,
                         related_to: Array.isArray(this.newCall.relatedTo) ? this.newCall.relatedTo.join(', ') : this.newCall.relatedTo,
-                        owner: this.newCall.owner,
+                        owner: handledBy || this.newCall.owner,
                         purpose: this.newCall.purpose,
                         agenda: this.newCall.agenda,
                         completed: this.newCall.completed || false
@@ -2584,7 +2659,7 @@ document.addEventListener('alpine:init', () => {
                 }
                 this.showCallModal = false;
                 const defaultUser = (this.systemUsers[0] || '');
-                this.newCall = { id: null, contact: '', to: '', from: defaultUser, type: 'Outbound', startTime: '', startHour: '', duration: '', relatedTo: [], owner: defaultUser, agenda: '', purpose: '', completed: false };
+                this.newCall = { id: null, contact: '', to: '', from: defaultUser, manualFrom: '', type: 'Outbound', startTime: '', startHour: '', duration: '', relatedTo: [], owner: defaultUser, agenda: '', purpose: '', completed: false };
                 this.relatedSearch.calls = '';
                 this.relatedPickerOpen.calls = false;
             } catch (error) {
@@ -2700,6 +2775,7 @@ document.addEventListener('alpine:init', () => {
                 contact: call.contact,
                 to: toVal,
                 from: fromVal,
+                manualFrom: '',
                 type: call.type,
                 startTime: call.start_time,
                 startHour: call.start_hour,
@@ -2758,6 +2834,11 @@ document.addEventListener('alpine:init', () => {
 
         selectRelatedOption(type, option) {
             this.addTag(type, option.label);
+
+            if (type === 'calls' && option) {
+                this.syncCallClientFromRelatedContact(option.label, option);
+            }
+
             this.relatedSearch[type] = '';
             this.relatedPickerOpen[type] = false;
         },
@@ -2781,6 +2862,86 @@ document.addEventListener('alpine:init', () => {
             if (value && !list.includes(value)) {
                 list.push(value);
             }
+
+            if (type === 'calls' && value) {
+                this.syncCallClientFromRelatedContact(value);
+            }
+        },
+
+        relatedText(value) {
+            return value && String(value).trim() ? value : '-';
+        },
+
+        contactNameFromLabel(value) {
+            const label = String(value || '').trim();
+            if (!label) return '';
+            return label.split(' - ')[0].trim() || label;
+        },
+
+        syncCallClientFromRelatedContact(label, option = null) {
+            if (option && option.type === 'contact' && option.label) {
+                this.newCall.to = option.label;
+                return;
+            }
+
+            const match = this.relatedRecords.find((record) => record.label === label);
+            if (match && match.type === 'contact') {
+                this.newCall.to = match.label;
+                return;
+            }
+
+            const clientName = this.contactNameFromLabel(label);
+            if (clientName) {
+                this.newCall.to = clientName;
+            }
+        },
+
+        applyContactPrefillFromShortcut() {
+            let payload = null;
+
+            try {
+                payload = JSON.parse(localStorage.getItem('activity_contact_prefill') || 'null');
+            } catch (error) {
+                payload = null;
+            }
+
+            if (!payload) return;
+
+            localStorage.removeItem('activity_contact_prefill');
+
+            const urlParams = new URLSearchParams(window.location.search);
+            const requestedType = urlParams.get('open') || payload.type || 'task';
+            const relatedContact = payload.related_contact || payload.contact_name || '';
+            const contactName = payload.contact_name || this.contactNameFromLabel(relatedContact);
+            const defaultUser = this.systemUsers[0] || '';
+            const today = new Date().toISOString().slice(0, 10);
+
+            if (requestedType === 'call') {
+                this.activeTab = 'call';
+                this.showCallModal = true;
+                this.newCall.relatedTo = relatedContact ? [relatedContact] : [];
+                this.newCall.to = contactName;
+                this.newCall.from = defaultUser;
+                this.newCall.owner = defaultUser;
+                this.newCall.type = 'Outbound';
+                this.newCall.startTime = today;
+                this.newCall.startHour = new Date().toTimeString().slice(0, 5);
+                return;
+            }
+
+            if (requestedType === 'meetings') {
+                this.activeTab = 'meetings';
+                this.showMeetingModal = true;
+                this.newMeeting.attendees = relatedContact ? [relatedContact] : [];
+                this.newMeeting.date = today;
+                this.newMeeting.time = new Date().toTimeString().slice(0, 5);
+                return;
+            }
+
+            this.activeTab = 'task';
+            this.showTaskModal = true;
+            this.newTask.relatedTo = relatedContact ? [relatedContact] : [];
+            this.newTask.name = contactName ? `Follow up with ${contactName}` : '';
         },
 
         removeTag(type, tag) {
@@ -3067,25 +3228,82 @@ document.addEventListener('alpine:init', () => {
             }
         },
 
-        async generateMeetingAI(meetingId) {
+        async uploadTranscriptFile(event, meetingId) {
+            const file = event.target.files[0];
+            if (!file || !meetingId) return;
+
+            this.isUploadingTranscript = true;
+
+            const formData = new FormData();
+            formData.append('transcript', file);
+
             try {
-                const response = await fetch(`/api/meetings/${meetingId}/analyze`, {
+                const response = await fetch(`/api/meetings/${meetingId}/upload-transcript`, {
                     method: 'POST',
                     headers: {
                         'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').getAttribute('content')
-                    }
+                    },
+                    body: formData
                 });
+
+                if (!response.ok) {
+                    throw new Error('Transcript upload failed.');
+                }
+
                 const updatedMeeting = await response.json();
-                
-                // Update the meeting in the list
-                const idx = this.meetings.findIndex(m => m.id === meetingId);
-                if (idx !== -1) this.meetings[idx] = updatedMeeting;
-                
-                // Update the selected details view
+                const index = this.meetings.findIndex(m => m.id === updatedMeeting.id);
+                if (index !== -1) this.meetings[index] = updatedMeeting;
                 this.selectedMeetingDetails = updatedMeeting;
+                event.target.value = '';
             } catch (error) {
-                console.error('Error generating AI content:', error);
+                alert(error.message || 'Transcript upload failed.');
+            } finally {
+                this.isUploadingTranscript = false;
             }
+        },
+
+        async uploadMinutesFile(event, meetingId) {
+            const file = event.target.files[0];
+            if (!file || !meetingId) return;
+
+            this.isUploadingMinutes = true;
+
+            const formData = new FormData();
+            formData.append('minutes', file);
+
+            try {
+                const response = await fetch(`/api/meetings/${meetingId}/upload-minutes`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').getAttribute('content')
+                    },
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    throw new Error('Minutes upload failed.');
+                }
+
+                const updatedMeeting = await response.json();
+                const index = this.meetings.findIndex(m => m.id === updatedMeeting.id);
+                if (index !== -1) this.meetings[index] = updatedMeeting;
+                this.selectedMeetingDetails = updatedMeeting;
+                event.target.value = '';
+            } catch (error) {
+                alert(error.message || 'Minutes upload failed.');
+            } finally {
+                this.isUploadingMinutes = false;
+            }
+        },
+
+        meetingHasDocument(meeting, type) {
+            if (!meeting || !Array.isArray(meeting.notes)) return false;
+            const keyword = type === 'transcript' ? 'TRANSCRIPT UPLOADED:' : 'MEETING MINUTES UPLOADED:';
+            return meeting.notes.some(note => String(note.content || '').includes(keyword));
+        },
+
+        async generateMeetingAI(meetingId) {
+            alert('Automatic AI transcript is not enabled yet. Please upload transcript or meeting minutes manually.');
         },
 
         downloadFile(type, format) {
