@@ -6,10 +6,16 @@ use App\Models\Company;
 use App\Models\CompanyActivity;
 use App\Models\CompanyBif;
 use App\Models\CompanyConsultationNote;
-use App\Models\Project;
 use App\Models\CompanyHistoryEntry;
 use App\Models\Contact;
+use App\Models\Deal;
+use App\Models\Employee;
+use App\Models\Product;
+use App\Models\Project;
+use App\Models\Service;
+use App\Models\User;
 use App\Support\ActivityTimelineBuilder;
+use App\Support\CompanyHistoryLogger;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -147,6 +153,7 @@ class CompanyController extends Controller
             'fieldTypes' => collect($this->fieldTypes()),
             'lookupModules' => $this->lookupModules(),
             'companyCreateContacts' => $companyCreateContacts,
+            'employeeOptions' => $this->employeeOptions(),
             'hasApprovedCompanyCreateContacts' => Schema::hasTable('contacts')
                 ? Contact::query()->where('cif_status', 'approved')->exists()
                 : false,
@@ -221,14 +228,75 @@ class CompanyController extends Controller
     public function update(Request $request, int $company): RedirectResponse
     {
         $validated = $this->validateCompany($request);
+        $customFields = $this->companyCustomFields($request);
+
+        if (Schema::hasTable('companies')) {
+            $companyRecord = Company::query()->with('latestBif')->findOrFail($company);
+            $payload = $this->makeCompanyPayload($validated);
+            $reviewerName = $request->user()?->name ?? 'System User';
+
+            $companyRecord->update(array_filter([
+                'company_name' => $validated['business_name'] ?? $companyRecord->company_name,
+                'email' => $validated['authorized_contact_person_email'] ?? $companyRecord->email,
+                'phone' => $validated['business_phone'] ?: ($validated['mobile_no'] ?: $companyRecord->phone),
+                'address' => $validated['business_address'] ?? $companyRecord->address,
+                'primary_contact_id' => (int) ($validated['contact_id'] ?? $companyRecord->primary_contact_id),
+                'owner_name' => $request->user()?->name ?? $companyRecord->owner_name,
+            ], static fn ($value) => $value !== null && $value !== ''));
+
+            $bif = $companyRecord->latestBif;
+            if ($bif) {
+                $bif->update([
+                    ...$payload,
+                    'title' => 'Business Information Form - '.($validated['business_name'] ?? $companyRecord->company_name),
+                    'status' => 'approved',
+                    'submitted_at' => $bif->submitted_at ?? now(),
+                    'approved_at' => now(),
+                    'approved_by_name' => $reviewerName,
+                    'rejected_at' => null,
+                    'rejected_by_name' => null,
+                    'rejection_reason' => null,
+                    'change_request_payload' => null,
+                    'change_request_status' => null,
+                    'change_request_note' => null,
+                    'change_requested_at' => null,
+                    'change_requested_by_name' => null,
+                    'change_reviewed_at' => null,
+                    'change_reviewed_by_name' => null,
+                    'change_rejection_reason' => null,
+                    'updated_by' => $request->user()?->id,
+                    'last_submission_source' => 'manual',
+                    'last_manual_updated_at' => now(),
+                    'last_manual_updated_by_name' => $reviewerName,
+                ]);
+            }
+
+            if (Schema::hasTable('company_contact')) {
+                $companyRecord->contacts()->syncWithoutDetaching([(int) $validated['contact_id']]);
+            }
+
+            CompanyHistoryLogger::log($companyRecord->id, [
+                'type' => 'profile',
+                'title' => 'Company profile updated',
+                'description' => $companyRecord->company_name,
+                'extra_label' => 'Status',
+                'extra_value' => $bif?->fresh()?->status ?: 'approved',
+                'user_name' => $reviewerName,
+                'user_initials' => $this->initials($reviewerName),
+            ]);
+
+            return redirect()
+                ->back()
+                ->with('success', 'Company updated successfully.');
+        }
+
         $companies = collect($request->session()->get('mock_companies', $this->defaultCompanies()));
         $companyData = $companies->firstWhere('id', $company);
-        $customFields = $this->companyCustomFields($request);
 
         abort_unless($companyData, 404);
 
         $updatedCompanies = $companies
-            ->map(function (array $existingCompany) use ($company, $validated) {
+            ->map(function (array $existingCompany) use ($company, $validated, $customFields) {
                 if ((int) $existingCompany['id'] !== $company) {
                     return $existingCompany;
                 }
@@ -728,6 +796,7 @@ class CompanyController extends Controller
         return view('company.activities', [
             'company' => (object) $companyData,
             'activities' => $this->companyActivities($companyData),
+            'activitiesIndexUrl' => route('activities'),
         ]);
     }
 
@@ -771,44 +840,35 @@ class CompanyController extends Controller
     {
         $companyData = $this->findCompanyOrAbort($request, $company);
 
-        $regularEngagements = [
-            [
-                'name' => 'Monthly Accounting Services',
-                'frequency' => 'Monthly',
-                'status' => 'Active',
-                'start_date' => 'Jan 01, 2024',
-                'next_billing_date' => 'May 01, 2024',
-                'owner' => 'John Admin',
-                'owner_initials' => 'JA',
-            ],
-            [
-                'name' => 'Quarterly Tax Filing',
-                'frequency' => 'Quarterly',
-                'status' => 'Active',
-                'start_date' => 'Jan 01, 2024',
-                'next_billing_date' => 'Jul 01, 2024',
-                'owner' => 'Maria Santos',
-                'owner_initials' => 'MS',
-            ],
-            [
-                'name' => 'Annual Corporate Compliance',
-                'frequency' => 'Annual',
-                'status' => 'Active',
-                'start_date' => 'Feb 01, 2024',
-                'next_billing_date' => 'Feb 01, 2025',
-                'owner' => 'David Lee',
-                'owner_initials' => 'DL',
-            ],
-            [
-                'name' => 'Business Consulting Retainer',
-                'frequency' => 'Monthly',
-                'status' => 'Active',
-                'start_date' => 'Mar 01, 2024',
-                'next_billing_date' => 'May 01, 2024',
-                'owner' => 'David Lee',
-                'owner_initials' => 'DL',
-            ],
-        ];
+        $regularEngagements = collect();
+
+        if (Schema::hasTable('projects')) {
+            $regularEngagements = Project::query()
+                ->where('company_id', $company)
+                ->whereRaw('LOWER(COALESCE(engagement_type, "")) LIKE ?', ['%regular%'])
+                ->latest('updated_at')
+                ->get()
+                ->map(function (Project $project): array {
+                    $owner = $project->assigned_project_manager ?: $project->assigned_consultant ?: $project->assigned_associate ?: 'Unassigned';
+                    $frequency = data_get($project->metadata, 'frequency');
+
+                    return [
+                        'id' => $project->id,
+                        'name' => $project->name ?: ($project->project_code ?: 'Regular engagement'),
+                        'frequency' => $frequency ?: 'Regular',
+                        'status' => $project->status ?: 'Open',
+                        'start_date' => optional($project->planned_start_date)->format('M d, Y') ?: '-',
+                        'next_billing_date' => optional($project->target_completion_date)->format('M d, Y') ?: '-',
+                        'owner' => $owner,
+                        'owner_initials' => collect(explode(' ', $owner))
+                            ->filter()
+                            ->take(2)
+                            ->map(fn (string $part): string => strtoupper(substr($part, 0, 1)))
+                            ->implode('') ?: 'NA',
+                        'show_url' => route('regular.show', $project->id),
+                    ];
+                });
+        }
 
         return view('company.regular', [
             'company' => (object) $companyData,
@@ -1171,6 +1231,12 @@ class CompanyController extends Controller
             $cifData['last_name'] ?? $contact->last_name,
             $cifData['name_extension'] ?? $contact->name_extension,
         ])->filter()->implode(' '));
+        $companyName = $this->firstFilledValue(
+            $cifData['company_name'] ?? null,
+            $cifData['business_name'] ?? null,
+            $contact->company_name,
+            $bifData['business_name'] ?? null
+        );
 
         $citizenshipType = strtolower((string) ($cifData['citizenship_type'] ?? ''));
         $organizationType = $this->firstFilledValue(
@@ -1191,11 +1257,7 @@ class CompanyController extends Controller
         ])->filter()->implode(', ');
 
         return [
-            'business_name' => $this->firstFilledValue(
-                $contact->company_name,
-                $bifData['business_name'] ?? null,
-                $fullName !== '' ? $fullName : trim($contact->first_name.' '.$contact->last_name)
-            ),
+            'business_name' => $companyName,
             'business_organization' => $organizationType,
             'business_organization_other' => $organizationType === 'other'
                 ? $this->firstFilledValue(
@@ -1214,7 +1276,12 @@ class CompanyController extends Controller
             'authorized_contact_person_name' => $fullName !== '' ? $fullName : trim($contact->first_name.' '.$contact->last_name),
             'authorized_contact_person_email' => $this->firstFilledValue($cifData['email'] ?? null, $contact->email),
             'authorized_contact_person_phone' => $this->firstFilledValue($cifData['mobile'] ?? null, $contact->phone),
-            'authorized_contact_person_position' => $this->firstFilledValue($cifData['nature_of_work_business'] ?? null, $contact->position),
+            'authorized_contact_person_position' => $this->firstFilledValue(
+                $cifData['sig_position_left'] ?? null,
+                $cifData['sig_position_right'] ?? null,
+                $contact->position,
+                $cifData['nature_of_work_business'] ?? null
+            ),
             'nationality_status' => $nationalityStatus,
             'alternative_business_name' => $bifData['alternative_business_name'] ?? null,
         ];
@@ -1233,6 +1300,15 @@ class CompanyController extends Controller
             'others', 'other' => 'other',
             default => null,
         };
+    }
+
+    private function initials(string $name): string
+    {
+        return collect(preg_split('/\s+/', trim($name)) ?: [])
+            ->filter()
+            ->take(2)
+            ->map(fn (string $part) => strtoupper(substr($part, 0, 1)))
+            ->implode('');
     }
 
     private function validateCompany(Request $request): array
@@ -1383,6 +1459,46 @@ class CompanyController extends Controller
             'lead_associate' => $validated['lead_associate'] ?? null,
             'president_use_only_name' => $validated['president_use_only_name'] ?? null,
         ];
+    }
+
+    private function employeeOptions(): array
+    {
+        if (! Schema::hasTable('employees')) {
+            return User::query()
+                ->select(['id', 'name', 'email', 'role'])
+                ->whereIn('role', ['Admin', 'Employee', 'SuperAdmin'])
+                ->orderBy('name')
+                ->get()
+                ->map(fn (User $user): array => [
+                    'id' => (int) $user->id,
+                    'name' => $user->name,
+                    'employee_code' => null,
+                    'email' => $user->email,
+                    'position' => null,
+                    'department' => null,
+                ])
+                ->filter(fn (array $employee): bool => filled($employee['name']))
+                ->values()
+                ->all();
+        }
+
+        return Employee::query()
+            ->with('department:id,department_name')
+            ->select(['id', 'employee_code', 'first_name', 'last_name', 'email', 'position', 'department_id'])
+            ->orderBy('first_name')
+            ->orderBy('last_name')
+            ->get()
+            ->map(fn (Employee $employee): array => [
+                'id' => (int) $employee->id,
+                'name' => $employee->full_name,
+                'employee_code' => $employee->employee_code,
+                'email' => $employee->email,
+                'position' => $employee->position,
+                'department' => $employee->department?->department_name,
+            ])
+            ->filter(fn (array $employee): bool => filled($employee['name']))
+            ->values()
+            ->all();
     }
 
     private function companyRecords(Request $request)

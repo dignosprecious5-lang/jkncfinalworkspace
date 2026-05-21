@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\ResolvesCompanyRecords;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -9,6 +10,8 @@ use Illuminate\View\View;
 
 class CompanyAccountingController extends Controller
 {
+    use ResolvesCompanyRecords;
+
     private const CATEGORIES = ['PNL', 'Balance Sheet', 'Cash Flow', 'Income Statement', 'AFS'];
     private const STATUSES = ['Open', 'Completed', 'Overdue'];
 
@@ -135,12 +138,7 @@ class CompanyAccountingController extends Controller
 
     private function findCompany(Request $request, int $company): array
     {
-        $companyData = collect($request->session()->get('mock_companies', $this->defaultCompanies()))
-            ->firstWhere('id', $company);
-
-        abort_unless($companyData, 404);
-
-        return $companyData;
+        return $this->resolveCompanyRecord($request, $company, $this->defaultCompanies());
     }
 
     private function defaultCompanies(): array

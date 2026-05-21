@@ -49,10 +49,10 @@
                         </div>
 
                         <div class="lg:col-span-2">
-                            <button class="w-full h-10 rounded-full bg-blue-600 px-4 text-sm font-medium text-white hover:bg-blue-700 inline-flex items-center justify-center gap-2">
+                            <a href="{{ route('regular.index') }}" class="w-full h-10 rounded-full bg-blue-600 px-4 text-sm font-medium text-white hover:bg-blue-700 inline-flex items-center justify-center gap-2">
                                 <span class="text-base leading-none">+</span>
-                                <span>Add Regular</span>
-                            </button>
+                                <span>Open Regular</span>
+                            </a>
                         </div>
                     </div>
                 </div>
@@ -96,7 +96,7 @@
                                             </td>
                                             <td class="px-3 py-3">
                                                 <div class="flex items-center justify-end gap-2">
-                                                    <button class="h-8 rounded-full bg-blue-600 px-3 text-xs font-medium text-white hover:bg-blue-700">View</button>
+                                                    <a href="{{ $engagement['show_url'] ?? route('regular.index') }}" class="inline-flex h-8 items-center rounded-full bg-blue-600 px-3 text-xs font-medium text-white hover:bg-blue-700">View</a>
                                                     <button class="h-8 w-8 rounded-full border border-gray-200 text-gray-600 hover:bg-gray-50">
                                                         <i class="fas fa-ellipsis-v text-xs"></i>
                                                     </button>

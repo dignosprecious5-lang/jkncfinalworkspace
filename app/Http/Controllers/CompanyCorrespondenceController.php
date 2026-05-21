@@ -2,12 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\ResolvesCompanyRecords;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 class CompanyCorrespondenceController extends Controller
 {
+    use ResolvesCompanyRecords;
+
     private const STATUSES = ['Open', 'Completed', 'Overdue'];
 
     public function index(Request $request, int $company): View
@@ -126,12 +129,7 @@ class CompanyCorrespondenceController extends Controller
 
     private function findCompany(Request $request, int $company): array
     {
-        $companyData = collect($request->session()->get('mock_companies', $this->defaultCompanies()))
-            ->firstWhere('id', $company);
-
-        abort_unless($companyData, 404);
-
-        return $companyData;
+        return $this->resolveCompanyRecord($request, $company, $this->defaultCompanies());
     }
 
     private function defaultCompanies(): array

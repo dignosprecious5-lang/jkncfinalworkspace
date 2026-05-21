@@ -16,6 +16,12 @@
     $name = trim($contact->first_name.' '.$contact->last_name);
     $initials = strtoupper(mb_substr($contact->first_name ?? '', 0, 1).mb_substr($contact->last_name ?? '', 0, 1));
     $contactCifNo = $contact->cif_no ?: ($cifData['cif_no'] ?? '-');
+    $headerCompanyName = $contact->company_name ?: 'No company linked';
+    $headerEmail = $contact->email ?: '-';
+    $headerPhone = $contact->phone ?: '-';
+    $headerCustomerType = filled($contact->customer_type) ? ucfirst((string) $contact->customer_type) : '-';
+    $headerOwner = $contact->owner_name ?: ($contact->created_by ?: '-');
+    $headerAddress = $contact->contact_address ?: '-';
     $kycRequirements = $kycRequirementState ?? [
         'cif_signed_document' => ['file' => null, 'complete' => false],
         'two_valid_ids' => ['count' => 0, 'files' => [], 'complete' => false],
@@ -63,19 +69,18 @@
             </div>
             <div class="space-y-1">
                 <h1 class="text-3xl font-semibold text-gray-900">{{ $name }}</h1>
-                <p class="text-xl text-gray-700">{{ $contact->company_name ?: 'ABC Corporation' }}</p>
+                <p class="text-xl text-gray-700">{{ $headerCompanyName }}</p>
                 <div class="flex flex-wrap items-center gap-4 text-sm text-gray-700">
-                    <span>Email: {{ $contact->email ?: 'juan@gmail.com' }}</span>
-                    <span>Phone number: {{ $contact->phone ?: '09345234' }}</span>
-                    <span>Customer Type: {{ $contact->customer_type ?: 'Corporation' }}</span>
-                    <span>Position: {{ $contact->position ?: 'CEO' }}</span>
+                    <span>Email: {{ $headerEmail }}</span>
+                    <span>Phone number: {{ $headerPhone }}</span>
+                    <span>Customer Type: {{ $headerCustomerType }}</span>
                     <span>CIF No: {{ $contactCifNo ?: '-' }}</span>
                 </div>
                 <div class="flex flex-wrap items-center gap-3">
                     <span id="contactKycHeaderBadge" class="inline-flex rounded-full px-2 py-0.5 text-xs font-medium {{ $statusPillClasses[$status] ?? $statusPillClasses['Not Submitted'] }}">{{ $status }}</span>
-                    <span class="text-sm text-gray-700">Contact Owner: {{ $contact->owner_name ?: 'John Admin' }}</span>
+                    <span class="text-sm text-gray-700">Contact Owner: {{ $headerOwner }}</span>
                 </div>
-                <p class="text-sm text-gray-600">Address: {{ $contact->contact_address ?: 'Cebu City, Philippines' }}</p>
+                <p class="text-sm text-gray-600">Address: {{ $headerAddress }}</p>
             </div>
         </div>
     </div>
@@ -1115,18 +1120,6 @@
                                     event.preventDefault();
                                 }
                             });
-                            q('submitKycForVerificationForm')?.addEventListener('submit', (event) => {
-                                if (!allRequiredUploaded()) {
-                                    event.preventDefault();
-                                    const missingLabels = requiredKycRequirementKeys
-                                        .filter((key) => kycRequirementState[key]?.complete !== true)
-                                        .map((key) => kycRequirementLabels[key] || key);
-                                    q('kycActionWarning').textContent = `Please complete the following before submitting for verification: ${missingLabels.join(', ')}.`;
-                                    q('kycActionWarning').classList.remove('hidden');
-                                    setTimeout(() => q('kycActionWarning').classList.add('hidden'), 3400);
-                                    return;
-                                }
-                            });
                             q('rejectKycBtn')?.addEventListener('click', () => {
                                 if (!kyc.submitted) {
                                     q('kycActionWarning').textContent = 'Submit for verification first before rejecting.';
@@ -1341,6 +1334,14 @@
                                         <label for="consultationCategory" class="mb-1 block text-sm font-medium text-gray-700">Tags or Category</label>
                                         <input id="consultationCategory" type="text" class="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" placeholder="e.g. Budget Review">
                                     </div>
+                                    <div>
+                                        <label for="consultationLinkedDeal" class="mb-1 block text-sm font-medium text-gray-700">Linked Deal</label>
+                                        <input id="consultationLinkedDeal" type="text" class="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" placeholder="Deal name or code">
+                                    </div>
+                                    <div>
+                                        <label for="consultationLinkedActivity" class="mb-1 block text-sm font-medium text-gray-700">Linked Activity</label>
+                                        <input id="consultationLinkedActivity" type="text" class="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" placeholder="Activity title">
+                                    </div>
                                     <div class="md:col-span-2">
                                         <label for="consultationSummary" class="mb-1 block text-sm font-medium text-gray-700">Consultation Summary</label>
                                         <textarea id="consultationSummary" rows="3" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"></textarea>
@@ -1392,6 +1393,16 @@
                                         <p id="viewConsultationAuthor" class="mt-1 text-gray-800"></p>
                                     </div>
                                 </div>
+                                <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                    <div>
+                                        <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Linked Deal</p>
+                                        <p id="viewConsultationLinkedDeal" class="mt-1 text-gray-800"></p>
+                                    </div>
+                                    <div>
+                                        <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Linked Activity</p>
+                                        <p id="viewConsultationLinkedActivity" class="mt-1 text-gray-800"></p>
+                                    </div>
+                                </div>
                                 <div>
                                     <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Summary</p>
                                     <p id="viewConsultationSummary" class="mt-1 text-gray-700"></p>
@@ -1416,8 +1427,11 @@
 
                 @php
                     $consultationNotesPayload = [
-                        'defaultAuthor' => $contact->owner_name ?: 'John Admin',
+                        'defaultAuthor' => auth()->user()->name ?? ($contact->owner_name ?: 'System'),
                         'notes' => $tabData['consultation-notes'],
+                        'storeUrl' => route('contacts.consultation-notes.store', $contact),
+                        'updateUrlTemplate' => route('contacts.consultation-notes.update', [$contact, '__NOTE__']),
+                        'deleteUrlTemplate' => route('contacts.consultation-notes.destroy', [$contact, '__NOTE__']),
                     ];
                 @endphp
                 <textarea id="consultationNotesPayload" class="hidden" hidden>{!! json_encode($consultationNotesPayload, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) !!}</textarea>
@@ -1443,6 +1457,8 @@
                             title: document.getElementById('noteTitle'),
                             consultationDate: document.getElementById('consultationDate'),
                             author: document.getElementById('consultationAuthor'),
+                            linkedDeal: document.getElementById('consultationLinkedDeal'),
+                            linkedActivity: document.getElementById('consultationLinkedActivity'),
                             summary: document.getElementById('consultationSummary'),
                             details: document.getElementById('consultationDetails'),
                             category: document.getElementById('consultationCategory'),
@@ -1462,7 +1478,11 @@
                             }
                         };
                         const consultationPayload = readJsonPayload('consultationNotesPayload', {});
-                        const defaultAuthor = consultationPayload.defaultAuthor || 'John Admin';
+                        const defaultAuthor = consultationPayload.defaultAuthor || 'System';
+                        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+                        const storeUrl = consultationPayload.storeUrl || '';
+                        const updateUrlTemplate = consultationPayload.updateUrlTemplate || '';
+                        const deleteUrlTemplate = consultationPayload.deleteUrlTemplate || '';
                         let notes = Array.isArray(consultationPayload.notes) ? consultationPayload.notes : [];
                         let editNoteId = null;
                         let viewNoteId = null;
@@ -1490,6 +1510,26 @@
                             }
                             const ext = name.includes('.') ? name.split('.').pop() : 'FILE';
                             return String(ext).toUpperCase();
+                        };
+
+                        const noteUrl = (template, noteId) => template.replace('__NOTE__', String(noteId));
+
+                        const requestJson = async (url, method, payload) => {
+                            const response = await fetch(url, {
+                                method,
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'Accept': 'application/json',
+                                    'X-CSRF-TOKEN': csrfToken,
+                                },
+                                body: JSON.stringify(payload),
+                            });
+
+                            if (!response.ok) {
+                                throw new Error('Unable to save consultation note.');
+                            }
+
+                            return response.status === 204 ? null : response.json();
                         };
 
                         const node = (tag, className = '', text = null) => {
@@ -1569,6 +1609,7 @@
                                 body.append(
                                     node('h3', 'text-xl font-semibold text-gray-900', note.title),
                                     node('p', 'mt-1 text-sm text-gray-600', note.summary || note.details || ''),
+                                    node('p', 'mt-2 text-xs text-gray-500', [note.linkedDeal, note.linkedActivity].filter(Boolean).join(' • ') || 'No linked deal or activity'),
                                     meta
                                 );
 
@@ -1585,7 +1626,13 @@
                                 editButton.setAttribute('aria-label', 'Edit note');
                                 editButton.appendChild(node('i', 'far fa-pen-to-square'));
 
-                                actions.append(viewButton, editButton);
+                                const deleteButton = node('button', 'note-delete hover:text-red-600');
+                                deleteButton.type = 'button';
+                                deleteButton.dataset.noteId = String(note.id);
+                                deleteButton.setAttribute('aria-label', 'Delete note');
+                                deleteButton.appendChild(node('i', 'far fa-trash-can'));
+
+                                actions.append(viewButton, editButton, deleteButton);
                                 layout.append(body, actions);
                                 article.appendChild(layout);
                                 return article;
@@ -1627,6 +1674,8 @@
                             fields.title.value = '';
                             fields.consultationDate.value = '';
                             fields.author.value = defaultAuthor;
+                            fields.linkedDeal.value = '';
+                            fields.linkedActivity.value = '';
                             fields.summary.value = '';
                             fields.details.value = '';
                             fields.category.value = '';
@@ -1638,6 +1687,7 @@
 
                         const openAddModal = () => {
                             resetForm();
+                            fields.consultationDate.value = new Date().toISOString().slice(0, 10);
                             formTitle.textContent = 'Add Consultation Note';
                             saveButton.textContent = 'Save Consultation Note';
                             showModal(formModal);
@@ -1651,6 +1701,8 @@
                             fields.title.value = note.title || '';
                             fields.consultationDate.value = note.consultationDate || '';
                             fields.author.value = note.author || defaultAuthor;
+                            fields.linkedDeal.value = note.linkedDeal || '';
+                            fields.linkedActivity.value = note.linkedActivity || '';
                             fields.summary.value = note.summary || '';
                             fields.details.value = note.details || '';
                             fields.category.value = note.category || '';
@@ -1672,6 +1724,8 @@
                             document.getElementById('viewNoteTitle').textContent = note.title || '-';
                             document.getElementById('viewConsultationDate').textContent = formatDate(note.consultationDate);
                             document.getElementById('viewConsultationAuthor').textContent = note.author || '-';
+                            document.getElementById('viewConsultationLinkedDeal').textContent = note.linkedDeal || '-';
+                            document.getElementById('viewConsultationLinkedActivity').textContent = note.linkedActivity || '-';
                             document.getElementById('viewConsultationSummary').textContent = note.summary || '-';
                             document.getElementById('viewConsultationDetails').textContent = note.details || '-';
 
@@ -1757,6 +1811,7 @@
                         notesList.addEventListener('click', function (event) {
                             const viewBtn = event.target.closest('.note-view');
                             const editBtn = event.target.closest('.note-edit');
+                            const deleteBtn = event.target.closest('.note-delete');
 
                             if (viewBtn) {
                                 openViewModal(viewBtn.dataset.noteId);
@@ -1764,36 +1819,53 @@
                             if (editBtn) {
                                 openEditModal(editBtn.dataset.noteId);
                             }
+                            if (deleteBtn) {
+                                const noteId = Number(deleteBtn.dataset.noteId);
+                                if (!noteId || !window.confirm('Delete this consultation note?')) {
+                                    return;
+                                }
+
+                                requestJson(noteUrl(deleteUrlTemplate, noteId), 'DELETE', {})
+                                    .then(() => {
+                                        notes = notes.filter((item) => Number(item.id) !== noteId);
+                                        renderNotes();
+                                    })
+                                    .catch((error) => window.alert(error.message));
+                            }
                         });
 
-                        form.addEventListener('submit', function (event) {
+                        form.addEventListener('submit', async function (event) {
                             event.preventDefault();
                             if (!validateForm()) return;
 
-                            const now = new Date().toISOString();
                             const payload = {
-                                id: editNoteId ?? Date.now(),
                                 title: fields.title.value.trim(),
-                                consultationDate: fields.consultationDate.value,
+                                consultation_date: fields.consultationDate.value,
                                 author: fields.author.value.trim() || defaultAuthor,
+                                linked_deal: fields.linkedDeal.value.trim(),
+                                linked_activity: fields.linkedActivity.value.trim(),
                                 summary: fields.summary.value.trim(),
                                 details: fields.details.value.trim(),
                                 category: fields.category.value.trim(),
                                 attachments: formAttachments.map((item) => ({ ...item })),
-                                createdAt: now,
-                                updatedAt: now,
                             };
 
-                            if (editNoteId !== null) {
-                                notes = notes.map((item) => Number(item.id) === editNoteId
-                                    ? { ...item, ...payload, createdAt: item.createdAt || now, updatedAt: now }
-                                    : item);
-                            } else {
-                                notes.push(payload);
-                            }
+                            try {
+                                const savedNote = editNoteId !== null
+                                    ? await requestJson(noteUrl(updateUrlTemplate, editNoteId), 'PUT', payload)
+                                    : await requestJson(storeUrl, 'POST', payload);
 
-                            renderNotes();
-                            hideModal(formModal);
+                                if (editNoteId !== null) {
+                                    notes = notes.map((item) => Number(item.id) === editNoteId ? savedNote : item);
+                                } else {
+                                    notes.unshift(savedNote);
+                                }
+
+                                renderNotes();
+                                hideModal(formModal);
+                            } catch (error) {
+                                window.alert(error.message);
+                            }
                         });
 
                         renderNotes();
@@ -1802,36 +1874,16 @@
             @endif
 
             @if ($tab === 'activities')
-                <div class="mb-4 grid grid-cols-1 gap-3 md:grid-cols-4">
-                    <button class="h-10 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50"><i class="fas fa-phone mr-1"></i>Log Call</button>
-                    <button class="h-10 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50"><i class="fas fa-video mr-1"></i>Schedule Meeting</button>
-                    <button class="h-10 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50"><i class="fas fa-envelope mr-1"></i>Send Email</button>
-                    <button class="h-10 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50"><i class="fas fa-square-check mr-1"></i>Add Task</button>
-                </div>
-                <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-                    <h2 class="mb-4 text-2xl font-semibold text-gray-900">Activity Timeline</h2>
-                    <div class="space-y-3">
-                        @foreach ($tabData['activities'] as $activity)
-                            <article class="rounded-xl border border-gray-200 p-4">
-                                <div class="flex items-start justify-between gap-3">
-                                    <div class="flex items-start gap-3">
-                                        <span class="mt-1 flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 text-blue-600">
-                                            <i class="fas {{ $activity['icon'] }} text-xs"></i>
-                                        </span>
-                                        <div>
-                                            <h3 class="text-lg font-semibold text-gray-900">{{ $activity['type'] }}</h3>
-                                            <p class="text-sm text-gray-600">{{ $activity['description'] }}</p>
-                                            <p class="mt-2 text-xs text-gray-500">{{ $activity['when'] }} | {{ $activity['owner'] }}</p>
-                                        </div>
-                                    </div>
-                                    <span class="rounded-full px-2 py-0.5 text-xs font-medium {{ $activity['status'] === 'Completed' ? 'bg-green-100 text-green-700' : ($activity['status'] === 'Sent' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700') }}">
-                                        {{ $activity['status'] }}
-                                    </span>
-                                </div>
-                            </article>
-                        @endforeach
-                    </div>
-                </div>
+                @include('partials.activities-app', [
+                    'appId' => 'contactActivitiesApp',
+                    'listId' => 'contactActivitiesList',
+                    'title' => 'Activities',
+                    'description' => 'Manage contact activities with the same activity workspace used in the company module.',
+                    'openUrl' => route('activities'),
+                    'openLabel' => 'Open Main Activities',
+                    'editable' => false,
+                    'activities' => $tabData['activities'],
+                ])
             @endif
 
             @if ($tab === 'deals')
@@ -1858,7 +1910,7 @@
                         <h2 class="text-2xl font-semibold text-gray-900">Related Deals</h2>
                         <p class="text-sm text-gray-500">Track all deals associated with this contact</p>
                     </div>
-                    <button class="h-10 rounded-lg bg-blue-600 px-4 text-sm font-medium text-white hover:bg-blue-700">+ Add Deal</button>
+                    <a href="{{ route('deals.index') }}" class="inline-flex h-10 items-center rounded-lg bg-blue-600 px-4 text-sm font-medium text-white hover:bg-blue-700">+ Open Deals</a>
                 </div>
                 <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
                     <table class="min-w-full text-sm">
@@ -1890,7 +1942,7 @@
                                             {{ $deal['status'] }}
                                         </span>
                                     </td>
-                                    <td class="px-3 py-3"><a href="#" class="text-blue-600 hover:text-blue-700"><i class="far fa-eye mr-1"></i>View</a></td>
+                                    <td class="px-3 py-3"><a href="{{ $deal['show_url'] ?? route('deals.index') }}" class="text-blue-600 hover:text-blue-700"><i class="far fa-eye mr-1"></i>View</a></td>
                                 </tr>
                             @endforeach
                         </tbody>
@@ -2213,184 +2265,353 @@
             @endif
 
             @if ($tab === 'projects')
-                <div class="mb-4 flex items-center justify-between">
-                    <div>
-                        <h2 class="text-2xl font-semibold text-gray-900">Projects</h2>
-                        <p class="text-sm text-gray-500">Manage projects associated with this contact</p>
+                <div class="rounded-md border border-gray-200 bg-white overflow-hidden">
+                    <div class="border-b border-gray-100 px-4 py-4">
+                        <h2 class="text-2xl font-bold tracking-tight text-gray-900">PROJECTS</h2>
+
+                        <div class="mt-4 flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+                            <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+                                <div class="relative w-full sm:w-[320px]">
+                                    <i class="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
+                                    <input
+                                        type="text"
+                                        placeholder="Search projects..."
+                                        class="w-full h-9 rounded border border-gray-200 bg-white pl-11 pr-4 text-sm text-gray-700 outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
+                                    >
+                                </div>
+
+                                <select class="h-9 rounded border border-gray-200 bg-white px-3 text-sm text-gray-700 outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400">
+                                    <option>All</option>
+                                    <option>In Progress</option>
+                                    <option>Completed</option>
+                                </select>
+                            </div>
+
+                            <div class="flex items-center gap-2">
+                                <span class="inline-flex items-center rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-xs font-medium text-gray-600">All: {{ count($tabData['projects']) }}</span>
+                                <span class="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700">Active: {{ collect($tabData['projects'])->where('status', '!=', 'Completed')->count() }}</span>
+                                <span class="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">Completed: {{ collect($tabData['projects'])->where('status', 'Completed')->count() }}</span>
+                            </div>
+                        </div>
                     </div>
-                    <button class="h-10 rounded-lg bg-blue-600 px-4 text-sm font-medium text-white hover:bg-blue-700">+ Create Project</button>
-                </div>
-                <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-                    <table class="min-w-full text-sm">
-                        <thead class="bg-gray-50 text-xs uppercase tracking-wide text-gray-600">
-                            <tr>
-                                <th class="px-3 py-3 text-left">Project Name</th>
-                                <th class="px-3 py-3 text-left">Project Type</th>
-                                <th class="px-3 py-3 text-left">Status</th>
-                                <th class="px-3 py-3 text-left">Start Date</th>
-                                <th class="px-3 py-3 text-left">Assigned Team</th>
-                                <th class="px-3 py-3 text-left">Action</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-gray-100">
-                            @foreach ($tabData['projects'] as $project)
-                                <tr>
-                                    <td class="px-3 py-3 font-medium text-gray-900">{{ $project['name'] }}</td>
-                                    <td class="px-3 py-3">{{ $project['type'] }}</td>
-                                    <td class="px-3 py-3">
-                                        <span class="rounded-full px-2 py-0.5 text-xs {{ $project['status'] === 'In Progress' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700' }}">
-                                            {{ $project['status'] }}
-                                        </span>
-                                    </td>
-                                    <td class="px-3 py-3">{{ $project['start_date'] }}</td>
-                                    <td class="px-3 py-3">{{ $project['team'] }}</td>
-                                    <td class="px-3 py-3"><a href="#" class="text-blue-600 hover:text-blue-700"><i class="far fa-eye mr-1"></i>View</a></td>
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
+
+                    <div class="p-4">
+                        <div class="border border-gray-200 rounded-md bg-white overflow-hidden">
+                            <div class="overflow-x-auto">
+                                <table class="min-w-full text-sm">
+                                    <thead class="bg-gray-50 text-gray-600 border-b border-gray-200">
+                                        <tr>
+                                            <th class="w-10 px-3 py-3 text-left">
+                                                <input type="checkbox" class="h-4 w-4 rounded border-gray-300 text-blue-600">
+                                            </th>
+                                            <th class="px-3 py-3 text-left font-medium">Project Name</th>
+                                            <th class="px-3 py-3 text-left font-medium">Status</th>
+                                            <th class="px-3 py-3 text-left font-medium">Start Date</th>
+                                            <th class="px-3 py-3 text-left font-medium">End Date</th>
+                                            <th class="px-3 py-3 text-left font-medium">Owner</th>
+                                            <th class="px-3 py-3 text-right font-medium">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-gray-200 bg-white text-gray-700">
+                                        @forelse ($tabData['projects'] as $project)
+                                            <tr class="hover:bg-gray-50">
+                                                <td class="px-3 py-3">
+                                                    <input type="checkbox" class="h-4 w-4 rounded border-gray-300 text-blue-600">
+                                                </td>
+                                                <td class="px-3 py-3 font-medium text-gray-800">{{ $project['name'] }}</td>
+                                                <td class="px-3 py-3">
+                                                    @if ($project['status'] === 'Completed')
+                                                        <span class="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">Completed</span>
+                                                    @else
+                                                        <span class="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">In Progress</span>
+                                                    @endif
+                                                </td>
+                                                <td class="px-3 py-3">{{ $project['start_date'] }}</td>
+                                                <td class="px-3 py-3">{{ $project['end_date'] }}</td>
+                                                <td class="px-3 py-3">
+                                                    <div class="flex items-center gap-2">
+                                                        <span class="h-7 w-7 rounded-full bg-gray-100 border border-gray-200 text-[11px] font-semibold text-gray-600 inline-flex items-center justify-center">{{ $project['owner_initials'] }}</span>
+                                                        <span>{{ $project['owner'] }}</span>
+                                                    </div>
+                                                </td>
+                                                <td class="px-3 py-3">
+                                                    <div class="flex items-center justify-end gap-2">
+                                                        <a href="{{ $project['show_url'] ?? route('project.index') }}" class="inline-flex h-8 items-center rounded-full bg-blue-600 px-3 text-xs font-medium text-white hover:bg-blue-700">View</a>
+                                                        <button class="h-8 w-8 rounded-full border border-gray-200 text-gray-600 hover:bg-gray-50">
+                                                            <i class="fas fa-ellipsis-v text-xs"></i>
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        @empty
+                                            <tr>
+                                                <td colspan="7" class="px-3 py-10 text-center text-sm text-gray-500">No projects linked to this contact yet.</td>
+                                            </tr>
+                                        @endforelse
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="border-t border-gray-100 px-4 py-3 flex flex-wrap items-center justify-end gap-3 text-sm text-gray-500">
+                        <span>{{ count($tabData['projects']) ? '1-'.count($tabData['projects']).' of '.count($tabData['projects']).' results' : '0 results' }}</span>
+                        <button class="h-8 rounded border border-gray-200 px-3 hover:bg-gray-50">Previous</button>
+                        <button class="h-8 rounded border border-gray-200 px-3 hover:bg-gray-50">Next</button>
+                        <select class="h-8 rounded border border-gray-200 bg-white px-2 text-sm text-gray-700">
+                            <option>10 per page</option>
+                        </select>
+                    </div>
                 </div>
             @endif
 
             @if ($tab === 'regular')
-                <div class="mb-4 flex items-center justify-between">
-                    <div>
-                        <h2 class="text-2xl font-semibold text-gray-900">Recurring Services</h2>
-                        <p class="text-sm text-gray-500">Manage retainer and subscription services</p>
+                <div class="rounded-md border border-gray-200 bg-white overflow-hidden">
+                    <div class="border-b border-gray-100 px-4 py-4">
+                        <h2 class="text-2xl font-bold tracking-tight text-gray-900">REGULAR</h2>
+                        <p class="mt-1 text-sm text-gray-500">Manage regular engagements of the contact.</p>
+
+                        <div class="mt-4 grid grid-cols-1 gap-2 lg:grid-cols-12">
+                            <div class="relative lg:col-span-4">
+                                <i class="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
+                                <input
+                                    type="text"
+                                    placeholder="Search engagements..."
+                                    class="w-full h-10 rounded border border-gray-200 bg-white pl-11 pr-4 text-sm text-gray-700 outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
+                                >
+                            </div>
+
+                            <div class="lg:col-span-2">
+                                <select class="w-full h-10 rounded border border-gray-200 bg-white px-3 text-sm text-gray-700 outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400">
+                                    <option>Frequency: All</option>
+                                    <option>Frequency: Monthly</option>
+                                    <option>Frequency: Quarterly</option>
+                                    <option>Frequency: Annual</option>
+                                </select>
+                            </div>
+
+                            <div class="lg:col-span-2">
+                                <select class="w-full h-10 rounded border border-gray-200 bg-white px-3 text-sm text-gray-700 outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400">
+                                    <option>Status: All</option>
+                                    <option>Status: Active</option>
+                                </select>
+                            </div>
+
+                            <div class="lg:col-span-1">
+                                <span class="inline-flex h-10 w-full items-center justify-center rounded border border-gray-200 bg-gray-50 px-2 text-sm font-medium text-gray-600">{{ count($tabData['regular']) }}</span>
+                            </div>
+
+                            <div class="lg:col-span-1">
+                                <button class="w-full h-10 rounded border border-gray-200 text-gray-700 text-sm hover:bg-gray-50 inline-flex items-center justify-center">
+                                    <i class="fas fa-sort text-xs"></i>
+                                </button>
+                            </div>
+
+                            <div class="lg:col-span-2">
+                                <a href="{{ route('regular.index') }}" class="w-full h-10 rounded-full bg-blue-600 px-4 text-sm font-medium text-white hover:bg-blue-700 inline-flex items-center justify-center gap-2">
+                                    <span class="text-base leading-none">+</span>
+                                    <span>Open Regular</span>
+                                </a>
+                            </div>
+                        </div>
                     </div>
-                    <button class="h-10 rounded-lg bg-blue-600 px-4 text-sm font-medium text-white hover:bg-blue-700">+ Add Recurring Service</button>
-                </div>
-                <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-                    <table class="min-w-full text-sm">
-                        <thead class="bg-gray-50 text-xs uppercase tracking-wide text-gray-600">
-                            <tr>
-                                <th class="px-3 py-3 text-left">Service Name</th>
-                                <th class="px-3 py-3 text-left">Frequency</th>
-                                <th class="px-3 py-3 text-left">Fee</th>
-                                <th class="px-3 py-3 text-left">Start Date</th>
-                                <th class="px-3 py-3 text-left">Status</th>
-                                <th class="px-3 py-3 text-left">Action</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-gray-100">
-                            @foreach ($tabData['regular']['items'] as $item)
-                                <tr>
-                                    <td class="px-3 py-3 font-medium text-gray-900">{{ $item['service'] }}</td>
-                                    <td class="px-3 py-3"><span class="rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-700">{{ $item['frequency'] }}</span></td>
-                                    <td class="px-3 py-3 font-semibold text-blue-600">{{ $item['fee'] }}</td>
-                                    <td class="px-3 py-3">{{ $item['start_date'] }}</td>
-                                    <td class="px-3 py-3"><span class="rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-700">{{ $item['status'] }}</span></td>
-                                    <td class="px-3 py-3"><a href="#" class="text-blue-600 hover:text-blue-700"><i class="far fa-eye mr-1"></i>View</a></td>
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                </div>
-                <div class="mt-3 rounded-xl border border-blue-100 bg-blue-50 p-5">
-                    <p class="text-sm text-gray-600">Total Monthly Recurring Revenue</p>
-                    <div class="mt-1 flex items-center justify-between">
-                        <p class="text-4xl font-semibold text-blue-700">{{ $tabData['regular']['revenue'] }}</p>
-                        <span class="flex h-12 w-12 items-center justify-center rounded-full bg-white text-2xl text-blue-600 shadow-sm">$</span>
+
+                    <div class="p-4">
+                        <div class="border border-gray-200 rounded-md bg-white overflow-hidden">
+                            <div class="overflow-x-auto">
+                                <table class="min-w-full text-sm">
+                                    <thead class="bg-gray-50 text-gray-600 border-b border-gray-200">
+                                        <tr>
+                                            <th class="w-10 px-3 py-3 text-left">
+                                                <input type="checkbox" class="h-4 w-4 rounded border-gray-300 text-blue-600">
+                                            </th>
+                                            <th class="px-3 py-3 text-left font-medium">Engagement Name</th>
+                                            <th class="px-3 py-3 text-left font-medium">Frequency</th>
+                                            <th class="px-3 py-3 text-left font-medium">Status</th>
+                                            <th class="px-3 py-3 text-left font-medium">Start Date</th>
+                                            <th class="px-3 py-3 text-left font-medium">Next Billing Date</th>
+                                            <th class="px-3 py-3 text-left font-medium">Owner</th>
+                                            <th class="px-3 py-3 text-right font-medium">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-gray-200 bg-white text-gray-700">
+                                        @forelse ($tabData['regular'] as $engagement)
+                                            <tr class="hover:bg-gray-50">
+                                                <td class="px-3 py-3">
+                                                    <input type="checkbox" class="h-4 w-4 rounded border-gray-300 text-blue-600">
+                                                </td>
+                                                <td class="px-3 py-3 font-medium text-gray-800">{{ $engagement['name'] }}</td>
+                                                <td class="px-3 py-3">{{ $engagement['frequency'] }}</td>
+                                                <td class="px-3 py-3">
+                                                    <span class="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">{{ $engagement['status'] }}</span>
+                                                </td>
+                                                <td class="px-3 py-3">{{ $engagement['start_date'] }}</td>
+                                                <td class="px-3 py-3">{{ $engagement['next_billing_date'] }}</td>
+                                                <td class="px-3 py-3">
+                                                    <div class="flex items-center gap-2">
+                                                        <span class="h-7 w-7 rounded-full bg-gray-100 border border-gray-200 text-[11px] font-semibold text-gray-600 inline-flex items-center justify-center">{{ $engagement['owner_initials'] }}</span>
+                                                        <span>{{ $engagement['owner'] }}</span>
+                                                    </div>
+                                                </td>
+                                                <td class="px-3 py-3">
+                                                    <div class="flex items-center justify-end gap-2">
+                                                        <a href="{{ $engagement['show_url'] ?? route('regular.index') }}" class="inline-flex h-8 items-center rounded-full bg-blue-600 px-3 text-xs font-medium text-white hover:bg-blue-700">View</a>
+                                                        <button class="h-8 w-8 rounded-full border border-gray-200 text-gray-600 hover:bg-gray-50">
+                                                            <i class="fas fa-ellipsis-v text-xs"></i>
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        @empty
+                                            <tr>
+                                                <td colspan="8" class="px-3 py-10 text-center text-sm text-gray-500">No regular engagements linked to this contact yet.</td>
+                                            </tr>
+                                        @endforelse
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="border-t border-gray-100 px-4 py-3 flex flex-wrap items-center justify-end gap-3 text-sm text-gray-500">
+                        <span>{{ count($tabData['regular']) ? '1-'.count($tabData['regular']).' of '.count($tabData['regular']).' results' : '0 results' }}</span>
+                        <button class="h-8 rounded border border-gray-200 px-3 hover:bg-gray-50">Previous</button>
+                        <button class="h-8 rounded border border-gray-200 px-3 hover:bg-gray-50">Next</button>
+                        <select class="h-8 rounded border border-gray-200 bg-white px-2 text-sm text-gray-700">
+                            <option>10 per page</option>
+                        </select>
                     </div>
                 </div>
             @endif
 
             @if ($tab === 'products')
-                <div class="mb-4">
-                    <h2 class="text-2xl font-semibold text-gray-900">Purchased Products</h2>
-                    <p class="text-sm text-gray-500">View all products purchased by this contact</p>
+                <div class="mb-4 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+                    <div>
+                        <h2 class="text-2xl font-semibold text-gray-900">Products Availed</h2>
+                        <p class="text-sm text-gray-500">Products tied to this contact through linked deals.</p>
+                    </div>
+                    <div class="text-sm text-gray-500">
+                        {{ $tabData['products']['total_products'] }} {{ \Illuminate\Support\Str::plural('product', $tabData['products']['total_products']) }}
+                        <span class="mx-2 text-gray-300">|</span>
+                        Total value {{ $tabData['products']['total_revenue'] }}
+                    </div>
                 </div>
-                <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-                    <table class="min-w-full text-sm">
-                        <thead class="bg-gray-50 text-xs uppercase tracking-wide text-gray-600">
-                            <tr>
-                                <th class="px-3 py-3 text-left">Product Name</th>
-                                <th class="px-3 py-3 text-left">Price</th>
-                                <th class="px-3 py-3 text-left">Quantity</th>
-                                <th class="px-3 py-3 text-left">Total</th>
-                                <th class="px-3 py-3 text-left">Date Purchased</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-gray-100">
-                            @foreach ($tabData['products']['items'] as $item)
+                <div class="rounded-xl border border-gray-200 bg-white shadow-sm">
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full text-sm">
+                            <thead class="bg-gray-50 text-xs text-gray-700">
                                 <tr>
-                                    <td class="px-3 py-3 font-medium text-gray-900"><i class="far fa-cube mr-2 text-blue-600"></i>{{ $item['name'] }}</td>
-                                    <td class="px-3 py-3">{{ $item['price'] }}</td>
-                                    <td class="px-3 py-3">{{ $item['quantity'] }}</td>
-                                    <td class="px-3 py-3 font-semibold text-blue-600">{{ $item['total'] }}</td>
-                                    <td class="px-3 py-3">{{ $item['date'] }}</td>
+                                    <th class="px-3 py-3 text-left font-medium">Product Name</th>
+                                    <th class="px-3 py-3 text-left font-medium">SKU</th>
+                                    <th class="px-3 py-3 text-left font-medium">Category</th>
+                                    <th class="px-3 py-3 text-left font-medium">Price</th>
+                                    <th class="px-3 py-3 text-left font-medium">Pricing Type</th>
+                                    <th class="px-3 py-3 text-left font-medium">Status</th>
+                                    <th class="px-3 py-3 text-left font-medium">Linked Date</th>
+                                    <th class="px-3 py-3 text-left font-medium">Actions</th>
                                 </tr>
-                            @endforeach
-                            <tr class="bg-gray-50">
-                                <td colspan="3" class="px-3 py-3 text-right font-semibold text-gray-700">Grand Total:</td>
-                                <td colspan="2" class="px-3 py-3 text-xl font-semibold text-blue-700">{{ $tabData['products']['grand_total'] }}</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-                <div class="mt-4 grid gap-3 md:grid-cols-3">
-                    <div class="rounded-xl border border-gray-200 bg-white p-4">
-                        <p class="text-sm text-gray-500">Total Products</p>
-                        <p class="text-4xl font-semibold text-gray-900">{{ $tabData['products']['total_products'] }}</p>
+                            </thead>
+                            <tbody class="divide-y divide-gray-100">
+                                @forelse ($tabData['products']['items'] as $item)
+                                    <tr class="text-gray-700 hover:bg-gray-50">
+                                        <td class="px-3 py-3">
+                                            <a href="{{ $item['show_url'] ?? route('products.index') }}" class="font-medium text-gray-900 hover:text-blue-700">
+                                                {{ $item['name'] }}
+                                            </a>
+                                        </td>
+                                        <td class="px-3 py-3 text-gray-600">{{ $item['sku'] }}</td>
+                                        <td class="px-3 py-3 text-gray-600">{{ $item['category'] }}</td>
+                                        <td class="px-3 py-3 text-gray-600">{{ $item['price'] }}</td>
+                                        <td class="px-3 py-3 text-gray-600">{{ $item['pricing_type'] }}</td>
+                                        <td class="px-3 py-3">
+                                            <span class="inline-flex rounded-full border px-2.5 py-1 text-xs font-medium {{ $item['status'] === 'Active' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : ($item['status'] === 'Inactive' ? 'border-amber-200 bg-amber-50 text-amber-700' : 'border-gray-200 bg-gray-100 text-gray-600') }}">
+                                                {{ $item['status'] }}
+                                            </span>
+                                        </td>
+                                        <td class="px-3 py-3 text-gray-600">{{ $item['linked_at'] }}</td>
+                                        <td class="px-3 py-3">
+                                            <a href="{{ $item['show_url'] ?? route('products.index') }}" class="inline-flex rounded-full border border-gray-200 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50">
+                                                View
+                                            </a>
+                                        </td>
+                                    </tr>
+                                @empty
+                                    <tr>
+                                        <td colspan="8" class="px-3 py-12 text-center text-sm text-gray-500">No availed products found for this contact yet.</td>
+                                    </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
                     </div>
-                    <div class="rounded-xl border border-gray-200 bg-white p-4">
-                        <p class="text-sm text-gray-500">Total Quantity</p>
-                        <p class="text-4xl font-semibold text-gray-900">{{ $tabData['products']['total_quantity'] }}</p>
-                    </div>
-                    <div class="rounded-xl border border-blue-100 bg-blue-50 p-4">
-                        <p class="text-sm text-gray-500">Total Revenue</p>
-                        <p class="text-4xl font-semibold text-blue-700">{{ $tabData['products']['total_revenue'] }}</p>
+                    <div class="border-t border-gray-100 px-4 py-3 text-sm text-gray-500">
+                        Total revenue: <span class="font-semibold text-gray-900">{{ $tabData['products']['grand_total'] }}</span>
                     </div>
                 </div>
             @endif
 
             @if ($tab === 'services')
-                <div class="mb-4">
-                    <h2 class="text-2xl font-semibold text-gray-900">Professional Services</h2>
-                    <p class="text-sm text-gray-500">Services delivered to this contact</p>
+                <div class="mb-4 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+                    <div>
+                        <h2 class="text-2xl font-semibold text-gray-900">Services Availed</h2>
+                        <p class="text-sm text-gray-500">Services associated with this contact through related company work.</p>
+                    </div>
+                    <div class="text-sm text-gray-500">
+                        {{ $tabData['services']['total_services'] }} {{ \Illuminate\Support\Str::plural('service', $tabData['services']['total_services']) }}
+                        <span class="mx-2 text-gray-300">|</span>
+                        Total value {{ $tabData['services']['total_value'] }}
+                    </div>
                 </div>
-                <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-                    <table class="min-w-full text-sm">
-                        <thead class="bg-gray-50 text-xs uppercase tracking-wide text-gray-600">
-                            <tr>
-                                <th class="px-3 py-3 text-left">Service Name</th>
-                                <th class="px-3 py-3 text-left">Description</th>
-                                <th class="px-3 py-3 text-left">Fee</th>
-                                <th class="px-3 py-3 text-left">Assigned Staff</th>
-                                <th class="px-3 py-3 text-left">Status</th>
-                                <th class="px-3 py-3 text-left">Action</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-gray-100">
-                            @foreach ($tabData['services']['items'] as $item)
+                <div class="rounded-xl border border-gray-200 bg-white shadow-sm">
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full text-sm">
+                            <thead class="bg-gray-50 text-xs text-gray-700">
                                 <tr>
-                                    <td class="px-3 py-3 font-medium text-gray-900"><i class="fas fa-gift mr-2 text-purple-600"></i>{{ $item['name'] }}</td>
-                                    <td class="px-3 py-3">{{ $item['description'] }}</td>
-                                    <td class="px-3 py-3 font-semibold text-blue-600">{{ $item['fee'] }}</td>
-                                    <td class="px-3 py-3">{{ $item['staff'] }}</td>
-                                    <td class="px-3 py-3">
-                                        <span class="rounded-full px-2 py-0.5 text-xs {{ $item['status'] === 'Completed' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700' }}">
-                                            {{ $item['status'] }}
-                                        </span>
-                                    </td>
-                                    <td class="px-3 py-3"><a href="#" class="text-blue-600 hover:text-blue-700"><i class="far fa-eye mr-1"></i>View</a></td>
+                                    <th class="px-3 py-3 text-left font-medium">Service Name</th>
+                                    <th class="px-3 py-3 text-left font-medium">Category</th>
+                                    <th class="px-3 py-3 text-left font-medium">Frequency</th>
+                                    <th class="px-3 py-3 text-left font-medium">Engagement Type</th>
+                                    <th class="px-3 py-3 text-left font-medium">Price / Rate</th>
+                                    <th class="px-3 py-3 text-left font-medium">Assigned Unit</th>
+                                    <th class="px-3 py-3 text-left font-medium">Status</th>
+                                    <th class="px-3 py-3 text-left font-medium">Service Owner</th>
+                                    <th class="px-3 py-3 text-left font-medium">Actions</th>
                                 </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                </div>
-                <div class="mt-4 grid gap-3 md:grid-cols-3">
-                    <div class="rounded-xl border border-gray-200 bg-white p-4">
-                        <p class="text-sm text-gray-500">Total Services</p>
-                        <p class="text-4xl font-semibold text-gray-900">{{ $tabData['services']['total_services'] }}</p>
+                            </thead>
+                            <tbody class="divide-y divide-gray-100">
+                                @forelse ($tabData['services']['items'] as $item)
+                                    <tr class="text-gray-700 hover:bg-gray-50">
+                                        <td class="px-3 py-3">
+                                            <a href="{{ $item['show_url'] ?? route('services.index') }}" class="font-medium text-gray-900 hover:text-blue-700">
+                                                {{ $item['name'] }}
+                                            </a>
+                                        </td>
+                                        <td class="px-3 py-3 text-gray-600">{{ $item['category'] }}</td>
+                                        <td class="px-3 py-3 text-gray-600">{{ $item['frequency'] }}</td>
+                                        <td class="px-3 py-3 text-gray-600">{{ $item['engagement_type'] }}</td>
+                                        <td class="px-3 py-3 text-gray-600">{{ $item['price_rate'] }}</td>
+                                        <td class="px-3 py-3 text-gray-600">{{ $item['assigned_unit'] }}</td>
+                                        <td class="px-3 py-3">
+                                            <span class="inline-flex rounded-full border px-2.5 py-1 text-xs font-medium {{ $item['status'] === 'Completed' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-blue-200 bg-blue-50 text-blue-700' }}">
+                                                {{ $item['status'] }}
+                                            </span>
+                                        </td>
+                                        <td class="px-3 py-3 text-gray-600">{{ $item['owner'] }}</td>
+                                        <td class="px-3 py-3">
+                                            <a href="{{ $item['show_url'] ?? route('services.index') }}" class="inline-flex rounded-full border border-gray-200 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50">
+                                                View
+                                            </a>
+                                        </td>
+                                    </tr>
+                                @empty
+                                    <tr>
+                                        <td colspan="8" class="px-3 py-12 text-center text-sm text-gray-500">No availed services found for this contact yet.</td>
+                                    </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
                     </div>
-                    <div class="rounded-xl border border-gray-200 bg-white p-4">
-                        <p class="text-sm text-gray-500">Completed</p>
-                        <p class="text-4xl font-semibold text-green-700">{{ $tabData['services']['completed'] }}</p>
-                    </div>
-                    <div class="rounded-xl border border-blue-100 bg-blue-50 p-4">
-                        <p class="text-sm text-gray-500">Total Value</p>
-                        <p class="text-4xl font-semibold text-blue-700">{{ $tabData['services']['total_value'] }}</p>
+                    <div class="border-t border-gray-100 px-4 py-3 text-sm text-gray-500">
+                        Completed: <span class="font-semibold text-gray-900">{{ $tabData['services']['completed'] }}</span>
                     </div>
                 </div>
             @endif

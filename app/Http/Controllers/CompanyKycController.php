@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Barryvdh\DomPDF\Facade\Pdf;
 use App\Models\Company;
 use App\Models\CompanyBif;
+use App\Models\User;
 use App\Support\CompanyHistoryLogger;
 use Carbon\CarbonInterface;
 use Illuminate\Http\RedirectResponse;
@@ -232,7 +233,7 @@ class CompanyKycController extends Controller
 
     public function submitKycForVerification(Request $request, int $company): RedirectResponse
     {
-        abort_unless(! in_array((string) ($request->user()?->role ?? ''), ['Admin', 'SuperAdmin'], true), 403);
+        abort_unless(! $this->isKycReviewer($request->user()), 403);
 
         $bif = $this->latestCompanyBif($company);
         if (! $bif) {
@@ -286,7 +287,7 @@ class CompanyKycController extends Controller
 
     public function approveKyc(Request $request, int $company): RedirectResponse
     {
-        abort_unless(in_array((string) ($request->user()?->role ?? ''), ['Admin', 'SuperAdmin'], true), 403);
+        abort_unless($this->isKycReviewer($request->user()), 403);
         $companyData = $this->findCompany($request, $company);
         $bif = $this->latestCompanyBif($company);
 
@@ -331,7 +332,7 @@ class CompanyKycController extends Controller
 
     public function rejectKyc(Request $request, int $company): RedirectResponse
     {
-        abort_unless(in_array((string) ($request->user()?->role ?? ''), ['Admin', 'SuperAdmin'], true), 403);
+        abort_unless($this->isKycReviewer($request->user()), 403);
         $companyData = $this->findCompany($request, $company);
         $bif = $this->latestCompanyBif($company);
 
@@ -380,7 +381,7 @@ class CompanyKycController extends Controller
 
     public function uploadRequirementDocument(Request $request, int $company, string $requirement): RedirectResponse
     {
-        abort_unless(! in_array((string) ($request->user()?->role ?? ''), ['Admin', 'SuperAdmin'], true), 403);
+        abort_unless(! $this->isKycReviewer($request->user()), 403);
 
         $bif = $this->latestCompanyBif($company);
         if (! $bif) {
@@ -426,7 +427,7 @@ class CompanyKycController extends Controller
 
     public function removeRequirementDocument(Request $request, int $company, string $requirement): RedirectResponse
     {
-        abort_unless(! in_array((string) ($request->user()?->role ?? ''), ['Admin', 'SuperAdmin'], true), 403);
+        abort_unless(! $this->isKycReviewer($request->user()), 403);
 
         $bif = $this->latestCompanyBif($company);
         if (! $bif) {
@@ -976,5 +977,16 @@ class CompanyKycController extends Controller
             default => 'Filipino',
         };
     }
-}
 
+    private function isKycReviewer(?User $user): bool
+    {
+        if (! $user) {
+            return false;
+        }
+
+        return $user->isAdmin()
+            || $user->isSuperAdmin()
+            || $user->hasPermission('approve_corporate')
+            || $user->hasPermission('access_admin_dashboard');
+    }
+}

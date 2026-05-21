@@ -3,6 +3,14 @@
 
 @section('content')
 @php
+    $totalServiceValue = $services->sum(function ($service) {
+        if ($service->rate_per_unit) {
+            return (float) $service->rate_per_unit;
+        }
+
+        return (float) ($service->price_fee ?? 0);
+    });
+    $completedServices = $services->filter(fn ($service) => (string) $service->status === 'Completed')->count();
     $statusClasses = [
         'Pending Approval' => 'border-amber-200 bg-amber-50 text-amber-700',
         'Draft' => 'border-slate-200 bg-slate-50 text-slate-700',
@@ -17,14 +25,16 @@
         @include('company.partials.company-header', ['company' => $company])
 
         <section class="bg-gray-50 p-4 min-h-[760px]">
-            <div class="mb-4 flex items-center justify-between">
+            <div class="mb-4 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
                 <div>
-                    <h2 class="text-2xl font-semibold text-gray-900">Services</h2>
-                    <p class="mt-1 text-sm text-gray-500">Manage standardized services assigned to {{ $company->company_name }}.</p>
+                    <h2 class="text-2xl font-semibold text-gray-900">Services Availed</h2>
+                    <p class="mt-1 text-sm text-gray-500">Services associated with this company through related company work.</p>
                 </div>
-                <button type="button" id="openCompanyServiceModalCreate" class="h-10 rounded-lg bg-blue-600 px-4 text-sm font-medium text-white hover:bg-blue-700">
-                    <i class="fas fa-plus mr-1"></i> Service
-                </button>
+                <div class="text-sm text-gray-500">
+                    {{ $services->total() }} {{ \Illuminate\Support\Str::plural('service', $services->total()) }}
+                    <span class="mx-2 text-gray-300">|</span>
+                    Total value P{{ number_format($totalServiceValue, 2) }}
+                </div>
             </div>
 
             @if (session('services_success'))
@@ -32,47 +42,6 @@
                     {{ session('services_success') }}
                 </div>
             @endif
-
-            <div class="mb-4 grid gap-3 md:grid-cols-3">
-                <div class="rounded-xl border border-gray-200 bg-white px-4 py-4">
-                    <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Active Services</p>
-                    <p class="mt-2 text-2xl font-bold text-gray-900">{{ $summary['active'] }}</p>
-                </div>
-                <div class="rounded-xl border border-gray-200 bg-white px-4 py-4">
-                    <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Recurring Services</p>
-                    <p class="mt-2 text-2xl font-bold text-gray-900">{{ $summary['recurring'] }}</p>
-                </div>
-                <div class="rounded-xl border border-gray-200 bg-white px-4 py-4">
-                    <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Due In 7 Days</p>
-                    <p class="mt-2 text-2xl font-bold text-gray-900">{{ $summary['due_soon'] }}</p>
-                </div>
-            </div>
-
-            <form method="GET" action="{{ route('company.services.index', $company->id) }}" class="mb-4 flex flex-wrap items-center gap-3">
-                <div class="relative w-full max-w-md">
-                    <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400"></i>
-                    <input type="text" name="search" value="{{ $filters['search'] }}" placeholder="Search company services..." class="h-10 w-full rounded-lg border border-gray-200 bg-white pl-8 pr-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
-                </div>
-                <select name="status" class="h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
-                    <option value="all">Status: All</option>
-                    @foreach ($statusOptions as $option)
-                        <option value="{{ $option }}" @selected($filters['status'] === $option)>{{ $option }}</option>
-                    @endforeach
-                </select>
-                <select name="category" class="h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
-                    <option value="all">Category: All</option>
-                    @foreach ($categories as $option)
-                        <option value="{{ $option }}" @selected($filters['category'] === $option)>{{ $option }}</option>
-                    @endforeach
-                </select>
-                <select name="assigned_unit" class="h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
-                    <option value="all">Assigned Unit: All</option>
-                    @foreach ($assignedUnitOptions as $option)
-                        <option value="{{ $option }}" @selected($filters['assigned_unit'] === $option)>{{ $option }}</option>
-                    @endforeach
-                </select>
-                <button class="h-10 rounded-lg border border-gray-200 bg-white px-4 text-sm font-medium text-gray-700 hover:bg-gray-50">Apply</button>
-            </form>
 
             <div class="rounded-xl border border-gray-200 bg-white shadow-sm">
                 <div class="overflow-x-auto overflow-y-visible">
@@ -87,10 +56,7 @@
                                 <th class="px-3 py-3 text-left font-medium">Assigned Unit</th>
                                 <th class="px-3 py-3 text-left font-medium">Status</th>
                                 <th class="px-3 py-3 text-left font-medium">Service Owner</th>
-                                @foreach ($customFields as $field)
-                                    <th class="px-3 py-3 text-left font-medium">{{ $field->field_name }}</th>
-                                @endforeach
-                                <th class="px-3 py-3 text-right font-medium">Actions</th>
+                                <th class="px-3 py-3 text-left font-medium">Actions</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-100">
@@ -117,27 +83,22 @@
                                         <span class="inline-flex rounded-full border px-2.5 py-1 text-xs font-medium {{ $statusClasses[$service->status] ?? 'border-gray-200 bg-gray-50 text-gray-700' }}">{{ $service->status }}</span>
                                     </td>
                                     <td class="px-3 py-3 text-gray-600">{{ $service->creator?->name ?: '-' }}</td>
-                                    @foreach ($customFields as $field)
-                                        <td class="px-3 py-3 text-gray-600">{{ data_get($service->custom_field_values, $field->field_key, '-') ?: '-' }}</td>
-                                    @endforeach
                                     <td class="px-3 py-3">
-                                        <div class="flex items-center justify-end gap-2">
-                                            <button type="button" class="rounded-full border border-gray-200 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50" data-company-service-edit='@json($service)'>Edit</button>
-                                            <form method="POST" action="{{ route('company.services.destroy', [$company->id, $service->id]) }}" onsubmit="return confirm('Remove this service?');">
-                                                @csrf
-                                                @method('DELETE')
-                                                <button type="submit" class="rounded-full border border-red-200 px-3 py-1 text-xs font-medium text-red-600 hover:bg-red-50">Remove</button>
-                                            </form>
+                                        <div class="flex items-center justify-start gap-2">
+                                            <a href="{{ route('services.show', $service->id) }}" class="rounded-full border border-gray-200 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50">View</a>
                                         </div>
                                     </td>
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="{{ 9 + $customFields->count() }}" class="px-3 py-10 text-center text-sm text-gray-500">No company services found.</td>
+                                    <td colspan="9" class="px-3 py-12 text-center text-sm text-gray-500">No availed services found for this company yet.</td>
                                 </tr>
                             @endforelse
                         </tbody>
                     </table>
+                </div>
+                <div class="border-t border-gray-100 px-4 py-3 text-sm text-gray-500">
+                    Completed: <span class="font-semibold text-gray-900">{{ $completedServices }}</span>
                 </div>
             </div>
         </section>

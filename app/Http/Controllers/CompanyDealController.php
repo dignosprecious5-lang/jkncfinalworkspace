@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Company;
+use App\Models\Deal;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -18,25 +19,7 @@ class CompanyDealController extends Controller
         $companyData = $this->findCompany($request, $company);
         $search = trim((string) $request->query('search', ''));
         $stage = trim((string) $request->query('stage', 'all'));
-
-        $deals = collect($request->session()->get($this->dealsKey(), $this->defaultDeals()))
-            ->where('company_id', $company)
-            ->when($search !== '', function (Collection $collection) use ($search) {
-                $term = strtolower($search);
-
-                return $collection->filter(function (array $deal) use ($term) {
-                    return collect([
-                        $deal['name'] ?? '',
-                        $deal['stage'] ?? '',
-                        $deal['owner'] ?? '',
-                        $deal['deal_source'] ?? '',
-                        $deal['priority'] ?? '',
-                    ])->contains(fn (?string $value) => str_contains(strtolower((string) $value), $term));
-                });
-            })
-            ->when($stage !== 'all', fn (Collection $collection) => $collection->where('stage', $stage))
-            ->sortByDesc(fn (array $deal) => strtotime($deal['updated_at']))
-            ->values();
+        $deals = $this->companyDeals($request, $company, $companyData, $search, $stage);
 
         $summary = [
             'total' => $deals->count(),
@@ -52,7 +35,7 @@ class CompanyDealController extends Controller
             'stage' => $stage,
             'stages' => self::STAGES,
             'summary' => $summary,
-            'availableDeals' => collect($this->availableDeals())
+            'availableDeals' => collect($this->availableDeals($companyData))
                 ->sortBy('name')
                 ->values(),
         ]);
@@ -63,7 +46,7 @@ class CompanyDealController extends Controller
         $companyData = $this->findCompany($request, $company);
         $validated = $this->validateDeal($request);
         $linkedDealId = (int) ($validated['linked_deal_id'] ?? 0);
-        $linkedDeal = collect($this->availableDeals())->firstWhere('id', $linkedDealId);
+        $linkedDeal = collect($this->availableDeals($companyData))->firstWhere('id', $linkedDealId);
 
         if ($linkedDeal) {
             $validated = [
@@ -193,6 +176,75 @@ class CompanyDealController extends Controller
             'created_at' => $existing['created_at'] ?? now()->format('Y-m-d H:i:s'),
             'updated_at' => now()->format('M d, Y h:i A'),
         ];
+    }
+
+    private function companyDeals(Request $request, int $companyId, array $companyData, string $search, string $stage): Collection
+    {
+        $deals = Schema::hasTable('deals')
+            ? $this->databaseDealsForCompany($companyId, $companyData)
+            : collect($request->session()->get($this->dealsKey(), $this->defaultDeals()))->where('company_id', $companyId);
+
+        return $deals
+            ->when($search !== '', function (Collection $collection) use ($search) {
+                $term = strtolower($search);
+
+                return $collection->filter(function (array $deal) use ($term) {
+                    return collect([
+                        $deal['name'] ?? '',
+                        $deal['stage'] ?? '',
+                        $deal['owner'] ?? '',
+                        $deal['deal_source'] ?? '',
+                        $deal['priority'] ?? '',
+                    ])->contains(fn (?string $value) => str_contains(strtolower((string) $value), $term));
+                });
+            })
+            ->when($stage !== 'all', fn (Collection $collection) => $collection->where('stage', $stage))
+            ->sortByDesc(fn (array $deal) => strtotime((string) ($deal['updated_at'] ?? 'now')))
+            ->values();
+    }
+
+    private function databaseDealsForCompany(int $companyId, array $companyData): Collection
+    {
+        $companyName = trim((string) ($companyData['company_name'] ?? ''));
+
+        return Deal::query()
+            ->when($companyName !== '', function ($query) use ($companyName) {
+                $query->where(function ($nested) use ($companyName) {
+                    $nested
+                        ->where('company_name', $companyName)
+                        ->orWhere('company_name', 'like', $companyName);
+                });
+            })
+            ->latest('updated_at')
+            ->get()
+            ->map(function (Deal $deal) use ($companyId, $companyName): array {
+                $owner = $deal->assigned_consultant ?: $deal->lead_consultant ?: $deal->created_by ?: 'Unassigned';
+                $stage = trim((string) ($deal->stage ?: 'Qualification'));
+
+                return [
+                    'id' => $deal->id,
+                    'company_id' => $companyId,
+                    'company_name' => $companyName,
+                    'name' => $deal->deal_name ?: ($deal->deal_code ?: 'Untitled deal'),
+                    'stage' => $stage,
+                    'amount' => (float) ($deal->total_estimated_engagement_value ?? 0),
+                    'expected_close_date' => optional($deal->confirmed_delivery_date ?: $deal->estimated_completion_date ?: $deal->client_preferred_completion_date)->format('Y-m-d'),
+                    'owner' => $owner,
+                    'owner_initials' => collect(explode(' ', $owner))
+                        ->filter()
+                        ->take(2)
+                        ->map(fn (string $part) => strtoupper(substr($part, 0, 1)))
+                        ->implode('') ?: 'NA',
+                    'deal_source' => $deal->service_area ?: '',
+                    'priority' => 'Normal',
+                    'notes' => $deal->consultant_notes ?: '',
+                    'created_at' => optional($deal->created_at)->format('Y-m-d H:i:s') ?: now()->format('Y-m-d H:i:s'),
+                    'updated_at' => optional($deal->updated_at)->format('M d, Y h:i A') ?: now()->format('M d, Y h:i A'),
+                    'show_url' => route('deals.show', $deal->id),
+                    'readonly' => true,
+                ];
+            })
+            ->values();
     }
 
     private function dealsKey(): string
@@ -341,8 +393,31 @@ class CompanyDealController extends Controller
         ];
     }
 
-    private function availableDeals(): array
+    private function availableDeals(array $companyData = []): array
     {
+        if (Schema::hasTable('deals')) {
+            $companyName = trim((string) ($companyData['company_name'] ?? ''));
+
+            return Deal::query()
+                ->when($companyName !== '', fn ($query) => $query->where('company_name', $companyName))
+                ->latest('updated_at')
+                ->get()
+                ->map(fn (Deal $deal): array => [
+                    'id' => $deal->id,
+                    'name' => $deal->deal_name ?: ($deal->deal_code ?: 'Untitled deal'),
+                    'company_name' => $deal->company_name ?: $companyName,
+                    'amount' => (float) ($deal->total_estimated_engagement_value ?? 0),
+                    'expected_close_date' => optional($deal->confirmed_delivery_date ?: $deal->estimated_completion_date ?: $deal->client_preferred_completion_date)->format('Y-m-d'),
+                    'owner' => $deal->assigned_consultant ?: $deal->lead_consultant ?: $deal->created_by ?: 'Unassigned',
+                    'stage' => $deal->stage ?: 'Qualification',
+                    'deal_source' => $deal->service_area ?: '',
+                    'priority' => 'Normal',
+                    'notes' => $deal->consultant_notes ?: '',
+                ])
+                ->values()
+                ->all();
+        }
+
         return [
             [
                 'id' => 1,

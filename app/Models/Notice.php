@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Schema;
 class Notice extends Model
 {
     protected $fillable = [
+        'company_id',
         'notice_number',
         'date_of_notice',
         'governing_body',

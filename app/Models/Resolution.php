@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Schema;
 class Resolution extends Model
 {
     protected $fillable = [
+        'company_id',
         'resolution_no',
         'date_uploaded',
         'uploaded_by',

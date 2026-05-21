@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Schema;
 class Minute extends Model
 {
     protected $fillable = [
+        'company_id',
         'minutes_ref',
         'date_uploaded',
         'uploaded_by',

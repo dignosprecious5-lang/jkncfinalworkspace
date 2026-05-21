@@ -3,6 +3,7 @@
 
 @section('content')
 @php
+    $sectionRibbonPartial = $sectionRibbonPartial ?? 'corporate.partials.section-ribbon';
     $draftPathCandidates = collect([
         $resolution->draft_file_path,
         preg_replace('#^/?storage/#', '', (string) $resolution->draft_file_path),
@@ -31,8 +32,12 @@
 
 <div class="w-full px-4 sm:px-6 lg:px-8 mt-4">
     <div class="bg-white border border-gray-100 rounded-2xl overflow-hidden">
+        @if (isset($company))
+            @include('company.partials.company-header', ['company' => $company])
+        @endif
+
         <div class="flex items-center gap-3 px-4 py-3 border-b border-gray-100">
-            @include('corporate.partials.section-ribbon', ['activeTab' => 'resolution', 'topButtonLabel' => 'Add Resolution'])
+            @include($sectionRibbonPartial, ['activeTab' => 'resolution', 'topButtonLabel' => 'Add Resolution'])
         </div>
     </div>
 </div>
@@ -258,7 +263,7 @@
                                     <div class="text-sm font-semibold text-gray-900">Resolution Body Builder</div>
                                     <div class="mt-1 text-xs text-gray-500">Write the resolution here with formatting tools. The live template uses this exact content.</div>
                                 </div>
-                                <form method="POST" action="{{ route('resolutions.update', $resolution) }}" enctype="multipart/form-data" class="space-y-5" id="resolution-live-form">
+                                <form method="POST" action="{{ $updateRoute }}" enctype="multipart/form-data" class="space-y-5" id="resolution-live-form">
                     @csrf
                     @method('PUT')
                     <input type="hidden" name="minute_id" value="{{ $resolution->minute_id }}">

@@ -6,18 +6,24 @@
     $today = now()->toDateString();
     $currentUser = auth()->user()?->name ?? '';
     $defaultNoticeBodyText = '';
+    $sectionRibbonPartial = $sectionRibbonPartial ?? 'corporate.partials.section-ribbon';
+    $documentDefaultsUrl = $documentDefaultsUrl ?? route('corporate-document-defaults');
+    $noticeStoreUrl = $noticeStoreUrl ?? route('notices.store');
 
     // President requested company name
-    $companyName = 'JK&C INC.';
-
-    $companyRegNo = '2025120230900-02';
-    $companyAddress = '3RD FLOOR, UNIT 305 CEBU HOLDINGS CENTER CARDINAL ROSALES AVE., CEBU BUSINESS PARK HIPPODROMO, CEBU CITY, 6000';
+    $companyName = $companyName ?? 'JK&C INC.';
+    $companyRegNo = $companyRegNo ?? '2025120230900-02';
+    $companyAddress = $companyAddress ?? '3RD FLOOR, UNIT 305 CEBU HOLDINGS CENTER CARDINAL ROSALES AVE., CEBU BUSINESS PARK HIPPODROMO, CEBU CITY, 6000';
 @endphp
 
 <div class="w-full px-4 sm:px-6 lg:px-8 mt-4">
     <div class="bg-white border border-gray-100 rounded-2xl overflow-hidden">
+        @if (isset($company))
+            @include('company.partials.company-header', ['company' => $company])
+        @endif
+
         <div class="flex items-center gap-3 px-4 py-3 border-b border-gray-100">
-            @include('corporate.partials.section-ribbon', ['activeTab' => 'notices', 'topButtonLabel' => 'Add Notice'])
+            @include($sectionRibbonPartial, ['activeTab' => 'notices', 'topButtonLabel' => 'Add Notice'])
         </div>
     </div>
 </div>
@@ -142,7 +148,7 @@
 </style>
 
 <div class="w-full px-4 sm:px-6 lg:px-8 mt-4"
-    x-data="noticeComposer(@js(route('corporate-document-defaults')), @js($nextNoticeNumber ?? ''))"
+    x-data="noticeComposer(@js($documentDefaultsUrl), @js($nextNoticeNumber ?? ''))"
     @keydown.escape.window="showAddPanel = false">
     <div class="bg-white border border-gray-100 rounded-xl overflow-hidden">
         <div class="flex items-center gap-3 px-4 py-4 border-b border-gray-100">
@@ -171,7 +177,7 @@
                     </thead>
                     <tbody class="text-sm text-gray-900">
                         @forelse ($notices as $notice)
-                            <tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer" onclick="window.location='{{ route('notices.preview', $notice) }}'">
+                            <tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer" onclick="window.location='{{ $notice->preview_url ?? route('notices.preview', $notice) }}'">
                                 <td class="px-4 py-3 font-medium">{{ $notice->notice_number ?: 'Draft Notice' }}</td>
                                 <td class="px-4 py-3">
                                     <div>{{ $notice->governing_body }}</div>
@@ -228,7 +234,7 @@
                 </button>
             </div>
 
-            <form method="POST" action="{{ route('notices.store') }}" enctype="multipart/form-data" class="flex-1 overflow-y-auto p-6" @submit="prepareSubmit()">
+            <form method="POST" action="{{ $noticeStoreUrl }}" enctype="multipart/form-data" class="flex-1 overflow-y-auto p-6" @submit="prepareSubmit()">
                 @csrf
 
                 <div class="grid grid-cols-1 xl:grid-cols-[minmax(0,1.7fr)_minmax(420px,0.95fr)] gap-6 min-h-[calc(100vh-12rem)]">

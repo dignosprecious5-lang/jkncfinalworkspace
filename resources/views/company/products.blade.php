@@ -2,6 +2,9 @@
 @section('title', 'Company Products')
 
 @section('content')
+@php
+    $totalProductValue = $products->sum(fn ($product) => (float) ($product['price'] ?? 0));
+@endphp
 <div class="w-full px-4 sm:px-6 lg:px-8 mt-4 pb-8">
     <div class="bg-white border border-gray-100 rounded-md overflow-hidden">
         @include('company.partials.company-header', ['company' => $company])
@@ -9,21 +12,15 @@
         <section class="bg-gray-50 p-4 min-h-[760px]">
             <div class="rounded-md border border-gray-200 bg-white overflow-hidden shadow-sm">
                 <div class="border-b border-gray-100 px-4 py-4">
-                    <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                         <div>
-                            <h2 class="text-2xl font-bold tracking-tight text-gray-900">PRODUCTS</h2>
-                            <p class="mt-1 text-sm text-gray-500">Manage products linked to this company.</p>
+                            <h2 class="text-2xl font-bold tracking-tight text-gray-900">Products Availed</h2>
+                            <p class="mt-1 text-sm text-gray-500">Products tied to this company through linked deals.</p>
                         </div>
-
-                        <div class="flex flex-wrap items-center gap-2">
-                            <button type="button" id="openCreateProductModal" class="h-9 rounded-full border border-gray-200 px-4 text-sm font-medium text-gray-700 hover:bg-gray-50 inline-flex items-center gap-2">
-                                <span class="text-base leading-none">+</span>
-                                <span>New Product</span>
-                            </button>
-                            <button type="button" id="openLinkProductModal" class="h-9 rounded-full bg-blue-600 px-4 text-sm font-medium text-white hover:bg-blue-700 inline-flex items-center gap-2">
-                                <span class="text-base leading-none">+</span>
-                                <span>Link Product</span>
-                            </button>
+                        <div class="text-sm text-gray-500">
+                            {{ $products->count() }} {{ \Illuminate\Support\Str::plural('product', $products->count()) }}
+                            <span class="mx-2 text-gray-300">|</span>
+                            Total value P{{ number_format($totalProductValue, 2) }}
                         </div>
                     </div>
 
@@ -32,46 +29,6 @@
                             {{ session('products_success') }}
                         </div>
                     @endif
-
-                    <form method="GET" action="{{ route('company.products', $company->id) }}" class="mt-4 grid grid-cols-1 gap-2 lg:grid-cols-12">
-                        <div class="relative lg:col-span-5">
-                            <i class="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
-                            <input
-                                type="text"
-                                name="search"
-                                value="{{ $search }}"
-                                placeholder="Search linked products..."
-                                class="w-full h-10 rounded border border-gray-200 bg-white pl-11 pr-4 text-sm text-gray-700 outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
-                            >
-                        </div>
-
-                        <div class="lg:col-span-2">
-                            <select name="category" class="w-full h-10 rounded border border-gray-200 bg-white px-3 text-sm text-gray-700 outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400">
-                                <option value="all">Category: All</option>
-                                @foreach ($categoryOptions as $categoryOption)
-                                    <option value="{{ $categoryOption }}" @selected($category === $categoryOption)>{{ $categoryOption }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-
-                        <div class="lg:col-span-2">
-                            <select name="status" class="w-full h-10 rounded border border-gray-200 bg-white px-3 text-sm text-gray-700 outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400">
-                                <option value="all" @selected($status === 'all')>Status: All</option>
-                                <option value="Active" @selected($status === 'Active')>Status: Active</option>
-                                <option value="Inactive" @selected($status === 'Inactive')>Status: Inactive</option>
-                                <option value="Draft" @selected($status === 'Draft')>Status: Draft</option>
-                            </select>
-                        </div>
-
-                        <div class="lg:col-span-3 flex items-center gap-2">
-                            <button class="h-10 flex-1 rounded border border-gray-200 px-4 text-sm font-medium text-gray-700 hover:bg-gray-50">Apply</button>
-                            @if ($search !== '' || $status !== 'all' || $category !== 'all')
-                                <a href="{{ route('company.products', $company->id) }}" class="h-10 flex-1 rounded border border-gray-200 px-4 text-sm font-medium text-gray-700 hover:bg-gray-50 inline-flex items-center justify-center">
-                                    Clear
-                                </a>
-                            @endif
-                        </div>
-                    </form>
                 </div>
 
                 <div class="p-4">
@@ -86,15 +43,14 @@
                                         <th class="px-4 py-3 text-left font-medium">Price</th>
                                         <th class="px-4 py-3 text-left font-medium">Pricing Type</th>
                                         <th class="px-4 py-3 text-left font-medium">Status</th>
-                                        <th class="px-4 py-3 text-left font-medium">Linked Date</th>
-                                        <th class="px-4 py-3 text-right font-medium">Actions</th>
+                                        <th class="px-4 py-3 text-left font-medium">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-gray-200 bg-white text-gray-700">
                                     @forelse ($products as $product)
                                         <tr class="hover:bg-gray-50">
                                             <td class="px-4 py-3">
-                                                <div class="font-medium text-gray-800">{{ $product['name'] }}</div>
+                                                <a href="{{ $product['show_url'] ?? route('products.index') }}" class="font-medium text-gray-900 hover:text-blue-700">{{ $product['name'] }}</a>
                                                 @if (! empty($product['description']))
                                                     <div class="mt-1 text-xs text-gray-500">{{ $product['description'] }}</div>
                                                 @endif
@@ -111,50 +67,38 @@
                                                 })
                                                 <span class="inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium {{ $statusClasses }}">{{ $product['status'] }}</span>
                                             </td>
-                                            <td class="px-4 py-3">{{ $product['linked_at'] ?? '-' }}</td>
                                             <td class="px-4 py-3">
-                                                <div class="flex items-center justify-end gap-2">
-                                                    <a href="{{ route('company.products.show', [$company->id, $product['id']]) }}" class="inline-flex h-8 items-center rounded-full border border-gray-200 px-3 text-xs font-medium text-gray-700 hover:bg-gray-50">
+                                                <div class="flex items-center justify-start gap-2">
+                                                    <a href="{{ $product['show_url'] ?? route('company.products.show', [$company->id, $product['id']]) }}" class="inline-flex h-8 items-center rounded-full border border-gray-200 px-3 text-xs font-medium text-gray-700 hover:bg-gray-50">
                                                         View
                                                     </a>
-                                                    <button type="button" class="inline-flex h-8 items-center rounded-full border border-gray-200 px-3 text-xs font-medium text-gray-700 hover:bg-gray-50" data-product-edit='@json($product)'>
-                                                        Edit
-                                                    </button>
-                                                    <form method="POST" action="{{ route('company.products.unlink', [$company->id, $product['id']]) }}" onsubmit="return confirm('Unlink this product from the current company?');">
-                                                        @csrf
-                                                        @method('DELETE')
-                                                        <button type="submit" class="inline-flex h-8 items-center rounded-full border border-red-200 px-3 text-xs font-medium text-red-600 hover:bg-red-50">
-                                                            Unlink
+                                                    @if (!($product['readonly'] ?? false))
+                                                        <button type="button" class="inline-flex h-8 items-center rounded-full border border-gray-200 px-3 text-xs font-medium text-gray-700 hover:bg-gray-50" data-product-edit='@json($product)'>
+                                                            Edit
                                                         </button>
-                                                    </form>
+                                                        <form method="POST" action="{{ route('company.products.unlink', [$company->id, $product['id']]) }}" onsubmit="return confirm('Unlink this product from the current company?');">
+                                                            @csrf
+                                                            @method('DELETE')
+                                                            <button type="submit" class="inline-flex h-8 items-center rounded-full border border-red-200 px-3 text-xs font-medium text-red-600 hover:bg-red-50">
+                                                                Unlink
+                                                            </button>
+                                                        </form>
+                                                    @endif
                                                 </div>
                                             </td>
                                         </tr>
                                     @empty
                                         <tr>
-                                            <td colspan="8" class="px-4 py-12">
-                                                <div class="flex flex-col items-center justify-center text-center">
-                                                    <div class="h-12 w-12 rounded-full bg-blue-50 text-blue-600 inline-flex items-center justify-center">
-                                                        <i class="fas fa-box"></i>
-                                                    </div>
-                                                    <h3 class="mt-4 text-base font-semibold text-gray-900">No products linked to this company yet.</h3>
-                                                    <p class="mt-1 max-w-md text-sm text-gray-500">Link an existing product or create a new one and automatically associate it with {{ $company->company_name }}.</p>
-                                                    <button type="button" id="openFirstProductLinkModal" class="mt-4 h-9 rounded-full bg-blue-600 px-4 text-sm font-medium text-white hover:bg-blue-700 inline-flex items-center gap-2">
-                                                        <span class="text-base leading-none">+</span>
-                                                        <span>Link Product</span>
-                                                    </button>
-                                                </div>
-                                            </td>
+                                            <td colspan="7" class="px-4 py-12 text-center text-sm text-gray-500">No availed products found for this company yet.</td>
                                         </tr>
                                     @endforelse
                                 </tbody>
                             </table>
                         </div>
                     </div>
-                </div>
-
-                <div class="border-t border-gray-100 px-4 py-3 flex flex-wrap items-center justify-end gap-3 text-sm text-gray-500">
-                    <span>{{ $products->count() }} {{ \Illuminate\Support\Str::plural('linked product', $products->count()) }}</span>
+                    <div class="border-t border-gray-100 px-4 py-3 text-sm text-gray-500">
+                        Total revenue: <span class="font-semibold text-gray-900">P{{ number_format($totalProductValue, 2) }}</span>
+                    </div>
                 </div>
             </div>
         </section>

@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Schema;
 class SecretaryCertificate extends Model
 {
     protected $fillable = [
+        'company_id',
         'certificate_no',
         'date_uploaded',
         'uploaded_by',

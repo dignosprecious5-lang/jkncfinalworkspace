@@ -6,6 +6,9 @@
     $today = now()->toDateString();
     $currentUser = auth()->user()?->name ?? '';
     $canApproveMinutes = auth()->user()?->role === 'Admin';
+    $sectionRibbonPartial = $sectionRibbonPartial ?? 'corporate.partials.section-ribbon';
+    $documentDefaultsUrl = $documentDefaultsUrl ?? route('corporate-document-defaults');
+    $minutesStoreUrl = $minutesStoreUrl ?? route('minutes.store');
     $noticeOptions = ($notices ?? collect())->map(fn ($notice) => [
         'id' => $notice->id,
         'notice_number' => $notice->notice_number,
@@ -22,8 +25,12 @@
 
 <div class="w-full px-4 sm:px-6 lg:px-8 mt-4">
     <div class="bg-white border border-gray-100 rounded-2xl overflow-hidden">
+        @if (isset($company))
+            @include('company.partials.company-header', ['company' => $company])
+        @endif
+
         <div class="flex items-center gap-3 px-4 py-3 border-b border-gray-100">
-            @include('corporate.partials.section-ribbon', ['activeTab' => 'minutes', 'topButtonLabel' => 'Add Minutes'])
+            @include($sectionRibbonPartial, ['activeTab' => 'minutes', 'topButtonLabel' => 'Add Minutes'])
         </div>
     </div>
 </div>
@@ -36,7 +43,7 @@
     }
 </style>
 
-<div class="w-full px-4 sm:px-6 lg:px-8 mt-4" x-data="minutesForm({{ Js::from($noticeOptions) }}, @js($today), @js($currentUser), @js(route('corporate-document-defaults')), @js($nextMinutesRef ?? ''))" @keydown.escape.window="showAddPanel = false">
+<div class="w-full px-4 sm:px-6 lg:px-8 mt-4" x-data="minutesForm({{ Js::from($noticeOptions) }}, @js($today), @js($currentUser), @js($documentDefaultsUrl), @js($nextMinutesRef ?? ''))" @keydown.escape.window="showAddPanel = false">
     <div class="bg-white border border-gray-100 rounded-xl overflow-hidden">
         <div class="flex items-center gap-3 px-4 py-4 border-b border-gray-100">
             <div class="text-lg font-semibold">Minutes of Meeting</div>
@@ -77,7 +84,7 @@
                     </thead>
                     <tbody class="text-sm text-gray-900">
                         @forelse ($minutes as $minute)
-                            <tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer" onclick="window.location='{{ route('minutes.preview', $minute) }}'">
+                            <tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer" onclick="window.location='{{ $minute->preview_url ?? route('minutes.preview', $minute) }}'">
                                 <td class="px-4 py-3 font-medium">{{ $minute->minutes_ref }}</td>
                                 <td class="px-4 py-3">
                                     <div>{{ $minute->notice_ref }}</div>
@@ -102,7 +109,7 @@
                                 </td>
                                 @if ($canApproveMinutes)
                                     <td class="px-4 py-3" onclick="event.stopPropagation()">
-                                        <form method="POST" action="{{ route('minutes.approve', $minute) }}" enctype="multipart/form-data" class="space-y-2">
+                                        <form method="POST" action="{{ $minute->approve_url ?? route('minutes.approve', $minute) }}" enctype="multipart/form-data" class="space-y-2">
                                             @csrf
                                             <input type="file" name="approved_minutes_path" accept="application/pdf" class="block w-full text-xs text-gray-600 file:mr-2 file:py-1.5 file:px-2.5 file:rounded-lg file:border-0 file:bg-emerald-600 file:text-white hover:file:bg-emerald-700" onclick="event.stopPropagation()">
                                             <button type="submit" class="inline-flex rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700" onclick="event.stopPropagation()">
@@ -146,7 +153,7 @@
                 </button>
             </div>
 
-            <form method="POST" action="{{ route('minutes.store') }}" enctype="multipart/form-data" class="flex-1 overflow-y-auto p-6 space-y-6" @submit="prepareSubmit()">
+            <form method="POST" action="{{ $minutesStoreUrl }}" enctype="multipart/form-data" class="flex-1 overflow-y-auto p-6 space-y-6" @submit="prepareSubmit()">
                 @csrf
                 <div class="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
                     Select an existing Notice of Meeting first. The linked notice will suggest and auto-fill the core fields below so the minutes stay aligned with the notice record.

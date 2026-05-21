@@ -3,6 +3,7 @@
 
 @section('content')
 @php
+    $sectionRibbonPartial = $sectionRibbonPartial ?? 'corporate.partials.section-ribbon';
     $documentUrl = $minute->document_path ? route('uploads.show', ['path' => $minute->document_path]) : null;
     $documentDownloadUrl = $minute->document_path ? route('uploads.show', ['path' => $minute->document_path, 'download' => 1]) : null;
     $approvedMinutesUrl = $minute->approved_minutes_path ? route('uploads.show', ['path' => $minute->approved_minutes_path]) : null;
@@ -26,12 +27,19 @@
     $minutesDocumentTitle = strtoupper(trim('Minutes of the ' . ($minute->type_of_meeting ?: 'Special') . ' ' . ($minute->governing_body ?: 'Meeting')));
     $templatePreviewUrl = $templatePreviewUrl ?? null;
     $templatePreviewDownloadUrl = $templatePreviewDownloadUrl ?? null;
+    $workspaceSaveUrl = $workspaceSaveUrl ?? route('minutes.workspace-save', $minute);
+    $finalAudioSaveUrl = $finalAudioSaveUrl ?? route('minutes.final-audio', $minute);
+    $finalSaveUrl = $finalSaveUrl ?? route('minutes.final-save', $minute);
 @endphp
 
 <div class="w-full px-4 sm:px-6 lg:px-8 mt-4">
     <div class="bg-white border border-gray-100 rounded-2xl overflow-hidden">
+        @if (isset($company))
+            @include('company.partials.company-header', ['company' => $company])
+        @endif
+
         <div class="flex items-center gap-3 px-4 py-3 border-b border-gray-100">
-            @include('corporate.partials.section-ribbon', ['activeTab' => 'minutes', 'topButtonLabel' => 'Add Minutes'])
+            @include($sectionRibbonPartial, ['activeTab' => 'minutes', 'topButtonLabel' => 'Add Minutes'])
         </div>
     </div>
 </div>
@@ -704,9 +712,9 @@
         };
 
         const csrfToken = @js(csrf_token());
-        const workspaceSaveUrl = @js(route('minutes.workspace-save', $minute));
-        const finalAudioSaveUrl = @js(route('minutes.final-audio', $minute));
-        const finalSaveUrl = @js(route('minutes.final-save', $minute));
+        const workspaceSaveUrl = @js($workspaceSaveUrl);
+        const finalAudioSaveUrl = @js($finalAudioSaveUrl);
+        const finalSaveUrl = @js($finalSaveUrl);
 
         const setSaveStatus = (message, tone = 'slate') => {
             const tones = {
