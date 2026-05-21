@@ -253,6 +253,7 @@
                                     @if ($bif && $bif->change_request_status === 'pending')
                                         <button type="button" class="h-10 w-full rounded-lg bg-amber-500 text-sm font-medium text-white cursor-not-allowed opacity-80" disabled>Waiting For Admin Decision</button>
                                     @elseif ($bif && $bif->status === 'approved')
+                                        <button type="button" class="h-10 w-full rounded-lg border border-green-200 bg-green-100 text-sm font-medium text-green-700 cursor-not-allowed" disabled>Approved</button>
                                         <a href="{{ route('company.bif.edit', ['company' => $company->id, 'bif' => $bif->id]) }}" class="inline-flex h-10 w-full items-center justify-center rounded-lg bg-blue-600 text-sm font-medium text-white hover:bg-blue-700">Request BIF Changes</a>
                                     @elseif ($bif && $bif->status === 'pending_approval')
                                         <button type="button" class="h-10 w-full rounded-lg bg-slate-500 text-sm font-medium text-white cursor-not-allowed opacity-80" disabled>Submitted For Approval</button>

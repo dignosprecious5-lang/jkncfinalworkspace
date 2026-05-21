@@ -216,6 +216,7 @@ class ContactsController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $owners = collect($this->ownerOptions())->keyBy('id');
+        $isAdminAutoApprover = $this->isAdminAutoApprover($request->user());
 
         $validated = $request->validate([
             'business_date' => ['nullable', 'date'],
@@ -361,8 +362,12 @@ class ContactsController extends Controller
             'email' => $validated['email'] ?? null,
             'phone' => $validated['mobile_number'] ?? null,
             'description' => $validated['inquiry'] ?? ($validated['description'] ?? null),
-            'kyc_status' => 'Not Submitted',
-            'cif_status' => 'draft',
+            'kyc_status' => $isAdminAutoApprover ? 'Verified' : 'Not Submitted',
+            'cif_status' => $isAdminAutoApprover ? 'approved' : 'draft',
+            'cif_submitted_at' => $isAdminAutoApprover ? now() : null,
+            'cif_reviewed_at' => $isAdminAutoApprover ? now() : null,
+            'cif_reviewed_by' => $isAdminAutoApprover ? ($request->user()?->name ?? null) : null,
+            'cif_rejection_reason' => null,
             'created_by' => $request->user()?->name ?? ($owner['name'] ?? 'Admin User'),
             'owner_name' => $owner['name'],
         ];
@@ -385,11 +390,27 @@ class ContactsController extends Controller
             'user_initials' => $this->initialsForHistory($request->user()?->name ?? ($owner['name'] ?? 'System')),
         ]);
 
-        return redirect()->route('contacts.index')->with('success', 'Contact created successfully.');
+        if ($isAdminAutoApprover) {
+            ContactHistoryLogger::log($contact->id, [
+                'type' => 'kyc',
+                'title' => 'KYC auto-approved',
+                'description' => 'Client Information Form was auto-approved by admin during contact creation',
+                'extra_label' => 'Status',
+                'extra_value' => 'Verified',
+                'user_name' => $request->user()?->name ?? ($owner['name'] ?? 'System'),
+                'user_initials' => $this->initialsForHistory($request->user()?->name ?? ($owner['name'] ?? 'System')),
+            ]);
+        }
+
+        return redirect()
+            ->route('contacts.index')
+            ->with('success', $isAdminAutoApprover ? 'Contact created and auto-approved successfully.' : 'Contact created successfully.');
     }
 
     public function bulkDelete(Request $request): RedirectResponse
     {
+        abort_unless($this->isAdminAutoApprover($request->user()), 403);
+
         $validated = $request->validate([
             'selected_contacts' => ['required', 'array', 'min:1'],
             'selected_contacts.*' => ['required', 'integer'],
@@ -408,6 +429,7 @@ class ContactsController extends Controller
     {
         $contactModel = Contact::query()->findOrFail($contact);
         $owners = collect($this->ownerOptions())->keyBy('id');
+        $isAdminAutoApprover = $this->isAdminAutoApprover($request->user());
 
         $validated = $request->validate([
             'business_date' => ['nullable', 'date'],
@@ -556,6 +578,17 @@ class ContactsController extends Controller
             'description' => $validated['inquiry'] ?? ($validated['description'] ?? null),
             'owner_name' => $owner['name'],
         ];
+
+        if ($isAdminAutoApprover) {
+            $attributes = array_merge($attributes, [
+                'kyc_status' => 'Verified',
+                'cif_status' => 'approved',
+                'cif_submitted_at' => $contactModel->cif_submitted_at ?? now(),
+                'cif_reviewed_at' => now(),
+                'cif_reviewed_by' => $request->user()?->name,
+                'cif_rejection_reason' => null,
+            ]);
+        }
 
         $contactModel->update($this->filterPersistableContactAttributes($attributes));
 
@@ -2223,6 +2256,11 @@ class ContactsController extends Controller
             || $user->isSuperAdmin()
             || $user->hasPermission('approve_corporate')
             || $user->hasPermission('access_admin_dashboard');
+    }
+
+    private function isAdminAutoApprover(?User $user): bool
+    {
+        return $user !== null && ($user->isAdmin() || $user->isSuperAdmin());
     }
 
     private function hasApprovedChangeRequest(Contact $contact): bool

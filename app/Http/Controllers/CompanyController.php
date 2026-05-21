@@ -163,6 +163,8 @@ class CompanyController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $validated = $this->validateCompany($request);
+        $isAdminAutoApprover = $this->isAdminAutoApprover($request->user());
+        $reviewerName = $request->user()?->name ?? 'System User';
         $contact = Contact::query()->findOrFail((int) $validated['contact_id']);
 
         if (strtolower((string) $contact->cif_status) !== 'approved') {
@@ -175,22 +177,22 @@ class CompanyController extends Controller
         $cifData = $this->loadContactCifData($contact);
         $autofill = $this->buildCompanyAutofillPayload($contact, $cifData, $this->loadLinkedBifData($contact));
         $normalizedValidated = array_merge($validated, array_filter([
-            'business_organization' => $validated['business_organization'] ?: ($autofill['business_organization'] ?? null),
-            'business_organization_other' => $validated['business_organization_other'] ?: ($autofill['business_organization_other'] ?? null),
-            'office_type' => $validated['office_type'] ?: ($autofill['office_type'] ?? null),
-            'office_type_other' => $validated['office_type_other'] ?: ($autofill['office_type_other'] ?? null),
-            'business_phone' => $validated['business_phone'] ?: ($autofill['business_phone'] ?? null),
-            'mobile_no' => $validated['mobile_no'] ?: ($autofill['mobile_no'] ?? null),
-            'business_address' => $validated['business_address'] ?: ($autofill['business_address'] ?? null),
-            'authorized_contact_person_name' => $validated['authorized_contact_person_name'] ?: ($autofill['authorized_contact_person_name'] ?? null),
-            'authorized_contact_person_email' => $validated['authorized_contact_person_email'] ?: ($autofill['authorized_contact_person_email'] ?? null),
-            'authorized_contact_person_phone' => $validated['authorized_contact_person_phone'] ?: ($autofill['authorized_contact_person_phone'] ?? null),
-            'authorized_contact_person_position' => $validated['authorized_contact_person_position'] ?: ($autofill['authorized_contact_person_position'] ?? null),
-            'tin_no' => $validated['tin_no'] ?: ($autofill['tin_no'] ?? null),
-            'zip_code' => $validated['zip_code'] ?: ($autofill['zip_code'] ?? null),
-            'nationality_status' => $validated['nationality_status'] ?: ($autofill['nationality_status'] ?? null),
-            'business_name' => $validated['business_name'] ?: ($autofill['business_name'] ?? null),
-            'alternative_business_name' => $validated['alternative_business_name'] ?: ($autofill['alternative_business_name'] ?? null),
+            'business_organization' => ($validated['business_organization'] ?? null) ?: ($autofill['business_organization'] ?? null),
+            'business_organization_other' => ($validated['business_organization_other'] ?? null) ?: ($autofill['business_organization_other'] ?? null),
+            'office_type' => ($validated['office_type'] ?? null) ?: ($autofill['office_type'] ?? null),
+            'office_type_other' => ($validated['office_type_other'] ?? null) ?: ($autofill['office_type_other'] ?? null),
+            'business_phone' => ($validated['business_phone'] ?? null) ?: ($autofill['business_phone'] ?? null),
+            'mobile_no' => ($validated['mobile_no'] ?? null) ?: ($autofill['mobile_no'] ?? null),
+            'business_address' => ($validated['business_address'] ?? null) ?: ($autofill['business_address'] ?? null),
+            'authorized_contact_person_name' => ($validated['authorized_contact_person_name'] ?? null) ?: ($autofill['authorized_contact_person_name'] ?? null),
+            'authorized_contact_person_email' => ($validated['authorized_contact_person_email'] ?? null) ?: ($autofill['authorized_contact_person_email'] ?? null),
+            'authorized_contact_person_phone' => ($validated['authorized_contact_person_phone'] ?? null) ?: ($autofill['authorized_contact_person_phone'] ?? null),
+            'authorized_contact_person_position' => ($validated['authorized_contact_person_position'] ?? null) ?: ($autofill['authorized_contact_person_position'] ?? null),
+            'tin_no' => ($validated['tin_no'] ?? null) ?: ($autofill['tin_no'] ?? null),
+            'zip_code' => ($validated['zip_code'] ?? null) ?: ($autofill['zip_code'] ?? null),
+            'nationality_status' => ($validated['nationality_status'] ?? null) ?: ($autofill['nationality_status'] ?? null),
+            'business_name' => ($validated['business_name'] ?? null) ?: ($autofill['business_name'] ?? null),
+            'alternative_business_name' => ($validated['alternative_business_name'] ?? null) ?: ($autofill['alternative_business_name'] ?? null),
         ], static fn ($value) => filled($value)));
 
         $company = Company::query()->create([
@@ -206,12 +208,15 @@ class CompanyController extends Controller
             ...$this->makeCompanyPayload($normalizedValidated),
             'company_id' => $company->id,
             'title' => 'Business Information Form - '.$normalizedValidated['business_name'],
-            'status' => 'draft',
-            'submitted_at' => null,
-            'approved_at' => null,
-            'approved_by_name' => null,
+            'status' => $isAdminAutoApprover ? 'approved' : 'draft',
+            'submitted_at' => $isAdminAutoApprover ? now() : null,
+            'approved_at' => $isAdminAutoApprover ? now() : null,
+            'approved_by_name' => $isAdminAutoApprover ? $reviewerName : null,
             'created_by' => $request->user()?->id,
             'updated_by' => $request->user()?->id,
+            'last_submission_source' => $isAdminAutoApprover ? 'manual' : null,
+            'last_manual_updated_at' => $isAdminAutoApprover ? now() : null,
+            'last_manual_updated_by_name' => $isAdminAutoApprover ? $reviewerName : null,
         ]);
 
         if (blank($bif->bif_no)) {
@@ -222,13 +227,16 @@ class CompanyController extends Controller
 
         return redirect()
             ->route('company.kyc', ['company' => $company->id, 'tab' => 'business-client-information'])
-            ->with('bif_success', 'Business Information Form saved as draft. Complete the requirements and submit for verification.');
+            ->with('bif_success', $isAdminAutoApprover
+                ? 'Business Information Form created and auto-approved successfully.'
+                : 'Business Information Form saved as draft. Complete the requirements and submit for verification.');
     }
 
     public function update(Request $request, int $company): RedirectResponse
     {
         $validated = $this->validateCompany($request);
         $customFields = $this->companyCustomFields($request);
+        $isAdminAutoApprover = $this->isAdminAutoApprover($request->user());
 
         if (Schema::hasTable('companies')) {
             $companyRecord = Company::query()->with('latestBif')->findOrFail($company);
@@ -246,29 +254,36 @@ class CompanyController extends Controller
 
             $bif = $companyRecord->latestBif;
             if ($bif) {
-                $bif->update([
+                $bifUpdatePayload = [
                     ...$payload,
                     'title' => 'Business Information Form - '.($validated['business_name'] ?? $companyRecord->company_name),
-                    'status' => 'approved',
-                    'submitted_at' => $bif->submitted_at ?? now(),
-                    'approved_at' => now(),
-                    'approved_by_name' => $reviewerName,
-                    'rejected_at' => null,
-                    'rejected_by_name' => null,
-                    'rejection_reason' => null,
-                    'change_request_payload' => null,
-                    'change_request_status' => null,
-                    'change_request_note' => null,
-                    'change_requested_at' => null,
-                    'change_requested_by_name' => null,
-                    'change_reviewed_at' => null,
-                    'change_reviewed_by_name' => null,
-                    'change_rejection_reason' => null,
                     'updated_by' => $request->user()?->id,
-                    'last_submission_source' => 'manual',
                     'last_manual_updated_at' => now(),
                     'last_manual_updated_by_name' => $reviewerName,
-                ]);
+                ];
+
+                if ($isAdminAutoApprover) {
+                    $bifUpdatePayload = array_merge($bifUpdatePayload, [
+                        'status' => 'approved',
+                        'submitted_at' => $bif->submitted_at ?? now(),
+                        'approved_at' => now(),
+                        'approved_by_name' => $reviewerName,
+                        'rejected_at' => null,
+                        'rejected_by_name' => null,
+                        'rejection_reason' => null,
+                        'change_request_payload' => null,
+                        'change_request_status' => null,
+                        'change_request_note' => null,
+                        'change_requested_at' => null,
+                        'change_requested_by_name' => null,
+                        'change_reviewed_at' => null,
+                        'change_reviewed_by_name' => null,
+                        'change_rejection_reason' => null,
+                        'last_submission_source' => 'manual',
+                    ]);
+                }
+
+                $bif->update($bifUpdatePayload);
             }
 
             if (Schema::hasTable('company_contact')) {
@@ -287,7 +302,7 @@ class CompanyController extends Controller
 
             return redirect()
                 ->back()
-                ->with('success', 'Company updated successfully.');
+                ->with('success', $isAdminAutoApprover ? 'Company updated and auto-approved successfully.' : 'Company updated successfully.');
         }
 
         $companies = collect($request->session()->get('mock_companies', $this->defaultCompanies()));
@@ -318,6 +333,8 @@ class CompanyController extends Controller
 
     public function destroy(Request $request, int $company): RedirectResponse
     {
+        abort_unless($this->isAdminAutoApprover($request->user()), 403);
+
         if (Schema::hasTable('companies')) {
             $record = Company::query()->find($company);
 
@@ -1893,5 +1910,10 @@ class CompanyController extends Controller
             ],
             3 => [],
         ];
+    }
+
+    private function isAdminAutoApprover(?User $user): bool
+    {
+        return $user !== null && ($user->isAdmin() || $user->isSuperAdmin());
     }
 }
