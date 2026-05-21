@@ -97,7 +97,7 @@
     <div class="bg-white rounded-xl border border-gray-200 flex flex-col flex-grow min-h-0 overflow-hidden">
         <div class="overflow-auto flex-grow">
 
-            {{-- MRF TABLE --}}
+            {{-- MANPOWER REQUEST FORM TABLE --}}
             <table class="w-full text-sm border-collapse" x-show="activeTab === 'MRF'">
                 <thead class="bg-white text-gray-600 sticky top-0 z-10">
                     <tr class="border-b border-gray-200">
@@ -139,7 +139,7 @@
                 </tbody>
             </table>
 
-            {{-- JPF TABLE --}}
+            {{-- JOB PLACEMENT FORM TABLE --}}
             <table class="w-full text-sm border-collapse" x-show="activeTab === 'JPF'">
                 <thead class="bg-white text-gray-600 sticky top-0 z-10">
                     <tr class="border-b border-gray-200">
@@ -174,7 +174,7 @@
                 </tbody>
             </table>
 
-            {{-- CAF TABLE --}}
+            {{-- CANDIDATE APPLICATION FORM TABLE --}}
             <table class="w-full text-sm border-collapse" x-show="activeTab === 'CAF'">
                 <thead class="bg-white text-gray-600 sticky top-0 z-10">
                     <tr class="border-b border-gray-200">
@@ -407,7 +407,7 @@
         </div>
     </div>
 
-    {{-- ===================== MRF MODAL (SPLIT PANEL) ===================== --}}
+    {{-- ===================== MANPOWER REQUEST FORM MODAL (SPLIT PANEL) ===================== --}}
     <div
         x-show="showModal"
         x-transition:enter="transition ease-out duration-300"
@@ -966,9 +966,9 @@
         </div>
     </div>
 
-    {{-- ===================== MRF VIEW MODAL ===================== --}}
+    {{-- ===================== MANPOWER REQUEST FORM VIEW MODAL ===================== --}}
 
-    {{-- ===================== MRF VIEW SLIDE-OVER ===================== --}}
+    {{-- ===================== MANPOWER REQUEST FORM VIEW SLIDE-OVER ===================== --}}
     <div x-show="showViewModal" class="fixed inset-0 overflow-hidden z-[9999]" style="display:none;">
         <div @click="showViewModal = false" class="absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity"
             x-show="showViewModal" x-transition:enter="ease-out duration-300" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
@@ -1110,7 +1110,7 @@
         </div>
     </div>
 
-    {{-- ===================== JPF MODAL ===================== --}}
+    {{-- ===================== JOB PLACEMENT FORM MODAL ===================== --}}
     <div
         x-show="showJpfModal"
         x-transition:enter="transition ease-out duration-300"
@@ -2199,7 +2199,7 @@
         </div>
     </div>
 
-    {{-- ===================== CAF MODAL ===================== --}}
+    {{-- ===================== CANDIDATE APPLICATION FORM MODAL ===================== --}}
     <div
         x-show="showCafModal"
         x-transition:enter="transition ease-out duration-300"
@@ -3545,9 +3545,9 @@ refreshJobOffers() {
         payrollLevels: initialPayrollLevels,
 
         tabs: [
-            { key: 'MRF',        label: 'MRF' },
-            { key: 'JPF',        label: 'JPF' },
-            { key: 'CAF',        label: 'CAF' },
+            { key: 'MRF',        label: 'Manpower Request Form' },
+            { key: 'JPF',        label: 'Job Placement Form' },
+            { key: 'CAF',        label: 'Candidate Application Form' },
             { key: 'Assessment', label: 'Assessment' },
             { key: 'Interview',  label: 'Interview' },
             { key: 'Job Offer',  label: 'Job Offer' },
