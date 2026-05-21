@@ -236,6 +236,7 @@
                                 <div class="space-y-2 px-4 py-4">
                                     @if (! $canReviewKyc)
                                         @if ($cifStatus === 'approved')
+                                            <button type="button" disabled class="h-10 w-full cursor-not-allowed rounded-lg bg-green-100 text-sm font-medium text-green-700 border border-green-200">Approved</button>
                                             @if ($changeRequestPending)
                                                 <button type="button" disabled class="h-10 w-full cursor-not-allowed rounded-lg bg-amber-100 text-sm font-medium text-amber-700">Change Request Pending</button>
                                                 <p class="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
@@ -263,15 +264,19 @@
                                         @endif
                                     @endif
                                     @if ($canReviewKyc)
-                                        <form id="approveKycForm" method="POST" action="{{ route('contacts.kyc.approve', $contact->id) }}">
-                                            @csrf
-                                            <button id="approveKycBtn" type="submit" class="h-10 w-full rounded-lg bg-green-600 text-sm font-medium text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:bg-green-300">Approve</button>
-                                        </form>
-                                        <form id="rejectKycForm" method="POST" action="{{ route('contacts.kyc.reject', $contact->id) }}">
-                                            @csrf
-                                            <input id="rejectReasonField" type="hidden" name="reason" value="">
-                                            <button id="rejectKycBtn" type="button" class="h-10 w-full rounded-lg bg-red-600 text-sm font-medium text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-red-300">Reject</button>
-                                        </form>
+                                        @if ($cifStatus === 'approved')
+                                            <button type="button" disabled class="h-10 w-full cursor-not-allowed rounded-lg border border-green-200 bg-green-100 text-sm font-medium text-green-700">Approved</button>
+                                        @else
+                                            <form id="approveKycForm" method="POST" action="{{ route('contacts.kyc.approve', $contact->id) }}">
+                                                @csrf
+                                                <button id="approveKycBtn" type="submit" class="h-10 w-full rounded-lg bg-green-600 text-sm font-medium text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:bg-green-300">Approve</button>
+                                            </form>
+                                            <form id="rejectKycForm" method="POST" action="{{ route('contacts.kyc.reject', $contact->id) }}">
+                                                @csrf
+                                                <input id="rejectReasonField" type="hidden" name="reason" value="">
+                                                <button id="rejectKycBtn" type="button" class="h-10 w-full rounded-lg bg-red-600 text-sm font-medium text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-red-300">Reject</button>
+                                            </form>
+                                        @endif
                                         @if ($changeRequestPending && $cifStatus === 'approved')
                                             <form method="POST" action="{{ route('contacts.kyc.change-request.approve', $contact->id) }}">
                                                 @csrf
