@@ -216,28 +216,114 @@
                                     class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500"
                                 >
                                     <option value="all">All Employees</option>
-                                    <option value="employee">Specific Employee/s</option>
+                                    <option value="employee">Specific Recipients</option>
                                 </select>
                             </div>
 
-                            <div x-show="previewRecipientType === 'employee'" x-cloak>
-                                <select
-                                    name="recipient_user_ids[]"
-                                    x-model="previewRecipientUserIds"
-                                    multiple
-                                    @change="$nextTick(() => syncRecipientFields())"
-                                    class="w-full min-h-[130px] border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500"
-                                >
-                                    @foreach($employees as $employee)
-                                        <option value="{{ $employee->id }}">
-                                            {{ $employee->name }}
-                                        </option>
-                                    @endforeach
-                                </select>
+<div x-show="previewRecipientType === 'employee'" x-cloak class="space-y-4">
+                                {{-- Selected Recipients --}}
+                                <div>
+                                    <label class="block text-xs font-semibold text-gray-500 mb-1">
+                                        Selected Recipients
+                                    </label>
 
-                                <p class="mt-1 text-xs text-gray-400">
-                                    Hold CTRL and click to select multiple employees.
-                                </p>
+                                    <div class="min-h-[42px] rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 flex flex-wrap gap-2">
+                                        <template x-if="previewTo">
+                                            <template x-for="name in previewTo.split(',').map(item => item.trim()).filter(Boolean)" :key="name">
+                                                <span class="inline-flex items-center rounded-full bg-blue-100 px-3 py-1 text-xs font-medium text-blue-700">
+                                                    <span x-text="name"></span>
+                                                </span>
+                                            </template>
+                                        </template>
+
+                                        <template x-if="!previewTo">
+                                            <span class="text-xs text-gray-400">No recipient selected</span>
+                                        </template>
+                                    </div>
+                                </div>
+
+                                {{-- Users: Employees / Admins --}}
+                                <div>
+                                    <label class="block text-xs font-semibold text-gray-500 mb-1">
+                                        Employees / Admins
+                                    </label>
+
+                                    <div class="max-h-[190px] overflow-y-auto rounded-lg border border-gray-200 bg-white divide-y divide-gray-100">
+                                        <template x-for="user in usersForRecipient" :key="'user-' + user.id">
+                                            <button
+                                                type="button"
+                                                @click="selectRecipientUser(user.id)"
+                                                @dblclick="deselectRecipientUser(user.id)"
+                                                class="w-full px-3 py-2 text-left text-sm transition flex items-center justify-between"
+                                                :class="isRecipientUserSelected(user.id)
+                                                    ? 'bg-blue-50 text-blue-700'
+                                                    : 'hover:bg-gray-50 text-gray-700'"
+                                            >
+                                                <span>
+                                                    <span class="font-medium" x-text="user.name"></span>
+                                                    <span class="text-xs text-gray-400" x-text="' — ' + user.role"></span>
+                                                </span>
+
+                                                <span
+                                                    x-show="isRecipientUserSelected(user.id)"
+                                                    class="text-blue-600 text-xs font-semibold"
+                                                >
+                                                    Selected
+                                                </span>
+                                            </button>
+                                        </template>
+                                    </div>
+
+                                    <p class="mt-1 text-xs text-gray-400">
+                                        Click once to select. Double-click to deselect.
+                                    </p>
+                                </div>
+
+                                {{-- Clients / Contacts --}}
+                                <div>
+                                    <label class="block text-xs font-semibold text-gray-500 mb-1">
+                                        Clients / Contacts
+                                    </label>
+
+                                    <div class="max-h-[190px] overflow-y-auto rounded-lg border border-gray-200 bg-white divide-y divide-gray-100">
+                                        <template x-for="contact in contactsForRecipient" :key="'contact-' + contact.id">
+                                            <button
+                                                type="button"
+                                                @click="selectRecipientContact(contact.id)"
+                                                @dblclick="deselectRecipientContact(contact.id)"
+                                                class="w-full px-3 py-2 text-left text-sm transition flex items-center justify-between"
+                                                :class="isRecipientContactSelected(contact.id)
+                                                    ? 'bg-green-50 text-green-700'
+                                                    : 'hover:bg-gray-50 text-gray-700'"
+                                            >
+                                                <span>
+                                                    <span class="font-medium" x-text="contact.name"></span>
+                                                    <span class="text-xs text-gray-400"> — Client</span>
+                                                </span>
+
+                                                <span
+                                                    x-show="isRecipientContactSelected(contact.id)"
+                                                    class="text-green-600 text-xs font-semibold"
+                                                >
+                                                    Selected
+                                                </span>
+                                            </button>
+                                        </template>
+                                    </div>
+
+                                    <p class="mt-1 text-xs text-gray-400">
+                                        Click once to select. Double-click to deselect.
+                                    </p>
+                                </div>
+
+                                {{-- Hidden inputs for form submit --}}
+                                <template x-for="id in previewRecipientUserIds" :key="'hidden-user-' + id">
+                                    <input type="hidden" name="recipient_user_ids[]" :value="id">
+                                </template>
+
+                                <template x-for="id in previewRecipientContactIds" :key="'hidden-contact-' + id">
+                                    <input type="hidden" name="recipient_contact_ids[]" :value="id">
+                                </template>
                             </div>
 
                             <div class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
@@ -1096,7 +1182,26 @@ function townhallContactSuggest() {
         previewRecipientLabel: @js(old('recipient_label', 'To')),
         previewRecipientType: @js(old('recipient_type', 'all')),
         previewRecipientUserIds: @js(old('recipient_user_ids', [])),
-        employeesForRecipient: @js($employees->map(fn($employee) => ['id' => $employee->id, 'name' => $employee->name])->values()),
+        previewRecipientContactIds: @js(old('recipient_contact_ids', [])),
+        usersForRecipient: @js($usersForRecipients->map(fn($user) => [
+            'id' => $user->id,
+            'name' => $user->name,
+            'role' => $user->role,
+        ])->values()),
+        contactsForRecipient: @js($contactsForRecipients->map(function ($contact) {
+            $name = trim(collect([
+                $contact->first_name,
+                $contact->middle_name,
+                $contact->last_name,
+                $contact->name_extension,
+            ])->filter()->implode(' ')) ?: $contact->company_name;
+
+            return [
+                'id' => $contact->id,
+                'name' => $name,
+                'role' => 'Client',
+            ];
+        })->values()),
         previewTo: @js(old('to_for', 'All Employees')),
         previewPriority: @js(old('priority', 'Low')),
         previewSubject: @js(old('subject', '')),
@@ -1108,19 +1213,73 @@ function townhallContactSuggest() {
         syncRecipientFields() {
             if (this.previewRecipientType === 'all') {
                 this.previewRecipientUserIds = [];
+                this.previewRecipientContactIds = [];
                 this.previewTo = 'All Employees';
                 return;
             }
 
-            const selectedIds = Array.isArray(this.previewRecipientUserIds)
+            const selectedUserIds = Array.isArray(this.previewRecipientUserIds)
                 ? this.previewRecipientUserIds.map(id => String(id))
                 : [];
 
-            const selectedEmployees = this.employeesForRecipient.filter(employee => {
-                return selectedIds.includes(String(employee.id));
+            const selectedContactIds = Array.isArray(this.previewRecipientContactIds)
+                ? this.previewRecipientContactIds.map(id => String(id))
+                : [];
+
+            const selectedUsers = this.usersForRecipient.filter(user => {
+                return selectedUserIds.includes(String(user.id));
             });
 
-            this.previewTo = selectedEmployees.map(employee => employee.name).join(', ');
+            const selectedContacts = this.contactsForRecipient.filter(contact => {
+                return selectedContactIds.includes(String(contact.id));
+            });
+
+            this.previewTo = [
+                ...selectedUsers.map(user => user.name),
+                ...selectedContacts.map(contact => contact.name)
+            ].join(', ');
+        },
+
+        isRecipientUserSelected(id) {
+            return this.previewRecipientUserIds
+                .map(item => String(item))
+                .includes(String(id));
+        },
+
+        selectRecipientUser(id) {
+            if (!this.isRecipientUserSelected(id)) {
+                this.previewRecipientUserIds.push(String(id));
+            }
+
+            this.syncRecipientFields();
+        },
+
+        deselectRecipientUser(id) {
+            this.previewRecipientUserIds = this.previewRecipientUserIds
+                .filter(item => String(item) !== String(id));
+
+            this.syncRecipientFields();
+        },
+
+        isRecipientContactSelected(id) {
+            return this.previewRecipientContactIds
+                .map(item => String(item))
+                .includes(String(id));
+        },
+
+        selectRecipientContact(id) {
+            if (!this.isRecipientContactSelected(id)) {
+                this.previewRecipientContactIds.push(String(id));
+            }
+
+            this.syncRecipientFields();
+        },
+
+        deselectRecipientContact(id) {
+            this.previewRecipientContactIds = this.previewRecipientContactIds
+                .filter(item => String(item) !== String(id));
+
+            this.syncRecipientFields();
         },
 
         dropdowns: {

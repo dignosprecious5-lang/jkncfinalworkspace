@@ -50,11 +50,31 @@ class TownHallController extends Controller
             ->orderBy('name')
             ->get();
 
+        $usersForRecipients = User::whereIn('role', [
+            'Employee',
+            'employee',
+            'Admin',
+            'admin',
+            'SuperAdmin',
+            'superadmin',
+            'super admin',
+            'System Super Admin',
+            'system super admin',
+        ])
+            ->orderBy('name')
+            ->get();
+
+        $contactsForRecipients = Contact::orderBy('first_name')
+            ->orderBy('last_name')
+            ->get();
+
         return view('townhall.townhall', compact(
             'communications',
             'departments',
             'employees',
-            'todayAttendance'
+            'todayAttendance',
+            'usersForRecipients',
+            'contactsForRecipients'
         ));
     }
 
@@ -72,6 +92,8 @@ class TownHallController extends Controller
             'recipient_type' => ['nullable', 'in:all,employee'],
             'recipient_user_ids' => ['nullable', 'array'],
             'recipient_user_ids.*' => ['exists:users,id'],
+            'recipient_contact_ids' => ['nullable', 'array'],
+            'recipient_contact_ids.*' => ['exists:contacts,id'],
             'priority' => ['nullable', 'in:High,Low'],
             'subject' => ['nullable', 'string', 'max:255'],
             'message' => ['nullable', 'string'],
@@ -205,7 +227,30 @@ class TownHallController extends Controller
             ->orderBy('name')
             ->get();
 
-        return view('townhall.edit', compact('communication', 'employees'));
+        $usersForRecipients = User::whereIn('role', [
+            'Employee',
+            'employee',
+            'Admin',
+            'admin',
+            'SuperAdmin',
+            'superadmin',
+            'super admin',
+            'System Super Admin',
+            'system super admin',
+        ])
+            ->orderBy('name')
+            ->get();
+
+        $contactsForRecipients = Contact::orderBy('first_name')
+            ->orderBy('last_name')
+            ->get();
+
+        return view('townhall.edit', compact(
+            'communication',
+            'employees',
+            'usersForRecipients',
+            'contactsForRecipients'
+        ));
     }
 
     public function update(Request $request, $id)
@@ -232,6 +277,8 @@ class TownHallController extends Controller
             'recipient_type' => ['nullable', 'in:all,employee'],
             'recipient_user_ids' => ['nullable', 'array'],
             'recipient_user_ids.*' => ['exists:users,id'],
+            'recipient_contact_ids' => ['nullable', 'array'],
+            'recipient_contact_ids.*' => ['exists:contacts,id'],
             'priority' => ['nullable', 'in:High,Low'],
             'subject' => ['nullable', 'string', 'max:255'],
             'message' => ['nullable', 'string'],
@@ -539,7 +586,13 @@ class TownHallController extends Controller
     private function normalizeRecipientFields(array $validated, Request $request): array
     {
         if (!Schema::hasColumn('townhall_communications', 'recipient_type')) {
-            unset($validated['recipient_type'], $validated['recipient_user_id'], $validated['recipient_user_ids']);
+            unset(
+                $validated['recipient_type'],
+                $validated['recipient_user_id'],
+                $validated['recipient_user_ids'],
+                $validated['recipient_contact_ids']
+            );
+
             return $validated;
         }
 
@@ -550,27 +603,53 @@ class TownHallController extends Controller
         if ($recipientType === 'all') {
             $validated['recipient_user_id'] = null;
             $validated['recipient_user_ids'] = null;
+            $validated['recipient_contact_ids'] = null;
             $validated['to_for'] = 'All Employees';
-            return $validated;
-        }
-
-        if ($recipientType === 'employee') {
-            $recipientIds = collect($request->input('recipient_user_ids', []))
-                ->filter()
-                ->unique()
-                ->values()
-                ->toArray();
-
-            $recipients = User::whereIn('id', $recipientIds)
-                ->orderBy('name')
-                ->get();
-
-            $validated['recipient_user_id'] = $recipients->first()?->id;
-            $validated['recipient_user_ids'] = $recipients->pluck('id')->values()->toArray();
-            $validated['to_for'] = $recipients->pluck('name')->implode(', ');
 
             return $validated;
         }
+
+        $userIds = collect($request->input('recipient_user_ids', []))
+            ->filter()
+            ->unique()
+            ->values()
+            ->toArray();
+
+        $contactIds = collect($request->input('recipient_contact_ids', []))
+            ->filter()
+            ->unique()
+            ->values()
+            ->toArray();
+
+        $users = User::whereIn('id', $userIds)
+            ->orderBy('name')
+            ->get();
+
+        $contacts = Contact::whereIn('id', $contactIds)
+            ->get()
+            ->map(function ($contact) {
+                return [
+                    'id' => $contact->id,
+                    'name' => trim(collect([
+                        $contact->first_name,
+                        $contact->middle_name,
+                        $contact->last_name,
+                        $contact->name_extension,
+                    ])->filter()->implode(' ')) ?: $contact->company_name,
+                ];
+            });
+
+        $recipientNames = collect()
+            ->merge($users->pluck('name'))
+            ->merge($contacts->pluck('name'))
+            ->filter()
+            ->unique()
+            ->values();
+
+        $validated['recipient_user_id'] = $users->first()?->id;
+        $validated['recipient_user_ids'] = $users->pluck('id')->values()->toArray();
+        $validated['recipient_contact_ids'] = $contacts->pluck('id')->values()->toArray();
+        $validated['to_for'] = $recipientNames->implode(', ');
 
         return $validated;
     }

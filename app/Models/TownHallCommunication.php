@@ -18,6 +18,7 @@ class TownHallCommunication extends Model
         'recipient_type',
         'recipient_user_id',
         'recipient_user_ids',
+        'recipient_contact_ids',
         'to_for',
         'priority',
         'status',
@@ -45,6 +46,7 @@ class TownHallCommunication extends Model
         'archived_at' => 'datetime',
         'is_archived' => 'boolean',
         'recipient_user_ids' => 'array',
+        'recipient_contact_ids' => 'array',
     ];
 
     public function acknowledgements()
@@ -93,15 +95,39 @@ class TownHallCommunication extends Model
             return 'All Employees';
         }
 
-        $ids = $this->recipient_user_ids ?? [];
+        $names = collect();
 
-        if (!empty($ids)) {
-            return User::whereIn('id', $ids)
+        $userIds = $this->recipient_user_ids ?? [];
+
+        if (!empty($userIds)) {
+            $userNames = User::whereIn('id', $userIds)
                 ->orderBy('name')
-                ->pluck('name')
-                ->implode(', ');
+                ->pluck('name');
+
+            $names = $names->merge($userNames);
         }
 
-        return $this->recipientUser->name ?? $this->to_for ?? 'Selected Employee';
+        $contactIds = $this->recipient_contact_ids ?? [];
+
+        if (!empty($contactIds)) {
+            $contactNames = \App\Models\Contact::whereIn('id', $contactIds)
+                ->get()
+                ->map(function ($contact) {
+                    return trim(collect([
+                        $contact->first_name,
+                        $contact->middle_name,
+                        $contact->last_name,
+                        $contact->name_extension,
+                    ])->filter()->implode(' ')) ?: $contact->company_name;
+                });
+
+            $names = $names->merge($contactNames);
+        }
+
+        if ($names->isNotEmpty()) {
+            return $names->filter()->unique()->values()->implode(', ');
+        }
+
+        return $this->recipientUser->name ?? $this->to_for ?? 'Selected Recipient';
     }
 }
