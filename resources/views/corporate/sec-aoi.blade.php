@@ -1,6 +1,9 @@
 @extends('layouts.app')
 @section('title', 'SEC – Articles Of Incorporation')
 @section('content')
+@php
+    $hasAcceptedGis = filled(optional($latestAcceptedGis)->id);
+@endphp
 <div class="w-full px-4 sm:px-6 lg:px-8 mt-4"
      x-data="{
         openPanel: false,
@@ -10,7 +13,7 @@
 <div class="bg-white border border-gray-100 rounded-2xl overflow-hidden">
 
     <div class="flex items-center gap-3 px-4 py-3 border-b border-gray-100 bg-white">
-        @include('corporate.partials.section-ribbon', ['activeTab' => 'sec_aoi', 'topButtonLabel' => 'SEC-AOI'])
+        @include('corporate.partials.section-ribbon', ['activeTab' => 'sec_aoi', 'topButtonLabel' => 'Generate AOI from GIS'])
     </div>
 
     <div class="px-4 pt-4 bg-white border-b border-gray-100">
@@ -55,6 +58,23 @@
     </div>
 
     <div class="bg-gray-50 min-h-[680px]">
+
+        <div class="px-4 pt-4">
+            @if ($hasAcceptedGis)
+                <div class="mb-3 border border-blue-200 bg-blue-50 text-blue-800 text-[13px] px-4 py-3 rounded-md">
+                    Source GIS loaded: <strong>{{ $latestAcceptedGis->corporation_name ?: 'Unnamed Corporation' }}</strong>
+                    @if($latestAcceptedGis->company_reg_no)
+                        <span class="text-blue-700">({{ $latestAcceptedGis->company_reg_no }})</span>
+                    @endif
+                    <span class="block text-[12px] mt-1">SEC-AOI will auto-fill corporation name, SEC registration number, and principal address from the latest accepted GIS record.</span>
+                </div>
+            @else
+                <div class="mb-3 border border-red-200 bg-red-50 text-red-800 text-[13px] px-4 py-3 rounded-md">
+                    Please complete and accept a GIS record first before creating a SEC-AOI record.
+                </div>
+            @endif
+        </div>
+
 
         <div class="px-4 pt-4">
             <div class="border border-green-200 bg-green-50 text-green-800 text-[14px] px-4 py-3 rounded-md"
@@ -246,7 +266,7 @@ style="display:none;">
 
 <div class="h-16 px-6 border-b border-gray-200 flex items-center justify-between">
     <h2 class="text-[26px] font-semibold text-gray-900 leading-none">
-        Add SEC-AOI Record
+        Generate SEC-AOI from GIS
     </h2>
 
     <button
@@ -262,17 +282,17 @@ style="display:none;">
 
         <div>
             <label class="block text-[13px] font-medium text-gray-700 mb-2">Corporation Name</label>
-            <input type="text" name="corporation_name" class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
+            <input type="text" name="corporation_name" value="{{ old('corporation_name', optional($latestAcceptedGis)->corporation_name) }}" class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm bg-gray-50" readonly>
         </div>
 
         <div>
             <label class="block text-[13px] font-medium text-gray-700 mb-2">Company Reg No.</label>
-            <input type="text" name="company_reg_no" class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
+            <input type="text" name="company_reg_no" value="{{ old('company_reg_no', optional($latestAcceptedGis)->company_reg_no) }}" class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm bg-gray-50" readonly>
         </div>
 
         <div>
             <label class="block text-[13px] font-medium text-gray-700 mb-2">Principal Address</label>
-            <input type="text" name="principal_address" class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
+            <input type="text" name="principal_address" value="{{ old('principal_address', optional($latestAcceptedGis)->principal_address ?: optional($latestAcceptedGis)->business_address) }}" class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm bg-gray-50" readonly>
         </div>
 
         <div class="grid grid-cols-2 gap-4">
@@ -366,8 +386,9 @@ style="display:none;">
 
     <button
         type="submit"
+        @if(! $hasAcceptedGis) disabled @endif
         class="min-w-[92px] px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium">
-        Save
+        Generate from GIS
     </button>
 </div>
 

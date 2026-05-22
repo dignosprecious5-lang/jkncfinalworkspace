@@ -1,6 +1,9 @@
 @extends('layouts.app')
 @section('title', 'Bylaws')
 @section('content')
+@php
+    $hasAcceptedAoi = filled(optional($latestAcceptedAoi)->id);
+@endphp
 
 <div class="w-full px-4 sm:px-6 lg:px-8 mt-4"
      x-data="{
@@ -11,7 +14,7 @@
 <div class="bg-white border border-gray-100 rounded-2xl overflow-hidden">
 
     <div class="flex items-center gap-3 px-4 py-3 border-b border-gray-100 bg-white">
-        @include('corporate.partials.section-ribbon', ['activeTab' => 'bylaws', 'topButtonLabel' => 'SEC-BYLAWS'])
+        @include('corporate.partials.section-ribbon', ['activeTab' => 'bylaws', 'topButtonLabel' => 'Generate Bylaws from AOI'])
     </div>
 
     <div class="px-4 pt-4 bg-white border-b border-gray-100">
@@ -56,6 +59,23 @@
     </div>
 
     <div class="bg-gray-50 min-h-[680px]">
+
+        <div class="px-4 pt-4">
+            @if ($hasAcceptedAoi)
+                <div class="mb-3 border border-blue-200 bg-blue-50 text-blue-800 text-[13px] px-4 py-3 rounded-md">
+                    Source SEC-AOI loaded: <strong>{{ $latestAcceptedAoi->corporation_name ?: 'Unnamed Corporation' }}</strong>
+                    @if($latestAcceptedAoi->company_reg_no)
+                        <span class="text-blue-700">({{ $latestAcceptedAoi->company_reg_no }})</span>
+                    @endif
+                    <span class="block text-[12px] mt-1">Bylaws will auto-fill corporation name, SEC registration number, type of formation, AOI version, and AOI type from the latest accepted SEC-AOI record.</span>
+                </div>
+            @else
+                <div class="mb-3 border border-red-200 bg-red-50 text-red-800 text-[13px] px-4 py-3 rounded-md">
+                    Please complete and accept a SEC-AOI record first before creating Bylaws.
+                </div>
+            @endif
+        </div>
+
 
         <div class="px-4 pt-4">
             <div class="border border-green-200 bg-green-50 text-green-800 text-[14px] px-4 py-3 rounded-md"
@@ -256,7 +276,7 @@ style="display:none;">
 <div class="h-16 px-6 border-b border-gray-200 flex items-center justify-between">
 
     <h2 class="text-[26px] font-semibold text-gray-900 leading-none">
-        Add Bylaws Record
+        Generate Bylaws from AOI
     </h2>
 
     <button
@@ -272,23 +292,41 @@ style="display:none;">
 
     <div class="space-y-5">
 
-        <input type="text" name="corporation_name" placeholder="Corporation Name"
-        class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
+        <div>
+            <label class="block text-[13px] font-medium text-gray-700 mb-2">Corporation Name</label>
+            <input type="text" name="corporation_name" value="{{ old('corporation_name', optional($latestAcceptedAoi)->corporation_name) }}"
+            class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm bg-gray-50" readonly>
+        </div>
 
-        <input type="text" name="company_reg_no" placeholder="Company Reg No."
-        class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
+        <div>
+            <label class="block text-[13px] font-medium text-gray-700 mb-2">Company Reg No.</label>
+            <input type="text" name="company_reg_no" value="{{ old('company_reg_no', optional($latestAcceptedAoi)->company_reg_no) }}"
+            class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm bg-gray-50" readonly>
+        </div>
 
-        <input type="text" name="type_of_formation" placeholder="Type of Formation"
-        class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
+        <div>
+            <label class="block text-[13px] font-medium text-gray-700 mb-2">Type of Formation</label>
+            <input type="text" name="type_of_formation" value="{{ old('type_of_formation', optional($latestAcceptedAoi)->type_of_formation) }}"
+            class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm bg-gray-50" readonly>
+        </div>
 
-        <input type="text" name="aoi_version" placeholder="SEC-AOI Version"
-        class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
+        <div>
+            <label class="block text-[13px] font-medium text-gray-700 mb-2">SEC-AOI Version</label>
+            <input type="text" name="aoi_version" value="{{ old('aoi_version', optional($latestAcceptedAoi)->aoi_version) }}"
+            class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm bg-gray-50" readonly>
+        </div>
 
-        <input type="text" name="aoi_type" placeholder="Type of Version"
-        class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
+        <div>
+            <label class="block text-[13px] font-medium text-gray-700 mb-2">Type of Version</label>
+            <input type="text" name="aoi_type" value="{{ old('aoi_type', optional($latestAcceptedAoi)->aoi_type) }}"
+            class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm bg-gray-50" readonly>
+        </div>
 
-        <input type="date" name="aoi_date"
-        class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
+        <div>
+            <label class="block text-[13px] font-medium text-gray-700 mb-2">Date of AOI Version</label>
+            <input type="date" name="aoi_date" value="{{ old('aoi_date', optional($latestAcceptedAoi)->date_upload ? optional($latestAcceptedAoi->date_upload)->format('Y-m-d') : optional($latestAcceptedAoi)->created_at?->format('Y-m-d')) }}"
+            class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
+        </div>
 
         <input type="text" name="regular_asm" placeholder="Regular ASM"
         class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
@@ -361,8 +399,9 @@ style="display:none;">
 
     <button
         type="submit"
+        @if(! $hasAcceptedAoi) disabled @endif
         class="px-6 py-2 bg-blue-600 text-white rounded-md text-sm">
-        Save
+        Generate from AOI
     </button>
 
 </div>

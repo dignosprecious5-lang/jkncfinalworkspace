@@ -6,9 +6,23 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use App\Models\User;
 use App\Models\SecAoi;
+use App\Models\GisRecord;
 
 class SecAoiController extends Controller
 {
+
+    private function latestAcceptedGis(): ?GisRecord
+    {
+        return GisRecord::query()
+            ->where(function ($query) {
+                $query->where('workflow_status', 'Accepted')
+                    ->orWhere('approval_status', 'Approved');
+            })
+            ->latest('updated_at')
+            ->latest('created_at')
+            ->first();
+    }
+
     private function canApproveCorporate(): bool
     {
         /** @var User|null $user */
@@ -47,7 +61,9 @@ class SecAoiController extends Controller
             $records = SecAoi::where('submitted_by', Auth::id())->latest()->get();
         }
 
-        return view('corporate.sec-aoi', compact('records'));
+        $latestAcceptedGis = $this->latestAcceptedGis();
+
+        return view('corporate.sec-aoi', compact('records', 'latestAcceptedGis'));
     }
 
     public function store(Request $request)
@@ -66,6 +82,13 @@ class SecAoiController extends Controller
             'draft_file_upload'        => 'nullable|file|mimes:pdf,doc,docx,jpg,jpeg,png|max:10240',
             'notary_file_upload'       => 'nullable|file|mimes:pdf,doc,docx,jpg,jpeg,png|max:10240',
         ]);
+
+        $sourceGis = $this->latestAcceptedGis();
+
+        if (! $sourceGis) {
+            return redirect()->route('corporate.sec_aoi')
+                ->withErrors(['gis_required' => 'Please complete and accept a GIS record first before creating SEC-AOI.']);
+        }
 
         $draftPath = null;
         $notaryPath = null;
@@ -87,9 +110,10 @@ class SecAoiController extends Controller
         $isApprover = $this->canApproveCorporate();
 
         SecAoi::create([
-            'corporation_name'         => $request->corporation_name,
-            'company_reg_no'           => $request->company_reg_no,
-            'principal_address'        => $request->principal_address,
+            'company_id'               => $sourceGis->company_id,
+            'corporation_name'         => $sourceGis->corporation_name ?: $request->corporation_name,
+            'company_reg_no'           => $sourceGis->company_reg_no ?: $request->company_reg_no,
+            'principal_address'        => $sourceGis->principal_address ?: $sourceGis->business_address ?: $request->principal_address,
             'par_value'                => $request->par_value,
             'authorized_capital_stock' => $request->authorized_capital_stock,
             'directors'                => $request->directors,

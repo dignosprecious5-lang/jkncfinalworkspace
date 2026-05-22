@@ -6,9 +6,23 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use App\Models\User;
 use App\Models\Bylaw;
+use App\Models\SecAoi;
 
 class BylawController extends Controller
 {
+
+    private function latestAcceptedAoi(): ?SecAoi
+    {
+        return SecAoi::query()
+            ->where(function ($query) {
+                $query->where('workflow_status', 'Accepted')
+                    ->orWhere('approval_status', 'Approved');
+            })
+            ->latest('updated_at')
+            ->latest('created_at')
+            ->first();
+    }
+
     private function canApproveCorporate(): bool
     {
         /** @var User|null $user */
@@ -51,7 +65,9 @@ class BylawController extends Controller
             $records = Bylaw::where('submitted_by', Auth::id())->latest()->get();
         }
 
-        return view('corporate.bylaws', compact('records'));
+        $latestAcceptedAoi = $this->latestAcceptedAoi();
+
+        return view('corporate.bylaws', compact('records', 'latestAcceptedAoi'));
     }
 
     public function store(Request $request)
@@ -71,6 +87,13 @@ class BylawController extends Controller
             'draft_file_upload'   => 'nullable|file|mimes:pdf,doc,docx,jpg,jpeg,png|max:10240',
             'notary_file_upload'  => 'nullable|file|mimes:pdf,doc,docx,jpg,jpeg,png|max:10240',
         ]);
+
+        $sourceAoi = $this->latestAcceptedAoi();
+
+        if (! $sourceAoi) {
+            return redirect()->route('corporate.bylaws')
+                ->withErrors(['aoi_required' => 'Please complete and accept a SEC-AOI record first before creating Bylaws.']);
+        }
 
         $draftPath = null;
         $notaryPath = null;
@@ -92,11 +115,12 @@ class BylawController extends Controller
         $isApprover = $this->canApproveCorporate();
 
         Bylaw::create([
-            'corporation_name'   => $request->corporation_name,
-            'company_reg_no'     => $request->company_reg_no,
-            'type_of_formation'  => $request->type_of_formation,
-            'aoi_version'        => $request->aoi_version,
-            'aoi_type'           => $request->aoi_type,
+            'company_id'         => $sourceAoi->company_id,
+            'corporation_name'   => $sourceAoi->corporation_name ?: $request->corporation_name,
+            'company_reg_no'     => $sourceAoi->company_reg_no ?: $request->company_reg_no,
+            'type_of_formation'  => $sourceAoi->type_of_formation ?: $request->type_of_formation,
+            'aoi_version'        => $sourceAoi->aoi_version ?: $request->aoi_version,
+            'aoi_type'           => $sourceAoi->aoi_type ?: $request->aoi_type,
             'aoi_date'           => $request->aoi_date,
             'regular_asm'        => $request->regular_asm,
             'asm_notice'         => $request->asm_notice,

@@ -6,9 +6,23 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use App\Models\User;
 use App\Models\SecCoi;
+use App\Models\GisRecord;
 
 class CorporateFormationController extends Controller
 {
+
+    private function latestAcceptedGis(): ?GisRecord
+    {
+        return GisRecord::query()
+            ->where(function ($query) {
+                $query->where('workflow_status', 'Accepted')
+                    ->orWhere('approval_status', 'Approved');
+            })
+            ->latest('updated_at')
+            ->latest('created_at')
+            ->first();
+    }
+
     private function canApproveCorporate(): bool
     {
         /** @var User|null $user */
@@ -59,7 +73,9 @@ class CorporateFormationController extends Controller
             $records = SecCoi::where('submitted_by', Auth::id())->latest()->get();
         }
 
-        return view('corporate.corporate-formation', compact('records'));
+        $latestAcceptedGis = $this->latestAcceptedGis();
+
+        return view('corporate.corporate-formation', compact('records', 'latestAcceptedGis'));
     }
 
     public function store(Request $request)
@@ -72,6 +88,13 @@ class CorporateFormationController extends Controller
             'draft_file_upload'   => 'nullable|file|mimes:pdf,doc,docx,jpg,jpeg,png|max:10240',
             'notary_file_upload'  => 'nullable|file|mimes:pdf,doc,docx,jpg,jpeg,png|max:10240',
         ]);
+
+        $sourceGis = $this->latestAcceptedGis();
+
+        if (! $sourceGis) {
+            return redirect()->route('corporate.formation')
+                ->withErrors(['gis_required' => 'Please complete and accept a GIS record first before creating SEC-COI.']);
+        }
 
         $draftPath = null;
         $notaryPath = null;
@@ -87,8 +110,9 @@ class CorporateFormationController extends Controller
         $isApprover = $this->canApproveCorporate();
 
         SecCoi::create([
-            'corporate_name'    => $request->corporate_name,
-            'company_reg_no'    => $request->company_reg_no,
+            'company_id'         => $sourceGis->company_id,
+            'corporate_name'    => $sourceGis->corporation_name ?: $request->corporate_name,
+            'company_reg_no'    => $sourceGis->company_reg_no ?: $request->company_reg_no,
             'issued_by'         => $this->employeeName(),
             'issued_on'         => $request->issued_on,
             'date_upload'       => $request->date_upload,
