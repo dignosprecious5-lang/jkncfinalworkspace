@@ -2,6 +2,14 @@
 @section('title', 'Company')
 
 @section('content')
+@php
+    $authUser = auth()->user();
+    $canDeleteRecords = $authUser
+        && ($authUser->isAdmin()
+            || $authUser->isSuperAdmin()
+            || $authUser->hasPermission('approve_corporate')
+            || $authUser->hasPermission('access_admin_dashboard'));
+@endphp
 <div class="px-6 py-6 lg:px-8">
     <div class="mb-5">
         <h1 class="text-3xl font-semibold text-gray-900">Company</h1>
@@ -52,7 +60,9 @@
         <div class="flex items-center gap-2 text-sm">
             <span class="font-medium text-gray-800"><span id="selectedCount">0</span> selected</span>
             <button type="button" class="h-8 rounded-md border border-gray-200 bg-white px-3 hover:bg-gray-50">Assign Owner</button>
-            <button id="openDeleteSelectedModal" type="button" class="h-8 rounded-md border border-red-200 bg-white px-3 text-red-600 hover:bg-red-50">Delete Selected</button>
+            @if ($canDeleteRecords)
+                <button id="openDeleteSelectedModal" type="button" class="h-8 rounded-md border border-red-200 bg-white px-3 text-red-600 hover:bg-red-50">Delete Selected</button>
+            @endif
             <button type="button" id="clearSelection" class="ml-auto text-gray-700 hover:underline">Clear</button>
         </div>
     </div>
@@ -170,29 +180,31 @@
     </div>
 </div>
 
-<div id="deleteSelectedModal" class="fixed inset-0 z-[70] hidden" aria-hidden="true">
-    <button id="deleteSelectedOverlay" type="button" aria-label="Close delete companies modal" class="absolute inset-0 bg-slate-900/45"></button>
-    <div class="absolute inset-0 flex items-center justify-center px-4">
-        <div class="w-full max-w-md rounded-2xl bg-white shadow-2xl">
-            <div class="border-b border-gray-100 px-6 py-5">
-                <h2 class="text-xl font-semibold text-gray-900">Delete Selected Companies</h2>
-                <p class="mt-1 text-sm text-gray-500">This action will permanently delete the selected company records.</p>
+@if ($canDeleteRecords)
+    <div id="deleteSelectedModal" class="fixed inset-0 z-[70] hidden" aria-hidden="true">
+        <button id="deleteSelectedOverlay" type="button" aria-label="Close delete companies modal" class="absolute inset-0 bg-slate-900/45"></button>
+        <div class="absolute inset-0 flex items-center justify-center px-4">
+            <div class="w-full max-w-md rounded-2xl bg-white shadow-2xl">
+                <div class="border-b border-gray-100 px-6 py-5">
+                    <h2 class="text-xl font-semibold text-gray-900">Delete Selected Companies</h2>
+                    <p class="mt-1 text-sm text-gray-500">This action will permanently delete the selected company records.</p>
+                </div>
+                <form id="bulkDeleteForm" method="POST" action="{{ route('company.bulk-delete') }}">
+                    @csrf
+                    @method('DELETE')
+                    <div id="bulkDeleteSelectedCompanies"></div>
+                    <div class="px-6 py-5 text-sm text-gray-700">
+                        Are you sure you want to delete <span id="bulkDeleteCountText" class="font-semibold text-gray-900">0 companies</span>?
+                    </div>
+                    <div class="flex items-center justify-end gap-3 border-t border-gray-100 px-6 py-4">
+                        <button id="cancelDeleteSelectedModal" type="button" class="h-10 rounded-lg border border-gray-300 px-4 text-sm text-gray-700 hover:bg-gray-50">Cancel</button>
+                        <button type="submit" class="h-10 rounded-lg bg-red-600 px-5 text-sm font-medium text-white hover:bg-red-700">Delete Selected</button>
+                    </div>
+                </form>
             </div>
-            <form id="bulkDeleteForm" method="POST" action="{{ route('company.bulk-delete') }}">
-                @csrf
-                @method('DELETE')
-                <div id="bulkDeleteSelectedCompanies"></div>
-                <div class="px-6 py-5 text-sm text-gray-700">
-                    Are you sure you want to delete <span id="bulkDeleteCountText" class="font-semibold text-gray-900">0 companies</span>?
-                </div>
-                <div class="flex items-center justify-end gap-3 border-t border-gray-100 px-6 py-4">
-                    <button id="cancelDeleteSelectedModal" type="button" class="h-10 rounded-lg border border-gray-300 px-4 text-sm text-gray-700 hover:bg-gray-50">Cancel</button>
-                    <button type="submit" class="h-10 rounded-lg bg-red-600 px-5 text-sm font-medium text-white hover:bg-red-700">Delete Selected</button>
-                </div>
-            </form>
         </div>
     </div>
-</div>
+@endif
 
 @include('company.partials.modal-add-company')
 @include('products.partials.create-field-dropdown', [

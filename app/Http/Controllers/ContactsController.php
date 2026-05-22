@@ -7,6 +7,7 @@ use App\Models\Contact;
 use App\Models\ContactConsultationNote;
 use App\Models\ContactHistoryEntry;
 use App\Models\Deal;
+use App\Models\Employee;
 use App\Models\Product;
 use App\Models\Project;
 use App\Models\Service;
@@ -15,6 +16,7 @@ use App\Models\User;
 use App\Support\ActivityTimelineBuilder;
 use App\Support\ContactHistoryLogger;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Http\Request;
@@ -210,6 +212,7 @@ class ContactsController extends Controller
             'customFields' => $customFields,
             'fieldTypes' => collect($this->fieldTypes()),
             'lookupModules' => $this->lookupModules(),
+            'employeeOptions' => $this->employeeOptions(),
         ]);
     }
 
@@ -409,7 +412,11 @@ class ContactsController extends Controller
 
     public function bulkDelete(Request $request): RedirectResponse
     {
-        abort_unless($this->isAdminAutoApprover($request->user()), 403);
+        abort_unless(
+            $this->canDeleteCorporateRecord($request->user()),
+            403,
+            'You do not have permission to delete contact records.'
+        );
 
         $validated = $request->validate([
             'selected_contacts' => ['required', 'array', 'min:1'],
@@ -745,7 +752,7 @@ class ContactsController extends Controller
             ->with('success', 'Company unlinked from contact successfully.');
     }
 
-    public function sendCifClientForm(Request $request, string $contact): RedirectResponse
+    public function sendCifClientForm(Request $request, string $contact): RedirectResponse|JsonResponse
     {
         $contactModel = Contact::query()->find($contact);
         abort_unless($contactModel, 404);
@@ -785,6 +792,16 @@ class ContactsController extends Controller
                 ->subject("Client Information Form for {$contactModel->first_name} {$contactModel->last_name}");
         });
 
+        if ($this->prefersJsonResponse($request)) {
+            return response()->json([
+                'message' => "CIF link sent to {$recipientEmail}",
+                'contact_client_link' => [
+                    'label' => 'Client CIF link generated',
+                    'url' => $clientUrl,
+                ],
+            ]);
+        }
+
         return redirect()
             ->route('contacts.show', ['contact' => $contactModel->id, 'tab' => 'kyc'])
             ->with('success', "CIF link sent to {$recipientEmail}")
@@ -794,7 +811,7 @@ class ContactsController extends Controller
             ]);
     }
 
-    public function sendSpecimenClientForm(Request $request, string $contact): RedirectResponse
+    public function sendSpecimenClientForm(Request $request, string $contact): RedirectResponse|JsonResponse
     {
         $contactModel = Contact::query()->find($contact);
         abort_unless($contactModel, 404);
@@ -829,6 +846,16 @@ class ContactsController extends Controller
                 ->subject("Specimen Signature Form for {$contactModel->first_name} {$contactModel->last_name}");
         });
 
+        if ($this->prefersJsonResponse($request)) {
+            return response()->json([
+                'message' => "Specimen link sent to {$recipientEmail}",
+                'contact_client_link' => [
+                    'label' => 'Client Specimen Signature link generated',
+                    'url' => $clientUrl,
+                ],
+            ]);
+        }
+
         return redirect()
             ->route('contacts.show', ['contact' => $contactModel->id, 'tab' => 'kyc'])
             ->with('success', "Specimen link sent to {$recipientEmail}")
@@ -847,7 +874,7 @@ class ContactsController extends Controller
 
         return view('contacts.cif-client-form', [
             'contact' => $contact,
-            'cifData' => $this->loadCifData($contact),
+            'cifData' => $this->loadClientCifData($contact),
             'clientFormAction' => route('contacts.cif.client.submit', ['token' => $token]),
             'clientPreviewUrl' => route('contacts.cif.client.preview', ['token' => $token]),
             'clientDownloadUrl' => route('contacts.cif.client.download', ['token' => $token, 'autoprint' => 1]),
@@ -856,7 +883,7 @@ class ContactsController extends Controller
         ]);
     }
 
-    public function submitClientCifForm(Request $request, string $token): RedirectResponse
+    public function submitClientCifForm(Request $request, string $token): RedirectResponse|JsonResponse
     {
         $contact = $this->findContactByClientToken('cif', $token);
 
@@ -875,19 +902,27 @@ class ContactsController extends Controller
         $validated = $this->validatedCifPayload($request);
 
         $this->saveCifDataToStorage($contact, [
-            ...$this->loadCifData($contact),
+            ...$this->loadClientCifData($contact),
             ...$validated,
             'cif_no' => $contact->cif_no ?: ($validated['cif_no'] ?? ''),
             'client_acknowledgment' => true,
             'client_acknowledged_at' => now()->toDateTimeString(),
         ]);
 
+        // Keep the main contact record in sync with client-submitted CIF edits.
+        $this->syncContactFromCifPayload($contact, $validated);
         $this->storeClientSubmittedKycDocuments($request, $contact);
 
         $this->syncContactKycSnapshot($contact, [
             'cif_no' => $contact->cif_no ?: ($validated['cif_no'] ?? null),
             'tin' => $validated['tin'] ?? null,
         ]);
+
+        if ($this->prefersJsonResponse($request)) {
+            return response()->json([
+                'message' => 'Your Client Information Form has been submitted successfully.',
+            ]);
+        }
 
         return redirect()
             ->route('contacts.cif.client.show', ['token' => $token])
@@ -902,7 +937,7 @@ class ContactsController extends Controller
 
         return view('contacts.cif-preview', [
             'contact' => $contact,
-            'cifData' => $this->loadCifData($contact),
+            'cifData' => $this->loadClientCifData($contact),
             'cifDocuments' => $this->loadCifDocuments($contact),
             'downloadMode' => false,
             'autoPrint' => false,
@@ -918,7 +953,7 @@ class ContactsController extends Controller
 
         return view('contacts.cif-preview', [
             'contact' => $contact,
-            'cifData' => $this->loadCifData($contact),
+            'cifData' => $this->loadClientCifData($contact),
             'cifDocuments' => $this->loadCifDocuments($contact),
             'downloadMode' => true,
             'autoPrint' => $request->boolean('autoprint'),
@@ -944,7 +979,7 @@ class ContactsController extends Controller
         ]);
     }
 
-    public function submitClientSpecimenForm(Request $request, string $token): RedirectResponse
+    public function submitClientSpecimenForm(Request $request, string $token): RedirectResponse|JsonResponse
     {
         $contact = $this->findContactByClientToken('specimen', $token);
 
@@ -1003,6 +1038,12 @@ class ContactsController extends Controller
         $this->syncContactKycSnapshot($contact, [
             'cif_no' => $resolvedClientCifNo,
         ]);
+
+        if ($this->prefersJsonResponse($request)) {
+            return response()->json([
+                'message' => 'Your Specimen Signature Form has been submitted successfully.',
+            ]);
+        }
 
         return redirect()
             ->route('contacts.specimen.client.show', ['token' => $token])
@@ -1601,7 +1642,7 @@ class ContactsController extends Controller
             ->with('success', 'Specimen Signature Form saved successfully.');
     }
 
-    public function submitKycForVerification(Request $request, string $contact): RedirectResponse
+    public function submitKycForVerification(Request $request, string $contact): RedirectResponse|JsonResponse
     {
         $contactModel = Contact::query()->find($contact);
         abort_unless($contactModel, 404);
@@ -1642,12 +1683,25 @@ class ContactsController extends Controller
             'user_initials' => $this->initialsForHistory($request->user()?->name ?? ($contactModel->owner_name ?: 'System')),
         ]);
 
+        if ($this->prefersJsonResponse($request)) {
+            return response()->json([
+                'message' => 'KYC submitted for verification successfully.',
+                'kyc' => [
+                    'status' => 'Pending Verification',
+                    'submitted' => true,
+                    'dateVerified' => '',
+                    'verifiedBy' => '',
+                    'rejectionReason' => '',
+                ],
+            ]);
+        }
+
         return redirect()
             ->route('contacts.show', ['contact' => $contactModel->id, 'tab' => 'kyc'])
             ->with('success', 'KYC submitted for verification successfully.');
     }
 
-    public function approveKyc(Request $request, string $contact): RedirectResponse
+    public function approveKyc(Request $request, string $contact): RedirectResponse|JsonResponse
     {
         abort_unless($this->isKycReviewer($request->user()), 403);
         $contactModel = Contact::query()->findOrFail($contact);
@@ -1692,12 +1746,25 @@ class ContactsController extends Controller
             'user_initials' => $this->initialsForHistory($request->user()?->name ?? 'System'),
         ]);
 
+        if ($this->prefersJsonResponse($request)) {
+            return response()->json([
+                'message' => 'CIF approved successfully.',
+                'kyc' => [
+                    'status' => 'Approved',
+                    'submitted' => true,
+                    'dateVerified' => $cifData['date_verified'] ?? '',
+                    'verifiedBy' => $cifData['verified_by'] ?? '',
+                    'rejectionReason' => '',
+                ],
+            ]);
+        }
+
         return redirect()
             ->route('contacts.show', ['contact' => $contactModel->id, 'tab' => 'kyc'])
             ->with('success', 'CIF approved successfully.');
     }
 
-    public function rejectKyc(Request $request, string $contact): RedirectResponse
+    public function rejectKyc(Request $request, string $contact): RedirectResponse|JsonResponse
     {
         abort_unless($this->isKycReviewer($request->user()), 403);
         $validated = $request->validate([
@@ -1744,12 +1811,25 @@ class ContactsController extends Controller
             'user_initials' => $this->initialsForHistory($request->user()?->name ?? 'System'),
         ]);
 
+        if ($this->prefersJsonResponse($request)) {
+            return response()->json([
+                'message' => 'CIF rejected.',
+                'kyc' => [
+                    'status' => 'Rejected',
+                    'submitted' => true,
+                    'dateVerified' => '',
+                    'verifiedBy' => '',
+                    'rejectionReason' => $reason,
+                ],
+            ]);
+        }
+
         return redirect()
             ->route('contacts.show', ['contact' => $contactModel->id, 'tab' => 'kyc'])
             ->with('success', 'CIF rejected.');
     }
 
-    public function requestKycChange(Request $request, string $contact): RedirectResponse
+    public function requestKycChange(Request $request, string $contact): RedirectResponse|JsonResponse
     {
         $contactModel = Contact::query()->findOrFail($contact);
         abort_if($this->isKycReviewer($request->user()), 403);
@@ -1780,12 +1860,18 @@ class ContactsController extends Controller
         $cifData['change_rejection_reason'] = '';
         $this->saveCifDataToStorage($contactModel, $cifData);
 
+        if ($this->prefersJsonResponse($request)) {
+            return response()->json([
+                'message' => 'Change request submitted. Please wait for admin approval before editing.',
+            ]);
+        }
+
         return redirect()
             ->route('contacts.show', ['contact' => $contactModel->id, 'tab' => 'kyc'])
             ->with('success', 'Change request submitted. Please wait for admin approval before editing.');
     }
 
-    public function approveKycChange(Request $request, string $contact): RedirectResponse
+    public function approveKycChange(Request $request, string $contact): RedirectResponse|JsonResponse
     {
         abort_unless($this->isKycReviewer($request->user()), 403);
         $contactModel = Contact::query()->findOrFail($contact);
@@ -1809,12 +1895,18 @@ class ContactsController extends Controller
         $cifData['change_rejection_reason'] = '';
         $this->saveCifDataToStorage($contactModel, $cifData);
 
+        if ($this->prefersJsonResponse($request)) {
+            return response()->json([
+                'message' => 'Change request approved. Editing is now unlocked until the next resubmission.',
+            ]);
+        }
+
         return redirect()
             ->route('contacts.show', ['contact' => $contactModel->id, 'tab' => 'kyc'])
             ->with('success', 'Change request approved. Editing is now unlocked until the next resubmission.');
     }
 
-    public function rejectKycChange(Request $request, string $contact): RedirectResponse
+    public function rejectKycChange(Request $request, string $contact): RedirectResponse|JsonResponse
     {
         abort_unless($this->isKycReviewer($request->user()), 403);
 
@@ -1843,6 +1935,12 @@ class ContactsController extends Controller
         $cifData['change_reviewed_by'] = $request->user()?->name ?? '';
         $cifData['change_rejection_reason'] = $reason;
         $this->saveCifDataToStorage($contactModel, $cifData);
+
+        if ($this->prefersJsonResponse($request)) {
+            return response()->json([
+                'message' => 'Change request rejected.',
+            ]);
+        }
 
         return redirect()
             ->route('contacts.show', ['contact' => $contactModel->id, 'tab' => 'kyc'])
@@ -1927,6 +2025,53 @@ class ContactsController extends Controller
             ->all();
     }
 
+    private function prefersJsonResponse(Request $request): bool
+    {
+        return $request->expectsJson()
+            || $request->ajax()
+            || str_contains(Str::lower((string) $request->header('Accept')), 'application/json');
+    }
+
+    private function employeeOptions(): array
+    {
+        if (! Schema::hasTable('employees')) {
+            return User::query()
+                ->select(['id', 'name', 'email', 'role'])
+                ->whereIn('role', ['Admin', 'Employee', 'SuperAdmin'])
+                ->orderBy('name')
+                ->get()
+                ->map(fn (User $user): array => [
+                    'id' => (int) $user->id,
+                    'name' => $user->name,
+                    'employee_code' => null,
+                    'email' => $user->email,
+                    'position' => null,
+                    'department' => null,
+                ])
+                ->filter(fn (array $employee): bool => filled($employee['name']))
+                ->values()
+                ->all();
+        }
+
+        return Employee::query()
+            ->with('department:id,department_name')
+            ->select(['id', 'employee_code', 'first_name', 'last_name', 'email', 'position', 'department_id'])
+            ->orderBy('first_name')
+            ->orderBy('last_name')
+            ->get()
+            ->map(fn (Employee $employee): array => [
+                'id' => (int) $employee->id,
+                'name' => $employee->full_name,
+                'employee_code' => $employee->employee_code,
+                'email' => $employee->email,
+                'position' => $employee->position,
+                'department' => $employee->department?->department_name,
+            ])
+            ->filter(fn (array $employee): bool => filled($employee['name']))
+            ->values()
+            ->all();
+    }
+
     private function fieldTypes(): array
     {
         return [
@@ -1966,14 +2111,20 @@ class ContactsController extends Controller
 
     private function loadCifData(Contact $contact): array
     {
-        $path = $this->cifDataPath($contact);
-        if (Storage::disk('local')->exists($path)) {
-            $stored = json_decode((string) Storage::disk('local')->get($path), true) ?: [];
+        $stored = $this->loadContactJsonPayload($contact, 'cif_data', [
+            $this->cifDataPath($contact),
+            $this->legacyCifDataPath($contact),
+        ]);
 
-            return $this->applyContactBackedCifFallbacks($contact, $stored);
-        }
+        return $this->applyContactBackedCifFallbacks($contact, $stored);
+    }
 
-        return $this->applyContactBackedCifFallbacks($contact, []);
+    private function loadClientCifData(Contact $contact): array
+    {
+        return $this->loadContactJsonPayload($contact, 'cif_data', [
+            $this->cifDataPath($contact),
+            $this->legacyCifDataPath($contact),
+        ]);
     }
 
     private function relatedCompaniesForContact(Contact $contact, string $search = ''): array
@@ -2100,7 +2251,14 @@ class ContactsController extends Controller
 
     private function applyContactBackedCifFallbacks(Contact $contact, array $cifData): array
     {
-        $contactCreatedDate = optional($contact->business_date ?: $contact->intake_date ?: $contact->created_at)->toDateString() ?? now()->toDateString();
+        $contactCreatedDate = optional($contact->created_at ?: $contact->business_date ?: $contact->intake_date)->toDateString() ?? now()->toDateString();
+        $clientName = trim(implode(' ', array_filter([
+            $contact->first_name,
+            $contact->middle_name,
+            $contact->last_name,
+            $contact->name_extension,
+        ])));
+        $creatorName = trim((string) ($contact->created_by ?: $contact->owner_name ?: $contact->referred_by ?: ''));
         $contactBackedFields = [
             'cif_date' => $contactCreatedDate,
             'cif_no' => $contact->cif_no,
@@ -2113,10 +2271,13 @@ class ContactsController extends Controller
             'gender' => $this->normalizeContactGender($contact->sex),
             'nature_of_work_business' => $contact->position,
             'tin' => $contact->tin ?? '',
-            'referred_by_footer' => $contact->referred_by,
+            'referred_by_footer' => $creatorName,
+            'referred_date' => $contactCreatedDate,
             'email' => $contact->email,
             'mobile' => $contact->phone,
             'owner_name' => $contact->owner_name,
+            'sig_name_left' => $clientName,
+            'sig_position_left' => $contact->position ?: 'Client',
         ];
 
         foreach ($contactBackedFields as $key => $value) {
@@ -2182,6 +2343,18 @@ class ContactsController extends Controller
         return $user !== null && ($user->isAdmin() || $user->isSuperAdmin());
     }
 
+    private function canDeleteCorporateRecord(?User $user): bool
+    {
+        if (! $user) {
+            return false;
+        }
+
+        return $user->isAdmin()
+            || $user->isSuperAdmin()
+            || $user->hasPermission('approve_corporate')
+            || $user->hasPermission('access_admin_dashboard');
+    }
+
     private function hasApprovedChangeRequest(Contact $contact): bool
     {
         $cifData = $this->loadCifData($contact);
@@ -2244,36 +2417,34 @@ class ContactsController extends Controller
 
     private function saveCifDataToStorage(Contact $contact, array $payload): void
     {
+        $this->persistContactJsonPayload($contact, 'cif_data', $payload);
         Storage::disk('local')->put($this->cifDataPath($contact), json_encode($payload, JSON_PRETTY_PRINT));
+        Storage::disk('local')->put($this->legacyCifDataPath($contact), json_encode($payload, JSON_PRETTY_PRINT));
     }
 
     private function loadCifDocuments(Contact $contact): array
     {
-        $path = $this->cifDocumentsPath($contact);
-        if (Storage::disk('local')->exists($path)) {
-            $documents = json_decode((string) Storage::disk('local')->get($path), true) ?: [];
+        $documents = $this->loadContactJsonPayload($contact, 'cif_documents', [
+            $this->cifDocumentsPath($contact),
+        ]);
 
-            return collect($documents)
-                ->map(fn ($document) => is_array($document) ? $this->normalizeStoredDocument($document, 'contact-cif-documents') : $document)
-                ->all();
-        }
-
-        return [];
+        return collect($documents)
+            ->map(fn ($document) => is_array($document) ? $this->normalizeStoredDocument($document, 'contact-cif-documents') : $document)
+            ->all();
     }
 
     private function saveCifDocumentsToStorage(Contact $contact, array $documents): void
     {
+        $this->persistContactJsonPayload($contact, 'cif_documents', $documents);
         Storage::disk('local')->put($this->cifDocumentsPath($contact), json_encode($documents, JSON_PRETTY_PRINT));
     }
 
     private function loadKycRequirementDocuments(Contact $contact): array
     {
-        $path = $this->kycRequirementDocumentsPath($contact);
-        if (Storage::disk('local')->exists($path)) {
-            $stored = json_decode((string) Storage::disk('local')->get($path), true) ?: [];
-        } else {
-            $stored = [];
-        }
+        $stored = $this->loadContactJsonPayload($contact, 'kyc_requirement_documents', [
+            $this->kycRequirementDocumentsPath($contact),
+            $this->legacyKycRequirementDocumentsPath($contact),
+        ]);
 
         $cifDocuments = $this->loadCifDocuments($contact);
         $stored['two_valid_ids'] = array_values(array_filter(
@@ -2331,7 +2502,49 @@ class ContactsController extends Controller
 
     private function saveKycRequirementDocuments(Contact $contact, array $documents): void
     {
+        $this->persistContactJsonPayload($contact, 'kyc_requirement_documents', $documents);
         Storage::disk('local')->put($this->kycRequirementDocumentsPath($contact), json_encode($documents, JSON_PRETTY_PRINT));
+        Storage::disk('local')->put($this->legacyKycRequirementDocumentsPath($contact), json_encode($documents, JSON_PRETTY_PRINT));
+    }
+
+    private function loadContactJsonPayload(Contact $contact, string $attribute, array $legacyPaths = []): array
+    {
+        $contact->refresh();
+
+        $embedded = $contact->getAttribute($attribute);
+        if (is_array($embedded) && $embedded !== []) {
+            return $embedded;
+        }
+
+        foreach ($legacyPaths as $path) {
+            if (! $path || ! Storage::disk('local')->exists($path)) {
+                continue;
+            }
+
+            $stored = json_decode((string) Storage::disk('local')->get($path), true);
+            if (is_array($stored)) {
+                return $stored;
+            }
+        }
+
+        return [];
+    }
+
+    private function persistContactJsonPayload(Contact $contact, string $attribute, array $payload): void
+    {
+        if (! $this->contactSupportsEmbeddedKycStorage()) {
+            return;
+        }
+
+        $contact->forceFill([$attribute => $payload])->save();
+        $contact->refresh();
+    }
+
+    private function contactSupportsEmbeddedKycStorage(): bool
+    {
+        return Schema::hasColumn('contacts', 'cif_data')
+            && Schema::hasColumn('contacts', 'cif_documents')
+            && Schema::hasColumn('contacts', 'kyc_requirement_documents');
     }
 
     private function normalizeNullableDocument(mixed $document, string $defaultDirectory): ?array
@@ -2495,6 +2708,11 @@ class ContactsController extends Controller
         return 'contact-kyc-data/'.$contact->id.'-requirements.json';
     }
 
+    private function legacyKycRequirementDocumentsPath(Contact $contact): string
+    {
+        return 'contact-cif-data/'.$contact->id.'-kyc-requirements.json';
+    }
+
     private function kycRequirementState(Contact $contact, ?SpecimenSignature $specimenSignature): array
     {
         $documents = $this->loadKycRequirementDocuments($contact);
@@ -2632,6 +2850,11 @@ class ContactsController extends Controller
     private function cifDataPath(Contact $contact): string
     {
         return 'contact-cif-data/'.$contact->id.'.json';
+    }
+
+    private function legacyCifDataPath(Contact $contact): string
+    {
+        return 'contact-cif-data/'.$contact->id.'-data.json';
     }
 
     private function cifDocumentsPath(Contact $contact): string
@@ -3420,8 +3643,11 @@ class ContactsController extends Controller
     private function findContactByClientToken(string $type, string $token): Contact
     {
         $column = $type === 'specimen' ? 'specimen_access_token' : 'cif_access_token';
+        $normalizedToken = trim(rawurldecode($token));
 
-        return Contact::query()->where($column, $token)->firstOrFail();
+        abort_if($normalizedToken === '', 404);
+
+        return Contact::query()->where($column, $normalizedToken)->firstOrFail();
     }
 
     private function validatedCifPayload(Request $request): array

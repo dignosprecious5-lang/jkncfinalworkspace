@@ -40,7 +40,7 @@
             </div>
 
             <div class="flex gap-2">
-                <button type="button" onclick="window.location.href='{{ $backUrl ?? route('contacts.show', ['contact' => $contact->id, 'tab' => 'kyc']) }}'"
+                <button type="button" onclick="window.location.href='{{ $backUrl }}'"
                     class="inline-flex h-10 items-center rounded-full border border-gray-200 px-4 text-sm font-medium text-gray-700 hover:bg-gray-100">
                     Back
                 </button>

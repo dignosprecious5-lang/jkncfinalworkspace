@@ -41,6 +41,7 @@
     $selectedInquiryTypes = old('service_inquiry_types', []);
     $selectedRecommendationOptions = old('recommendation_options', []);
     $selectedLeadSourceOptions = old('lead_source_channels', []);
+    $defaultReferredBy = old('referred_by', auth()->user()->name ?? '');
 @endphp
 
 <div id="createContactModal" class="fixed inset-0 z-[60] hidden" aria-hidden="true">
@@ -209,9 +210,24 @@
                         <p class="mb-4 text-xs text-gray-500">Internal notes and assignment details.</p>
                         <div class="grid gap-4 sm:grid-cols-2">
                             <div class="sm:col-span-2"><label for="jknc_notes" class="mb-1 block text-sm font-medium text-gray-700">Notes</label><textarea id="jknc_notes" name="jknc_notes" rows="3" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">{{ old('jknc_notes') }}</textarea></div>
-                            <div class="sm:col-span-2"><label for="sales_marketing" class="mb-1 block text-sm font-medium text-gray-700">Sales & Marketing</label><textarea id="sales_marketing" name="sales_marketing" rows="2" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">{{ old('sales_marketing') }}</textarea></div>
-                            <div><label for="consultant_lead" class="mb-1 block text-sm font-medium text-gray-700">Consultant Lead</label><input id="consultant_lead" name="consultant_lead" value="{{ old('consultant_lead') }}" class="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"></div>
-                            <div><label for="lead_associate" class="mb-1 block text-sm font-medium text-gray-700">Lead Associate</label><input id="lead_associate" name="lead_associate" value="{{ old('lead_associate') }}" class="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"></div>
+                            <div class="relative sm:col-span-2" data-employee-picker>
+                                <label for="sales_marketing" class="mb-1 block text-sm font-medium text-gray-700">Sales & Marketing</label>
+                                <textarea id="sales_marketing" name="sales_marketing" rows="2" autocomplete="off" data-employee-search-input class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">{{ old('sales_marketing') }}</textarea>
+                                <div class="absolute z-20 mt-1 hidden w-full rounded-lg border border-gray-200 bg-white shadow-lg" data-employee-search-results></div>
+                                <p class="mt-1 text-xs text-gray-500">Search existing employees from Human Capital. You can still type manually.</p>
+                            </div>
+                            <div class="relative" data-employee-picker>
+                                <label for="consultant_lead" class="mb-1 block text-sm font-medium text-gray-700">Consultant Lead</label>
+                                <input id="consultant_lead" name="consultant_lead" value="{{ old('consultant_lead') }}" autocomplete="off" data-employee-search-input class="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
+                                <div class="absolute z-20 mt-1 hidden w-full rounded-lg border border-gray-200 bg-white shadow-lg" data-employee-search-results></div>
+                                <p class="mt-1 text-xs text-gray-500">Search existing employees from Human Capital. You can still type manually.</p>
+                            </div>
+                            <div class="relative" data-employee-picker>
+                                <label for="lead_associate" class="mb-1 block text-sm font-medium text-gray-700">Lead Associate</label>
+                                <input id="lead_associate" name="lead_associate" value="{{ old('lead_associate') }}" autocomplete="off" data-employee-search-input class="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
+                                <div class="absolute z-20 mt-1 hidden w-full rounded-lg border border-gray-200 bg-white shadow-lg" data-employee-search-results></div>
+                                <p class="mt-1 text-xs text-gray-500">Search existing employees from Human Capital. You can still type manually.</p>
+                            </div>
                         </div>
                     </section>
 
@@ -246,9 +262,11 @@
                     <section class="rounded-2xl border border-gray-200 p-4">
                         <h3 class="text-base font-semibold text-gray-900">Referral Information</h3>
                         <p class="mb-4 text-xs text-gray-500">Who referred this client or lead source details.</p>
-                        <div>
+                        <div class="relative" data-employee-picker>
                             <label for="referred_by" class="mb-1 block text-sm font-medium text-gray-700">Referred By</label>
-                            <input id="referred_by" name="referred_by" value="{{ old('referred_by') }}" class="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
+                            <input id="referred_by" name="referred_by" value="{{ $defaultReferredBy }}" autocomplete="off" data-employee-search-input class="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
+                            <div class="absolute z-20 mt-1 hidden w-full rounded-lg border border-gray-200 bg-white shadow-lg" data-employee-search-results></div>
+                            <p class="mt-1 text-xs text-gray-500">Defaults to the contact creator. You can still change it manually.</p>
                         </div>
                     </section>
 

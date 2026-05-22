@@ -1,11 +1,16 @@
 @php
-    $clientName = trim(($contact->first_name ?? '').' '.($contact->last_name ?? '')) ?: 'Client';
+    $clientName = trim(collect([
+        $cifData['first_name'] ?? $contact->first_name ?? '',
+        $cifData['middle_name'] ?? '',
+        $cifData['last_name'] ?? $contact->last_name ?? '',
+        $cifData['name_extension'] ?? '',
+    ])->filter(fn ($value) => filled(trim((string) $value)))->implode(' ')) ?: 'Client';
     $selectedCitizenshipType = old('citizenship_type', $cifData['citizenship_type'] ?? '');
     $selectedCivilStatus = old('civil_status', $cifData['civil_status'] ?? '');
     $showForeign = in_array($selectedCitizenshipType, ['foreigner', 'dual_citizen'], true);
     $requirementState = $kycRequirementState ?? [];
     $clientSignatureName = old('sig_name_left', $cifData['sig_name_left'] ?? $clientName);
-    $clientSignaturePosition = old('sig_position_left', $cifData['sig_position_left'] ?? '');
+    $clientSignaturePosition = old('sig_position_left', $cifData['sig_position_left'] ?? ($contact->position ?: 'Client'));
     $signedCifRequirement = $requirementState['cif_signed_document'] ?? ['file' => null, 'complete' => false];
 @endphp
 <!DOCTYPE html>
@@ -19,6 +24,7 @@
 <body class="bg-[#eef4ff] text-slate-900">
     <div class="min-h-screen py-8">
         <div class="mx-auto max-w-6xl px-4">
+            <div id="clientCifLiveFeedback" class="mb-4 hidden border px-4 py-3 text-sm"></div>
             @if (session('success'))
                 <div class="mb-4 border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
                     {{ session('success') }}
@@ -42,7 +48,7 @@
                     <div class="space-y-6">
                         <img src="{{ asset('images/imaglogo.png') }}" alt="John Kelly and Company" class="h-12 w-auto object-contain">
                         <div class="space-y-6 text-slate-900">
-                            <p class="text-xl leading-relaxed">Dear <span class="font-semibold">{{ $clientName }}</span>,</p>
+                            <p class="text-xl leading-relaxed">Dear <span class="font-semibold" data-client-name-heading>{{ $clientName }}</span>,</p>
                             <p class="text-xl leading-relaxed">Good day.</p>
                             <p class="max-w-2xl text-[2.2rem] font-semibold leading-[1.18]">
                                 To get things started smoothly, we kindly ask you to complete your Client Information Form (CIF).
@@ -67,7 +73,7 @@
                 </div>
             </section>
 
-            <form method="POST" action="{{ $clientFormAction }}" enctype="multipart/form-data" class="space-y-5 border-x border-b border-slate-300 bg-white px-4 py-5 md:px-6" data-client-cif-form>
+            <form id="clientCifForm" method="POST" action="{{ $clientFormAction }}" enctype="multipart/form-data" class="space-y-5 border-x border-b border-slate-300 bg-white px-4 py-5 md:px-6" data-client-cif-form>
                 @csrf
 
                 <section class="border border-slate-300 bg-white p-5">
@@ -127,7 +133,7 @@
                             <label class="flex items-center gap-2 border border-slate-300 px-3 py-2 text-sm"><input type="radio" name="citizenship_type" value="{{ $value }}" @checked(old('citizenship_type', $cifData['citizenship_type'] ?? '') === $value)> {{ $label }}</label>
                         @endforeach
                     </div>
-                    <div class="mt-5 grid gap-4 md:grid-cols-2">
+                    <div class="mt-5 space-y-4">
                         <div>
                             <label class="mb-1 block text-sm font-medium text-slate-700">Gender</label>
                             <div class="grid gap-2 sm:grid-cols-2">
@@ -136,16 +142,18 @@
                                 @endforeach
                             </div>
                         </div>
-                        <div class="md:col-span-2">
+                        <div>
                             <label class="mb-1 block text-sm font-medium text-slate-700">Civil Status</label>
-                            <div class="grid gap-2 sm:grid-cols-2" data-civil-status-radios>
+                            <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-[repeat(3,minmax(0,1fr))_minmax(260px,1.4fr)] lg:items-center" data-civil-status-radios>
                                 @foreach (['single' => 'Single', 'separated' => 'Separated', 'widowed' => 'Widowed', 'married' => 'Married'] as $value => $label)
                                     <label class="flex items-center gap-2 border border-slate-300 px-3 py-2 text-sm"><input type="radio" name="civil_status" value="{{ $value }}" @checked(old('civil_status', $cifData['civil_status'] ?? '') === $value)> {{ $label }}</label>
                                 @endforeach
-                            </div>
-                            <div class="mt-4 max-w-xl" data-spouse-row @if($selectedCivilStatus !== 'married') style="display:none;" @endif>
-                                <label class="mb-1 block text-sm font-medium text-slate-700">Spouse's Name</label>
-                                <input name="spouse_name" value="{{ old('spouse_name', $cifData['spouse_name'] ?? '') }}" class="h-11 w-full border border-slate-300 px-3 text-sm">
+                                <div class="lg:col-start-4 lg:row-start-2" data-spouse-row @if($selectedCivilStatus !== 'married') style="display:none;" @endif>
+                                    <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+                                        <label for="client_spouse_name" class="shrink-0 text-sm font-medium text-slate-700">Spouse's Name</label>
+                                        <input id="client_spouse_name" name="spouse_name" value="{{ old('spouse_name', $cifData['spouse_name'] ?? '') }}" class="h-11 w-full border border-slate-300 px-3 text-sm">
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -307,13 +315,39 @@
             const form = document.querySelector('[data-client-cif-form]');
             if (!form) return;
 
+            const feedback = document.getElementById('clientCifLiveFeedback');
+            const clientNameHeading = form.querySelector('[data-client-name-heading]');
             const spouseRow = form.querySelector('[data-spouse-row]');
             const foreignSection = form.querySelector('[data-foreign-section]');
             const foreignRequirements = form.querySelectorAll('[data-foreign-requirement]');
             const citizenshipNationalityInput = form.querySelector('[data-citizenship-nationality-input]');
             const fileInputs = form.querySelectorAll('[data-file-input]');
+            const showFeedback = (message, tone = 'success') => {
+                if (!feedback) return;
+                const tones = {
+                    success: 'border-green-200 bg-green-50 text-green-700',
+                    error: 'border-red-200 bg-red-50 text-red-700',
+                };
+                feedback.className = `mb-4 border px-4 py-3 text-sm ${tones[tone] || tones.success}`;
+                feedback.textContent = message || '';
+                feedback.classList.toggle('hidden', !message);
+            };
 
             const getSelectedValue = (name) => form.querySelector(`input[name="${name}"]:checked`)?.value || '';
+            const getInputValue = (name) => form.querySelector(`[name="${name}"]`)?.value?.trim() || '';
+
+            const syncClientNameHeading = () => {
+                if (!clientNameHeading) return;
+
+                const parts = [
+                    getInputValue('first_name'),
+                    getInputValue('middle_name'),
+                    getInputValue('last_name'),
+                    getInputValue('name_extension'),
+                ].filter(Boolean);
+
+                clientNameHeading.textContent = parts.join(' ') || 'Client';
+            };
 
             const syncVisibility = () => {
                 const citizenshipType = getSelectedValue('citizenship_type');
@@ -349,6 +383,11 @@
 
             form.querySelectorAll('input[name="citizenship_type"], input[name="civil_status"]').forEach((input) => {
                 input.addEventListener('change', syncVisibility);
+            });
+
+            ['first_name', 'middle_name', 'last_name', 'name_extension'].forEach((name) => {
+                const input = form.querySelector(`[name="${name}"]`);
+                input?.addEventListener('input', syncClientNameHeading);
             });
 
             const syncFilePreview = (input) => {
@@ -394,7 +433,42 @@
                 syncFilePreview(input);
             });
 
+            form.addEventListener('submit', async (event) => {
+                event.preventDefault();
+                showFeedback('');
+
+                try {
+                    const response = await fetch(form.action, {
+                        method: 'POST',
+                        headers: {
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                        body: new FormData(form),
+                        cache: 'no-store',
+                    });
+
+                    if (response.status === 422) {
+                        const payload = await response.json();
+                        const firstError = Object.values(payload.errors || {}).flat()[0] || 'Please review the form.';
+                        throw new Error(firstError);
+                    }
+
+                    if (!response.ok) {
+                        throw new Error('Unable to submit the Client Information Form right now.');
+                    }
+
+                    const payload = await response.json();
+                    showFeedback(payload.message || 'Your Client Information Form has been submitted successfully.', 'success');
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                } catch (error) {
+                    showFeedback(error.message, 'error');
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                }
+            });
+
             syncVisibility();
+            syncClientNameHeading();
         })();
     </script>
 </body>

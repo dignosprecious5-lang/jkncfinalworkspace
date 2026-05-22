@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Company;
 use App\Models\CompanyBif;
 use App\Support\CompanyHistoryLogger;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
@@ -328,7 +329,7 @@ class CompanyBifController extends Controller
         ]);
     }
 
-    public function sendClientForm(Request $request, int $company): RedirectResponse
+    public function sendClientForm(Request $request, int $company): RedirectResponse|JsonResponse
     {
         $companyData = $this->findCompany($request, $company);
 
@@ -378,6 +379,13 @@ class CompanyBifController extends Controller
             'user_initials' => $this->initials($userName),
         ]);
 
+        if ($this->prefersJsonResponse($request)) {
+            return response()->json([
+                'message' => "Business Information Form link sent to {$recipientEmail}.",
+                'bif_client_link' => $clientUrl,
+            ]);
+        }
+
         return redirect()
             ->route('company.kyc', ['company' => $company, 'tab' => 'business-client-information'])
             ->with('bif_success', "Business Information Form link sent to {$recipientEmail}.")
@@ -408,7 +416,7 @@ class CompanyBifController extends Controller
         ]);
     }
 
-    public function submitClientForm(Request $request, string $token): RedirectResponse
+    public function submitClientForm(Request $request, string $token): RedirectResponse|JsonResponse
     {
         $bif = $this->findBifByClientToken($token);
 
@@ -444,6 +452,15 @@ class CompanyBifController extends Controller
             ]);
         }
 
+        if ($bif->company) {
+            $bif->company->update(array_filter([
+                'company_name' => $payload['business_name'] ?? null,
+                'address' => $payload['business_address'] ?? null,
+                'phone' => $payload['business_phone'] ?? ($payload['mobile_no'] ?? null),
+                'email' => $payload['authorized_contact_person_email'] ?? null,
+            ], fn ($value) => filled($value)));
+        }
+
         CompanyHistoryLogger::log($bif->company_id, [
             'type' => 'profile',
             'title' => 'Client submitted Business Information Form',
@@ -453,6 +470,12 @@ class CompanyBifController extends Controller
             'user_name' => $bif->authorized_contact_person_name ?: 'Client',
             'user_initials' => $this->initials($bif->authorized_contact_person_name ?: 'Client'),
         ]);
+
+        if ($this->prefersJsonResponse($request)) {
+            return response()->json([
+                'message' => 'Your Business Information Form has been submitted successfully.',
+            ]);
+        }
 
         return redirect()
             ->route('company.bif.client.show', ['token' => $token])
@@ -899,6 +922,13 @@ class CompanyBifController extends Controller
             ->take(2)
             ->map(fn (string $part) => strtoupper(substr($part, 0, 1)))
             ->implode('');
+    }
+
+    private function prefersJsonResponse(Request $request): bool
+    {
+        return $request->expectsJson()
+            || $request->ajax()
+            || str_contains(Str::lower((string) $request->header('Accept')), 'application/json');
     }
 
     private function isKycReviewer(Request $request): bool

@@ -522,9 +522,20 @@ class ProjectProvisioner
     {
         $documents = [];
         if ($contact?->id) {
-            $kycPath = 'contact-cif-data/'.$contact->id.'-kyc-requirements.json';
-            if (Storage::disk('local')->exists($kycPath)) {
-                $documents = json_decode((string) Storage::disk('local')->get($kycPath), true) ?: [];
+            if (Schema::hasColumn('contacts', 'kyc_requirement_documents')) {
+                $documents = (array) ($contact->kyc_requirement_documents ?? []);
+            }
+
+            if ($documents === []) {
+                foreach ([
+                    'contact-kyc-data/'.$contact->id.'-requirements.json',
+                    'contact-cif-data/'.$contact->id.'-kyc-requirements.json',
+                ] as $kycPath) {
+                    if (Storage::disk('local')->exists($kycPath)) {
+                        $documents = json_decode((string) Storage::disk('local')->get($kycPath), true) ?: [];
+                        break;
+                    }
+                }
             }
 
             $cifPath = 'contact-cif-data/'.$contact->id.'-documents.json';
@@ -559,10 +570,20 @@ class ProjectProvisioner
             return false;
         }
 
-        $cifData = [];
-        $cifPath = 'contact-cif-data/'.$contact->id.'-data.json';
-        if (Storage::disk('local')->exists($cifPath)) {
-            $cifData = json_decode((string) Storage::disk('local')->get($cifPath), true) ?: [];
+        $cifData = Schema::hasColumn('contacts', 'cif_data')
+            ? (array) ($contact->cif_data ?? [])
+            : [];
+
+        if ($cifData === []) {
+            foreach ([
+                'contact-cif-data/'.$contact->id.'.json',
+                'contact-cif-data/'.$contact->id.'-data.json',
+            ] as $cifPath) {
+                if (Storage::disk('local')->exists($cifPath)) {
+                    $cifData = json_decode((string) Storage::disk('local')->get($cifPath), true) ?: [];
+                    break;
+                }
+            }
         }
 
         return in_array(strtolower((string) ($cifData['citizenship_type'] ?? '')), ['foreigner', 'dual_citizen'], true)

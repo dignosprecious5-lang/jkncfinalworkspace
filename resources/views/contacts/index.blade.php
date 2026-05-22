@@ -37,6 +37,12 @@
         'position' => old('position', request()->query('position', '')),
         'contact_address' => old('contact_address', request()->query('contact_address', '')),
     ];
+    $authUser = auth()->user();
+    $canDeleteRecords = $authUser
+        && ($authUser->isAdmin()
+            || $authUser->isSuperAdmin()
+            || $authUser->hasPermission('approve_corporate')
+            || $authUser->hasPermission('access_admin_dashboard'));
 @endphp
 
 <div class="px-6 py-6 lg:px-8">
@@ -88,7 +94,9 @@
         <div class="flex items-center gap-2 text-sm">
             <span class="font-medium text-gray-800"><span id="selectedCount">0</span> selected</span>
             <button id="openAssignOwnerModal" type="button" class="h-8 rounded-md border border-gray-200 bg-white px-3 hover:bg-gray-50">Assign Owner</button>
-            <button id="openDeleteSelectedModal" type="button" class="h-8 rounded-md border border-red-200 bg-white px-3 text-red-600 hover:bg-red-50">Delete Selected</button>
+            @if ($canDeleteRecords)
+                <button id="openDeleteSelectedModal" type="button" class="h-8 rounded-md border border-red-200 bg-white px-3 text-red-600 hover:bg-red-50">Delete Selected</button>
+            @endif
             <select class="h-8 rounded-md border border-gray-200 bg-white px-2">
                 <option>Mark KYC Status</option>
                 <option>Verified</option>
@@ -196,31 +204,34 @@
     'defaultBusinessDate' => $defaultBusinessDate ?? now()->toDateString(),
     'prefilledCompanyName' => $prefilledCompanyName,
     'prefillContact' => $prefillContact,
+    'employeeOptions' => $employeeOptions ?? [],
 ])
 
-<div id="deleteSelectedModal" class="fixed inset-0 z-[70] hidden" aria-hidden="true">
-    <button id="deleteSelectedOverlay" type="button" aria-label="Close delete contacts modal" class="absolute inset-0 bg-slate-900/45"></button>
-    <div class="absolute inset-0 flex items-center justify-center px-4">
-        <div class="w-full max-w-md rounded-2xl bg-white shadow-2xl">
-            <div class="border-b border-gray-100 px-6 py-5">
-                <h2 class="text-xl font-semibold text-gray-900">Delete Selected Contacts</h2>
-                <p class="mt-1 text-sm text-gray-500">This action will permanently delete the selected contact records.</p>
+@if ($canDeleteRecords)
+    <div id="deleteSelectedModal" class="fixed inset-0 z-[70] hidden" aria-hidden="true">
+        <button id="deleteSelectedOverlay" type="button" aria-label="Close delete contacts modal" class="absolute inset-0 bg-slate-900/45"></button>
+        <div class="absolute inset-0 flex items-center justify-center px-4">
+            <div class="w-full max-w-md rounded-2xl bg-white shadow-2xl">
+                <div class="border-b border-gray-100 px-6 py-5">
+                    <h2 class="text-xl font-semibold text-gray-900">Delete Selected Contacts</h2>
+                    <p class="mt-1 text-sm text-gray-500">This action will permanently delete the selected contact records.</p>
+                </div>
+                <form id="bulkDeleteForm" method="POST" action="{{ route('contacts.bulk-delete') }}">
+                    @csrf
+                    @method('DELETE')
+                    <div id="bulkDeleteSelectedContacts"></div>
+                    <div class="px-6 py-5 text-sm text-gray-700">
+                        Are you sure you want to delete <span id="bulkDeleteCountText" class="font-semibold text-gray-900">0 contacts</span>?
+                    </div>
+                    <div class="flex items-center justify-end gap-3 border-t border-gray-100 px-6 py-4">
+                        <button id="cancelDeleteSelectedModal" type="button" class="h-10 rounded-lg border border-gray-300 px-4 text-sm text-gray-700 hover:bg-gray-50">Cancel</button>
+                        <button type="submit" class="h-10 rounded-lg bg-red-600 px-5 text-sm font-medium text-white hover:bg-red-700">Delete Selected</button>
+                    </div>
+                </form>
             </div>
-            <form id="bulkDeleteForm" method="POST" action="{{ route('contacts.bulk-delete') }}">
-                @csrf
-                @method('DELETE')
-                <div id="bulkDeleteSelectedContacts"></div>
-                <div class="px-6 py-5 text-sm text-gray-700">
-                    Are you sure you want to delete <span id="bulkDeleteCountText" class="font-semibold text-gray-900">0 contacts</span>?
-                </div>
-                <div class="flex items-center justify-end gap-3 border-t border-gray-100 px-6 py-4">
-                    <button id="cancelDeleteSelectedModal" type="button" class="h-10 rounded-lg border border-gray-300 px-4 text-sm text-gray-700 hover:bg-gray-50">Cancel</button>
-                    <button type="submit" class="h-10 rounded-lg bg-red-600 px-5 text-sm font-medium text-white hover:bg-red-700">Delete Selected</button>
-                </div>
-            </form>
         </div>
     </div>
-</div>
+@endif
 
 <div id="assignOwnerModal" class="fixed inset-0 z-[70] hidden" aria-hidden="true">
     <button id="assignOwnerOverlay" type="button" aria-label="Close assign owner panel" class="absolute inset-0 bg-slate-900/45 opacity-0 transition-opacity duration-300"></button>
@@ -352,6 +363,8 @@ document.addEventListener('DOMContentLoaded', function () {
     const organizationTypeOtherWrap = document.getElementById('organizationTypeOtherWrap');
     const foreignBusinessNatureWrap = document.getElementById('foreignBusinessNatureWrap');
     const conditionalOtherToggles = Array.from(document.querySelectorAll('[data-other-toggle]'));
+    const employeeRecords = @json($employeeOptions ?? []);
+    const employeePickers = Array.from(document.querySelectorAll('[data-employee-picker]'));
 
     const selectAll = document.getElementById('selectAll');
     const rowChecks = Array.from(document.querySelectorAll('.row-checkbox'));
@@ -708,6 +721,95 @@ document.addEventListener('DOMContentLoaded', function () {
         foreignBusinessNatureWrap?.classList.toggle('hidden', selectedOwnership !== 'Foreign-Owned Business');
     };
 
+    const hideEmployeeSearchResults = (picker) => {
+        picker?.querySelector('[data-employee-search-results]')?.classList.add('hidden');
+    };
+
+    const syncInternalUseDefaults = () => {
+        const referredByInput = document.querySelector('[name="referred_by"]');
+        const fallbackName = @js(auth()->user()->name ?? '');
+
+        if (!referredByInput) {
+            return;
+        }
+
+        if (String(referredByInput.value || '').trim() !== '') {
+            return;
+        }
+
+        if (String(fallbackName || '').trim() === '') {
+            return;
+        }
+
+        referredByInput.value = fallbackName;
+    };
+
+    const renderEmployeeSearchResults = (picker, keyword = '') => {
+        const input = picker?.querySelector('[data-employee-search-input]');
+        const results = picker?.querySelector('[data-employee-search-results]');
+        if (!input || !results) {
+            return;
+        }
+
+        const query = keyword.trim().toLowerCase();
+        const matches = employeeRecords.filter((record) => {
+            if (query === '') {
+                return true;
+            }
+
+            const blob = [
+                record.name,
+                record.employee_code,
+                record.position,
+                record.department,
+                record.email,
+            ].join(' ').toLowerCase();
+
+            return blob.includes(query);
+        }).slice(0, 8);
+
+        if (matches.length === 0) {
+            results.innerHTML = '<div class="px-3 py-2 text-sm text-gray-500">No existing employee. You can still type manually.</div>';
+            results.classList.remove('hidden');
+            return;
+        }
+
+        results.replaceChildren(...matches.map((record) => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'block w-full border-b border-gray-100 px-3 py-2 text-left last:border-b-0 hover:bg-blue-50';
+            button.innerHTML = `<div class="text-sm font-medium text-gray-800">${record.name || ''}</div><div class="text-xs text-gray-500">${[record.employee_code, record.position, record.department].filter(Boolean).join(' - ') || (record.email || '')}</div>`;
+            button.addEventListener('click', () => {
+                input.value = record.name || '';
+                hideEmployeeSearchResults(picker);
+                syncInternalUseDefaults();
+                input.dispatchEvent(new Event('change', { bubbles: true }));
+            });
+
+            return button;
+        }));
+
+        results.classList.remove('hidden');
+    };
+
+    const initEmployeeSearchPickers = () => {
+        employeePickers.forEach((picker) => {
+            const input = picker.querySelector('[data-employee-search-input]');
+            if (!input) {
+                return;
+            }
+
+            input.addEventListener('focus', () => renderEmployeeSearchResults(picker, input.value));
+            input.addEventListener('input', () => renderEmployeeSearchResults(picker, input.value));
+            input.addEventListener('change', syncInternalUseDefaults);
+            input.addEventListener('keydown', (event) => {
+                if (event.key === 'Escape') {
+                    hideEmployeeSearchResults(picker);
+                }
+            });
+        });
+    };
+
     openModalButton?.addEventListener('click', openModal);
     closeModalButton?.addEventListener('click', closeModal);
     cancelModalButton?.addEventListener('click', closeModal);
@@ -791,6 +893,12 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         }
 
+        employeePickers.forEach((picker) => {
+            if (!picker.contains(event.target)) {
+                hideEmployeeSearchResults(picker);
+            }
+        });
+
     });
 
     openCreateFieldDropdown?.addEventListener('click', function () {
@@ -872,6 +980,8 @@ document.addEventListener('DOMContentLoaded', function () {
     applyCreateFieldTypeUI(initialFieldType, initialTypeButton?.dataset.fieldLabel || 'Picklist');
     syncOtherFieldVisibility();
     syncBusinessConditionalFields();
+    initEmployeeSearchPickers();
+    syncInternalUseDefaults();
     renderCreatedAtClock();
 
     @if ($errors->any())

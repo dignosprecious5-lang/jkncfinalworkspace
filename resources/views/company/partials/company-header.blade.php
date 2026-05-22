@@ -1,3 +1,11 @@
+@php
+    $authUser = auth()->user();
+    $canDeleteRecords = $authUser
+        && ($authUser->isAdmin()
+            || $authUser->isSuperAdmin()
+            || $authUser->hasPermission('approve_corporate')
+            || $authUser->hasPermission('access_admin_dashboard'));
+@endphp
 <div class="border-b border-gray-100 px-4 py-4">
     <div class="flex flex-wrap items-start justify-between gap-4">
         <div class="min-w-0 flex-1">
@@ -73,13 +81,15 @@
                                 <a href="{{ route('company.history', $company->id) }}" class="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
                                     View Audit History
                                 </a>
-                                <form method="POST" action="{{ route('company.destroy', $company->id) }}" onsubmit="return confirm('Delete this company? This will remove it from the company list.');">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button type="submit" class="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50">
-                                        Delete Company
-                                    </button>
-                                </form>
+                                @if ($canDeleteRecords)
+                                    <form method="POST" action="{{ route('company.destroy', $company->id) }}" onsubmit="return confirm('Delete this company? This will remove it from the company list.');">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" class="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50">
+                                            Delete Company
+                                        </button>
+                                    </form>
+                                @endif
                             </div>
                         </div>
                     </div>

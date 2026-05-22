@@ -23,6 +23,11 @@
                     {{ session('bif_success') }}
                 </div>
             @endif
+            <div id="companyKycLiveFeedback" class="mb-4 hidden rounded-md border px-4 py-3 text-sm font-medium"></div>
+            <div id="companyKycLiveLink" class="mb-4 hidden rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+                <p class="font-medium">Client BIF link generated</p>
+                <p id="companyKycLiveLinkUrl" class="mt-1 break-all"></p>
+            </div>
 
             @if (session('bif_warning'))
                 <div class="mb-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
@@ -68,7 +73,7 @@
                             @endif
                         </div>
 
-                        <div class="bg-[#eef4ff] p-4">
+                        <div id="companyBifDocumentContent" class="bg-[#eef4ff] p-4">
                             @if ($bif)
                                 <div class="overflow-hidden rounded-lg border border-gray-200 bg-white p-4">
                                     @include('company.bif.partials.document', ['wrapperClass' => 'bif-doc'])
@@ -154,18 +159,18 @@
                                     <a href="{{ route('company.bif.edit', ['company' => $company->id, 'bif' => $bif->id]) }}" class="text-sm text-blue-600 hover:text-blue-700">Edit</a>
                                 @endif
                             </div>
-                            <div class="space-y-4 px-4 py-4 text-sm">
+                            <div id="companyBifSummaryCard" class="space-y-4 px-4 py-4 text-sm">
                                 <div>
                                     <p class="text-gray-500">BIF Number</p>
                                     <p class="font-medium text-gray-900">{{ $bif?->bif_no ?: '-' }}</p>
                                 </div>
                                 <div>
                                     <p class="text-gray-500">Status</p>
-                                    <span class="inline-flex rounded-full px-2 py-0.5 text-xs font-medium {{ $statusPillClass }}">{{ $statusLabel }}</span>
+                                    <span id="companyBifStatusBadge" class="inline-flex rounded-full px-2 py-0.5 text-xs font-medium {{ $statusPillClass }}">{{ $statusLabel }}</span>
                                 </div>
                                 <div>
                                     <p class="text-gray-500">Date Submitted</p>
-                                    <p class="font-medium text-gray-900">{{ $bif?->submitted_at ? $bif->submitted_at->format('F j, Y') : '-' }}</p>
+                                    <p id="companyBifSubmittedAt" class="font-medium text-gray-900">{{ $bif?->submitted_at ? $bif->submitted_at->format('F j, Y') : '-' }}</p>
                                 </div>
                                 <div>
                                     <p class="text-gray-500">Authorized Contact Person</p>
@@ -193,7 +198,7 @@
                                 </div>
                                 <div>
                                     <p class="text-gray-500">Last Client Submission</p>
-                                    <p class="font-medium text-gray-900">{{ $bif?->client_submitted_at ? $bif->client_submitted_at->format('F j, Y g:i A') : '-' }}</p>
+                                    <p id="companyBifClientSubmittedAt" class="font-medium text-gray-900">{{ $bif?->client_submitted_at ? $bif->client_submitted_at->format('F j, Y g:i A') : '-' }}</p>
                                 </div>
                             </div>
                         </div>
@@ -243,12 +248,12 @@
                                     @if ($bifApproved)
                                         <button type="button" class="h-10 w-full rounded-lg border border-green-200 bg-green-100 text-sm font-medium text-green-700 cursor-not-allowed" disabled>Approved</button>
                                     @else
-                                        <form method="POST" action="{{ route('company.kyc.approve', $company->id) }}">
+                                        <form id="approveCompanyKycForm" method="POST" action="{{ route('company.kyc.approve', $company->id) }}">
                                             @csrf
                                             <button type="submit" class="h-10 w-full rounded-lg bg-green-600 text-sm font-medium text-white {{ $canReviewDecision ? 'hover:bg-green-700' : 'cursor-not-allowed opacity-60' }}" @disabled(! $canReviewDecision)>Approve</button>
                                         </form>
 
-                                        <form method="POST" action="{{ route('company.kyc.reject', $company->id) }}" class="space-y-2">
+                                        <form id="rejectCompanyKycForm" method="POST" action="{{ route('company.kyc.reject', $company->id) }}" class="space-y-2">
                                             @csrf
                                             <button type="submit" class="h-10 w-full rounded-lg bg-red-600 text-sm font-medium text-white {{ $canReviewDecision ? 'hover:bg-red-700' : 'cursor-not-allowed opacity-60' }}" @disabled(! $canReviewDecision)>Reject</button>
                                         </form>
@@ -265,7 +270,7 @@
                                     @elseif ($bifPendingApproval)
                                         <button type="button" class="h-10 w-full rounded-lg bg-slate-500 text-sm font-medium text-white cursor-not-allowed opacity-80" disabled>Submitted For Approval</button>
                                     @else
-                                        <form method="POST" action="{{ route('company.kyc.submit', $company->id) }}">
+                                        <form id="submitCompanyKycForm" method="POST" action="{{ route('company.kyc.submit', $company->id) }}">
                                             @csrf
                                             <button type="submit" class="h-10 w-full rounded-lg bg-blue-600 text-sm font-medium text-white {{ $bif ? 'hover:bg-blue-700' : 'cursor-not-allowed opacity-60' }}" @disabled(! $bif)>Submit For Verification</button>
                                         </form>
@@ -380,7 +385,7 @@
         </div>
     </div>
 
-    <form method="POST" action="{{ route('company.bif.send', $company->id) }}" class="flex min-h-0 flex-1 flex-col">
+    <form id="sendBifForm" method="POST" action="{{ route('company.bif.send', $company->id) }}" class="flex min-h-0 flex-1 flex-col">
         @csrf
         <div class="flex-1 space-y-4 overflow-y-auto px-4 py-4 sm:px-6">
             <div class="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800">
@@ -489,6 +494,22 @@
         const requirementViewMime = document.getElementById('requirementViewMime');
         const requirementViewUploadedAt = document.getElementById('requirementViewUploadedAt');
         const requirementViewOpenLink = document.getElementById('requirementViewOpenLink');
+        const liveFeedback = document.getElementById('companyKycLiveFeedback');
+        const liveLink = document.getElementById('companyKycLiveLink');
+        const liveLinkUrl = document.getElementById('companyKycLiveLinkUrl');
+        const sendBifForm = document.getElementById('sendBifForm');
+        const submitCompanyKycForm = document.getElementById('submitCompanyKycForm');
+        const approveCompanyKycForm = document.getElementById('approveCompanyKycForm');
+        const rejectCompanyKycForm = document.getElementById('rejectCompanyKycForm');
+        const companyBifStatusBadge = document.getElementById('companyBifStatusBadge');
+        const companyBifSubmittedAt = document.getElementById('companyBifSubmittedAt');
+        const companyBifClientSubmittedAt = document.getElementById('companyBifClientSubmittedAt');
+        const statusBadgeClasses = {
+            draft: 'bg-gray-100 text-gray-700 border border-gray-200',
+            pending_approval: 'bg-amber-100 text-amber-700 border border-amber-200',
+            approved: 'bg-green-100 text-green-700 border border-green-200',
+            rejected: 'bg-red-100 text-red-700 border border-red-200',
+        };
 
         const formatDate = (value) => {
             if (!value) {
@@ -499,6 +520,101 @@
                 return value;
             }
             return date.toLocaleString();
+        };
+        const formatDateOnly = (value) => {
+            if (!value) return '-';
+            const date = new Date(value);
+            if (Number.isNaN(date.getTime())) return value;
+            return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+        };
+        const showFeedback = (message, tone = 'success') => {
+            if (!liveFeedback) return;
+            const tones = {
+                success: 'border-green-200 bg-green-50 text-green-700',
+                error: 'border-red-200 bg-red-50 text-red-700',
+                warning: 'border-amber-200 bg-amber-50 text-amber-800',
+            };
+            liveFeedback.className = `mb-4 rounded-md border px-4 py-3 text-sm font-medium ${tones[tone] || tones.success}`;
+            liveFeedback.textContent = message || '';
+            liveFeedback.classList.toggle('hidden', !message);
+        };
+        const showLink = (url) => {
+            if (!liveLink || !liveLinkUrl) return;
+            if (!url) {
+                liveLink.classList.add('hidden');
+                liveLinkUrl.textContent = '';
+                return;
+            }
+            liveLinkUrl.textContent = url;
+            liveLink.classList.remove('hidden');
+        };
+        const replaceHtmlIfPresent = (id, sourceDoc) => {
+            const current = document.getElementById(id);
+            const incoming = sourceDoc.getElementById(id);
+            if (!current || !incoming) return;
+            current.innerHTML = incoming.innerHTML;
+        };
+        const syncCompanyKycFragments = async () => {
+            try {
+                const refreshUrl = new URL(window.location.href);
+                refreshUrl.searchParams.set('tab', 'business-client-information');
+                refreshUrl.searchParams.set('_ts', String(Date.now()));
+                const response = await fetch(refreshUrl.toString(), {
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                    cache: 'no-store',
+                });
+                if (!response.ok) return;
+                const html = await response.text();
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                replaceHtmlIfPresent('companyBifDocumentContent', doc);
+                replaceHtmlIfPresent('companyBifSummaryCard', doc);
+            } catch (error) {
+            }
+        };
+        const submitJsonForm = async (form, fallbackError) => {
+            const response = await fetch(form.action, {
+                method: form.method || 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: new FormData(form),
+                cache: 'no-store',
+            });
+
+            if (response.status === 422) {
+                const payload = await response.json();
+                const firstError = Object.values(payload.errors || {}).flat()[0] || 'Please review the form.';
+                throw new Error(firstError);
+            }
+
+            if (!response.ok) {
+                throw new Error(fallbackError);
+            }
+
+            return response.json();
+        };
+        const syncBifState = (bif) => {
+            if (!bif) return;
+            const status = String(bif.status || '').toLowerCase();
+            const label = status === 'pending_approval'
+                ? 'Pending Approval'
+                : status === 'approved'
+                    ? 'Approved'
+                    : status === 'rejected'
+                        ? 'Rejected'
+                        : 'Draft';
+            if (companyBifStatusBadge) {
+                companyBifStatusBadge.className = `inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${statusBadgeClasses[status] || statusBadgeClasses.draft}`;
+                companyBifStatusBadge.textContent = label;
+            }
+            if (companyBifSubmittedAt) {
+                companyBifSubmittedAt.textContent = formatDateOnly(bif.submitted_at);
+            }
+            if (companyBifClientSubmittedAt && bif.client_submitted_at !== undefined) {
+                companyBifClientSubmittedAt.textContent = formatDate(bif.client_submitted_at);
+            }
         };
 
         const renderRequirementPreview = (url, mimeType, fileName, title) => {
@@ -598,6 +714,56 @@
         if (shouldOpenSendModal) {
             openModal();
         }
+
+        sendBifForm?.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            try {
+                const payload = await submitJsonForm(sendBifForm, 'Unable to send the BIF link.');
+                showFeedback(payload.message, 'success');
+                showLink(payload.bif_client_link || '');
+                syncCompanyKycFragments();
+                closeModal();
+            } catch (error) {
+                showFeedback(error.message, 'error');
+            }
+        });
+
+        submitCompanyKycForm?.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            try {
+                const payload = await submitJsonForm(submitCompanyKycForm, 'Unable to submit company KYC.');
+                syncBifState(payload.bif || null);
+                showFeedback(payload.warning || payload.message, payload.warning ? 'warning' : 'success');
+                syncCompanyKycFragments();
+            } catch (error) {
+                showFeedback(error.message, 'error');
+            }
+        });
+
+        approveCompanyKycForm?.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            try {
+                const payload = await submitJsonForm(approveCompanyKycForm, 'Unable to approve company KYC.');
+                syncBifState(payload.bif || null);
+                showFeedback(payload.message, 'success');
+                syncCompanyKycFragments();
+            } catch (error) {
+                showFeedback(error.message, 'error');
+            }
+        });
+
+        rejectCompanyKycForm?.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            try {
+                const payload = await submitJsonForm(rejectCompanyKycForm, 'Unable to reject company KYC.');
+                syncBifState(payload.bif || null);
+                showFeedback(payload.message, 'success');
+                syncCompanyKycFragments();
+            } catch (error) {
+                showFeedback(error.message, 'error');
+            }
+        });
+        window.setInterval(syncCompanyKycFragments, 10000);
     });
 </script>
 @endsection

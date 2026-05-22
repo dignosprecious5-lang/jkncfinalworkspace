@@ -8,8 +8,10 @@ use App\Models\CompanyBif;
 use App\Models\User;
 use App\Support\CompanyHistoryLogger;
 use Carbon\CarbonInterface;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
@@ -231,7 +233,7 @@ class CompanyKycController extends Controller
         abort(404);
     }
 
-    public function submitKycForVerification(Request $request, int $company): RedirectResponse
+    public function submitKycForVerification(Request $request, int $company): RedirectResponse|JsonResponse
     {
         abort_unless(! $this->isKycReviewer($request->user()), 403);
 
@@ -274,6 +276,20 @@ class CompanyKycController extends Controller
             'user_initials' => $this->initials($userName),
         ]);
 
+        if ($this->prefersJsonResponse($request)) {
+            return response()->json([
+                'message' => 'Company KYC submitted for verification.',
+                'bif' => [
+                    'status' => 'pending_approval',
+                    'submitted_at' => optional($bif->submitted_at)->toIso8601String(),
+                    'approved_at' => null,
+                    'approved_by_name' => null,
+                    'rejection_reason' => null,
+                ],
+                'warning' => $missingLabels !== [] ? 'Recommendation: upload the remaining onboarding documents as soon as possible. Missing: '.implode(', ', $missingLabels) : null,
+            ]);
+        }
+
         $redirect = redirect()
             ->route('company.kyc', ['company' => $company, 'tab' => 'business-client-information'])
             ->with('bif_success', 'Company KYC submitted for verification.');
@@ -285,7 +301,7 @@ class CompanyKycController extends Controller
         return $redirect;
     }
 
-    public function approveKyc(Request $request, int $company): RedirectResponse
+    public function approveKyc(Request $request, int $company): RedirectResponse|JsonResponse
     {
         abort_unless($this->isKycReviewer($request->user()), 403);
         $companyData = $this->findCompany($request, $company);
@@ -325,12 +341,25 @@ class CompanyKycController extends Controller
             'user_initials' => $this->initials($userName),
         ]);
 
+        if ($this->prefersJsonResponse($request)) {
+            return response()->json([
+                'message' => 'Company KYC approved successfully.',
+                'bif' => [
+                    'status' => 'approved',
+                    'submitted_at' => optional($bif->submitted_at)->toIso8601String(),
+                    'approved_at' => optional($bif->approved_at)->toIso8601String(),
+                    'approved_by_name' => $bif->approved_by_name,
+                    'rejection_reason' => null,
+                ],
+            ]);
+        }
+
         return redirect()
             ->route('company.kyc', ['company' => $company, 'tab' => 'business-client-information'])
             ->with('bif_success', 'Company KYC approved successfully.');
     }
 
-    public function rejectKyc(Request $request, int $company): RedirectResponse
+    public function rejectKyc(Request $request, int $company): RedirectResponse|JsonResponse
     {
         abort_unless($this->isKycReviewer($request->user()), 403);
         $companyData = $this->findCompany($request, $company);
@@ -373,6 +402,19 @@ class CompanyKycController extends Controller
             'user_name' => $userName,
             'user_initials' => $this->initials($userName),
         ]);
+
+        if ($this->prefersJsonResponse($request)) {
+            return response()->json([
+                'message' => 'Company KYC rejected successfully.',
+                'bif' => [
+                    'status' => 'rejected',
+                    'submitted_at' => optional($bif->submitted_at)->toIso8601String(),
+                    'approved_at' => null,
+                    'approved_by_name' => null,
+                    'rejection_reason' => $reason,
+                ],
+            ]);
+        }
 
         return redirect()
             ->route('company.kyc', ['company' => $company, 'tab' => 'business-client-information'])
@@ -741,6 +783,13 @@ class CompanyKycController extends Controller
         return $segments
             ->map(fn (string $segment): string => strtoupper(mb_substr($segment, 0, 1)))
             ->implode('');
+    }
+
+    private function prefersJsonResponse(Request $request): bool
+    {
+        return $request->expectsJson()
+            || $request->ajax()
+            || str_contains(Str::lower((string) $request->header('Accept')), 'application/json');
     }
 
     private function defaultCompanies(): array
