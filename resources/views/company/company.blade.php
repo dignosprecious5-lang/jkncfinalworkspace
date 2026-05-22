@@ -52,6 +52,7 @@
         <div class="flex items-center gap-2 text-sm">
             <span class="font-medium text-gray-800"><span id="selectedCount">0</span> selected</span>
             <button type="button" class="h-8 rounded-md border border-gray-200 bg-white px-3 hover:bg-gray-50">Assign Owner</button>
+            <button id="openDeleteSelectedModal" type="button" class="h-8 rounded-md border border-red-200 bg-white px-3 text-red-600 hover:bg-red-50">Delete Selected</button>
             <button type="button" id="clearSelection" class="ml-auto text-gray-700 hover:underline">Clear</button>
         </div>
     </div>
@@ -93,7 +94,7 @@
                             $initials = strtoupper($initials !== '' ? $initials : mb_substr((string) $companyName, 0, 2));
                         @endphp
                         <tr class="text-gray-700 hover:bg-gray-50">
-                            <td class="px-3 py-3"><input type="checkbox" class="row-checkbox h-4 w-4 rounded border-gray-300"></td>
+                            <td class="px-3 py-3"><input type="checkbox" value="{{ $company->id }}" class="row-checkbox h-4 w-4 rounded border-gray-300"></td>
                             <td class="px-3 py-3">
                                 <div class="flex items-center gap-2">
                                     <div class="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 text-xs font-semibold text-blue-700">{{ $initials }}</div>
@@ -169,6 +170,30 @@
     </div>
 </div>
 
+<div id="deleteSelectedModal" class="fixed inset-0 z-[70] hidden" aria-hidden="true">
+    <button id="deleteSelectedOverlay" type="button" aria-label="Close delete companies modal" class="absolute inset-0 bg-slate-900/45"></button>
+    <div class="absolute inset-0 flex items-center justify-center px-4">
+        <div class="w-full max-w-md rounded-2xl bg-white shadow-2xl">
+            <div class="border-b border-gray-100 px-6 py-5">
+                <h2 class="text-xl font-semibold text-gray-900">Delete Selected Companies</h2>
+                <p class="mt-1 text-sm text-gray-500">This action will permanently delete the selected company records.</p>
+            </div>
+            <form id="bulkDeleteForm" method="POST" action="{{ route('company.bulk-delete') }}">
+                @csrf
+                @method('DELETE')
+                <div id="bulkDeleteSelectedCompanies"></div>
+                <div class="px-6 py-5 text-sm text-gray-700">
+                    Are you sure you want to delete <span id="bulkDeleteCountText" class="font-semibold text-gray-900">0 companies</span>?
+                </div>
+                <div class="flex items-center justify-end gap-3 border-t border-gray-100 px-6 py-4">
+                    <button id="cancelDeleteSelectedModal" type="button" class="h-10 rounded-lg border border-gray-300 px-4 text-sm text-gray-700 hover:bg-gray-50">Cancel</button>
+                    <button type="submit" class="h-10 rounded-lg bg-red-600 px-5 text-sm font-medium text-white hover:bg-red-700">Delete Selected</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 @include('company.partials.modal-add-company')
 @include('products.partials.create-field-dropdown', [
     'fieldTypes' => $fieldTypes,
@@ -205,6 +230,12 @@ document.addEventListener('DOMContentLoaded', function () {
     const actionBar = document.getElementById('selectionActionBar');
     const selectedCount = document.getElementById('selectedCount');
     const clearSelection = document.getElementById('clearSelection');
+    const deleteSelectedModal = document.getElementById('deleteSelectedModal');
+    const deleteSelectedOverlay = document.getElementById('deleteSelectedOverlay');
+    const openDeleteSelectedModalButton = document.getElementById('openDeleteSelectedModal');
+    const cancelDeleteSelectedModalButton = document.getElementById('cancelDeleteSelectedModal');
+    const bulkDeleteSelectedCompanies = document.getElementById('bulkDeleteSelectedCompanies');
+    const bulkDeleteCountText = document.getElementById('bulkDeleteCountText');
     let createFieldDropdownOpen = false;
 
     const openModal = () => {
@@ -333,6 +364,37 @@ document.addEventListener('DOMContentLoaded', function () {
         createFieldDropdownOpen = false;
     };
 
+    const closeDeleteSelectedModal = () => {
+        if (!deleteSelectedModal) {
+            return;
+        }
+
+        deleteSelectedModal.classList.add('hidden');
+        deleteSelectedModal.setAttribute('aria-hidden', 'true');
+        document.body.classList.remove('overflow-hidden');
+    };
+
+    const openDeleteSelectedModal = () => {
+        const selectedCompanies = rowChecks.filter((item) => item.checked);
+        if (selectedCompanies.length === 0 || !deleteSelectedModal) {
+            return;
+        }
+
+        if (bulkDeleteSelectedCompanies) {
+            bulkDeleteSelectedCompanies.innerHTML = selectedCompanies
+                .map((item) => `<input type="hidden" name="selected_companies[]" value="${item.value}">`)
+                .join('');
+        }
+
+        if (bulkDeleteCountText) {
+            bulkDeleteCountText.textContent = `${selectedCompanies.length} ${selectedCompanies.length === 1 ? 'company' : 'companies'}`;
+        }
+
+        deleteSelectedModal.classList.remove('hidden');
+        deleteSelectedModal.setAttribute('aria-hidden', 'false');
+        document.body.classList.add('overflow-hidden');
+    };
+
     const refreshSelection = () => {
         const count = rowChecks.filter((item) => item.checked).length;
         selectedCount.textContent = count;
@@ -390,6 +452,7 @@ document.addEventListener('DOMContentLoaded', function () {
             closeModal();
             closeCreateFieldDropdownFn();
             closeCreateFieldModalFn();
+            closeDeleteSelectedModal();
         }
     });
 
@@ -432,6 +495,10 @@ document.addEventListener('DOMContentLoaded', function () {
         }
         refreshSelection();
     });
+
+    openDeleteSelectedModalButton?.addEventListener('click', openDeleteSelectedModal);
+    cancelDeleteSelectedModalButton?.addEventListener('click', closeDeleteSelectedModal);
+    deleteSelectedOverlay?.addEventListener('click', closeDeleteSelectedModal);
 
     const initialFieldType = createFieldTypeInput ? createFieldTypeInput.value : 'picklist';
     const initialTypeButton = fieldTypeButtons.find((button) => (button.dataset.fieldType || '') === initialFieldType);

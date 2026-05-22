@@ -1985,7 +1985,6 @@
                             <tr>
                                 <th class="px-3 py-3 text-left">Deal Name</th>
                                 <th class="px-3 py-3 text-left">Stage</th>
-                                <th class="px-3 py-3 text-left">Amount</th>
                                 <th class="px-3 py-3 text-left">Closing Date</th>
                                 <th class="px-3 py-3 text-left">Owner</th>
                                 <th class="px-3 py-3 text-left">Status</th>
@@ -2001,7 +2000,6 @@
                                             {{ $deal['stage'] }}
                                         </span>
                                     </td>
-                                    <td class="px-3 py-3 font-semibold text-blue-600">{{ $deal['amount'] }}</td>
                                     <td class="px-3 py-3 text-gray-700">{{ $deal['closing_date'] }}</td>
                                     <td class="px-3 py-3 text-gray-700">{{ $deal['owner'] }}</td>
                                     <td class="px-3 py-3">

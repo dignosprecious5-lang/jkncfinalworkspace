@@ -43,9 +43,6 @@ class ProductController extends Controller
 
     public function index(Request $request): View
     {
-        $this->ensureSeededProducts();
-        $isAdminReviewer = in_array((string) ($request->user()?->role ?? ''), ['Admin', 'SuperAdmin'], true);
-
         $search = trim((string) $request->query('search', ''));
         $statusFilter = (string) $request->query('status', $request->query('active', 'all'));
         $categoryFilter = (string) $request->query('category', 'all');
@@ -140,7 +137,8 @@ class ProductController extends Controller
             'pending' => Product::query()->where('status', 'Pending Approval')->count()
                 + CatalogChangeRequest::query()->where('module', 'product')->where('status', 'Pending Approval')->count(),
             'active' => Product::query()->where('status', 'Active')->count(),
-            'rejected' => Product::query()->where('status', 'Rejected')->count(),
+            'rejected' => Product::query()->where('status', 'Rejected')->count()
+                + CatalogChangeRequest::query()->where('module', 'product')->where('status', 'Rejected')->count(),
         ];
         $pendingChangeRequests = CatalogChangeRequest::query()
             ->with(['submitter', 'reviewer'])
@@ -188,7 +186,7 @@ class ProductController extends Controller
                 'juridical' => implode(PHP_EOL, self::DEFAULT_REQUIREMENT_GROUPS['juridical']),
                 'other' => implode(PHP_EOL, self::DEFAULT_REQUIREMENT_GROUPS['other']),
             ],
-            'isAdminReviewer' => $isAdminReviewer,
+            'isAdminReviewer' => false,
             'summary' => $summary,
             'pendingChangeRequests' => $pendingChangeRequests,
             'pendingRequestMap' => $pendingRequestMap,
@@ -244,7 +242,7 @@ class ProductController extends Controller
             'unit' => $validated['unit'] ?? null,
             'status' => 'Pending Approval',
             'owner_id' => (int) $validated['owner_id'],
-            'created_by' => $this->currentUserDisplay(),
+            'created_by' => $request->user()?->id,
             'reviewed_by' => null,
             'reviewed_at' => null,
             'approved_by' => null,
@@ -365,9 +363,9 @@ class ProductController extends Controller
 
         $product->forceFill([
             'status' => 'Active',
-            'reviewed_by' => $request->user()?->name ?? 'System User',
+            'reviewed_by' => $request->user()?->id,
             'reviewed_at' => $now,
-            'approved_by' => $request->user()?->name ?? 'System User',
+            'approved_by' => $request->user()?->id,
             'approved_at' => $now,
         ])->save();
 
@@ -386,7 +384,7 @@ class ProductController extends Controller
 
         $product->forceFill([
             'status' => 'Rejected',
-            'reviewed_by' => $request->user()?->name ?? 'System User',
+            'reviewed_by' => $request->user()?->id,
             'reviewed_at' => now(),
             'approved_by' => null,
             'approved_at' => null,
@@ -428,29 +426,16 @@ class ProductController extends Controller
     public function show(Request $request, string $id): View
     {
         $ownerMap = collect($this->ownerOptions())->keyBy('id');
-        $product = Product::query()->where('product_id', $id)->firstOrFail();
+        $product = Product::query()
+            ->with(['creator', 'reviewer', 'approver'])
+            ->where('product_id', $id)
+            ->firstOrFail();
         $product->owner_name = data_get($ownerMap->get($product->owner_id), 'name', $product->created_by);
         $product->linked_service_names = $this->resolveLinkedServiceNames($product);
 
-        $tab = strtolower((string) $request->query('tab', 'timeline'));
-        $allowedTabs = ['timeline', 'pipelines', 'files', 'tasks'];
-        if (! in_array($tab, $allowedTabs, true)) {
-            $tab = 'timeline';
-        }
-
         return view('products.show', [
             'product' => $product,
-            'tab' => $tab,
-            'tabs' => [
-                'timeline' => 'Timeline',
-                'pipelines' => 'Pipelines',
-                'files' => 'Files',
-                'tasks' => 'Tasks',
-            ],
-            'timeline' => $this->mockTimeline($product),
-            'pipelines' => [],
-            'files' => [],
-            'tasks' => [],
+            'historyItems' => $this->productHistoryItems($product),
             'lastModifiedLabel' => 'Last Modified on '.$product->updated_at?->format('M d, h:i A'),
             'customFields' => ProductCustomField::query()->orderBy('sort_order')->orderBy('field_name')->get(),
         ]);
@@ -670,28 +655,21 @@ class ProductController extends Controller
 
     private function ownerOptions(): array
     {
-        $users = User::query()
+        if (! Schema::hasTable('users')) {
+            return [];
+        }
+
+        return User::query()
             ->select(['id', 'name', 'email'])
             ->orderBy('name')
             ->get()
             ->map(fn (User $user): array => [
                 'id' => (int) $user->id,
                 'name' => $user->name,
-                'email' => $user->email ?: strtolower(str_replace(' ', '.', $user->name)).'@example.com',
+                'email' => $user->email,
             ])
             ->values()
             ->all();
-
-        if (! empty($users)) {
-            return $users;
-        }
-
-        return [
-            ['id' => 1001, 'name' => 'Shine Florence Padillo', 'email' => 'shinepadi@gmail.com'],
-            ['id' => 1002, 'name' => 'John Admin', 'email' => 'john.admin@example.com'],
-            ['id' => 1003, 'name' => 'Maria Santos', 'email' => 'maria.santos@example.com'],
-            ['id' => 1004, 'name' => 'Juan Dela Cruz', 'email' => 'juan.delacruz@example.com'],
-        ];
     }
 
     private function fieldTypes(): array
@@ -942,9 +920,102 @@ class ProductController extends Controller
         return User::query()->orderBy('id')->value('name') ?: 'Admin User';
     }
 
+    private function productHistoryItems(Product $product): array
+    {
+        $history = [];
+
+        $history[] = [
+            'icon' => 'fa-box-open',
+            'title' => 'Product created',
+            'description' => $product->product_name,
+            'user_name' => $this->resolveProductActorName($product->creator?->name, $product->created_by),
+            'created_at' => optional($product->created_at)->format('M d, Y h:i A'),
+        ];
+
+        if ($product->updated_at && optional($product->updated_at)->ne($product->created_at)) {
+            $history[] = [
+                'icon' => 'fa-pen',
+                'title' => 'Product updated',
+                'description' => 'Latest product configuration saved.',
+                'user_name' => $this->resolveProductActorName($product->creator?->name, $product->created_by),
+                'created_at' => optional($product->updated_at)->format('M d, Y h:i A'),
+            ];
+        }
+
+        if ($product->reviewed_at) {
+            $history[] = [
+                'icon' => 'fa-clipboard-check',
+                'title' => $product->status === 'Rejected' ? 'Product review rejected' : 'Product reviewed',
+                'description' => $product->status === 'Rejected'
+                    ? 'The product submission was reviewed and rejected.'
+                    : 'The product submission was reviewed.',
+                'user_name' => $this->resolveProductActorName($product->reviewer?->name, $product->reviewed_by),
+                'created_at' => optional($product->reviewed_at)->format('M d, Y h:i A'),
+            ];
+        }
+
+        if ($product->approved_at) {
+            $history[] = [
+                'icon' => 'fa-circle-check',
+                'title' => 'Product approved',
+                'description' => 'The product was approved and activated.',
+                'user_name' => $this->resolveProductActorName($product->approver?->name, $product->approved_by),
+                'created_at' => optional($product->approved_at)->format('M d, Y h:i A'),
+            ];
+        }
+
+        $changeRequests = CatalogChangeRequest::query()
+            ->with(['submitter', 'reviewer'])
+            ->where('module', 'product')
+            ->where('record_id', (int) $product->id)
+            ->latest('updated_at')
+            ->get();
+
+        foreach ($changeRequests as $request) {
+            $history[] = [
+                'icon' => match ($request->status) {
+                    'Pending Approval' => 'fa-hourglass-half',
+                    'Rejected' => 'fa-circle-xmark',
+                    default => 'fa-file-signature',
+                },
+                'title' => match ($request->action) {
+                    'delete' => 'Product delete request submitted',
+                    'update' => 'Product update request submitted',
+                    default => 'Product change request submitted',
+                },
+                'description' => $request->status === 'Rejected'
+                    ? ($request->rejection_notes ?: 'A product change request was rejected.')
+                    : 'Awaiting admin review.',
+                'user_name' => $request->submitter?->name ?: 'System',
+                'created_at' => optional($request->updated_at)->format('M d, Y h:i A'),
+            ];
+        }
+
+        usort($history, function (array $left, array $right): int {
+            return strtotime((string) ($right['created_at'] ?? '')) <=> strtotime((string) ($left['created_at'] ?? ''));
+        });
+
+        return $history;
+    }
+
+    private function resolveProductActorName(?string $relatedName, mixed $fallback): string
+    {
+        if (filled($relatedName)) {
+            return (string) $relatedName;
+        }
+
+        if (is_string($fallback) && trim($fallback) !== '') {
+            return trim($fallback);
+        }
+
+        return 'System';
+    }
+
     private function ensureSeededProducts(): void
     {
-        if (! Schema::hasTable('products')) {
+        return;
+
+        if (Product::query()->exists()) {
             return;
         }
 
@@ -952,58 +1023,6 @@ class ProductController extends Controller
 
         foreach ($this->defaultProductCatalog() as $serviceArea => $products) {
             foreach ($products as $productName) {
-                $existingProduct = Product::query()
-                    ->where('product_name', $productName)
-                    ->first();
-
-                if ($existingProduct) {
-                    $existingAreas = collect($existingProduct->product_area ?? [])
-                        ->map(fn ($value) => trim((string) $value))
-                        ->filter()
-                        ->values();
-                    $didChange = false;
-
-                    if (! $existingAreas->contains($serviceArea)) {
-                        $existingProduct->product_area = $existingAreas
-                            ->push($serviceArea)
-                            ->unique()
-                            ->values()
-                            ->all();
-                        $didChange = true;
-                    }
-
-                    if (in_array((string) $existingProduct->status, ['Pending Approval', 'Rejected', 'Inactive', 'Archived'], true)) {
-                        $existingProduct->status = 'Active';
-                        $didChange = true;
-                    }
-
-                    if (blank($existingProduct->reviewed_by)) {
-                        $existingProduct->reviewed_by = $owner['name'] ?? 'John Admin';
-                        $didChange = true;
-                    }
-
-                    if (blank($existingProduct->reviewed_at)) {
-                        $existingProduct->reviewed_at = now();
-                        $didChange = true;
-                    }
-
-                    if (blank($existingProduct->approved_by)) {
-                        $existingProduct->approved_by = $owner['name'] ?? 'John Admin';
-                        $didChange = true;
-                    }
-
-                    if (blank($existingProduct->approved_at)) {
-                        $existingProduct->approved_at = now();
-                        $didChange = true;
-                    }
-
-                    if ($didChange) {
-                        $existingProduct->save();
-                    }
-
-                    continue;
-                }
-
                 Product::query()->create([
                     'product_id' => $this->generateProductId(),
                     'product_name' => $productName,

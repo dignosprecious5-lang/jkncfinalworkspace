@@ -3,13 +3,6 @@
 
 @section('content')
 @php
-    $totalServiceValue = $services->sum(function ($service) {
-        if ($service->rate_per_unit) {
-            return (float) $service->rate_per_unit;
-        }
-
-        return (float) ($service->price_fee ?? 0);
-    });
     $completedServices = $services->filter(fn ($service) => (string) $service->status === 'Completed')->count();
     $statusClasses = [
         'Pending Approval' => 'border-amber-200 bg-amber-50 text-amber-700',
@@ -31,9 +24,9 @@
                     <p class="mt-1 text-sm text-gray-500">Services associated with this company through related company work.</p>
                 </div>
                 <div class="text-sm text-gray-500">
-                    {{ $services->total() }} {{ \Illuminate\Support\Str::plural('service', $services->total()) }}
+                    {{ $summary['total_count'] }} {{ \Illuminate\Support\Str::plural('service', $summary['total_count']) }}
                     <span class="mx-2 text-gray-300">|</span>
-                    Total value P{{ number_format($totalServiceValue, 2) }}
+                    Total value P{{ number_format($summary['total_value'], 2) }}
                 </div>
             </div>
 

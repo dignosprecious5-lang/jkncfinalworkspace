@@ -37,11 +37,6 @@ trait ResolvesCompanyRecords
             }
         }
 
-        $companyData = collect($request->session()->get('mock_companies', $defaultCompanies))
-            ->firstWhere('id', $company);
-
-        abort_unless($companyData, 404);
-
-        return $companyData;
+        abort(404);
     }
 }

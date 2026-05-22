@@ -153,6 +153,10 @@ class ProjectController extends Controller
             'serviceAreaOptions' => $serviceCatalog['serviceAreaOptions'],
             'serviceGroups' => $serviceCatalog['serviceGroups'],
             'productOptionsByServiceArea' => $productCatalog['productOptionsByServiceArea'],
+            'catalogWarnings' => array_values(array_filter([
+                empty($serviceCatalog['serviceGroups'] ?? []) ? 'Service options are currently unavailable. Add active services in the Services module to populate project setup selections.' : null,
+                empty($productCatalog['productOptionsByServiceArea'] ?? []) ? 'Product options are currently unavailable. Add active products in the Products module to populate project setup selections.' : null,
+            ])),
         ]);
     }
 
@@ -2329,15 +2333,11 @@ class ProjectController extends Controller
 
     private function projectServiceCatalog(): array
     {
-        $fallbackGroups = collect(self::FALLBACK_SERVICE_GROUPS)
-            ->map(fn (array $services): array => array_values(array_unique($services)))
-            ->all();
-
         try {
             if (! Schema::hasTable('services')) {
                 return [
-                    'serviceAreaOptions' => self::FALLBACK_SERVICE_AREA_OPTIONS,
-                    'serviceGroups' => $fallbackGroups,
+                    'serviceAreaOptions' => [],
+                    'serviceGroups' => [],
                 ];
             }
 
@@ -2387,38 +2387,28 @@ class ProjectController extends Controller
 
             if ($serviceGroups === []) {
                 return [
-                    'serviceAreaOptions' => self::FALLBACK_SERVICE_AREA_OPTIONS,
-                    'serviceGroups' => $fallbackGroups,
+                    'serviceAreaOptions' => [],
+                    'serviceGroups' => [],
                 ];
             }
 
             return [
-                'serviceAreaOptions' => array_values(array_unique(array_merge(array_keys($serviceGroups), self::FALLBACK_SERVICE_AREA_OPTIONS))),
+                'serviceAreaOptions' => array_values(array_unique(array_keys($serviceGroups))),
                 'serviceGroups' => $serviceGroups,
             ];
         } catch (Throwable) {
             return [
-                'serviceAreaOptions' => self::FALLBACK_SERVICE_AREA_OPTIONS,
-                'serviceGroups' => $fallbackGroups,
+                'serviceAreaOptions' => [],
+                'serviceGroups' => [],
             ];
         }
     }
 
     private function projectProductCatalog(): array
     {
-        $fallbackGroups = [
-            'Corporate & Regulatory Advisory' => ['Printing', 'Photocopy', 'Drafting of Letters'],
-            'Accounting & Compliance Advisory' => ['Archive Retrieval', 'Digital Archive Copy', 'Drafting of Certifications'],
-            'Governance & Policy Advisory' => ['Document Delivery (Metro Cebu)', 'Drafting of Agreements / Simple Contracts', 'Drafting of Board Resolutions'],
-            'Business Strategy & Process Advisory' => ['Notarization - Simple Documents', 'Drafting of Reports / Formal Documents'],
-            'Strategic Situations Advisory' => ['Printing', 'Photocopy', 'Drafting of Demand Letters'],
-            'People & Talent Solutions' => ['Archive Retrieval', 'Drafting of Memorandum (Internal / External)'],
-            'Learning & Capability Development' => ['Document Delivery (Outside Metro Cebu/LBC)', 'Drafting of Endorsement / Request Letters'],
-        ];
-
         try {
             if (! Schema::hasTable('products')) {
-                return ['productOptionsByServiceArea' => $fallbackGroups];
+                return ['productOptionsByServiceArea' => []];
             }
 
             $products = Product::query()
@@ -2455,9 +2445,9 @@ class ProjectController extends Controller
                 ->sortKeys()
                 ->all();
 
-            return ['productOptionsByServiceArea' => $groups === [] ? $fallbackGroups : $groups];
+            return ['productOptionsByServiceArea' => $groups];
         } catch (Throwable) {
-            return ['productOptionsByServiceArea' => $fallbackGroups];
+            return ['productOptionsByServiceArea' => []];
         }
     }
 

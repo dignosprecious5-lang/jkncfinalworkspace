@@ -126,6 +126,10 @@ class RegularController extends Controller
 
         $serviceCatalog = $this->regularServiceCatalog();
         $productCatalog = $this->regularProductCatalog();
+        $catalogWarnings = array_values(array_filter([
+            empty($serviceCatalog['serviceGroups'] ?? []) ? 'Service options are currently unavailable. Add active services in the Services module to populate regular setup selections.' : null,
+            empty($productCatalog['productOptionsByServiceArea'] ?? []) ? 'Product options are currently unavailable. Add active products in the Products module to populate regular setup selections.' : null,
+        ]));
 
         try {
             $contactRecords = $this->regularContactRecords();
@@ -145,7 +149,8 @@ class RegularController extends Controller
             'companyRecords',
             'dealRecords',
             'serviceCatalog',
-            'productCatalog'
+            'productCatalog',
+            'catalogWarnings'
         ));
     }
 
@@ -1306,22 +1311,115 @@ class RegularController extends Controller
 
     private function regularServiceCatalog(): array
     {
-        return [
-            'serviceAreaOptions' => self::FALLBACK_SERVICE_AREA_OPTIONS,
-            'serviceGroups' => self::FALLBACK_SERVICE_GROUPS,
-        ];
+        try {
+            if (! Schema::hasTable('services')) {
+                return [
+                    'serviceAreaOptions' => [],
+                    'serviceGroups' => [],
+                ];
+            }
+
+            $services = \App\Models\Service::query()
+                ->select(['service_name', 'service_area', 'service_area_other', 'status'])
+                ->whereNotNull('service_name')
+                ->where('service_name', '!=', '')
+                ->when(Schema::hasColumn('services', 'status'), fn ($query) => $query->where('status', 'Active'))
+                ->orderBy('service_name')
+                ->get();
+
+            $serviceGroups = [];
+
+            foreach ($services as $service) {
+                $serviceName = trim((string) $service->service_name);
+                if ($serviceName === '') {
+                    continue;
+                }
+
+                $areas = collect($service->service_area ?? [])
+                    ->filter(fn ($value): bool => is_string($value) && trim($value) !== '')
+                    ->map(fn ($value): string => trim((string) $value))
+                    ->values();
+
+                if ($areas->contains('Others') && filled($service->service_area_other)) {
+                    $areas = $areas
+                        ->reject(fn ($value): bool => $value === 'Others')
+                        ->push(trim((string) $service->service_area_other))
+                        ->values();
+                }
+
+                if ($areas->isEmpty() && filled($service->service_area_other)) {
+                    $areas = collect([trim((string) $service->service_area_other)]);
+                }
+
+                foreach ($areas as $area) {
+                    $serviceGroups[$area] ??= [];
+                    $serviceGroups[$area][] = $serviceName;
+                }
+            }
+
+            $serviceGroups = collect($serviceGroups)
+                ->map(fn (array $group): array => collect($group)->filter()->unique()->sort()->values()->all())
+                ->filter(fn (array $group): bool => $group !== [])
+                ->sortKeys()
+                ->all();
+
+            return [
+                'serviceAreaOptions' => array_values(array_unique(array_keys($serviceGroups))),
+                'serviceGroups' => $serviceGroups,
+            ];
+        } catch (\Throwable) {
+            return [
+                'serviceAreaOptions' => [],
+                'serviceGroups' => [],
+            ];
+        }
     }
 
     private function regularProductCatalog(): array
     {
-        $productOptionsByServiceArea = collect(self::FALLBACK_SERVICE_GROUPS)
-            ->map(fn (array $services, string $group): array => array_values(array_map(
-                fn (string $service): string => $service.' Product',
-                $services
-            )))
-            ->all();
+        try {
+            if (! Schema::hasTable('products')) {
+                return ['productOptionsByServiceArea' => []];
+            }
 
-        return ['productOptionsByServiceArea' => $productOptionsByServiceArea];
+            $products = \App\Models\Product::query()
+                ->select(['product_name', 'product_area', 'status'])
+                ->whereNotNull('product_name')
+                ->where('product_name', '!=', '')
+                ->when(Schema::hasColumn('products', 'status'), fn ($query) => $query->whereIn('status', ['Pending Approval', 'Active']))
+                ->orderBy('product_name')
+                ->get();
+
+            $groups = [];
+
+            foreach ($products as $product) {
+                $productName = trim((string) $product->product_name);
+                if ($productName === '') {
+                    continue;
+                }
+
+                $areas = collect($product->product_area ?? [])
+                    ->filter(fn ($value): bool => is_string($value) && trim($value) !== '')
+                    ->map(fn ($value): string => trim((string) $value))
+                    ->reject(fn (string $value): bool => $value === 'Others' || $value === 'None')
+                    ->values();
+
+                foreach ($areas as $area) {
+                    $groups[$area] ??= [];
+                    $groups[$area][] = $productName;
+                }
+            }
+
+            $groups = collect($groups)
+                ->map(fn (array $items): array => collect($items)->filter()->unique()->sort()->values()->all())
+                ->filter(fn (array $items): bool => $items !== [])
+                ->sortKeys()
+                ->all();
+
+            return ['productOptionsByServiceArea' => $groups];
+        } catch (\Throwable) {
+            return ['productOptionsByServiceArea' => []];
+        }
     }
 
     private function stringifySelectedValues(array $selected, array $custom, string $customPrefix, array $ignored = []): ?string
