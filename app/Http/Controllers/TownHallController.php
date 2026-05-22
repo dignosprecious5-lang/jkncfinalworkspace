@@ -89,7 +89,7 @@ class TownHallController extends Controller
             'department_stakeholder' => ['nullable', 'string', 'max:255'],
             'recipient_label' => ['nullable', 'in:To,For'],
             'to_for' => ['nullable', 'string', 'max:255'],
-            'recipient_type' => ['nullable', 'in:all,employee'],
+            'recipient_type' => ['nullable', 'in:all,employee,all_admins,all_clients,all_users'],
             'recipient_user_ids' => ['nullable', 'array'],
             'recipient_user_ids.*' => ['exists:users,id'],
             'recipient_contact_ids' => ['nullable', 'array'],
@@ -274,7 +274,7 @@ class TownHallController extends Controller
             'department_stakeholder' => ['nullable', 'string', 'max:255'],
             'recipient_label' => ['nullable', 'in:To,For'],
             'to_for' => ['nullable', 'string', 'max:255'],
-            'recipient_type' => ['nullable', 'in:all,employee'],
+            'recipient_type' => ['nullable', 'in:all,employee,all_admins,all_clients,all_users'],
             'recipient_user_ids' => ['nullable', 'array'],
             'recipient_user_ids.*' => ['exists:users,id'],
             'recipient_contact_ids' => ['nullable', 'array'],
@@ -543,16 +543,12 @@ class TownHallController extends Controller
                 ->get();
 
             if ($selectedEmployee) {
-                /*
-             * STRICT FILTER:
-             * Shows only memos specifically sent to the selected employee.
-             * It will NOT include "All Employees" memos.
-             */
-                $query->where('recipient_type', 'employee')
-                    ->where(function ($q) use ($selectedEmployee) {
-                        $q->where('recipient_user_id', $selectedEmployee)
-                            ->orWhereJsonContains('recipient_user_ids', (int) $selectedEmployee);
-                    });
+                $query->where(function ($q) use ($selectedEmployee) {
+                    $q->where('recipient_type', 'all')
+                        ->orWhere('recipient_type', 'all_users')
+                        ->orWhere('recipient_user_id', $selectedEmployee)
+                        ->orWhereJsonContains('recipient_user_ids', (int) $selectedEmployee);
+                });
             }
         } else {
             /*
@@ -563,13 +559,9 @@ class TownHallController extends Controller
          */
             $query->where(function ($q) use ($user) {
                 $q->where('recipient_type', 'all')
-                    ->orWhere(function ($sub) use ($user) {
-                        $sub->where('recipient_type', 'employee')
-                            ->where(function ($inner) use ($user) {
-                                $inner->where('recipient_user_id', $user->id)
-                                    ->orWhereJsonContains('recipient_user_ids', $user->id);
-                            });
-                    });
+                    ->orWhere('recipient_type', 'all_users')
+                    ->orWhere('recipient_user_id', $user->id)
+                    ->orWhereJsonContains('recipient_user_ids', $user->id);
             });
         }
 
@@ -596,18 +588,11 @@ class TownHallController extends Controller
             return $validated;
         }
 
+        // Base group + extra specific recipients.
+        // Example: recipient_type = all_admins, recipient_user_ids = [5, 9]
+        // Display: All Admins, MJ Nicolai, Brian
         $recipientType = $request->input('recipient_type', 'all');
-
         $validated['recipient_type'] = $recipientType;
-
-        if ($recipientType === 'all') {
-            $validated['recipient_user_id'] = null;
-            $validated['recipient_user_ids'] = null;
-            $validated['recipient_contact_ids'] = null;
-            $validated['to_for'] = 'All Employees';
-
-            return $validated;
-        }
 
         $userIds = collect($request->input('recipient_user_ids', []))
             ->filter()
@@ -639,7 +624,21 @@ class TownHallController extends Controller
                 ];
             });
 
-        $recipientNames = collect()
+        $baseLabel = match ($recipientType) {
+            'all_admins' => 'All Admins',
+            'all_clients' => 'All Clients',
+            'all_users' => 'All Users',
+            'employee' => null,
+            default => 'All Employees',
+        };
+
+        $recipientNames = collect();
+
+        if ($baseLabel) {
+            $recipientNames->push($baseLabel);
+        }
+
+        $recipientNames = $recipientNames
             ->merge($users->pluck('name'))
             ->merge($contacts->pluck('name'))
             ->filter()
@@ -665,18 +664,33 @@ class TownHallController extends Controller
             && Schema::hasColumn('townhall_communications', 'recipient_user_id')
         ) {
             $query->where(function ($q) use ($user) {
-                $q->where('recipient_type', 'all')
+                $role = strtolower(trim((string) $user->role));
+
+                $q->where('recipient_type', 'all_users')
                     ->orWhere('recipient_user_id', $user->id)
-                    ->orWhereJsonContains('recipient_user_ids', $user->id)
-                    ->orWhere(function ($legacy) use ($user) {
-                        $legacy->whereNull('recipient_type')
-                            ->where(function ($old) use ($user) {
-                                $old->where('to_for', 'like', '%' . $user->name . '%')
-                                    ->orWhere('to_for', 'like', '%All%')
-                                    ->orWhere('to_for', 'like', '%Everyone%')
-                                    ->orWhere('to_for', 'like', '%All Employees%');
-                            });
-                    });
+                    ->orWhereJsonContains('recipient_user_ids', $user->id);
+
+                if ($role === 'employee') {
+                    $q->orWhere('recipient_type', 'all');
+                }
+
+                if (in_array($role, ['admin', 'superadmin', 'super admin', 'system super admin'], true)) {
+                    $q->orWhere('recipient_type', 'all_admins');
+                }
+
+                if (in_array($role, ['client', 'customer'], true)) {
+                    $q->orWhere('recipient_type', 'all_clients');
+                }
+
+                $q->orWhere(function ($legacy) use ($user) {
+                    $legacy->whereNull('recipient_type')
+                        ->where(function ($old) use ($user) {
+                            $old->where('to_for', 'like', '%' . $user->name . '%')
+                                ->orWhere('to_for', 'like', '%All%')
+                                ->orWhere('to_for', 'like', '%Everyone%')
+                                ->orWhere('to_for', 'like', '%All Employees%');
+                        });
+                });
             });
 
             return;
@@ -698,6 +712,7 @@ class TownHallController extends Controller
         ) {
             $query->where(function ($q) use ($employee) {
                 $q->where('recipient_type', 'all')
+                    ->orWhere('recipient_type', 'all_users')
                     ->orWhere('recipient_user_id', $employee->id)
                     ->orWhereJsonContains('recipient_user_ids', $employee->id)
                     ->orWhere(function ($legacy) use ($employee) {
@@ -732,7 +747,21 @@ class TownHallController extends Controller
             Schema::hasColumn('townhall_communications', 'recipient_type')
             && Schema::hasColumn('townhall_communications', 'recipient_user_id')
         ) {
-            if ($communication->recipient_type === 'all') {
+            $role = strtolower(trim((string) $user->role));
+
+            if ($communication->recipient_type === 'all_users') {
+                return true;
+            }
+
+            if ($communication->recipient_type === 'all' && $role === 'employee') {
+                return true;
+            }
+
+            if ($communication->recipient_type === 'all_admins' && in_array($role, ['admin', 'superadmin', 'super admin', 'system super admin'], true)) {
+                return true;
+            }
+
+            if ($communication->recipient_type === 'all_clients' && in_array($role, ['client', 'customer'], true)) {
                 return true;
             }
 
@@ -744,6 +773,12 @@ class TownHallController extends Controller
 
             if (is_array($recipientIds) && in_array((int) $user->id, array_map('intval', $recipientIds), true)) {
                 return true;
+            }
+
+            // If this is a new structured recipient record and none of the rules above matched,
+            // do not fall through to legacy text matching. This prevents "All Clients" from being visible to all login users.
+            if (!is_null($communication->recipient_type)) {
+                return false;
             }
         }
 

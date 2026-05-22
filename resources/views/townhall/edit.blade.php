@@ -37,13 +37,6 @@
     previewCc: @js(old('cc', $communication->cc)),
     previewAdditional: @js(old('additional', $communication->additional)),
     syncRecipientFields() {
-        if (this.previewRecipientType === 'all') {
-            this.previewRecipientUserIds = [];
-            this.previewRecipientContactIds = [];
-            this.previewTo = 'All Employees';
-            return;
-        }
-
         const selectedUserIds = Array.isArray(this.previewRecipientUserIds)
             ? this.previewRecipientUserIds.map(id => String(id))
             : [];
@@ -60,10 +53,21 @@
             return selectedContactIds.includes(String(contact.id));
         });
 
-        this.previewTo = [
+        const groupLabels = {
+            all: 'All Employees',
+            all_admins: 'All Admins',
+            all_clients: 'All Clients',
+            all_users: 'All Users',
+            employee: ''
+        };
+
+        const names = [
+            groupLabels[this.previewRecipientType] || '',
             ...selectedUsers.map(user => user.name),
             ...selectedContacts.map(contact => contact.name)
-        ].join(', ');
+        ].filter(Boolean);
+
+        this.previewTo = [...new Set(names)].join(', ');
     },
     isRecipientUserSelected(id) {
         return this.previewRecipientUserIds
@@ -305,15 +309,18 @@
                                 class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500"
                             >
                                 <option value="all">All Employees</option>
+                                <option value="all_admins">All Admins</option>
+                                <option value="all_clients">All Clients</option>
+                                <option value="all_users">All Users</option>
                                 <option value="employee">Specific Recipients</option>
                             </select>
                         </div>
 
-<div x-show="previewRecipientType === 'employee'" x-cloak class="space-y-4">
-                                {{-- Selected Recipients --}}
+<div x-show="previewRecipientType !== ''" x-cloak class="space-y-4">
+                                {{-- Additional Specific Recipients --}}
                             <div>
                                     <label class="block text-xs font-semibold text-gray-500 mb-1">
-                                        Selected Recipients
+                                        Additional Specific Recipients
                                     </label>
 
                                     <div class="min-h-[42px] rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 flex flex-wrap gap-2">
