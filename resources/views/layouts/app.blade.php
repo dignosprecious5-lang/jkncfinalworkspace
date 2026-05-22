@@ -51,6 +51,8 @@
         $canSeeCrmModules = !$user->isClient();
 
         $canSeeAdminIcon =
+            $user->isSuperAdmin() ||
+            $user->isAdmin() ||
             $user->hasPermission('access_admin_dashboard') ||
             $user->hasPermission('approve_townhall') ||
             $user->hasPermission('manage_users');
@@ -59,6 +61,8 @@
 
         if ($user->hasPermission('manage_users')) {
             $adminLandingRoute = route('admin.users');
+        } elseif ($user->isSuperAdmin() || $user->isAdmin()) {
+            $adminLandingRoute = route('admin.finance.dashboard');
         } elseif ($user->hasPermission('access_admin_dashboard') || $user->hasPermission('approve_townhall')) {
             $adminLandingRoute = route('admin.dashboard');
         }
@@ -375,6 +379,14 @@
                                class="block px-3 py-2 rounded-lg transition
                                {{ request()->routeIs('admin.corporate.dashboard') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
                                 Corporate
+                            </a>
+                        @endif
+
+                        @if(Auth::user()->isSuperAdmin() || Auth::user()->isAdmin() || Auth::user()->hasPermission('manage_users'))
+                            <a href="{{ route('admin.finance.dashboard') }}"
+                               class="block px-3 py-2 rounded-lg transition
+                               {{ request()->routeIs('admin.finance.dashboard') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
+                                Finance
                             </a>
                         @endif
 
