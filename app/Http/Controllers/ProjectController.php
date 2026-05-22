@@ -1929,9 +1929,23 @@ class ProjectController extends Controller
     {
         $documents = [];
         if ($contactId > 0) {
-            $kycPath = 'contact-kyc-data/'.$contactId.'-requirements.json';
-            if (Storage::disk('local')->exists($kycPath)) {
-                $documents = json_decode((string) Storage::disk('local')->get($kycPath), true) ?: [];
+            $contact = Contact::query()->find($contactId);
+            if ($contact && Schema::hasColumn('contacts', 'kyc_requirement_documents')) {
+                $documents = (array) ($contact->kyc_requirement_documents ?? []);
+            }
+
+            if ($documents === []) {
+                $kycPaths = [
+                    'contact-kyc-data/'.$contactId.'-requirements.json',
+                    'contact-cif-data/'.$contactId.'-kyc-requirements.json',
+                ];
+
+                foreach ($kycPaths as $kycPath) {
+                    if (Storage::disk('local')->exists($kycPath)) {
+                        $documents = json_decode((string) Storage::disk('local')->get($kycPath), true) ?: [];
+                        break;
+                    }
+                }
             }
 
             $cifPath = 'contact-cif-data/'.$contactId.'-documents.json';
@@ -1982,9 +1996,21 @@ class ProjectController extends Controller
         $cifData = [];
 
         if ($contactId > 0) {
-            $cifPath = 'contact-cif-data/'.$contactId.'-data.json';
-            if (Storage::disk('local')->exists($cifPath)) {
-                $cifData = json_decode((string) Storage::disk('local')->get($cifPath), true) ?: [];
+            $contactRecord = $contact instanceof Contact ? $contact : Contact::query()->find($contactId);
+            if ($contactRecord && Schema::hasColumn('contacts', 'cif_data')) {
+                $cifData = (array) ($contactRecord->cif_data ?? []);
+            }
+
+            if ($cifData === []) {
+                foreach ([
+                    'contact-cif-data/'.$contactId.'.json',
+                    'contact-cif-data/'.$contactId.'-data.json',
+                ] as $cifPath) {
+                    if (Storage::disk('local')->exists($cifPath)) {
+                        $cifData = json_decode((string) Storage::disk('local')->get($cifPath), true) ?: [];
+                        break;
+                    }
+                }
             }
         }
 

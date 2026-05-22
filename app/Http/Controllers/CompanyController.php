@@ -310,7 +310,11 @@ class CompanyController extends Controller
 
     public function destroy(Request $request, int $company): RedirectResponse
     {
-        abort_unless($this->isAdminAutoApprover($request->user()), 403);
+        abort_unless(
+            $this->canDeleteCorporateRecord($request->user()),
+            403,
+            'You do not have permission to delete company records.'
+        );
 
         if (Schema::hasTable('companies')) {
             $record = Company::query()->find($company);
@@ -329,7 +333,11 @@ class CompanyController extends Controller
 
     public function bulkDelete(Request $request): RedirectResponse
     {
-        abort_unless($this->isAdminAutoApprover($request->user()), 403);
+        abort_unless(
+            $this->canDeleteCorporateRecord($request->user()),
+            403,
+            'You do not have permission to delete company records.'
+        );
 
         $validated = $request->validate([
             'selected_companies' => ['required', 'array', 'min:1'],
@@ -1764,6 +1772,18 @@ class CompanyController extends Controller
     private function isAdminAutoApprover(?User $user): bool
     {
         return $user !== null && ($user->isAdmin() || $user->isSuperAdmin());
+    }
+
+    private function canDeleteCorporateRecord(?User $user): bool
+    {
+        if (! $user) {
+            return false;
+        }
+
+        return $user->isAdmin()
+            || $user->isSuperAdmin()
+            || $user->hasPermission('approve_corporate')
+            || $user->hasPermission('access_admin_dashboard');
     }
 
     private function deleteCompanyRecord(Company $record): void

@@ -1,6 +1,15 @@
 @php
     $selectedCitizenshipType = old('citizenship_type', $cifData['citizenship_type'] ?? '');
     $selectedCivilStatus = old('civil_status', $cifData['civil_status'] ?? '');
+    $defaultClientSignatureName = trim(implode(' ', array_filter([
+        $contact->first_name,
+        $contact->middle_name,
+        $contact->last_name,
+        $contact->name_extension,
+    ]))) ?: 'Client';
+    $defaultClientSignaturePosition = $contact->position ?: 'Client';
+    $defaultReferredDate = optional($contact->created_at ?: $contact->business_date ?: $contact->intake_date)->toDateString() ?? '';
+    $defaultReferredBy = $contact->created_by ?: ($contact->owner_name ?: ($contact->referred_by ?: ''));
 @endphp
 
 <form method="POST" action="{{ route('contacts.cif.save', $contact->id) }}" class="space-y-5" data-cif-card-form>
@@ -66,16 +75,21 @@
                 <label class="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm"><input type="radio" name="gender" value="{{ $value }}" @checked(old('gender', $cifData['gender'] ?? '') === $value)> {{ $label }}</label>
             @endforeach
         </div>
-        <div class="grid gap-4 md:grid-cols-2">
+        <div class="space-y-4">
             <div>
                 <label class="mb-1 block text-sm font-medium text-gray-700">Civil Status</label>
-                <div class="grid gap-2 sm:grid-cols-2">
+                <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-[repeat(3,minmax(0,1fr))_minmax(260px,1.4fr)] lg:items-center">
                     @foreach (['single' => 'Single', 'separated' => 'Separated', 'widowed' => 'Widowed', 'married' => 'Married'] as $value => $label)
                         <label class="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm"><input type="radio" name="civil_status" value="{{ $value }}" @checked(old('civil_status', $cifData['civil_status'] ?? '') === $value)> {{ $label }}</label>
                     @endforeach
+                    <div class="lg:col-start-4 lg:row-start-2" data-spouse-row @if($selectedCivilStatus !== 'married') style="display:none;" @endif>
+                        <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+                            <label for="edit_spouse_name" class="shrink-0 text-sm font-medium text-gray-700">Spouse's Name</label>
+                            <input id="edit_spouse_name" name="spouse_name" value="{{ old('spouse_name', $cifData['spouse_name'] ?? '') }}" class="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm">
+                        </div>
+                    </div>
                 </div>
             </div>
-            <div data-spouse-row @if($selectedCivilStatus !== 'married') style="display:none;" @endif><label class="mb-1 block text-sm font-medium text-gray-700">Spouse's Name</label><input name="spouse_name" value="{{ old('spouse_name', $cifData['spouse_name'] ?? '') }}" class="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm"></div>
         </div>
     </section>
 
@@ -116,9 +130,9 @@
     <section class="rounded-lg border border-gray-200 p-4">
         <h3 class="mb-3 text-sm font-semibold text-gray-900">Acknowledgment / Signature Lines</h3>
         <div class="grid gap-4 md:grid-cols-2">
-            <div><label class="mb-1 block text-sm font-medium text-gray-700">Signature Name (Left)</label><input name="sig_name_left" value="{{ old('sig_name_left', $cifData['sig_name_left'] ?? '') }}" class="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm"></div>
+            <div><label class="mb-1 block text-sm font-medium text-gray-700">Signature Name (Left)</label><input name="sig_name_left" value="{{ old('sig_name_left', $cifData['sig_name_left'] ?? $defaultClientSignatureName) }}" class="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm"></div>
             <div><label class="mb-1 block text-sm font-medium text-gray-700">Signature Name (Right)</label><input name="sig_name_right" value="{{ old('sig_name_right', $cifData['sig_name_right'] ?? '') }}" class="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm"></div>
-            <div><label class="mb-1 block text-sm font-medium text-gray-700">Position (Left)</label><input name="sig_position_left" value="{{ old('sig_position_left', $cifData['sig_position_left'] ?? '') }}" class="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm"></div>
+            <div><label class="mb-1 block text-sm font-medium text-gray-700">Position (Left)</label><input name="sig_position_left" value="{{ old('sig_position_left', $cifData['sig_position_left'] ?? $defaultClientSignaturePosition) }}" class="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm"></div>
             <div><label class="mb-1 block text-sm font-medium text-gray-700">Position (Right)</label><input name="sig_position_right" value="{{ old('sig_position_right', $cifData['sig_position_right'] ?? '') }}" class="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm"></div>
         </div>
     </section>
@@ -138,8 +152,8 @@
     <section class="rounded-lg border border-gray-200 p-4">
         <h3 class="mb-3 text-sm font-semibold text-gray-900">Internal Footer</h3>
         <div class="grid gap-4 md:grid-cols-2">
-            <div><label class="mb-1 block text-sm font-medium text-gray-700">Referred By</label><input name="referred_by_footer" value="{{ old('referred_by_footer', $cifData['referred_by_footer'] ?? '') }}" class="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm"></div>
-            <div><label class="mb-1 block text-sm font-medium text-gray-700">Date</label><input type="date" name="referred_date" value="{{ old('referred_date', $cifData['referred_date'] ?? '') }}" class="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm"></div>
+            <div><label class="mb-1 block text-sm font-medium text-gray-700">Referred By</label><input name="referred_by_footer" value="{{ old('referred_by_footer', $cifData['referred_by_footer'] ?? $defaultReferredBy) }}" class="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm"></div>
+            <div><label class="mb-1 block text-sm font-medium text-gray-700">Date</label><input type="date" name="referred_date" value="{{ old('referred_date', $cifData['referred_date'] ?? $defaultReferredDate) }}" class="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm"></div>
             <div><label class="mb-1 block text-sm font-medium text-gray-700">Sales &amp; Marketing</label><input name="sales_marketing_footer" value="{{ old('sales_marketing_footer', $cifData['sales_marketing_footer'] ?? '') }}" class="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm"></div>
             <div><label class="mb-1 block text-sm font-medium text-gray-700">Finance</label><input name="finance_footer" value="{{ old('finance_footer', $cifData['finance_footer'] ?? '') }}" class="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm"></div>
             <div class="md:col-span-2"><label class="mb-1 block text-sm font-medium text-gray-700">President</label><input name="president_footer" value="{{ old('president_footer', $cifData['president_footer'] ?? '') }}" class="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm"></div>

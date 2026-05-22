@@ -77,6 +77,9 @@ class Contact extends Model
         'specimen_access_expires_at',
         'specimen_form_sent_to_email',
         'specimen_form_sent_at',
+        'cif_data',
+        'cif_documents',
+        'kyc_requirement_documents',
     ];
 
     protected $casts = [
@@ -96,6 +99,9 @@ class Contact extends Model
         'service_inquiry_types' => 'array',
         'recommendation_options' => 'array',
         'lead_source_channels' => 'array',
+        'cif_data' => 'array',
+        'cif_documents' => 'array',
+        'kyc_requirement_documents' => 'array',
     ];
 
     public function user()

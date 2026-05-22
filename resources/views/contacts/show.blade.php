@@ -13,8 +13,12 @@
     ];
 
     $status = $contact->kyc_status ?: 'Not Submitted';
-    $name = trim($contact->first_name.' '.$contact->last_name);
-    $initials = strtoupper(mb_substr($contact->first_name ?? '', 0, 1).mb_substr($contact->last_name ?? '', 0, 1));
+    $headerFirstName = $cifData['first_name'] ?? $contact->first_name ?? '';
+    $headerLastName = $cifData['last_name'] ?? $contact->last_name ?? '';
+    $name = trim(collect([$headerFirstName, $headerLastName])
+        ->filter(fn ($value) => filled(trim((string) $value)))
+        ->implode(' '));
+    $initials = strtoupper(mb_substr($headerFirstName, 0, 1).mb_substr($headerLastName, 0, 1));
     $contactCifNo = $contact->cif_no ?: ($cifData['cif_no'] ?? '-');
     $headerCompanyName = $contact->company_name ?: 'No company linked';
     $headerEmail = $contact->email ?: '-';
@@ -59,10 +63,10 @@
     <div class="border-b border-gray-200 px-6 py-3 text-sm text-gray-600">
         <a href="{{ route('contacts.index') }}" class="hover:text-blue-700"><i class="fas fa-arrow-left mr-1"></i>Contacts</a>
         <span class="mx-1">/</span>
-        <span class="font-medium text-gray-900">{{ $name }}</span>
+        <span id="contactHeaderBreadcrumb" class="font-medium text-gray-900">{{ $name }}</span>
     </div>
 
-    <div class="border-b border-gray-200 px-6 py-4">
+    <div id="contactHeaderSummary" class="border-b border-gray-200 px-6 py-4">
         <div class="flex flex-wrap items-center gap-5">
             <div class="flex h-28 w-28 items-center justify-center rounded-full bg-blue-100 text-3xl font-semibold text-blue-700">
                 {{ $initials ?: 'C' }}
@@ -105,6 +109,11 @@
                     {{ session('success') }}
                 </div>
             @endif
+            <div id="contactKycLiveFeedback" class="mb-4 hidden rounded-lg px-4 py-3 text-sm"></div>
+            <div id="contactKycLiveLink" class="mb-4 hidden rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+                <p id="contactKycLiveLinkLabel" class="font-medium"></p>
+                <p id="contactKycLiveLinkUrl" class="mt-1 break-all"></p>
+            </div>
 
             @if (session('contact_client_link'))
                 <div class="mb-4 rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
@@ -131,7 +140,7 @@
                                     <span class="text-sm text-amber-700">Request change to edit</span>
                                 @endif
                             </div>
-                            <div class="p-4">
+                            <div id="contactCifDocumentContent" class="p-4">
                                 @if ($cifEditMode)
                                     @include('contacts.partials.cif-document-edit', [
                                         'contact' => $contact,
@@ -205,7 +214,7 @@
                                     <h2 class="text-base font-semibold text-gray-900">KYC Information</h2>
                                     <button id="openContactIntakeModal" type="button" class="text-sm text-blue-600 hover:text-blue-700">View KYC Form</button>
                                 </div>
-                                <div class="space-y-4 px-4 py-4 text-sm">
+                                <div id="contactKycInfoCard" class="space-y-4 px-4 py-4 text-sm">
                                     <div>
                                         <p class="text-gray-500">CIF</p>
                                         <p id="kycCifValue" class="font-medium text-gray-900"></p>
@@ -248,7 +257,7 @@
                                                     Update the forms and requirements, then submit for verification again.
                                                 </p>
                                             @else
-                                                <form method="POST" action="{{ route('contacts.kyc.change-request', $contact->id) }}" class="space-y-2">
+                                                <form id="requestKycChangeForm" method="POST" action="{{ route('contacts.kyc.change-request', $contact->id) }}" class="space-y-2">
                                                     @csrf
                                                     <textarea name="change_request_note" rows="3" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" placeholder="Optional note for the admin reviewer"></textarea>
                                                     <button type="submit" class="h-10 w-full rounded-lg bg-blue-600 text-sm font-medium text-white hover:bg-blue-700">Request Change Information</button>
@@ -278,11 +287,11 @@
                                             </form>
                                         @endif
                                         @if ($changeRequestPending && $cifStatus === 'approved')
-                                            <form method="POST" action="{{ route('contacts.kyc.change-request.approve', $contact->id) }}">
+                                            <form id="approveKycChangeForm" method="POST" action="{{ route('contacts.kyc.change-request.approve', $contact->id) }}">
                                                 @csrf
                                                 <button type="submit" class="h-10 w-full rounded-lg bg-blue-600 text-sm font-medium text-white hover:bg-blue-700">Approve Change Request</button>
                                             </form>
-                                            <form method="POST" action="{{ route('contacts.kyc.change-request.reject', $contact->id) }}">
+                                            <form id="rejectKycChangeForm" method="POST" action="{{ route('contacts.kyc.change-request.reject', $contact->id) }}">
                                                 @csrf
                                                 <button type="submit" class="h-10 w-full rounded-lg bg-red-600 text-sm font-medium text-white hover:bg-red-700">Reject Change Request</button>
                                             </form>
@@ -853,6 +862,10 @@
                             let currentFiles = [];
                             let currentIndex = 0;
                             let currentDocs = [];
+                            const liveFeedback = document.getElementById('contactKycLiveFeedback');
+                            const liveLink = document.getElementById('contactKycLiveLink');
+                            const liveLinkLabel = document.getElementById('contactKycLiveLinkLabel');
+                            const liveLinkUrl = document.getElementById('contactKycLiveLinkUrl');
 
                             const node = (tag, className = '', text = null) => {
                                 const element = document.createElement(tag);
@@ -897,6 +910,87 @@
                                 }).replace(',', '').replace(' at', ' •'),
                             });
                             const allRequiredUploaded = () => requiredKycRequirementKeys.every((key) => kycRequirementState[key]?.complete === true);
+                            const showFeedback = (message, tone = 'success') => {
+                                if (!liveFeedback) return;
+                                const tones = {
+                                    success: 'border border-green-200 bg-green-50 text-green-700',
+                                    error: 'border border-red-200 bg-red-50 text-red-700',
+                                    warning: 'border border-amber-200 bg-amber-50 text-amber-800',
+                                };
+                                liveFeedback.className = `mb-4 rounded-lg px-4 py-3 text-sm ${tones[tone] || tones.success}`;
+                                liveFeedback.textContent = message || '';
+                                liveFeedback.classList.toggle('hidden', !message);
+                            };
+                            const showLink = (payload) => {
+                                if (!liveLink || !liveLinkLabel || !liveLinkUrl) return;
+                                if (!payload?.url) {
+                                    liveLink.classList.add('hidden');
+                                    liveLinkLabel.textContent = '';
+                                    liveLinkUrl.textContent = '';
+                                    return;
+                                }
+                                liveLinkLabel.textContent = payload.label || 'Generated link';
+                                liveLinkUrl.textContent = payload.url;
+                                liveLink.classList.remove('hidden');
+                            };
+                            const replaceHtmlIfPresent = (id, sourceDoc) => {
+                                const current = document.getElementById(id);
+                                const incoming = sourceDoc.getElementById(id);
+                                if (!current || !incoming) return;
+                                current.innerHTML = incoming.innerHTML;
+                            };
+                            const syncHeaderBadgeFromDom = (sourceDoc) => {
+                                const current = q('contactKycHeaderBadge');
+                                const incoming = sourceDoc.getElementById('contactKycHeaderBadge');
+                                if (!current || !incoming) return;
+                                current.className = incoming.className;
+                                current.textContent = incoming.textContent;
+                            };
+                            const refreshKycFragments = async () => {
+                                try {
+                                    const refreshUrl = new URL(window.location.href);
+                                    refreshUrl.searchParams.set('tab', 'kyc');
+                                    refreshUrl.searchParams.set('_ts', String(Date.now()));
+                                    const response = await fetch(refreshUrl.toString(), {
+                                        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                                        cache: 'no-store',
+                                    });
+                                    if (!response.ok) return;
+                                    const html = await response.text();
+                                    const parser = new DOMParser();
+                                    const doc = parser.parseFromString(html, 'text/html');
+                                    replaceHtmlIfPresent('contactHeaderSummary', doc);
+                                    replaceHtmlIfPresent('contactHeaderBreadcrumb', doc);
+                                    replaceHtmlIfPresent('contactCifDocumentContent', doc);
+                                    replaceHtmlIfPresent('contactKycInfoCard', doc);
+                                    syncHeaderBadgeFromDom(doc);
+                                } catch (error) {
+                                }
+                            };
+                            const submitJsonForm = async (form, options = {}) => {
+                                if (!form) return null;
+                                const response = await fetch(form.action, {
+                                    method: form.method || 'POST',
+                                    headers: {
+                                        'Accept': 'application/json',
+                                        'X-Requested-With': 'XMLHttpRequest',
+                                    },
+                                    body: new FormData(form),
+                                    cache: 'no-store',
+                                });
+
+                                if (response.status === 422) {
+                                    const payload = await response.json();
+                                    const firstError = Object.values(payload.errors || {}).flat()[0] || 'Please review the form.';
+                                    throw new Error(firstError);
+                                }
+
+                                if (!response.ok) {
+                                    throw new Error(options.fallbackError || 'Unable to complete the request right now.');
+                                }
+
+                                return response.json();
+                            };
 
                             const render = () => {
                                 q('kycCifValue').textContent = kyc.cif || '-';
@@ -1140,7 +1234,7 @@
                                 if (reasonField) {
                                     reasonField.value = reason;
                                 }
-                                q('rejectKycForm')?.submit();
+                                q('rejectKycForm')?.requestSubmit();
                             });
                             [q('kycEditModal'), q('documentModal'), q('documentViewModal'), q('rejectKycModal')].forEach((m) => {
                                 m.querySelector('[data-slideover-overlay]')?.addEventListener('click', () => close(m));
@@ -1151,7 +1245,115 @@
                                     if (!m.classList.contains('hidden')) close(m);
                                 });
                             });
+
+                            q('sendCifForm')?.addEventListener('submit', async (event) => {
+                                event.preventDefault();
+                                try {
+                                    const payload = await submitJsonForm(event.currentTarget, { fallbackError: 'Unable to send the CIF link.' });
+                                    showFeedback(payload.message, 'success');
+                                    showLink(payload.contact_client_link || null);
+                                    addLog(`Secure CIF link sent by ${mockUser}`);
+                                    render();
+                                    refreshKycFragments();
+                                    window.jkncSlideOver.close(document.getElementById('sendCifModal'));
+                                } catch (error) {
+                                    showFeedback(error.message, 'error');
+                                }
+                            });
+
+                            q('sendSpecimenForm')?.addEventListener('submit', async (event) => {
+                                event.preventDefault();
+                                try {
+                                    const payload = await submitJsonForm(event.currentTarget, { fallbackError: 'Unable to send the specimen link.' });
+                                    showFeedback(payload.message, 'success');
+                                    showLink(payload.contact_client_link || null);
+                                    addLog(`Secure specimen link sent by ${mockUser}`);
+                                    render();
+                                    refreshKycFragments();
+                                    window.jkncSlideOver.close(document.getElementById('sendSpecimenModal'));
+                                } catch (error) {
+                                    showFeedback(error.message, 'error');
+                                }
+                            });
+
+                            q('submitKycForVerificationForm')?.addEventListener('submit', async (event) => {
+                                event.preventDefault();
+                                try {
+                                    const payload = await submitJsonForm(event.currentTarget, { fallbackError: 'Unable to submit KYC for verification.' });
+                                    kyc = { ...kyc, ...(payload.kyc || {}) };
+                                    addLog(`KYC submitted for verification by ${mockUser}`);
+                                    showFeedback(payload.message, payload.warning ? 'warning' : 'success');
+                                    render();
+                                    refreshKycFragments();
+                                } catch (error) {
+                                    showFeedback(error.message, 'error');
+                                }
+                            });
+
+                            q('approveKycForm')?.addEventListener('submit', async (event) => {
+                                event.preventDefault();
+                                try {
+                                    const payload = await submitJsonForm(event.currentTarget, { fallbackError: 'Unable to approve this CIF.' });
+                                    kyc = { ...kyc, ...(payload.kyc || {}) };
+                                    addLog(`KYC approved by ${mockUser}`);
+                                    showFeedback(payload.message, 'success');
+                                    render();
+                                    refreshKycFragments();
+                                } catch (error) {
+                                    showFeedback(error.message, 'error');
+                                }
+                            });
+
+                            q('rejectKycForm')?.addEventListener('submit', async (event) => {
+                                event.preventDefault();
+                                try {
+                                    const payload = await submitJsonForm(event.currentTarget, { fallbackError: 'Unable to reject this CIF.' });
+                                    kyc = { ...kyc, ...(payload.kyc || {}) };
+                                    addLog(`KYC rejected by ${mockUser}`);
+                                    showFeedback(payload.message, 'success');
+                                    close(q('rejectKycModal'));
+                                    render();
+                                    refreshKycFragments();
+                                } catch (error) {
+                                    showFeedback(error.message, 'error');
+                                }
+                            });
+
+                            q('requestKycChangeForm')?.addEventListener('submit', async (event) => {
+                                event.preventDefault();
+                                try {
+                                    const payload = await submitJsonForm(event.currentTarget, { fallbackError: 'Unable to submit the change request.' });
+                                    showFeedback(payload.message, 'success');
+                                    refreshKycFragments();
+                                } catch (error) {
+                                    showFeedback(error.message, 'error');
+                                }
+                            });
+
+                            q('approveKycChangeForm')?.addEventListener('submit', async (event) => {
+                                event.preventDefault();
+                                try {
+                                    const payload = await submitJsonForm(event.currentTarget, { fallbackError: 'Unable to approve the change request.' });
+                                    showFeedback(payload.message, 'success');
+                                    refreshKycFragments();
+                                } catch (error) {
+                                    showFeedback(error.message, 'error');
+                                }
+                            });
+
+                            q('rejectKycChangeForm')?.addEventListener('submit', async (event) => {
+                                event.preventDefault();
+                                try {
+                                    const payload = await submitJsonForm(event.currentTarget, { fallbackError: 'Unable to reject the change request.' });
+                                    showFeedback(payload.message, 'success');
+                                    refreshKycFragments();
+                                } catch (error) {
+                                    showFeedback(error.message, 'error');
+                                }
+                            });
+
                             render();
+                            window.setInterval(refreshKycFragments, 10000);
                         });
 
                         window.addEventListener('load', function () {
@@ -2699,7 +2901,7 @@
         </div>
     </div>
 
-    <form method="POST" action="{{ route('contacts.cif.send', $contact->id) }}" class="flex min-h-0 flex-1 flex-col">
+    <form id="sendCifForm" method="POST" action="{{ route('contacts.cif.send', $contact->id) }}" class="flex min-h-0 flex-1 flex-col">
         @csrf
         <div class="flex-1 space-y-4 overflow-y-auto px-4 py-4 sm:px-6">
             <div class="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800">
@@ -2737,7 +2939,7 @@
         </div>
     </div>
 
-    <form method="POST" action="{{ route('contacts.specimen.send', $contact->id) }}" class="flex min-h-0 flex-1 flex-col">
+    <form id="sendSpecimenForm" method="POST" action="{{ route('contacts.specimen.send', $contact->id) }}" class="flex min-h-0 flex-1 flex-col">
         @csrf
         <div class="flex-1 space-y-4 overflow-y-auto px-4 py-4 sm:px-6">
             <div class="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800">

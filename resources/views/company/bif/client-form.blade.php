@@ -1,5 +1,5 @@
 @php
-    $companyName = $company->company_name ?: 'Client';
+    $companyName = old('business_name', $bif->business_name ?: $company->company_name ?: 'Client');
     $selectedOrganization = old('business_organization', $bif->business_organization);
     $showSoleRequirements = $selectedOrganization === 'sole_proprietorship';
     $showJuridicalRequirements = in_array($selectedOrganization, ['partnership', 'corporation', 'cooperative', 'ngo', 'other'], true);
@@ -16,6 +16,7 @@
 <body class="bg-[#eef4ff] text-slate-900">
     <div class="min-h-screen py-8">
         <div class="mx-auto max-w-6xl px-4">
+            <div id="clientBifLiveFeedback" class="mb-4 hidden border px-4 py-3 text-sm"></div>
             @if (session('bif_success'))
                 <div class="mb-4 border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
                     {{ session('bif_success') }}
@@ -39,7 +40,7 @@
                     <div class="space-y-6">
                         <img src="{{ asset('images/imaglogo.png') }}" alt="John Kelly and Company" class="h-12 w-auto object-contain">
                         <div class="space-y-6 text-slate-900">
-                            <p class="text-xl leading-relaxed">Dear <span class="font-semibold">{{ $companyName }}</span>,</p>
+                            <p class="text-xl leading-relaxed">Dear <span class="font-semibold" data-company-name-heading>{{ $companyName }}</span>,</p>
                             <p class="text-xl leading-relaxed">Good day.</p>
                             <p class="max-w-2xl text-[2.2rem] font-semibold leading-[1.18]">
                                 To get things started smoothly, we kindly ask you to complete your Business Information Form (BIF).
@@ -64,7 +65,7 @@
                 </div>
             </section>
 
-            <form method="POST" action="{{ $clientFormAction }}" enctype="multipart/form-data" class="space-y-5 border-x border-b border-slate-300 bg-white px-4 py-5 md:px-6">
+            <form id="clientBifForm" method="POST" action="{{ $clientFormAction }}" enctype="multipart/form-data" class="space-y-5 border-x border-b border-slate-300 bg-white px-4 py-5 md:px-6">
                 @csrf
 
                 <section class="border border-slate-300 bg-white p-5">
@@ -289,18 +290,41 @@
 
     <script>
         (function () {
+            const form = document.getElementById('clientBifForm');
             const organizationSelect = document.getElementById('business_organization');
             const soleRequirementsCard = document.getElementById('soleRequirementsCard');
             const juridicalRequirementsCard = document.getElementById('juridicalRequirementsCard');
             const soleUploads = document.getElementById('soleUploads');
             const juridicalUploads = document.getElementById('juridicalUploads');
             const placeholder = document.getElementById('requirementsPlaceholder');
+            const feedback = document.getElementById('clientBifLiveFeedback');
+            const companyNameHeading = form?.querySelector('[data-company-name-heading]');
 
-            if (!organizationSelect || !soleRequirementsCard || !juridicalRequirementsCard || !soleUploads || !juridicalUploads || !placeholder) {
+            if (!form || !organizationSelect || !soleRequirementsCard || !juridicalRequirementsCard || !soleUploads || !juridicalUploads || !placeholder) {
                 return;
             }
 
+            const showFeedback = (message, tone = 'success') => {
+                if (!feedback) return;
+                const tones = {
+                    success: 'border-green-200 bg-green-50 text-green-700',
+                    error: 'border-red-200 bg-red-50 text-red-700',
+                };
+                feedback.className = `mb-4 border px-4 py-3 text-sm ${tones[tone] || tones.success}`;
+                feedback.textContent = message || '';
+                feedback.classList.toggle('hidden', !message);
+            };
+
             const juridicalTypes = new Set(['partnership', 'corporation', 'cooperative', 'ngo', 'other']);
+
+            const syncCompanyNameHeading = () => {
+                if (!companyNameHeading) return;
+
+                const businessName = form.querySelector('[name="business_name"]')?.value?.trim() || '';
+                const fallbackName = @js($companyName);
+
+                companyNameHeading.textContent = businessName || fallbackName || 'Client';
+            };
 
             const syncRequirementCards = () => {
                 const value = organizationSelect.value;
@@ -315,7 +339,43 @@
             };
 
             organizationSelect.addEventListener('change', syncRequirementCards);
+            form.querySelector('[name="business_name"]')?.addEventListener('input', syncCompanyNameHeading);
+            form.addEventListener('submit', async (event) => {
+                event.preventDefault();
+                showFeedback('');
+
+                try {
+                    const response = await fetch(form.action, {
+                        method: 'POST',
+                        headers: {
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                        body: new FormData(form),
+                        cache: 'no-store',
+                    });
+
+                    if (response.status === 422) {
+                        const payload = await response.json();
+                        const firstError = Object.values(payload.errors || {}).flat()[0] || 'Please review the form.';
+                        throw new Error(firstError);
+                    }
+
+                    if (!response.ok) {
+                        throw new Error('Unable to submit the Business Information Form right now.');
+                    }
+
+                    const payload = await response.json();
+                    showFeedback(payload.message || 'Your Business Information Form has been submitted successfully.', 'success');
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                    syncCompanyNameHeading();
+                } catch (error) {
+                    showFeedback(error.message, 'error');
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                }
+            });
             syncRequirementCards();
+            syncCompanyNameHeading();
         })();
     </script>
 </body>

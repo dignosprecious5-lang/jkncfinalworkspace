@@ -5,6 +5,9 @@
     $hasFund = static fn (string $value): bool => in_array($value, $cifData['source_of_funds'] ?? [], true);
     $citizenshipType = $cifData['citizenship_type'] ?? '';
     $showForeignSections = in_array($citizenshipType, ['foreigner', 'dual_citizen'], true);
+    $spouseName = trim((string) ($cifData['spouse_name'] ?? ''));
+    $referredByFooter = trim((string) ($cifData['referred_by_footer'] ?? ''));
+    $referredDate = trim((string) ($cifData['referred_date'] ?? ''));
 @endphp
 
 <style>
@@ -25,6 +28,9 @@
     .cif-doc-inline { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 3px 8px; padding-top: 2px; font-size: 8px; line-height: 1.05; }
     .cif-doc-inline-compact { display: flex; flex-wrap: wrap; gap: 3px 10px; padding-top: 2px; font-size: 8px; line-height: 1.05; }
     .cif-doc-inline-two { display: grid; grid-template-columns: repeat(2, minmax(120px, 1fr)); gap: 4px 14px; padding-top: 2px; font-size: 8px; line-height: 1.05; align-content: start; }
+    .cif-doc-inline-field { display: flex; align-items: center; gap: 6px; padding-top: 4px; font-size: 8px; line-height: 1.05; }
+    .cif-doc-inline-field-label { font-weight: 700; white-space: nowrap; }
+    .cif-doc-inline-field-value { flex: 1 1 auto; min-width: 0; border-bottom: 1px solid #334155; padding: 0 0 1px; font-size: 9px; line-height: 1.05; }
     .cif-doc-mark { display: inline-flex; width: 12px; height: 12px; align-items: center; justify-content: center; border: 1px solid #334155; border-radius: 2px; background: #fff; margin-right: 4px; }
     .cif-doc-mark.active { border-color: #1d54e2; background: #1d54e2; box-shadow: inset 0 0 0 2px #1d54e2; }
     .cif-doc-section { border-bottom: 1.05px solid #334155; padding: 3px 6px; background: #102d79; color: #ffffff; font-size: 9px; font-weight: 700; text-align: center; text-transform: uppercase; letter-spacing: 0.02em; }
@@ -119,7 +125,10 @@
                 <span><span class="cif-doc-mark {{ $checked(($cifData['civil_status'] ?? '') === 'married') }}"></span>Married</span>
             </div>
             @if (($cifData['civil_status'] ?? '') === 'married')
-                <div class="cif-doc-value" style="padding-top:4px;">Spouse's Name: {{ $text('spouse_name', '') }}</div>
+                <div class="cif-doc-inline-field">
+                    <span class="cif-doc-inline-field-label">Spouse's Name</span>
+                    <span class="cif-doc-inline-field-value">{{ $spouseName !== '' ? $spouseName : ' ' }}</span>
+                </div>
             @endif
         </div>
     </div>
@@ -203,7 +212,7 @@
         <div class="cif-doc-cell cif-doc-sign-cell doc-col-6" style="min-height:72px;">
             <div class="cif-doc-sign-fill">
                 <span class="cif-doc-label">Referred By / Date</span>
-                <span class="cif-doc-value">{{ $text('referred_by_footer', '') }}{{ filled($cifData['referred_date'] ?? null) ? ' / '.$cifData['referred_date'] : '' }}</span>
+                <span class="cif-doc-value">{{ $referredByFooter }}{{ $referredDate !== '' ? ' / '.$referredDate : '' }}</span>
             </div>
             <div class="cif-doc-sign"><span>Signature over Printed Name</span></div>
         </div>
