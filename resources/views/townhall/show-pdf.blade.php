@@ -256,14 +256,12 @@
             <div class="prepared-by">Prepared by:</div>
 
             <div class="signature-block">
-                <div class="signature-line"></div>
                 <div><strong>{{ $communication->from_name ?: '—' }}</strong></div>
             </div>
 
             <div class="approved-by">Approved by:</div>
 
             <div class="signature-block">
-                <div class="signature-line"></div>
                 <div><strong>John Kelly D. Abalde</strong></div>
                 <div>President and CEO</div>
             </div>

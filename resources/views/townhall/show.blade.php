@@ -101,15 +101,11 @@
 
                     <div class="prepared-block memo-content-inset">
                         <p class="prepared-label">Prepared by:</p>
-
-                        <div class="signature-line"></div>
                         <p class="prepared-name">{{ $communication->from_name ?: '—' }}</p>
                     </div>
 
                     <div class="approved-block memo-content-inset">
                         <p class="prepared-label">Approved by:</p>
-
-                        <div class="signature-line"></div>
                         <p class="prepared-name">John Kelly D. Abalde</p>
                         <p class="prepared-role">President and CEO</p>
                     </div>

@@ -953,14 +953,12 @@ function buildMemoFooter(data, isLastPage) {
                         </p>
 
                         <div style="margin-top:20px;">
-                            <p style="margin:0 0 36px 0;">Prepared by:</p>
-                            <div style="width:240px;border-bottom:1px solid #374151;margin-bottom:4px;"></div>
+                            <p style="margin:0 0 8px 0;">Prepared by:</p>
                             <p style="margin:0;font-weight:600;line-height:1.2;">${escapeHtml(data.from)}</p>
                         </div>
 
                         <div style="margin-top:34px;">
-                            <p style="margin:0 0 36px 0;">Approved by:</p>
-                            <div style="width:240px;border-bottom:1px solid #374151;margin-bottom:4px;"></div>
+                            <p style="margin:0 0 8px 0;">Approved by:</p>
                             <p style="margin:0;font-weight:600;line-height:1.2;">John Kelly D. Abalde</p>
                             <p style="margin:0;line-height:1.2;">President and CEO</p>
                         </div>

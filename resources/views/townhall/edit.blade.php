@@ -134,13 +134,11 @@
                     <div class="mt-16 space-y-10 text-[14px] text-gray-800">
                         <div>
                             <p>Prepared by:</p>
-                            <div class="mt-12 border-b border-gray-400 w-[260px]"></div>
                             <p class="mt-2 font-semibold" x-text="previewFrom || '________________'"></p>
                         </div>
 
                         <div>
                             <p>Approved by:</p>
-                            <div class="mt-12 border-b border-gray-400 w-[260px]"></div>
                             <p class="mt-2 font-semibold">John Kelly D. Abalde</p>
                             <p>President and CEO</p>
                         </div>
