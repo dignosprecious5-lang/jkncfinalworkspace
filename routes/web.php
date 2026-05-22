@@ -494,6 +494,7 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::get('/company', [CompanyController::class, 'index'])->name('company.index');
     Route::post('/company', [CompanyController::class, 'store'])->name('company.store');
     Route::post('/company/custom-fields', [CompanyController::class, 'storeCustomField'])->name('company.custom-fields.store');
+    Route::delete('/company/bulk-delete', [CompanyController::class, 'bulkDelete'])->name('company.bulk-delete');
     Route::match(['put', 'patch'], '/company/{company}', [CompanyController::class, 'update'])->name('company.update');
     Route::delete('/company/{company}', [CompanyController::class, 'destroy'])->name('company.destroy');
     Route::get('/company/{company}', [CompanyController::class, 'show'])->name('company.show');

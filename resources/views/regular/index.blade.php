@@ -119,6 +119,14 @@
             </button>
         </div>
 
+        @if (!empty($catalogWarnings ?? []))
+            <div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                @foreach ($catalogWarnings as $warning)
+                    <p>{{ $warning }}</p>
+                @endforeach
+            </div>
+        @endif
+
         <div class="mb-6 grid gap-3 xl:grid-cols-5">
             <div class="rounded-2xl border border-gray-200 bg-white px-5 py-5 shadow-sm">
                 <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">All Regular</p>

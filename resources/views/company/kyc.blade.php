@@ -5,6 +5,9 @@
 @php
     $canReviewKyc = in_array((string) (auth()->user()->role ?? ''), ['Admin', 'SuperAdmin'], true);
     $canManageRequirementDocs = ! $canReviewKyc;
+    $bifStatus = strtolower((string) ($bif?->status ?? ''));
+    $bifApproved = $bifStatus === 'approved';
+    $bifPendingApproval = $bifStatus === 'pending_approval';
 @endphp
 <div class="w-full px-4 sm:px-6 lg:px-8 mt-4 pb-8">
     <div class="bg-white border border-gray-100 rounded-md overflow-hidden">
@@ -237,25 +240,29 @@
                                         </form>
                                     @endif
 
-                                    <form method="POST" action="{{ route('company.kyc.approve', $company->id) }}">
-                                        @csrf
-                                        <button type="submit" class="h-10 w-full rounded-lg bg-green-600 text-sm font-medium text-white {{ $canReviewDecision ? 'hover:bg-green-700' : 'cursor-not-allowed opacity-60' }}" @disabled(! $canReviewDecision)>Approve</button>
-                                    </form>
+                                    @if ($bifApproved)
+                                        <button type="button" class="h-10 w-full rounded-lg border border-green-200 bg-green-100 text-sm font-medium text-green-700 cursor-not-allowed" disabled>Approved</button>
+                                    @else
+                                        <form method="POST" action="{{ route('company.kyc.approve', $company->id) }}">
+                                            @csrf
+                                            <button type="submit" class="h-10 w-full rounded-lg bg-green-600 text-sm font-medium text-white {{ $canReviewDecision ? 'hover:bg-green-700' : 'cursor-not-allowed opacity-60' }}" @disabled(! $canReviewDecision)>Approve</button>
+                                        </form>
 
-                                    <form method="POST" action="{{ route('company.kyc.reject', $company->id) }}" class="space-y-2">
-                                        @csrf
-                                        <button type="submit" class="h-10 w-full rounded-lg bg-red-600 text-sm font-medium text-white {{ $canReviewDecision ? 'hover:bg-red-700' : 'cursor-not-allowed opacity-60' }}" @disabled(! $canReviewDecision)>Reject</button>
-                                    </form>
-                                    @if (! $canReviewDecision)
+                                        <form method="POST" action="{{ route('company.kyc.reject', $company->id) }}" class="space-y-2">
+                                            @csrf
+                                            <button type="submit" class="h-10 w-full rounded-lg bg-red-600 text-sm font-medium text-white {{ $canReviewDecision ? 'hover:bg-red-700' : 'cursor-not-allowed opacity-60' }}" @disabled(! $canReviewDecision)>Reject</button>
+                                        </form>
+                                    @endif
+                                    @if (! $canReviewDecision && ! $bifApproved)
                                         <p class="text-xs text-gray-500">Approve/Reject is enabled only after user submits for verification.</p>
                                     @endif
                                 @else
                                     @if ($bif && $bif->change_request_status === 'pending')
                                         <button type="button" class="h-10 w-full rounded-lg bg-amber-500 text-sm font-medium text-white cursor-not-allowed opacity-80" disabled>Waiting For Admin Decision</button>
-                                    @elseif ($bif && $bif->status === 'approved')
+                                    @elseif ($bifApproved)
                                         <button type="button" class="h-10 w-full rounded-lg border border-green-200 bg-green-100 text-sm font-medium text-green-700 cursor-not-allowed" disabled>Approved</button>
                                         <a href="{{ route('company.bif.edit', ['company' => $company->id, 'bif' => $bif->id]) }}" class="inline-flex h-10 w-full items-center justify-center rounded-lg bg-blue-600 text-sm font-medium text-white hover:bg-blue-700">Request BIF Changes</a>
-                                    @elseif ($bif && $bif->status === 'pending_approval')
+                                    @elseif ($bifPendingApproval)
                                         <button type="button" class="h-10 w-full rounded-lg bg-slate-500 text-sm font-medium text-white cursor-not-allowed opacity-80" disabled>Submitted For Approval</button>
                                     @else
                                         <form method="POST" action="{{ route('company.kyc.submit', $company->id) }}">

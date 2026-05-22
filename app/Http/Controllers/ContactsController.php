@@ -362,11 +362,11 @@ class ContactsController extends Controller
             'email' => $validated['email'] ?? null,
             'phone' => $validated['mobile_number'] ?? null,
             'description' => $validated['inquiry'] ?? ($validated['description'] ?? null),
-            'kyc_status' => $isAdminAutoApprover ? 'Verified' : 'Not Submitted',
-            'cif_status' => $isAdminAutoApprover ? 'approved' : 'draft',
+            'kyc_status' => $isAdminAutoApprover ? 'Pending Verification' : 'Not Submitted',
+            'cif_status' => $isAdminAutoApprover ? 'pending' : 'draft',
             'cif_submitted_at' => $isAdminAutoApprover ? now() : null,
-            'cif_reviewed_at' => $isAdminAutoApprover ? now() : null,
-            'cif_reviewed_by' => $isAdminAutoApprover ? ($request->user()?->name ?? null) : null,
+            'cif_reviewed_at' => null,
+            'cif_reviewed_by' => null,
             'cif_rejection_reason' => null,
             'created_by' => $request->user()?->name ?? ($owner['name'] ?? 'Admin User'),
             'owner_name' => $owner['name'],
@@ -393,10 +393,10 @@ class ContactsController extends Controller
         if ($isAdminAutoApprover) {
             ContactHistoryLogger::log($contact->id, [
                 'type' => 'kyc',
-                'title' => 'KYC auto-approved',
-                'description' => 'Client Information Form was auto-approved by admin during contact creation',
+                'title' => 'KYC queued for approval',
+                'description' => 'Client Information Form created by admin and routed directly for approval review',
                 'extra_label' => 'Status',
-                'extra_value' => 'Verified',
+                'extra_value' => 'Pending Verification',
                 'user_name' => $request->user()?->name ?? ($owner['name'] ?? 'System'),
                 'user_initials' => $this->initialsForHistory($request->user()?->name ?? ($owner['name'] ?? 'System')),
             ]);
@@ -404,7 +404,7 @@ class ContactsController extends Controller
 
         return redirect()
             ->route('contacts.index')
-            ->with('success', $isAdminAutoApprover ? 'Contact created and auto-approved successfully.' : 'Contact created successfully.');
+            ->with('success', $isAdminAutoApprover ? 'Contact created and sent for approval. You can approve or reject it now.' : 'Contact created successfully.');
     }
 
     public function bulkDelete(Request $request): RedirectResponse
@@ -1447,7 +1447,7 @@ class ContactsController extends Controller
 
     public function downloadCif(Request $request, string $contact): View
     {
-        $contactModel = Contact::query()->find($contact) ?: ((string) $contact === '101' ? $this->mockContact() : null);
+        $contactModel = Contact::query()->find($contact);
         abort_unless($contactModel, 404);
 
         return view('contacts.cif-preview', [
@@ -1911,26 +1911,20 @@ class ContactsController extends Controller
 
     private function ownerOptions(): array
     {
-        $users = User::query()
+        if (! Schema::hasTable('users')) {
+            return [];
+        }
+
+        return User::query()
             ->select(['id', 'name', 'email'])
             ->orderBy('name')
             ->get()
             ->map(fn (User $user) => [
                 'id' => (int) $user->id,
                 'name' => $user->name,
-                'email' => $user->email ?: strtolower(str_replace(' ', '.', $user->name)).'@example.com',
+                'email' => $user->email,
             ])
             ->all();
-
-        if (! empty($users)) {
-            return $users;
-        }
-
-        return [
-            ['id' => 1001, 'name' => 'John Admin', 'email' => 'john.admin@example.com'],
-            ['id' => 1002, 'name' => 'AdminUser', 'email' => 'admin.user@example.com'],
-            ['id' => 1003, 'name' => 'Shine Florence Padillo', 'email' => 'shinepadi@gmail.com'],
-        ];
     }
 
     private function fieldTypes(): array
@@ -1976,13 +1970,10 @@ class ContactsController extends Controller
         if (Storage::disk('local')->exists($path)) {
             $stored = json_decode((string) Storage::disk('local')->get($path), true) ?: [];
 
-            return $this->applyContactBackedCifFallbacks($contact, [
-                ...$this->defaultCifData($contact),
-                ...$stored,
-            ]);
+            return $this->applyContactBackedCifFallbacks($contact, $stored);
         }
 
-        return $this->applyContactBackedCifFallbacks($contact, $this->defaultCifData($contact));
+        return $this->applyContactBackedCifFallbacks($contact, []);
     }
 
     private function relatedCompaniesForContact(Contact $contact, string $search = ''): array
@@ -2107,84 +2098,12 @@ class ContactsController extends Controller
         return $company?->latestBif?->bif_no;
     }
 
-    private function defaultCifData(Contact $contact): array
-    {
-        $contactCreatedDate = optional($contact->business_date ?: $contact->intake_date ?: $contact->created_at)->toDateString() ?? now()->toDateString();
-
-        return [
-            'cif_date' => $contactCreatedDate,
-            'cif_no' => $contact->cif_no ?: ($contact->id ? $this->generateCifNumber($contact) : ''),
-            'is_new_client' => true,
-            'is_existing_client' => false,
-            'is_change_information' => false,
-            'name_extension' => '',
-            'no_middle_name' => false,
-            'only_first_name' => false,
-            'present_address_line1' => $contact->contact_address,
-            'present_address_line2' => '',
-            'zip_code' => '',
-            'date_of_birth' => optional($contact->date_of_birth)->toDateString() ?? '',
-            'place_of_birth' => '',
-            'citizenship_nationality' => '',
-            'citizenship_type' => '',
-            'gender' => $this->normalizeContactGender($contact->sex),
-            'civil_status' => '',
-            'spouse_name' => '',
-            'nature_of_work_business' => $contact->position,
-            'tin' => $contact->tin ?? '',
-            'other_government_id' => '',
-            'id_number' => '',
-            'mothers_maiden_name' => '',
-            'source_of_funds' => [],
-            'source_of_funds_other_text' => '',
-            'foreigner_passport_no' => '',
-            'foreigner_passport_expiry_date' => '',
-            'foreigner_passport_place_of_issue' => '',
-            'foreigner_acr_id_no' => '',
-            'foreigner_acr_expiry_date' => '',
-            'foreigner_acr_place_of_issue' => '',
-            'visa_status' => '',
-            'onboarding_two_valid_ids' => false,
-            'onboarding_tin_id' => false,
-            'onboarding_authorized_signatory_card' => false,
-            'referred_by_footer' => $contact->referred_by,
-            'referred_date' => '',
-            'sales_marketing_footer' => '',
-            'finance_footer' => '',
-            'president_footer' => '',
-            'sig_name_left' => '',
-            'sig_position_left' => '',
-            'sig_name_right' => '',
-            'sig_position_right' => '',
-            'first_name' => $contact->first_name,
-            'middle_name' => $contact->middle_name,
-            'last_name' => $contact->last_name,
-            'name_extension' => $contact->name_extension,
-            'email' => $contact->email,
-            'mobile' => $contact->phone,
-            'owner_name' => $contact->owner_name,
-            'kyc_status' => $contact->kyc_status,
-            'date_verified' => '',
-            'verified_by' => '',
-            'remarks' => '',
-            'change_request_status' => '',
-            'change_request_note' => '',
-            'change_requested_at' => '',
-            'change_requested_by' => '',
-            'change_reviewed_at' => '',
-            'change_reviewed_by' => '',
-            'change_rejection_reason' => '',
-            'cif_document_issued_on' => '',
-            'cif_document_issued_by' => '',
-        ];
-    }
-
     private function applyContactBackedCifFallbacks(Contact $contact, array $cifData): array
     {
         $contactCreatedDate = optional($contact->business_date ?: $contact->intake_date ?: $contact->created_at)->toDateString() ?? now()->toDateString();
         $contactBackedFields = [
             'cif_date' => $contactCreatedDate,
-            'cif_no' => $contact->cif_no ?: ($contact->id ? $this->generateCifNumber($contact) : ''),
+            'cif_no' => $contact->cif_no,
             'first_name' => $contact->first_name,
             'middle_name' => $contact->middle_name,
             'last_name' => $contact->last_name,

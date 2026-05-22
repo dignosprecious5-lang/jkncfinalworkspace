@@ -2,120 +2,195 @@
 @section('title', $service->service_name)
 
 @section('content')
-<div class="w-full px-4 sm:px-6 lg:px-8 mt-4 pb-8">
-    <section class="bg-gray-50 min-h-[560px]">
-        <div class="rounded-md border border-gray-200 bg-white overflow-hidden shadow-sm">
-            <div class="border-b border-gray-100 px-4 py-4">
-                <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    <div>
-                        <a href="{{ route('services.index') }}" class="inline-flex items-center gap-2 text-sm font-medium text-gray-500 hover:text-gray-700">
-                            <i class="fas fa-arrow-left text-xs"></i>
-                            <span>Services</span>
-                        </a>
-                        <h1 class="mt-3 text-2xl font-bold tracking-tight text-gray-900">{{ $service->service_name }}</h1>
-                        <p class="mt-1 text-sm text-gray-500">Structured service details{{ $company ? ' for ' . $company->company_name : '' }}.</p>
-                    </div>
-                    @if ($company)
-                        <a href="{{ route('company.services.index', $company->id) }}" class="inline-flex h-9 items-center rounded-full border border-gray-200 px-4 text-sm font-medium text-gray-700 hover:bg-gray-50">
-                            Open Company View
-                        </a>
-                    @endif
-                </div>
-            </div>
+@php
+    $priceLabel = $service->rate_per_unit
+        ? number_format((float) $service->rate_per_unit, 2).($service->unit ? ' / '.$service->unit : '')
+        : ($service->price_fee ? number_format((float) $service->price_fee, 2) : null);
+    $customFieldValues = $service->custom_field_values ?? [];
+    $backRoute = $backRoute ?? route('services.index');
+    $backLabel = $backLabel ?? 'Back to Services';
+    $lastModifiedLabel = 'Last Modified on '.($service->updated_at?->format('M d, h:i A') ?? '-');
+@endphp
 
-            <div class="p-4">
-                <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                    <div class="rounded-md border border-gray-200 bg-gray-50 px-4 py-3">
-                        <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Assigned Unit</p>
-                        <p class="mt-2 text-sm font-semibold text-gray-900">{{ $service->assigned_unit ?: '-' }}</p>
-                        <p class="mt-1 text-sm text-gray-500">{{ $service->frequency ?: '-' }}</p>
-                    </div>
-                    <div class="rounded-md border border-gray-200 bg-gray-50 px-4 py-3">
-                        <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Status</p>
-                        @php($statusClasses = match($service->status) {
-                            'Active' => 'border-emerald-200 bg-emerald-50 text-emerald-700',
-                            'Pending Approval' => 'border-amber-200 bg-amber-50 text-amber-700',
-                            'Draft' => 'border-slate-200 bg-slate-50 text-slate-700',
-                            'Completed' => 'border-blue-200 bg-blue-50 text-blue-700',
-                            'On Hold' => 'border-violet-200 bg-violet-50 text-violet-700',
-                            default => 'border-red-200 bg-red-50 text-red-700',
-                        })
-                        <span class="mt-2 inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium {{ $statusClasses }}">{{ $service->status }}</span>
-                        <p class="mt-2 text-sm text-gray-500">Last updated {{ optional($service->updated_at)->format('M d, Y h:i A') }}</p>
-                    </div>
-                </div>
-
-                <div class="mt-4 rounded-md border border-gray-200 bg-white">
-                    <dl class="grid grid-cols-1 gap-x-6 gap-y-4 p-4 text-sm sm:grid-cols-2 lg:grid-cols-3">
-                        <div>
-                            <dt class="font-medium text-gray-500">Category</dt>
-                            <dd class="mt-1 text-gray-900">{{ $service->category }}</dd>
-                        </div>
-                        <div>
-                            <dt class="font-medium text-gray-500">Service ID</dt>
-                            <dd class="mt-1 text-gray-900">{{ $service->service_id }}</dd>
-                        </div>
-                        <div>
-                            <dt class="font-medium text-gray-500">Service Area</dt>
-                            <dd class="mt-1 text-gray-900">{{ implode(', ', $service->service_area ?? []) ?: '-' }}</dd>
-                        </div>
-                        <div>
-                            <dt class="font-medium text-gray-500">Engagement Structure</dt>
-                            <dd class="mt-1 text-gray-900">{{ implode(', ', $service->engagement_structure ?? []) ?: '-' }}</dd>
-                        </div>
-                        <div>
-                            <dt class="font-medium text-gray-500">Unit</dt>
-                            <dd class="mt-1 text-gray-900">{{ $service->unit ?: '-' }}</dd>
-                        </div>
-                        <div>
-                            <dt class="font-medium text-gray-500">Rate / Price</dt>
-                            <dd class="mt-1 text-gray-900">{{ $service->rate_per_unit ? number_format((float) $service->rate_per_unit, 2) . ' / ' . $service->unit : ($service->price_fee ? number_format((float) $service->price_fee, 2) : '-') }}</dd>
-                        </div>
-                        <div>
-                            <dt class="font-medium text-gray-500">Deadline</dt>
-                            <dd class="mt-1 text-gray-900">{{ $service->deadline ? $service->deadline->format('M d, Y h:i A') : '-' }}</dd>
-                        </div>
-                    </dl>
-                </div>
-
-                <div class="mt-4 rounded-md border border-gray-200 bg-white p-4">
-                    <h2 class="text-sm font-semibold uppercase tracking-wide text-gray-500">Description</h2>
-                    <p class="mt-3 text-sm leading-6 text-gray-700">{{ $service->service_description }}</p>
-                    <h2 class="mt-4 text-sm font-semibold uppercase tracking-wide text-gray-500">Activity / Output</h2>
-                    <p class="mt-3 text-sm leading-6 text-gray-700">{{ $service->service_activity_output }}</p>
-                </div>
-
-                <div class="mt-4 rounded-md border border-gray-200 bg-white p-4">
-                    <h2 class="text-sm font-semibold uppercase tracking-wide text-gray-500">System Info</h2>
-                    <dl class="mt-3 grid grid-cols-1 gap-x-6 gap-y-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
-                        <div>
-                            <dt class="font-medium text-gray-500">Created By</dt>
-                            <dd class="mt-1 text-gray-900">{{ $service->creator?->name ?: '-' }}</dd>
-                        </div>
-                        <div>
-                            <dt class="font-medium text-gray-500">Reviewed By</dt>
-                            <dd class="mt-1 text-gray-900">{{ $service->reviewer?->name ?: '-' }}</dd>
-                        </div>
-                        <div>
-                            <dt class="font-medium text-gray-500">Approved By</dt>
-                            <dd class="mt-1 text-gray-900">{{ $service->approver?->name ?: '-' }}</dd>
-                        </div>
-                        <div>
-                            <dt class="font-medium text-gray-500">Updated At</dt>
-                            <dd class="mt-1 text-gray-900">{{ optional($service->updated_at)->format('M d, Y h:i A') ?: '-' }}</dd>
-                        </div>
-                        <div>
-                            <dt class="font-medium text-gray-500">Reviewed At</dt>
-                            <dd class="mt-1 text-gray-900">{{ optional($service->reviewed_at)->format('M d, Y h:i A') ?: '-' }}</dd>
-                        </div>
-                        <div>
-                            <dt class="font-medium text-gray-500">Approved At</dt>
-                            <dd class="mt-1 text-gray-900">{{ optional($service->approved_at)->format('M d, Y h:i A') ?: '-' }}</dd>
-                        </div>
-                    </dl>
-                </div>
-            </div>
+<div class="px-6 py-6 lg:px-8">
+    <div class="mb-5 flex flex-wrap items-start justify-between gap-3">
+        <div>
+            <a href="{{ $backRoute }}" class="mb-2 inline-flex items-center gap-1 text-sm text-gray-500 hover:text-blue-600">
+                <i class="fas fa-arrow-left text-xs"></i>
+                <span>{{ $backLabel }}</span>
+            </a>
+            <h1 class="text-3xl font-semibold text-gray-900">
+                {{ $service->service_name }}
+                @if ($priceLabel)
+                    <span class="text-2xl font-semibold text-gray-700"> &middot; {{ $priceLabel }}</span>
+                @endif
+            </h1>
+            <p class="mt-1 text-sm text-gray-500">{{ $service->assigned_unit ?: 'Unassigned' }}</p>
         </div>
-    </section>
+
+        <div class="flex items-center gap-2">
+            @if ($company)
+                <a href="{{ route('company.services.show', [$company->id, $service->id]) }}" class="h-9 rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-700 hover:bg-gray-50">
+                    Company View
+                </a>
+            @endif
+            <button type="button" class="h-9 rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-700 hover:bg-gray-50">
+                Edit Service
+            </button>
+        </div>
+    </div>
+
+    <div class="grid gap-4 lg:grid-cols-[320px_1fr]">
+        <aside class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+            <h2 class="mb-4 text-2xl font-semibold text-gray-900">Basic Info</h2>
+            <dl class="space-y-3 text-sm">
+                <div class="grid grid-cols-[120px_1fr] gap-2">
+                    <dt class="text-gray-500">Service ID</dt>
+                    <dd class="text-gray-800">{{ $service->service_id }}</dd>
+                </div>
+                <div class="grid grid-cols-[120px_1fr] gap-2">
+                    <dt class="text-gray-500">Category</dt>
+                    <dd class="text-gray-800">{{ $service->category ?: '-' }}</dd>
+                </div>
+                <div class="grid grid-cols-[120px_1fr] gap-2">
+                    <dt class="text-gray-500">Status</dt>
+                    <dd class="text-gray-800">{{ $service->status ?: '-' }}</dd>
+                </div>
+                <div class="grid grid-cols-[120px_1fr] gap-2">
+                    <dt class="text-gray-500">Service Areas</dt>
+                    <dd class="text-gray-800">{{ collect($service->service_area ?? [])->filter()->implode(', ') ?: '-' }}</dd>
+                </div>
+                <div class="grid grid-cols-[120px_1fr] gap-2">
+                    <dt class="text-gray-500">Structure</dt>
+                    <dd class="text-gray-800">{{ collect($service->engagement_structure ?? [])->filter()->implode(', ') ?: '-' }}</dd>
+                </div>
+                <div class="grid grid-cols-[120px_1fr] gap-2">
+                    <dt class="text-gray-500">Frequency</dt>
+                    <dd class="text-gray-800">{{ $service->frequency ?: '-' }}</dd>
+                </div>
+                <div class="grid grid-cols-[120px_1fr] gap-2">
+                    <dt class="text-gray-500">Unit</dt>
+                    <dd class="text-gray-800">{{ $service->unit ?: '-' }}</dd>
+                </div>
+                <div class="grid grid-cols-[120px_1fr] gap-2">
+                    <dt class="text-gray-500">Deadline</dt>
+                    <dd class="text-gray-800">{{ $service->deadline ? $service->deadline->format('M d, Y h:i A') : '-' }}</dd>
+                </div>
+                <div class="grid grid-cols-[120px_1fr] gap-2">
+                    <dt class="text-gray-500">Tax Type</dt>
+                    <dd class="text-gray-800">{{ $service->tax_type ?: '-' }}</dd>
+                </div>
+            </dl>
+
+            <div class="mt-6">
+                <h3 class="mb-2 text-lg font-semibold text-gray-900">Description</h3>
+                <p class="text-sm text-gray-600">{{ $service->service_description ?: '-' }}</p>
+            </div>
+
+            <div class="mt-6">
+                <h3 class="mb-2 text-lg font-semibold text-gray-900">Activity / Output</h3>
+                <p class="text-sm text-gray-600">{{ $service->service_activity_output ?: '-' }}</p>
+            </div>
+
+            <div class="mt-6">
+                <h3 class="mb-2 text-lg font-semibold text-gray-900">Requirements</h3>
+                @php
+                    $requirementGroups = collect($service->requirements['groups'] ?? []);
+                    $requirementLabels = [
+                        'individual' => 'Individual',
+                        'juridical' => 'Juridical',
+                        'other' => 'Other',
+                    ];
+                @endphp
+                @if ($requirementGroups->isNotEmpty())
+                    <div class="space-y-3 text-sm text-gray-600">
+                        @foreach ($requirementLabels as $groupKey => $groupLabel)
+                            @if (!empty($service->requirements['groups'][$groupKey]))
+                                <div>
+                                    <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">{{ $groupLabel }}</p>
+                                    <ul class="mt-1 space-y-1">
+                                        @foreach ($service->requirements['groups'][$groupKey] as $item)
+                                            <li>{{ $item }}</li>
+                                        @endforeach
+                                    </ul>
+                                </div>
+                            @endif
+                        @endforeach
+                    </div>
+                @else
+                    <p class="text-sm text-gray-600">-</p>
+                @endif
+            </div>
+
+            <div class="mt-6 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-sm text-gray-600">
+                {{ $lastModifiedLabel }}
+            </div>
+        </aside>
+
+        <section class="rounded-xl border border-gray-200 bg-white shadow-sm">
+            <div class="p-5">
+                <div class="mb-4 flex items-center justify-between">
+                    <h3 class="text-xl font-semibold text-gray-900">History</h3>
+                </div>
+                <div class="space-y-4">
+                    @forelse ($historyItems as $item)
+                        <article class="flex gap-3 rounded-lg border border-gray-100 bg-gray-50 p-3">
+                            <span class="mt-0.5 flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 text-blue-700">
+                                <i class="fas {{ $item['icon'] }} text-xs"></i>
+                            </span>
+                            <div>
+                                <p class="text-sm font-semibold text-gray-800">{{ $item['title'] }} by {{ $item['user_name'] }}</p>
+                                <p class="text-sm text-gray-600">{{ $item['description'] }}</p>
+                                <p class="mt-1 text-xs text-gray-500">{{ $item['created_at'] ?: '-' }}</p>
+                            </div>
+                        </article>
+                    @empty
+                        <div class="rounded-lg border border-dashed border-gray-300 px-5 py-8 text-center text-sm text-gray-500">
+                            No service history recorded yet.
+                        </div>
+                    @endforelse
+                </div>
+
+                <div class="mt-6 grid gap-4 sm:grid-cols-2">
+                    <div class="rounded-lg border border-gray-200 p-4">
+                        <h4 class="text-sm font-semibold text-gray-900">Pricing Snapshot</h4>
+                        <div class="mt-3 space-y-2 text-sm text-gray-600">
+                            <p>Rate Per Unit: <span class="font-medium text-gray-800">{{ $service->rate_per_unit ? number_format((float) $service->rate_per_unit, 2) : '-' }}</span></p>
+                            <p>Price Fee: <span class="font-medium text-gray-800">{{ $service->price_fee ? number_format((float) $service->price_fee, 2) : '-' }}</span></p>
+                            <p>Cost of Service: <span class="font-medium text-gray-800">{{ $service->cost_of_service ? number_format((float) $service->cost_of_service, 2) : '-' }}</span></p>
+                            <p>Schedule Rule: <span class="font-medium text-gray-800">{{ $service->schedule_rule ?: '-' }}</span></p>
+                        </div>
+                    </div>
+                    <div class="rounded-lg border border-gray-200 p-4">
+                        <h4 class="text-sm font-semibold text-gray-900">System Info</h4>
+                        <div class="mt-3 space-y-2 text-sm text-gray-600">
+                            <p>Created By: <span class="font-medium text-gray-800">{{ $service->creator?->name ?: (is_string($service->created_by) ? $service->created_by : '-') }}</span></p>
+                            <p>Created At: <span class="font-medium text-gray-800">{{ $service->created_at?->format('M d, Y h:i A') ?: '-' }}</span></p>
+                            <p>Reviewed By: <span class="font-medium text-gray-800">{{ $service->reviewer?->name ?: (is_string($service->reviewed_by) ? $service->reviewed_by : '-') }}</span></p>
+                            <p>Reviewed At: <span class="font-medium text-gray-800">{{ $service->reviewed_at?->format('M d, Y') ?: '-' }}</span></p>
+                            <p>Approved By: <span class="font-medium text-gray-800">{{ $service->approver?->name ?: (is_string($service->approved_by) ? $service->approved_by : '-') }}</span></p>
+                            <p>Approved At: <span class="font-medium text-gray-800">{{ $service->approved_at?->format('M d, Y') ?: '-' }}</span></p>
+                        </div>
+                    </div>
+                </div>
+
+                @if ($customFields->count() > 0)
+                    <div class="mt-6 rounded-lg border border-gray-200">
+                        <div class="border-b border-gray-100 px-4 py-3">
+                            <h4 class="text-sm font-semibold text-gray-900">Custom Fields</h4>
+                        </div>
+                        <div class="grid gap-4 px-4 py-4 sm:grid-cols-2">
+                            @foreach ($customFields as $field)
+                                <div>
+                                    <p class="text-xs uppercase tracking-wide text-gray-500">{{ $field->field_name }}</p>
+                                    <p class="mt-1 text-sm font-medium text-gray-900">{{ data_get($customFieldValues, $field->field_key, '-') ?: '-' }}</p>
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+                @endif
+            </div>
+        </section>
+    </div>
 </div>
 @endsection

@@ -3,7 +3,7 @@
 
 @section('content')
 @php
-    $isAdminReviewer = in_array((string) (auth()->user()?->role ?? ''), ['Admin', 'SuperAdmin'], true);
+    $isAdminReviewer = false;
     $statusClasses = [
         'Pending Approval' => 'border-amber-200 bg-amber-50 text-amber-700',
         'Draft' => 'border-slate-200 bg-slate-50 text-slate-700',
@@ -38,16 +38,16 @@
 
     <div class="mb-6 grid gap-3 xl:grid-cols-3">
         <div class="rounded-2xl border border-gray-200 bg-white px-5 py-5 shadow-sm">
-            <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">{{ $isAdminReviewer ? 'Pending Review' : 'Active Services' }}</p>
-            <p class="mt-2 text-2xl font-bold text-gray-900">{{ $isAdminReviewer ? $summary['pending'] : $summary['active'] }}</p>
+            <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Active Services</p>
+            <p class="mt-2 text-2xl font-bold text-gray-900">{{ $summary['active'] }}</p>
         </div>
         <div class="rounded-2xl border border-gray-200 bg-white px-5 py-5 shadow-sm">
-            <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">{{ $isAdminReviewer ? 'Active Services' : 'Recurring Services' }}</p>
-            <p class="mt-2 text-2xl font-bold text-gray-900">{{ $isAdminReviewer ? $summary['active'] : $summary['recurring'] }}</p>
+            <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Pending Approval</p>
+            <p class="mt-2 text-2xl font-bold text-gray-900">{{ $summary['pending'] }}</p>
         </div>
         <div class="rounded-2xl border border-gray-200 bg-white px-5 py-5 shadow-sm">
-            <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">{{ $isAdminReviewer ? 'Rejected Services' : 'Due In 7 Days' }}</p>
-            <p class="mt-2 text-2xl font-bold text-gray-900">{{ $isAdminReviewer ? $summary['rejected'] : $summary['due_soon'] }}</p>
+            <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Rejected Services</p>
+            <p class="mt-2 text-2xl font-bold text-gray-900">{{ $summary['rejected'] }}</p>
         </div>
     </div>
 

@@ -208,10 +208,10 @@ class CompanyController extends Controller
             ...$this->makeCompanyPayload($normalizedValidated),
             'company_id' => $company->id,
             'title' => 'Business Information Form - '.$normalizedValidated['business_name'],
-            'status' => $isAdminAutoApprover ? 'approved' : 'draft',
+            'status' => $isAdminAutoApprover ? 'pending_approval' : 'draft',
             'submitted_at' => $isAdminAutoApprover ? now() : null,
-            'approved_at' => $isAdminAutoApprover ? now() : null,
-            'approved_by_name' => $isAdminAutoApprover ? $reviewerName : null,
+            'approved_at' => null,
+            'approved_by_name' => null,
             'created_by' => $request->user()?->id,
             'updated_by' => $request->user()?->id,
             'last_submission_source' => $isAdminAutoApprover ? 'manual' : null,
@@ -228,7 +228,7 @@ class CompanyController extends Controller
         return redirect()
             ->route('company.kyc', ['company' => $company->id, 'tab' => 'business-client-information'])
             ->with('bif_success', $isAdminAutoApprover
-                ? 'Business Information Form created and auto-approved successfully.'
+                ? 'Business Information Form created and sent for approval. You can approve or reject it now.'
                 : 'Business Information Form saved as draft. Complete the requirements and submit for verification.');
     }
 
@@ -305,30 +305,7 @@ class CompanyController extends Controller
                 ->with('success', $isAdminAutoApprover ? 'Company updated and auto-approved successfully.' : 'Company updated successfully.');
         }
 
-        $companies = collect($request->session()->get('mock_companies', $this->defaultCompanies()));
-        $companyData = $companies->firstWhere('id', $company);
-
-        abort_unless($companyData, 404);
-
-        $updatedCompanies = $companies
-            ->map(function (array $existingCompany) use ($company, $validated, $customFields) {
-                if ((int) $existingCompany['id'] !== $company) {
-                    return $existingCompany;
-                }
-
-                return [
-                    ...$existingCompany,
-                    ...$this->makeCompanyPayload($validated, $customFields),
-                ];
-            })
-            ->values()
-            ->all();
-
-        $request->session()->put('mock_companies', $updatedCompanies);
-
-        return redirect()
-            ->back()
-            ->with('success', 'Company updated successfully.');
+        abort(404);
     }
 
     public function destroy(Request $request, int $company): RedirectResponse
@@ -339,35 +316,7 @@ class CompanyController extends Controller
             $record = Company::query()->find($company);
 
             if ($record) {
-                DB::transaction(function () use ($record) {
-                    $tablesWithCompanyId = [
-                        'company_bifs',
-                        'company_cifs',
-                        'company_history_entries',
-                        'company_consultation_notes',
-                        'company_activities',
-                        'deals',
-                        'products',
-                        'services',
-                        'sec_coi',
-                        'sec_aois',
-                        'bylaws',
-                        'gis_records',
-                        'authorized_capital_stocks',
-                        'subscribed_capitals',
-                        'paid_up_capitals',
-                        'directors_officers',
-                        'stockholders',
-                    ];
-
-                    foreach ($tablesWithCompanyId as $table) {
-                        if (Schema::hasTable($table) && Schema::hasColumn($table, 'company_id')) {
-                            DB::table($table)->where('company_id', $record->id)->delete();
-                        }
-                    }
-
-                    $record->delete();
-                });
+                $this->deleteCompanyRecord($record);
 
                 return redirect()
                     ->route('company.index')
@@ -375,19 +324,36 @@ class CompanyController extends Controller
             }
         }
 
-        $companies = collect($request->session()->get('mock_companies', $this->defaultCompanies()));
-        $companyData = $companies->firstWhere('id', $company);
+        abort(404);
+    }
 
-        abort_unless($companyData, 404);
+    public function bulkDelete(Request $request): RedirectResponse
+    {
+        abort_unless($this->isAdminAutoApprover($request->user()), 403);
 
-        $request->session()->put(
-            'mock_companies',
-            $companies->reject(fn (array $existingCompany) => (int) $existingCompany['id'] === $company)->values()->all()
-        );
+        $validated = $request->validate([
+            'selected_companies' => ['required', 'array', 'min:1'],
+            'selected_companies.*' => ['required', 'integer'],
+        ]);
 
-        return redirect()
-            ->route('company.index')
-            ->with('success', 'Company deleted successfully.');
+        if (Schema::hasTable('companies')) {
+            $companies = Company::query()
+                ->whereIn('id', $validated['selected_companies'])
+                ->get();
+
+            $deletedCount = 0;
+
+            foreach ($companies as $company) {
+                $this->deleteCompanyRecord($company);
+                $deletedCount++;
+            }
+
+            return redirect()
+                ->route('company.index')
+                ->with('success', $deletedCount === 1 ? '1 company deleted successfully.' : "{$deletedCount} companies deleted successfully.");
+        }
+
+        abort(404);
     }
 
     public function storeCustomField(Request $request): RedirectResponse
@@ -463,14 +429,6 @@ class CompanyController extends Controller
         ]);
 
         $request->session()->put('company.custom_fields', $customFields->values()->all());
-        $request->session()->put(
-            'mock_companies',
-            collect($request->session()->get('mock_companies', $this->defaultCompanies()))
-                ->map(fn (array $company): array => $this->applyCompanyCustomFieldDefaults($company, $customFields->all()))
-                ->values()
-                ->all()
-        );
-
         return redirect()
             ->route('company.index')
             ->with('success', 'Company custom field created successfully.');
@@ -514,17 +472,16 @@ class CompanyController extends Controller
         $primaryContactId = (int) ($companyData['primary_contact_id'] ?? 0);
 
         $contacts = Contact::query()
-            ->when($companyName !== '' || $primaryContactId > 0, function ($query) use ($companyName, $primaryContactId) {
-                $query->where(function ($nested) use ($companyName, $primaryContactId) {
-                    if ($companyName !== '') {
-                        $nested->where('company_name', $companyName);
-                    }
+            ->where(function ($query) use ($company, $companyName, $primaryContactId) {
+                $query->whereHas('companies', fn ($relation) => $relation->where('companies.id', $company));
 
-                    if ($primaryContactId > 0) {
-                        $method = $companyName !== '' ? 'orWhere' : 'where';
-                        $nested->{$method}('id', $primaryContactId);
-                    }
-                });
+                if ($companyName !== '') {
+                    $query->orWhere('company_name', $companyName);
+                }
+
+                if ($primaryContactId > 0) {
+                    $query->orWhere('id', $primaryContactId);
+                }
             })
             ->when($search !== '', function ($query) use ($search) {
                 $query->where(function ($nested) use ($search) {
@@ -597,36 +554,24 @@ class CompanyController extends Controller
                 ]);
         }
 
-        $contacts = $this->allMockContacts($request);
-        $companyContacts = collect($contacts[$company] ?? []);
-        $nextId = (int) ($companyContacts->max('id') ?? 0) + 1;
-
         $validated = $validator->validated();
         $linkedContactId = (int) ($validated['linked_contact_id'] ?? 0);
-        $linkedContact = $linkedContactId > 0 ? Contact::query()->find($linkedContactId) : null;
+        $companyRecord = Company::query()->findOrFail($company);
+        $linkedContact = $linkedContactId > 0 ? Contact::query()->findOrFail($linkedContactId) : null;
 
         if ($linkedContact) {
-            $validated = [
-                ...$validated,
-                'first_name' => $validated['first_name'] ?: $linkedContact->first_name,
-                'last_name' => $validated['last_name'] ?: $linkedContact->last_name,
-                'full_name' => $validated['full_name'] ?: trim($linkedContact->first_name . ' ' . $linkedContact->last_name),
-                'email' => $validated['email'] ?: ($linkedContact->email ?? ''),
-                'phone' => $validated['phone'] ?: ($linkedContact->phone ?? ''),
-                'mobile' => $validated['mobile'] ?: ($linkedContact->phone ?? ''),
-                'owner_name' => $validated['owner_name'] ?: ($linkedContact->owner_name ?? ''),
-            ];
+            $companyRecord->contacts()->syncWithoutDetaching([$linkedContact->id]);
+        } else {
+            $contactRecord = Contact::query()->create([
+                'first_name' => trim((string) ($validated['first_name'] ?? '')),
+                'last_name' => trim((string) ($validated['last_name'] ?? '')),
+                'email' => trim((string) ($validated['email'] ?? '')) ?: null,
+                'phone' => trim((string) ($validated['mobile'] ?? $validated['phone'] ?? '')) ?: null,
+                'company_name' => $companyRecord->company_name,
+                'owner_name' => trim((string) ($validated['owner_name'] ?? '')) ?: ($companyData['owner_name'] ?? null),
+            ]);
+            $companyRecord->contacts()->syncWithoutDetaching([$contactRecord->id]);
         }
-
-        $contacts[$company][] = $this->makeContactPayload(
-            $validated,
-            $nextId,
-            $company,
-            $companyData['owner_name'] ?? 'Owner 1',
-            $this->companyContactCustomFields($request, $company)
-        );
-
-        $request->session()->put('mock_company_contacts', $contacts);
 
         return redirect()
             ->route('company.contacts', $company)
@@ -636,11 +581,8 @@ class CompanyController extends Controller
     public function updateContact(Request $request, int $company, int $contact): RedirectResponse
     {
         $companyData = $this->findCompanyOrAbort($request, $company);
-        $contacts = $this->allMockContacts($request);
-        $companyContacts = collect($contacts[$company] ?? []);
-        $existingContact = $companyContacts->firstWhere('id', $contact);
-
-        abort_unless($existingContact, 404);
+        $companyRecord = Company::query()->findOrFail($company);
+        $existingContact = $companyRecord->contacts()->where('contacts.id', $contact)->firstOrFail();
 
         $validator = $this->contactValidator($request);
 
@@ -654,25 +596,14 @@ class CompanyController extends Controller
                 ]);
         }
 
-        $contacts[$company] = $companyContacts
-            ->map(function (array $contactItem) use ($validator, $contact, $company, $companyData) {
-                if ((int) $contactItem['id'] !== $contact) {
-                    return $contactItem;
-                }
-
-                return $this->makeContactPayload(
-                    $validator->validated(),
-                    $contact,
-                    $company,
-                    $companyData['owner_name'] ?? 'Owner 1',
-                    $this->companyContactCustomFields($request, $company),
-                    $contactItem
-                );
-            })
-            ->values()
-            ->all();
-
-        $request->session()->put('mock_company_contacts', $contacts);
+        $validated = $validator->validated();
+        $existingContact->update([
+            'first_name' => trim((string) ($validated['first_name'] ?? '')) ?: $existingContact->first_name,
+            'last_name' => trim((string) ($validated['last_name'] ?? '')) ?: $existingContact->last_name,
+            'email' => trim((string) ($validated['email'] ?? '')) ?: $existingContact->email,
+            'phone' => trim((string) ($validated['mobile'] ?? $validated['phone'] ?? '')) ?: $existingContact->phone,
+            'owner_name' => trim((string) ($validated['owner_name'] ?? '')) ?: ($existingContact->owner_name ?: ($companyData['owner_name'] ?? null)),
+        ]);
 
         return redirect()
             ->route('company.contacts', $company)
@@ -681,76 +612,18 @@ class CompanyController extends Controller
 
     public function storeContactCustomField(Request $request, int $company): RedirectResponse
     {
-        $this->findCompanyOrAbort($request, $company);
-        $validator = Validator::make($request->all(), [
-            'label' => ['required', 'string', 'max:255'],
-        ]);
-
-        if ($validator->fails()) {
-            return redirect()
-                ->to(route('company.contacts', $company) . '#custom-field-form')
-                ->withErrors($validator)
-                ->withInput($request->except(['_token']) + ['_custom_field_form' => 'create']);
-        }
-
-        $label = trim($validator->validated()['label']);
-        $key = Str::slug($label, '_');
-
-        if ($key === '') {
-            return redirect()
-                ->to(route('company.contacts', $company) . '#custom-field-form')
-                ->withErrors(['label' => 'Please provide a valid field name.'])
-                ->withInput($request->except(['_token']) + ['_custom_field_form' => 'create']);
-        }
-
-        $customFields = $this->allMockContactCustomFields($request);
-        $companyFields = collect($customFields[$company] ?? []);
-
-        if ($companyFields->contains(fn (array $field) => $field['key'] === $key)) {
-            return redirect()
-                ->to(route('company.contacts', $company) . '#custom-field-form')
-                ->withErrors(['label' => 'That custom field already exists for this company.'])
-                ->withInput($request->except(['_token']) + ['_custom_field_form' => 'create']);
-        }
-
-        $customFields[$company][] = [
-            'key' => $key,
-            'label' => $label,
-        ];
-
-        $contacts = $this->allMockContacts($request);
-        $contacts[$company] = collect($contacts[$company] ?? [])
-            ->map(function (array $contact) use ($key) {
-                $contact['custom_fields'] = $contact['custom_fields'] ?? [];
-                $contact['custom_fields'][$key] = $contact['custom_fields'][$key] ?? '';
-
-                return $contact;
-            })
-            ->all();
-
-        $request->session()->put('mock_company_contact_custom_fields', $customFields);
-        $request->session()->put('mock_company_contacts', $contacts);
-
         return redirect()
             ->route('company.contacts', $company)
-            ->with('success', 'Custom field added successfully.');
+            ->withErrors(['label' => 'Company contact custom fields require persistent storage before they can be added.']);
     }
 
     public function destroyContact(Request $request, int $company, int $contact): RedirectResponse
     {
         $this->findCompanyOrAbort($request, $company);
 
-        $contacts = $this->allMockContacts($request);
-        $companyContacts = collect($contacts[$company] ?? []);
-
-        abort_unless($companyContacts->contains('id', $contact), 404);
-
-        $contacts[$company] = $companyContacts
-            ->reject(fn (array $contactItem) => (int) $contactItem['id'] === $contact)
-            ->values()
-            ->all();
-
-        $request->session()->put('mock_company_contacts', $contacts);
+        $companyRecord = Company::query()->findOrFail($company);
+        abort_unless($companyRecord->contacts()->where('contacts.id', $contact)->exists(), 404);
+        $companyRecord->contacts()->detach($contact);
 
         return redirect()
             ->route('company.contacts', $company)
@@ -760,45 +633,31 @@ class CompanyController extends Controller
     public function deals(Request $request, int $company): View
     {
         $companyData = $this->findCompanyOrAbort($request, $company);
+        $deals = collect();
 
-        $deals = [
-            [
-                'name' => 'Cloud Migration Services',
-                'stage' => 'Qualification',
-                'amount' => 'P800,000',
-                'expected_close_date' => 'Apr 30, 2024',
-                'owner' => 'Maria Santos',
-                'owner_initials' => 'MS',
-                'last_updated' => 'Apr 10, 2024 05:33 PM',
-            ],
-            [
-                'name' => 'Security Audit Package',
-                'stage' => 'Consultation',
-                'amount' => 'P120,000',
-                'expected_close_date' => 'Mar 25, 2024',
-                'owner' => 'Sarah Williams',
-                'owner_initials' => 'SW',
-                'last_updated' => 'Mar 10, 2024 11:25 AM',
-            ],
-            [
-                'name' => 'IT Infrastructure Setup',
-                'stage' => 'Negotiation',
-                'amount' => 'P1,500,000',
-                'expected_close_date' => 'May 30, 2024',
-                'owner' => 'John Admin',
-                'owner_initials' => 'JA',
-                'last_updated' => 'Mar 6, 2024 02:50 PM',
-            ],
-            [
-                'name' => 'Payroll System Integration',
-                'stage' => 'Proposal',
-                'amount' => 'P500,000',
-                'expected_close_date' => 'Jun 15, 2024',
-                'owner' => 'David Lee',
-                'owner_initials' => 'DL',
-                'last_updated' => 'Feb 26, 2024 02:23 PM',
-            ],
-        ];
+        if (Schema::hasTable('deals')) {
+            $deals = Deal::query()
+                ->where('company_name', (string) ($companyData['company_name'] ?? ''))
+                ->latest('updated_at')
+                ->get()
+                ->map(function (Deal $deal): array {
+                    $owner = $deal->assigned_consultant ?: $deal->lead_consultant ?: $deal->created_by ?: 'Unassigned';
+
+                    return [
+                        'name' => $deal->deal_name ?: ($deal->deal_code ?: 'Untitled deal'),
+                        'stage' => $deal->stage ?: 'Qualification',
+                        'amount' => 'P'.number_format((float) ($deal->total_estimated_engagement_value ?? 0), 2),
+                        'expected_close_date' => optional($deal->confirmed_delivery_date ?: $deal->estimated_completion_date ?: $deal->client_preferred_completion_date)->format('M d, Y') ?: '-',
+                        'owner' => $owner,
+                        'owner_initials' => collect(explode(' ', $owner))
+                            ->filter()
+                            ->take(2)
+                            ->map(fn (string $part): string => strtoupper(substr($part, 0, 1)))
+                            ->implode('') ?: 'NA',
+                        'last_updated' => optional($deal->updated_at)->format('M d, Y h:i A') ?: '-',
+                    ];
+                });
+        }
 
         return view('company.deals', [
             'company' => (object) $companyData,
@@ -896,37 +755,27 @@ class CompanyController extends Controller
     public function products(Request $request, int $company): View
     {
         $companyData = $this->findCompanyOrAbort($request, $company);
+        $products = collect();
 
-        $products = [
-            [
-                'name' => 'Managed IT Services',
-                'sku' => '00101',
-                'category' => 'Consulting',
-                'price' => 'P20,000',
-                'status' => 'Active',
-            ],
-            [
-                'name' => 'Cloud Backup Solution',
-                'sku' => '00102',
-                'category' => 'Software',
-                'price' => 'P15,000',
-                'status' => 'Active',
-            ],
-            [
-                'name' => 'Accounting Software',
-                'sku' => '00103',
-                'category' => 'Software',
-                'price' => 'P30,000',
-                'status' => 'Active',
-            ],
-            [
-                'name' => 'Office Firewall Appliance',
-                'sku' => '00104',
-                'category' => 'Hardware',
-                'price' => 'P25,500',
-                'status' => 'Active',
-            ],
-        ];
+        if (Schema::hasTable('products') && Schema::hasTable('deals')) {
+            $dealIds = Deal::query()
+                ->where('company_name', (string) ($companyData['company_name'] ?? ''))
+                ->pluck('id');
+
+            if ($dealIds->isNotEmpty()) {
+                $products = Product::query()
+                    ->whereIn('deal_id', $dealIds)
+                    ->latest('updated_at')
+                    ->get()
+                    ->map(fn (Product $product): array => [
+                        'name' => $product->product_name ?: ($product->product_id ?: 'Unnamed product'),
+                        'sku' => $product->sku ?: '-',
+                        'category' => $product->category ?: 'General',
+                        'price' => 'P'.number_format((float) ($product->price ?? 0), 2),
+                        'status' => $product->status ?: 'Open',
+                    ]);
+            }
+        }
 
         return view('company.products', [
             'company' => (object) $companyData,
@@ -1547,7 +1396,7 @@ class CompanyController extends Controller
                 });
         }
 
-        return collect($request->session()->get('mock_companies', $this->defaultCompanies()));
+        return collect();
     }
 
     private function companyCustomFields(Request $request): array
@@ -1796,7 +1645,7 @@ class CompanyController extends Controller
 
     private function allMockContacts(Request $request): array
     {
-        return $request->session()->get('mock_company_contacts', $this->defaultCompanyContacts());
+        return [];
     }
 
     private function companyContacts(Request $request, int $companyId): array
@@ -1835,7 +1684,7 @@ class CompanyController extends Controller
 
     private function allMockContactCustomFields(Request $request): array
     {
-        return $request->session()->get('mock_company_contact_custom_fields', $this->defaultCompanyContactCustomFields());
+        return [];
     }
 
     private function companyContactCustomFields(Request $request, int $companyId): array
@@ -1915,5 +1764,38 @@ class CompanyController extends Controller
     private function isAdminAutoApprover(?User $user): bool
     {
         return $user !== null && ($user->isAdmin() || $user->isSuperAdmin());
+    }
+
+    private function deleteCompanyRecord(Company $record): void
+    {
+        DB::transaction(function () use ($record) {
+            $tablesWithCompanyId = [
+                'company_bifs',
+                'company_cifs',
+                'company_history_entries',
+                'company_consultation_notes',
+                'company_activities',
+                'deals',
+                'products',
+                'services',
+                'sec_coi',
+                'sec_aois',
+                'bylaws',
+                'gis_records',
+                'authorized_capital_stocks',
+                'subscribed_capitals',
+                'paid_up_capitals',
+                'directors_officers',
+                'stockholders',
+            ];
+
+            foreach ($tablesWithCompanyId as $table) {
+                if (Schema::hasTable($table) && Schema::hasColumn($table, 'company_id')) {
+                    DB::table($table)->where('company_id', $record->id)->delete();
+                }
+            }
+
+            $record->delete();
+        });
     }
 }

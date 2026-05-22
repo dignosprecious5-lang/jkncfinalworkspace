@@ -122,11 +122,16 @@ class CompanyServiceController extends Controller
 
     public function globalIndex(Request $request): View
     {
-        $this->ensureDefaultGlobalServices();
-
         $filters = $this->serviceFilters($request);
+        if ($filters['tab'] === 'pending_review') {
+            $filters['tab'] = 'all';
+        }
         $query = $this->serviceQuery($filters);
-        $summary = $this->serviceSummary((clone $query)->get());
+        $summary = $this->serviceSummary(
+            $this->serviceWithRelations()
+                ->whereNull('company_id')
+                ->get()
+        );
         $services = $query->paginate($filters['per_page'])->withQueryString();
 
         return view('services.index', $this->viewData($request, $services, null, $filters, $summary));
@@ -170,6 +175,9 @@ class CompanyServiceController extends Controller
             'service' => $serviceModel,
             'company' => $serviceModel->company,
             'customFields' => ServiceCustomField::query()->orderBy('sort_order')->orderBy('id')->get(),
+            'historyItems' => $this->serviceHistoryItems($serviceModel),
+            'backRoute' => route('services.index'),
+            'backLabel' => 'Back to Services',
         ]);
     }
 
@@ -184,6 +192,7 @@ class CompanyServiceController extends Controller
             'company' => $companyModel,
             'service' => $serviceModel,
             'customFields' => ServiceCustomField::query()->orderBy('sort_order')->orderBy('id')->get(),
+            'historyItems' => $this->serviceHistoryItems($serviceModel),
         ]);
     }
 
@@ -480,6 +489,60 @@ class CompanyServiceController extends Controller
         return Service::query()->with(['company', 'creator', 'reviewer', 'approver']);
     }
 
+    private function serviceHistoryItems(Service $service): array
+    {
+        $history = [[
+            'icon' => 'fa-briefcase',
+            'title' => 'Service created',
+            'description' => $service->service_name,
+            'user_name' => $service->creator?->name ?: $this->resolveServiceActorName($service->created_by),
+            'created_at' => optional($service->created_at)->format('M d, Y h:i A'),
+        ]];
+
+        if ($service->updated_at && optional($service->updated_at)->ne($service->created_at)) {
+            $history[] = [
+                'icon' => 'fa-pen',
+                'title' => 'Service updated',
+                'description' => 'Latest service configuration saved.',
+                'user_name' => $service->creator?->name ?: $this->resolveServiceActorName($service->created_by),
+                'created_at' => optional($service->updated_at)->format('M d, Y h:i A'),
+            ];
+        }
+
+        if ($service->reviewed_at) {
+            $history[] = [
+                'icon' => 'fa-clipboard-check',
+                'title' => $service->status === 'Rejected' ? 'Service review rejected' : 'Service reviewed',
+                'description' => $service->status === 'Rejected'
+                    ? 'The service submission was reviewed and rejected.'
+                    : 'The service submission was reviewed.',
+                'user_name' => $service->reviewer?->name ?: $this->resolveServiceActorName($service->reviewed_by),
+                'created_at' => optional($service->reviewed_at)->format('M d, Y h:i A'),
+            ];
+        }
+
+        if ($service->approved_at) {
+            $history[] = [
+                'icon' => 'fa-circle-check',
+                'title' => 'Service approved',
+                'description' => 'The service was approved and activated.',
+                'user_name' => $service->approver?->name ?: $this->resolveServiceActorName($service->approved_by),
+                'created_at' => optional($service->approved_at)->format('M d, Y h:i A'),
+            ];
+        }
+
+        usort($history, function (array $left, array $right): int {
+            return strtotime((string) ($right['created_at'] ?? '')) <=> strtotime((string) ($left['created_at'] ?? ''));
+        });
+
+        return $history;
+    }
+
+    private function resolveServiceActorName(mixed $value): string
+    {
+        return is_string($value) && trim($value) !== '' ? trim($value) : 'System';
+    }
+
     private function serviceFilters(Request $request): array
     {
         return [
@@ -500,10 +563,19 @@ class CompanyServiceController extends Controller
     private function serviceSummary(Collection $services): array
     {
         return [
+            'total_count' => $services->count(),
+            'total_value' => (float) $services->sum(function (Service $service): float {
+                if ($service->rate_per_unit) {
+                    return (float) $service->rate_per_unit;
+                }
+
+                return (float) ($service->price_fee ?? 0);
+            }),
             'pending' => $services->where('status', 'Pending Approval')->count()
                 + CatalogChangeRequest::query()->where('module', 'service')->where('status', 'Pending Approval')->count(),
             'active' => $services->where('status', 'Active')->count(),
-            'rejected' => $services->where('status', 'Rejected')->count(),
+            'rejected' => $services->where('status', 'Rejected')->count()
+                + CatalogChangeRequest::query()->where('module', 'service')->where('status', 'Rejected')->count(),
             'recurring' => $services->where('is_recurring', true)->count(),
             'due_soon' => $services->filter(function (Service $service): bool {
                 return $service->deadline !== null
@@ -515,34 +587,22 @@ class CompanyServiceController extends Controller
 
     private function ensureDefaultGlobalServices(): void
     {
+        return;
+
         try {
             if (! Schema::hasTable('services')) {
                 return;
             }
 
-            $this->ensureGlobalCompanyLinkNullable();
+            if (Service::query()->whereNull('company_id')->exists()) {
+                return;
+            }
 
             $now = Carbon::now();
             $defaultRequirements = $this->defaultRequirementPayload();
 
             foreach ($this->defaultServiceCatalog() as $area => $services) {
                 foreach ($services as $serviceName) {
-                    $existingService = Service::query()
-                        ->whereNull('company_id')
-                        ->where('service_name', $serviceName)
-                        ->first();
-
-                    if ($existingService) {
-                        if (empty($existingService->requirements)) {
-                            $existingService->requirements = $defaultRequirements;
-                            $existingService->requirement_category = $this->primaryRequirementCategory($defaultRequirements);
-                            $existingService->updated_at = $now;
-                            $existingService->save();
-                        }
-
-                        continue;
-                    }
-
                     Service::query()->create([
                         'company_id' => null,
                         'service_id' => $this->generateServiceId(),

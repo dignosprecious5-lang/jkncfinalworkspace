@@ -105,20 +105,8 @@ class DealController extends Controller
         $employeeOptions = $this->employeeOptions();
         $defaultOwnerId = (int) ($owners[0]['id'] ?? 1001);
         $defaultOwner = collect($owners)->firstWhere('id', $defaultOwnerId) ?: collect($owners)->first();
-        $companyOptions = [
-            'ABC Company',
-            'XYZ Company',
-            'Global Enterprises',
-            'Consulting Group',
-            'Innovate Co',
-            'Startup Hub',
-        ];
-        $contactOptions = [
-            'David Lee',
-            'Robert Johnson',
-            'Sarah Williams',
-            'Michael Brown',
-        ];
+        $companyOptions = [];
+        $contactOptions = [];
         $contactRecords = [];
         $companyRecords = [];
         $dealRecords = [];
@@ -209,10 +197,7 @@ class DealController extends Controller
                     ->values()
                     ->all();
 
-                $companyOptions = array_values(array_unique(array_merge(
-                    ['Consulting Group'],
-                    $contacts->pluck('company_name')->filter()->values()->all()
-                )));
+                $companyOptions = array_values(array_unique($contacts->pluck('company_name')->filter()->values()->all()));
             }
 
             if (Schema::hasTable('companies')) {
@@ -470,30 +455,26 @@ class DealController extends Controller
             'serviceRequirementCatalog' => $serviceCatalog['serviceRequirementCatalog'],
             'productOptionsByServiceArea' => $productCatalog['productOptionsByServiceArea'],
             'productPricing' => $productCatalog['productPricing'],
-            'ownerLabel' => $defaultOwner['name'] ?? 'Shine Florence Padillo',
+            'ownerLabel' => $defaultOwner['name'] ?? ($request->user()?->name ?? 'Unassigned'),
             'owners' => $owners,
             'financeUsers' => $financeUsers,
             'employeeOptions' => $employeeOptions,
             'defaultOwnerId' => $defaultOwnerId,
+            'catalogWarnings' => array_values(array_filter([
+                empty($serviceCatalog['serviceGroups'] ?? []) ? 'Service options are currently unavailable. Add active services in the Services module to populate deal service selections.' : null,
+                empty($productCatalog['productOptionsByServiceArea'] ?? []) ? 'Product options are currently unavailable. Add active products in the Products module to populate deal product selections.' : null,
+            ])),
         ]);
     }
 
     private function dealServiceCatalog(): array
     {
-        $fallbackGroups = collect(self::FALLBACK_SERVICE_GROUPS)
-            ->map(fn (array $services): array => array_values(array_unique($services)))
-            ->all();
-        $fallbackPricing = collect($fallbackGroups)
-            ->flatten()
-            ->mapWithKeys(fn (string $service): array => [$service => 2500])
-            ->all();
-
         try {
             if (! Schema::hasTable('services')) {
                 return [
-                    'serviceAreaOptions' => self::FALLBACK_SERVICE_AREA_OPTIONS,
-                    'serviceGroups' => $fallbackGroups,
-                    'servicePricing' => $fallbackPricing,
+                    'serviceAreaOptions' => [],
+                    'serviceGroups' => [],
+                    'servicePricing' => [],
                     'serviceRequirementCatalog' => [],
                 ];
             }
@@ -550,16 +531,13 @@ class DealController extends Controller
                 ->sortKeys()
                 ->all();
 
-            $serviceAreaOptions = array_values(array_unique(array_merge(
-                array_keys($serviceGroups),
-                self::FALLBACK_SERVICE_AREA_OPTIONS
-            )));
+            $serviceAreaOptions = array_values(array_unique(array_keys($serviceGroups)));
 
             if ($serviceGroups === []) {
                 return [
-                    'serviceAreaOptions' => self::FALLBACK_SERVICE_AREA_OPTIONS,
-                    'serviceGroups' => $fallbackGroups,
-                    'servicePricing' => $fallbackPricing,
+                    'serviceAreaOptions' => [],
+                    'serviceGroups' => [],
+                    'servicePricing' => [],
                     'serviceRequirementCatalog' => [],
                 ];
             }
@@ -567,14 +545,14 @@ class DealController extends Controller
             return [
                 'serviceAreaOptions' => $serviceAreaOptions,
                 'serviceGroups' => $serviceGroups,
-                'servicePricing' => $servicePricing + $fallbackPricing,
+                'servicePricing' => $servicePricing,
                 'serviceRequirementCatalog' => $serviceRequirementCatalog,
             ];
         } catch (Throwable) {
             return [
-                'serviceAreaOptions' => self::FALLBACK_SERVICE_AREA_OPTIONS,
-                'serviceGroups' => $fallbackGroups,
-                'servicePricing' => $fallbackPricing,
+                'serviceAreaOptions' => [],
+                'serviceGroups' => [],
+                'servicePricing' => [],
                 'serviceRequirementCatalog' => [],
             ];
         }
@@ -582,69 +560,11 @@ class DealController extends Controller
 
     private function dealProductCatalog(): array
     {
-        $fallbackGroups = [
-            'Corporate & Regulatory Advisory' => [
-                'Printing',
-                'Photocopy',
-                'Drafting of Letters',
-                'Drafting of Notices',
-                'Drafting of Demand Letters',
-                'Drafting of Emails (Formal / Business)',
-            ],
-            'Accounting & Compliance Advisory' => [
-                'Archive Retrieval',
-                'Digital Archive Copy',
-                'Drafting of Responses to Letters / Notices',
-                'Drafting of Memorandum (Internal / External)',
-                'Drafting of Certifications',
-                'Drafting of Compliance Documents',
-            ],
-            'Governance & Policy Advisory' => [
-                'Document Delivery (Metro Cebu)',
-                'Document Delivery (Outside Metro Cebu/LBC)',
-                'Drafting of Affidavits (Non-Legal Advice)',
-                'Drafting of Agreements / Simple Contracts',
-                'Drafting of Board Resolutions',
-                'Drafting of Endorsement / Request Letters',
-            ],
-            'Business Strategy & Process Advisory' => [
-                'Notarization - Simple Documents',
-                'Notarization - Complex Documents',
-                "Drafting of Secretary's Certificates",
-                'Drafting of Policies & Procedures',
-                'Drafting of Reports / Formal Documents',
-            ],
-            'Strategic Situations Advisory' => [
-                'Printing',
-                'Photocopy',
-                'Drafting of Letters',
-                'Drafting of Notices',
-                'Drafting of Demand Letters',
-                'Drafting of Emails (Formal / Business)',
-            ],
-            'People & Talent Solutions' => [
-                'Archive Retrieval',
-                'Digital Archive Copy',
-                'Drafting of Responses to Letters / Notices',
-                'Drafting of Memorandum (Internal / External)',
-                'Drafting of Certifications',
-                'Drafting of Compliance Documents',
-            ],
-            'Learning & Capability Development' => [
-                'Document Delivery (Metro Cebu)',
-                'Document Delivery (Outside Metro Cebu/LBC)',
-                'Drafting of Affidavits (Non-Legal Advice)',
-                'Drafting of Agreements / Simple Contracts',
-                'Drafting of Board Resolutions',
-                'Drafting of Endorsement / Request Letters',
-            ],
-        ];
-
         try {
             if (! Schema::hasTable('products')) {
                 return [
-                    'productOptionsByServiceArea' => $fallbackGroups,
-                    'productPricing' => collect($fallbackGroups)->flatten()->mapWithKeys(fn ($name) => [$name => 350])->all(),
+                    'productOptionsByServiceArea' => [],
+                    'productPricing' => [],
                 ];
             }
 
@@ -690,19 +610,19 @@ class DealController extends Controller
 
             if ($groups === []) {
                 return [
-                    'productOptionsByServiceArea' => $fallbackGroups,
-                    'productPricing' => collect($fallbackGroups)->flatten()->mapWithKeys(fn ($name) => [$name => 350])->all(),
+                    'productOptionsByServiceArea' => [],
+                    'productPricing' => [],
                 ];
             }
 
             return [
                 'productOptionsByServiceArea' => $groups,
-                'productPricing' => $pricing + collect($fallbackGroups)->flatten()->mapWithKeys(fn ($name) => [$name => 350])->all(),
+                'productPricing' => $pricing,
             ];
         } catch (Throwable) {
             return [
-                'productOptionsByServiceArea' => $fallbackGroups,
-                'productPricing' => collect($fallbackGroups)->flatten()->mapWithKeys(fn ($name) => [$name => 350])->all(),
+                'productOptionsByServiceArea' => [],
+                'productPricing' => [],
             ];
         }
     }
@@ -1048,15 +968,10 @@ class DealController extends Controller
             }
 
             if (! Schema::hasTable('deals') || ! Contact::query()->whereKey($validated['contact_id'])->exists()) {
-                $mockDeal = $this->buildMockSavedDeal($validated, $contact);
-                $request->session()->put('deals.mock_saved', $mockDeal);
-                $request->session()->put('deals.mock_saved_payload', [
-                    'id' => $mockDeal['id'],
-                    ...$validated,
-                ]);
-                $request->session()->forget('deals.preview_payload');
-
-                return redirect()->route('deals.show', $mockDeal['id'])->with('success', 'Mock deal saved and submitted for approval.');
+                return $this->redirectToDealFormWithError(
+                    $request,
+                    'Deals can only be saved when the real deals and contacts records are available.'
+                );
             }
 
             $createdDeal = Deal::query()->create([
@@ -1121,14 +1036,11 @@ class DealController extends Controller
             }
 
             if (! Schema::hasTable('deals')) {
-                $mockSaved = $this->buildMockSavedDeal($validated, $contact) + ['id' => $id];
-                $request->session()->put('deals.mock_saved', $mockSaved);
-                $request->session()->put('deals.mock_saved_payload', [
-                    'id' => $id,
-                    ...$validated,
-                ]);
-
-                return redirect()->route('deals.show', $id)->with('success', 'Mock deal updated and resubmitted for approval.');
+                return $this->redirectToDealFormWithError(
+                    $request,
+                    'Deals can only be updated when the real deals records are available.',
+                    $id
+                );
             }
 
             $deal = $existingDeal ?: Deal::query()->find($id);
@@ -1453,117 +1365,9 @@ class DealController extends Controller
             }
         }
 
-        $mockPayload = session('deals.mock_saved_payload');
-        if (is_array($mockPayload) && (int) ($mockPayload['id'] ?? 0) === $id) {
-            $mockDeal = session('deals.mock_saved', []);
-            $stages = $this->dealStages();
-            $currentStage = $this->resolveCurrentStageForDeal($mockPayload['stage'] ?? ($mockDeal['stage'] ?? 'Inquiry'), null);
-            $deal = [
-                'id' => $id,
-                'deal_code' => $mockPayload['deal_code'] ?? ($mockDeal['deal_code'] ?? $this->generateDealCodeFromNames($mockPayload['first_name'] ?? '', $mockPayload['last_name'] ?? '', $id)),
-                'deal_name' => $mockPayload['deal_name'] ?? ($mockDeal['deal_name'] ?? 'Mock Deal'),
-                'contact_name' => trim(collect([$mockPayload['first_name'] ?? '', $mockPayload['last_name'] ?? ''])->filter()->implode(' ')) ?: ($mockDeal['contact_name'] ?? 'Linked Contact'),
-                'company_name' => $mockPayload['company_name'] ?? ($mockDeal['company_name'] ?? '-'),
-                'amount' => (int) round((float) ($mockPayload['total_estimated_engagement_value'] ?? 0)),
-                'expected_close' => filled($mockPayload['estimated_completion_date'] ?? null)
-                    ? Carbon::parse($mockPayload['estimated_completion_date'])->format('M d, Y')
-                    : ($mockDeal['expected_close'] ?? 'TBD'),
-                'owner_name' => $mockPayload['assigned_consultant'] ?? ($mockDeal['owner_name'] ?? 'Unassigned'),
-                'stage' => $mockPayload['stage'] ?? ($mockDeal['stage'] ?? 'Inquiry'),
-                'stage_id' => $currentStage['id'] ?? null,
-            ];
-
-            $detail = [
-                'related_contact' => $deal['contact_name'],
-                'related_company' => $deal['company_name'],
-                'deal_amount' => $deal['amount'],
-                'expected_close_date' => $deal['expected_close'],
-                'contact_person_name' => $deal['contact_name'],
-                'contact_person_position' => $mockPayload['position'] ?? '-',
-                'email_address' => $mockPayload['email'] ?? '-',
-                'contact_number' => $mockPayload['mobile'] ?? '-',
-                'client_type' => $mockPayload['customer_type'] ?? '-',
-                'industry' => $mockPayload['service_area'] ?? '-',
-                'deal_stage' => $deal['stage'],
-                'deal_owner' => $deal['owner_name'],
-                'created_date' => now()->format('n/j/Y'),
-                'last_modified' => now()->format('Y-m-d h:i A'),
-                'deal_status' => strtolower((string) ($mockPayload['deal_status'] ?? 'pending')) === 'approved'
-                    ? 'Approved'
-                    : (strtolower((string) ($mockPayload['deal_status'] ?? 'pending')) === 'rejected' ? 'Rejected' : 'Pending'),
-                'qualification_result' => strtolower((string) ($mockPayload['qualification_result'] ?? 'qualified')) === 'not_qualified'
-                    ? 'Not Qualified / Archived'
-                    : 'Qualified',
-                'qualification_notes' => $mockPayload['qualification_notes'] ?? '-',
-                'service' => [
-                    'service_type' => $mockPayload['services'] ?? '-',
-                    'product_type' => $mockPayload['products'] ?? '-',
-                    'engagement_type' => $mockPayload['engagement_type'] ?? '-',
-                    'engagement_duration' => $mockPayload['estimated_duration'] ?? '-',
-                ],
-                'financial' => [
-                    'deal_value' => (int) round((float) ($mockPayload['total_estimated_engagement_value'] ?? 0)),
-                    'pricing_model' => $mockPayload['engagement_type'] ?? '-',
-                    'payment_terms' => $mockPayload['payment_terms'] ?? '-',
-                    'commission_applicable' => $mockPayload['support_required'] ?? '-',
-                ],
-                'referral' => [
-                    'lead_source' => $mockPayload['lead_source'] ?? '-',
-                    'referred_by' => $mockPayload['referred_by'] ?? '-',
-                    'referral_type' => $mockPayload['referral_type'] ?? '-',
-                ],
-                'ownership' => [
-                    'lead_consultant' => $mockPayload['assigned_consultant'] ?? '-',
-                    'lead_associate' => $mockPayload['assigned_associate'] ?? '-',
-                    'handling_team' => $mockPayload['service_department_unit'] ?? '-',
-                    'assigned_members' => array_values(array_filter([
-                        $mockPayload['assigned_consultant'] ?? null,
-                        $mockPayload['assigned_associate'] ?? null,
-                    ])),
-                ],
-                'progress' => [
-                    'stages' => $stages,
-                    'current_stage' => $currentStage,
-                ],
-                'timeline' => [
-                    [
-                        'icon' => 'fa-file-circle-plus',
-                        'title' => 'Mock deal created',
-                        'timestamp' => now()->format('Y-m-d, h:i A'),
-                        'user' => $deal['owner_name'],
-                    ],
-                ],
-                'stage_history' => [
-                    [
-                        'stage' => $deal['stage'],
-                        'amount' => $deal['amount'],
-                        'duration' => $mockPayload['estimated_duration'] ?? '-',
-                        'modified_by' => $deal['owner_name'],
-                        'date' => now()->format('M d, Y h:i A'),
-                    ],
-                ],
-            ];
-
-            return view('deals.show', [
-                'deal' => $deal,
-                'detail' => $detail,
-                'stages' => $stages,
-                'hasSavedProposal' => false,
-                'dealFormData' => $this->normalizeDealFormData($mockPayload),
-                ...$this->dealPanelContext($this->normalizeDealFormData($mockPayload)),
-                'financeUsers' => $this->financeUserOptions(),
-                'employeeOptions' => $this->employeeOptions(),
-                'openDealModal' => (bool) request()->boolean('edit_deal'),
-            ]);
-        }
-
-        $deal = collect($this->mockDeals())->firstWhere('id', $id);
-
-        if (! $deal) {
-            return redirect()
-                ->route('deals.index')
-                ->with('error', 'The deal you are looking for could not be found.');
-        }
+        return redirect()
+            ->route('deals.index')
+            ->with('error', 'The deal you are looking for could not be found.');
 
         $stages = $this->dealStages();
         $currentStage = $this->resolveCurrentStageForDeal($deal['stage'], null);
@@ -1944,9 +1748,9 @@ class DealController extends Controller
         $owners = $this->ownerOptions();
         $defaultOwnerId = (int) ($owners[0]['id'] ?? 1001);
         $defaultOwner = collect($owners)->firstWhere('id', $defaultOwnerId) ?: collect($owners)->first();
-        $contactRecords = [$this->mockContactRecord()];
-        $contactOptions = ['David Lee'];
-        $companyOptions = ['Consulting Group'];
+        $contactRecords = [];
+        $contactOptions = [];
+        $companyOptions = [];
         $companyRecords = [];
 
         if (Schema::hasTable('contacts')) {
@@ -2011,12 +1815,8 @@ class DealController extends Controller
                 ];
             })->filter(fn (array $record): bool => $record['label'] !== '' || filled($record['company_name']))->values()->all();
 
-            if (! collect($contactRecords)->contains(fn (array $record) => (int) $record['id'] === 101)) {
-                array_unshift($contactRecords, $this->mockContactRecord());
-            }
-
             $contactOptions = $contacts->map(fn (Contact $contact): string => trim(($contact->first_name ?? '').' '.($contact->last_name ?? '')))->filter()->unique()->values()->all();
-            $companyOptions = array_values(array_unique(array_merge(['Consulting Group'], $contacts->pluck('company_name')->filter()->values()->all())));
+            $companyOptions = array_values(array_unique($contacts->pluck('company_name')->filter()->values()->all()));
         }
 
         if (Schema::hasTable('companies')) {
@@ -2084,7 +1884,7 @@ class DealController extends Controller
             'serviceRequirementCatalog' => $serviceCatalog['serviceRequirementCatalog'],
             'productOptionsByServiceArea' => $productCatalog['productOptionsByServiceArea'],
             'productPricing' => $productCatalog['productPricing'],
-            'ownerLabel' => $defaultOwner['name'] ?? 'Shine Florence Padillo',
+            'ownerLabel' => $defaultOwner['name'] ?? ($request->user()?->name ?? 'Unassigned'),
             'owners' => $owners,
             'defaultOwnerId' => $defaultOwnerId,
             'dealDraft' => $draft,
@@ -2231,48 +2031,7 @@ class DealController extends Controller
             }
         }
 
-        $mockDeal = collect($this->mockDeals())->firstWhere('id', $id);
-        abort_unless($mockDeal, 404);
-
-        $currentStage = $this->resolveCurrentStageForDeal((string) ($mockDeal['stage'] ?? 'Inquiry'), null);
-        $dealFormData = $this->normalizeDealFormData([
-            ...$mockDeal,
-            'stage' => $currentStage['name'] ?? ($mockDeal['stage'] ?? 'Inquiry'),
-            'contact_id' => 101,
-            'first_name' => data_get($this->mockContactRecord(), 'first_name'),
-            'last_name' => data_get($this->mockContactRecord(), 'last_name'),
-            'email' => strtolower(str_replace(' ', '.', (string) ($mockDeal['contact_name'] ?? 'contact'))).'@consulting.com',
-            'mobile' => '09331234567',
-            'company_name' => $mockDeal['company_name'] ?? '-',
-            'position' => 'CEO',
-            'estimated_completion_date' => '2026-06-10',
-        ]);
-
-        return [
-            'deal' => [
-                'id' => $mockDeal['id'],
-                'deal_code' => $mockDeal['deal_code'] ?? 'DEAL-'.$mockDeal['id'],
-                'deal_name' => $mockDeal['deal_name'] ?? 'Deal Form',
-                'stage' => $currentStage['name'] ?? ($mockDeal['stage'] ?? 'Inquiry'),
-                'value' => $dealFormData['total_estimated_engagement_value'] ?? 'P0.00',
-                'owner_name' => $mockDeal['owner_name'] ?? 'Unassigned',
-                'contact_name' => $mockDeal['contact_name'] ?? 'Linked Contact',
-                'company_name' => $mockDeal['company_name'] ?? '-',
-            ],
-            'detail' => [
-                'contact_person_position' => 'CEO',
-                'email_address' => $dealFormData['email'] ?? '-',
-                'contact_number' => $dealFormData['mobile'] ?? '-',
-                'client_type' => 'Corporation',
-                'industry' => 'Consulting',
-                'expected_close_date' => 'Jun 10, 2026',
-                'deal_status' => 'Pending',
-                'qualification_result' => 'Qualified',
-                'qualification_notes' => '-',
-            ],
-            'dealFormData' => $dealFormData,
-            'generatedAt' => now(),
-        ];
+        abort(404, 'The requested deal could not be found. Please reopen it from the live Deals list.');
     }
 
     private function normalizeListValue(mixed $value): array
@@ -3320,36 +3079,20 @@ class DealController extends Controller
     private function ownerOptions(): array
     {
         if (! Schema::hasTable('users')) {
-            return [
-                ['id' => 1001, 'name' => 'Shine Florence Padillo', 'email' => 'shinepadi@gmail.com'],
-                ['id' => 1002, 'name' => 'John Admin', 'email' => 'john.admin@example.com'],
-                ['id' => 1003, 'name' => 'Maria Santos', 'email' => 'maria.santos@example.com'],
-                ['id' => 1004, 'name' => 'Juan Dela Cruz', 'email' => 'juan.delacruz@example.com'],
-            ];
+            return [];
         }
 
-        $users = User::query()
+        return User::query()
             ->select(['id', 'name', 'email'])
             ->orderBy('name')
             ->get()
             ->map(fn (User $user): array => [
                 'id' => (int) $user->id,
                 'name' => $user->name,
-                'email' => $user->email ?: strtolower(str_replace(' ', '.', $user->name)).'@example.com',
+                'email' => $user->email,
             ])
             ->values()
             ->all();
-
-        if (! empty($users)) {
-            return $users;
-        }
-
-        return [
-            ['id' => 1001, 'name' => 'Shine Florence Padillo', 'email' => 'shinepadi@gmail.com'],
-            ['id' => 1002, 'name' => 'John Admin', 'email' => 'john.admin@example.com'],
-            ['id' => 1003, 'name' => 'Maria Santos', 'email' => 'maria.santos@example.com'],
-            ['id' => 1004, 'name' => 'Juan Dela Cruz', 'email' => 'juan.delacruz@example.com'],
-        ];
     }
 
     private function resolveOwnerName(int $ownerId): ?string

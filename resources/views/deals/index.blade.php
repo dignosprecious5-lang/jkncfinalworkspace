@@ -29,6 +29,14 @@
         </div>
     @endif
 
+    @if (!empty($catalogWarnings ?? []))
+        <div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            @foreach ($catalogWarnings as $warning)
+                <p>{{ $warning }}</p>
+            @endforeach
+        </div>
+    @endif
+
     @if (session('deal_access_denied'))
         <div id="dealAccessDeniedModal" class="fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/35 px-4">
             <div class="w-full max-w-sm rounded-xl border border-red-100 bg-white p-5 shadow-xl">
