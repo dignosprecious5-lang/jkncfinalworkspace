@@ -147,6 +147,10 @@
             margin: 0 0 5mm 0;
         }
 
+        .approved-by {
+            margin: 8mm 0 5mm 0;
+        }
+
         .signature-block {
             width: 70mm;
             page-break-inside: avoid;
@@ -254,7 +258,14 @@
             <div class="signature-block">
                 <div class="signature-line"></div>
                 <div><strong>{{ $communication->from_name ?: '—' }}</strong></div>
-                <div>President/CEO</div>
+            </div>
+
+            <div class="approved-by">Approved by:</div>
+
+            <div class="signature-block">
+                <div class="signature-line"></div>
+                <div><strong>John Kelly D. Abalde</strong></div>
+                <div>President and CEO</div>
             </div>
         </div>
     </div>

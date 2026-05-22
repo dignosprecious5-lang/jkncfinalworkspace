@@ -103,7 +103,7 @@ class TownHallController extends Controller
 
         $communication = TownHallCommunication::create($validated);
 
-        $communication->ref_no = 'TH-' . str_pad((string) $communication->id, 5, '0', STR_PAD_LEFT);
+        $communication->ref_no = 'MEMO-' . str_pad((string) $communication->id, 5, '0', STR_PAD_LEFT);
         $communication->save();
 
         return redirect()

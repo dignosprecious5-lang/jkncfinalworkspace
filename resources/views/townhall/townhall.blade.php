@@ -152,7 +152,7 @@
                             <label class="block text-xs font-semibold text-gray-500 mb-1">Ref #</label>
                             <input
                                 type="text"
-                                value="AUTO-INCREMENT"
+                                value="MEMO-AUTO-INCREMENT"
                                 readonly
                                 class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-gray-100 text-gray-600"
                             >
@@ -956,7 +956,13 @@ function buildMemoFooter(data, isLastPage) {
                             <p style="margin:0 0 36px 0;">Prepared by:</p>
                             <div style="width:240px;border-bottom:1px solid #374151;margin-bottom:4px;"></div>
                             <p style="margin:0;font-weight:600;line-height:1.2;">${escapeHtml(data.from)}</p>
-                            <p style="margin:0;line-height:1.2;">President/CEO</p>
+                        </div>
+
+                        <div style="margin-top:34px;">
+                            <p style="margin:0 0 36px 0;">Approved by:</p>
+                            <div style="width:240px;border-bottom:1px solid #374151;margin-bottom:4px;"></div>
+                            <p style="margin:0;font-weight:600;line-height:1.2;">John Kelly D. Abalde</p>
+                            <p style="margin:0;line-height:1.2;">President and CEO</p>
                         </div>
                     </div>
                     `
@@ -1081,7 +1087,7 @@ function paginateMemoPreview(data) {
 function townhallContactSuggest() {
     return {
         showSlideOver: false,
-        previewRef: 'AUTO-INCREMENT',
+        previewRef: 'MEMO-AUTO-INCREMENT',
         previewDate: @js(old('communication_date', '')),
         previewFrom: @js(Auth::user()->name),
         previewDepartment: @js(old('department_stakeholder', '')),
@@ -1257,7 +1263,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         paginateMemoPreview({
             logoUrl: `{{ asset('images/jk-logo.png') }}`,
-            ref: alpineData.previewRef || 'AUTO-INCREMENT',
+            ref: alpineData.previewRef || 'MEMO-AUTO-INCREMENT',
             date: alpineData.previewDate || '______________',
             recipientLabel: alpineData.previewRecipientLabel || 'To',
             to: alpineData.previewTo || '______________________________',
