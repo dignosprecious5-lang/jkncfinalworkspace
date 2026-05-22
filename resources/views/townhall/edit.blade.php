@@ -9,7 +9,7 @@
     previewDepartment: @js(old('department_stakeholder', $communication->department_stakeholder)),
     previewRecipientLabel: @js(old('recipient_label', $communication->recipient_label ?? 'To')),
     previewRecipientType: @js(old('recipient_type', $communication->recipient_type ?? 'all')),
-    previewRecipientUserId: @js(old('recipient_user_id', $communication->recipient_user_id)),
+    previewRecipientUserIds: @js(old('recipient_user_ids', $communication->recipient_user_ids ?? [])),
     employeesForRecipient: @js($employees->map(fn($employee) => ['id' => $employee->id, 'name' => $employee->name])->values()),
     previewTo: @js(old('to_for', $communication->to_for ?? 'All Employees')),
     previewPriority: @js(old('priority', $communication->priority ?? 'Low')),
@@ -19,18 +19,20 @@
     previewAdditional: @js(old('additional', $communication->additional)),
     syncRecipientFields() {
         if (this.previewRecipientType === 'all') {
-            this.previewRecipientUserId = '';
+            this.previewRecipientUserIds = [];
             this.previewTo = 'All Employees';
             return;
         }
 
-        const selected = this.employeesForRecipient.find(employee => String(employee.id) === String(this.previewRecipientUserId));
+        const selectedIds = Array.isArray(this.previewRecipientUserIds)
+            ? this.previewRecipientUserIds.map(id => String(id))
+            : [];
 
-        if (selected) {
-            this.previewTo = selected.name;
-        } else {
-            this.previewTo = '';
-        }
+        const selectedEmployees = this.employeesForRecipient.filter(employee => {
+            return selectedIds.includes(String(employee.id));
+        });
+
+        this.previewTo = selectedEmployees.map(employee => employee.name).join(', ');
     }
 }" x-init="syncRecipientFields()">
 
@@ -240,25 +242,29 @@
                                 class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500"
                             >
                                 <option value="all">All Employees</option>
-                                <option value="employee">Specific Employee</option>
+                                <option value="employee">Specific Employee/s</option>
                             </select>
                         </div>
 
                         <div x-show="previewRecipientType === 'employee'" x-cloak>
                             <select
-                                name="recipient_user_id"
-                                x-model="previewRecipientUserId"
-                                @change="syncRecipientFields()"
-                                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500"
+                                name="recipient_user_ids[]"
+                                x-model="previewRecipientUserIds"
+                                multiple
+                                @change="$nextTick(() => syncRecipientFields())"
+                                class="w-full min-h-[130px] border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500"
                             >
-                                <option value="">Select employee</option>
                                 @foreach($employees as $employee)
                                     <option value="{{ $employee->id }}"
-                                        {{ (string) old('recipient_user_id', $communication->recipient_user_id) === (string) $employee->id ? 'selected' : '' }}>
+                                        {{ in_array($employee->id, old('recipient_user_ids', $communication->recipient_user_ids ?? [])) ? 'selected' : '' }}>
                                         {{ $employee->name }}
                                     </option>
                                 @endforeach
                             </select>
+
+                            <p class="mt-1 text-xs text-gray-400">
+                                Hold CTRL and click to select multiple employees.
+                            </p>
                         </div>
 
                         <div class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">

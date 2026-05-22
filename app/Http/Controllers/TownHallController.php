@@ -70,7 +70,8 @@ class TownHallController extends Controller
             'recipient_label' => ['nullable', 'in:To,For'],
             'to_for' => ['nullable', 'string', 'max:255'],
             'recipient_type' => ['nullable', 'in:all,employee'],
-            'recipient_user_id' => ['nullable', 'required_if:recipient_type,employee', 'exists:users,id'],
+            'recipient_user_ids' => ['nullable', 'array'],
+            'recipient_user_ids.*' => ['exists:users,id'],
             'priority' => ['nullable', 'in:High,Low'],
             'subject' => ['nullable', 'string', 'max:255'],
             'message' => ['nullable', 'string'],
@@ -229,7 +230,8 @@ class TownHallController extends Controller
             'recipient_label' => ['nullable', 'in:To,For'],
             'to_for' => ['nullable', 'string', 'max:255'],
             'recipient_type' => ['nullable', 'in:all,employee'],
-            'recipient_user_id' => ['nullable', 'required_if:recipient_type,employee', 'exists:users,id'],
+            'recipient_user_ids' => ['nullable', 'array'],
+            'recipient_user_ids.*' => ['exists:users,id'],
             'priority' => ['nullable', 'in:High,Low'],
             'subject' => ['nullable', 'string', 'max:255'],
             'message' => ['nullable', 'string'],
@@ -500,7 +502,10 @@ class TownHallController extends Controller
              * It will NOT include "All Employees" memos.
              */
                 $query->where('recipient_type', 'employee')
-                    ->where('recipient_user_id', $selectedEmployee);
+                    ->where(function ($q) use ($selectedEmployee) {
+                        $q->where('recipient_user_id', $selectedEmployee)
+                            ->orWhereJsonContains('recipient_user_ids', (int) $selectedEmployee);
+                    });
             }
         } else {
             /*
@@ -513,7 +518,10 @@ class TownHallController extends Controller
                 $q->where('recipient_type', 'all')
                     ->orWhere(function ($sub) use ($user) {
                         $sub->where('recipient_type', 'employee')
-                            ->where('recipient_user_id', $user->id);
+                            ->where(function ($inner) use ($user) {
+                                $inner->where('recipient_user_id', $user->id)
+                                    ->orWhereJsonContains('recipient_user_ids', $user->id);
+                            });
                     });
             });
         }
@@ -531,7 +539,7 @@ class TownHallController extends Controller
     private function normalizeRecipientFields(array $validated, Request $request): array
     {
         if (!Schema::hasColumn('townhall_communications', 'recipient_type')) {
-            unset($validated['recipient_type'], $validated['recipient_user_id']);
+            unset($validated['recipient_type'], $validated['recipient_user_id'], $validated['recipient_user_ids']);
             return $validated;
         }
 
@@ -541,17 +549,27 @@ class TownHallController extends Controller
 
         if ($recipientType === 'all') {
             $validated['recipient_user_id'] = null;
+            $validated['recipient_user_ids'] = null;
             $validated['to_for'] = 'All Employees';
             return $validated;
         }
 
         if ($recipientType === 'employee') {
-            $recipient = User::find($request->input('recipient_user_id'));
+            $recipientIds = collect($request->input('recipient_user_ids', []))
+                ->filter()
+                ->unique()
+                ->values()
+                ->toArray();
 
-            if ($recipient) {
-                $validated['recipient_user_id'] = $recipient->id;
-                $validated['to_for'] = $recipient->name;
-            }
+            $recipients = User::whereIn('id', $recipientIds)
+                ->orderBy('name')
+                ->get();
+
+            $validated['recipient_user_id'] = $recipients->first()?->id;
+            $validated['recipient_user_ids'] = $recipients->pluck('id')->values()->toArray();
+            $validated['to_for'] = $recipients->pluck('name')->implode(', ');
+
+            return $validated;
         }
 
         return $validated;
@@ -570,6 +588,7 @@ class TownHallController extends Controller
             $query->where(function ($q) use ($user) {
                 $q->where('recipient_type', 'all')
                     ->orWhere('recipient_user_id', $user->id)
+                    ->orWhereJsonContains('recipient_user_ids', $user->id)
                     ->orWhere(function ($legacy) use ($user) {
                         $legacy->whereNull('recipient_type')
                             ->where(function ($old) use ($user) {
@@ -601,6 +620,7 @@ class TownHallController extends Controller
             $query->where(function ($q) use ($employee) {
                 $q->where('recipient_type', 'all')
                     ->orWhere('recipient_user_id', $employee->id)
+                    ->orWhereJsonContains('recipient_user_ids', $employee->id)
                     ->orWhere(function ($legacy) use ($employee) {
                         $legacy->whereNull('recipient_type')
                             ->where(function ($old) use ($employee) {
@@ -638,6 +658,12 @@ class TownHallController extends Controller
             }
 
             if ((int) $communication->recipient_user_id === (int) $user->id) {
+                return true;
+            }
+
+            $recipientIds = $communication->recipient_user_ids ?? [];
+
+            if (is_array($recipientIds) && in_array((int) $user->id, array_map('intval', $recipientIds), true)) {
                 return true;
             }
         }

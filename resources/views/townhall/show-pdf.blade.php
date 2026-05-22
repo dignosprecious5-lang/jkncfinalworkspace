@@ -156,11 +156,6 @@
             page-break-inside: avoid;
         }
 
-        .signature-line {
-            border-bottom: 1px solid #555;
-            height: 8mm;
-            margin-bottom: 1mm;
-        }
 
         .footer-fixed {
             position: fixed;
@@ -233,7 +228,14 @@
             <p><strong>Date:</strong>
                 {{ $communication->communication_date ? \Carbon\Carbon::parse($communication->communication_date)->format('F d, Y') : '—' }}
             </p>
-            <p><strong>{{ $communication->recipient_label ?? 'To' }}:</strong> {{ $communication->to_for ?: '—' }}</p>
+            <p>
+                <strong>{{ $communication->recipient_label ?? 'To' }}:</strong>
+                @if(($communication->recipient_type ?? 'all') === 'all')
+                    All Employees
+                @else
+                    {{ $communication->recipient_names ?: '—' }}
+                @endif
+            </p>
             <p><strong>From:</strong> {{ $communication->from_name ?: '—' }}</p>
             <p><strong>SUBJECT:</strong> {{ $communication->subject ?: '—' }}</p>
         </div>
