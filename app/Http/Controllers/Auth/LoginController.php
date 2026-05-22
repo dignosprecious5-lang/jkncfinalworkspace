@@ -14,7 +14,7 @@ class LoginController extends Controller
             $user = Auth::user();
 
             if ($user->role === 'SuperAdmin' || $user->role === 'Admin') {
-                return redirect()->route('admin.users');
+                return redirect()->route('townhall');
             }
 
             if (strtolower((string) $user->role) === 'client') {
@@ -40,7 +40,7 @@ class LoginController extends Controller
             $user = Auth::user();
 
             if ($user->role === 'SuperAdmin' || $user->role === 'Admin') {
-                return redirect()->route('admin.users');
+                return redirect()->route('townhall');
             }
 
             if (strtolower((string) $user->role) === 'client') {
