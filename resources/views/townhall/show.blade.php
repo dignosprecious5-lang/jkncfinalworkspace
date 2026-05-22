@@ -171,7 +171,7 @@
 
                 <div class="flex justify-between mb-3">
                     <h3 class="font-semibold">Acknowledgement</h3>
-                    <span>{{ $ackCount }}/{{ $totalEmployees }}</span>
+                    <span>{{ $ackCount }}/{{ $totalEmployees }} intended recipients</span>
                 </div>
 
                 <div class="w-full bg-gray-200 rounded-full h-3 mb-4">

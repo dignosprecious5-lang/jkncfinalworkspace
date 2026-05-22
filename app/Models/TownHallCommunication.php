@@ -91,11 +91,21 @@ class TownHallCommunication extends Model
 
     public function getRecipientNamesAttribute(): string
     {
-        if (($this->recipient_type ?? 'all') === 'all') {
-            return 'All Employees';
-        }
+        $recipientType = $this->recipient_type ?? 'all';
+
+        $baseLabel = match ($recipientType) {
+            'all_admins' => 'All Admins',
+            'all_clients' => 'All Clients',
+            'all_users' => 'All Users',
+            'employee' => null,
+            default => 'All Employees',
+        };
 
         $names = collect();
+
+        if ($baseLabel) {
+            $names->push($baseLabel);
+        }
 
         $userIds = $this->recipient_user_ids ?? [];
 

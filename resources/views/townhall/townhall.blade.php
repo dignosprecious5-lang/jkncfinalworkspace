@@ -563,20 +563,44 @@
 
                     <tbody class="bg-white text-gray-700">
                         @forelse($communications as $communication)
-                            <tr
-                                class="border-t border-gray-200 hover:bg-gray-50 cursor-pointer transition"
-                                onclick="window.location='{{ route('townhall.show', $communication->id) }}'"
-                            >
-                                <td class="px-3 py-3 border-r border-gray-200">{{ $communication->ref_no }}</td>
+                            @php
+                                $currentUser = Auth::user();
+                                $role = strtolower(trim((string) $currentUser->role));
 
+                                $recipientUserIds = collect($communication->recipient_user_ids ?? [])
+                                    ->map(fn ($id) => (int) $id)
+                                    ->toArray();
+
+                                $canViewMemo = $currentUser->hasPermission('approve_townhall')
+                                    || ($communication->recipient_type === 'all_users')
+                                    || (in_array($communication->recipient_type, ['all', 'all_employees', 'employee'], true) && $role === 'employee' && (($communication->recipient_type ?? '') !== 'employee' || in_array((int) $currentUser->id, $recipientUserIds, true) || (int) $communication->recipient_user_id === (int) $currentUser->id))
+                                    || ($communication->recipient_type === 'all_admins' && in_array($role, ['admin', 'superadmin', 'super admin', 'system super admin'], true))
+                                    || ($communication->recipient_type === 'all_clients' && in_array($role, ['client', 'customer'], true))
+                                    || ((int) $communication->recipient_user_id === (int) $currentUser->id)
+                                    || in_array((int) $currentUser->id, $recipientUserIds, true);
+
+                                $censored = !$canViewMemo;
+                            @endphp
+
+                            <tr
+                                class="border-t border-gray-200 {{ $censored ? 'bg-gray-50 cursor-not-allowed opacity-80' : 'hover:bg-gray-50 cursor-pointer' }} transition"
+                                @if(!$censored)
+                                    onclick="window.location='{{ route('townhall.show', $communication->id) }}'"
+                                @endif
+                                title="{{ $censored ? 'This memo is not intended for you' : '' }}"
+                            >
                                 <td class="px-3 py-3 border-r border-gray-200">
-                                    {{ $communication->communication_date
-                                        ? \Carbon\Carbon::parse($communication->communication_date)->format('M d, Y')
-                                        : '—' }}
+                                    {{ $censored ? '***' : $communication->ref_no }}
                                 </td>
 
                                 <td class="px-3 py-3 border-r border-gray-200">
-                                    @if($communication->expires_at)
+                                    {{ $censored ? '***' : ($communication->communication_date ? \Carbon\Carbon::parse($communication->communication_date)->format('M d, Y') : '—') }}
+                                </td>
+
+                                <td class="px-3 py-3 border-r border-gray-200">
+                                    @if($censored)
+                                        ***
+                                    @elseif($communication->expires_at)
                                         <div>{{ \Carbon\Carbon::parse($communication->expires_at)->format('M d, Y') }}</div>
                                         <div class="text-[11px] text-gray-400">
                                             {{ \Carbon\Carbon::parse($communication->expires_at)->format('h:i A') }}
@@ -586,35 +610,48 @@
                                     @endif
                                 </td>
 
-                                <td class="px-3 py-3 border-r border-gray-200">{{ $communication->department_stakeholder }}</td>
-                                <td class="px-3 py-3 border-r border-gray-200">{{ $communication->from_name }}</td>
-                                <td class="px-3 py-3 border-r border-gray-200">{{ $communication->subject }}</td>
                                 <td class="px-3 py-3 border-r border-gray-200">
-                                    {{ $communication->recipient_label ?? 'To' }}:
-                                    @if(($communication->recipient_type ?? 'all') === 'all')
-                                        All Employees
+                                    {{ $censored ? '***' : ($communication->department_stakeholder ?: '—') }}
+                                </td>
+
+                                <td class="px-3 py-3 border-r border-gray-200">
+                                    {{ $censored ? '***' : ($communication->from_name ?: '—') }}
+                                </td>
+
+                                <td class="px-3 py-3 border-r border-gray-200">
+                                    {{ $censored ? '***' : ($communication->subject ?: '—') }}
+                                </td>
+
+                                <td class="px-3 py-3 border-r border-gray-200">
+                                    @if($censored)
+                                        ***
                                     @else
-                                        {{ $communication->recipient_names }}
+                                        {{ $communication->recipient_label ?? 'To' }}:
+                                        {{ $communication->recipient_names ?? $communication->to_for ?? 'Selected Recipients' }}
                                     @endif
                                 </td>
 
                                 <td class="px-3 py-3 border-r border-gray-200">
-                                    @php
-                                        $priority = $communication->priority ?? 'Low';
-                                        $classes = $priority === 'High'
-                                            ? 'bg-red-50 text-red-700'
-                                            : 'bg-green-50 text-green-700';
-                                    @endphp
+                                    @if($censored)
+                                        ***
+                                    @else
+                                        @php
+                                            $priority = $communication->priority ?? 'Low';
+                                            $classes = $priority === 'High'
+                                                ? 'bg-red-50 text-red-700'
+                                                : 'bg-green-50 text-green-700';
+                                        @endphp
 
-                                    <span class="px-2 py-1 text-xs rounded-full font-medium {{ $classes }}">
-                                        {{ $priority }}
-                                    </span>
+                                        <span class="px-2 py-1 text-xs rounded-full font-medium {{ $classes }}">
+                                            {{ $priority }}
+                                        </span>
+                                    @endif
                                 </td>
 
                                 <td class="px-3 py-3 border-r border-gray-200">
                                     @if($communication->is_archived)
                                         <span class="px-2 py-1 text-xs rounded-full font-medium bg-gray-200 text-gray-700">
-                                            Expired
+                                            {{ $censored ? '***' : 'Expired' }}
                                         </span>
                                     @else
                                         @php
@@ -627,13 +664,15 @@
                                             };
                                         @endphp
                                         <span class="px-2 py-1 text-xs rounded-full font-medium {{ $approvalClasses }}">
-                                            {{ $approval }}
+                                            {{ $censored ? '***' : $approval }}
                                         </span>
                                     @endif
                                 </td>
 
                                 <td class="px-3 py-3 border-r border-gray-200">
-                                    @if($communication->attachment)
+                                    @if($censored)
+                                        ***
+                                    @elseif($communication->attachment)
                                         <a
                                             href="{{ asset('storage/' . $communication->attachment) }}"
                                             target="_blank"
@@ -648,13 +687,17 @@
                                 </td>
 
                                 <td class="px-3 py-3 text-center text-gray-400">
-                                    <button
-                                        type="button"
-                                        class="hover:text-gray-600"
-                                        onclick="event.stopPropagation(); window.location='{{ route('townhall.show', $communication->id) }}'"
-                                    >
-                                        …
-                                    </button>
+                                    @if($censored)
+                                        <span title="This memo is not intended for you">***</span>
+                                    @else
+                                        <button
+                                            type="button"
+                                            class="hover:text-gray-600"
+                                            onclick="event.stopPropagation(); window.location='{{ route('townhall.show', $communication->id) }}'"
+                                        >
+                                            …
+                                        </button>
+                                    @endif
                                 </td>
                             </tr>
                         @empty

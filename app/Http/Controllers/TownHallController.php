@@ -29,7 +29,9 @@ class TownHallController extends Controller
             $query->where('is_archived', false);
         }
 
-        $this->applyRecipientVisibility($query, Auth::user());
+        // All approved active memos appear in the Town Hall list.
+        // Memos not intended for the current user are censored in the Blade table.
+        // Direct opening is still protected in show() through canUserViewCommunication().
 
         if ($request->filled('department')) {
             $query->where('department_stakeholder', $request->department);
@@ -352,16 +354,20 @@ class TownHallController extends Controller
             }
         }
 
-        $employees = User::where('role', 'Employee')->get();
+        $intendedUsers = $this->getAcknowledgementUsers($communication);
+        $intendedUserIds = $intendedUsers->pluck('id')->values()->toArray();
 
         $acknowledgedUserIds = TownHallAcknowledgement::where('townhall_communication_id', $id)
+            ->whereIn('user_id', $intendedUserIds)
             ->pluck('user_id')
             ->toArray();
 
-        $acknowledgedUsers = $employees->whereIn('id', $acknowledgedUserIds);
-        $notAcknowledgedUsers = $employees->whereNotIn('id', $acknowledgedUserIds);
+        $acknowledgedUsers = $intendedUsers->whereIn('id', $acknowledgedUserIds)->values();
+        $notAcknowledgedUsers = $intendedUsers->whereNotIn('id', $acknowledgedUserIds)->values();
 
-        $totalEmployees = $employees->count();
+        // Kept this variable name so the existing Blade file still works.
+        // It now means total intended recipients, not only employees.
+        $totalEmployees = $intendedUsers->count();
         $ackCount = count($acknowledgedUserIds);
 
         $progress = $totalEmployees > 0
@@ -369,9 +375,17 @@ class TownHallController extends Controller
             : 0;
 
         $hasAcknowledged = $communication->hasBeenAcknowledgedBy(Auth::id());
-        $requiresAcknowledgement = !Auth::user()->hasPermission('approve_townhall')
-            && $communication->approval_status === 'Approved'
-            && !$communication->is_archived;
+
+        $isIntendedRecipient = in_array(
+            (int) Auth::id(),
+            array_map('intval', $intendedUserIds),
+            true
+        );
+
+        $requiresAcknowledgement = $communication->approval_status === 'Approved'
+            && !$communication->is_archived
+            && $isIntendedRecipient
+            && !$hasAcknowledged;
 
         return view('townhall.show', compact(
             'communication',
@@ -475,8 +489,15 @@ class TownHallController extends Controller
             abort(403, 'This communication is not assigned to you.');
         }
 
-        if (Auth::user()->hasPermission('approve_townhall')) {
-            return redirect()->back()->with('success', 'Acknowledgment is not required for your access level.');
+        $intendedUsers = $this->getAcknowledgementUsers($communication);
+
+        $isIntendedRecipient = $intendedUsers
+            ->pluck('id')
+            ->map(fn($id) => (int) $id)
+            ->contains((int) Auth::id());
+
+        if (!$isIntendedRecipient) {
+            abort(403, 'Acknowledgment is only available for intended recipients.');
         }
 
         TownHallAcknowledgement::updateOrCreate(
@@ -789,6 +810,94 @@ class TownHallController extends Controller
             || str_contains($toFor, 'all')
             || str_contains($toFor, 'everyone')
             || str_contains($toFor, 'all employees');
+    }
+
+    private function getAcknowledgementUsers(TownHallCommunication $communication)
+    {
+        $recipientType = $communication->recipient_type ?? 'all';
+
+        $adminRoles = [
+            'admin',
+            'superadmin',
+            'super admin',
+            'system super admin',
+        ];
+
+        $clientRoles = [
+            'client',
+            'customer',
+        ];
+
+        $baseUsers = collect();
+
+        if (in_array($recipientType, ['all', 'all_employees'], true)) {
+            $baseUsers = User::whereRaw('LOWER(role) = ?', ['employee'])
+                ->orderBy('name')
+                ->get();
+        }
+
+        if ($recipientType === 'all_admins') {
+            $baseUsers = User::whereIn(\Illuminate\Support\Facades\DB::raw('LOWER(role)'), $adminRoles)
+                ->orderBy('name')
+                ->get();
+        }
+
+        if ($recipientType === 'all_clients') {
+            $baseUsers = User::whereIn(\Illuminate\Support\Facades\DB::raw('LOWER(role)'), $clientRoles)
+                ->orderBy('name')
+                ->get();
+        }
+
+        if ($recipientType === 'all_users') {
+            $baseUsers = User::orderBy('name')->get();
+        }
+
+        $extraUserIds = collect($communication->recipient_user_ids ?? [])
+            ->push($communication->recipient_user_id)
+            ->filter()
+            ->unique()
+            ->values();
+
+        $extraUsers = collect();
+
+        if ($extraUserIds->isNotEmpty()) {
+            $extraUsers = User::whereIn('id', $extraUserIds)
+                ->orderBy('name')
+                ->get();
+        }
+
+        /*
+         * Contacts/clients from recipient_contact_ids can only acknowledge
+         * if they also have a user login account with the same email.
+         */
+        $contactUserAccounts = collect();
+
+        $contactIds = collect($communication->recipient_contact_ids ?? [])
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($contactIds->isNotEmpty()) {
+            $contactEmails = Contact::whereIn('id', $contactIds)
+                ->whereNotNull('email')
+                ->pluck('email')
+                ->filter()
+                ->unique()
+                ->values();
+
+            if ($contactEmails->isNotEmpty()) {
+                $contactUserAccounts = User::whereIn('email', $contactEmails)
+                    ->orderBy('name')
+                    ->get();
+            }
+        }
+
+        return $baseUsers
+            ->merge($extraUsers)
+            ->merge($contactUserAccounts)
+            ->unique('id')
+            ->sortBy('name')
+            ->values();
     }
 
     public function searchRecipients(Request $request)
