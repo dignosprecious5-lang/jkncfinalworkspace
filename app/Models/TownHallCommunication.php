@@ -3,7 +3,6 @@
 namespace App\Models;
 
 use App\Models\User;
-
 use Illuminate\Database\Eloquent\Model;
 
 class TownHallCommunication extends Model
@@ -18,6 +17,7 @@ class TownHallCommunication extends Model
         'recipient_label',
         'recipient_type',
         'recipient_user_id',
+        'recipient_user_ids',
         'to_for',
         'priority',
         'status',
@@ -44,6 +44,7 @@ class TownHallCommunication extends Model
         'expires_at' => 'datetime',
         'archived_at' => 'datetime',
         'is_archived' => 'boolean',
+        'recipient_user_ids' => 'array',
     ];
 
     public function acknowledgements()
@@ -73,15 +74,34 @@ class TownHallCommunication extends Model
 
     public function uploader()
     {
-        return $this->belongsTo(\App\Models\User::class, 'created_by');
+        return $this->belongsTo(User::class, 'created_by');
     }
 
     public function approver()
     {
-        return $this->belongsTo(\App\Models\User::class, 'approved_by');
+        return $this->belongsTo(User::class, 'approved_by');
     }
+
     public function recipientUser()
     {
         return $this->belongsTo(User::class, 'recipient_user_id');
+    }
+
+    public function getRecipientNamesAttribute(): string
+    {
+        if (($this->recipient_type ?? 'all') === 'all') {
+            return 'All Employees';
+        }
+
+        $ids = $this->recipient_user_ids ?? [];
+
+        if (!empty($ids)) {
+            return User::whereIn('id', $ids)
+                ->orderBy('name')
+                ->pluck('name')
+                ->implode(', ');
+        }
+
+        return $this->recipientUser->name ?? $this->to_for ?? 'Selected Employee';
     }
 }

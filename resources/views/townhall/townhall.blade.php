@@ -216,24 +216,28 @@
                                     class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500"
                                 >
                                     <option value="all">All Employees</option>
-                                    <option value="employee">Specific Employee</option>
+                                    <option value="employee">Specific Employee/s</option>
                                 </select>
                             </div>
 
                             <div x-show="previewRecipientType === 'employee'" x-cloak>
                                 <select
-                                    name="recipient_user_id"
-                                    x-model="previewRecipientUserId"
+                                    name="recipient_user_ids[]"
+                                    x-model="previewRecipientUserIds"
+                                    multiple
                                     @change="$nextTick(() => syncRecipientFields())"
-                                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500"
+                                    class="w-full min-h-[130px] border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500"
                                 >
-                                    <option value="">Select employee</option>
                                     @foreach($employees as $employee)
-                                        <option value="{{ $employee->id }}" {{ (string) old('recipient_user_id') === (string) $employee->id ? 'selected' : '' }}>
+                                        <option value="{{ $employee->id }}">
                                             {{ $employee->name }}
                                         </option>
                                     @endforeach
                                 </select>
+
+                                <p class="mt-1 text-xs text-gray-400">
+                                    Hold CTRL and click to select multiple employees.
+                                </p>
                             </div>
 
                             <div class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
@@ -501,7 +505,7 @@
                                     @if(($communication->recipient_type ?? 'all') === 'all')
                                         All Employees
                                     @else
-                                        {{ $communication->recipientUser->name ?? $communication->to_for ?? 'Selected Employee' }}
+                                        {{ $communication->recipient_names }}
                                     @endif
                                 </td>
 
@@ -1091,7 +1095,7 @@ function townhallContactSuggest() {
         previewDepartment: @js(old('department_stakeholder', '')),
         previewRecipientLabel: @js(old('recipient_label', 'To')),
         previewRecipientType: @js(old('recipient_type', 'all')),
-        previewRecipientUserId: @js(old('recipient_user_id', '')),
+        previewRecipientUserIds: @js(old('recipient_user_ids', [])),
         employeesForRecipient: @js($employees->map(fn($employee) => ['id' => $employee->id, 'name' => $employee->name])->values()),
         previewTo: @js(old('to_for', 'All Employees')),
         previewPriority: @js(old('priority', 'Low')),
@@ -1103,16 +1107,20 @@ function townhallContactSuggest() {
 
         syncRecipientFields() {
             if (this.previewRecipientType === 'all') {
-                this.previewRecipientUserId = '';
+                this.previewRecipientUserIds = [];
                 this.previewTo = 'All Employees';
                 return;
             }
 
-            const selected = this.employeesForRecipient.find(employee => {
-                return String(employee.id) === String(this.previewRecipientUserId);
+            const selectedIds = Array.isArray(this.previewRecipientUserIds)
+                ? this.previewRecipientUserIds.map(id => String(id))
+                : [];
+
+            const selectedEmployees = this.employeesForRecipient.filter(employee => {
+                return selectedIds.includes(String(employee.id));
             });
 
-            this.previewTo = selected ? selected.name : '';
+            this.previewTo = selectedEmployees.map(employee => employee.name).join(', ');
         },
 
         dropdowns: {
@@ -1261,7 +1269,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         paginateMemoPreview({
             logoUrl: `{{ asset('images/jk-logo.png') }}`,
-            ref: alpineData.previewRef || 'MEMO-AUTO-INCREMENT',
+            ref: alpineData.previewRef || 'AUTO-INCREMENT',
             date: alpineData.previewDate || '______________',
             recipientLabel: alpineData.previewRecipientLabel || 'To',
             to: alpineData.previewTo || '______________________________',
@@ -1358,7 +1366,7 @@ document.addEventListener('DOMContentLoaded', function () {
             'previewDepartment',
             'previewRecipientLabel',
             'previewRecipientType',
-            'previewRecipientUserId',
+            'previewRecipientUserIds',
             'previewTo',
             'previewPriority',
             'previewSubject',
