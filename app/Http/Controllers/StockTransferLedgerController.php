@@ -14,6 +14,7 @@ use App\Models\StockTransferLedger;
 use App\Models\Contact;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 
@@ -59,11 +60,16 @@ class StockTransferLedgerController extends Controller
 
         foreach (
             [
+                'name',
                 'first_name',
+                'middle_initial',
                 'middle_name',
                 'last_name',
+                'name_extension',
                 'email',
+                'phone',
                 'contact_address',
+                'company_address',
                 'tin',
             ] as $column
         ) {
@@ -84,23 +90,69 @@ class StockTransferLedgerController extends Controller
 
         return $query->get()
             ->map(function (Contact $contact) {
+                $cifData = $this->loadContactCifData($contact);
+                $firstName = trim((string) ($cifData['first_name'] ?? $contact->first_name ?? ''));
+                $middleName = trim((string) ($cifData['middle_name'] ?? $contact->middle_name ?? $contact->middle_initial ?? ''));
+                $lastName = trim((string) ($cifData['last_name'] ?? $contact->last_name ?? ''));
+                $nameExtension = trim((string) ($cifData['name_extension'] ?? $contact->name_extension ?? ''));
+
+                if ($firstName === '' && $lastName === '' && Schema::hasColumn('contacts', 'name')) {
+                    $legacyName = trim((string) ($contact->getAttribute('name') ?? ''));
+                    $parts = preg_split('/\s+/', $legacyName, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+                    $firstName = $parts[0] ?? '';
+                    $lastName = count($parts) > 1 ? (string) end($parts) : '';
+                    $middleName = count($parts) > 2 ? implode(' ', array_slice($parts, 1, -1)) : '';
+                }
+
                 $name = trim(collect([
-                    $contact->first_name ?? null,
-                    $contact->middle_name ?? null,
-                    $contact->last_name ?? null,
+                    $firstName,
+                    $middleName,
+                    $lastName,
+                    $nameExtension,
                 ])->filter()->implode(' '));
+
+                $address = trim(collect([
+                    $cifData['present_address_line1'] ?? null,
+                    $cifData['present_address_line2'] ?? null,
+                ])->filter()->implode(' '));
+
+                if ($address === '') {
+                    $address = (string) (
+                        $contact->contact_address
+                        ?? $contact->company_address
+                        ?? ''
+                    );
+                }
 
                 return (object) [
                     'id' => $contact->id,
                     'name' => $name,
-                    'email' => $contact->email ?? null,
-                    'nationality' => null,
-                    'address' => $contact->contact_address ?? null,
-                    'tax_id' => $contact->tin ?? null,
+                    'first_name' => $firstName,
+                    'middle_name' => $middleName,
+                    'last_name' => $lastName,
+                    'name_extension' => $nameExtension,
+                    'email' => $cifData['email'] ?? $contact->email ?? null,
+                    'phone' => $cifData['mobile'] ?? $contact->phone ?? null,
+                    'nationality' => $cifData['citizenship_nationality'] ?? null,
+                    'address' => $address !== '' ? $address : null,
+                    'tax_id' => $cifData['tin'] ?? $contact->tin ?? null,
                 ];
             })
             ->filter(fn($contact) => !empty($contact->name))
             ->values();
+    }
+
+    private function loadContactCifData(Contact $contact): array
+    {
+        $path = 'contact-cif-data/'.$contact->id.'.json';
+
+        if (! Storage::disk('local')->exists($path)) {
+            return [];
+        }
+
+        $data = json_decode((string) Storage::disk('local')->get($path), true);
+
+        return is_array($data) ? $data : [];
     }
 
     public function create()
@@ -136,10 +188,17 @@ class StockTransferLedgerController extends Controller
             $data['certificate_no'] = $this->nextStockNumber();
         }
 
-        $data['email'] = $data['email'] ?: ($contact->email ?? null);
-        $data['nationality'] = $data['nationality'] ?: null;
-        $data['address'] = $data['address'] ?: ($contact->contact_address ?? null);
-        $data['tin'] = $data['tin'] ?: ($contact->tin ?? null);
+        $cifData = $this->loadContactCifData($contact);
+        $cifAddress = trim(collect([
+            $cifData['present_address_line1'] ?? null,
+            $cifData['present_address_line2'] ?? null,
+        ])->filter()->implode(' '));
+
+        $data['email'] = $data['email'] ?: ($cifData['email'] ?? $contact->email ?? null);
+        $data['nationality'] = $data['nationality'] ?: ($cifData['citizenship_nationality'] ?? null);
+        $data['address'] = $data['address'] ?: ($cifAddress ?: ($contact->contact_address ?? null));
+        $data['tin'] = $data['tin'] ?: ($cifData['tin'] ?? $contact->tin ?? null);
+        $data['phone'] = $data['phone'] ?: ($cifData['mobile'] ?? $contact->phone ?? null);
 
         if (empty($data['date_registered'])) {
             $data['date_registered'] = now()->toDateString();

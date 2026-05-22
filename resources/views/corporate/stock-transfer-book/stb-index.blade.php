@@ -237,6 +237,7 @@
         const nationalityInput = container.querySelector('[name="nationality"]');
         const addressInput = container.querySelector('[name="address"]');
         const tinInput = container.querySelector('[name="tin"]');
+        const phoneInput = container.querySelector('[name="phone"]');
         const addPanel = container.querySelector('[data-add-panel]');
         const contactList = container.querySelector('[data-contact-list]');
 
@@ -256,11 +257,20 @@
         };
 
         const selectContact = (contact) => {
-            const nameParts = splitName(contact.name);
+            const nameParts = {
+                first: contact.first_name || '',
+                middle: contact.middle_name || '',
+                last: contact.last_name || '',
+            };
+
+            if (!nameParts.first && !nameParts.last) {
+                Object.assign(nameParts, splitName(contact.name));
+            }
+
             firstInput.value = nameParts.first;
             middleInput.value = nameParts.middle;
             emailInput.value = contact.email || '';
-            if (familyNameInput && !familyNameInput.value) {
+            if (familyNameInput) {
                 familyNameInput.value = nameParts.last;
             }
             if (firstNameDisplay) {
@@ -272,17 +282,20 @@
             if (emailDisplay) {
                 emailDisplay.value = contact.email || '';
             }
-            if (nationalityInput && !nationalityInput.value) {
+            if (nationalityInput) {
                 nationalityInput.value = contact.nationality || '';
             }
-            if (addressInput && !addressInput.value) {
+            if (addressInput) {
                 addressInput.value = contact.address || '';
             }
-            if (tinInput && !tinInput.value) {
+            if (tinInput) {
                 tinInput.value = contact.tax_id || '';
             }
+            if (phoneInput) {
+                phoneInput.value = contact.phone || '';
+            }
             cardName.textContent = contact.name;
-            cardEmail.textContent = contact.email || '';
+            cardEmail.textContent = [contact.email, contact.phone].filter(Boolean).join(' | ');
             card.classList.remove('hidden');
             emptyState.classList.add('hidden');
         };
@@ -298,7 +311,10 @@
                 const row = document.createElement('button');
                 row.type = 'button';
                 row.className = 'w-full px-4 py-3 text-left hover:bg-gray-50';
-                row.innerHTML = `<div class="text-sm font-medium text-gray-900">${contact.name}</div><div class="text-xs text-gray-500">${contact.email || ''}</div>`;
+                row.innerHTML = `
+                    <div class="text-sm font-medium text-gray-900">${contact.name}</div>
+                    <div class="text-xs text-gray-500">${[contact.email, contact.phone, contact.tax_id].filter(Boolean).join(' | ')}</div>
+                `;
                 row.addEventListener('click', () => {
                     selectContact(contact);
                 });
@@ -313,7 +329,12 @@
                     renderList(contacts);
                     return;
                 }
-                const matches = contacts.filter((contact) => (contact.name || '').toLowerCase().includes(term));
+                const matches = contacts.filter((contact) => [
+                    contact.name,
+                    contact.email,
+                    contact.phone,
+                    contact.tax_id,
+                ].some((value) => String(value || '').toLowerCase().includes(term)));
                 renderList(matches);
             });
         }
