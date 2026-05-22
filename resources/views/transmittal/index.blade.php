@@ -4,6 +4,9 @@
 @section('content')
 @php
     $transmittalPrefill = $prefill ?? null;
+    $transmittalContacts = $contactOptions ?? [];
+    $transmittalEmployees = $employeeOptions ?? [];
+    $transmittalCompanies = $companyOptions ?? [];
 @endphp
 <div
     id="transmittal-page"
@@ -19,7 +22,7 @@
 
         partyName: '',
         officeName: '',
-        previewAddress: '452 D.M. Cortes St Mandaue, Central Visayas',
+        previewAddress: '',
 
         deliveryType: '',
         byPersonWho: '',
@@ -37,16 +40,44 @@
         previewApprovedBy: '',
         previewPreparedAt: '',
         previewApprovedAt: '',
-        previewApprovedPosition: 'Branch OIC',
+        previewApprovedPosition: '',
         previewCustodian: '',
-        previewDeliveredBy: 'Carmela Ortiz',
+        previewDeliveredBy: '',
         previewReceivedBy: '',
         previewReceiverAffiliation: '',
         previewReceivedAt: '',
+        selectedReceiverKey: '',
+        selectedCompanyId: '',
+        receiverOptions: @js(array_merge($transmittalContacts, $transmittalEmployees)),
+        companyOptions: @js($transmittalCompanies),
 
         previewItems: [
             { no: 1, particular: '', unique_id: '', qty: '', description: '', remarks: '', file: null },
         ],
+
+        applyReceiverSelection() {
+            if (!this.selectedReceiverKey) return;
+            const selected = this.receiverOptions.find(option => `${option.type}-${option.id}` === this.selectedReceiverKey);
+            if (!selected) return;
+
+            this.previewReceivedBy = selected.label || '';
+
+            if (selected.affiliation && !this.previewReceiverAffiliation) {
+                this.previewReceiverAffiliation = selected.affiliation;
+            }
+
+            if (selected.email && !this.recipientEmail) {
+                this.recipientEmail = selected.email;
+            }
+        },
+
+        applyCompanySelection() {
+            if (!this.selectedCompanyId) return;
+            const selected = this.companyOptions.find(option => String(option.id) === String(this.selectedCompanyId));
+            if (!selected) return;
+
+            this.previewReceiverAffiliation = selected.label || '';
+        },
 
         closeAddSectionAlpine() {
             this.showSlideOver = false;
@@ -320,11 +351,6 @@
                                 </tbody>
                             </table>
 
-                            <div class="tm-footer-code">
-                                <div>JKNC-TF-GS-V.1-2025</div>
-                                <div>Page ___ of ___</div>
-                            </div>
-
                             <div class="tm-signatures">
                                 <div class="tm-sign-col">
                                     <div class="tm-sign-label">Prepared by:</div>
@@ -333,12 +359,9 @@
 
                                     <div class="tm-sign-label tm-sign-gap">Approved by:</div>
                                     <div class="tm-sign-line" x-text="previewApprovedBy || ' '"></div>
-                                    <div class="tm-sign-sub" x-text="previewApprovedPosition || ''"></div>
-                                    <div class="tm-sign-sub" x-text="previewApprovedAt || ''"></div>
 
-                                    <div class="tm-sign-gap-sm"></div>
-                                    <div class="tm-sign-line" x-text="previewCustodian || ' '"></div>
-                                    <div class="tm-sign-sub">Document Custodian</div>
+                                    <div class="tm-sign-label tm-sign-gap-sm">Operations Manager:</div>
+                                    <div class="tm-sign-line" x-text="previewApprovedPosition || ' '"></div>
                                 </div>
 
                                 <div class="tm-sign-col">
@@ -350,10 +373,12 @@
 
                                     <div class="tm-sign-label tm-sign-gap-sm">Affiliated to / Company:</div>
                                     <div class="tm-sign-line" x-text="previewReceiverAffiliation || ' '"></div>
-
-                                    <div class="tm-sign-label tm-sign-gap">Date and Time:</div>
-                                    <div class="tm-sign-line" x-text="previewReceivedAt || ' '"></div>
                                 </div>
+                            </div>
+
+                            <div class="tm-footer-code">
+                                <div>JKNC-TF-GS-V.1-2025</div>
+                                <div>Page 1 of 1</div>
                             </div>
                         </div>
                     </div>
@@ -558,42 +583,56 @@
 
                                 <div>
                                     <label class="block text-xs font-semibold text-gray-500 mb-1">Approved by</label>
-                                    <input type="text" x-model="previewApprovedBy" readonly class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-gray-100 text-gray-600">
+                                    <input
+                                        type="text"
+                                        x-model="previewApprovedBy"
+                                        readonly
+                                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-gray-100 text-gray-600"
+                                        placeholder="Will be filled after admin approval"
+                                    >
+                                    <p class="mt-1 text-[11px] text-gray-400">This will be filled by the admin who approves the transmittal.</p>
                                 </div>
 
                                 <div>
-                                    <label class="block text-xs font-semibold text-gray-500 mb-1">Approved at</label>
-                                    <input type="text" x-model="previewApprovedAt" readonly class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-gray-100 text-gray-600">
-                                </div>
-
-                                <div>
-                                    <label class="block text-xs font-semibold text-gray-500 mb-1">Position</label>
-                                    <input type="text" x-model="previewApprovedPosition" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
-                                </div>
-
-                                <div>
-                                    <label class="block text-xs font-semibold text-gray-500 mb-1">Document Custodian</label>
-                                    <input type="text" x-model="previewCustodian" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                                    <label class="block text-xs font-semibold text-gray-500 mb-1">Operations Manager</label>
+                                    <input
+                                        type="text"
+                                        x-model="previewApprovedPosition"
+                                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500"
+                                        placeholder="Enter Operations Manager name"
+                                    >
                                 </div>
 
                                 <div>
                                     <label class="block text-xs font-semibold text-gray-500 mb-1">Delivered by</label>
-                                    <input type="text" x-model="previewDeliveredBy" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                                    <input
+                                        type="text"
+                                        x-model="previewDeliveredBy"
+                                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500"
+                                        placeholder="Enter delivered by name"
+                                    >
                                 </div>
 
                                 <div>
-                                    <label class="block text-xs font-semibold text-gray-500 mb-1">Received by</label>
-                                    <input type="text" x-model="previewReceivedBy" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                                    <label class="block text-xs font-semibold text-gray-500 mb-1">Received by (Contact / Employee)</label>
+                                    <select x-model="selectedReceiverKey" @change="applyReceiverSelection()" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white">
+                                        <option value="">Select contact or employee</option>
+                                        <template x-for="option in receiverOptions" :key="`${option.type}-${option.id}`">
+                                            <option :value="`${option.type}-${option.id}`" x-text="`${option.label} (${option.type})`"></option>
+                                        </template>
+                                    </select>
+                                    <input type="text" x-model="previewReceivedBy" class="mt-2 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="Or type receiver manually">
                                 </div>
 
                                 <div>
                                     <label class="block text-xs font-semibold text-gray-500 mb-1">Affiliated to / Company</label>
-                                    <input type="text" x-model="previewReceiverAffiliation" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
-                                </div>
-
-                                <div>
-                                    <label class="block text-xs font-semibold text-gray-500 mb-1">Date and Time</label>
-                                    <input type="datetime-local" x-model="previewReceivedAt" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                                    <select x-model="selectedCompanyId" @change="applyCompanySelection()" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white">
+                                        <option value="">Select company</option>
+                                        <template x-for="company in companyOptions" :key="company.id">
+                                            <option :value="company.id" x-text="company.label"></option>
+                                        </template>
+                                    </select>
+                                    <input type="text" x-model="previewReceiverAffiliation" class="mt-2 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="Or type company manually">
                                 </div>
                             </div>
                         </div>
@@ -625,6 +664,8 @@
         background: #fff;
         color: #111827;
         font-family: Arial, sans-serif;
+        display: flex;
+        flex-direction: column;
     }
 
     .tm-title {
@@ -730,7 +771,8 @@
         justify-content: space-between;
         align-items: center;
         font-size: 11px;
-        margin-bottom: 28px;
+        margin-top: auto;
+        padding-top: 18px;
     }
 
     .tm-signatures {
@@ -811,7 +853,7 @@ function resetTransmittalForm() {
     alpineData.transmittalMode = 'SEND';
     alpineData.partyName = '';
     alpineData.officeName = '';
-    alpineData.previewAddress = '452 D.M. Cortes St Mandaue, Central Visayas';
+    alpineData.previewAddress = '';
     alpineData.deliveryType = '';
     alpineData.byPersonWho = '';
     alpineData.registeredMailProvider = '';
@@ -821,13 +863,16 @@ function resetTransmittalForm() {
     alpineData.actionPickUp = false;
     alpineData.actionDropOff = false;
     alpineData.actionEmail = false;
-    alpineData.previewPreparedBy = 'ANGELIE AVENIDO';
-    alpineData.previewApprovedBy = 'MA. LOURDES MATA';
-    alpineData.previewApprovedPosition = 'Branch OIC';
-    alpineData.previewCustodian = 'ANGELIE AVENIDO';
-    alpineData.previewDeliveredBy = 'Carmela Ortiz';
+    alpineData.previewPreparedBy = '{{ auth()->user()->name ?? "System User" }}';
+    alpineData.previewApprovedBy = '';
+    alpineData.previewApprovedPosition = '';
+    alpineData.previewCustodian = '';
+    alpineData.previewDeliveredBy = '';
     alpineData.previewReceivedBy = '';
+    alpineData.previewReceiverAffiliation = '';
     alpineData.previewReceivedAt = '';
+    alpineData.selectedReceiverKey = '';
+    alpineData.selectedCompanyId = '';
     alpineData.previewItems = [defaultTransmittalItem(0)];
 }
 
@@ -856,7 +901,8 @@ function applyTransmittalPrefill(prefill) {
     alpineData.previewCustodian = prefill.document_custodian || '';
     alpineData.previewDeliveredBy = prefill.delivered_by || '';
     alpineData.previewReceivedBy = prefill.received_by || '';
-    alpineData.previewReceivedAt = prefill.received_at || '';
+    alpineData.previewReceiverAffiliation = prefill.receiver_affiliation || '';
+    alpineData.previewReceivedAt = '';
     alpineData.previewItems = Array.isArray(prefill.items) && prefill.items.length
         ? prefill.items.map((item, index) => ({
             no: index + 1,
@@ -1079,7 +1125,7 @@ async function saveTransmittal() {
     formData.append('delivered_by', alpineData.previewDeliveredBy ?? '');
     formData.append('received_by', alpineData.previewReceivedBy ?? '');
     formData.append('receiver_affiliation', alpineData.previewReceiverAffiliation ?? '');
-    formData.append('received_at', alpineData.previewReceivedAt ? alpineData.previewReceivedAt.replace('T', ' ') : '');
+    formData.append('received_at', '');
 
     const itemsWithoutFile = alpineData.previewItems.map((item, index) => ({
         no: index + 1,
@@ -1111,7 +1157,8 @@ async function saveTransmittal() {
         const data = await res.json();
 
         if (!res.ok) {
-            alert(data.message || 'Failed to save transmittal.');
+            console.error('Transmittal save error:', data);
+            alert((data.message || 'Failed to save transmittal.') + (data.error ? '\n\nError: ' + data.error : ''));
             return;
         }
 

@@ -53,6 +53,23 @@ class Transmittal extends Model
         'action_email' => 'boolean',
     ];
 
+    /**
+     * approved_by_name is the Operations Manager name written on the form.
+     * It must not be replaced by the admin user who clicks approve.
+     * The actual system approver is stored in approved_by and approved_at.
+     */
+    public function setApprovedByNameAttribute($value): void
+    {
+        $newValue = trim((string) ($value ?? ''));
+        $currentValue = trim((string) ($this->attributes['approved_by_name'] ?? ''));
+
+        if ($this->exists && $currentValue !== '' && $newValue !== '' && $currentValue !== $newValue) {
+            return;
+        }
+
+        $this->attributes['approved_by_name'] = $newValue !== '' ? $newValue : null;
+    }
+
     public function items()
     {
         return $this->hasMany(TransmittalItem::class)->orderBy('item_no');

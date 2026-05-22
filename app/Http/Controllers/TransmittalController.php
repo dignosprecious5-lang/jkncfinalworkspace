@@ -8,6 +8,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Log;
 
@@ -24,6 +25,9 @@ class TransmittalController extends Controller
 
         return view('transmittal.index', [
             'prefill' => is_array($prefill) ? $prefill : null,
+            'contactOptions' => $this->transmittalContactOptions(),
+            'employeeOptions' => $this->transmittalEmployeeOptions(),
+            'companyOptions' => $this->transmittalCompanyOptions(),
         ]);
     }
 
@@ -161,6 +165,7 @@ class TransmittalController extends Controller
             'action_pick_up' => ['nullable'],
             'action_drop_off' => ['nullable'],
             'action_email' => ['nullable'],
+            'approved_by_name' => ['nullable', 'string', 'max:255'],
             'approved_position' => ['nullable', 'string', 'max:255'],
             'document_custodian' => ['nullable', 'string', 'max:255'],
             'delivered_by' => ['nullable', 'string', 'max:255'],
@@ -201,7 +206,7 @@ class TransmittalController extends Controller
                 'action_email' => $request->boolean('action_email'),
                 'prepared_by_name' => Auth::user()?->name ?? 'System User',
                 'prepared_at' => now(),
-                'approved_by_name' => null,
+                'approved_by_name' => $validated['approved_by_name'] ?? null,
                 'approved_position' => $validated['approved_position'] ?? null,
                 'document_custodian' => $validated['document_custodian'] ?? null,
                 'delivered_by' => $validated['delivered_by'] ?? null,
@@ -285,7 +290,12 @@ class TransmittalController extends Controller
     {
         $transmittal = Transmittal::with(['items', 'receipt'])->findOrFail($id);
 
-        $pdf = Pdf::loadView('transmittal.preview-pdf', compact('transmittal'))
+        $approvedByDisplay = $this->resolveApprovedByName($transmittal);
+
+        $pdf = Pdf::loadView('transmittal.preview-pdf', [
+                'transmittal' => $transmittal,
+                'approvedByDisplay' => $approvedByDisplay,
+            ])
             ->setPaper('a4', 'portrait');
 
         return $pdf->stream('transmittal-' . $transmittal->transmittal_no . '.pdf');
@@ -444,8 +454,8 @@ class TransmittalController extends Controller
             'action_email' => (bool) $clientEmail,
             'prepared_by_name' => (string) ($project->assigned_associate ?: ''),
             'approved_by_name' => (string) ($project->assigned_consultant ?: ''),
-            'approved_position' => 'Lead Consultant',
-            'document_custodian' => (string) ($project->assigned_associate ?: ''),
+            'approved_position' => 'Operations Manager',
+            'document_custodian' => '',
             'delivered_by' => '',
             'received_by' => $externalParty,
             'received_at' => '',
@@ -459,4 +469,169 @@ class TransmittalController extends Controller
             ]],
         ];
     }
+
+    private function transmittalContactOptions(): array
+    {
+        if (! Schema::hasTable('contacts')) {
+            return [];
+        }
+
+        $columns = Schema::getColumnListing('contacts');
+        $select = array_values(array_intersect([
+            'id', 'first_name', 'middle_name', 'middle_initial', 'last_name', 'name_extension',
+            'company_name', 'email', 'phone'
+        ], $columns));
+
+        if (! in_array('id', $select, true)) {
+            $select[] = 'id';
+        }
+
+        return DB::table('contacts')
+            ->select($select)
+            ->orderByDesc('id')
+            ->limit(500)
+            ->get()
+            ->map(function ($contact) {
+                $fullName = trim(collect([
+                    $contact->first_name ?? null,
+                    $contact->middle_initial ?? null,
+                    $contact->middle_name ?? null,
+                    $contact->last_name ?? null,
+                    $contact->name_extension ?? null,
+                ])->filter()->implode(' '));
+
+                $company = trim((string) ($contact->company_name ?? ''));
+                $label = $fullName !== '' ? $fullName : ($company !== '' ? $company : 'Contact #' . $contact->id);
+
+                return [
+                    'id' => $contact->id,
+                    'type' => 'contact',
+                    'label' => $label,
+                    'affiliation' => $company,
+                    'email' => $contact->email ?? '',
+                    'phone' => $contact->phone ?? '',
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    private function transmittalEmployeeOptions(): array
+    {
+        if (Schema::hasTable('employees')) {
+            $columns = Schema::getColumnListing('employees');
+            $select = array_values(array_intersect([
+                'id', 'employee_id', 'full_name', 'first_name', 'middle_name', 'last_name',
+                'work_email', 'email', 'department', 'position'
+            ], $columns));
+
+            if (! in_array('id', $select, true)) {
+                $select[] = 'id';
+            }
+
+            return DB::table('employees')
+                ->select($select)
+                ->orderByDesc('id')
+                ->limit(500)
+                ->get()
+                ->map(function ($employee) {
+                    $fullName = trim((string) ($employee->full_name ?? ''));
+
+                    if ($fullName === '') {
+                        $fullName = trim(collect([
+                            $employee->first_name ?? null,
+                            $employee->middle_name ?? null,
+                            $employee->last_name ?? null,
+                        ])->filter()->implode(' '));
+                    }
+
+                    return [
+                        'id' => $employee->id,
+                        'type' => 'employee',
+                        'label' => $fullName !== '' ? $fullName : 'Employee #' . $employee->id,
+                        'affiliation' => trim((string) ($employee->department ?? '')),
+                        'email' => $employee->work_email ?? ($employee->email ?? ''),
+                        'position' => $employee->position ?? '',
+                    ];
+                })
+                ->values()
+                ->all();
+        }
+
+        if (! Schema::hasTable('users')) {
+            return [];
+        }
+
+        return DB::table('users')
+            ->select('id', 'name', 'email')
+            ->orderBy('name')
+            ->limit(500)
+            ->get()
+            ->map(fn ($user) => [
+                'id' => $user->id,
+                'type' => 'employee',
+                'label' => $user->name ?: $user->email,
+                'affiliation' => 'Employee',
+                'email' => $user->email ?? '',
+                'position' => '',
+            ])
+            ->values()
+            ->all();
+    }
+
+    private function transmittalCompanyOptions(): array
+    {
+        if (! Schema::hasTable('companies')) {
+            return [];
+        }
+
+        $columns = Schema::getColumnListing('companies');
+        $select = array_values(array_intersect(['id', 'company_name', 'name', 'email', 'address'], $columns));
+
+        if (! in_array('id', $select, true)) {
+            $select[] = 'id';
+        }
+
+        return DB::table('companies')
+            ->select($select)
+            ->orderByDesc('id')
+            ->limit(500)
+            ->get()
+            ->map(function ($company) {
+                $label = trim((string) ($company->company_name ?? ($company->name ?? '')));
+
+                return [
+                    'id' => $company->id,
+                    'label' => $label !== '' ? $label : 'Company #' . $company->id,
+                    'email' => $company->email ?? '',
+                    'address' => $company->address ?? '',
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    private function resolveApprovedByName(Transmittal $transmittal): string
+    {
+        // Approved by should be the actual admin/user who approved the record.
+        // The add form must not manually fill this value.
+        if (! empty($transmittal->approved_by) && Schema::hasTable('users')) {
+            $userColumns = Schema::getColumnListing('users');
+            $nameColumn = in_array('name', $userColumns, true) ? 'name' : (in_array('email', $userColumns, true) ? 'email' : null);
+
+            if ($nameColumn) {
+                $name = DB::table('users')
+                    ->where('id', $transmittal->approved_by)
+                    ->value($nameColumn);
+
+                if (trim((string) $name) !== '') {
+                    return trim((string) $name);
+                }
+            }
+        }
+
+        // Fallback only for old records where approved_by_name already stores the admin approver.
+        return trim((string) ($transmittal->approved_by_name ?? ''));
+    }
+
 }
