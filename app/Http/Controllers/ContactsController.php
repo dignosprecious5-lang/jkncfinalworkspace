@@ -31,6 +31,7 @@ use Illuminate\View\View;
 class ContactsController extends Controller
 {
     private const CLIENT_LINK_TTL_DAYS = 14;
+    private const DEFAULT_CIF_PRESIDENT_NAME = 'John Kelly Abalde';
     private const BASE_KYC_REQUIREMENT_KEYS = [
         'cif_signed_document',
         'two_valid_ids',
@@ -142,7 +143,12 @@ class ContactsController extends Controller
         $kycFilter = (string) $request->query('kyc', 'All');
         $perPage = 5;
 
-        $query = Contact::query();
+        $query = Contact::query()
+            ->with([
+                'companies' => fn ($companyQuery) => $companyQuery
+                    ->select('companies.id', 'companies.company_name')
+                    ->orderBy('companies.company_name'),
+            ]);
 
         if ($search !== '') {
             $this->applyContactSearchFilter($query, $search);
@@ -722,6 +728,8 @@ class ContactsController extends Controller
             $tab = 'kyc';
         }
 
+        $relatedCompanies = $this->relatedCompaniesForContact($contactModel, trim((string) $request->query('company_search', '')));
+
         return view('contacts.show', [
             'contact' => $contactModel,
             'tab' => $tab,
@@ -735,7 +743,8 @@ class ContactsController extends Controller
             'requiredKycRequirementKeys' => $this->requiredKycRequirementKeysForContact($contactModel),
             'kycActivityLogs' => $this->buildKycActivityLogsWithAudit($contactModel),
             'companySearch' => trim((string) $request->query('company_search', '')),
-            'companyTabCompanies' => $this->relatedCompaniesForContact($contactModel, trim((string) $request->query('company_search', ''))),
+            'companyTabCompanies' => $relatedCompanies,
+            'headerLinkedCompanyName' => $relatedCompanies[0]['company_name'] ?? null,
             'companyCustomFields' => collect($request->session()->get('company.custom_fields', []))->values()->all(),
             'fieldTypes' => collect($this->fieldTypes()),
             'lookupModules' => $this->lookupModules(),
@@ -795,20 +804,14 @@ class ContactsController extends Controller
         if ($this->prefersJsonResponse($request)) {
             return response()->json([
                 'message' => "CIF link sent to {$recipientEmail}",
-                'contact_client_link' => [
-                    'label' => 'Client CIF link generated',
-                    'url' => $clientUrl,
-                ],
+                'recipient_email' => $recipientEmail,
             ]);
         }
 
         return redirect()
             ->route('contacts.show', ['contact' => $contactModel->id, 'tab' => 'kyc'])
             ->with('success', "CIF link sent to {$recipientEmail}")
-            ->with('contact_client_link', [
-                'label' => 'Client CIF link generated',
-                'url' => $clientUrl,
-            ]);
+            ->with('contact_client_email', $recipientEmail);
     }
 
     public function sendSpecimenClientForm(Request $request, string $contact): RedirectResponse|JsonResponse
@@ -849,20 +852,14 @@ class ContactsController extends Controller
         if ($this->prefersJsonResponse($request)) {
             return response()->json([
                 'message' => "Specimen link sent to {$recipientEmail}",
-                'contact_client_link' => [
-                    'label' => 'Client Specimen Signature link generated',
-                    'url' => $clientUrl,
-                ],
+                'recipient_email' => $recipientEmail,
             ]);
         }
 
         return redirect()
             ->route('contacts.show', ['contact' => $contactModel->id, 'tab' => 'kyc'])
             ->with('success', "Specimen link sent to {$recipientEmail}")
-            ->with('contact_client_link', [
-                'label' => 'Client Specimen Signature link generated',
-                'url' => $clientUrl,
-            ]);
+            ->with('contact_client_email', $recipientEmail);
     }
 
     public function clientCifForm(Request $request, string $token): View
@@ -1378,7 +1375,11 @@ class ContactsController extends Controller
             $document['company_reg_no'] = '';
             $document['date_created'] = $validated['date_created'] ?? ($document['date_created'] ?? $cifDocumentDefaults['date_created']);
             $document['issued_on'] = $validated['issued_on'] ?? ($document['issued_on'] ?? $cifDocumentDefaults['issued_on']);
-            $document['issued_by'] = $validated['issued_by'] ?? ($document['issued_by'] ?? $cifDocumentDefaults['issued_by']);
+            $uploaderName = $request->user()?->name ?? 'Admin User';
+            $document['issued_by'] = $validated['issued_by']
+                ?? ($upload ? $uploaderName : null)
+                ?? ($document['uploaded_by'] ?? null)
+                ?? ($document['issued_by'] ?? $cifDocumentDefaults['issued_by']);
             $document['remarks'] = $validated['remarks'] ?? ($document['remarks'] ?? '');
 
             $documents[$requirement] = $document;
@@ -1483,6 +1484,7 @@ class ContactsController extends Controller
             'cifDocuments' => $this->loadCifDocuments($contactModel),
             'downloadMode' => false,
             'autoPrint' => false,
+            'backUrl' => route('contacts.show', ['contact' => $contactModel->id, 'tab' => 'kyc']),
         ]);
     }
 
@@ -1497,6 +1499,7 @@ class ContactsController extends Controller
             'cifDocuments' => $this->loadCifDocuments($contactModel),
             'downloadMode' => true,
             'autoPrint' => $request->boolean('autoprint'),
+            'backUrl' => route('contacts.show', ['contact' => $contactModel->id, 'tab' => 'kyc']),
         ]);
     }
 
@@ -2121,10 +2124,12 @@ class ContactsController extends Controller
 
     private function loadClientCifData(Contact $contact): array
     {
-        return $this->loadContactJsonPayload($contact, 'cif_data', [
+        $stored = $this->loadContactJsonPayload($contact, 'cif_data', [
             $this->cifDataPath($contact),
             $this->legacyCifDataPath($contact),
         ]);
+
+        return $this->applyContactBackedCifFallbacks($contact, $stored);
     }
 
     private function relatedCompaniesForContact(Contact $contact, string $search = ''): array
@@ -2154,31 +2159,6 @@ class ContactsController extends Controller
                 fn ($query) => $query->whereHas('contacts', fn ($relation) => $relation->where('contacts.id', $contact->id))
             )
             ->get();
-
-        if ($relatedCompanies->isEmpty() && filled($contact->company_name)) {
-            $relatedCompanies = Company::query()
-                ->with([
-                    'latestBif' => fn ($query) => $query->select([
-                        'company_bifs.id',
-                        'company_bifs.company_id',
-                        'company_bifs.status',
-                        'company_bifs.industry_services',
-                        'company_bifs.industry_export_import',
-                        'company_bifs.industry_education',
-                        'company_bifs.industry_financial_services',
-                        'company_bifs.industry_transportation',
-                        'company_bifs.industry_distribution',
-                        'company_bifs.industry_manufacturing',
-                        'company_bifs.industry_government',
-                        'company_bifs.industry_wholesale_retail_trade',
-                        'company_bifs.industry_other',
-                        'company_bifs.industry_other_text',
-                    ]),
-                ])
-                ->select(['companies.id', 'companies.company_name', 'companies.email', 'companies.phone', 'companies.owner_name'])
-                ->where('company_name', 'like', $contact->company_name)
-                ->get();
-        }
 
         $items = $relatedCompanies
             ->unique('id')
@@ -2252,13 +2232,9 @@ class ContactsController extends Controller
     private function applyContactBackedCifFallbacks(Contact $contact, array $cifData): array
     {
         $contactCreatedDate = optional($contact->created_at ?: $contact->business_date ?: $contact->intake_date)->toDateString() ?? now()->toDateString();
-        $clientName = trim(implode(' ', array_filter([
-            $contact->first_name,
-            $contact->middle_name,
-            $contact->last_name,
-            $contact->name_extension,
-        ])));
+        $clientName = $this->contactPrintedName($contact);
         $creatorName = trim((string) ($contact->created_by ?: $contact->owner_name ?: $contact->referred_by ?: ''));
+        $salesMarketingName = trim((string) ($contact->sales_marketing ?: $contact->owner_name ?: $creatorName));
         $contactBackedFields = [
             'cif_date' => $contactCreatedDate,
             'cif_no' => $contact->cif_no,
@@ -2273,6 +2249,8 @@ class ContactsController extends Controller
             'tin' => $contact->tin ?? '',
             'referred_by_footer' => $creatorName,
             'referred_date' => $contactCreatedDate,
+            'sales_marketing_footer' => $salesMarketingName,
+            'president_footer' => self::DEFAULT_CIF_PRESIDENT_NAME,
             'email' => $contact->email,
             'mobile' => $contact->phone,
             'owner_name' => $contact->owner_name,
@@ -2289,6 +2267,15 @@ class ContactsController extends Controller
         }
 
         return $cifData;
+    }
+
+    private function contactPrintedName(Contact $contact): string
+    {
+        return trim(implode(' ', array_filter([
+            $contact->first_name,
+            $contact->middle_name,
+            $contact->last_name,
+        ])));
     }
 
     private function syncContactFromCifPayload(Contact $contact, array $validated): void
@@ -2740,7 +2727,7 @@ class ContactsController extends Controller
                 'form_exists' => $specimenFormExists,
                 'file' => $specimenUploadFiles[0] ?? null,
                 'files' => $specimenUploadFiles,
-                'complete' => count($specimenUploadFiles) > 0,
+                'complete' => $specimenFormExists || count($specimenUploadFiles) > 0,
             ],
             'tin_proof' => [
                 'file' => $tinProofFiles[0] ?? null,
@@ -3517,12 +3504,6 @@ class ContactsController extends Controller
             ->filter()
             ->values();
 
-        if ($relatedCompanies->isEmpty() && filled($contact->company_name) && Schema::hasTable('companies')) {
-            $relatedCompanies = Company::query()
-                ->where('company_name', 'like', $contact->company_name)
-                ->pluck('id');
-        }
-
         $items = Service::query()
             ->when($relatedCompanies->isNotEmpty(), fn ($query) => $query->whereIn('company_id', $relatedCompanies->all()))
             ->when($relatedCompanies->isEmpty(), fn ($query) => $query->whereRaw('1 = 0'))
@@ -3762,7 +3743,7 @@ class ContactsController extends Controller
                 'cif_no' => $existingSignedCif['cif_no'] ?? $cifDocumentDefaults['cif_no'],
                 'date_created' => $existingSignedCif['date_created'] ?? $cifDocumentDefaults['date_created'],
                 'issued_on' => $existingSignedCif['issued_on'] ?? $cifDocumentDefaults['issued_on'],
-                'issued_by' => $existingSignedCif['issued_by'] ?? $cifDocumentDefaults['issued_by'],
+                'issued_by' => $uploadedBy,
                 'remarks' => 'Uploaded by client through secure CIF form.',
             ];
         }

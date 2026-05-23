@@ -423,7 +423,7 @@ class CompanyKycController extends Controller
 
     public function uploadRequirementDocument(Request $request, int $company, string $requirement): RedirectResponse
     {
-        abort_unless(! $this->isKycReviewer($request->user()), 403);
+        abort_unless($request->user(), 403);
 
         $bif = $this->latestCompanyBif($company);
         if (! $bif) {
@@ -447,11 +447,15 @@ class CompanyKycController extends Controller
 
         $file = $validated['document'];
         $path = $file->store("company-bifs/{$bif->id}/client-documents", 'public');
+        $uploader = $this->requirementUploaderMeta($request->user());
 
         $documents[$documentKey] = [
             'original_name' => $file->getClientOriginalName(),
             'path' => $path,
             'uploaded_at' => now()->toIso8601String(),
+            'uploaded_by' => $uploader['name'],
+            'uploaded_by_role' => $uploader['role'],
+            'issued_by' => $uploader['label'],
         ];
 
         $bif->update([
@@ -560,6 +564,7 @@ class CompanyKycController extends Controller
                                 'file_name' => $documentMeta['file_name'],
                                 'mime_type' => $documentMeta['mime_type'],
                                 'uploaded_at' => $documentMeta['uploaded_at'],
+                                'issued_by' => $documentMeta['issued_by'],
                                 'template_url' => in_array($requirement['key'], ['sole_spa', 'juridical_secretary_certificate', 'juridical_ubo_declaration'], true)
                                     ? route('company.kyc.requirements.template', ['company' => $company, 'requirement' => $requirement['key']])
                                     : null,
@@ -625,6 +630,7 @@ class CompanyKycController extends Controller
                 'file_url' => null,
                 'mime_type' => null,
                 'uploaded_at' => null,
+                'issued_by' => null,
             ];
         }
 
@@ -646,7 +652,66 @@ class CompanyKycController extends Controller
             'file_url' => null,
             'mime_type' => $mimeType,
             'uploaded_at' => data_get($bif?->client_requirement_documents, $documentKey.'.uploaded_at'),
+            'issued_by' => data_get($bif?->client_requirement_documents, $documentKey.'.issued_by')
+                ?: $this->formatRequirementIssuer(
+                    data_get($bif?->client_requirement_documents, $documentKey.'.uploaded_by_role'),
+                    data_get($bif?->client_requirement_documents, $documentKey.'.uploaded_by')
+                ),
         ];
+    }
+
+    private function requirementUploaderMeta(?User $user): array
+    {
+        $role = $this->requirementUploaderRole($user);
+        $name = trim((string) ($user?->name ?? ''));
+        $name = $name !== '' ? $name : $role;
+
+        return [
+            'role' => $role,
+            'name' => $name,
+            'label' => $this->formatRequirementIssuer($role, $name),
+        ];
+    }
+
+    private function requirementUploaderRole(?User $user): string
+    {
+        if (! $user) {
+            return 'User';
+        }
+
+        if ($user->isSuperAdmin() || $user->isAdmin()) {
+            return 'Admin';
+        }
+
+        if ($user->isEmployee()) {
+            return 'Employee';
+        }
+
+        if ($user->isClient()) {
+            return 'Client';
+        }
+
+        return ucfirst((string) ($user->role ?: 'User'));
+    }
+
+    private function formatRequirementIssuer(?string $role, ?string $name): ?string
+    {
+        $role = trim((string) $role);
+        $name = trim((string) $name);
+
+        if ($role === '' && $name === '') {
+            return null;
+        }
+
+        if ($role === '') {
+            return $name;
+        }
+
+        if ($name === '' || strcasecmp($role, $name) === 0) {
+            return $role;
+        }
+
+        return "{$role} - {$name}";
     }
 
     private function normalizeStoredPath(string $path): string

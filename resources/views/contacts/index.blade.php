@@ -132,6 +132,7 @@
                     @forelse ($contacts as $contact)
                         @php
                             $initials = strtoupper(mb_substr($contact->first_name ?? '', 0, 1).mb_substr($contact->last_name ?? '', 0, 1));
+                            $linkedCompanyName = collect($contact->companies ?? [])->pluck('company_name')->filter()->sort()->values()->first();
                         @endphp
                         <tr class="text-gray-700">
                             <td class="px-3 py-3"><input type="checkbox" value="{{ $contact->id }}" class="row-checkbox h-4 w-4 rounded border-gray-300"></td>
@@ -143,7 +144,7 @@
                                     </a>
                                 </div>
                             </td>
-                            <td class="px-3 py-3">{{ $contact->company_name ?: '-' }}</td>
+                            <td class="px-3 py-3">{{ $linkedCompanyName ?: '-' }}</td>
                             <td class="px-3 py-3">{{ $contact->email ?: '-' }}</td>
                             <td class="px-3 py-3">{{ $contact->phone ?: '-' }}</td>
                             <td class="px-3 py-3">

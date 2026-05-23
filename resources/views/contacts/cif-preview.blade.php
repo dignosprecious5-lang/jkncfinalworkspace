@@ -32,6 +32,9 @@
     </style>
 </head>
 <body class="bg-gray-100 text-gray-900">
+    @php
+        $resolvedBackUrl = $backUrl ?? route('contacts.show', ['contact' => $contact->id, 'tab' => 'kyc']);
+    @endphp
     <div class="print-shell mx-auto max-w-6xl p-4 md:p-6">
         <div class="no-print mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3">
             <div>
@@ -40,7 +43,7 @@
             </div>
 
             <div class="flex gap-2">
-                <button type="button" onclick="window.location.href='{{ $backUrl }}'"
+                <button type="button" onclick="window.location.href='{{ $resolvedBackUrl }}'"
                     class="inline-flex h-10 items-center rounded-full border border-gray-200 px-4 text-sm font-medium text-gray-700 hover:bg-gray-100">
                     Back
                 </button>

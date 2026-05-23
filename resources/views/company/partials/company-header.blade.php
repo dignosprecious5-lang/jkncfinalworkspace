@@ -6,7 +6,7 @@
             || $authUser->hasPermission('approve_corporate')
             || $authUser->hasPermission('access_admin_dashboard'));
 @endphp
-<div class="border-b border-gray-100 px-4 py-4">
+<div id="companyHeaderWrap" class="border-b border-gray-100 px-4 py-4">
     <div class="flex flex-wrap items-start justify-between gap-4">
         <div class="min-w-0 flex-1">
             <div class="flex items-center gap-2 text-sm text-gray-500">
@@ -18,10 +18,10 @@
                     <span>Company</span>
                 </a>
                 <span>/</span>
-                <span class="font-semibold text-gray-900 truncate">{{ $company->company_name }}</span>
+                <span id="companyHeaderBreadcrumb" class="font-semibold text-gray-900 truncate">{{ $company->company_name }}</span>
             </div>
 
-            <div class="mt-4 rounded-md border border-gray-200 bg-gray-50 p-4">
+            <div id="companyHeaderSummary" class="mt-4 rounded-md border border-gray-200 bg-gray-50 p-4">
                 <div class="flex flex-wrap items-start justify-between gap-4">
                     <div class="flex min-w-0 flex-1 flex-wrap items-start gap-5">
                         <div class="h-16 w-16 shrink-0 rounded-lg border border-gray-200 bg-gray-100 text-gray-600 flex items-center justify-center text-sm font-bold leading-tight">
@@ -30,7 +30,9 @@
 
                         <div class="min-w-[240px] flex-1">
                             <h1 class="text-2xl font-bold tracking-tight text-gray-900">{{ $company->company_name }}</h1>
-                            <p class="mt-1 text-sm text-gray-500">{{ $company->company_type ?: 'Corporation' }}</p>
+                            @if (! empty($company->company_type))
+                                <p class="mt-1 text-sm text-gray-500">{{ $company->company_type }}</p>
+                            @endif
 
                             <div class="mt-3 flex flex-wrap gap-x-6 gap-y-2 text-sm text-gray-600">
                                 @if (! empty($company->address))
@@ -128,7 +130,7 @@
 
                     <div>
                         <label for="edit_company_type" class="mb-1 block text-sm font-medium text-gray-700">Company Type</label>
-                        <input id="edit_company_type" name="company_type" type="text" value="{{ old('company_type', $company->company_type ?: 'Corporation') }}" class="h-9 w-full rounded border border-gray-200 px-4 text-sm text-gray-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100">
+                        <input id="edit_company_type" name="company_type" type="text" value="{{ old('company_type', $company->company_type ?? '') }}" class="h-9 w-full rounded border border-gray-200 px-4 text-sm text-gray-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100">
                         @error('company_type')
                             <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
                         @enderror

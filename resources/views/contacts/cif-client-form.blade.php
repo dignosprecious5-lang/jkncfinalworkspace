@@ -5,11 +5,16 @@
         $cifData['last_name'] ?? $contact->last_name ?? '',
         $cifData['name_extension'] ?? '',
     ])->filter(fn ($value) => filled(trim((string) $value)))->implode(' ')) ?: 'Client';
+    $clientPrintedName = trim(collect([
+        $cifData['first_name'] ?? $contact->first_name ?? '',
+        $cifData['middle_name'] ?? '',
+        $cifData['last_name'] ?? $contact->last_name ?? '',
+    ])->filter(fn ($value) => filled(trim((string) $value)))->implode(' ')) ?: 'Client';
     $selectedCitizenshipType = old('citizenship_type', $cifData['citizenship_type'] ?? '');
     $selectedCivilStatus = old('civil_status', $cifData['civil_status'] ?? '');
     $showForeign = in_array($selectedCitizenshipType, ['foreigner', 'dual_citizen'], true);
     $requirementState = $kycRequirementState ?? [];
-    $clientSignatureName = old('sig_name_left', $cifData['sig_name_left'] ?? $clientName);
+    $clientSignatureName = old('sig_name_left', $cifData['sig_name_left'] ?? $clientPrintedName);
     $clientSignaturePosition = old('sig_position_left', $cifData['sig_position_left'] ?? ($contact->position ?: 'Client'));
     $signedCifRequirement = $requirementState['cif_signed_document'] ?? ['file' => null, 'complete' => false];
 @endphp
@@ -144,14 +149,14 @@
                         </div>
                         <div>
                             <label class="mb-1 block text-sm font-medium text-slate-700">Civil Status</label>
-                            <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-[repeat(3,minmax(0,1fr))_minmax(260px,1.4fr)] lg:items-center" data-civil-status-radios>
+                            <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-[repeat(4,minmax(0,max-content))_minmax(260px,1fr)] lg:items-center" data-civil-status-radios>
                                 @foreach (['single' => 'Single', 'separated' => 'Separated', 'widowed' => 'Widowed', 'married' => 'Married'] as $value => $label)
-                                    <label class="flex items-center gap-2 border border-slate-300 px-3 py-2 text-sm"><input type="radio" name="civil_status" value="{{ $value }}" @checked(old('civil_status', $cifData['civil_status'] ?? '') === $value)> {{ $label }}</label>
+                                    <label class="inline-flex items-center gap-2 border border-slate-300 px-3 py-2 text-sm"><input type="radio" name="civil_status" value="{{ $value }}" @checked(old('civil_status', $cifData['civil_status'] ?? '') === $value)> {{ $label }}</label>
                                 @endforeach
-                                <div class="lg:col-start-4 lg:row-start-2" data-spouse-row @if($selectedCivilStatus !== 'married') style="display:none;" @endif>
-                                    <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
-                                        <label for="client_spouse_name" class="shrink-0 text-sm font-medium text-slate-700">Spouse's Name</label>
-                                        <input id="client_spouse_name" name="spouse_name" value="{{ old('spouse_name', $cifData['spouse_name'] ?? '') }}" class="h-11 w-full border border-slate-300 px-3 text-sm">
+                                <div class="lg:col-start-5 lg:row-start-1 lg:min-w-0 lg:justify-self-stretch" data-spouse-row @if($selectedCivilStatus !== 'married') style="display:none;" @endif>
+                                    <div class="flex min-w-0 items-center gap-2">
+                                        <label for="client_spouse_name" class="shrink-0 whitespace-nowrap text-sm font-medium text-slate-700">Spouse's Name</label>
+                                        <input id="client_spouse_name" name="spouse_name" value="{{ old('spouse_name', $cifData['spouse_name'] ?? '') }}" class="h-11 w-full min-w-0 border border-slate-300 px-3 text-sm">
                                     </div>
                                 </div>
                             </div>
@@ -286,7 +291,7 @@
                         <div class="grid gap-4 md:grid-cols-2">
                             <div>
                                 <label class="mb-1 block text-sm font-medium text-slate-700">Signature over Printed Name</label>
-                                <input name="sig_name_left" value="{{ $clientSignatureName }}" class="h-11 w-full border border-slate-300 px-3 text-sm">
+                                <input name="sig_name_left" value="{{ $clientSignatureName }}" class="h-11 w-full border border-slate-300 px-3 text-sm" data-client-signature-name>
                             </div>
                             <div>
                                 <label class="mb-1 block text-sm font-medium text-slate-700">Position</label>
@@ -321,6 +326,8 @@
             const foreignSection = form.querySelector('[data-foreign-section]');
             const foreignRequirements = form.querySelectorAll('[data-foreign-requirement]');
             const citizenshipNationalityInput = form.querySelector('[data-citizenship-nationality-input]');
+            const signatureNameInput = form.querySelector('[data-client-signature-name]');
+            let signatureNameManuallyEdited = false;
             const fileInputs = form.querySelectorAll('[data-file-input]');
             const showFeedback = (message, tone = 'success') => {
                 if (!feedback) return;
@@ -347,6 +354,18 @@
                 ].filter(Boolean);
 
                 clientNameHeading.textContent = parts.join(' ') || 'Client';
+            };
+
+            const syncSignatureName = () => {
+                if (!signatureNameInput || signatureNameManuallyEdited) return;
+
+                const parts = [
+                    getInputValue('first_name'),
+                    getInputValue('middle_name'),
+                    getInputValue('last_name'),
+                ].filter(Boolean);
+
+                signatureNameInput.value = parts.join(' ') || 'Client';
             };
 
             const syncVisibility = () => {
@@ -387,7 +406,14 @@
 
             ['first_name', 'middle_name', 'last_name', 'name_extension'].forEach((name) => {
                 const input = form.querySelector(`[name="${name}"]`);
-                input?.addEventListener('input', syncClientNameHeading);
+                input?.addEventListener('input', () => {
+                    syncClientNameHeading();
+                    syncSignatureName();
+                });
+            });
+
+            signatureNameInput?.addEventListener('input', () => {
+                signatureNameManuallyEdited = true;
             });
 
             const syncFilePreview = (input) => {
@@ -469,6 +495,7 @@
 
             syncVisibility();
             syncClientNameHeading();
+            syncSignatureName();
         })();
     </script>
 </body>

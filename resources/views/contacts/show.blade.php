@@ -20,7 +20,7 @@
         ->implode(' '));
     $initials = strtoupper(mb_substr($headerFirstName, 0, 1).mb_substr($headerLastName, 0, 1));
     $contactCifNo = $contact->cif_no ?: ($cifData['cif_no'] ?? '-');
-    $headerCompanyName = $contact->company_name ?: 'No company linked';
+    $headerCompanyName = $headerLinkedCompanyName ?? 'No company linked';
     $headerEmail = $contact->email ?: '-';
     $headerPhone = $contact->phone ?: '-';
     $headerCustomerType = filled($contact->customer_type) ? ucfirst((string) $contact->customer_type) : '-';
@@ -104,23 +104,12 @@
         </aside>
 
         <section class="flex-1 bg-white p-6">
-            @if (session('success'))
+            @if (session('success') && !session('contact_client_email'))
                 <div class="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
                     {{ session('success') }}
                 </div>
             @endif
             <div id="contactKycLiveFeedback" class="mb-4 hidden rounded-lg px-4 py-3 text-sm"></div>
-            <div id="contactKycLiveLink" class="mb-4 hidden rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-                <p id="contactKycLiveLinkLabel" class="font-medium"></p>
-                <p id="contactKycLiveLinkUrl" class="mt-1 break-all"></p>
-            </div>
-
-            @if (session('contact_client_link'))
-                <div class="mb-4 rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-                    <p class="font-medium">{{ session('contact_client_link.label') }}</p>
-                    <p class="mt-1 break-all">{{ session('contact_client_link.url') }}</p>
-                </div>
-            @endif
 
             @if ($tab === 'kyc')
                 <div id="kyc">
@@ -317,7 +306,7 @@
                                     {{ $errors->kycRequirementUpload->first() }}
                                 </div>
                             @endif
-                            <div class="max-h-[520px] space-y-3 overflow-y-auto p-4">
+                            <div id="contactKycRequirementsList" class="max-h-[520px] space-y-3 overflow-y-auto p-4">
                                 @php
                                     $cifSignedRequirement = $kycRequirements['cif_signed_document'];
                                     $twoValidIds = $kycRequirements['two_valid_ids'];
@@ -791,12 +780,13 @@
                     </div>
 
                     @php
+                        $cifSignedDocumentMeta = is_array($cifSignedRequirement['file'] ?? null) ? $cifSignedRequirement['file'] : null;
                         $cifDocumentDefaultsJs = [
                             'document_title' => 'CIF Document (Signed)',
                             'cif_no' => $contact->cif_no ?: ($cifData['cif_no'] ?? ''),
                             'date_created' => $cifData['cif_date'] ?? '',
                             'issued_on' => ($cifData['cif_document_issued_on'] ?? null) ?: optional($contact->cif_form_sent_at)->toDateString(),
-                            'issued_by' => $cifData['cif_document_issued_by'] ?? '',
+                            'issued_by' => $cifSignedDocumentMeta['issued_by'] ?? $cifSignedDocumentMeta['uploaded_by'] ?? ($cifData['cif_document_issued_by'] ?? ''),
                         ];
                         $kycTabPayload = [
                             'mockUser' => $contact->owner_name ?: 'John Admin',
@@ -863,9 +853,9 @@
                             let currentIndex = 0;
                             let currentDocs = [];
                             const liveFeedback = document.getElementById('contactKycLiveFeedback');
-                            const liveLink = document.getElementById('contactKycLiveLink');
-                            const liveLinkLabel = document.getElementById('contactKycLiveLinkLabel');
-                            const liveLinkUrl = document.getElementById('contactKycLiveLinkUrl');
+                            const sendSuccessOverlay = document.getElementById('contactSendSuccessOverlay');
+                            const sendSuccessCard = document.getElementById('contactSendSuccessCard');
+                            const sendSuccessText = document.getElementById('contactSendSuccessText');
 
                             const node = (tag, className = '', text = null) => {
                                 const element = document.createElement(tag);
@@ -921,17 +911,25 @@
                                 liveFeedback.textContent = message || '';
                                 liveFeedback.classList.toggle('hidden', !message);
                             };
-                            const showLink = (payload) => {
-                                if (!liveLink || !liveLinkLabel || !liveLinkUrl) return;
-                                if (!payload?.url) {
-                                    liveLink.classList.add('hidden');
-                                    liveLinkLabel.textContent = '';
-                                    liveLinkUrl.textContent = '';
-                                    return;
-                                }
-                                liveLinkLabel.textContent = payload.label || 'Generated link';
-                                liveLinkUrl.textContent = payload.url;
-                                liveLink.classList.remove('hidden');
+                            let sendSuccessTimeout = null;
+                            const showSendSuccess = (email, documentName = 'secure form') => {
+                                if (!sendSuccessOverlay || !sendSuccessCard || !sendSuccessText || !email) return;
+                                sendSuccessText.textContent = `The ${documentName} has been sent to ${email}.`;
+                                sendSuccessOverlay.classList.remove('hidden');
+                                sendSuccessOverlay.classList.add('flex');
+                                sendSuccessOverlay.setAttribute('aria-hidden', 'false');
+                                window.clearTimeout(sendSuccessTimeout);
+                                requestAnimationFrame(() => {
+                                    sendSuccessCard.classList.remove('translate-y-2', 'opacity-0');
+                                });
+                                sendSuccessTimeout = window.setTimeout(() => {
+                                    sendSuccessCard.classList.add('translate-y-2', 'opacity-0');
+                                    window.setTimeout(() => {
+                                        sendSuccessOverlay.classList.add('hidden');
+                                        sendSuccessOverlay.classList.remove('flex');
+                                        sendSuccessOverlay.setAttribute('aria-hidden', 'true');
+                                    }, 300);
+                                }, 3200);
                             };
                             const replaceHtmlIfPresent = (id, sourceDoc) => {
                                 const current = document.getElementById(id);
@@ -946,6 +944,10 @@
                                 current.className = incoming.className;
                                 current.textContent = incoming.textContent;
                             };
+                            const activeCifEditFormSelector = '[data-cif-document-form], [data-cif-card-form]';
+                            const isCifEditActive = () => !!document.querySelector(activeCifEditFormSelector);
+                            const isCifEditDirty = () => !!document.querySelector(`${activeCifEditFormSelector}[data-cif-dirty="1"]`);
+                            const shouldSkipCifRefresh = () => isCifEditActive() || isCifEditDirty();
                             const refreshKycFragments = async () => {
                                 try {
                                     const refreshUrl = new URL(window.location.href);
@@ -961,8 +963,11 @@
                                     const doc = parser.parseFromString(html, 'text/html');
                                     replaceHtmlIfPresent('contactHeaderSummary', doc);
                                     replaceHtmlIfPresent('contactHeaderBreadcrumb', doc);
-                                    replaceHtmlIfPresent('contactCifDocumentContent', doc);
+                                    if (!shouldSkipCifRefresh()) {
+                                        replaceHtmlIfPresent('contactCifDocumentContent', doc);
+                                    }
                                     replaceHtmlIfPresent('contactKycInfoCard', doc);
+                                    replaceHtmlIfPresent('contactKycRequirementsList', doc);
                                     syncHeaderBadgeFromDom(doc);
                                 } catch (error) {
                                 }
@@ -1036,7 +1041,15 @@
                                     return;
                                 }
 
-                                if ((mime || '').includes('pdf') && url && url !== '#') {
+                                const normalizedMime = String(mime || '').toLowerCase();
+                                const normalizedUrl = String(url || '');
+                                const normalizedName = String(name || '').toLowerCase();
+                                const isPdf = normalizedMime.includes('pdf') || normalizedUrl.toLowerCase().endsWith('.pdf') || normalizedName.endsWith('.pdf');
+                                const isImage = normalizedMime.startsWith('image/')
+                                    || /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(normalizedUrl)
+                                    || /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(normalizedName);
+
+                                if (isPdf && url && url !== '#') {
                                     const frame = document.createElement('iframe');
                                     frame.src = url;
                                     frame.className = 'h-[620px] w-full rounded-lg border border-gray-200 bg-white';
@@ -1044,7 +1057,7 @@
                                     return;
                                 }
 
-                                if ((mime || '').startsWith('image/') && url && url !== '#') {
+                                if (isImage && url && url !== '#') {
                                     const image = document.createElement('img');
                                     image.src = url;
                                     image.alt = 'Document preview';
@@ -1100,13 +1113,21 @@
                             const renderActiveDocument = () => {
                                 const doc = currentDocs[currentIndex] || {};
                                 const filePath = currentFiles[currentIndex] || '';
-                                const previewUrl = filePath ? `/storage/${filePath}` : (doc.url || '');
+                                const previewUrl = (() => {
+                                    if (doc.url && doc.url !== '#') return doc.url;
+                                    if (!filePath) return '';
+                                    if (/^https?:\/\//i.test(filePath)) return filePath;
+                                    const normalizedPath = String(filePath)
+                                        .replace(/^\/+/, '')
+                                        .replace(/^storage\//i, '');
+                                    return normalizedPath ? `/storage/${normalizedPath}` : '';
+                                })();
                                 q('documentModalTitle').textContent = kycRequirementLabels[activeDoc] || 'Document';
                                 q('docCertificateNo').value = doc.cif_no || cifDocumentDefaults.cif_no || kyc.cif || '';
                                 q('docUploadDate').value = normalizeDateInput(doc.uploaded_at) || todayIso;
                                 q('docCreatedDate').value = normalizeDateInput(doc.date_created) || normalizeDateInput(cifDocumentDefaults.date_created);
                                 q('docIssuedOn').value = normalizeDateInput(doc.issued_on) || normalizeDateInput(cifDocumentDefaults.issued_on);
-                                q('docIssuedBy').value = doc.issued_by || cifDocumentDefaults.issued_by || '';
+                                q('docIssuedBy').value = doc.issued_by || doc.uploaded_by || cifDocumentDefaults.issued_by || '';
                                 q('docRemarks').value = doc.remarks || '';
                                 q('docFileNameLabel').textContent = doc.file_name ? 'Replace file' : 'Upload File';
                                 q('docCurrentFileMeta').textContent = doc.file_name ? `Current file: ${doc.file_name}` : 'No file uploaded yet';
@@ -1132,7 +1153,7 @@
                                 currentDocs = Array.isArray(requirementState?.files) && requirementState.files.length
                                     ? requirementState.files
                                     : (requirementState?.file ? [requirementState.file] : []);
-                                currentFiles = files.length ? files : currentDocs.map((doc) => doc.file_path || doc.path || '');
+                                currentFiles = files.length ? files : currentDocs.map((doc) => doc.url || doc.file_path || doc.path || '');
                                 currentIndex = Math.min(Math.max(startIndex, 0), Math.max(currentFiles.length - 1, 0));
                                 if (!currentFiles[currentIndex] && !(currentDocs[currentIndex]?.file_name)) return;
                                 file = null;
@@ -1145,22 +1166,28 @@
                             };
                             window.openDocumentModal = openDocumentModal;
 
-                            document.querySelectorAll('[data-document-trigger]').forEach((button) => {
-                                button.addEventListener('click', () => {
-                                    let files = [];
-                                    try {
-                                        files = JSON.parse(button.dataset.documentFiles || '[]');
-                                    } catch (error) {
-                                        files = [];
-                                    }
+                            document.addEventListener('click', (event) => {
+                                const button = event.target.closest('[data-document-trigger]');
+                                if (!button) return;
 
-                                    openDocumentModal(
-                                        button.dataset.documentPath || '',
-                                        button.dataset.documentKey || '',
-                                        Array.isArray(files) ? files : [],
-                                        Number(button.dataset.documentIndex || 0)
-                                    );
-                                });
+                                let files = [];
+                                try {
+                                    files = JSON.parse(button.dataset.documentFiles || '[]');
+                                } catch (error) {
+                                    files = [];
+                                }
+
+                                openDocumentModal(
+                                    button.dataset.documentPath || '',
+                                    button.dataset.documentKey || '',
+                                    Array.isArray(files) ? files : [],
+                                    Number(button.dataset.documentIndex || 0)
+                                );
+                            });
+                            document.addEventListener('input', (event) => {
+                                const form = event.target.closest('[data-cif-document-form], [data-cif-card-form]');
+                                if (!form) return;
+                                form.dataset.cifDirty = '1';
                             });
 
                             const openKycEditButton = q('openKycEditModal');
@@ -1246,12 +1273,17 @@
                                 });
                             });
 
+                            const sessionClientEmail = @json(session('contact_client_email'));
+                            if (sessionClientEmail) {
+                                showSendSuccess(sessionClientEmail, 'secure client form');
+                            }
+
                             q('sendCifForm')?.addEventListener('submit', async (event) => {
                                 event.preventDefault();
                                 try {
                                     const payload = await submitJsonForm(event.currentTarget, { fallbackError: 'Unable to send the CIF link.' });
-                                    showFeedback(payload.message, 'success');
-                                    showLink(payload.contact_client_link || null);
+                                    showFeedback('');
+                                    showSendSuccess(payload.recipient_email || '', 'secure Client Information Form');
                                     addLog(`Secure CIF link sent by ${mockUser}`);
                                     render();
                                     refreshKycFragments();
@@ -1265,8 +1297,8 @@
                                 event.preventDefault();
                                 try {
                                     const payload = await submitJsonForm(event.currentTarget, { fallbackError: 'Unable to send the specimen link.' });
-                                    showFeedback(payload.message, 'success');
-                                    showLink(payload.contact_client_link || null);
+                                    showFeedback('');
+                                    showSendSuccess(payload.recipient_email || '', 'secure Specimen Signature Form');
                                     addLog(`Secure specimen link sent by ${mockUser}`);
                                     render();
                                     refreshKycFragments();
@@ -2901,6 +2933,21 @@
         </div>
     </form>
 </x-slide-over>
+
+<div id="contactSendSuccessOverlay" class="pointer-events-none fixed inset-0 z-[80] hidden items-start justify-center px-4 pt-8" aria-hidden="true">
+    <div id="contactSendSuccessCard" class="w-full max-w-sm translate-y-2 opacity-0 rounded-xl border border-gray-200 bg-white p-4 shadow-lg shadow-slate-200/70 transition duration-300">
+        <div class="flex items-start gap-3">
+            <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white">
+                <i class="fas fa-paper-plane text-xs"></i>
+            </div>
+            <div class="min-w-0 flex-1">
+                <p class="text-xs font-semibold uppercase tracking-[0.16em] text-blue-600">Client Outreach</p>
+                <h3 class="mt-1 text-base font-semibold text-slate-900">Sent to client's email</h3>
+                <p id="contactSendSuccessText" class="mt-1 text-sm leading-5 text-slate-600"></p>
+            </div>
+        </div>
+    </div>
+</div>
 
 <span id="contactIntakeOldEditFlag" data-active="{{ old('_from_contact_intake_edit') ? '1' : '0' }}" hidden></span>
 
