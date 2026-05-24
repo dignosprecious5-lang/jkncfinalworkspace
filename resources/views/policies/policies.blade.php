@@ -169,20 +169,25 @@
                 x-transition:leave="transform transition ease-in-out duration-300"
                 x-transition:leave-start="translate-x-0"
                 x-transition:leave-end="-translate-x-full"
-                class="w-[70%] h-full bg-[#f5f6f8] overflow-y-auto p-6 border-r border-gray-200"
+                class="w-[70%] h-full bg-[#f5f6f8] border-r border-gray-200 flex flex-col"
             >
-                <div class="max-w-[850px] mx-auto mb-4 flex justify-end sticky top-0 z-10">
-                    <a
-                        id="download-policy-pdf"
-                        href="{{ route('policies.preview') }}"
-                        class="inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 shadow transition"
-                    >
-                        <i class="fas fa-file-pdf"></i>
-                        Download PDF
-                    </a>
+                {{-- Sticky Download Header --}}
+                <div class="shrink-0 z-[80] border-b border-gray-200 bg-[#f5f6f8] px-6 py-3">
+                    <div class="max-w-[850px] mx-auto flex justify-end">
+                        <a
+                            id="download-policy-pdf"
+                            href="{{ route('policies.preview') }}"
+                            class="inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 shadow transition"
+                        >
+                            <i class="fas fa-file-pdf"></i>
+                            Download PDF
+                        </a>
+                    </div>
                 </div>
 
-                <div class="max-w-[850px] mx-auto">
+                {{-- Scrollable Preview Area --}}
+                <div class="flex-1 overflow-y-auto p-6">
+                    <div class="max-w-[850px] mx-auto">
                     <div id="policy-preview-sheet" class="policy-preview bg-white border border-gray-300 shadow min-h-[1100px] px-[72px] py-[72px] overflow-hidden">
 
                         <div class="policy-memo-header">
@@ -216,6 +221,7 @@
                             ></div>
                         </div>
                     </div>
+                </div>
                 </div>
             </div>
 
