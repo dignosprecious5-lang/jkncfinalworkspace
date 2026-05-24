@@ -140,4 +140,5 @@ class TownHallCommunication extends Model
 
         return $this->recipientUser->name ?? $this->to_for ?? 'Selected Recipient';
     }
+
 }

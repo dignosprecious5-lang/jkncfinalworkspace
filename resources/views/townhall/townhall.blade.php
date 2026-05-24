@@ -164,7 +164,7 @@
                                 type="date"
                                 name="communication_date"
                                 x-model="previewDate"
-                                value="{{ old('communication_date') }}"
+                                value="{{ old('communication_date', now()->format('Y-m-d')) }}"
                                 class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500"
                             >
                         </div>
@@ -1222,7 +1222,7 @@ function townhallContactSuggest() {
     return {
         showSlideOver: false,
         previewRef: 'MEMO-AUTO-INCREMENT',
-        previewDate: @js(old('communication_date', '')),
+        previewDate: @js(old('communication_date', now()->format('Y-m-d'))),
         previewFrom: @js(Auth::user()->name),
         previewDepartment: @js(old('department_stakeholder', '')),
         previewRecipientLabel: @js(old('recipient_label', 'To')),

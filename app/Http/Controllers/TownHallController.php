@@ -53,16 +53,16 @@ class TownHallController extends Controller
             ->get();
 
         $usersForRecipients = User::whereIn('role', [
-            'Employee',
-            'employee',
-            'Admin',
-            'admin',
-            'SuperAdmin',
-            'superadmin',
-            'super admin',
-            'System Super Admin',
-            'system super admin',
-        ])
+                'Employee',
+                'employee',
+                'Admin',
+                'admin',
+                'SuperAdmin',
+                'superadmin',
+                'super admin',
+                'System Super Admin',
+                'system super admin',
+            ])
             ->orderBy('name')
             ->get();
 
@@ -118,6 +118,10 @@ class TownHallController extends Controller
         }
 
         $validated = $this->normalizeRecipientFields($validated, $request);
+
+        // Default to today's date when Add Communication is submitted without a date.
+        // The field is still editable from the form.
+        $validated['communication_date'] = $validated['communication_date'] ?? now()->format('Y-m-d');
 
         $validated['from_name'] = Auth::user()->name;
         $validated['priority'] = $request->priority ?? 'Low';
@@ -230,16 +234,16 @@ class TownHallController extends Controller
             ->get();
 
         $usersForRecipients = User::whereIn('role', [
-            'Employee',
-            'employee',
-            'Admin',
-            'admin',
-            'SuperAdmin',
-            'superadmin',
-            'super admin',
-            'System Super Admin',
-            'system super admin',
-        ])
+                'Employee',
+                'employee',
+                'Admin',
+                'admin',
+                'SuperAdmin',
+                'superadmin',
+                'super admin',
+                'System Super Admin',
+                'system super admin',
+            ])
             ->orderBy('name')
             ->get();
 
@@ -493,7 +497,7 @@ class TownHallController extends Controller
 
         $isIntendedRecipient = $intendedUsers
             ->pluck('id')
-            ->map(fn($id) => (int) $id)
+            ->map(fn ($id) => (int) $id)
             ->contains((int) Auth::id());
 
         if (!$isIntendedRecipient) {
@@ -704,14 +708,14 @@ class TownHallController extends Controller
                 }
 
                 $q->orWhere(function ($legacy) use ($user) {
-                    $legacy->whereNull('recipient_type')
-                        ->where(function ($old) use ($user) {
-                            $old->where('to_for', 'like', '%' . $user->name . '%')
-                                ->orWhere('to_for', 'like', '%All%')
-                                ->orWhere('to_for', 'like', '%Everyone%')
-                                ->orWhere('to_for', 'like', '%All Employees%');
-                        });
-                });
+                        $legacy->whereNull('recipient_type')
+                            ->where(function ($old) use ($user) {
+                                $old->where('to_for', 'like', '%' . $user->name . '%')
+                                    ->orWhere('to_for', 'like', '%All%')
+                                    ->orWhere('to_for', 'like', '%Everyone%')
+                                    ->orWhere('to_for', 'like', '%All Employees%');
+                            });
+                    });
             });
 
             return;
