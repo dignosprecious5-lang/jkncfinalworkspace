@@ -25,36 +25,21 @@
         .policy-memo-header {
             width: 100%;
             margin-bottom: 34px;
+            text-align: center;
         }
 
         .policy-memo-logo {
-            display: inline-block;
-            width: 220px;
-            vertical-align: top;
+            display: block;
+            width: 100%;
+            text-align: center;
             padding-top: 4px;
         }
 
         .policy-memo-logo img {
-            height: 76px;
+            height: 90px;
             width: auto;
         }
-
-        .policy-memo-names {
-            display: inline-block;
-            width: 390px;
-            vertical-align: top;
-            padding-top: 8px;
-        }
-
-        .policy-memo-names p {
-            font-size: 12px;
-            line-height: 1.35;
-            color: #111827;
-            font-family: "Times New Roman", Georgia, serif;
-            margin: 0;
-        }
-
-        .policy-memo-title {
+.policy-memo-title {
             text-align: center;
             margin-bottom: 30px;
         }
@@ -213,14 +198,6 @@
     <div class="policy-memo-header">
         <div class="policy-memo-logo">
             <img src="{{ public_path('images/jk-logo.png') }}" alt="John Kelly & Company Logo">
-        </div>
-
-        <div class="policy-memo-names">
-            <p>
-                Atty. Jose B. Ogang, CPA, MMPSM · Jose Tamayo Rio,<br>
-                MM-BM, CPA · Lyndon Earl P. Rio, RN, CB · John Kelly Abalde,<br>
-                CLSSBB, CPM
-            </p>
         </div>
     </div>
 
