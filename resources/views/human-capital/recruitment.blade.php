@@ -16,7 +16,8 @@
     {{ $units->toJson() }},
     {{ $positions->toJson() }},
     {{ $salaryGrades->toJson() }},
-    {{ $payrollLevels->toJson() }}
+    {{ $payrollLevels->toJson() }},
+    {{ $approvalUsers->toJson() }}
 )" x-init="startAssessmentPolling()">
 
     {{-- TABS --}}
@@ -42,6 +43,28 @@
             </svg>
             <input type="text" x-model="search" :placeholder="'Search ' + activeTab + '...'"
                 class="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400 bg-white">
+        </div>
+
+        <div x-show="activeTab === 'JPF'" class="flex items-center gap-1 bg-white border border-gray-200 rounded-lg p-1 shadow-sm">
+            <button
+                type="button"
+                @click="jpfListView = 'all'; currentPage = 1"
+                class="px-3 py-1.5 rounded-md text-xs font-bold transition"
+                :class="jpfListView === 'all' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50'"
+            >
+                All JPF
+            </button>
+            <button
+                type="button"
+                @click="jpfListView = 'mine'; currentPage = 1"
+                class="px-3 py-1.5 rounded-md text-xs font-bold transition flex items-center gap-2"
+                :class="jpfListView === 'mine' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50'"
+            >
+                My Pending Approvals
+                <span class="inline-flex min-w-[18px] h-[18px] items-center justify-center rounded-full text-[10px]"
+                    :class="jpfListView === 'mine' ? 'bg-white text-blue-700' : 'bg-blue-50 text-blue-700'"
+                    x-text="myPendingJpfCount()"></span>
+            </button>
         </div>
         <div class="relative" @click.away="showFilter = false">
             <button type="button" @click="showFilter = !showFilter" 
@@ -143,29 +166,80 @@
             <table class="w-full text-sm border-collapse" x-show="activeTab === 'JPF'">
                 <thead class="bg-white text-gray-600 sticky top-0 z-10">
                     <tr class="border-b border-gray-200">
-                        <th class="px-4 py-3 text-left font-semibold">Job ID</th>
+                        <th class="px-4 py-3 text-left font-semibold w-[120px]">Job ID</th>
                         <th class="px-4 py-3 text-left font-semibold">Position</th>
-                        <th class="px-4 py-3 text-left font-semibold">Type</th>
-                        <th class="px-4 py-3 text-left font-semibold">Location</th>
-                        <th class="px-4 py-3 text-left font-semibold">Status</th>
-                        <th class="px-4 py-3 text-left font-semibold">Posted</th>
-                        <th class="px-4 py-3 text-left font-semibold">Actions</th>
+                        <th class="px-4 py-3 text-left font-semibold w-[150px]">Status</th>
+                        <th class="px-4 py-3 text-left font-semibold w-[150px]">Approval</th>
+                        <th class="px-4 py-3 text-left font-semibold w-[220px]">Pending / Next Action</th>
+                        <th class="px-4 py-3 text-left font-semibold w-[150px]">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     <template x-if="filteredRows.length === 0">
-                        <tr><td colspan="6" class="px-4 py-16 text-center text-gray-400"><div class="flex flex-col items-center gap-2"><svg class="w-10 h-10 text-gray-300" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5.586a1 1 0 0 1 .707.293l5.414 5.414a1 1 0 0 1 .293.707V19a2 2 0 0 1-2 2z"/></svg><span class="text-sm" x-text="'No ' + activeTab + ' records found.'"></span></div></td></tr>
+                        <tr>
+                            <td colspan="6" class="px-4 py-16 text-center text-gray-400">
+                                <div class="flex flex-col items-center gap-2">
+                                    <svg class="w-10 h-10 text-gray-300" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                                        <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5.586a1 1 0 0 1 .707.293l5.414 5.414a1 1 0 0 1 .293.707V19a2 2 0 0 1-2 2z"/>
+                                    </svg>
+                                    <span class="text-sm" x-text="jpfListView === 'mine' ? 'No JPF records currently need your approval.' : 'No ' + activeTab + ' records found.'"></span>
+                                </div>
+                            </td>
+                        </tr>
                     </template>
+
                     <template x-for="(row, i) in paginatedRows" :key="i">
                         <tr class="border-t border-gray-100 hover:bg-gray-50 transition">
-                            <td class="px-4 py-3 text-blue-600 font-medium" x-text="row.job_id"></td>
-                            <td class="px-4 py-3 text-gray-800" x-text="row.position"></td>
-                            <td class="px-4 py-3 text-gray-600" x-text="row.employment_type"></td>
-                            <td class="px-4 py-3 text-gray-600" x-text="row.location"></td>
-                            <td class="px-4 py-3"><span x-text="row.status" :class="statusClass(row.status)" class="px-2 py-0.5 rounded-full text-xs font-medium"></span></td>
-                            <td class="px-4 py-3 text-gray-500" x-text="row.posted_date"></td>
-                            <td class="px-4 py-3">
-                                <button @click="viewJPF(row)" class="text-xs text-blue-600 hover:underline mr-2">View</button>
+                            <td class="px-4 py-3 align-top">
+                                <div class="text-blue-600 font-semibold leading-tight" x-text="row.job_id"></div>
+                                <div class="mt-1 text-[11px] text-gray-400" x-text="row.employment_type || '—'"></div>
+                            </td>
+
+                            <td class="px-4 py-3 align-top">
+                                <div class="font-semibold text-gray-900 leading-tight" x-text="row.position || '—'"></div>
+                                <div class="mt-1 text-xs text-gray-500 line-clamp-2" x-text="row.location || 'No location set'"></div>
+                            </td>
+
+                            <td class="px-4 py-3 align-top">
+                                <span x-text="row.status" :class="statusClass(row.status)" class="px-2 py-0.5 rounded-full text-xs font-semibold"></span>
+
+                                <div class="mt-1 text-[11px] text-gray-500"
+                                    x-show="['Posted','Screening','Interviewing','Offer Stage','Filled','Closed'].includes(row.status)">
+                                    <span>Posted </span><span x-text="formatDisplayDate(row.posted_date)"></span>
+                                </div>
+
+                                <div class="mt-1 text-[11px] text-amber-600 font-semibold" x-show="row.status === 'Approved'">
+                                    Ready to post
+                                </div>
+                            </td>
+
+                            <td class="px-4 py-3 align-top">
+                                <div class="flex items-center gap-2">
+                                    <div class="w-20 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                        <div class="h-full bg-blue-600 rounded-full" :style="`width: ${(jpfApprovalProgress(row) / 4) * 100}%`"></div>
+                                    </div>
+                                    <span class="text-[11px] font-bold text-gray-600" x-text="jpfApprovalProgress(row) + '/4'"></span>
+                                </div>
+                                <div class="mt-1 text-[11px] text-gray-500" x-text="jpfApprovalProgress(row) === 4 ? 'All approvals completed' : (4 - jpfApprovalProgress(row)) + ' pending'"></div>
+                            </td>
+
+                            <td class="px-4 py-3 align-top">
+                                <template x-if="currentPendingApprovalFor(row)">
+                                    <div>
+                                        <p class="text-[11px] font-bold text-gray-800" x-text="currentPendingApprovalFor(row).label"></p>
+                                        <p class="text-[11px] text-gray-500" x-text="approvalDisplayName(currentPendingApprovalFor(row).data)"></p>
+                                        <p x-show="pendingApprovalsFor(row).length > 1" class="text-[10px] text-blue-600 font-semibold mt-0.5" x-text="'+' + (pendingApprovalsFor(row).length - 1) + ' more pending'"></p>
+                                    </div>
+                                </template>
+
+                                <template x-if="!currentPendingApprovalFor(row)">
+                                    <span class="text-xs text-gray-400" x-text="row.status === 'Approved' ? 'Ready for posting' : '—'"></span>
+                                </template>
+                            </td>
+
+                            <td class="px-4 py-3 align-top">
+                                <button @click="viewJPF(row)" class="text-xs text-blue-600 hover:underline mr-2" x-text="jpfNeedsMyApproval(row) ? 'Review' : 'View'"></button>
+                                <button x-show="row.status === 'Approved'" @click="quickPostJPF(row)" class="text-xs text-green-600 hover:underline mr-2">Post Job</button>
                                 <button @click="editJPF(row)" class="text-xs text-amber-600 hover:underline mr-2">Edit</button>
                                 <button @click="deleteJPF(row.id)" class="text-xs text-red-500 hover:underline">Delete</button>
                             </td>
@@ -1492,45 +1566,74 @@
                         {{-- APPROVALS --}}
                         <div class="space-y-4">
                             <h3 class="text-xs font-black text-blue-700 uppercase tracking-[0.2em] border-b pb-2">Approvals</h3>
+
+                            <div class="bg-blue-50 border border-blue-100 text-blue-700 text-xs rounded-xl px-4 py-3">
+                                Select the assigned approver for each level. Names, statuses, and approval dates are recorded automatically after system approval.
+                            </div>
+
                             <div class="grid grid-cols-2 gap-6 bg-gray-50/50 p-4 rounded-xl border border-gray-100">
-                                <div class="space-y-3">
-                                    <p class="text-[10px] font-black text-gray-400 uppercase border-b w-fit pb-0.5">Human Capital</p>
-                                    <input type="text" x-model="jpfForm.humanCapitalApproval.name" placeholder="Name" class="w-full text-sm bg-white border border-gray-200 rounded px-2 py-1">
-                                    <input type="date" x-model="jpfForm.humanCapitalApproval.date" class="w-full text-[11px] bg-white border border-gray-200 rounded px-2 py-1">
-                                </div>
-                                <div class="space-y-3">
-                                    <p class="text-[10px] font-black text-gray-400 uppercase border-b w-fit pb-0.5">Hiring Manager</p>
-                                    <input type="text" x-model="jpfForm.hiringManagerApproval.name" placeholder="Name" class="w-full text-sm bg-white border border-gray-200 rounded px-2 py-1">
-                                    <input type="date" x-model="jpfForm.hiringManagerApproval.date" class="w-full text-[11px] bg-white border border-gray-200 rounded px-2 py-1">
-                                </div>
-                                <div class="space-y-3">
-                                    <p class="text-[10px] font-black text-gray-400 uppercase border-b w-fit pb-0.5">Finance</p>
-                                    <input type="text" x-model="jpfForm.financeApproval.name" placeholder="Name" class="w-full text-sm bg-white border border-gray-200 rounded px-2 py-1">
-                                    <input type="date" x-model="jpfForm.financeApproval.date" class="w-full text-[11px] bg-white border border-gray-200 rounded px-2 py-1">
-                                </div>
-                                <div class="space-y-3">
-                                    <p class="text-[10px] font-black text-gray-400 uppercase border-b w-fit pb-0.5">President / Final</p>
-                                    <div class="flex gap-2">
-                                        <template x-for="ps in ['Approved', 'Hold', 'Cancelled']" :key="ps">
-                                            <button type="button" @click="jpfForm.presidentApproval.status = ps"
-                                                :class="jpfForm.presidentApproval.status === ps ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-500 border-gray-200'"
-                                                class="flex-1 text-[9px] font-black border py-1 rounded-full uppercase" x-text="ps"></button>
-                                        </template>
+                                <template x-for="approvalField in [
+                                    { key: 'humanCapitalApproval', label: 'Human Capital' },
+                                    { key: 'hiringManagerApproval', label: 'Hiring Manager' },
+                                    { key: 'financeApproval', label: 'Finance' },
+                                    { key: 'presidentApproval', label: 'President / Final' }
+                                ]" :key="approvalField.key">
+                                    <div class="space-y-3">
+                                        <p class="text-[10px] font-black text-gray-400 uppercase border-b w-fit pb-0.5" x-text="approvalField.label"></p>
+
+                                        <select
+                                            x-model="jpfForm[approvalField.key].approver_id"
+                                            @change="applyApprover(approvalField.key)"
+                                            class="w-full text-sm bg-white border border-gray-200 rounded px-2 py-2 focus:ring-2 focus:ring-blue-100 outline-none"
+                                        >
+                                            <option value="">Select approver...</option>
+                                            <template x-for="user in approvalUsers" :key="approvalField.key + '-' + user.id">
+                                                <option
+                                                    :value="user.id"
+                                                    x-text="`${user.name} - ${user.role}${user.position ? ' / ' + user.position : ''}`"
+                                                ></option>
+                                            </template>
+                                        </select>
+
+                                        <div class="grid grid-cols-2 gap-2 text-[11px]">
+                                            <div class="bg-white border border-gray-200 rounded-lg px-2 py-2">
+                                                <p class="text-[9px] uppercase font-bold text-gray-400">Status</p>
+                                                <p class="font-bold" x-text="approvalDisplayStatus(jpfForm[approvalField.key])"></p>
+                                            </div>
+                                            <div class="bg-white border border-gray-200 rounded-lg px-2 py-2">
+                                                <p class="text-[9px] uppercase font-bold text-gray-400">Approved Date</p>
+                                                <p class="font-bold" x-text="approvalDisplayDate(jpfForm[approvalField.key])"></p>
+                                            </div>
+                                        </div>
                                     </div>
-                                    <input type="text" x-model="jpfForm.presidentApproval.name" placeholder="Name" class="w-full text-sm bg-white border border-gray-200 rounded px-2 py-1">
-                                    <input type="date" x-model="jpfForm.presidentApproval.date" class="w-full text-[11px] bg-white border border-gray-200 rounded px-2 py-1">
-                                </div>
+                                </template>
                             </div>
                         </div>
 
                         {{-- STATUS --}}
                         <div class="space-y-4">
                             <h3 class="text-xs font-black text-blue-700 uppercase tracking-[0.2em] border-b pb-2">Status</h3>
+
+                            <div class="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-xs text-gray-600 leading-relaxed">
+                                <p><strong>Status rule:</strong> A JPF can only become <span class="font-bold text-blue-700">Posted</span> after all approvers are approved.</p>
+                                <p class="mt-1" x-text="jpfStatusHelpText()"></p>
+                            </div>
+
                             <div class="flex flex-wrap gap-2">
-                                <template x-for="st in ['Draft', 'Posted', 'Screening', 'Interviewing', 'Offer Stage', 'Filled', 'Closed', 'Cancelled']" :key="st">
-                                    <label class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-[11px] font-bold cursor-pointer transition"
-                                        :class="jpfForm.status === st ? 'bg-gray-800 border-gray-800 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'">
-                                        <input type="radio" x-model="jpfForm.status" :value="st" class="hidden">
+                                <template x-for="st in jpfStatusOptions" :key="st">
+                                    <label
+                                        class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[11px] font-bold transition"
+                                        :class="jpfForm.status === st
+                                            ? 'bg-gray-800 border-gray-800 text-white cursor-pointer'
+                                            : (jpfStatusOptionAllowed(st) ? 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50 cursor-pointer' : 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed opacity-60')"
+                                    >
+                                        <input
+                                            type="radio"
+                                            x-model="jpfForm.status"
+                                            :value="st"
+                                            :disabled="!jpfStatusOptionAllowed(st)"
+                                            class="hidden"
+                                        >
                                         <span x-text="st"></span>
                                     </label>
                                 </template>
@@ -1821,34 +1924,19 @@
                                 <div class="border border-gray-400">
                                     <div class="bg-gray-100 px-3 py-1 border-b border-gray-400 font-black uppercase text-[9px]">Approvals</div>
                                     <div class="p-3 grid grid-cols-4 gap-4 text-center">
-                                        <div>
-                                            <p class="text-[7px] text-gray-400 uppercase mb-4">Human Capital</p>
-                                            <p class="font-bold border-b border-gray-200" x-text="jpfForm.humanCapitalApproval.name"></p>
-                                            <p class="text-[8px]" x-text="jpfForm.humanCapitalApproval.date"></p>
-                                        </div>
-                                        <div>
-                                            <p class="text-[7px] text-gray-400 uppercase mb-4">Hiring Manager</p>
-                                            <p class="font-bold border-b border-gray-200" x-text="jpfForm.hiringManagerApproval.name"></p>
-                                            <p class="text-[8px]" x-text="jpfForm.hiringManagerApproval.date"></p>
-                                        </div>
-                                        <div>
-                                            <p class="text-[7px] text-gray-400 uppercase mb-4">Finance</p>
-                                            <p class="font-bold border-b border-gray-200" x-text="jpfForm.financeApproval.name"></p>
-                                            <p class="text-[8px]" x-text="jpfForm.financeApproval.date"></p>
-                                        </div>
-                                        <div>
-                                            <p class="text-[7px] text-gray-400 uppercase mb-2">Presidential Approval</p>
-                                            <div class="flex justify-center gap-1 mb-1">
-                                                <template x-for="st in ['Approved', 'Hold', 'Cancelled']" :key="st">
-                                                    <div class="flex items-center gap-0.5 text-[6px]">
-                                                        <span class="w-2 h-2 border border-gray-400 rounded-full" :class="jpfForm.presidentApproval.status === st ? 'bg-gray-800' : ''"></span>
-                                                        <span x-text="st"></span>
-                                                    </div>
-                                                </template>
+                                        <template x-for="ap in [
+                                            { label: 'Human Capital', data: jpfForm.humanCapitalApproval },
+                                            { label: 'Hiring Manager', data: jpfForm.hiringManagerApproval },
+                                            { label: 'Finance', data: jpfForm.financeApproval },
+                                            { label: 'President / Final', data: jpfForm.presidentApproval }
+                                        ]" :key="ap.label">
+                                            <div>
+                                                <p class="text-[7px] text-gray-400 uppercase mb-2" x-text="ap.label"></p>
+                                                <p class="font-bold border-b border-gray-200 min-h-[1.2rem]" x-text="approvalDisplayName(ap.data)"></p>
+                                                <p class="text-[7px] mt-1 uppercase font-bold" x-text="approvalDisplayStatus(ap.data)"></p>
+                                                <p class="text-[8px]" x-text="approvalDisplayDate(ap.data)"></p>
                                             </div>
-                                            <p class="font-bold border-b border-gray-200" x-text="jpfForm.presidentApproval.name"></p>
-                                            <p class="text-[8px]" x-text="jpfForm.presidentApproval.date"></p>
-                                        </div>
+                                        </template>
                                     </div>
                                 </div>
                             </div>
@@ -1900,6 +1988,89 @@
             </div>
 
             <div class="flex-grow overflow-auto bg-gray-50/50 p-8 shadow-inner">
+                <div x-show="viewJpfData" class="w-[794px] mx-auto mb-4 bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+                    <div class="px-5 py-3 border-b border-gray-100 flex items-start justify-between gap-4">
+                        <div>
+                            <p class="text-[11px] font-black text-gray-900 uppercase tracking-[0.18em]">Approval Workflow</p>
+                            <p class="text-[11px] text-gray-500 mt-1">System approvals are controlled here. The printable JPF below stays clean and formal.</p>
+                        </div>
+                        <span class="shrink-0 text-[10px] px-3 py-1 rounded-full bg-gray-50 text-gray-600 font-bold border border-gray-200">System Approval</span>
+                    </div>
+
+                    <div class="p-4 space-y-4">
+                        <div class="grid grid-cols-4 gap-2">
+                            <template x-for="ap in approvalLevels()" :key="'workflow-' + ap.level">
+                                <div class="rounded-lg border border-gray-200 bg-gray-50/50 px-3 py-2 min-h-[78px]">
+                                    <div class="flex items-center justify-between gap-2">
+                                        <p class="text-[9px] font-black uppercase tracking-wider text-gray-500 truncate" x-text="ap.label"></p>
+                                        <span
+                                            class="inline-flex px-2 py-0.5 rounded-full border text-[8px] font-black uppercase shrink-0"
+                                            :class="approvalBadgeClass(ap.data)"
+                                            x-text="approvalDisplayStatus(ap.data)"
+                                        ></span>
+                                    </div>
+                                    <p class="mt-2 text-[12px] font-bold text-gray-900 truncate" x-text="approvalDisplayName(ap.data)"></p>
+                                    <p class="text-[10px] text-gray-500 truncate" x-text="ap.data?.email || ap.data?.position || ap.data?.role || 'No approver selected'"></p>
+                                    <p class="mt-1 text-[10px] text-gray-400" x-text="approvalDisplayDate(ap.data)"></p>
+                                </div>
+                            </template>
+                        </div>
+
+                        <template x-if="currentActionApproval()">
+                            <div class="rounded-xl border border-blue-200 bg-blue-50/60 px-4 py-3 flex items-center justify-between gap-4">
+                                <div class="min-w-0">
+                                    <p class="text-[10px] font-black uppercase tracking-[0.18em] text-blue-700">Your Approval Action</p>
+                                    <p class="mt-1 text-sm font-bold text-gray-900">
+                                        <span x-text="currentActionApproval().label"></span>
+                                        <span class="text-gray-400 font-semibold"> • </span>
+                                        <span x-text="approvalDisplayName(currentActionApproval().data)"></span>
+                                    </p>
+                                    <p class="text-[11px] text-gray-500">Parallel approval is enabled. You can update your own assigned approval level anytime while the JPF is For Approval.</p>
+                                </div>
+                                <div class="flex items-center gap-2 shrink-0">
+                                    <button type="button" @click="approveJpfLevel(currentActionApproval().level, 'Approved')" class="px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white text-xs font-bold transition shadow-sm">Approve</button>
+                                    <button type="button" @click="approveJpfLevel(currentActionApproval().level, 'Hold')" class="px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition shadow-sm">Hold</button>
+                                    <button type="button" @click="approveJpfLevel(currentActionApproval().level, 'Cancelled')" class="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition shadow-sm">Cancel</button>
+                                </div>
+                            </div>
+                        </template>
+
+                        <template x-if="!currentActionApproval() && waitingApproval()">
+                            <div class="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 flex items-center justify-between gap-4">
+                                <div class="min-w-0">
+                                    <p class="text-[10px] font-black uppercase tracking-[0.18em] text-gray-500">Waiting for Approval</p>
+                                    <p class="mt-1 text-sm font-bold text-gray-900">
+                                        <span x-text="waitingApproval().label"></span>
+                                        <span class="text-gray-400 font-semibold"> • </span>
+                                        <span x-text="approvalDisplayName(waitingApproval().data)"></span>
+                                    </p>
+                                    <p class="text-[11px] text-gray-500 mt-1">No action is available for your account because the remaining pending approval levels are assigned to other users.</p>
+                                </div>
+                                <span class="shrink-0 px-3 py-1 rounded-full bg-white border border-gray-200 text-[10px] font-black uppercase text-gray-500">Read only</span>
+                            </div>
+                        </template>
+
+                        <template x-if="!currentActionApproval() && !waitingApproval() && String(viewJpfData?.status || '').toLowerCase() === 'draft'">
+                            <div class="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 flex items-center justify-between gap-4">
+                                <div>
+                                    <p class="text-[10px] font-black uppercase tracking-[0.18em] text-gray-500">Draft Record</p>
+                                    <p class="text-[11px] text-gray-500 mt-1">This JPF is saved as Draft. Edit it and set the status to For Approval before approvers can act on it.</p>
+                                </div>
+                                <span class="shrink-0 px-3 py-1 rounded-full bg-white border border-gray-200 text-[10px] font-black uppercase text-gray-500">No action</span>
+                            </div>
+                        </template>
+
+                        <template x-if="!currentActionApproval() && !waitingApproval() && String(viewJpfData?.status || '').toLowerCase() !== 'draft'">
+                            <div class="rounded-xl border border-green-200 bg-green-50 px-4 py-3 flex items-center justify-between gap-4">
+                                <div>
+                                    <p class="text-[10px] font-black uppercase tracking-[0.18em] text-green-700">Approval Workflow Complete</p>
+                                    <p class="text-[11px] text-green-700 mt-1">No pending approval action is available for this JPF.</p>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
                 <div id="jpf-doc-view" class="border border-gray-400 text-[10px] text-gray-800 font-sans w-[794px] shrink-0 leading-tight mx-auto shadow-sm bg-white p-6 min-h-[1000px]">
                     <template x-if="viewJpfData">
                         <div class="flex flex-col h-full">
@@ -2158,36 +2329,47 @@
 
                                 {{-- APPROVALS --}}
                                 <div class="border border-gray-400">
-                                    <div class="bg-gray-100 px-3 py-1 border-b border-gray-400 font-black uppercase text-[9px]">Approvals</div>
-                                    <div class="p-3 grid grid-cols-4 gap-4 text-center">
-                                        <div>
-                                            <p class="text-[7px] text-gray-400 uppercase mb-4">Human Capital</p>
-                                            <p class="font-bold border-b border-gray-200 min-h-[1.2rem]" x-text="(viewJpfData.human_capital_approval || {}).name || '—'"></p>
-                                            <p class="text-[8px] mt-1" x-text="(viewJpfData.human_capital_approval || {}).date || '—'"></p>
-                                        </div>
-                                        <div>
-                                            <p class="text-[7px] text-gray-400 uppercase mb-4">Hiring Manager</p>
-                                            <p class="font-bold border-b border-gray-200 min-h-[1.2rem]" x-text="(viewJpfData.hiring_manager_approval || {}).name || '—'"></p>
-                                            <p class="text-[8px] mt-1" x-text="(viewJpfData.hiring_manager_approval || {}).date || '—'"></p>
-                                        </div>
-                                        <div>
-                                            <p class="text-[7px] text-gray-400 uppercase mb-4">Finance</p>
-                                            <p class="font-bold border-b border-gray-200 min-h-[1.2rem]" x-text="(viewJpfData.finance_approval || {}).name || '—'"></p>
-                                            <p class="text-[8px] mt-1" x-text="(viewJpfData.finance_approval || {}).date || '—'"></p>
-                                        </div>
-                                        <div>
-                                            <p class="text-[7px] text-gray-400 uppercase mb-2">Presidential Approval</p>
-                                            <div class="flex justify-center gap-1 mb-1">
-                                                <template x-for="st in ['Approved', 'Hold', 'Cancelled']" :key="st">
-                                                    <div class="flex items-center gap-0.5 text-[6px]">
-                                                        <span class="w-2 h-2 border border-gray-400 rounded-full" :class="(viewJpfData.president_approval || {}).status === st ? 'bg-gray-800' : ''"></span>
-                                                        <span x-text="st"></span>
-                                                    </div>
-                                                </template>
-                                            </div>
-                                            <p class="font-bold border-b border-gray-200 min-h-[1.2rem]" x-text="(viewJpfData.president_approval || {}).name || '—'"></p>
-                                            <p class="text-[8px] mt-1" x-text="(viewJpfData.president_approval || {}).date || '—'"></p>
-                                        </div>
+                                    <div class="bg-gray-100 px-3 py-1 border-b border-gray-400 font-black uppercase text-[9px]">System Approvals</div>
+
+                                    <table class="w-full border-collapse text-[9px]">
+                                        <thead>
+                                            <tr class="bg-gray-50 text-gray-500 uppercase">
+                                                <th class="border border-gray-300 px-2 py-1 text-left w-[24%]">Approval Level</th>
+                                                <th class="border border-gray-300 px-2 py-1 text-left w-[28%]">Assigned Approver</th>
+                                                <th class="border border-gray-300 px-2 py-1 text-center w-[16%]">Status</th>
+                                                <th class="border border-gray-300 px-2 py-1 text-center w-[16%]">Approved Date</th>
+                                                <th class="border border-gray-300 px-2 py-1 text-left w-[16%]">Approved By</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <template x-for="ap in [
+                                                { level: 'human-capital', label: 'Human Capital', data: viewJpfData.human_capital_approval || {} },
+                                                { level: 'hiring-manager', label: 'Hiring Manager', data: viewJpfData.hiring_manager_approval || {} },
+                                                { level: 'finance', label: 'Finance', data: viewJpfData.finance_approval || {} },
+                                                { level: 'president', label: 'President / Final', data: viewJpfData.president_approval || {} }
+                                            ]" :key="ap.level">
+                                                <tr>
+                                                    <td class="border border-gray-300 px-2 py-2 font-black uppercase text-gray-700" x-text="ap.label"></td>
+                                                    <td class="border border-gray-300 px-2 py-2">
+                                                        <div class="font-bold text-gray-800" x-text="approvalDisplayName(ap.data)"></div>
+                                                        <div class="text-[7px] text-gray-500" x-text="ap.data?.position || ap.data?.role || '—'"></div>
+                                                    </td>
+                                                    <td class="border border-gray-300 px-2 py-2 text-center">
+                                                        <span
+                                                            class="inline-flex px-2 py-0.5 rounded-full border text-[8px] font-black uppercase"
+                                                            :class="approvalBadgeClass(ap.data)"
+                                                            x-text="approvalDisplayStatus(ap.data)"
+                                                        ></span>
+                                                    </td>
+                                                    <td class="border border-gray-300 px-2 py-2 text-center font-semibold" x-text="approvalDisplayDate(ap.data)"></td>
+                                                    <td class="border border-gray-300 px-2 py-2 font-semibold" x-text="ap.data?.decided_by_name || '—'"></td>
+                                                </tr>
+                                            </template>
+                                        </tbody>
+                                    </table>
+
+                                    <div class="px-3 py-2 text-[8px] text-gray-500 italic border-t border-gray-300">
+                                        Approval names, status, and dates are recorded by the system after the assigned approver approves the JPF.
                                     </div>
                                 </div>
                             </div>
@@ -2297,7 +2479,7 @@
                                     </select>
                                     <p class="text-[11px] mt-1"
                                        :class="postedJPFs.length ? 'text-gray-500' : 'text-red-500'"
-                                       x-text="postedJPFs.length ? 'Only Posted/Open JPF records are available for applicants.' : 'No Posted/Open JPF available. Post or open a JPF first.'"></p>
+                                       x-text="postedJPFs.length ? 'Only fully approved Posted/Screening JPF records are available for applicants.' : 'No fully approved Posted/Screening JPF available yet.'"></p>
 
                                     <input type="hidden" x-model="cafForm.positionApplied">
 
@@ -3019,7 +3201,7 @@
                     </select>
                     <p class="text-[11px] mt-1"
                        :class="validJobOfferJPFs.length ? 'text-gray-500' : 'text-red-500'"
-                       x-text="validJobOfferJPFs.length ? 'Only JPF records with status Posted/Open are available here.' : 'No JPF with status Posted/Open is available. Set a JPF status to Posted/Open first.'"></p>
+                       x-text="validJobOfferJPFs.length ? 'Only fully approved active JPF records are available here.' : 'No fully approved active JPF is available. Complete approval and move the JPF through the hiring flow first.'"></p>
                 </div>
 
                 <div class="grid grid-cols-2 gap-5">
@@ -3446,11 +3628,16 @@ function recruitmentPage(
     initialUnits = [],
     initialPositions = [],
     initialSalaryGrades = [],
-    initialPayrollLevels = []
+    initialPayrollLevels = [],
+    initialApprovalUsers = []
 ) {
     return {
         assessmentPolling: null,
         jobOfferFocusListenerAdded: false,
+        currentUserId: {{ auth()->id() ?? 'null' }},
+        currentUserRole: @json(auth()->user()->role ?? ''),
+        approvalUsers: initialApprovalUsers,
+        jpfStatusOptions: ['Draft', 'For Approval', 'Approved', 'Posted', 'Screening', 'Interviewing', 'Offer Stage', 'Filled', 'Closed', 'Cancelled'],
 
 startAssessmentPolling() {
     this.refreshAssessments();
@@ -3465,6 +3652,237 @@ startAssessmentPolling() {
         this.refreshJobOffers();
     }, 5000);
 },
+
+
+approvalTemplate(label = '') {
+    return {
+        label: label,
+        approver_id: '',
+        name: '',
+        email: '',
+        role: '',
+        position: '',
+        department: '',
+        status: 'Pending',
+        date: '',
+        approved_at: '',
+        decided_by: '',
+        decided_by_name: ''
+    };
+},
+
+applyApprover(levelKey) {
+    const approval = this.jpfForm[levelKey] || this.approvalTemplate();
+    const selected = this.approvalUsers.find(user => String(user.id) === String(approval.approver_id));
+
+    if (!selected) {
+        this.jpfForm[levelKey] = {
+            ...approval,
+            name: '',
+            email: '',
+            role: '',
+            position: '',
+            department: '',
+            status: 'Pending',
+            date: '',
+            approved_at: '',
+            decided_by: '',
+            decided_by_name: ''
+        };
+        return;
+    }
+
+    this.jpfForm[levelKey] = {
+        ...approval,
+        approver_id: selected.id,
+        name: selected.name || '',
+        email: selected.email || '',
+        role: selected.role || '',
+        position: selected.position || '',
+        department: selected.department || '',
+        status: 'Pending',
+        date: '',
+        approved_at: '',
+        decided_by: '',
+        decided_by_name: ''
+    };
+},
+
+approvalLevels(source = null) {
+    const jpf = source || this.viewJpfData || {};
+
+    return [
+        { level: 'human-capital', label: 'Human Capital', data: jpf.human_capital_approval || {} },
+        { level: 'hiring-manager', label: 'Hiring Manager', data: jpf.hiring_manager_approval || {} },
+        { level: 'finance', label: 'Finance', data: jpf.finance_approval || {} },
+        { level: 'president', label: 'President / Final', data: jpf.president_approval || {} }
+    ];
+},
+
+currentActionApproval() {
+    if (String(this.viewJpfData?.status || '').toLowerCase() !== 'for approval') return null;
+
+    return this.approvalLevels().find(ap => {
+        const status = this.approvalDisplayStatus(ap.data);
+        return ['Pending', 'Hold'].includes(status) && this.canActOnApproval(ap.data);
+    }) || null;
+},
+
+waitingApproval() {
+    if (String(this.viewJpfData?.status || '').toLowerCase() !== 'for approval') return null;
+
+    return this.approvalLevels().find(ap => {
+        const status = this.approvalDisplayStatus(ap.data);
+        return ['Pending', 'Hold'].includes(status) && !this.canActOnApproval(ap.data);
+    }) || null;
+},
+
+approvalDisplayName(approval) {
+    return (approval && (approval.name || approval.decided_by_name)) ? (approval.name || approval.decided_by_name) : '—';
+},
+
+approvalDisplayStatus(approval) {
+    return (approval && approval.status) ? approval.status : 'Pending';
+},
+
+approvalDisplayDate(approval) {
+    return (approval && (approval.date || approval.approved_at)) ? (approval.date || approval.approved_at) : '—';
+},
+
+canActOnApproval(approval) {
+    if (!approval) return false;
+
+    const status = this.approvalDisplayStatus(approval);
+    if (['Approved', 'Cancelled'].includes(status)) return false;
+
+    const hasAssignedApprover = approval.approver_id || approval.name || approval.email;
+    if (!hasAssignedApprover) return false;
+
+    const isSelectedApprover = approval.approver_id && String(approval.approver_id) === String(this.currentUserId);
+
+    return isSelectedApprover;
+},
+
+
+pendingApprovalsFor(jpf) {
+    if (!jpf || String(jpf.status || '').toLowerCase() !== 'for approval') return [];
+
+    return this.approvalLevels(jpf).filter(ap => {
+        const status = this.approvalDisplayStatus(ap.data);
+        return ['Pending', 'Hold'].includes(status);
+    });
+},
+
+myPendingApprovalsFor(jpf) {
+    return this.pendingApprovalsFor(jpf).filter(ap => this.canActOnApproval(ap.data));
+},
+
+currentPendingApprovalFor(jpf) {
+    const mine = this.myPendingApprovalsFor(jpf);
+    if (mine.length > 0) return mine[0];
+
+    const pending = this.pendingApprovalsFor(jpf);
+    return pending.length > 0 ? pending[0] : null;
+},
+
+jpfNeedsMyApproval(jpf) {
+    return this.myPendingApprovalsFor(jpf).length > 0;
+},
+
+myPendingJpfCount() {
+    return (this.data['JPF'] || []).filter(row => this.jpfNeedsMyApproval(row)).length;
+},
+
+
+jpfApprovalItems(source = null) {
+    const jpf = source || this.jpfForm || {};
+
+    return [
+        jpf.humanCapitalApproval || jpf.human_capital_approval || {},
+        jpf.hiringManagerApproval || jpf.hiring_manager_approval || {},
+        jpf.financeApproval || jpf.finance_approval || {},
+        jpf.presidentApproval || jpf.president_approval || {}
+    ];
+},
+
+jpfApprovalProgress(source = null) {
+    const items = this.jpfApprovalItems(source);
+    return items.filter(item => this.approvalDisplayStatus(item) === 'Approved').length;
+},
+
+jpfAllApprovalsApproved(source = null) {
+    return this.jpfApprovalProgress(source) === 4;
+},
+
+jpfStatusOptionAllowed(status) {
+    if (['Draft', 'For Approval', 'Cancelled'].includes(status)) return true;
+
+    if (status === 'Approved') {
+        return this.jpfAllApprovalsApproved(this.jpfForm);
+    }
+
+    if (['Posted', 'Screening', 'Interviewing', 'Offer Stage', 'Filled', 'Closed'].includes(status)) {
+        return this.jpfAllApprovalsApproved(this.jpfForm);
+    }
+
+    return false;
+},
+
+jpfStatusHelpText() {
+    const approvedCount = this.jpfApprovalProgress(this.jpfForm);
+
+    if (approvedCount < 4) {
+        return `${approvedCount}/4 approvals completed. This JPF will stay For Approval and cannot be Posted yet.`;
+    }
+
+    return '4/4 approvals completed. You may now set the status to Posted when HR is ready to publish it.';
+},
+
+jpfCanBePublic(jpf) {
+    const status = String(jpf?.status || '').toLowerCase();
+    return ['posted', 'screening'].includes(status) && this.jpfAllApprovalsApproved(jpf);
+},
+
+approvalBadgeClass(approval) {
+    const status = this.approvalDisplayStatus(approval);
+
+    if (status === 'Approved') return 'bg-green-100 text-green-700 border-green-200';
+    if (status === 'Hold') return 'bg-yellow-100 text-yellow-700 border-yellow-200';
+    if (status === 'Cancelled') return 'bg-red-100 text-red-700 border-red-200';
+
+    return 'bg-gray-100 text-gray-600 border-gray-200';
+},
+
+approveJpfLevel(level, status) {
+    if (!this.viewJpfData || !this.viewJpfData.id) return;
+
+    axios.post(`/human-capital/recruitment/jpf/${this.viewJpfData.id}/approval/${level}`, { status })
+        .then(res => {
+            if (!res.data.success) {
+                alert(res.data.message || 'Unable to update approval.');
+                return;
+            }
+
+            const item = res.data.data;
+            this.viewJpfData = { ...item };
+
+            const idx = this.data['JPF'].findIndex(j => j.id === item.id);
+            if (idx !== -1) {
+                this.data['JPF'][idx] = {
+                    ...item,
+                    jobId: item.job_id,
+                    type: item.employment_type,
+                    posted: item.posted_date
+                };
+            }
+
+            alert(res.data.message || 'Approval updated.');
+        })
+        .catch(err => {
+            alert('Approval update failed: ' + (err.response?.data?.message || err.message));
+        });
+},
+
 
 refreshAssessments() {
     axios.get('/human-capital/recruitment/assessment/latest?ts=' + Date.now())
@@ -3512,6 +3930,7 @@ refreshJobOffers() {
         currentPage: 1,
         showFilter: false,
         filterStatus: 'All',
+        jpfListView: 'all',
         showModal: false,
         showViewModal: false,
         showJpfModal: false,
@@ -3646,10 +4065,10 @@ refreshJobOffers() {
             dateNeeded: '', postingStartDate: '', targetHireDate: '',
 
             // APPROVALS
-            humanCapitalApproval: { name: '', date: '' },
-            hiringManagerApproval: { name: '', date: '' },
-            financeApproval: { name: '', date: '' },
-            presidentApproval: { status: '', name: '', date: '' },
+            humanCapitalApproval: { label: 'Human Capital', approver_id: '', name: '', email: '', role: '', position: '', department: '', status: 'Pending', date: '', approved_at: '', decided_by: '', decided_by_name: '' },
+            hiringManagerApproval: { label: 'Hiring Manager', approver_id: '', name: '', email: '', role: '', position: '', department: '', status: 'Pending', date: '', approved_at: '', decided_by: '', decided_by_name: '' },
+            financeApproval: { label: 'Finance', approver_id: '', name: '', email: '', role: '', position: '', department: '', status: 'Pending', date: '', approved_at: '', decided_by: '', decided_by_name: '' },
+            presidentApproval: { label: 'President / Final', approver_id: '', name: '', email: '', role: '', position: '', department: '', status: 'Pending', date: '', approved_at: '', decided_by: '', decided_by_name: '' },
 
             // STATUS
             status: 'Draft'
@@ -4177,10 +4596,7 @@ onJpfPayrollLevelChange() {
         get validJobOfferJPFs() {
             return this.data['JPF'].filter(jpf => {
                 const status = String(jpf.status || '').toLowerCase();
-
-                // Only actual JPF status controls Job Offer eligibility.
-                // Draft JPF should not appear even if Hiring Status is Open.
-                return ['posted', 'open'].includes(status);
+                return ['posted', 'screening', 'interviewing', 'offer stage'].includes(status) && this.jpfAllApprovalsApproved(jpf);
             });
         },
 
@@ -4775,10 +5191,10 @@ onJpfPayrollLevelChange() {
                 postingStartDate: row.posting_start_date,
                 targetHireDate: row.target_hire_date,
 
-                humanCapitalApproval: row.human_capital_approval || { name: '', date: '' },
-                hiringManagerApproval: row.hiring_manager_approval || { name: '', date: '' },
-                financeApproval: row.finance_approval || { name: '', date: '' },
-                presidentApproval: row.president_approval || { status: '', name: '', date: '' },
+                humanCapitalApproval: row.human_capital_approval || this.approvalTemplate('Human Capital'),
+                hiringManagerApproval: row.hiring_manager_approval || this.approvalTemplate('Hiring Manager'),
+                financeApproval: row.finance_approval || this.approvalTemplate('Finance'),
+                presidentApproval: row.president_approval || this.approvalTemplate('President / Final'),
 
                 status: row.status
             };
@@ -4854,16 +5270,16 @@ onJpfPayrollLevelChange() {
                     channels: [],
                     screeningFlow: [],
                     dateNeeded: '', postingStartDate: '', targetHireDate: '',
-                    humanCapitalApproval: { name: '', date: '' },
-                    hiringManagerApproval: { name: '', date: '' },
-                    financeApproval: { name: '', date: '' },
-                    presidentApproval: { status: '', name: '', date: '' },
+                    humanCapitalApproval: this.approvalTemplate('Human Capital'),
+                    hiringManagerApproval: this.approvalTemplate('Hiring Manager'),
+                    financeApproval: this.approvalTemplate('Finance'),
+                    presidentApproval: this.approvalTemplate('President / Final'),
                     status: 'Draft'
                 };
                 this.showJpfModal = true;
             } else if (this.activeTab === 'CAF') {
                 if (this.postedJPFs.length === 0) {
-                    alert('No Posted/Open JPF available. Please post or open a JPF first before adding applicants.');
+                    alert('No fully approved Posted/Screening JPF available. Complete JPF approvals and post the job first before adding applicants.');
                     return;
                 }
 
@@ -4941,6 +5357,11 @@ onJpfPayrollLevelChange() {
             }
 
             this.jpfForm.employmentType = this.selectedJpfMrf.employment_type || this.jpfForm.employmentType;
+
+            if (!this.jpfStatusOptionAllowed(this.jpfForm.status)) {
+                alert('This status is not allowed yet. Complete all approvals first before posting or moving this JPF to hiring progress statuses.');
+                this.jpfForm.status = 'For Approval';
+            }
 
             const url = this.isEditing ? `/human-capital/recruitment/jpf/${this.editingId}` : '{{ route("human-capital.recruitment.store_jpf") }}';
             const method = this.isEditing ? 'put' : 'post';
@@ -5263,10 +5684,7 @@ onJpfPayrollLevelChange() {
         },
 
         get postedJPFs() {
-            return this.data['JPF'].filter(jpf => {
-                const status = String(jpf.status || '').toLowerCase();
-                return ['posted', 'open'].includes(status);
-            });
+            return this.data['JPF'].filter(jpf => this.jpfCanBePublic(jpf));
         },
 
         get selectedCafJpf() {
@@ -5283,8 +5701,8 @@ onJpfPayrollLevelChange() {
 
             const status = String(jpf.status || '').toLowerCase();
 
-            if (!['posted', 'open'].includes(status)) {
-                alert('Only Posted/Open JPF records can be selected for applicant/CAF.');
+            if (!this.jpfCanBePublic(jpf)) {
+                alert('Only fully approved Posted/Screening JPF records can be selected for applicant/CAF.');
                 this.cafForm.jobPostingId = '';
                 this.cafForm.positionApplied = '';
                 return;
@@ -5419,6 +5837,70 @@ onJpfPayrollLevelChange() {
             html2pdf().set(opt).from(element).save();
         },
 
+
+        formatDisplayDate(value) {
+            if (!value) return '—';
+
+            const date = new Date(value);
+
+            if (Number.isNaN(date.getTime())) {
+                return value;
+            }
+
+            return date.toLocaleDateString('en-US', {
+                month: 'short',
+                day: '2-digit',
+                year: 'numeric'
+            });
+        },
+
+        async quickPostJPF(row) {
+            if (!row || !row.id) return;
+
+            if (this.jpfApprovalProgress(row) < 4) {
+                alert('This JPF cannot be posted yet because approvals are not complete.');
+                return;
+            }
+
+            if (!confirm('Post this approved JPF to the public Careers page?')) {
+                return;
+            }
+
+            const payload = {
+                ...row,
+                status: 'Posted',
+                posted_date: row.posted_date || new Date().toISOString().slice(0, 10)
+            };
+
+            try {
+                const res = await fetch(`/human-capital/recruitment/jpf/${row.id}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await res.json();
+
+                if (!res.ok || !data.success) {
+                    alert(data.message || 'Failed to post JPF.');
+                    return;
+                }
+
+                const index = this.data.JPF.findIndex(item => item.id === row.id);
+                if (index !== -1) {
+                    this.data.JPF[index] = data.data;
+                }
+
+                alert('JPF has been posted successfully.');
+            } catch (error) {
+                console.error(error);
+                alert('Failed to post JPF.');
+            }
+        },
+
         statusClass(status) {
             const map = {
                 'Approved':      'bg-green-100 text-green-700',
@@ -5483,7 +5965,11 @@ onJpfPayrollLevelChange() {
 
         get filteredRows() {
             let rows = this.data[this.activeTab] ?? [];
-            
+
+            if (this.activeTab === 'JPF' && this.jpfListView === 'mine') {
+                rows = rows.filter(r => this.jpfNeedsMyApproval(r));
+            }
+
             // Apply Status Filter
             if (this.filterStatus !== 'All') {
                 rows = rows.filter(r => r.status === this.filterStatus);

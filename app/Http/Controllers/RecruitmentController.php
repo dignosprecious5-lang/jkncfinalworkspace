@@ -29,6 +29,7 @@ use App\Mail\JobOfferMail;
 use App\Mail\PdsInvitationMail;
 use App\Mail\ChecklistSubmissionMail;
 use App\Models\Training;
+use App\Models\User;
 
 class RecruitmentController extends Controller
 {
@@ -183,6 +184,21 @@ class RecruitmentController extends Controller
             })
             ->values();
 
+        $approvalUsers = User::whereIn('role', ['SuperAdmin', 'Admin', 'Employee'])
+            ->orderBy('name')
+            ->get()
+            ->map(function ($user) {
+                return [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'role' => $user->role,
+                    'position' => $user->position,
+                    'department' => $user->department,
+                ];
+            })
+            ->values();
+
         return view('human-capital.recruitment', compact(
             'mrfData',
             'jpfData',
@@ -198,19 +214,18 @@ class RecruitmentController extends Controller
             'units',
             'positions',
             'salaryGrades',
-            'payrollLevels'
+            'payrollLevels',
+            'approvalUsers'
         ));
     }
 
     public function showPublicApplicationForm()
 {
-    $jobPostings = JobPosting::whereIn('status', ['Posted', 'Open'])
+    $jobPostings = JobPosting::whereIn('status', ['Posted', 'Screening'])
         ->orderBy('position')
-        ->get();
-
-    if ($jobPostings->isEmpty()) {
-        $jobPostings = JobPosting::orderBy('position')->get();
-    }
+        ->get()
+        ->filter(fn ($jpf) => $this->jpfApprovalsAllApproved($jpf))
+        ->values();
 
     return view('careers.apply', compact('jobPostings'));
 }
@@ -458,6 +473,202 @@ public function storePDS(Request $request)
         return response()->json(['success' => true, 'data' => $mrf]);
     }
 
+
+    private function buildJpfApprovalPayload($payload, string $label, ?array $existing = null): array
+    {
+        $payload = is_array($payload) ? $payload : [];
+        $existing = is_array($existing) ? $existing : [];
+
+        $approverId = $payload['approver_id'] ?? null;
+        $approverId = $approverId !== '' ? $approverId : null;
+
+        $approver = $approverId ? User::find($approverId) : null;
+        $sameApprover = $approver && (int) ($existing['approver_id'] ?? 0) === (int) $approver->id;
+
+        return [
+            'label' => $label,
+            'approver_id' => $approver ? $approver->id : null,
+            'name' => $approver ? $approver->name : ($payload['name'] ?? ($existing['name'] ?? '')),
+            'email' => $approver ? $approver->email : ($payload['email'] ?? ($existing['email'] ?? '')),
+            'role' => $approver ? $approver->role : ($payload['role'] ?? ($existing['role'] ?? '')),
+            'position' => $approver ? $approver->position : ($payload['position'] ?? ($existing['position'] ?? '')),
+            'department' => $approver ? $approver->department : ($payload['department'] ?? ($existing['department'] ?? '')),
+            'status' => $sameApprover ? ($existing['status'] ?? 'Pending') : 'Pending',
+            'date' => $sameApprover ? ($existing['date'] ?? null) : null,
+            'approved_at' => $sameApprover ? ($existing['approved_at'] ?? null) : null,
+            'decided_by' => $sameApprover ? ($existing['decided_by'] ?? null) : null,
+            'decided_by_name' => $sameApprover ? ($existing['decided_by_name'] ?? null) : null,
+        ];
+    }
+
+
+
+    private function jpfApprovalColumns(): array
+    {
+        return [
+            'human_capital_approval',
+            'hiring_manager_approval',
+            'finance_approval',
+            'president_approval',
+        ];
+    }
+
+    private function jpfApprovalIsApproved($approval): bool
+    {
+        return is_array($approval) && strtolower((string) ($approval['status'] ?? '')) === 'approved';
+    }
+
+    private function jpfApprovalsAllApprovedFromArray(array $approvals): bool
+    {
+        foreach ($this->jpfApprovalColumns() as $column) {
+            if (!$this->jpfApprovalIsApproved($approvals[$column] ?? null)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function jpfApprovalsAllApproved(JobPosting $jpf): bool
+    {
+        return $this->jpfApprovalsAllApprovedFromArray([
+            'human_capital_approval' => $jpf->human_capital_approval,
+            'hiring_manager_approval' => $jpf->hiring_manager_approval,
+            'finance_approval' => $jpf->finance_approval,
+            'president_approval' => $jpf->president_approval,
+        ]);
+    }
+
+    private function normalizeJpfStatus(?string $requestedStatus, array $approvals, ?JobPosting $existing = null): string
+    {
+        $requestedStatus = trim((string) ($requestedStatus ?: 'Draft'));
+        $allApproved = $this->jpfApprovalsAllApprovedFromArray($approvals);
+
+        if ($requestedStatus === 'Cancelled') {
+            return 'Cancelled';
+        }
+
+        if ($requestedStatus === 'Draft') {
+            return 'Draft';
+        }
+
+        if (!$allApproved) {
+            return 'For Approval';
+        }
+
+        $allowedAfterApproval = ['Approved', 'Posted', 'Screening', 'Interviewing', 'Offer Stage', 'Filled', 'Closed'];
+
+        if (in_array($requestedStatus, $allowedAfterApproval, true)) {
+            return $requestedStatus;
+        }
+
+        return 'Approved';
+    }
+
+    private function postedJpfCanReceiveApplicants(JobPosting $jpf): bool
+    {
+        return in_array($jpf->status, ['Posted', 'Screening'], true) && $this->jpfApprovalsAllApproved($jpf);
+    }
+
+    private function jpfCanProceedToJobOffer(JobPosting $jpf): bool
+    {
+        return in_array($jpf->status, ['Posted', 'Screening', 'Interviewing', 'Offer Stage'], true) && $this->jpfApprovalsAllApproved($jpf);
+    }
+
+    public function actOnJPFApproval(Request $request, $id, $level)
+    {
+        $columns = [
+            'human-capital' => 'human_capital_approval',
+            'hiring-manager' => 'hiring_manager_approval',
+            'finance' => 'finance_approval',
+            'president' => 'president_approval',
+        ];
+
+        if (!array_key_exists($level, $columns)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid approval level.'
+            ], 422);
+        }
+
+        $request->validate([
+            'status' => ['required', 'in:Approved,Hold,Cancelled'],
+        ]);
+
+        $jpf = JobPosting::findOrFail($id);
+
+        if (!in_array($jpf->status, ['For Approval'], true)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'This JPF is not currently submitted for approval. Draft records must be submitted as For Approval first, and approved records no longer need approval actions.'
+            ], 422);
+        }
+
+        $column = $columns[$level];
+        $approval = is_array($jpf->{$column}) ? $jpf->{$column} : [];
+        $user = $request->user();
+
+        $isSelectedApprover = isset($approval['approver_id']) && (int) $approval['approver_id'] === (int) $user->id;
+
+        if (!$isSelectedApprover) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Only the selected approver for this approval level can approve, hold, or cancel this JPF. Other approvers may approve their own assigned levels separately.'
+            ], 403);
+        }
+
+        $currentApprovalStatus = strtolower((string) ($approval['status'] ?? 'Pending'));
+        if (in_array($currentApprovalStatus, ['approved', 'cancelled'], true)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'This approval level is already finalized.'
+            ], 422);
+        }
+
+        // Parallel approval: every selected approver may act on their own assigned level
+        // while the JPF is For Approval. The system only changes the JPF to Approved
+        // when all approval levels are already Approved.
+
+        $approval['status'] = $request->status;
+        $approval['date'] = now()->format('Y-m-d');
+        $approval['approved_at'] = now()->toDateTimeString();
+        $approval['decided_by'] = $user->id;
+        $approval['decided_by_name'] = $user->name;
+
+        $approvalSnapshot = [
+            'human_capital_approval' => $jpf->human_capital_approval,
+            'hiring_manager_approval' => $jpf->hiring_manager_approval,
+            'finance_approval' => $jpf->finance_approval,
+            'president_approval' => $jpf->president_approval,
+        ];
+        $approvalSnapshot[$column] = $approval;
+
+        $statusUpdate = $jpf->status;
+
+        if ($request->status === 'Cancelled') {
+            $statusUpdate = 'Cancelled';
+        } elseif ($this->jpfApprovalsAllApprovedFromArray($approvalSnapshot)) {
+            $statusUpdate = in_array($jpf->status, ['Posted', 'Screening', 'Interviewing', 'Offer Stage', 'Filled', 'Closed'], true)
+                ? $jpf->status
+                : 'Approved';
+        } elseif (!in_array($jpf->status, ['Draft', 'Cancelled', 'Closed'], true)) {
+            $statusUpdate = 'For Approval';
+        }
+
+        $jpf->update([
+            $column => $approval,
+            'status' => $statusUpdate,
+        ]);
+
+        $jpf->refresh();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'JPF approval updated successfully.',
+            'data' => $jpf,
+        ]);
+    }
+
     public function storeJPF(Request $request)
     {
         $mrf = ManpowerRequest::find($request->mrfId);
@@ -475,6 +686,13 @@ public function storePDS(Request $request)
                 'message' => 'Only approved MRF records can be used to create a JPF.'
             ], 422);
         }
+
+        $approvalData = [
+            'human_capital_approval' => $this->buildJpfApprovalPayload($request->humanCapitalApproval, 'Human Capital'),
+            'hiring_manager_approval'=> $this->buildJpfApprovalPayload($request->hiringManagerApproval, 'Hiring Manager'),
+            'finance_approval'       => $this->buildJpfApprovalPayload($request->financeApproval, 'Finance'),
+            'president_approval'     => $this->buildJpfApprovalPayload($request->presidentApproval, 'President / Final'),
+        ];
 
         $data = [
             'mrf_id'                 => $request->mrfId,
@@ -494,7 +712,7 @@ public function storePDS(Request $request)
             'job_description'        => $request->duties,
             'requirements'           => $request->education,
             'posted_date'            => $request->postingStartDate ?: date('Y-m-d'),
-            'status'                 => $request->status ?: 'Draft',
+            'status'                 => $this->normalizeJpfStatus($request->status, $approvalData),
 
             'related_mrf_no'         => $mrf->request_id,
             'date_opened'            => $request->dateOpened,
@@ -529,10 +747,10 @@ public function storePDS(Request $request)
             'date_needed'            => $request->dateNeeded,
             'posting_start_date'     => $request->postingStartDate,
             'target_hire_date'       => $request->targetHireDate,
-            'human_capital_approval' => $request->humanCapitalApproval,
-            'hiring_manager_approval'=> $request->hiringManagerApproval,
-            'finance_approval'       => $request->financeApproval,
-            'president_approval'     => $request->presidentApproval,
+            'human_capital_approval' => $approvalData['human_capital_approval'],
+            'hiring_manager_approval'=> $approvalData['hiring_manager_approval'],
+            'finance_approval'       => $approvalData['finance_approval'],
+            'president_approval'     => $approvalData['president_approval'],
         ];
 
         if (!isset($data['job_id'])) {
@@ -564,6 +782,13 @@ public function storePDS(Request $request)
             ], 422);
         }
 
+        $approvalData = [
+            'human_capital_approval' => $this->buildJpfApprovalPayload($request->humanCapitalApproval, 'Human Capital', $jpf->human_capital_approval),
+            'hiring_manager_approval'=> $this->buildJpfApprovalPayload($request->hiringManagerApproval, 'Hiring Manager', $jpf->hiring_manager_approval),
+            'finance_approval'       => $this->buildJpfApprovalPayload($request->financeApproval, 'Finance', $jpf->finance_approval),
+            'president_approval'     => $this->buildJpfApprovalPayload($request->presidentApproval, 'President / Final', $jpf->president_approval),
+        ];
+
         $data = [
             'mrf_id'                 => $request->mrfId,
             'address_id'             => $request->orgAddressId,
@@ -581,7 +806,7 @@ public function storePDS(Request $request)
             'salary_range'           => $request->minSalary . ' - ' . $request->maxSalary,
             'job_description'        => $request->duties,
             'requirements'           => $request->education,
-            'status'                 => $request->status ?: $jpf->status,
+            'status'                 => $this->normalizeJpfStatus($request->status ?: $jpf->status, $approvalData, $jpf),
 
             'related_mrf_no'         => $mrf->request_id,
             'date_opened'            => $request->dateOpened,
@@ -616,10 +841,10 @@ public function storePDS(Request $request)
             'date_needed'            => $request->dateNeeded,
             'posting_start_date'     => $request->postingStartDate,
             'target_hire_date'       => $request->targetHireDate,
-            'human_capital_approval' => $request->humanCapitalApproval,
-            'hiring_manager_approval'=> $request->hiringManagerApproval,
-            'finance_approval'       => $request->financeApproval,
-            'president_approval'     => $request->presidentApproval,
+            'human_capital_approval' => $this->buildJpfApprovalPayload($request->humanCapitalApproval, 'Human Capital', $jpf->human_capital_approval),
+            'hiring_manager_approval'=> $this->buildJpfApprovalPayload($request->hiringManagerApproval, 'Hiring Manager', $jpf->hiring_manager_approval),
+            'finance_approval'       => $this->buildJpfApprovalPayload($request->financeApproval, 'Finance', $jpf->finance_approval),
+            'president_approval'     => $this->buildJpfApprovalPayload($request->presidentApproval, 'President / Final', $jpf->president_approval),
         ];
         $jpf->update($data);
         return response()->json(['success' => true, 'data' => $jpf]);
@@ -651,10 +876,10 @@ public function storePDS(Request $request)
             ], 422);
         }
 
-        if (!in_array(strtolower((string) $jobPosting->status), ['posted', 'open'], true)) {
+        if (!$this->postedJpfCanReceiveApplicants($jobPosting)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Only Posted/Open JPF records can be used for candidate records.'
+                'message' => 'Only fully approved Posted/Screening JPF records can be used for candidate records.'
             ], 422);
         }
 
@@ -676,6 +901,10 @@ public function storePDS(Request $request)
             'applied_date' => date('Y-m-d')
         ]);
 
+        if ($jobPosting->status === 'Posted') {
+            $jobPosting->update(['status' => 'Screening']);
+        }
+
         return response()->json(['success' => true, 'data' => $caf]);
     }
 
@@ -691,10 +920,10 @@ public function storePDS(Request $request)
             ], 422);
         }
 
-        if (!in_array(strtolower((string) $jobPosting->status), ['posted', 'open'], true)) {
+        if (!$this->postedJpfCanReceiveApplicants($jobPosting)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Only Posted/Open JPF records can be used for candidate records.'
+                'message' => 'Only fully approved Posted/Screening JPF records can be used for candidate records.'
             ], 422);
         }
 
@@ -841,6 +1070,15 @@ public function storePDS(Request $request)
                 'status' => 'Scheduled',
             ]);
 
+            $matchedJpf = JobPosting::where('position', $interview->position)
+                ->whereIn('status', ['Posted', 'Screening'])
+                ->latest()
+                ->first();
+
+            if ($matchedJpf && $this->jpfApprovalsAllApproved($matchedJpf)) {
+                $matchedJpf->update(['status' => 'Interviewing']);
+            }
+
             try {
                 Mail::to($interview->email)->send(new InterviewScheduleMail($interview));
             } catch (\Exception $mailException) {
@@ -934,16 +1172,16 @@ public function storeJobOffer(Request $request)
         if (!$jpf) {
             return response()->json([
                 'success' => false,
-                'message' => 'Please select a JPF with status Posted/Open before creating a Job Offer.'
+                'message' => 'Please select a fully approved active JPF before creating a Job Offer.'
             ], 422);
         }
 
         $status = strtolower((string) $jpf->status);
 
-        if (!in_array($status, ['posted', 'open'], true)) {
+        if (!$this->jpfCanProceedToJobOffer($jpf)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Only JPF records with status Posted/Open can be used for Job Offer.'
+                'message' => 'Only fully approved active JPF records can be used for Job Offer.'
             ], 422);
         }
 
@@ -974,6 +1212,10 @@ public function storeJobOffer(Request $request)
             'accept_token'     => $this->generateJobOfferToken(),
             'status'           => 'Pending',
         ]);
+
+        if (!in_array($jpf->status, ['Filled', 'Closed', 'Cancelled'], true)) {
+            $jpf->update(['status' => 'Offer Stage']);
+        }
 
         if ($candidateEmail) {
             try {
@@ -1104,6 +1346,13 @@ public function acceptJobOffer($token)
     ]);
 
     $jobOffer->refresh();
+
+    if ($jobOffer->job_posting_id) {
+        $jpf = JobPosting::find($jobOffer->job_posting_id);
+        if ($jpf) {
+            $jpf->update(['status' => 'Filled']);
+        }
+    }
 
     if (!$jobOffer->pds_sent_at && $jobOffer->candidate_email) {
         try {

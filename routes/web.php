@@ -1063,6 +1063,7 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
             Route::post('/recruitment/jpf', [RecruitmentController::class, 'storeJPF'])->name('recruitment.store_jpf');
             Route::put('/recruitment/jpf/{id}', [RecruitmentController::class, 'updateJPF'])->name('recruitment.update_jpf');
             Route::delete('/recruitment/jpf/{id}', [RecruitmentController::class, 'deleteJPF'])->name('recruitment.delete_jpf');
+            Route::post('/recruitment/jpf/{id}/approval/{level}', [RecruitmentController::class, 'actOnJPFApproval'])->name('recruitment.jpf.approval');
 
             Route::post('/recruitment/caf', [RecruitmentController::class, 'storeCAF'])->name('recruitment.store_caf');
             Route::put('/recruitment/caf/{id}', [RecruitmentController::class, 'updateCAF'])->name('recruitment.update_caf');
