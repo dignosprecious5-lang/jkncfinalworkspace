@@ -230,6 +230,17 @@ class RecruitmentController extends Controller
     return view('careers.apply', compact('jobPostings'));
 }
 
+    public function showPublicCareersPage()
+    {
+        $jobPostings = JobPosting::whereIn('status', ['Posted', 'Screening'])
+            ->orderBy('created_at', 'desc')
+            ->get()
+            ->filter(fn ($jpf) => $this->jpfApprovalsAllApproved($jpf))
+            ->values();
+
+        return view('human-capital.homepage_public', compact('jobPostings'));
+    }
+
 public function onboarding()
 {
     $pdsData = \App\Models\PersonalDataSheet::latest()->get()->map(function ($pds) {
