@@ -298,6 +298,11 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::post('/admin/corporate-approvals/{module}/{id}/revise', [CorporateApprovalController::class, 'revise'])->name('corporate.approvals.revise');
     Route::post('/admin/corporate-approvals/{module}/{id}/archive', [CorporateApprovalController::class, 'archive'])->name('corporate.approvals.archive');
 
+    Route::get('/admin/finance-dashboard', [FinanceController::class, 'adminDashboard'])->name('admin.finance.dashboard');
+    Route::post('/admin/finance/{financeRecord}/approve-delete', [FinanceController::class, 'approveDelete'])->name('admin.finance.delete.approve');
+    Route::post('/admin/finance/{financeRecord}/reject-delete', [FinanceController::class, 'rejectDelete'])->name('admin.finance.delete.reject');
+    Route::post('/admin/finance/{financeRecord}/unarchive', [FinanceController::class, 'unarchive'])->name('admin.finance.unarchive');
+
     Route::post('/admin/catalog-change-requests/{catalogChangeRequest}/approve', [CatalogChangeRequestController::class, 'approve'])->name('catalog-change-requests.approve');
     Route::post('/admin/catalog-change-requests/{catalogChangeRequest}/reject', [CatalogChangeRequestController::class, 'reject'])->name('catalog-change-requests.reject');
     Route::get('/admin/deal-proposal-templates', [DealProposalController::class, 'proposalTemplatesIndex'])->name('admin.deal-proposal-templates.index');
@@ -903,6 +908,7 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::post('/finance/{financeRecord}/approve', [FinanceController::class, 'approve'])->name('finance.approve');
     Route::post('/finance/{financeRecord}/revert', [FinanceController::class, 'revert'])->name('finance.revert');
     Route::post('/finance/{financeRecord}/archive', [FinanceController::class, 'archive'])->name('finance.archive');
+    Route::post('/finance/{financeRecord}/request-delete', [FinanceController::class, 'requestDelete'])->name('finance.delete.request');
     Route::post('/finance/{financeRecord}/share-supplier-link', [FinanceController::class, 'shareSupplierLink'])->name('finance.supplier.share');
     Route::post('/finance/{financeRecord}/supplier-email', [FinanceController::class, 'updateSupplierEmailAndResend'])->name('finance.supplier.email');
 

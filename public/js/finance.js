@@ -1,7 +1,7 @@
 ﻿(() => {
     const bootstrap = window.financeBootstrap || {};
     const csrfToken = bootstrap.csrfToken || '';
-    const workflowFilters = ['all', 'Uploaded', 'Shared', 'Submitted', 'Accepted', 'Reverted', 'Archived'];
+    const workflowFilters = ['all', 'Uploaded', 'Shared', 'Submitted', 'Accepted', 'Reverted', 'Archived', 'Delete Requested'];
 
     const textField = (name, label, options = {}) => ({ name, label, type: 'text', ...options });
     const numberField = (name, label, options = {}) => ({ name, label, type: 'number', ...options });
@@ -2100,6 +2100,8 @@
         if (v === 'accepted') return 'text-green-700';
         if (v === 'reverted') return 'text-yellow-700';
         if (v === 'archived') return 'text-gray-700';
+        if (v === 'delete requested') return 'text-red-700';
+        if (v === 'deleted') return 'text-gray-700';
         return 'text-gray-700';
     }
 
@@ -2108,6 +2110,8 @@
         if (v === 'approved') return 'text-green-700';
         if (v === 'pending') return 'text-yellow-700';
         if (v === 'pending supplier completion') return 'text-sky-700';
+        if (v === 'deletion pending') return 'text-red-700';
+        if (v === 'deleted') return 'text-gray-700';
         if (v === 'needs revision') return 'text-red-700';
         if (v === 'archived') return 'text-gray-700';
         return 'text-gray-700';
@@ -2184,6 +2188,7 @@
             Accepted: 'These records are approved and active for lookup flows.',
             Reverted: 'These records were reverted and can be corrected then resubmitted.',
             Archived: 'These records are archived.',
+            'Delete Requested': 'These records are waiting for admin approval before deletion is finalized.',
         };
 
         const palette = {
@@ -2193,6 +2198,7 @@
             Accepted: 'border-green-200 bg-green-50 text-green-700',
             Reverted: 'border-red-200 bg-red-50 text-red-700',
             Archived: 'border-gray-200 bg-gray-50 text-gray-700',
+            'Delete Requested': 'border-red-200 bg-red-50 text-red-700',
         };
 
         const tone = palette[currentWorkflowFilter] || palette.Uploaded;
@@ -8494,7 +8500,9 @@
         if (!supplierPending) {
             actions.push(`<a href="${escapeHtml(previewUrl)}" target="_blank" class="block w-full border border-gray-300 rounded-md py-2 text-center hover:bg-gray-50">Open ${escapeHtml(previewLabel)}</a>`);
         }
-        actions.push(`<button type="button" onclick="window.financeModule.openFinanceDrawer(window.financeModule.getRecordById(${record.id}))" class="w-full border border-gray-300 rounded-md py-2 hover:bg-gray-50">Edit</button>`);
+        if (record.can_edit) {
+            actions.push(`<button type="button" onclick="window.financeModule.openFinanceDrawer(window.financeModule.getRecordById(${record.id}))" class="w-full border border-gray-300 rounded-md py-2 hover:bg-gray-50">Edit</button>`);
+        }
         if (!supplierPending) {
             actions.push(`<button type="button" onclick="window.financeModule.printFinanceRecord(${record.id})" class="w-full border border-gray-300 rounded-md py-2 hover:bg-gray-50">Print</button>`);
         }
@@ -8518,10 +8526,20 @@
             actions.push(`<button type="button" onclick="window.financeModule.changeSupplierEmailAndResend(${record.id})" class="w-full border border-sky-300 text-sky-700 rounded-md py-2 hover:bg-sky-50">Change Email &amp; Resend</button>`);
         }
 
-        if (record.can_review) {
+        if (record.can_approve || record.can_review) {
             actions.push(`<button type="button" onclick="window.financeModule.approveFinanceRecord(${record.id})" class="w-full bg-green-600 text-white rounded-md py-2 hover:bg-green-700">Approve</button>`);
+        }
+
+        if (record.can_revert || record.can_review) {
             actions.push(`<button type="button" onclick="window.financeModule.revertFinanceRecord(${record.id})" class="w-full bg-amber-500 text-white rounded-md py-2 hover:bg-amber-600">Return for Revision</button>`);
+        }
+
+        if (record.can_archive) {
             actions.push(`<button type="button" onclick="window.financeModule.archiveFinanceRecord(${record.id})" class="w-full bg-gray-700 text-white rounded-md py-2 hover:bg-gray-800">Archive</button>`);
+        }
+
+        if (record.can_request_delete) {
+            actions.push(`<button type="button" onclick="window.financeModule.requestDeleteFinanceRecord(${record.id})" class="w-full border border-red-300 text-red-700 rounded-md py-2 hover:bg-red-50">Request Delete</button>`);
         }
 
         if (record.supplier_completion_url) {
@@ -8777,6 +8795,33 @@
         openPreview(data.data.id);
     }
 
+    async function requestDeleteFinanceRecord(id) {
+        const note = prompt('Enter a reason for deleting this finance record:');
+        if (note === null) return;
+        const formData = new FormData();
+        formData.append('review_note', note);
+
+        const res = await fetch(`/finance/${id}/request-delete`, {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': csrfToken,
+                'Accept': 'application/json'
+            },
+            body: formData
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+            alert(data.message || 'Unable to request deletion.');
+            return;
+        }
+
+        upsertFinanceRecord(data.data);
+        refreshFinanceView();
+        openPreview(data.data.id);
+        showFinanceToast('Delete request sent to the admin finance dashboard.', 'success');
+    }
+
     async function shareSupplierRecord(id) {
         const res = await fetch(`/finance/${id}/share-supplier-link`, {
             method: 'POST',
@@ -9022,6 +9067,7 @@
         approveFinanceRecord,
         revertFinanceRecord,
         archiveFinanceRecord,
+        requestDeleteFinanceRecord,
         shareSupplierRecord,
         resendSupplierForm,
         changeSupplierEmailAndResend,

@@ -49,21 +49,28 @@ class FinanceController extends Controller
         'Accepted',
         'Reverted',
         'Archived',
+        'Delete Requested',
+        'Deleted',
     ];
 
     private const DROPDOWN_SETTINGS_KEY = 'finance_dropdown_options';
 
     private function canApproveFinance(): bool
     {
-        return Auth::check() && Auth::user()->hasPermission('approve_corporate');
+        return $this->canAdministerFinance();
     }
 
-    private function canManageFinanceSettings(): bool
+    private function canAdministerFinance(): bool
     {
         $user = Auth::user();
 
         return $user
-            && ($user->hasPermission('approve_corporate') || $user->hasPermission('manage_users'));
+            && ($user->isSuperAdmin() || $user->isAdmin() || $user->hasPermission('manage_users'));
+    }
+
+    private function canManageFinanceSettings(): bool
+    {
+        return $this->canAdministerFinance();
     }
 
     private function financeDropdownSettings(): array
@@ -1139,6 +1146,10 @@ SVG;
 
     private function canEditRecord(FinanceRecord $record): bool
     {
+        if (in_array($record->workflow_status ?? 'Uploaded', ['Delete Requested', 'Deleted'], true)) {
+            return false;
+        }
+
         if ($this->canApproveFinance()) {
             return true;
         }
@@ -1149,6 +1160,10 @@ SVG;
 
     private function canSubmitRecord(FinanceRecord $record): bool
     {
+        if (in_array($record->workflow_status ?? 'Uploaded', ['Delete Requested', 'Deleted'], true)) {
+            return false;
+        }
+
         return (int) $record->submitted_by === (int) Auth::id()
             && in_array($record->workflow_status ?? 'Uploaded', ['Uploaded', 'Reverted'], true);
     }
@@ -1159,6 +1174,48 @@ SVG;
             && (int) $record->submitted_by === (int) Auth::id()
             && in_array($record->workflow_status ?? 'Uploaded', ['Uploaded', 'Reverted'], true)
             && data_get($record->data, 'completion_mode') === 'send_to_supplier';
+    }
+
+    private function canRequestDeleteRecord(FinanceRecord $record): bool
+    {
+        if (! Auth::check()) {
+            return false;
+        }
+
+        if (in_array($record->workflow_status ?? 'Uploaded', ['Delete Requested', 'Deleted'], true)) {
+            return false;
+        }
+
+        return $this->canApproveFinance() || (int) $record->submitted_by === (int) Auth::id();
+    }
+
+    private function canApproveSubmittedFinanceRecord(FinanceRecord $record): bool
+    {
+        return $this->canApproveFinance()
+            && ($record->workflow_status ?? 'Uploaded') === 'Submitted';
+    }
+
+    private function canRevertSubmittedFinanceRecord(FinanceRecord $record): bool
+    {
+        return $this->canApproveSubmittedFinanceRecord($record);
+    }
+
+    private function canArchiveFinanceRecord(FinanceRecord $record): bool
+    {
+        return $this->canApproveFinance()
+            && in_array($record->workflow_status ?? 'Uploaded', ['Accepted', 'Reverted'], true);
+    }
+
+    private function canUnarchiveFinanceRecord(FinanceRecord $record): bool
+    {
+        return $this->canApproveFinance()
+            && ($record->workflow_status ?? 'Uploaded') === 'Archived';
+    }
+
+    private function canApproveDeleteRequest(FinanceRecord $record): bool
+    {
+        return $this->canApproveFinance()
+            && ($record->workflow_status ?? 'Uploaded') === 'Delete Requested';
     }
 
     private function canManageSupplierCompletion(FinanceRecord $record): bool
@@ -1837,11 +1894,29 @@ SVG;
             'can_edit' => $this->canEditRecord($record),
             'can_submit' => $this->canSubmitRecord($record),
             'can_share_supplier' => $this->canShareSupplierRecord($record),
-            'can_review' => $this->canApproveFinance(),
+            'can_review' => $this->canApproveSubmittedFinanceRecord($record),
+            'can_approve' => $this->canApproveSubmittedFinanceRecord($record),
+            'can_revert' => $this->canRevertSubmittedFinanceRecord($record),
+            'can_archive' => $this->canArchiveFinanceRecord($record),
+            'can_unarchive' => $this->canUnarchiveFinanceRecord($record),
+            'can_request_delete' => $this->canRequestDeleteRecord($record),
+            'can_approve_delete' => $this->canApproveDeleteRequest($record),
             'supplier_completion_url' => $record->share_token
                 ? route('finance.supplier.completion', $record->share_token)
                 : null,
         ];
+    }
+
+    private function financeActionResponse(Request $request, string $message, FinanceRecord $record, int $status = 200)
+    {
+        if ($request->expectsJson()) {
+            return response()->json([
+                'message' => $message,
+                'data' => $this->transformRecord($record->fresh()),
+            ], $status);
+        }
+
+        return back()->with('success', $message);
     }
 
     private function defaultAcceptedFinanceRecordId(string $moduleKey): string
@@ -2814,6 +2889,7 @@ SVG;
         }
 
         $query = FinanceRecord::query();
+        $query->where('workflow_status', '!=', 'Deleted');
 
         if (!$this->canApproveFinance()) {
             $query->where('submitted_by', Auth::id());
@@ -2849,6 +2925,66 @@ SVG;
             'currentUserName' => Auth::user()->name ?? 'Unknown User',
             'currentUserEmail' => Auth::user()->email ?? '',
             'currentUserContact' => $this->resolveCurrentUserContactProfile(),
+        ]);
+    }
+
+    public function adminDashboard(Request $request)
+    {
+        if (! $this->canAdministerFinance()) {
+            abort(403, 'Unauthorized');
+        }
+
+        $filters = [
+            'search' => trim((string) $request->query('search', '')),
+            'module' => (string) $request->query('module', 'all'),
+            'status' => (string) $request->query('status', 'all'),
+        ];
+
+        $records = FinanceRecord::query()
+            ->orderByDesc('updated_at')
+            ->orderByDesc('created_at')
+            ->get()
+            ->filter(function (FinanceRecord $record) use ($filters): bool {
+                if ($filters['module'] !== 'all' && $record->module_key !== $filters['module']) {
+                    return false;
+                }
+
+                if ($filters['status'] !== 'all' && ($record->workflow_status ?? 'Uploaded') !== $filters['status']) {
+                    return false;
+                }
+
+                if ($filters['search'] === '') {
+                    return true;
+                }
+
+                $haystack = strtolower(implode(' ', [
+                    $record->record_number,
+                    $record->record_title,
+                    $record->module_key,
+                    $this->moduleLabel($record->module_key),
+                    $record->workflow_status,
+                    $record->approval_status,
+                    $record->user,
+                    data_get($record->data, 'delete_requested_by_name'),
+                ]));
+
+                return str_contains($haystack, strtolower($filters['search']));
+            })
+            ->values();
+
+        $counts = [
+            'submitted' => $records->where('workflow_status', 'Submitted')->count(),
+            'accepted' => $records->where('workflow_status', 'Accepted')->count(),
+            'delete_requested' => $records->where('workflow_status', 'Delete Requested')->count(),
+            'deleted' => $records->where('workflow_status', 'Deleted')->count(),
+        ];
+
+        return view('admin.finance-dashboard', [
+            'records' => $records,
+            'moduleLabels' => self::MODULES,
+            'workflowStatuses' => self::WORKFLOW_STATUSES,
+            'filters' => $filters,
+            'counts' => $counts,
         ]);
     }
 
@@ -3048,9 +3184,9 @@ SVG;
         ]);
     }
 
-    public function approve(FinanceRecord $financeRecord)
+    public function approve(Request $request, FinanceRecord $financeRecord)
     {
-        if (!$this->canApproveFinance()) {
+        if (!$this->canApproveSubmittedFinanceRecord($financeRecord)) {
             abort(403, 'Unauthorized');
         }
 
@@ -3061,15 +3197,12 @@ SVG;
             'approved_at' => now(),
         ]);
 
-        return response()->json([
-            'message' => 'Finance record approved successfully.',
-            'data' => $this->transformRecord($financeRecord->fresh()),
-        ]);
+        return $this->financeActionResponse($request, 'Finance record approved successfully.', $financeRecord);
     }
 
     public function revert(Request $request, FinanceRecord $financeRecord)
     {
-        if (!$this->canApproveFinance()) {
+        if (!$this->canRevertSubmittedFinanceRecord($financeRecord)) {
             abort(403, 'Unauthorized');
         }
 
@@ -3085,15 +3218,12 @@ SVG;
             'approved_at' => now(),
         ]);
 
-        return response()->json([
-            'message' => 'Finance record reverted for revision.',
-            'data' => $this->transformRecord($financeRecord->fresh()),
-        ]);
+        return $this->financeActionResponse($request, 'Finance record reverted for revision.', $financeRecord);
     }
 
-    public function archive(FinanceRecord $financeRecord)
+    public function archive(Request $request, FinanceRecord $financeRecord)
     {
-        if (!$this->canApproveFinance()) {
+        if (!$this->canArchiveFinanceRecord($financeRecord)) {
             abort(403, 'Unauthorized');
         }
 
@@ -3104,10 +3234,92 @@ SVG;
             'approved_at' => now(),
         ]);
 
-        return response()->json([
-            'message' => 'Finance record archived successfully.',
-            'data' => $this->transformRecord($financeRecord->fresh()),
+        return $this->financeActionResponse($request, 'Finance record archived successfully.', $financeRecord);
+    }
+
+    public function unarchive(Request $request, FinanceRecord $financeRecord)
+    {
+        if (!$this->canUnarchiveFinanceRecord($financeRecord)) {
+            abort(403, 'Unauthorized');
+        }
+
+        $financeRecord->update([
+            'workflow_status' => 'Accepted',
+            'approval_status' => 'Approved',
+            'approved_by' => Auth::id(),
+            'approved_at' => now(),
+            'review_note' => null,
         ]);
+
+        return $this->financeActionResponse($request, 'Finance record unarchived successfully.', $financeRecord);
+    }
+
+    public function requestDelete(Request $request, FinanceRecord $financeRecord)
+    {
+        if (! $this->canRequestDeleteRecord($financeRecord)) {
+            abort(403, 'Unauthorized');
+        }
+
+        $data = $financeRecord->data ?? [];
+        $data['delete_requested_by'] = Auth::id();
+        $data['delete_requested_by_name'] = Auth::user()?->name ?: 'Unknown User';
+        $data['delete_requested_at'] = now()->toDateTimeString();
+        $data['delete_request_note'] = trim((string) $request->input('review_note', ''));
+
+        $financeRecord->update([
+            'workflow_status' => 'Delete Requested',
+            'approval_status' => 'Deletion Pending',
+            'review_note' => $data['delete_request_note'] ?: 'Deletion requested for admin approval.',
+            'data' => $data,
+        ]);
+
+        return $this->financeActionResponse($request, 'Finance delete request submitted for admin approval.', $financeRecord);
+    }
+
+    public function approveDelete(Request $request, FinanceRecord $financeRecord)
+    {
+        if (! $this->canApproveDeleteRequest($financeRecord)) {
+            abort(403, 'Unauthorized');
+        }
+
+        $data = $financeRecord->data ?? [];
+        $data['delete_approved_by'] = Auth::id();
+        $data['delete_approved_by_name'] = Auth::user()?->name ?: 'Admin User';
+        $data['delete_approved_at'] = now()->toDateTimeString();
+
+        $financeRecord->update([
+            'workflow_status' => 'Deleted',
+            'approval_status' => 'Deleted',
+            'status' => 'Deleted',
+            'approved_by' => Auth::id(),
+            'approved_at' => now(),
+            'data' => $data,
+        ]);
+
+        return $this->financeActionResponse($request, 'Finance record deletion approved.', $financeRecord);
+    }
+
+    public function rejectDelete(Request $request, FinanceRecord $financeRecord)
+    {
+        if (! $this->canApproveDeleteRequest($financeRecord)) {
+            abort(403, 'Unauthorized');
+        }
+
+        $data = $financeRecord->data ?? [];
+        $data['delete_rejected_by'] = Auth::id();
+        $data['delete_rejected_by_name'] = Auth::user()?->name ?: 'Admin User';
+        $data['delete_rejected_at'] = now()->toDateTimeString();
+
+        $financeRecord->update([
+            'workflow_status' => 'Reverted',
+            'approval_status' => 'Needs Revision',
+            'review_note' => $request->input('review_note') ?: 'Deletion request rejected.',
+            'approved_by' => Auth::id(),
+            'approved_at' => now(),
+            'data' => $data,
+        ]);
+
+        return $this->financeActionResponse($request, 'Finance record deletion request rejected.', $financeRecord);
     }
 
     public function shareSupplierLink(FinanceRecord $financeRecord)
