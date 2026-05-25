@@ -168,8 +168,10 @@ class AdminDashboardController extends Controller
                     ? 'Expired'
                     : $this->normalizeStatus((string) ($communication->approval_status ?? 'Pending'));
 
+                $canStillAct = ! $communication->is_archived;
+
                 return (object) [
-                    'ref_no' => $communication->ref_no ?: 'TH-'.$communication->id,
+                    'ref_no' => $communication->ref_no ?: 'MEMO-' . $communication->id,
                     'module' => 'Town Hall',
                     'file_name' => $communication->subject ?: 'No Subject',
                     'department' => $communication->department_stakeholder ?: 'Town Hall',
@@ -179,9 +181,19 @@ class AdminDashboardController extends Controller
                     'priority' => $communication->priority ?? ($status === 'Pending Approval' ? 'High' : 'Low'),
                     'status' => $status,
                     'show_route' => route('townhall.show', $communication->id),
-                    'approve_route' => ! $communication->is_archived && $status === 'Pending Approval' ? route('townhall.approve', $communication->id) : null,
-                    'reject_route' => ! $communication->is_archived && $status === 'Pending Approval' ? route('townhall.reject', $communication->id) : null,
-                    'revise_route' => ! $communication->is_archived && $status === 'Pending Approval' ? route('townhall.revise', $communication->id) : null,
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Keep Town Hall admin actions available after approval/rejection/revision
+                    |--------------------------------------------------------------------------
+                    | This lets admin/superadmin correct accidental actions. For example,
+                    | if a memo was accidentally approved, Reject or Revise can still be
+                    | pressed afterward. Archived/expired memos remain locked.
+                    */
+                    'approve_route' => $canStillAct ? route('townhall.approve', $communication->id) : null,
+                    'reject_route' => $canStillAct ? route('townhall.reject', $communication->id) : null,
+                    'revise_route' => $canStillAct ? route('townhall.revise', $communication->id) : null,
+
                     'date_sort' => $this->sortTimestamp($communication->communication_date ?: $communication->created_at),
                 ];
             });
@@ -203,9 +215,9 @@ class AdminDashboardController extends Controller
                 ])->filter()->implode(' '));
 
                 return (object) [
-                    'ref_no' => $contact->cif_no ?: 'CIF-'.$contact->id,
+                    'ref_no' => $contact->cif_no ?: 'CIF-' . $contact->id,
                     'module' => 'Contacts',
-                    'file_name' => $fullName !== '' ? $fullName : 'Contact #'.$contact->id,
+                    'file_name' => $fullName !== '' ? $fullName : 'Contact #' . $contact->id,
                     'department' => 'Contacts',
                     'uploaded_by' => $contact->created_by ?: ($contact->owner_name ?: 'Unknown'),
                     'date_uploaded' => $this->displayDate($contact->cif_submitted_at ?: $contact->updated_at),
@@ -233,7 +245,7 @@ class AdminDashboardController extends Controller
                 $statusKey = strtolower((string) $bif->status);
 
                 return (object) [
-                    'ref_no' => $bif->bif_no ?: 'BIF-'.$bif->id,
+                    'ref_no' => $bif->bif_no ?: 'BIF-' . $bif->id,
                     'module' => 'Company',
                     'file_name' => $bif->title ?: ($bif->business_name ?: 'Business Information Form'),
                     'department' => 'Corporate',
@@ -277,9 +289,9 @@ class AdminDashboardController extends Controller
                     : ($cifData['change_reviewed_at'] ?? ($cifData['change_requested_at'] ?? null));
 
                 return (object) [
-                    'ref_no' => ($contact->cif_no ?: 'CIF-'.$contact->id).'-CR',
+                    'ref_no' => ($contact->cif_no ?: 'CIF-' . $contact->id) . '-CR',
                     'module' => 'Contacts',
-                    'file_name' => ($fullName !== '' ? $fullName : 'Contact #'.$contact->id).' Change Request',
+                    'file_name' => ($fullName !== '' ? $fullName : 'Contact #' . $contact->id) . ' Change Request',
                     'department' => 'Contacts',
                     'uploaded_by' => trim((string) ($cifData['change_requested_by'] ?? '')) !== '' ? (string) $cifData['change_requested_by'] : ($contact->created_by ?: ($contact->owner_name ?: 'Unknown')),
                     'date_uploaded' => $this->displayDate($date),
@@ -309,9 +321,9 @@ class AdminDashboardController extends Controller
                 $date = $statusKey === 'pending' ? $bif->change_requested_at : ($bif->change_reviewed_at ?: $bif->change_requested_at);
 
                 return (object) [
-                    'ref_no' => ($bif->bif_no ?: 'BIF-'.$bif->id).'-CR',
+                    'ref_no' => ($bif->bif_no ?: 'BIF-' . $bif->id) . '-CR',
                     'module' => 'Company',
-                    'file_name' => ($bif->title ?: ($bif->business_name ?: 'Business Information Form')).' Change Request',
+                    'file_name' => ($bif->title ?: ($bif->business_name ?: 'Business Information Form')) . ' Change Request',
                     'department' => 'Corporate',
                     'uploaded_by' => $bif->change_requested_by_name ?: $userNames->get((int) $bif->created_by, 'Unknown'),
                     'date_uploaded' => $this->displayDate($date),
@@ -339,9 +351,9 @@ class AdminDashboardController extends Controller
                 $statusKey = strtolower((string) ($deal->deal_status ?? 'pending'));
 
                 return (object) [
-                    'ref_no' => $deal->deal_code ?: 'DEAL-'.$deal->id,
+                    'ref_no' => $deal->deal_code ?: 'DEAL-' . $deal->id,
                     'module' => 'Deals',
-                    'file_name' => $deal->deal_code ?: ($deal->deal_name ?: 'Deal #'.$deal->id),
+                    'file_name' => $deal->deal_code ?: ($deal->deal_name ?: 'Deal #' . $deal->id),
                     'department' => 'Deals',
                     'uploaded_by' => $deal->created_by ?: 'Unknown',
                     'date_uploaded' => $this->displayDate($deal->created_at),
@@ -366,7 +378,7 @@ class AdminDashboardController extends Controller
             ->groupBy('project_id')
             ->map(function (Collection $starts): ?ProjectStart {
                 return $starts->sort(function ($left, $right) {
-                    $rank = fn ($item) => match (strtolower((string) ($item->status ?? ''))) {
+                    $rank = fn($item) => match (strtolower((string) ($item->status ?? ''))) {
                         'approved' => 1,
                         'pending_approval' => 2,
                         'rejected' => 3,
@@ -404,13 +416,13 @@ class AdminDashboardController extends Controller
                 $project = $start->project;
                 $isRegular = $this->isRegularEngagement($project?->engagement_type);
                 $contactName = trim(collect([$project?->contact?->first_name, $project?->contact?->last_name])->filter()->implode(' '))
-                    ?: ($project?->client_name ?: 'Project #'.$start->project_id);
+                    ?: ($project?->client_name ?: 'Project #' . $start->project_id);
                 $businessName = $project?->business_name ?: ($project?->company?->company_name ?: 'Project');
 
                 return (object) [
-                    'ref_no' => $start->start_code ?: 'START-'.$start->id,
+                    'ref_no' => $start->start_code ?: 'START-' . $start->id,
                     'module' => $isRegular ? 'Regular' : 'Project',
-                    'file_name' => $businessName.' - '.$contactName,
+                    'file_name' => $businessName . ' - ' . $contactName,
                     'department' => $isRegular ? 'Regular' : 'Projects',
                     'uploaded_by' => $project?->assigned_consultant ?: 'Unknown',
                     'date_uploaded' => $this->displayDate($start->updated_at ?: $start->created_at),
@@ -438,9 +450,9 @@ class AdminDashboardController extends Controller
                 $status = $service->status === 'Active' ? 'Approved' : $this->normalizeStatus((string) $service->status);
 
                 return (object) [
-                    'ref_no' => 'SRV-'.$service->id,
+                    'ref_no' => 'SRV-' . $service->id,
                     'module' => 'Services',
-                    'file_name' => $service->service_name ?: 'Service #'.$service->id,
+                    'file_name' => $service->service_name ?: 'Service #' . $service->id,
                     'department' => 'Services',
                     'uploaded_by' => $userNames->get((int) $service->created_by, $service->created_by ?: 'Unknown'),
                     'date_uploaded' => $this->displayDate($service->created_at),
@@ -468,9 +480,9 @@ class AdminDashboardController extends Controller
                 $status = $product->status === 'Active' ? 'Approved' : $this->normalizeStatus((string) $product->status);
 
                 return (object) [
-                    'ref_no' => $product->product_id ?: 'PRD-'.$product->id,
+                    'ref_no' => $product->product_id ?: 'PRD-' . $product->id,
                     'module' => 'Products',
-                    'file_name' => $product->product_name ?: 'Product #'.$product->id,
+                    'file_name' => $product->product_name ?: 'Product #' . $product->id,
                     'department' => 'Products',
                     'uploaded_by' => $product->created_by ?: 'Unknown',
                     'date_uploaded' => $this->displayDate($product->created_at),
@@ -504,9 +516,9 @@ class AdminDashboardController extends Controller
                 $status = $this->normalizeStatus((string) $changeRequest->status);
 
                 return (object) [
-                    'ref_no' => strtoupper((string) $changeRequest->module).'-CR-'.$changeRequest->id,
+                    'ref_no' => strtoupper((string) $changeRequest->module) . '-CR-' . $changeRequest->id,
                     'module' => $module,
-                    'file_name' => trim(($changeRequest->record_name ?: $module).' - '.ucfirst((string) $changeRequest->action).' request'),
+                    'file_name' => trim(($changeRequest->record_name ?: $module) . ' - ' . ucfirst((string) $changeRequest->action) . ' request'),
                     'department' => $module,
                     'uploaded_by' => $changeRequest->submitter?->name ?: 'Unknown',
                     'date_uploaded' => $this->displayDate($changeRequest->updated_at),
@@ -552,9 +564,9 @@ class AdminDashboardController extends Controller
                     return str_contains($haystack, $search);
                 });
             })
-            ->when($module !== 'all', fn (Collection $collection): Collection => $collection->where('module', $module))
-            ->when($department !== 'all', fn (Collection $collection): Collection => $collection->where('department', $department))
-            ->when($status !== 'all', fn (Collection $collection): Collection => $collection->where('status', $status))
+            ->when($module !== 'all', fn(Collection $collection): Collection => $collection->where('module', $module))
+            ->when($department !== 'all', fn(Collection $collection): Collection => $collection->where('department', $department))
+            ->when($status !== 'all', fn(Collection $collection): Collection => $collection->where('status', $status))
             ->sortByDesc('date_sort');
     }
 
@@ -585,7 +597,7 @@ class AdminDashboardController extends Controller
 
     private function loadContactCifData(Contact $contact): array
     {
-        $path = 'contact-cif-data/'.$contact->id.'.json';
+        $path = 'contact-cif-data/' . $contact->id . '.json';
 
         if (! Storage::disk('local')->exists($path)) {
             return [];
