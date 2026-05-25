@@ -516,7 +516,7 @@
                         </svg>
                         {{ $job->applicable_area ?? 'Location TBA' }}
                     </div>
-                    <a href="{{ route('careers.apply', ['job_id' => $job->id]) }}" class="btn btn-apply">Apply Now</a>
+                    <a href="{{ route('careers.job-detail', ['id' => $job->id]) }}" class="btn btn-apply">Apply Now</a>
                 </div>
                 @empty
                 <div style="grid-column: 1 / -1; text-align: center; padding: 3rem; color: #6b7280;">
