@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\ResolvesCompanyRecords;
+use App\Models\Company;
 use App\Models\Bylaw;
 use App\Models\GisRecord;
 use App\Models\SecAoi;
@@ -45,6 +46,48 @@ class CompanyCorporateFormationController extends Controller
     public function gis(Request $request, int $company): View
     {
         return $this->renderTab($request, $company, 'gis');
+    }
+
+    public function companyGeneralInformation(Request $request, int $company): View
+    {
+        $companyData = $this->findCompanyOrAbort($request, $company);
+
+        $latestAcceptedGis = GisRecord::query()
+            ->when(
+                Schema::hasColumn('gis_records', 'company_id'),
+                fn ($query) => $query->where('company_id', $company)
+            )
+            ->where(function ($query) {
+                $query->where('workflow_status', 'Accepted')
+                    ->orWhere('approval_status', 'Approved');
+            })
+            ->latest('updated_at')
+            ->latest('created_at')
+            ->first();
+
+        $latestGis = $latestAcceptedGis ?: GisRecord::query()
+            ->when(
+                Schema::hasColumn('gis_records', 'company_id'),
+                fn ($query) => $query->where('company_id', $company)
+            )
+            ->latest('updated_at')
+            ->latest('created_at')
+            ->first();
+
+        // IMPORTANT:
+        // Company General Information must be based on an actual GIS record only.
+        // Do not auto-fill this page from Company/BIF defaults, because it should stay blank
+        // until the user saves a GIS for this specific company.
+        $gis = $latestGis ?: new GisRecord([
+            'company_id' => $company,
+        ]);
+
+        return view('company.corporate-formation-company-general-information', [
+            'company' => (object) $companyData,
+            'gis' => $gis,
+            'sourceGis' => $latestGis,
+            'activeTab' => 'company-info',
+        ]);
     }
 
     public function notices(Request $request, int $company): View
@@ -143,6 +186,10 @@ class CompanyCorporateFormationController extends Controller
             'approval_status'  => 'Pending',
             'submitted_by'     => Auth::id(),
         ];
+
+        $defaults = $this->companyCorporateFormationDefaults($companyData, $company);
+        $payload['corporate_name'] = $payload['corporate_name'] ?: ($defaults['corporate_name'] ?? null);
+        $payload['company_reg_no'] = $payload['company_reg_no'] ?: ($defaults['company_reg_no'] ?? null);
 
         $this->createCompanyScopedRecord(new SecCoi(), $payload, $company);
 
@@ -245,6 +292,11 @@ class CompanyCorporateFormationController extends Controller
             'submitted_by'             => Auth::id(),
         ];
 
+        $defaults = $this->companyCorporateFormationDefaults($companyData, $company);
+        $payload['corporation_name'] = $payload['corporation_name'] ?: ($defaults['corporation_name'] ?? null);
+        $payload['company_reg_no'] = $payload['company_reg_no'] ?: ($defaults['company_reg_no'] ?? null);
+        $payload['principal_address'] = $payload['principal_address'] ?: ($defaults['principal_address'] ?? null);
+
         $this->createCompanyScopedRecord(new SecAoi(), $payload, $company);
 
         return redirect()
@@ -339,6 +391,13 @@ class CompanyCorporateFormationController extends Controller
         $payload['approval_status']  = 'Pending';
         $payload['submitted_by']     = Auth::id();
 
+        $defaults = $this->companyCorporateFormationDefaults($companyData, $company);
+        $payload['corporation_name'] = $payload['corporation_name'] ?: ($defaults['corporation_name'] ?? null);
+        $payload['company_reg_no'] = $payload['company_reg_no'] ?: ($defaults['company_reg_no'] ?? null);
+        $payload['type_of_formation'] = $payload['type_of_formation'] ?: ($defaults['type_of_formation'] ?? null);
+        $payload['aoi_version'] = $payload['aoi_version'] ?: ($defaults['aoi_version'] ?? null);
+        $payload['aoi_type'] = $payload['aoi_type'] ?: ($defaults['aoi_type'] ?? null);
+
         $this->createCompanyScopedRecord(new Bylaw(), $payload, $company);
 
         return redirect()
@@ -421,6 +480,25 @@ class CompanyCorporateFormationController extends Controller
         $payload['approval_status'] = 'Pending';
         $payload['submitted_by']    = Auth::id();
 
+        $defaults = $this->companyCorporateFormationDefaults($companyData, $company);
+        $payload['corporation_name'] = $payload['corporation_name'] ?: ($defaults['corporation_name'] ?? null);
+        $payload['company_reg_no'] = $payload['company_reg_no'] ?: ($defaults['company_reg_no'] ?? null);
+
+        foreach ([
+            'principal_address',
+            'business_address',
+            'email',
+            'official_mobile',
+            'tin',
+            'website',
+            'date_registered',
+            'industry',
+        ] as $defaultField) {
+            if (Schema::hasColumn('gis_records', $defaultField) && blank($payload[$defaultField] ?? null)) {
+                $payload[$defaultField] = $defaults[$defaultField] ?? null;
+            }
+        }
+
         $this->createCompanyScopedRecord(new GisRecord(), $payload, $company);
 
         return redirect()
@@ -489,19 +567,196 @@ class CompanyCorporateFormationController extends Controller
             'gis'     => [new GisRecord(), 'gis_records'],
         };
 
-        $records = $model::query()
-            ->when(
-                Schema::hasColumn($table, 'company_id'),
-                fn ($q) => $q->where('company_id', $company)
-            )
-            ->latest()
+        $formationDefaults = $this->companyCorporateFormationDefaults($companyData, $company);
+
+        $records = $this->companyScopedListQuery($model, $table, $company, $companyData, $formationDefaults)
+            ->latest('id')
             ->get();
 
         return view('company.corporate-formation', [
-            'company'   => (object) $companyData,
-            'records'   => $records,
-            'activeTab' => $tab,
+            'company'           => (object) $companyData,
+            'records'           => $records,
+            'activeTab'         => $tab,
+            'formationDefaults' => $formationDefaults,
         ]);
+    }
+
+    private function companyScopedListQuery(Model $model, string $table, int $company, array $companyData, array $formationDefaults)
+    {
+        $query = $model::query();
+
+        if (! Schema::hasColumn($table, 'company_id')) {
+            return $query;
+        }
+
+        $companyNames = array_values(array_unique(array_filter([
+            $formationDefaults['corporation_name'] ?? null,
+            $formationDefaults['corporate_name'] ?? null,
+            $formationDefaults['company_name'] ?? null,
+            $companyData['company_name'] ?? null,
+            $companyData['business_name'] ?? null,
+            $companyData['name'] ?? null,
+        ])));
+
+        $companyRegNos = array_values(array_unique(array_filter([
+            $formationDefaults['company_reg_no'] ?? null,
+            $companyData['company_reg_no'] ?? null,
+            $companyData['sec_registration_no'] ?? null,
+            $companyData['sec_reg_no'] ?? null,
+            $companyData['registration_no'] ?? null,
+            $companyData['bif_no'] ?? null,
+        ])));
+
+        $nameColumns = array_values(array_filter([
+            Schema::hasColumn($table, 'corporation_name') ? 'corporation_name' : null,
+            Schema::hasColumn($table, 'corporate_name') ? 'corporate_name' : null,
+        ]));
+
+        return $query->where(function ($outer) use ($company, $table, $companyNames, $companyRegNos, $nameColumns) {
+            $outer->where('company_id', $company);
+
+            // Safety fallback for old records saved before company_id was properly attached.
+            // This still keeps the list company-specific by matching the company name or registration number.
+            $outer->orWhere(function ($fallback) use ($table, $companyNames, $companyRegNos, $nameColumns) {
+                $fallback->whereNull('company_id')
+                    ->where(function ($match) use ($table, $companyNames, $companyRegNos, $nameColumns) {
+                        foreach ($nameColumns as $column) {
+                            if (! empty($companyNames)) {
+                                $match->orWhereIn($column, $companyNames);
+                            }
+                        }
+
+                        if (Schema::hasColumn($table, 'company_reg_no') && ! empty($companyRegNos)) {
+                            $match->orWhereIn('company_reg_no', $companyRegNos);
+                        }
+                    });
+            });
+        });
+    }
+
+
+    private function companyCorporateFormationDefaults(array $companyData, int $company): array
+    {
+        $companyName = $companyData['company_name']
+            ?? $companyData['business_name']
+            ?? $companyData['name']
+            ?? '';
+
+        $companyAddress = $companyData['address']
+            ?? $companyData['business_address']
+            ?? $companyData['company_address']
+            ?? '';
+
+        $companyEmail = $companyData['email']
+            ?? $companyData['authorized_contact_person_email']
+            ?? '';
+
+        $companyPhone = $companyData['phone']
+            ?? $companyData['mobile_no']
+            ?? $companyData['business_phone']
+            ?? '';
+
+        $bif = null;
+        if (Schema::hasTable('company_bifs') && Schema::hasColumn('company_bifs', 'company_id')) {
+            $bif = \Illuminate\Support\Facades\DB::table('company_bifs')
+                ->where('company_id', $company)
+                ->latest('id')
+                ->first();
+        }
+
+        $latestGis = null;
+        if (Schema::hasTable('gis_records') && Schema::hasColumn('gis_records', 'company_id')) {
+            $latestGis = GisRecord::query()
+                ->where('company_id', $company)
+                ->latest('id')
+                ->first();
+        }
+
+        $latestAoi = null;
+        if (Schema::hasTable('sec_aois') && Schema::hasColumn('sec_aois', 'company_id')) {
+            $latestAoi = SecAoi::query()
+                ->where('company_id', $company)
+                ->latest('id')
+                ->first();
+        }
+
+        $latestCoi = null;
+        if (Schema::hasTable('sec_coi') && Schema::hasColumn('sec_coi', 'company_id')) {
+            $latestCoi = SecCoi::query()
+                ->where('company_id', $company)
+                ->latest('id')
+                ->first();
+        }
+
+        $valueFromBif = function (array $keys) use ($bif): ?string {
+            if (! $bif) {
+                return null;
+            }
+
+            foreach ($keys as $key) {
+                if (property_exists($bif, $key) && filled($bif->{$key})) {
+                    return (string) $bif->{$key};
+                }
+            }
+
+            return null;
+        };
+
+        $companyRegNo = $latestGis?->company_reg_no
+            ?: $latestAoi?->company_reg_no
+            ?: $latestCoi?->company_reg_no
+            ?: $valueFromBif(['company_reg_no', 'sec_registration_no', 'sec_reg_no', 'registration_no', 'business_registration_no', 'bif_no'])
+            ?: ($companyData['company_reg_no'] ?? null)
+            ?: ($companyData['sec_registration_no'] ?? null)
+            ?: ($companyData['bif_no'] ?? null)
+            ?: '';
+
+        $principalAddress = $latestGis?->principal_address
+            ?: $latestAoi?->principal_address
+            ?: $valueFromBif(['principal_address', 'business_address', 'company_address', 'office_address'])
+            ?: $companyAddress;
+
+        $businessAddress = $latestGis?->business_address
+            ?: $valueFromBif(['business_address', 'company_address'])
+            ?: $companyAddress;
+
+        $corporationName = $latestGis?->corporation_name
+            ?: $latestAoi?->corporation_name
+            ?: $latestCoi?->corporate_name
+            ?: $companyName;
+
+        return [
+            'company_name' => $companyName,
+            'corporate_name' => $corporationName,
+            'corporation_name' => $corporationName,
+            'company_reg_no' => $companyRegNo,
+            'principal_address' => $principalAddress,
+            'business_address' => $businessAddress,
+            'email' => $latestGis?->email ?: $companyEmail,
+            'official_mobile' => $latestGis?->official_mobile ?: $companyPhone,
+            'alternate_mobile' => $latestGis?->alternate_mobile ?: '',
+            'tin' => $latestGis?->tin ?: $valueFromBif(['tin_no', 'tin']) ?: ($companyData['tin_no'] ?? ''),
+            'trade_name' => $latestGis?->trade_name ?: $valueFromBif(['business_name', 'trade_name']) ?: ($companyData['company_name'] ?? ''),
+            'date_registered' => optional($latestGis?->date_registered)->format('Y-m-d') ?: '',
+            'fiscal_year_end' => $latestGis?->fiscal_year_end ?: '',
+            'website' => $latestGis?->website ?: '',
+            'auditor' => $latestGis?->auditor ?: '',
+            'industry' => $latestGis?->industry ?: '',
+            'geo_code' => $latestGis?->geo_code ?: '',
+            'parent_company_name' => $latestGis?->parent_company_name ?: '',
+            'parent_company_sec_no' => $latestGis?->parent_company_sec_no ?: '',
+            'parent_company_address' => $latestGis?->parent_company_address ?: '',
+            'subsidiary_name' => $latestGis?->subsidiary_name ?: '',
+            'subsidiary_sec_no' => $latestGis?->subsidiary_sec_no ?: '',
+            'subsidiary_address' => $latestGis?->subsidiary_address ?: '',
+            'type_of_formation' => $latestAoi?->type_of_formation ?: 'Stock Corporation',
+            'aoi_version' => $latestAoi?->aoi_version ?: 'Original',
+            'aoi_type' => $latestAoi?->aoi_type ?: 'Original',
+            'aoi_date' => optional($latestAoi?->date_upload)->format('Y-m-d') ?: '',
+            'par_value' => $latestAoi?->par_value ?: '',
+            'authorized_capital_stock' => $latestAoi?->authorized_capital_stock ?: '',
+            'directors' => $latestAoi?->directors ?: '',
+        ];
     }
 
     private function validateBylaw(Request $request): array
@@ -529,8 +784,27 @@ class CompanyCorporateFormationController extends Controller
             'period_date'       => ['nullable', 'string', 'max:255'],
             'company_reg_no'    => ['required', 'string', 'max:255'],
             'corporation_name'  => ['required', 'string', 'max:255'],
-            'annual_meeting'    => ['nullable', 'date'],
-            'meeting_type'      => ['nullable', 'string', 'max:255'],
+            'annual_meeting'      => ['nullable', 'date'],
+            'meeting_type'        => ['nullable', 'string', 'max:255'],
+            'date_registered'     => ['nullable', 'date'],
+            'trade_name'          => ['nullable', 'string', 'max:255'],
+            'fiscal_year_end'     => ['nullable', 'string', 'max:255'],
+            'tin'                 => ['nullable', 'string', 'max:255'],
+            'website'             => ['nullable', 'string', 'max:255'],
+            'email'               => ['nullable', 'email', 'max:255'],
+            'principal_address'   => ['nullable', 'string'],
+            'business_address'    => ['nullable', 'string'],
+            'official_mobile'     => ['nullable', 'string', 'max:255'],
+            'alternate_mobile'    => ['nullable', 'string', 'max:255'],
+            'auditor'             => ['nullable', 'string', 'max:255'],
+            'industry'            => ['nullable', 'string', 'max:255'],
+            'geo_code'            => ['nullable', 'string', 'max:255'],
+            'parent_company_name' => ['nullable', 'string', 'max:255'],
+            'parent_company_sec_no' => ['nullable', 'string', 'max:255'],
+            'parent_company_address' => ['nullable', 'string', 'max:255'],
+            'subsidiary_name' => ['nullable', 'string', 'max:255'],
+            'subsidiary_sec_no' => ['nullable', 'string', 'max:255'],
+            'subsidiary_address' => ['nullable', 'string', 'max:255'],
         ]);
     }
 
@@ -545,9 +819,21 @@ class CompanyCorporateFormationController extends Controller
         ]);
     }
 
-    private function createCompanyScopedRecord(Model $model, array $payload, int $company): void
+    private function createCompanyScopedRecord(Model $model, array $payload, int $company): Model
     {
-        $model::create($this->attachCompanyId($model, $payload, $company));
+        $record = $model::create($this->attachCompanyId($model, $payload, $company));
+
+        // Force the company_id after create too, so it still works even if the model fillable/guarded
+        // setting does not save company_id during mass assignment.
+        if (Schema::hasColumn($model->getTable(), 'company_id') && (int) ($record->company_id ?? 0) !== (int) $company) {
+            \Illuminate\Support\Facades\DB::table($model->getTable())
+                ->where('id', $record->id)
+                ->update(['company_id' => $company]);
+
+            $record->company_id = $company;
+        }
+
+        return $record;
     }
 
     private function attachCompanyId(Model $model, array $payload, int $company): array
@@ -561,11 +847,18 @@ class CompanyCorporateFormationController extends Controller
 
     private function scopeModelRecord($query, Model $model, int $record, int $company): Model
     {
-        $scopedQuery = Schema::hasColumn($model->getTable(), 'company_id')
-            ? $query->where('company_id', $company)
-            : $query;
+        $table = $model->getTable();
 
-        return $scopedQuery->findOrFail($record);
+        if (! Schema::hasColumn($table, 'company_id')) {
+            return $query->findOrFail($record);
+        }
+
+        return $query->where('id', $record)
+            ->where(function ($scope) use ($company) {
+                $scope->where('company_id', $company)
+                    ->orWhereNull('company_id');
+            })
+            ->firstOrFail();
     }
 
     private function abortIfNotEditable(Model $model): void

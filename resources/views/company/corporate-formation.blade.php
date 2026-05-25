@@ -4,6 +4,7 @@
 @section('content')
 @php
     $tabConfig = [
+        ['key' => 'company-info', 'label' => 'Company General Info', 'href' => route('company.corporate-formation.company-info', $company->id)],
         ['key' => 'sec-coi', 'label' => 'SEC-COI', 'href' => route('company.corporate-formation.sec-coi', $company->id)],
         ['key' => 'sec-aoi', 'label' => 'SEC-AOI', 'href' => route('company.corporate-formation.sec-aoi', $company->id)],
         ['key' => 'bylaws', 'label' => 'Bylaws', 'href' => route('company.corporate-formation.bylaws', $company->id)],
@@ -21,6 +22,31 @@
         'bylaws' => 'SEC-BYLAWS',
         default => 'SEC-GIS',
     };
+
+    $formationDefaults = $formationDefaults ?? [];
+    $defaultCompanyName = old('corporation_name', $formationDefaults['corporation_name'] ?? $formationDefaults['company_name'] ?? $company->company_name ?? '');
+    $defaultCorporateName = old('corporate_name', $formationDefaults['corporate_name'] ?? $formationDefaults['company_name'] ?? $company->company_name ?? '');
+    $defaultCompanyRegNo = old('company_reg_no', $formationDefaults['company_reg_no'] ?? '');
+    $defaultPrincipalAddress = old('principal_address', $formationDefaults['principal_address'] ?? $formationDefaults['business_address'] ?? $company->address ?? '');
+    $defaultTypeOfFormation = old('type_of_formation', $formationDefaults['type_of_formation'] ?? 'Stock Corporation');
+    $defaultAoiVersion = old('aoi_version', $formationDefaults['aoi_version'] ?? 'Original');
+    $defaultAoiType = old('aoi_type', $formationDefaults['aoi_type'] ?? 'Original');
+    $defaultAoiDate = old('aoi_date', $formationDefaults['aoi_date'] ?? '');
+    $defaultParValue = old('par_value', $formationDefaults['par_value'] ?? '');
+    $defaultAuthorizedCapitalStock = old('authorized_capital_stock', $formationDefaults['authorized_capital_stock'] ?? '');
+    $defaultDirectors = old('directors', $formationDefaults['directors'] ?? '');
+    $defaultTradeName = old('trade_name', $formationDefaults['trade_name'] ?? '');
+    $defaultDateRegistered = old('date_registered', $formationDefaults['date_registered'] ?? '');
+    $defaultFiscalYearEnd = old('fiscal_year_end', $formationDefaults['fiscal_year_end'] ?? '');
+    $defaultTin = old('tin', $formationDefaults['tin'] ?? '');
+    $defaultWebsite = old('website', $formationDefaults['website'] ?? '');
+    $defaultEmail = old('email', $formationDefaults['email'] ?? '');
+    $defaultOfficialMobile = old('official_mobile', $formationDefaults['official_mobile'] ?? '');
+    $defaultAlternateMobile = old('alternate_mobile', $formationDefaults['alternate_mobile'] ?? '');
+    $defaultBusinessAddress = old('business_address', $formationDefaults['business_address'] ?? $company->address ?? '');
+    $defaultAuditor = old('auditor', $formationDefaults['auditor'] ?? '');
+    $defaultIndustry = old('industry', $formationDefaults['industry'] ?? '');
+    $defaultGeoCode = old('geo_code', $formationDefaults['geo_code'] ?? '');
 @endphp
 <div class="w-full px-4 sm:px-6 lg:px-8 mt-4 pb-8"
      x-data="{ openPanel: false, statusTab: null }">
@@ -465,6 +491,9 @@
                 <div>
                     <h2 class="text-[26px] font-semibold text-gray-900 leading-none">Add SEC-COI Record</h2>
                     <p class="mt-1 text-xs text-gray-500">Scoped to {{ $company->company_name }}.</p>
+                    <p class="mt-2 rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-[11px] leading-relaxed text-blue-700">
+                        Auto-filled from this company’s General Information and latest Corporate Formation records. You can still edit the fields before saving.
+                    </p>
                 </div>
                 <button type="button" @click="openPanel = false" class="w-9 h-9 rounded-full hover:bg-gray-100 text-gray-500 flex items-center justify-center">
                     <i class="fas fa-times text-sm"></i>
@@ -473,11 +502,11 @@
             <div class="flex-1 overflow-y-auto px-6 py-6 space-y-5">
                 <div>
                     <label class="block text-[13px] font-medium text-gray-700 mb-2">Corporate Name <span class="text-red-500">*</span></label>
-                    <input type="text" name="corporate_name" value="{{ old('corporate_name', $company->company_name ?? '') }}" required class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
+                    <input type="text" name="corporate_name" value="{{ $defaultCorporateName }}" required class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
                 </div>
                 <div>
                     <label class="block text-[13px] font-medium text-gray-700 mb-2">Company Reg No. <span class="text-red-500">*</span></label>
-                    <input type="text" name="company_reg_no" required class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
+                    <input type="text" name="company_reg_no" value="{{ $defaultCompanyRegNo }}" required class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
                 </div>
                 <div>
                     <label class="block text-[13px] font-medium text-gray-700 mb-2">Issued By</label>
@@ -529,6 +558,9 @@
                 <div>
                     <h2 class="text-[26px] font-semibold text-gray-900 leading-none">Add SEC-AOI Record</h2>
                     <p class="mt-1 text-xs text-gray-500">Scoped to {{ $company->company_name }}.</p>
+                    <p class="mt-2 rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-[11px] leading-relaxed text-blue-700">
+                        Auto-filled from this company’s General Information and latest Corporate Formation records. You can still edit the fields before saving.
+                    </p>
                 </div>
                 <button type="button" @click="openPanel = false" class="w-9 h-9 rounded-full hover:bg-gray-100 text-gray-500 flex items-center justify-center">
                     <i class="fas fa-times text-sm"></i>
@@ -537,49 +569,49 @@
             <div class="flex-1 overflow-y-auto px-6 py-6 space-y-5">
                 <div>
                     <label class="block text-[13px] font-medium text-gray-700 mb-2">Corporation Name <span class="text-red-500">*</span></label>
-                    <input type="text" name="corporation_name" value="{{ old('corporation_name', $company->company_name ?? '') }}" required class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
+                    <input type="text" name="corporation_name" value="{{ $defaultCompanyName }}" required class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
                 </div>
                 <div>
                     <label class="block text-[13px] font-medium text-gray-700 mb-2">Company Reg No. <span class="text-red-500">*</span></label>
-                    <input type="text" name="company_reg_no" required class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
+                    <input type="text" name="company_reg_no" value="{{ $defaultCompanyRegNo }}" required class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
                 </div>
                 <div>
                     <label class="block text-[13px] font-medium text-gray-700 mb-2">Principal Address</label>
-                    <input type="text" name="principal_address" value="{{ old('principal_address', $company->address ?? '') }}" class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
+                    <input type="text" name="principal_address" value="{{ $defaultPrincipalAddress }}" class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
                 </div>
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="block text-[13px] font-medium text-gray-700 mb-2">Par Value</label>
-                        <input type="text" name="par_value" class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
+                        <input type="text" name="par_value" value="{{ $defaultParValue }}" class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
                     </div>
                     <div>
                         <label class="block text-[13px] font-medium text-gray-700 mb-2">No. of Directors</label>
-                        <input type="number" name="directors" class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
+                        <input type="number" name="directors" value="{{ $defaultDirectors }}" class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
                     </div>
                 </div>
                 <div>
                     <label class="block text-[13px] font-medium text-gray-700 mb-2">Authorized Capital Stock</label>
-                    <input type="text" name="authorized_capital_stock" class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
+                    <input type="text" name="authorized_capital_stock" value="{{ $defaultAuthorizedCapitalStock }}" class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
                 </div>
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="block text-[13px] font-medium text-gray-700 mb-2">Type of Formation</label>
                         <select name="type_of_formation" class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm bg-white">
-                            <option>Stock Corporation</option>
-                            <option>Non-Stock Corporation</option>
+                            <option value="Stock Corporation" @selected($defaultTypeOfFormation === 'Stock Corporation')>Stock Corporation</option>
+                            <option value="Non-Stock Corporation" @selected($defaultTypeOfFormation === 'Non-Stock Corporation')>Non-Stock Corporation</option>
                         </select>
                     </div>
                     <div>
                         <label class="block text-[13px] font-medium text-gray-700 mb-2">SEC-AOI Version</label>
-                        <input type="text" name="aoi_version" class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
+                        <input type="text" name="aoi_version" value="{{ $defaultAoiVersion }}" class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
                     </div>
                 </div>
                 <div>
                     <label class="block text-[13px] font-medium text-gray-700 mb-2">Type of SEC-AOI Version</label>
                     <select name="aoi_type" class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm bg-white">
-                        <option>Original</option>
-                        <option>Amended</option>
-                        <option>Revised</option>
+                        <option value="Original" @selected($defaultAoiType === 'Original')>Original</option>
+                        <option value="Amended" @selected($defaultAoiType === 'Amended')>Amended</option>
+                        <option value="Revised" @selected($defaultAoiType === 'Revised')>Revised</option>
                     </select>
                 </div>
                 <div class="grid grid-cols-2 gap-4">
@@ -628,6 +660,9 @@
                 <div>
                     <h2 class="text-[26px] font-semibold text-gray-900 leading-none">Add Bylaws Record</h2>
                     <p class="mt-1 text-xs text-gray-500">Scoped to {{ $company->company_name }}.</p>
+                    <p class="mt-2 rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-[11px] leading-relaxed text-blue-700">
+                        Auto-filled from this company’s General Information and latest Corporate Formation records. You can still edit the fields before saving.
+                    </p>
                 </div>
                 <button type="button" @click="openPanel = false" class="w-9 h-9 rounded-full hover:bg-gray-100 text-gray-500 flex items-center justify-center">
                     <i class="fas fa-times text-sm"></i>
@@ -636,27 +671,27 @@
             <div class="flex-1 overflow-y-auto px-6 py-6 space-y-5">
                 <div>
                     <label class="block text-[13px] font-medium text-gray-700 mb-2">Corporation Name <span class="text-red-500">*</span></label>
-                    <input type="text" name="corporation_name" value="{{ old('corporation_name', $company->company_name ?? '') }}" required class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
+                    <input type="text" name="corporation_name" value="{{ $defaultCompanyName }}" required class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
                 </div>
                 <div>
                     <label class="block text-[13px] font-medium text-gray-700 mb-2">Company Reg No. <span class="text-red-500">*</span></label>
-                    <input type="text" name="company_reg_no" required class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
+                    <input type="text" name="company_reg_no" value="{{ $defaultCompanyRegNo }}" required class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
                 </div>
                 <div>
                     <label class="block text-[13px] font-medium text-gray-700 mb-2">Type of Formation</label>
-                    <input type="text" name="type_of_formation" class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
+                    <input type="text" name="type_of_formation" value="{{ $defaultTypeOfFormation }}" class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
                 </div>
                 <div>
                     <label class="block text-[13px] font-medium text-gray-700 mb-2">SEC-AOI Version</label>
-                    <input type="text" name="aoi_version" class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
+                    <input type="text" name="aoi_version" value="{{ $defaultAoiVersion }}" class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
                 </div>
                 <div>
                     <label class="block text-[13px] font-medium text-gray-700 mb-2">Type of Version</label>
-                    <input type="text" name="aoi_type" class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
+                    <input type="text" name="aoi_type" value="{{ $defaultAoiType }}" class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
                 </div>
                 <div>
                     <label class="block text-[13px] font-medium text-gray-700 mb-2">Date of Version</label>
-                    <input type="date" name="aoi_date" class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
+                    <input type="date" name="aoi_date" value="{{ $defaultAoiDate }}" class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
                 </div>
                 <div>
                     <label class="block text-[13px] font-medium text-gray-700 mb-2">Regular ASM</label>
@@ -718,6 +753,9 @@
                 <div>
                     <h2 class="text-[26px] font-semibold text-gray-900 leading-none">Add GIS Record</h2>
                     <p class="mt-1 text-xs text-gray-500">Scoped to {{ $company->company_name }}.</p>
+                    <p class="mt-2 rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-[11px] leading-relaxed text-blue-700">
+                        Auto-filled from this company’s General Information and latest Corporate Formation records. You can still edit the fields before saving.
+                    </p>
                 </div>
                 <button type="button" @click="openPanel = false" class="w-9 h-9 rounded-full hover:bg-gray-100 text-gray-500 flex items-center justify-center">
                     <i class="fas fa-times text-sm"></i>
@@ -747,12 +785,121 @@
                 </div>
                 <div>
                     <label class="block text-[13px] font-medium text-gray-700 mb-2">Company Reg No. <span class="text-red-500">*</span></label>
-                    <input type="text" name="company_reg_no" required class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
+                    <input type="text" name="company_reg_no" value="{{ $defaultCompanyRegNo }}" required class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
                 </div>
                 <div>
                     <label class="block text-[13px] font-medium text-gray-700 mb-2">Corporation Name <span class="text-red-500">*</span></label>
-                    <input type="text" name="corporation_name" value="{{ old('corporation_name', $company->company_name ?? '') }}" required class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
+                    <input type="text" name="corporation_name" value="{{ $defaultCompanyName }}" required class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
                 </div>
+
+                <div class="pt-3 border-t border-gray-100">
+                    <h3 class="text-xs font-bold tracking-[0.18em] text-blue-700 uppercase">Company General Information</h3>
+                    <p class="mt-1 text-[11px] text-gray-500">These fields will appear in the Company General Information page for this specific company.</p>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-[13px] font-medium text-gray-700 mb-2">Date Registered</label>
+                        <input type="date" name="date_registered" value="{{ $defaultDateRegistered }}" class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-[13px] font-medium text-gray-700 mb-2">Fiscal Year End</label>
+                        <input type="text" name="fiscal_year_end" value="{{ $defaultFiscalYearEnd }}" placeholder="e.g. December 31" class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-[13px] font-medium text-gray-700 mb-2">Business / Trade Name</label>
+                    <input type="text" name="trade_name" value="{{ $defaultTradeName }}" class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-[13px] font-medium text-gray-700 mb-2">TIN</label>
+                        <input type="text" name="tin" value="{{ $defaultTin }}" class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-[13px] font-medium text-gray-700 mb-2">Website / URL</label>
+                        <input type="text" name="website" value="{{ $defaultWebsite }}" class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-[13px] font-medium text-gray-700 mb-2">Email Address</label>
+                    <input type="email" name="email" value="{{ $defaultEmail }}" class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
+                </div>
+
+                <div>
+                    <label class="block text-[13px] font-medium text-gray-700 mb-2">Principal Office Address</label>
+                    <textarea name="principal_address" rows="2" class="w-full border border-gray-300 rounded-md px-4 py-3 text-sm">{{ $defaultPrincipalAddress }}</textarea>
+                </div>
+
+                <div>
+                    <label class="block text-[13px] font-medium text-gray-700 mb-2">Business Address</label>
+                    <textarea name="business_address" rows="2" class="w-full border border-gray-300 rounded-md px-4 py-3 text-sm">{{ $defaultBusinessAddress }}</textarea>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-[13px] font-medium text-gray-700 mb-2">Official Mobile Number</label>
+                        <input type="text" name="official_mobile" value="{{ $defaultOfficialMobile }}" class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-[13px] font-medium text-gray-700 mb-2">Alternate Mobile Number</label>
+                        <input type="text" name="alternate_mobile" value="{{ $defaultAlternateMobile }}" class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-[13px] font-medium text-gray-700 mb-2">External Auditor / Signing Partner</label>
+                    <input type="text" name="auditor" value="{{ $defaultAuditor }}" class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-[13px] font-medium text-gray-700 mb-2">Industry Classification</label>
+                        <input type="text" name="industry" value="{{ $defaultIndustry }}" class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-[13px] font-medium text-gray-700 mb-2">Geographical Code</label>
+                        <input type="text" name="geo_code" value="{{ $defaultGeoCode }}" class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
+                    </div>
+                </div>
+
+                <div class="pt-3 border-t border-gray-100">
+                    <h3 class="text-xs font-bold tracking-[0.18em] text-blue-700 uppercase">Intercompany Affiliations</h3>
+                </div>
+
+                <div class="grid grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-[13px] font-medium text-gray-700 mb-2">Parent Company</label>
+                        <input type="text" name="parent_company_name" value="{{ old('parent_company_name', $formationDefaults['parent_company_name'] ?? '') }}" class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-[13px] font-medium text-gray-700 mb-2">Parent SEC No.</label>
+                        <input type="text" name="parent_company_sec_no" value="{{ old('parent_company_sec_no', $formationDefaults['parent_company_sec_no'] ?? '') }}" class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-[13px] font-medium text-gray-700 mb-2">Parent Address</label>
+                        <input type="text" name="parent_company_address" value="{{ old('parent_company_address', $formationDefaults['parent_company_address'] ?? '') }}" class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-[13px] font-medium text-gray-700 mb-2">Subsidiary Name</label>
+                        <input type="text" name="subsidiary_name" value="{{ old('subsidiary_name', $formationDefaults['subsidiary_name'] ?? '') }}" class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-[13px] font-medium text-gray-700 mb-2">Subsidiary SEC No.</label>
+                        <input type="text" name="subsidiary_sec_no" value="{{ old('subsidiary_sec_no', $formationDefaults['subsidiary_sec_no'] ?? '') }}" class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-[13px] font-medium text-gray-700 mb-2">Subsidiary Address</label>
+                        <input type="text" name="subsidiary_address" value="{{ old('subsidiary_address', $formationDefaults['subsidiary_address'] ?? '') }}" class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
+                    </div>
+                </div>
+
                 <div>
                     <label class="block text-[13px] font-medium text-gray-700 mb-2">Date of Annual Meeting</label>
                     <input type="date" name="annual_meeting" class="w-full h-11 border border-gray-300 rounded-md px-4 text-sm">
