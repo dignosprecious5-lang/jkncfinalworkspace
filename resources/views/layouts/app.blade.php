@@ -442,6 +442,9 @@
                                class="block px-3 py-2 rounded-lg transition
                                {{ request()->routeIs('admin.human-capital.dashboard') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
                                 Human Capital
+                            </a>
+                        @endif
+
                         @if(Auth::user()->isSuperAdmin() || Auth::user()->isAdmin() || Auth::user()->hasPermission('manage_users'))
                             <a href="{{ route('admin.finance.dashboard') }}"
                                class="block px-3 py-2 rounded-lg transition
