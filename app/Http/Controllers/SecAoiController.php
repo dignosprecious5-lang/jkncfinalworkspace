@@ -4,16 +4,57 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\DB;
 use App\Models\User;
 use App\Models\SecAoi;
 use App\Models\GisRecord;
 
 class SecAoiController extends Controller
 {
+    /*
+    |--------------------------------------------------------------------------
+    | Internal Corporate Scope Helpers
+    |--------------------------------------------------------------------------
+    | Internal Corporate module records must NOT use company-specific records.
+    |
+    | Rule:
+    | - Internal Corporate records = company_id is NULL or 0
+    | - Company Corporate Formation records = company_id has selected company id
+    |--------------------------------------------------------------------------
+    */
+
+    private function internalGisQuery()
+    {
+        $query = GisRecord::query();
+
+        if (Schema::hasColumn('gis_records', 'company_id')) {
+            $query->where(function ($q) {
+                $q->whereNull('company_id')
+                    ->orWhere('company_id', 0);
+            });
+        }
+
+        return $this->excludeCompanyModuleMatches($query, 'gis_records', 'corporation_name');
+    }
+
+    private function internalSecAoiQuery()
+    {
+        $query = SecAoi::query();
+
+        if (Schema::hasColumn('sec_aois', 'company_id')) {
+            $query->where(function ($q) {
+                $q->whereNull('company_id')
+                    ->orWhere('company_id', 0);
+            });
+        }
+
+        return $this->excludeCompanyModuleMatches($query, 'sec_aois', 'corporation_name');
+    }
 
     private function latestAcceptedGis(): ?GisRecord
     {
-        return GisRecord::query()
+        return $this->internalGisQuery()
             ->where(function ($query) {
                 $query->where('workflow_status', 'Accepted')
                     ->orWhere('approval_status', 'Approved');
@@ -21,6 +62,74 @@ class SecAoiController extends Controller
             ->latest('updated_at')
             ->latest('created_at')
             ->first();
+    }
+
+    private function excludeCompanyModuleMatches($query, string $table, string $nameColumn)
+    {
+        $identifiers = $this->companyModuleIdentifiers();
+
+        if (! empty($identifiers['names']) && Schema::hasColumn($table, $nameColumn)) {
+            $query->where(function ($q) use ($identifiers, $nameColumn) {
+                $q->whereNull($nameColumn)
+                    ->orWhereNotIn($nameColumn, $identifiers['names']);
+            });
+        }
+
+        if (! empty($identifiers['regNos']) && Schema::hasColumn($table, 'company_reg_no')) {
+            $query->where(function ($q) use ($identifiers) {
+                $q->whereNull('company_reg_no')
+                    ->orWhereNotIn('company_reg_no', $identifiers['regNos']);
+            });
+        }
+
+        return $query;
+    }
+
+    private function companyModuleIdentifiers(): array
+    {
+        $names = [];
+        $regNos = [];
+
+        foreach (['companies', 'company_bifs'] as $table) {
+            if (! Schema::hasTable($table)) {
+                continue;
+            }
+
+            DB::table($table)->orderBy('id')->chunk(200, function ($rows) use (&$names, &$regNos) {
+                foreach ($rows as $row) {
+                    foreach ((array) $row as $key => $value) {
+                        if (! is_string($value) && ! is_numeric($value)) {
+                            continue;
+                        }
+
+                        $value = trim((string) $value);
+
+                        if ($value === '') {
+                            continue;
+                        }
+
+                        $lowerKey = strtolower((string) $key);
+
+                        if (str_contains($lowerKey, 'name')) {
+                            $names[] = $value;
+                        }
+
+                        if (
+                            str_contains($lowerKey, 'reg') ||
+                            str_contains($lowerKey, 'bif') ||
+                            str_contains($lowerKey, 'sec')
+                        ) {
+                            $regNos[] = $value;
+                        }
+                    }
+                }
+            });
+        }
+
+        return [
+            'names' => array_values(array_unique(array_filter($names))),
+            'regNos' => array_values(array_unique(array_filter($regNos))),
+        ];
     }
 
     private function canApproveCorporate(): bool
@@ -53,13 +162,29 @@ class SecAoiController extends Controller
             ?? 'Unknown Employee';
     }
 
+    private function cleanFileName(string $fileName): string
+    {
+        return preg_replace('/[^A-Za-z0-9.\-_]/', '_', $fileName);
+    }
+
+    private function storeSecAoiFile($file, string $prefix): string
+    {
+        $fileName = time() . '_' . $prefix . '_' . $this->cleanFileName($file->getClientOriginalName());
+
+        $file->storeAs('sec_aoi', $fileName, 'public');
+
+        return 'sec_aoi/' . $fileName;
+    }
+
     public function index()
     {
-        if ($this->canApproveCorporate()) {
-            $records = SecAoi::latest()->get();
-        } else {
-            $records = SecAoi::where('submitted_by', Auth::id())->latest()->get();
+        $query = $this->internalSecAoiQuery();
+
+        if (! $this->canApproveCorporate()) {
+            $query->where('submitted_by', Auth::id());
         }
+
+        $records = $query->latest()->get();
 
         $latestAcceptedGis = $this->latestAcceptedGis();
 
@@ -87,30 +212,23 @@ class SecAoiController extends Controller
 
         if (! $sourceGis) {
             return redirect()->route('corporate.sec_aoi')
-                ->withErrors(['gis_required' => 'Please complete and accept a GIS record first before creating SEC-AOI.']);
+                ->withErrors(['gis_required' => 'Please complete and accept an internal Corporate GIS record first before creating SEC-AOI.']);
         }
 
         $draftPath = null;
         $notaryPath = null;
 
         if ($request->hasFile('draft_file_upload')) {
-            $file = $request->file('draft_file_upload');
-            $fileName = time() . '_draft_' . $file->getClientOriginalName();
-            $file->storeAs('sec_aoi', $fileName, 'public');
-            $draftPath = 'sec_aoi/' . $fileName;
+            $draftPath = $this->storeSecAoiFile($request->file('draft_file_upload'), 'draft');
         }
 
         if ($request->hasFile('notary_file_upload')) {
-            $file = $request->file('notary_file_upload');
-            $fileName = time() . '_notary_' . $file->getClientOriginalName();
-            $file->storeAs('sec_aoi', $fileName, 'public');
-            $notaryPath = 'sec_aoi/' . $fileName;
+            $notaryPath = $this->storeSecAoiFile($request->file('notary_file_upload'), 'notary');
         }
 
         $isApprover = $this->canApproveCorporate();
 
-        SecAoi::create([
-            'company_id'               => $sourceGis->company_id,
+        $payload = [
             'corporation_name'         => $sourceGis->corporation_name ?: $request->corporation_name,
             'company_reg_no'           => $sourceGis->company_reg_no ?: $request->company_reg_no,
             'principal_address'        => $sourceGis->principal_address ?: $sourceGis->business_address ?: $request->principal_address,
@@ -129,7 +247,16 @@ class SecAoiController extends Controller
             'submitted_by'             => Auth::id(),
             'approved_by'              => $isApprover ? Auth::id() : null,
             'approved_at'              => $isApprover ? now() : null,
-        ]);
+        ];
+
+        // Important:
+        // Internal Corporate SEC-AOI must stay internal, so company_id must be NULL.
+        // Company-specific SEC-AOI is handled by CompanyCorporateFormationController.
+        if (Schema::hasColumn('sec_aois', 'company_id')) {
+            $payload['company_id'] = null;
+        }
+
+        SecAoi::create($payload);
 
         return redirect()->route('corporate.sec_aoi')
             ->with('success', $isApprover ? 'SEC-AOI saved successfully.' : 'SEC-AOI saved as uploaded record.');
@@ -137,9 +264,9 @@ class SecAoiController extends Controller
 
     public function show($id)
     {
-        $record = SecAoi::findOrFail($id);
+        $record = $this->internalSecAoiQuery()->where('id', $id)->firstOrFail();
 
-        if (!$this->canApproveCorporate() && (int) $record->submitted_by !== (int) Auth::id()) {
+        if (! $this->canApproveCorporate() && (int) $record->submitted_by !== (int) Auth::id()) {
             abort(403, 'Unauthorized');
         }
 
@@ -152,19 +279,14 @@ class SecAoiController extends Controller
             'draft_file' => 'required|file|mimes:pdf,doc,docx,jpg,jpeg,png|max:10240',
         ]);
 
-        $record = SecAoi::findOrFail($id);
+        $record = $this->internalSecAoiQuery()->where('id', $id)->firstOrFail();
 
-        if (!$this->canEditRecord($record)) {
+        if (! $this->canEditRecord($record)) {
             abort(403, 'This record can no longer be edited.');
         }
 
-        $file = $request->file('draft_file');
-        $fileName = time() . '_draft_' . $file->getClientOriginalName();
-        $file->storeAs('sec_aoi', $fileName, 'public');
-        $filePath = 'sec_aoi/' . $fileName;
-
         $record->update([
-            'file_path' => $filePath,
+            'file_path' => $this->storeSecAoiFile($request->file('draft_file'), 'draft'),
         ]);
 
         return back()->with('success', 'Draft file attached successfully.');
@@ -176,19 +298,14 @@ class SecAoiController extends Controller
             'notary_file' => 'required|file|mimes:pdf,doc,docx,jpg,jpeg,png|max:10240',
         ]);
 
-        $record = SecAoi::findOrFail($id);
+        $record = $this->internalSecAoiQuery()->where('id', $id)->firstOrFail();
 
-        if (!$this->canEditRecord($record)) {
+        if (! $this->canEditRecord($record)) {
             abort(403, 'This record can no longer be edited.');
         }
 
-        $file = $request->file('notary_file');
-        $fileName = time() . '_notary_' . $file->getClientOriginalName();
-        $file->storeAs('sec_aoi', $fileName, 'public');
-        $filePath = 'sec_aoi/' . $fileName;
-
         $record->update([
-            'notary_file_path' => $filePath,
+            'notary_file_path' => $this->storeSecAoiFile($request->file('notary_file'), 'notary'),
         ]);
 
         return back()->with('success', 'Notary file attached successfully.');
@@ -196,9 +313,9 @@ class SecAoiController extends Controller
 
     public function submit($id)
     {
-        $record = SecAoi::findOrFail($id);
+        $record = $this->internalSecAoiQuery()->where('id', $id)->firstOrFail();
 
-        if (!$this->canEditRecord($record)) {
+        if (! $this->canEditRecord($record)) {
             abort(403, 'This record cannot be submitted.');
         }
 

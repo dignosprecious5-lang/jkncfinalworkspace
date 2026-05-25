@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\DB;
 use App\Models\User;
 use App\Models\SecCoi;
 use App\Models\GisRecord;
@@ -11,9 +13,102 @@ use App\Models\GisRecord;
 class CorporateFormationController extends Controller
 {
 
+    private function internalGisQuery()
+    {
+        $query = GisRecord::query();
+
+        if (Schema::hasColumn('gis_records', 'company_id')) {
+            $query->where(function ($q) {
+                $q->whereNull('company_id')
+                  ->orWhere('company_id', 0);
+            });
+        }
+
+        return $this->excludeCompanyModuleMatches($query, 'gis_records', 'corporation_name');
+    }
+
+    private function internalSecCoiQuery()
+    {
+        $query = SecCoi::query();
+
+        if (Schema::hasColumn('sec_coi', 'company_id')) {
+            $query->where(function ($q) {
+                $q->whereNull('company_id')
+                  ->orWhere('company_id', 0);
+            });
+        }
+
+        return $this->excludeCompanyModuleMatches($query, 'sec_coi', 'corporate_name');
+    }
+
+    private function excludeCompanyModuleMatches($query, string $table, string $nameColumn)
+    {
+        $identifiers = $this->companyModuleIdentifiers();
+
+        if (! empty($identifiers['names']) && Schema::hasColumn($table, $nameColumn)) {
+            $names = array_map(fn ($value) => mb_strtolower(trim((string) $value)), $identifiers['names']);
+
+            $query->where(function ($q) use ($nameColumn, $names) {
+                $q->whereNull($nameColumn)
+                  ->orWhereRaw('LOWER(TRIM(' . $nameColumn . ')) NOT IN (' . implode(',', array_fill(0, count($names), '?')) . ')', $names);
+            });
+        }
+
+        if (! empty($identifiers['regNos']) && Schema::hasColumn($table, 'company_reg_no')) {
+            $regNos = array_map(fn ($value) => mb_strtolower(trim((string) $value)), $identifiers['regNos']);
+
+            $query->where(function ($q) use ($regNos) {
+                $q->whereNull('company_reg_no')
+                  ->orWhereRaw('LOWER(TRIM(company_reg_no)) NOT IN (' . implode(',', array_fill(0, count($regNos), '?')) . ')', $regNos);
+            });
+        }
+
+        return $query;
+    }
+
+    private function companyModuleIdentifiers(): array
+    {
+        $names = [];
+        $regNos = [];
+
+        foreach (['companies', 'company_bifs'] as $table) {
+            if (! Schema::hasTable($table)) {
+                continue;
+            }
+
+            DB::table($table)->orderBy('id')->chunk(200, function ($rows) use (&$names, &$regNos) {
+                foreach ($rows as $row) {
+                    foreach ((array) $row as $key => $value) {
+                        if (! is_string($value) && ! is_numeric($value)) {
+                            continue;
+                        }
+
+                        $value = trim((string) $value);
+                        if ($value === '') {
+                            continue;
+                        }
+
+                        if (str_contains($key, 'name')) {
+                            $names[] = $value;
+                        }
+
+                        if (str_contains($key, 'reg') || str_contains($key, 'bif') || str_contains($key, 'sec')) {
+                            $regNos[] = $value;
+                        }
+                    }
+                }
+            });
+        }
+
+        return [
+            'names' => array_values(array_unique(array_filter($names))),
+            'regNos' => array_values(array_unique(array_filter($regNos))),
+        ];
+    }
+
     private function latestAcceptedGis(): ?GisRecord
     {
-        return GisRecord::query()
+        return $this->internalGisQuery()
             ->where(function ($query) {
                 $query->where('workflow_status', 'Accepted')
                     ->orWhere('approval_status', 'Approved');
@@ -67,11 +162,13 @@ class CorporateFormationController extends Controller
 
     public function index()
     {
-        if ($this->canApproveCorporate()) {
-            $records = SecCoi::latest()->get();
-        } else {
-            $records = SecCoi::where('submitted_by', Auth::id())->latest()->get();
+        $query = $this->internalSecCoiQuery();
+
+        if (! $this->canApproveCorporate()) {
+            $query->where('submitted_by', Auth::id());
         }
+
+        $records = $query->latest()->get();
 
         $latestAcceptedGis = $this->latestAcceptedGis();
 
@@ -109,8 +206,7 @@ class CorporateFormationController extends Controller
 
         $isApprover = $this->canApproveCorporate();
 
-        SecCoi::create([
-            'company_id'         => $sourceGis->company_id,
+        $payload = [
             'corporate_name'    => $sourceGis->corporation_name ?: $request->corporate_name,
             'company_reg_no'    => $sourceGis->company_reg_no ?: $request->company_reg_no,
             'issued_by'         => $this->employeeName(),
@@ -123,7 +219,13 @@ class CorporateFormationController extends Controller
             'submitted_by'      => Auth::id(),
             'approved_by'       => $isApprover ? Auth::id() : null,
             'approved_at'       => $isApprover ? now() : null,
-        ]);
+        ];
+
+        if (Schema::hasColumn('sec_coi', 'company_id')) {
+            $payload['company_id'] = null;
+        }
+
+        SecCoi::create($payload);
 
         return redirect()->route('corporate.formation')
             ->with('success', $isApprover ? 'SEC-COI saved successfully.' : 'SEC-COI saved as uploaded record.');
@@ -131,7 +233,7 @@ class CorporateFormationController extends Controller
 
     public function show($id)
     {
-        $record = SecCoi::findOrFail($id);
+        $record = $this->internalSecCoiQuery()->findOrFail($id);
 
         if (!$this->canApproveCorporate() && (int) $record->submitted_by !== (int) Auth::id()) {
             abort(403, 'Unauthorized');
@@ -142,7 +244,7 @@ class CorporateFormationController extends Controller
 
     public function update(Request $request, $id)
     {
-        $record = SecCoi::findOrFail($id);
+        $record = $this->internalSecCoiQuery()->findOrFail($id);
 
         if (!$this->canEditRecord($record)) {
             abort(403, 'This record can no longer be edited.');
@@ -172,7 +274,7 @@ class CorporateFormationController extends Controller
             'draft_file' => 'required|file|mimes:pdf,doc,docx,jpg,jpeg,png|max:10240',
         ]);
 
-        $record = SecCoi::findOrFail($id);
+        $record = $this->internalSecCoiQuery()->findOrFail($id);
 
         if (!$this->canEditRecord($record)) {
             abort(403, 'This record can no longer be edited.');
@@ -193,7 +295,7 @@ class CorporateFormationController extends Controller
             'notary_file' => 'required|file|mimes:pdf,doc,docx,jpg,jpeg,png|max:10240',
         ]);
 
-        $record = SecCoi::findOrFail($id);
+        $record = $this->internalSecCoiQuery()->findOrFail($id);
 
         if (!$this->canEditRecord($record)) {
             abort(403, 'This record can no longer be edited.');
@@ -210,7 +312,7 @@ class CorporateFormationController extends Controller
 
     public function submit($id)
     {
-        $record = SecCoi::findOrFail($id);
+        $record = $this->internalSecCoiQuery()->findOrFail($id);
 
         if (!$this->canEditRecord($record)) {
             abort(403, 'This record cannot be submitted.');

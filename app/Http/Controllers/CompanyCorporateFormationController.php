@@ -13,6 +13,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
 class CompanyCorporateFormationController extends Controller
@@ -52,32 +53,14 @@ class CompanyCorporateFormationController extends Controller
     {
         $companyData = $this->findCompanyOrAbort($request, $company);
 
-        $latestAcceptedGis = GisRecord::query()
-            ->when(
-                Schema::hasColumn('gis_records', 'company_id'),
-                fn ($query) => $query->where('company_id', $company)
-            )
-            ->where(function ($query) {
-                $query->where('workflow_status', 'Accepted')
-                    ->orWhere('approval_status', 'Approved');
-            })
-            ->latest('updated_at')
-            ->latest('created_at')
-            ->first();
+        // Company General Information must come from the GIS saved under THIS company only.
+        // Repair older company GIS rows that were saved before company_id was enforced.
+        $this->repairCompanyScopedRecords($companyData, $company);
 
-        $latestGis = $latestAcceptedGis ?: GisRecord::query()
-            ->when(
-                Schema::hasColumn('gis_records', 'company_id'),
-                fn ($query) => $query->where('company_id', $company)
-            )
-            ->latest('updated_at')
-            ->latest('created_at')
-            ->first();
+        // Company General Information must only use APPROVED / ACCEPTED GIS records.
+        // Draft/uploaded/submitted GIS must not populate Company General Information yet.
+        $latestGis = $this->latestAcceptedCompanyGis($company, $companyData);
 
-        // IMPORTANT:
-        // Company General Information must be based on an actual GIS record only.
-        // Do not auto-fill this page from Company/BIF defaults, because it should stay blank
-        // until the user saves a GIS for this specific company.
         $gis = $latestGis ?: new GisRecord([
             'company_id' => $company,
         ]);
@@ -567,71 +550,174 @@ class CompanyCorporateFormationController extends Controller
             'gis'     => [new GisRecord(), 'gis_records'],
         };
 
-        $formationDefaults = $this->companyCorporateFormationDefaults($companyData, $company);
+        // IMPORTANT: company corporate formation records are company-scoped only.
+        // Also repair older rows that were saved before company_id was enforced, so
+        // approved/saved company records do not disappear from this company page.
+        $this->repairCompanyScopedRecords($companyData, $company);
 
-        $records = $this->companyScopedListQuery($model, $table, $company, $companyData, $formationDefaults)
-            ->latest('id')
+        $records = $this->companyScopedRecordsQuery($model::query(), $table, $company, $companyData)
+            ->latest('updated_at')
+            ->latest('created_at')
             ->get();
 
         return view('company.corporate-formation', [
             'company'           => (object) $companyData,
             'records'           => $records,
             'activeTab'         => $tab,
-            'formationDefaults' => $formationDefaults,
+            'formationDefaults' => $this->companyCorporateFormationDefaults($companyData, $company),
         ]);
     }
 
-    private function companyScopedListQuery(Model $model, string $table, int $company, array $companyData, array $formationDefaults)
-    {
-        $query = $model::query();
 
+    private function latestAcceptedCompanyGis(int $company, array $companyData): ?GisRecord
+    {
+        if (! Schema::hasTable('gis_records')) {
+            return null;
+        }
+
+        $query = GisRecord::query();
+
+        if (Schema::hasColumn('gis_records', 'company_id')) {
+            $query->where('company_id', $company);
+        }
+
+        // IMPORTANT:
+        // Company General Information must only be generated from a GIS that is already
+        // BOTH Accepted in workflow AND Approved in approval status.
+        // Uploaded/Submitted/Pending GIS records must not populate the CGI page yet.
+        return $query
+            ->where('workflow_status', 'Accepted')
+            ->where('approval_status', 'Approved')
+            ->latest('updated_at')
+            ->latest('created_at')
+            ->latest('id')
+            ->first();
+    }
+
+    private function latestCompanyGis(int $company, ?array $companyData = null): ?GisRecord
+    {
+        if (! Schema::hasTable('gis_records')) {
+            return null;
+        }
+
+        $query = GisRecord::query();
+
+        if (Schema::hasColumn('gis_records', 'company_id')) {
+            if ($companyData) {
+                $query = $this->companyScopedRecordsQuery($query, 'gis_records', $company, $companyData);
+            } else {
+                $query->where('company_id', $company);
+            }
+        }
+
+        return $query
+            ->latest('updated_at')
+            ->latest('created_at')
+            ->latest('id')
+            ->first();
+    }
+
+    private function companyScopedRecordsQuery($query, string $table, int $company, array $companyData)
+    {
         if (! Schema::hasColumn($table, 'company_id')) {
             return $query;
         }
 
-        $companyNames = array_values(array_unique(array_filter([
-            $formationDefaults['corporation_name'] ?? null,
-            $formationDefaults['corporate_name'] ?? null,
-            $formationDefaults['company_name'] ?? null,
-            $companyData['company_name'] ?? null,
-            $companyData['business_name'] ?? null,
-            $companyData['name'] ?? null,
-        ])));
+        // IMPORTANT:
+        // Company Corporate Formation must only display records that are explicitly
+        // owned by the selected company. Do not include company_id NULL records here,
+        // because NULL is reserved for the internal Corporate module.
+        return $query->where('company_id', $company);
+    }
 
-        $companyRegNos = array_values(array_unique(array_filter([
-            $formationDefaults['company_reg_no'] ?? null,
-            $companyData['company_reg_no'] ?? null,
-            $companyData['sec_registration_no'] ?? null,
-            $companyData['sec_reg_no'] ?? null,
-            $companyData['registration_no'] ?? null,
-            $companyData['bif_no'] ?? null,
-        ])));
+    private function repairCompanyScopedRecords(array $companyData, int $company): void
+    {
+        // No automatic repair here.
+        //
+        // Reason:
+        // Internal Corporate module records use company_id = NULL.
+        // Company Corporate Formation records use company_id = selected company ID.
+        //
+        // Auto-repairing NULL rows by matching names/reg numbers can accidentally move
+        // internal Corporate records into a client/company page. New records are already
+        // forced to save with company_id in createCompanyScopedRecord().
+    }
 
-        $nameColumns = array_values(array_filter([
-            Schema::hasColumn($table, 'corporation_name') ? 'corporation_name' : null,
-            Schema::hasColumn($table, 'corporate_name') ? 'corporate_name' : null,
-        ]));
+    private function companyFormationIdentifiers(array $companyData, int $company): array
+    {
+        $names = [];
+        $regNos = [];
 
-        return $query->where(function ($outer) use ($company, $table, $companyNames, $companyRegNos, $nameColumns) {
-            $outer->where('company_id', $company);
+        foreach ([
+            'company_name', 'business_name', 'name', 'corporation_name', 'corporate_name',
+            'trade_name', 'registered_name'
+        ] as $key) {
+            if (! empty($companyData[$key])) {
+                $names[] = trim((string) $companyData[$key]);
+            }
+        }
 
-            // Safety fallback for old records saved before company_id was properly attached.
-            // This still keeps the list company-specific by matching the company name or registration number.
-            $outer->orWhere(function ($fallback) use ($table, $companyNames, $companyRegNos, $nameColumns) {
-                $fallback->whereNull('company_id')
-                    ->where(function ($match) use ($table, $companyNames, $companyRegNos, $nameColumns) {
-                        foreach ($nameColumns as $column) {
-                            if (! empty($companyNames)) {
-                                $match->orWhereIn($column, $companyNames);
-                            }
-                        }
+        foreach ([
+            'company_reg_no', 'sec_registration_no', 'sec_reg_no', 'registration_no',
+            'business_registration_no', 'bif_no', 'bif_number', 'bif_no_display'
+        ] as $key) {
+            if (! empty($companyData[$key])) {
+                $regNos[] = trim((string) $companyData[$key]);
+            }
+        }
 
-                        if (Schema::hasColumn($table, 'company_reg_no') && ! empty($companyRegNos)) {
-                            $match->orWhereIn('company_reg_no', $companyRegNos);
-                        }
-                    });
-            });
-        });
+        if (Schema::hasTable('companies')) {
+            $companyRow = DB::table('companies')->where('id', $company)->first();
+            if ($companyRow) {
+                foreach ((array) $companyRow as $key => $value) {
+                    if (! is_string($value) && ! is_numeric($value)) {
+                        continue;
+                    }
+
+                    $value = trim((string) $value);
+                    if ($value === '') {
+                        continue;
+                    }
+
+                    if (str_contains($key, 'name')) {
+                        $names[] = $value;
+                    }
+
+                    if (str_contains($key, 'reg') || str_contains($key, 'bif') || str_contains($key, 'sec')) {
+                        $regNos[] = $value;
+                    }
+                }
+            }
+        }
+
+        if (Schema::hasTable('company_bifs') && Schema::hasColumn('company_bifs', 'company_id')) {
+            $bif = DB::table('company_bifs')->where('company_id', $company)->latest('id')->first();
+            if ($bif) {
+                foreach ((array) $bif as $key => $value) {
+                    if (! is_string($value) && ! is_numeric($value)) {
+                        continue;
+                    }
+
+                    $value = trim((string) $value);
+                    if ($value === '') {
+                        continue;
+                    }
+
+                    if (str_contains($key, 'name')) {
+                        $names[] = $value;
+                    }
+
+                    if (str_contains($key, 'reg') || str_contains($key, 'bif') || str_contains($key, 'sec')) {
+                        $regNos[] = $value;
+                    }
+                }
+            }
+        }
+
+        return [
+            'names' => array_values(array_unique(array_filter($names))),
+            'regNos' => array_values(array_unique(array_filter($regNos))),
+        ];
     }
 
 
@@ -664,13 +750,7 @@ class CompanyCorporateFormationController extends Controller
                 ->first();
         }
 
-        $latestGis = null;
-        if (Schema::hasTable('gis_records') && Schema::hasColumn('gis_records', 'company_id')) {
-            $latestGis = GisRecord::query()
-                ->where('company_id', $company)
-                ->latest('id')
-                ->first();
-        }
+        $latestGis = $this->latestCompanyGis($company, $companyData);
 
         $latestAoi = null;
         if (Schema::hasTable('sec_aois') && Schema::hasColumn('sec_aois', 'company_id')) {
@@ -819,21 +899,17 @@ class CompanyCorporateFormationController extends Controller
         ]);
     }
 
-    private function createCompanyScopedRecord(Model $model, array $payload, int $company): Model
+    private function createCompanyScopedRecord(Model $model, array $payload, int $company): void
     {
-        $record = $model::create($this->attachCompanyId($model, $payload, $company));
+        $payload = $this->attachCompanyId($model, $payload, $company);
 
-        // Force the company_id after create too, so it still works even if the model fillable/guarded
-        // setting does not save company_id during mass assignment.
-        if (Schema::hasColumn($model->getTable(), 'company_id') && (int) ($record->company_id ?? 0) !== (int) $company) {
-            \Illuminate\Support\Facades\DB::table($model->getTable())
-                ->where('id', $record->id)
-                ->update(['company_id' => $company]);
+        $created = $model::create($payload);
 
-            $record->company_id = $company;
+        // Some models may not include company_id in $fillable. Force it after create
+        // so company-module records never leak into the internal Corporate module list.
+        if (Schema::hasColumn($model->getTable(), 'company_id')) {
+            $created->forceFill(['company_id' => $company])->save();
         }
-
-        return $record;
     }
 
     private function attachCompanyId(Model $model, array $payload, int $company): array
@@ -847,18 +923,11 @@ class CompanyCorporateFormationController extends Controller
 
     private function scopeModelRecord($query, Model $model, int $record, int $company): Model
     {
-        $table = $model->getTable();
-
-        if (! Schema::hasColumn($table, 'company_id')) {
-            return $query->findOrFail($record);
+        if (Schema::hasColumn($model->getTable(), 'company_id')) {
+            return $query->where('company_id', $company)->findOrFail($record);
         }
 
-        return $query->where('id', $record)
-            ->where(function ($scope) use ($company) {
-                $scope->where('company_id', $company)
-                    ->orWhereNull('company_id');
-            })
-            ->firstOrFail();
+        return $query->findOrFail($record);
     }
 
     private function abortIfNotEditable(Model $model): void

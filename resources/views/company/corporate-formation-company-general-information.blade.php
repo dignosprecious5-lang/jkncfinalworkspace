@@ -65,11 +65,11 @@
                 <div class="px-4 py-4 bg-white border-b border-gray-100">
                     @if($sourceGis)
                         <div class="rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
-                            This company general information is generated from the latest GIS record of {{ $company->company_name }}.
+                            This company general information is generated from the latest approved/accepted GIS record of {{ $company->company_name }}.
                         </div>
                     @else
                         <div class="rounded-md border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">
-                            No GIS record has been saved for this company yet. Company General Information will remain blank until a GIS is created and saved for this company.
+                            No approved GIS record is available for this company yet. Company General Information will remain blank until a GIS is approved/accepted for this company.
                         </div>
                     @endif
                 </div>

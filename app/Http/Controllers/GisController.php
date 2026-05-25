@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\DB;
 use App\Models\User;
 use App\Models\GisRecord;
 
@@ -36,6 +38,111 @@ class GisController extends Controller
         return (int) $gis->submitted_by === (int) Auth::id();
     }
 
+
+    private function internalGisQuery()
+    {
+        $query = GisRecord::query();
+
+        // Internal Corporate module records must be company_id NULL or 0 only.
+        // Company-specific Corporate Formation records must have company_id = company id
+        // and must never appear here.
+        if (Schema::hasColumn('gis_records', 'company_id')) {
+            $query->where(function ($q) {
+                $q->whereNull('company_id')
+                  ->orWhere('company_id', 0);
+            });
+        }
+
+        // Safety filter for old bad rows that were saved before company_id was forced.
+        // If a NULL GIS row matches a company/BIF name or registration number, hide it
+        // from the internal Corporate module.
+        $identifiers = $this->companyModuleIdentifiers();
+
+        if (! empty($identifiers['names']) && Schema::hasColumn('gis_records', 'corporation_name')) {
+            $names = array_map(fn ($value) => mb_strtolower(trim((string) $value)), $identifiers['names']);
+            $query->where(function ($q) use ($names) {
+                $q->whereNull('corporation_name')
+                  ->orWhereRaw('LOWER(TRIM(corporation_name)) NOT IN (' . implode(',', array_fill(0, count($names), '?')) . ')', $names);
+            });
+        }
+
+        if (! empty($identifiers['regNos']) && Schema::hasColumn('gis_records', 'company_reg_no')) {
+            $regNos = array_map(fn ($value) => mb_strtolower(trim((string) $value)), $identifiers['regNos']);
+            $query->where(function ($q) use ($regNos) {
+                $q->whereNull('company_reg_no')
+                  ->orWhereRaw('LOWER(TRIM(company_reg_no)) NOT IN (' . implode(',', array_fill(0, count($regNos), '?')) . ')', $regNos);
+            });
+        }
+
+        return $query;
+    }
+
+    private function companyModuleIdentifiers(): array
+    {
+        $names = [];
+        $regNos = [];
+
+        if (Schema::hasTable('companies')) {
+            DB::table('companies')->orderBy('id')->chunk(200, function ($companies) use (&$names, &$regNos) {
+                foreach ($companies as $company) {
+                    foreach ((array) $company as $key => $value) {
+                        if (! is_string($value) && ! is_numeric($value)) {
+                            continue;
+                        }
+
+                        $value = trim((string) $value);
+                        if ($value === '') {
+                            continue;
+                        }
+
+                        if (str_contains($key, 'name')) {
+                            $names[] = $value;
+                        }
+
+                        if (str_contains($key, 'reg') || str_contains($key, 'bif') || str_contains($key, 'sec')) {
+                            $regNos[] = $value;
+                        }
+                    }
+                }
+            });
+        }
+
+        if (Schema::hasTable('company_bifs')) {
+            DB::table('company_bifs')->orderBy('id')->chunk(200, function ($bifs) use (&$names, &$regNos) {
+                foreach ($bifs as $bif) {
+                    foreach ((array) $bif as $key => $value) {
+                        if (! is_string($value) && ! is_numeric($value)) {
+                            continue;
+                        }
+
+                        $value = trim((string) $value);
+                        if ($value === '') {
+                            continue;
+                        }
+
+                        if (str_contains($key, 'name')) {
+                            $names[] = $value;
+                        }
+
+                        if (str_contains($key, 'reg') || str_contains($key, 'bif') || str_contains($key, 'sec')) {
+                            $regNos[] = $value;
+                        }
+                    }
+                }
+            });
+        }
+
+        return [
+            'names' => array_values(array_unique(array_filter($names))),
+            'regNos' => array_values(array_unique(array_filter($regNos))),
+        ];
+    }
+
+    private function isCompanyModuleGis(GisRecord $gis): bool
+    {
+        return Schema::hasColumn('gis_records', 'company_id') && ! empty($gis->company_id);
+    }
+
     private function employeeName(): string
     {
         $user = Auth::user();
@@ -50,11 +157,13 @@ class GisController extends Controller
 
     public function index()
     {
-        if ($this->canApproveCorporate()) {
-            $gis = GisRecord::latest()->get();
-        } else {
-            $gis = GisRecord::where('submitted_by', Auth::id())->latest()->get();
+        $query = $this->internalGisQuery();
+
+        if (! $this->canApproveCorporate()) {
+            $query->where('submitted_by', Auth::id());
         }
+
+        $gis = $query->latest()->get();
 
         return view('corporate.gis', compact('gis'));
     }
@@ -92,7 +201,7 @@ class GisController extends Controller
 
         $isApprover = $this->canApproveCorporate();
 
-        GisRecord::create([
+        $payload = [
             'uploaded_by'       => $this->employeeName(),
             'submission_status' => $isApprover ? 'Submitted' : 'Uploaded',
             'receive_on'        => $request->receive_on,
@@ -108,7 +217,13 @@ class GisController extends Controller
             'submitted_by'      => Auth::id(),
             'approved_by'       => $isApprover ? Auth::id() : null,
             'approved_at'       => $isApprover ? now() : null,
-        ]);
+        ];
+
+        if (Schema::hasColumn('gis_records', 'company_id')) {
+            $payload['company_id'] = null;
+        }
+
+        GisRecord::create($payload);
 
         return redirect()->route('corporate.gis')
             ->with('success', $isApprover ? 'GIS saved successfully.' : 'GIS saved as uploaded record.');
@@ -116,9 +231,17 @@ class GisController extends Controller
 
     public function companyInfo()
     {
-        $gis = GisRecord::where('approval_status', 'Approved')->latest()->first();
+        // Internal Corporate General Information must only use internal Corporate GIS.
+        // Company-module GIS records have company_id and must not appear here.
+        $gis = $this->internalGisQuery()
+            ->where(function ($query) {
+                $query->where('approval_status', 'Approved')
+                    ->orWhere('workflow_status', 'Accepted');
+            })
+            ->latest()
+            ->first();
 
-        if (!$gis) {
+        if (! $gis) {
             $gis = new GisRecord();
         }
 
@@ -128,6 +251,10 @@ class GisController extends Controller
     public function companyInfoById($id)
     {
         $gis = GisRecord::findOrFail($id);
+
+        if ($this->isCompanyModuleGis($gis)) {
+            abort(404);
+        }
 
         if (!$this->canAccessCompanyInfo($gis)) {
             abort(403, 'Unauthorized');
@@ -218,6 +345,10 @@ class GisController extends Controller
             'ubos'
         ])->findOrFail($id);
 
+        if ($this->isCompanyModuleGis($gis)) {
+            abort(404);
+        }
+
         if (!$this->canApproveCorporate() && (int) $gis->submitted_by !== (int) Auth::id()) {
             abort(403, 'Unauthorized');
         }
@@ -232,6 +363,10 @@ class GisController extends Controller
         ]);
 
         $gis = GisRecord::findOrFail($id);
+
+        if ($this->isCompanyModuleGis($gis)) {
+            abort(404);
+        }
 
         if (!$this->canEditRecord($gis)) {
             abort(403, 'This record can no longer be edited.');
@@ -257,6 +392,10 @@ class GisController extends Controller
 
         $gis = GisRecord::findOrFail($id);
 
+        if ($this->isCompanyModuleGis($gis)) {
+            abort(404);
+        }
+
         if (!$this->canEditRecord($gis)) {
             abort(403, 'This record can no longer be edited.');
         }
@@ -276,6 +415,10 @@ class GisController extends Controller
     public function submit($id)
     {
         $gis = GisRecord::findOrFail($id);
+
+        if ($this->isCompanyModuleGis($gis)) {
+            abort(404);
+        }
 
         if (!$this->canEditRecord($gis)) {
             abort(403, 'This record cannot be submitted.');
