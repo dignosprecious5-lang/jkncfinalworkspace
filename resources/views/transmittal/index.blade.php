@@ -268,6 +268,17 @@
 
                     <div class="max-w-[930px] mx-auto flex justify-center">
                         <div id="transmittal-preview-pdf" class="transmittal-doc-page bg-white border border-gray-300 shadow">
+                            <div class="tm-letterhead">
+                                <div class="tm-letterhead-logo-box">
+                                    <img src="{{ asset('images/jknc_logo.png') }}" alt="John Kelly & Company" class="tm-letterhead-logo">
+                                </div>
+                                <div class="tm-letterhead-info">
+                                    <div class="tm-company-name">John Kelly & Company</div>
+                                    <div>Duran Residences, Canyon Road, Beverly Hills, Cebu City</div>
+                                    <div>Email: start@jknc.io &nbsp; Website: https://jknc.io/ &nbsp; Phone Number: 0995 353 3789</div>
+                                </div>
+                            </div>
+
                             <div class="tm-title">
                                 <div class="tm-title-main">Transmittal Form</div>
                                 <div class="text-[11px] uppercase tracking-[0.12em] text-gray-500" x-text="previewFormCode"></div>
@@ -668,15 +679,61 @@
         flex-direction: column;
     }
 
+    .tm-letterhead {
+        display: grid;
+        grid-template-columns: 118px 1fr;
+        align-items: stretch;
+        margin: -3mm -3mm 18mm -3mm;
+        border-bottom: 3px solid #1d4ed8;
+    }
+
+    .tm-letterhead-logo-box {
+        min-height: 68px;
+        border: 3px solid #8aa3df;
+        border-left: 0;
+        border-radius: 0 18px 18px 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #fff;
+        padding: 8px 14px;
+    }
+
+    .tm-letterhead-logo {
+        width: 78px;
+        height: auto;
+        object-fit: contain;
+    }
+
+    .tm-letterhead-info {
+        min-height: 68px;
+        margin-left: 16px;
+        background: #7f9bdb;
+        color: #fff;
+        border-radius: 18px 0 0 18px;
+        padding: 12px 18px 10px 22px;
+        font-size: 14px;
+        line-height: 1.22;
+    }
+
+    .tm-company-name {
+        font-size: 18px;
+        font-weight: 800;
+        line-height: 1.1;
+        margin-bottom: 2px;
+    }
+
     .tm-title {
         text-align: center;
-        margin-bottom: 20px;
+        margin-bottom: 18px;
     }
 
     .tm-title-main {
-        font-size: 20px;
-        font-weight: 700;
+        font-size: 26px;
+        font-weight: 800;
         line-height: 1.2;
+        color: #0037a6;
+        font-family: Georgia, 'Times New Roman', serif;
     }
 
     .tm-top-block {
@@ -697,8 +754,11 @@
     }
 
     .tm-label {
-        font-weight: 600;
+        font-weight: 700;
         line-height: 1.2;
+        color: #0037a6;
+        font-family: Georgia, 'Times New Roman', serif;
+        font-size: 14px;
     }
 
     .tm-date-label {
@@ -730,9 +790,12 @@
     }
 
     .tm-section-title {
-        font-size: 13px;
-        font-weight: 600;
-        margin-bottom: 8px;
+        font-size: 18px;
+        font-weight: 800;
+        margin: 18px 0 10px;
+        text-align: center;
+        color: #0037a6;
+        font-family: Georgia, 'Times New Roman', serif;
     }
 
     .tm-table {
@@ -754,8 +817,10 @@
     }
 
     .tm-table th {
-        font-weight: 600;
-        background: #fff;
+        font-weight: 700;
+        background: #0b3db8;
+        color: #fff;
+        text-align: center;
     }
 
     .tm-col-no { width: 36px; }

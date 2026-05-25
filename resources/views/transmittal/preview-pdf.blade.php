@@ -26,11 +26,58 @@
             flex-direction: column;
         }
 
+        .letterhead {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            margin: -3mm 0 22mm 0;
+            border-bottom: 3px solid #1d4ed8;
+        }
+
+        .letterhead-logo-cell {
+            width: 105px;
+            border: 3px solid #8aa3df;
+            border-left: 0;
+            border-radius: 0 16px 16px 0;
+            text-align: center;
+            vertical-align: middle;
+            background: #fff;
+            padding: 7px 10px;
+        }
+
+        .letterhead-logo {
+            width: 68px;
+            height: auto;
+        }
+
+        .letterhead-space-cell {
+            width: 12px;
+        }
+
+        .letterhead-info-cell {
+            background: #7f9bdb;
+            color: #fff;
+            border-radius: 16px 0 0 16px;
+            padding: 10px 16px;
+            font-size: 13px;
+            line-height: 1.2;
+            vertical-align: middle;
+        }
+
+        .company-name {
+            font-size: 17px;
+            font-weight: 800;
+            line-height: 1.1;
+            margin-bottom: 2px;
+        }
+
         .title {
             text-align: center;
-            font-size: 18px;
-            font-weight: 700;
+            font-size: 26px;
+            font-weight: 800;
             margin-bottom: 18px;
+            color: #0037a6;
+            font-family: Georgia, 'Times New Roman', serif;
         }
 
         .top-row {
@@ -47,6 +94,9 @@
         .label {
             font-weight: 700;
             width: 70px;
+            color: #0037a6;
+            font-family: Georgia, 'Times New Roman', serif;
+            font-size: 13px;
         }
 
         .line {
@@ -82,8 +132,12 @@
         }
 
         .section-title {
-            font-weight: 700;
-            margin: 10px 0 6px;
+            font-weight: 800;
+            margin: 18px 0 10px;
+            text-align: center;
+            color: #0037a6;
+            font-size: 18px;
+            font-family: Georgia, 'Times New Roman', serif;
         }
 
         table {
@@ -102,6 +156,9 @@
 
         th {
             font-weight: 700;
+            background: #0b3db8;
+            color: #fff;
+            text-align: center;
         }
 
         .signatures {
@@ -168,9 +225,28 @@
     if (!$approvedByName && $transmittal->approved_by) {
         $approvedByName = optional(\App\Models\User::find($transmittal->approved_by))->name;
     }
+
+    $logoPath = public_path('images/jknc_logo.png');
+    $logoSrc = file_exists($logoPath)
+        ? 'data:image/png;base64,' . base64_encode(file_get_contents($logoPath))
+        : asset('images/jknc_logo.png');
 @endphp
 
 <div class="page">
+    <table class="letterhead">
+        <tr>
+            <td class="letterhead-logo-cell">
+                <img src="{{ $logoSrc }}" alt="John Kelly & Company" class="letterhead-logo">
+            </td>
+            <td class="letterhead-space-cell"></td>
+            <td class="letterhead-info-cell">
+                <div class="company-name">John Kelly & Company</div>
+                <div>Duran Residences, Canyon Road, Beverly Hills, Cebu City</div>
+                <div>Email: start@jknc.io &nbsp; Website: https://jknc.io/ &nbsp; Phone Number: 0995 353 3789</div>
+            </td>
+        </tr>
+    </table>
+
     <div class="title">Transmittal Form</div>
 
     <div class="top-row">
