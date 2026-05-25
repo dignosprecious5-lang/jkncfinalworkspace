@@ -382,14 +382,14 @@ class CompanyBifController extends Controller
         if ($this->prefersJsonResponse($request)) {
             return response()->json([
                 'message' => "Business Information Form link sent to {$recipientEmail}.",
-                'bif_client_link' => $clientUrl,
+                'recipient_email' => $recipientEmail,
             ]);
         }
 
         return redirect()
             ->route('company.kyc', ['company' => $company, 'tab' => 'business-client-information'])
             ->with('bif_success', "Business Information Form link sent to {$recipientEmail}.")
-            ->with('bif_client_link', $clientUrl);
+            ->with('bif_client_email', $recipientEmail);
     }
 
     public function clientForm(Request $request, string $token): View
@@ -427,7 +427,7 @@ class CompanyBifController extends Controller
         );
 
         $payload = $this->validatedPayload($request);
-        $documentPayload = $this->storeClientRequirementDocuments($request, $bif);
+        $documentPayload = $this->storeClientRequirementDocuments($request, $bif, $payload);
         $status = $this->resolveSubmittedStatus(true);
 
         $bif->update([
@@ -804,7 +804,7 @@ class CompanyBifController extends Controller
         ];
     }
 
-    private function storeClientRequirementDocuments(Request $request, CompanyBif $bif): array
+    private function storeClientRequirementDocuments(Request $request, CompanyBif $bif, array $payload = []): array
     {
         $rules = [];
 
@@ -816,6 +816,9 @@ class CompanyBifController extends Controller
 
         $validated = $request->validate($rules);
         $stored = $bif->client_requirement_documents ?? [];
+        $uploadedBy = trim((string) ($payload['authorized_contact_person_name'] ?? $bif->authorized_contact_person_name ?? ''));
+        $uploadedBy = $uploadedBy !== '' ? $uploadedBy : 'Client';
+        $issuedBy = strcasecmp($uploadedBy, 'Client') === 0 ? 'Client' : "Client - {$uploadedBy}";
 
         foreach ($validated as $key => $file) {
             if (! $file) {
@@ -828,6 +831,9 @@ class CompanyBifController extends Controller
                 'original_name' => $file->getClientOriginalName(),
                 'path' => $path,
                 'uploaded_at' => now()->toIso8601String(),
+                'uploaded_by' => $uploadedBy,
+                'uploaded_by_role' => 'Client',
+                'issued_by' => $issuedBy,
             ];
         }
 

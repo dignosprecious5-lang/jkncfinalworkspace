@@ -27,10 +27,10 @@
     .cif-doc-value { display: block; padding-top: 1px; font-size: 9px; line-height: 1.05; color: #0f172a; }
     .cif-doc-inline { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 3px 8px; padding-top: 2px; font-size: 8px; line-height: 1.05; }
     .cif-doc-inline-compact { display: flex; flex-wrap: wrap; gap: 3px 10px; padding-top: 2px; font-size: 8px; line-height: 1.05; }
-    .cif-doc-inline-two { display: grid; grid-template-columns: repeat(2, minmax(120px, 1fr)); gap: 4px 14px; padding-top: 2px; font-size: 8px; line-height: 1.05; align-content: start; }
-    .cif-doc-inline-field { display: flex; align-items: center; gap: 6px; padding-top: 4px; font-size: 8px; line-height: 1.05; }
+    .cif-doc-inline-two { display: grid; grid-template-columns: repeat(4, minmax(76px, 1fr)) minmax(208px, 1.6fr); gap: 4px 12px; padding-top: 2px; font-size: 8px; line-height: 1.05; align-items: center; padding-right: 6px; }
+    .cif-doc-inline-field { display: flex; align-items: center; gap: 8px; font-size: 8px; line-height: 1.05; min-width: 0; padding-right: 8px; }
     .cif-doc-inline-field-label { font-weight: 700; white-space: nowrap; }
-    .cif-doc-inline-field-value { flex: 1 1 auto; min-width: 0; border-bottom: 1px solid #334155; padding: 0 0 1px; font-size: 9px; line-height: 1.05; }
+    .cif-doc-inline-field-value { flex: 1 1 auto; min-width: 0; border-bottom: 1px solid #334155; padding: 0 8px 1px 2px; font-size: 9px; line-height: 1.05; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .cif-doc-mark { display: inline-flex; width: 12px; height: 12px; align-items: center; justify-content: center; border: 1px solid #334155; border-radius: 2px; background: #fff; margin-right: 4px; }
     .cif-doc-mark.active { border-color: #1d54e2; background: #1d54e2; box-shadow: inset 0 0 0 2px #1d54e2; }
     .cif-doc-section { border-bottom: 1.05px solid #334155; padding: 3px 6px; background: #102d79; color: #ffffff; font-size: 9px; font-weight: 700; text-align: center; text-transform: uppercase; letter-spacing: 0.02em; }
@@ -52,6 +52,23 @@
     .doc-col-8 { grid-column: span 8 / span 8; } .doc-col-9 { grid-column: span 9 / span 9; } .doc-col-10 { grid-column: span 10 / span 10; }
     .doc-col-12 { grid-column: span 12 / span 12; } .doc-col-14 { grid-column: span 14 / span 14; } .doc-col-15 { grid-column: span 15 / span 15; }
     .doc-col-16 { grid-column: span 16 / span 16; } .doc-col-18 { grid-column: span 18 / span 18; } .doc-col-24 { grid-column: span 24 / span 24; }
+    @media (max-width: 1024px) {
+        .cif-doc-head { grid-template-columns: 132px minmax(0, 1fr); gap: 8px; }
+        .cif-doc-brand img { max-width: 116px; }
+        .cif-doc-inline-two { grid-template-columns: repeat(4, minmax(66px, 1fr)) minmax(180px, 1.45fr); gap: 4px 8px; padding-right: 4px; }
+    }
+    @media (max-width: 820px) {
+        .cif-doc-inline-two {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            row-gap: 5px;
+            column-gap: 10px;
+            padding-right: 0;
+        }
+        .cif-doc-inline-two .cif-doc-inline-field {
+            grid-column: 1 / -1;
+            padding-right: 2px;
+        }
+    }
 </style>
 
 <div class="cif-doc cif-print-document mx-auto w-full max-w-5xl">
@@ -123,13 +140,13 @@
                 <span><span class="cif-doc-mark {{ $checked(($cifData['civil_status'] ?? '') === 'separated') }}"></span>Separated</span>
                 <span><span class="cif-doc-mark {{ $checked(($cifData['civil_status'] ?? '') === 'widowed') }}"></span>Widowed</span>
                 <span><span class="cif-doc-mark {{ $checked(($cifData['civil_status'] ?? '') === 'married') }}"></span>Married</span>
+                @if (($cifData['civil_status'] ?? '') === 'married')
+                    <span class="cif-doc-inline-field">
+                        <span class="cif-doc-inline-field-label">Spouse's Name</span>
+                        <span class="cif-doc-inline-field-value">{{ $spouseName !== '' ? $spouseName : ' ' }}</span>
+                    </span>
+                @endif
             </div>
-            @if (($cifData['civil_status'] ?? '') === 'married')
-                <div class="cif-doc-inline-field">
-                    <span class="cif-doc-inline-field-label">Spouse's Name</span>
-                    <span class="cif-doc-inline-field-value">{{ $spouseName !== '' ? $spouseName : ' ' }}</span>
-                </div>
-            @endif
         </div>
     </div>
 

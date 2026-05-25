@@ -3,8 +3,9 @@
 
 @section('content')
 @php
-    $canReviewKyc = in_array((string) (auth()->user()->role ?? ''), ['Admin', 'SuperAdmin'], true);
-    $canManageRequirementDocs = ! $canReviewKyc;
+    $authUser = auth()->user();
+    $canReviewKyc = in_array((string) ($authUser->role ?? ''), ['Admin', 'SuperAdmin'], true);
+    $canManageRequirementDocs = (bool) $authUser;
     $bifStatus = strtolower((string) ($bif?->status ?? ''));
     $bifApproved = $bifStatus === 'approved';
     $bifPendingApproval = $bifStatus === 'pending_approval';
@@ -18,16 +19,12 @@
         ])
 
         <div class="bg-gray-50 p-4">
-            @if (session('bif_success'))
+            @if (session('bif_success') && !session('bif_client_email'))
                 <div class="mb-4 rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-700">
                     {{ session('bif_success') }}
                 </div>
             @endif
             <div id="companyKycLiveFeedback" class="mb-4 hidden rounded-md border px-4 py-3 text-sm font-medium"></div>
-            <div id="companyKycLiveLink" class="mb-4 hidden rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-                <p class="font-medium">Client BIF link generated</p>
-                <p id="companyKycLiveLinkUrl" class="mt-1 break-all"></p>
-            </div>
 
             @if (session('bif_warning'))
                 <div class="mb-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
@@ -50,13 +47,6 @@
             @if ($errors->has('change_rejection_reason'))
                 <div class="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
                     {{ $errors->first('change_rejection_reason') }}
-                </div>
-            @endif
-
-            @if (session('bif_client_link'))
-                <div class="mb-4 rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-                    <p class="font-medium">Client BIF link generated</p>
-                    <p class="mt-1 break-all">{{ session('bif_client_link') }}</p>
                 </div>
             @endif
 
@@ -296,7 +286,7 @@
                             <h2 class="text-base font-semibold text-gray-900">Business Onboarding Requirements</h2>
                             <p class="mt-1 text-xs text-gray-500">Upload and manage the required onboarding documents based on the business organization.</p>
                         </div>
-                        <div class="max-h-[520px] space-y-3 overflow-y-auto p-4">
+                        <div id="companyKycRequirementsList" class="max-h-[520px] space-y-3 overflow-y-auto p-4">
                             @foreach ($kycRequirements as $group)
                                 <section class="rounded-xl border border-gray-200 bg-white p-3">
                                     <div class="border-b border-gray-100 pb-3">
@@ -343,6 +333,7 @@
                                                                 data-view-file-name="{{ $requirement['file_name'] }}"
                                                                 data-view-mime-type="{{ $requirement['mime_type'] }}"
                                                                 data-view-uploaded-at="{{ $requirement['uploaded_at'] }}"
+                                                                data-view-issued-by="{{ $requirement['issued_by'] }}"
                                                             >
                                                                 View
                                                             </button>
@@ -449,6 +440,10 @@
                     <p id="requirementViewUploadedAt" class="mt-1 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800">-</p>
                 </div>
                 <div>
+                    <p class="text-xs font-medium uppercase tracking-wide text-gray-500">Issued By</p>
+                    <p id="requirementViewIssuedBy" class="mt-1 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800">-</p>
+                </div>
+                <div>
                     <p class="text-xs font-medium uppercase tracking-wide text-gray-500">MIME Type</p>
                     <p id="requirementViewMime" class="mt-1 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800">-</p>
                 </div>
@@ -474,6 +469,21 @@
     </div>
 </x-slide-over>
 
+<div id="companySendSuccessOverlay" class="pointer-events-none fixed inset-0 z-[80] hidden items-start justify-center px-4 pt-8" aria-hidden="true">
+    <div id="companySendSuccessCard" class="w-full max-w-sm translate-y-2 opacity-0 rounded-xl border border-gray-200 bg-white p-4 shadow-lg shadow-slate-200/70 transition duration-300">
+        <div class="flex items-start gap-3">
+            <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white">
+                <i class="fas fa-paper-plane text-xs"></i>
+            </div>
+            <div class="min-w-0 flex-1">
+                <p class="text-xs font-semibold uppercase tracking-[0.16em] text-blue-600">Client Outreach</p>
+                <h3 class="mt-1 text-base font-semibold text-slate-900">Sent to client's email</h3>
+                <p id="companySendSuccessText" class="mt-1 text-sm leading-5 text-slate-600"></p>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
     document.addEventListener('DOMContentLoaded', function () {
         const sendBifModal = document.getElementById('sendBifModal');
@@ -493,10 +503,12 @@
         const requirementViewFileName = document.getElementById('requirementViewFileName');
         const requirementViewMime = document.getElementById('requirementViewMime');
         const requirementViewUploadedAt = document.getElementById('requirementViewUploadedAt');
+        const requirementViewIssuedBy = document.getElementById('requirementViewIssuedBy');
         const requirementViewOpenLink = document.getElementById('requirementViewOpenLink');
         const liveFeedback = document.getElementById('companyKycLiveFeedback');
-        const liveLink = document.getElementById('companyKycLiveLink');
-        const liveLinkUrl = document.getElementById('companyKycLiveLinkUrl');
+        const sendSuccessOverlay = document.getElementById('companySendSuccessOverlay');
+        const sendSuccessCard = document.getElementById('companySendSuccessCard');
+        const sendSuccessText = document.getElementById('companySendSuccessText');
         const sendBifForm = document.getElementById('sendBifForm');
         const submitCompanyKycForm = document.getElementById('submitCompanyKycForm');
         const approveCompanyKycForm = document.getElementById('approveCompanyKycForm');
@@ -538,15 +550,25 @@
             liveFeedback.textContent = message || '';
             liveFeedback.classList.toggle('hidden', !message);
         };
-        const showLink = (url) => {
-            if (!liveLink || !liveLinkUrl) return;
-            if (!url) {
-                liveLink.classList.add('hidden');
-                liveLinkUrl.textContent = '';
-                return;
-            }
-            liveLinkUrl.textContent = url;
-            liveLink.classList.remove('hidden');
+        let sendSuccessTimeout = null;
+        const showSendSuccess = (email) => {
+            if (!sendSuccessOverlay || !sendSuccessCard || !sendSuccessText || !email) return;
+            sendSuccessText.textContent = `The secure Business Information Form has been sent to ${email}.`;
+            sendSuccessOverlay.classList.remove('hidden');
+            sendSuccessOverlay.classList.add('flex');
+            sendSuccessOverlay.setAttribute('aria-hidden', 'false');
+            window.clearTimeout(sendSuccessTimeout);
+            requestAnimationFrame(() => {
+                sendSuccessCard.classList.remove('translate-y-2', 'opacity-0');
+            });
+            sendSuccessTimeout = window.setTimeout(() => {
+                sendSuccessCard.classList.add('translate-y-2', 'opacity-0');
+                window.setTimeout(() => {
+                    sendSuccessOverlay.classList.add('hidden');
+                    sendSuccessOverlay.classList.remove('flex');
+                    sendSuccessOverlay.setAttribute('aria-hidden', 'true');
+                }, 300);
+            }, 3200);
         };
         const replaceHtmlIfPresent = (id, sourceDoc) => {
             const current = document.getElementById(id);
@@ -567,8 +589,12 @@
                 const html = await response.text();
                 const parser = new DOMParser();
                 const doc = parser.parseFromString(html, 'text/html');
+                replaceHtmlIfPresent('companyHeaderWrap', doc);
+                replaceHtmlIfPresent('companyHeaderBreadcrumb', doc);
+                replaceHtmlIfPresent('companyHeaderSummary', doc);
                 replaceHtmlIfPresent('companyBifDocumentContent', doc);
                 replaceHtmlIfPresent('companyBifSummaryCard', doc);
+                replaceHtmlIfPresent('companyKycRequirementsList', doc);
             } catch (error) {
             }
         };
@@ -659,33 +685,38 @@
             button.addEventListener('click', closeModal);
         });
 
-        openRequirementViewButtons.forEach((button) => {
-            button.addEventListener('click', function () {
-                const url = button.getAttribute('data-view-url') || '';
-                const title = button.getAttribute('data-view-title') || 'Requirement Document';
-                const fileName = button.getAttribute('data-view-file-name') || '';
-                const mimeType = button.getAttribute('data-view-mime-type') || '';
-                const uploadedAt = button.getAttribute('data-view-uploaded-at') || '';
+        document.addEventListener('click', function (event) {
+            const button = event.target.closest('[data-open-requirement-view]');
+            if (!button) return;
 
-                if (requirementViewTitle) {
-                    requirementViewTitle.textContent = title;
-                }
-                if (requirementViewFileName) {
-                    requirementViewFileName.textContent = fileName || '-';
-                }
-                if (requirementViewMime) {
-                    requirementViewMime.textContent = mimeType || '-';
-                }
-                if (requirementViewUploadedAt) {
-                    requirementViewUploadedAt.textContent = formatDate(uploadedAt);
-                }
-                if (requirementViewOpenLink) {
-                    requirementViewOpenLink.href = url || '#';
-                }
+            const url = button.getAttribute('data-view-url') || '';
+            const title = button.getAttribute('data-view-title') || 'Requirement Document';
+            const fileName = button.getAttribute('data-view-file-name') || '';
+            const mimeType = button.getAttribute('data-view-mime-type') || '';
+            const uploadedAt = button.getAttribute('data-view-uploaded-at') || '';
+            const issuedBy = button.getAttribute('data-view-issued-by') || '';
 
-                renderRequirementPreview(url, mimeType, fileName, title);
-                openRequirementModal();
-            });
+            if (requirementViewTitle) {
+                requirementViewTitle.textContent = title;
+            }
+            if (requirementViewFileName) {
+                requirementViewFileName.textContent = fileName || '-';
+            }
+            if (requirementViewMime) {
+                requirementViewMime.textContent = mimeType || '-';
+            }
+            if (requirementViewUploadedAt) {
+                requirementViewUploadedAt.textContent = formatDate(uploadedAt);
+            }
+            if (requirementViewIssuedBy) {
+                requirementViewIssuedBy.textContent = issuedBy || '-';
+            }
+            if (requirementViewOpenLink) {
+                requirementViewOpenLink.href = url || '#';
+            }
+
+            renderRequirementPreview(url, mimeType, fileName, title);
+            openRequirementModal();
         });
 
         closeRequirementViewButtons.forEach((button) => {
@@ -715,12 +746,17 @@
             openModal();
         }
 
+        const sessionClientEmail = @json(session('bif_client_email'));
+        if (sessionClientEmail) {
+            showSendSuccess(sessionClientEmail);
+        }
+
         sendBifForm?.addEventListener('submit', async (event) => {
             event.preventDefault();
             try {
                 const payload = await submitJsonForm(sendBifForm, 'Unable to send the BIF link.');
-                showFeedback(payload.message, 'success');
-                showLink(payload.bif_client_link || '');
+                showFeedback('');
+                showSendSuccess(payload.recipient_email || '');
                 syncCompanyKycFragments();
                 closeModal();
             } catch (error) {
