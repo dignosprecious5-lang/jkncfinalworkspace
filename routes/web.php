@@ -684,6 +684,25 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::post('/gis/stockholder/store', [StockholderController::class, 'store'])->name('stockholder.store');
     Route::post('/gis/ubo/store', [UltimateBeneficialOwnerController::class, 'store'])->name('ubo.store');
 
+Route::put('/gis/authorized/{record}', [CapitalStructureController::class, 'updateAuthorized'])->name('authorized.update');
+Route::delete('/gis/authorized/{record}', [CapitalStructureController::class, 'destroyAuthorized'])->name('authorized.destroy');
+
+Route::put('/gis/subscribed/{record}', [CapitalStructureController::class, 'updateSubscribed'])->name('subscribed.update');
+Route::delete('/gis/subscribed/{record}', [CapitalStructureController::class, 'destroySubscribed'])->name('subscribed.destroy');
+
+Route::put('/gis/paidup/{record}', [CapitalStructureController::class, 'updatePaidup'])->name('paidup.update');
+Route::delete('/gis/paidup/{record}', [CapitalStructureController::class, 'destroyPaidup'])->name('paidup.destroy');
+
+Route::put('/gis/director/{record}', [DirectorOfficerController::class, 'update'])->name('director.update');
+Route::delete('/gis/director/{record}', [DirectorOfficerController::class, 'destroy'])->name('director.destroy');
+
+Route::put('/gis/stockholder/{record}', [StockholderController::class, 'update'])->name('stockholder.update');
+Route::delete('/gis/stockholder/{record}', [StockholderController::class, 'destroy'])->name('stockholder.destroy');
+
+Route::put('/gis/ubo/{record}', [UltimateBeneficialOwnerController::class, 'update'])->name('ubo.update');
+Route::delete('/gis/ubo/{record}', [UltimateBeneficialOwnerController::class, 'destroy'])->name('ubo.destroy');
+
+
     Route::post('/corporate/gis/{id}/upload-draft-file', [GisController::class, 'uploadDraftFile'])->name('corporate.gis.upload.draft');
     Route::post('/corporate/gis/{id}/upload-notary-file', [GisController::class, 'uploadNotaryFile'])->name('corporate.gis.upload.notary');
     Route::post('/corporate/gis/{id}/submit', [GisController::class, 'submit'])->name('corporate.gis.submit');
