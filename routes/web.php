@@ -86,6 +86,7 @@ use App\Http\Controllers\EmployeeRelationController;
 use App\Http\Controllers\AwardController;
 use App\Http\Controllers\PerformanceController;
 use App\Http\Controllers\OffboardingController;
+use App\Http\Controllers\AssessmentQuestionController;
 
 /*
 |--------------------------------------------------------------------------
@@ -988,6 +989,46 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
         ->name('sales-marketing.payouts.index');
     Route::patch('/sales-marketing/payouts/{allocation}/mark-paid', [SalesMarketingPayoutController::class, 'markPaid'])
         ->name('sales-marketing.payouts.mark-paid');
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | ASSESSMENT QUESTIONNAIRE EDITOR
+    |--------------------------------------------------------------------------
+    */
+    Route::middleware($adminOrSuperAdmin)
+        ->prefix('human-capital/recruitment/assessment-questionnaire-editor')
+        ->group(function () {
+            Route::get('/', [AssessmentQuestionController::class, 'index'])
+                ->name('assessment-questions.index');
+
+            Route::post('/types', [AssessmentQuestionController::class, 'storeType'])
+                ->name('assessment-types.store');
+
+            Route::put('/types/{type}', [AssessmentQuestionController::class, 'updateType'])
+                ->name('assessment-types.update');
+
+            Route::delete('/types/{type}', [AssessmentQuestionController::class, 'destroyType'])
+                ->name('assessment-types.destroy');
+
+            Route::post('/questions', [AssessmentQuestionController::class, 'store'])
+                ->name('assessment-questions.store');
+
+            Route::post('/questions/reorder', [AssessmentQuestionController::class, 'reorder'])
+                ->name('assessment-questions.reorder');
+
+            Route::post('/questions/{question}/move-up', [AssessmentQuestionController::class, 'moveUp'])
+                ->name('assessment-questions.move-up');
+
+            Route::post('/questions/{question}/move-down', [AssessmentQuestionController::class, 'moveDown'])
+                ->name('assessment-questions.move-down');
+
+            Route::put('/questions/{question}', [AssessmentQuestionController::class, 'update'])
+                ->name('assessment-questions.update');
+
+            Route::delete('/questions/{question}', [AssessmentQuestionController::class, 'destroy'])
+                ->name('assessment-questions.destroy');
+        });
 
     /*
     |--------------------------------------------------------------------------

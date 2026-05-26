@@ -20,12 +20,17 @@ class DatabaseSeeder extends Seeder
             RolePermissionSeeder::class,
             SuperAdminSeeder::class,
             FinanceDemoSeeder::class,
+
         ]);
         User::factory()->create([
             'name' => 'Test User',
             'email' => 'test@example.com',
 
 
+        ]);
+
+        $this->call([
+            AssessmentQuestionSeeder::class,
         ]);
     }
 }

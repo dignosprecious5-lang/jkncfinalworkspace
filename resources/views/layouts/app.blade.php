@@ -576,10 +576,63 @@
                                 Employee Profile
                             </a>
 
-                            <a href="{{ route('human-capital.recruitment') }}"
-                               class="block px-3 py-2 rounded-lg transition {{ request()->is('human-capital/recruitment') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
-                                Recruitment
-                            </a>
+                            {{-- RECRUITMENT MODULE --}}
+<div
+    x-data="{
+        open: {{
+            request()->is('human-capital/recruitment')
+            || request()->is('human-capital/recruitment/*')
+            || request()->routeIs('assessment-questions.*')
+            || request()->routeIs('assessment-types.*')
+                ? 'true'
+                : 'false'
+        }}
+    }"
+    class="space-y-1"
+>
+    <div class="flex items-center gap-1">
+        {{-- Main Recruitment Link --}}
+        <a href="{{ route('human-capital.recruitment') }}"
+           class="flex-1 block px-3 py-2 rounded-lg transition border
+           {{
+                request()->is('human-capital/recruitment')
+                    ? 'bg-blue-50 text-blue-700 border-blue-100 font-semibold'
+                    : 'border-transparent hover:bg-gray-100 text-gray-700'
+           }}">
+            Recruitment
+        </a>
+
+        {{-- Dropdown Arrow --}}
+        <button
+            type="button"
+            @click="open = !open"
+            class="w-9 h-9 rounded-lg flex items-center justify-center transition border
+            {{
+                request()->routeIs('assessment-questions.*')
+                || request()->routeIs('assessment-types.*')
+                    ? 'bg-blue-50 text-blue-700 border-blue-100'
+                    : 'border-transparent hover:bg-gray-100 text-gray-500'
+            }}"
+        >
+            <i class="fas fa-chevron-down text-[11px] transition-transform duration-200"
+               :class="open ? 'rotate-180' : ''"></i>
+        </button>
+    </div>
+
+    {{-- Dropdown Content --}}
+    <div x-cloak x-show="open" x-transition class="pl-3 space-y-1">
+        <a href="{{ route('assessment-questions.index') }}"
+           class="block px-3 py-2 rounded-lg transition text-sm
+           {{
+                request()->routeIs('assessment-questions.*')
+                || request()->routeIs('assessment-types.*')
+                    ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold'
+                    : 'hover:bg-gray-100 text-gray-700'
+           }}">
+            Assessment Questionnaire Editor
+        </a>
+    </div>
+</div>
 
                             <a href="{{ route('human-capital.onboarding') }}"
                                class="block px-3 py-2 rounded-lg transition {{ request()->is('human-capital/onboarding') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
