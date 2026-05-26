@@ -2,6 +2,10 @@
 @section('title', 'Company BIR & Tax')
 
 @section('content')
+@php
+    $companyTinValue = old('tin', $companyTin ?? ($company->tin_no ?? $company->tin ?? ''));
+    $currentUserNameValue = old('uploaded_by', old('user', $currentUserName ?? (auth()->user()->name ?? auth()->user()->email ?? 'System User')));
+@endphp
 <div class="w-full px-4 sm:px-6 lg:px-8 mt-4 pb-8">
     <div class="bg-white border border-gray-100 rounded-md overflow-hidden">
         @include('company.partials.company-header', ['company' => $company])
@@ -71,7 +75,7 @@
                                 </div>
                                 <div>
                                     <label class="text-xs text-gray-600">Uploaded By</label>
-                                    <input id="birTaxUploadedByInput" name="uploaded_by" type="text" value="{{ old('uploaded_by') }}" placeholder="Name" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
+                                    <input id="birTaxUploadedByInput" name="uploaded_by" type="text" value="{{ $currentUserNameValue }}" class="mt-1 block w-full rounded-md border border-gray-300 bg-gray-100 px-3 py-2 text-sm text-gray-600" readonly>
                                 </div>
                                 <div>
                                     <label class="text-xs text-gray-600">Date Uploaded</label>
@@ -167,7 +171,6 @@
                                         <td class="px-4 py-3">{{ \Illuminate\Support\Carbon::parse($record['date_uploaded'])->format('M d, Y') }}</td>
                                         <td class="px-4 py-3">
                                             <div class="flex items-center justify-end gap-2">
-                                                <a href="{{ route('bir-tax.preview', ['ref' => $record['tin']]) }}" class="inline-flex h-8 items-center rounded-full border border-gray-200 px-3 text-xs font-medium text-gray-700 hover:bg-gray-50">View</a>
                                                 <button type="button" onclick='editBirTaxRecord(@json($record))' class="inline-flex h-8 items-center rounded-full border border-gray-200 px-3 text-xs font-medium text-gray-700 hover:bg-gray-50">Edit</button>
                                                 <form method="POST" action="{{ route('company.bir-tax.destroy', [$company->id, $record['id']]) }}" onsubmit="return confirm('Delete this BIR & Tax record?');">
                                                     @csrf
@@ -200,7 +203,9 @@
         document.getElementById('birTaxDrawerTitle').textContent = 'Add BIR & Tax';
         document.getElementById('birTaxSubmitButton').textContent = 'Save BIR & Tax';
         document.getElementById('birTaxPayerInput').value = @json(old('tax_payer', $company->company_name));
+        document.getElementById('birTaxTinInput').value = @json($companyTinValue);
         document.getElementById('birTaxAddressInput').value = @json(old('registered_address', $company->address));
+        document.getElementById('birTaxUploadedByInput').value = @json($currentUserNameValue);
     }
 
     function editBirTaxRecord(record) {
@@ -218,7 +223,7 @@
         document.getElementById('birTaxFormTypeInput').value = record.form_type ?? '';
         document.getElementById('birTaxFrequencyInput').value = record.filing_frequency ?? '';
         document.getElementById('birTaxDueDateInput').value = record.due_date ?? '';
-        document.getElementById('birTaxUploadedByInput').value = record.uploaded_by ?? '';
+        document.getElementById('birTaxUploadedByInput').value = @json($currentUserNameValue);
         document.getElementById('birTaxDateUploadedInput').value = record.date_uploaded ?? '';
         document.getElementById('birTaxUploadedFileInput').value = record.uploaded_file ?? '';
         if (container && container.__x) {

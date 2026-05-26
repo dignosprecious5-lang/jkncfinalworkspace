@@ -22,6 +22,8 @@ class CompanyBankingController extends Controller
 
         return view('company.banking', [
             'company' => (object) $companyData,
+            'companyTin' => $this->companyTin($companyData),
+            'currentUserName' => $this->currentUserName($request),
             'records' => $records,
             'stats' => [
                 'total' => $records->count(),
@@ -43,9 +45,9 @@ class CompanyBankingController extends Controller
             'id' => $nextId,
             'company_id' => $company,
             'date_uploaded' => $validated['date_uploaded'],
-            'uploaded_by' => $validated['uploaded_by'],
+            'uploaded_by' => $this->currentUserName($request),
             'client' => $companyData['company_name'],
-            'tin' => $validated['tin'],
+            'tin' => $validated['tin'] ?: $this->companyTin($companyData),
             'banks' => $validated['banks'],
             'bank_docs' => $validated['bank_docs'],
             'status' => $validated['status'],
@@ -76,9 +78,9 @@ class CompanyBankingController extends Controller
                 ...$item,
                 'company_id' => $company,
                 'date_uploaded' => $validated['date_uploaded'],
-                'uploaded_by' => $validated['uploaded_by'],
+                'uploaded_by' => $this->currentUserName($request),
                 'client' => $companyData['company_name'],
-                'tin' => $validated['tin'],
+                'tin' => $validated['tin'] ?: $this->companyTin($companyData),
                 'banks' => $validated['banks'],
                 'bank_docs' => $validated['bank_docs'],
                 'status' => $validated['status'],
@@ -114,8 +116,8 @@ class CompanyBankingController extends Controller
     {
         return $request->validate([
             'date_uploaded' => ['required', 'date'],
-            'uploaded_by' => ['required', 'string', 'max:255'],
-            'tin' => ['required', 'string', 'max:255'],
+            'uploaded_by' => ['nullable', 'string', 'max:255'],
+            'tin' => ['nullable', 'string', 'max:255'],
             'banks' => ['required', 'string', 'max:255'],
             'bank_docs' => ['required', 'string', 'max:255'],
             'status' => ['required', 'string', 'in:' . implode(',', self::STATUSES)],
@@ -124,7 +126,7 @@ class CompanyBankingController extends Controller
 
     private function sessionKey(): string
     {
-        return 'mock_company_banking_records';
+        return 'company_banking_records_v2';
     }
 
     private function findCompany(Request $request, int $company): array
@@ -143,11 +145,25 @@ class CompanyBankingController extends Controller
 
     private function defaultRecords(): array
     {
-        return [
-            ['id' => 1, 'company_id' => 1, 'date_uploaded' => '2024-04-22', 'uploaded_by' => 'Jasper Bulac', 'client' => 'Company 1', 'tin' => '123-456-756', 'banks' => 'BDO', 'bank_docs' => 'Bank Certificate', 'status' => 'Completed'],
-            ['id' => 2, 'company_id' => 1, 'date_uploaded' => '2024-05-03', 'uploaded_by' => 'Lara Cruz', 'client' => 'Company 1', 'tin' => '123-456-756', 'banks' => 'BPI', 'bank_docs' => 'Signature Card', 'status' => 'Open'],
-            ['id' => 3, 'company_id' => 2, 'date_uploaded' => '2024-06-12', 'uploaded_by' => 'Jasper Bulac', 'client' => 'Company 2', 'tin' => '222-333-444', 'banks' => 'Metrobank', 'bank_docs' => 'Board Resolution', 'status' => 'Overdue'],
-            ['id' => 4, 'company_id' => 3, 'date_uploaded' => '2024-07-18', 'uploaded_by' => 'Ana Reyes', 'client' => 'Company 3', 'tin' => '555-111-000', 'banks' => 'UnionBank', 'bank_docs' => 'Account Opening Forms', 'status' => 'Open'],
-        ];
+        return [];
+    }
+
+    private function currentUserName(Request $request): string
+    {
+        $user = $request->user();
+
+        return trim((string) (
+            $user?->name
+            ?? $user?->full_name
+            ?? $user?->employee_name
+            ?? $user?->username
+            ?? $user?->email
+            ?? 'System User'
+        ));
+    }
+
+    private function companyTin(array $companyData): string
+    {
+        return trim((string) ($companyData['tin_no'] ?? $companyData['tin'] ?? $companyData['tin_number'] ?? $companyData['company_tin'] ?? $companyData['tax_identification_number'] ?? ''));
     }
 }

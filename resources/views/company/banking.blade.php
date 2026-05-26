@@ -2,6 +2,10 @@
 @section('title', 'Company Banking')
 
 @section('content')
+@php
+    $companyTinValue = old('tin', $companyTin ?? ($company->tin_no ?? $company->tin ?? ''));
+    $currentUserNameValue = old('uploaded_by', old('user', $currentUserName ?? (auth()->user()->name ?? auth()->user()->email ?? 'System User')));
+@endphp
 <div class="w-full px-4 sm:px-6 lg:px-8 mt-4 pb-8">
     <div class="bg-white border border-gray-100 rounded-md overflow-hidden">
         @include('company.partials.company-header', ['company' => $company])
@@ -40,7 +44,7 @@
                                         </div>
                                         <div>
                                             <label class="block text-sm font-medium mb-1">TIN *</label>
-                                            <input id="bankingTinInput" name="tin" type="text" placeholder="Enter TIN" class="w-full border rounded-md p-2" required>
+                                            <input id="bankingTinInput" name="tin" type="text" value="{{ $companyTinValue }}" placeholder="Enter TIN" class="w-full border rounded-md p-2 bg-gray-50" required>
                                         </div>
                                         <div>
                                             <label class="block text-sm font-medium mb-1">Date Uploaded *</label>
@@ -48,7 +52,7 @@
                                         </div>
                                         <div>
                                             <label class="block text-sm font-medium mb-1">Uploaded By *</label>
-                                            <input id="bankingUploadedByInput" name="uploaded_by" type="text" placeholder="Enter uploader" class="w-full border rounded-md p-2" required>
+                                            <input id="bankingUploadedByInput" name="uploaded_by" type="text" value="{{ $currentUserNameValue }}" class="w-full border rounded-md p-2 bg-gray-100 text-gray-600" readonly required>
                                         </div>
                                         <div>
                                             <label class="block text-sm font-medium mb-1">Banks *</label>
@@ -195,6 +199,8 @@
         document.getElementById('bankingFormMethod').value = 'POST';
         document.getElementById('bankingDrawerTitle').textContent = 'Add Banking Entry';
         document.getElementById('bankingSubmitButton').textContent = 'Save';
+        document.getElementById('bankingTinInput').value = @json($companyTinValue);
+        document.getElementById('bankingUploadedByInput').value = @json($currentUserNameValue);
     }
 
     function editBankingRecord(record) {
@@ -206,7 +212,7 @@
         document.getElementById('bankingSubmitButton').textContent = 'Update';
         document.getElementById('bankingTinInput').value = record.tin;
         document.getElementById('bankingDateInput').value = record.date_uploaded;
-        document.getElementById('bankingUploadedByInput').value = record.uploaded_by;
+        document.getElementById('bankingUploadedByInput').value = @json($currentUserNameValue);
         document.getElementById('bankingBanksInput').value = record.banks;
         document.getElementById('bankingDocsInput').value = record.bank_docs;
         document.getElementById('bankingStatusInput').value = record.status;

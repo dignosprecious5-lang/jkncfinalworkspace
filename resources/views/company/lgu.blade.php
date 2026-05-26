@@ -2,6 +2,10 @@
 @section('title', 'Company LGU')
 
 @section('content')
+@php
+    $companyTinValue = old('tin', $companyTin ?? ($company->tin_no ?? $company->tin ?? ''));
+    $currentUserNameValue = old('uploaded_by', old('user', $currentUserName ?? (auth()->user()->name ?? auth()->user()->email ?? 'System User')));
+@endphp
 <div class="w-full px-4 sm:px-6 lg:px-8 mt-4 pb-8">
     <div class="bg-white border border-gray-100 rounded-md overflow-hidden">
         @include('company.partials.company-header', ['company' => $company])
@@ -55,12 +59,12 @@
 
                                         <div>
                                             <label class="block text-sm font-medium">Uploader</label>
-                                            <input id="userInput" name="user" class="w-full border rounded-md p-2" placeholder="Uploader name" required>
+                                            <input id="userInput" name="user" value="{{ $currentUserNameValue }}" class="w-full border rounded-md p-2 bg-gray-100 text-gray-600" readonly required>
                                         </div>
 
                                         <div>
                                             <label class="block text-sm font-medium">TIN</label>
-                                            <input id="tinInput" name="tin" class="w-full border rounded-md p-2" placeholder="TIN" required>
+                                            <input id="tinInput" name="tin" value="{{ $companyTinValue }}" class="w-full border rounded-md p-2 bg-gray-50" placeholder="TIN" required>
                                         </div>
 
                                         <div>
@@ -253,6 +257,8 @@
         document.getElementById('lguDrawerTitle').textContent = 'Add Permit Entry';
         document.getElementById('lguSubmitButton').textContent = 'Save';
         document.getElementById('permitTypeInput').value = @json($selectedPermit);
+        document.getElementById('tinInput').value = @json($companyTinValue);
+        document.getElementById('userInput').value = @json($currentUserNameValue);
     }
 
     function editLguRecord(record) {
@@ -264,7 +270,7 @@
         document.getElementById('lguSubmitButton').textContent = 'Update';
         document.getElementById('permitTypeInput').value = record.permit_type;
         document.getElementById('dateInput').value = record.date;
-        document.getElementById('userInput').value = record.user;
+        document.getElementById('userInput').value = @json($currentUserNameValue);
         document.getElementById('tinInput').value = record.tin;
         document.getElementById('regInput').value = record.reg;
         document.getElementById('statusInput').value = record.status;

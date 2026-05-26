@@ -2,6 +2,10 @@
 @section('title', 'Company Correspondence')
 
 @section('content')
+@php
+    $companyTinValue = old('tin', $companyTin ?? ($company->tin_no ?? $company->tin ?? ''));
+    $currentUserNameValue = old('uploaded_by', old('user', $currentUserName ?? (auth()->user()->name ?? auth()->user()->email ?? 'System User')));
+@endphp
 <div class="w-full px-4 sm:px-6 lg:px-8 mt-4 pb-8">
     <div class="bg-white border border-gray-100 rounded-md overflow-hidden">
         @include('company.partials.company-header', ['company' => $company])
@@ -40,7 +44,7 @@
                                         </div>
                                         <div>
                                             <label class="block text-sm font-medium mb-1">TIN *</label>
-                                            <input id="correspondenceTinInput" name="tin" type="text" placeholder="Enter TIN" class="w-full border rounded-md p-2" required>
+                                            <input id="correspondenceTinInput" name="tin" type="text" value="{{ $companyTinValue }}" placeholder="Enter TIN" class="w-full border rounded-md p-2 bg-gray-50" required>
                                         </div>
                                         <div>
                                             <label class="block text-sm font-medium mb-1">Date Uploaded *</label>
@@ -48,7 +52,7 @@
                                         </div>
                                         <div>
                                             <label class="block text-sm font-medium mb-1">Uploaded By *</label>
-                                            <input id="correspondenceUploadedByInput" name="uploaded_by" type="text" placeholder="Enter uploader" class="w-full border rounded-md p-2" required>
+                                            <input id="correspondenceUploadedByInput" name="uploaded_by" type="text" value="{{ $currentUserNameValue }}" class="w-full border rounded-md p-2 bg-gray-100 text-gray-600" readonly required>
                                         </div>
                                         <div>
                                             <label class="block text-sm font-medium mb-1">Correspondence Type *</label>
@@ -188,6 +192,8 @@
         document.getElementById('correspondenceFormMethod').value = 'POST';
         document.getElementById('correspondenceDrawerTitle').textContent = 'Add Correspondence Entry';
         document.getElementById('correspondenceSubmitButton').textContent = 'Save';
+        document.getElementById('correspondenceTinInput').value = @json($companyTinValue);
+        document.getElementById('correspondenceUploadedByInput').value = @json($currentUserNameValue);
     }
 
     function editCorrespondenceRecord(record) {
@@ -199,7 +205,7 @@
         document.getElementById('correspondenceSubmitButton').textContent = 'Update';
         document.getElementById('correspondenceTinInput').value = record.tin;
         document.getElementById('correspondenceDateInput').value = record.date_uploaded;
-        document.getElementById('correspondenceUploadedByInput').value = record.uploaded_by;
+        document.getElementById('correspondenceUploadedByInput').value = @json($currentUserNameValue);
         document.getElementById('correspondenceTypeInput').value = record.correspondence_type;
         document.getElementById('correspondenceDocumentInput').value = record.document_title;
         document.getElementById('correspondenceStatusInput').value = record.status;
