@@ -513,244 +513,282 @@
     </div>
     @endif
 
-    {{-- MAIN CARD --}}
-    <div class="bg-white border border-gray-200 rounded-xl min-h-[calc(100vh-7rem)] flex flex-col">
-        <div class="px-5 py-4 flex items-center justify-between">
-            <h1 class="text-[30px] font-semibold text-gray-800 leading-none">Town Hall</h1>
+    {{-- MAIN TOWN HALL FEED --}}
+    <div class="space-y-5">
 
-            <div class="flex items-center gap-2">
-                <button class="w-8 h-8 rounded-md border border-gray-200 text-gray-400 hover:bg-gray-50 flex items-center justify-center">
-                    <i class="fas fa-bars text-xs"></i>
-                </button>
+        {{-- HERO / HEADER --}}
+        <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div class="relative px-6 py-6 md:px-7">
+                <div class="absolute inset-0 bg-gradient-to-r from-blue-50 via-white to-sky-50"></div>
 
-                <button class="w-8 h-8 rounded-md border border-gray-200 text-gray-400 hover:bg-gray-50 flex items-center justify-center">
-                    <i class="far fa-rectangle-list text-xs"></i>
-                </button>
+                <div class="relative flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+                    <div>
+                        <div class="inline-flex items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-700">
+                            <i class="fas fa-bullhorn text-[10px]"></i>
+                            Company Communication
+                        </div>
 
-                @if(Auth::user()->hasPermission('create_townhall'))
-                    <button
-                        @click="showSlideOver = true"
-                        class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium px-4 py-2 rounded-full transition"
-                    >
-                        <i class="fas fa-plus mr-1"></i> Add Communication
-                    </button>
-                @endif
+                        <h1 class="mt-3 text-3xl font-bold tracking-tight text-slate-900">Town Hall</h1>
+                        <p class="mt-1 text-sm text-slate-500">
+                            Stay updated with company memorandums, announcements, and official communications.
+                        </p>
+                    </div>
 
-                <button class="w-8 h-8 rounded-full bg-blue-100 text-blue-600 hover:bg-blue-200 flex items-center justify-center">
-                    <i class="fas fa-ellipsis-v text-xs"></i>
-                </button>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <button class="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-700">
+                            <i class="fas fa-bars text-xs"></i>
+                        </button>
+
+                        <button class="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-700">
+                            <i class="far fa-rectangle-list text-xs"></i>
+                        </button>
+
+                        @if(Auth::user()->hasPermission('create_townhall'))
+                            <button
+                                @click="showSlideOver = true"
+                                class="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
+                            >
+                                <i class="fas fa-plus text-xs"></i>
+                                Add Communication
+                            </button>
+                        @endif
+
+                        <button class="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-700">
+                            <i class="fas fa-ellipsis-v text-xs"></i>
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
 
-        <div class="px-5 pb-4 flex-1 flex flex-col">
-            <div class="border border-gray-200 rounded-md overflow-hidden flex-1 overflow-auto">
-                <table class="w-full text-sm text-left border-collapse">
-                    <thead class="bg-gray-100 text-gray-700">
-                        <tr>
-                            <th class="px-3 py-3 border-r border-gray-200 font-semibold">Ref#</th>
-                            <th class="px-3 py-3 border-r border-gray-200 font-semibold">Date</th>
-                            <th class="px-3 py-3 border-r border-gray-200 font-semibold">Expiry</th>
-                            <th class="px-3 py-3 border-r border-gray-200 font-semibold">Department/Stakeholder</th>
-                            <th class="px-3 py-3 border-r border-gray-200 font-semibold">From</th>
-                            <th class="px-3 py-3 border-r border-gray-200 font-semibold">Subject</th>
-                            <th class="px-3 py-3 border-r border-gray-200 font-semibold">For/To</th>
-                            <th class="px-3 py-3 border-r border-gray-200 font-semibold">Priority</th>
-                            <th class="px-3 py-3 border-r border-gray-200 font-semibold">Approval</th>
-                            <th class="px-3 py-3 border-r border-gray-200 font-semibold">Attachment</th>
-                            <th class="px-3 py-3 font-semibold w-10"></th>
-                        </tr>
-                    </thead>
-
-                    <tbody class="bg-white text-gray-700">
-                        @forelse($communications as $communication)
-                            @php
-                                $currentUser = Auth::user();
-                                $role = strtolower(trim((string) $currentUser->role));
-
-                                $recipientUserIds = collect($communication->recipient_user_ids ?? [])
-                                    ->map(fn ($id) => (int) $id)
-                                    ->toArray();
-
-                                $canViewMemo = $currentUser->hasPermission('approve_townhall')
-                                    || ($communication->recipient_type === 'all_users')
-                                    || (in_array($communication->recipient_type, ['all', 'all_employees', 'employee'], true) && $role === 'employee' && (($communication->recipient_type ?? '') !== 'employee' || in_array((int) $currentUser->id, $recipientUserIds, true) || (int) $communication->recipient_user_id === (int) $currentUser->id))
-                                    || ($communication->recipient_type === 'all_admins' && in_array($role, ['admin', 'superadmin', 'super admin', 'system super admin'], true))
-                                    || ($communication->recipient_type === 'all_clients' && in_array($role, ['client', 'customer'], true))
-                                    || ((int) $communication->recipient_user_id === (int) $currentUser->id)
-                                    || in_array((int) $currentUser->id, $recipientUserIds, true);
-
-                                $censored = !$canViewMemo;
-                            @endphp
-
-                            <tr
-                                class="border-t border-gray-200 {{ $censored ? 'bg-gray-50 cursor-not-allowed opacity-80' : 'hover:bg-gray-50 cursor-pointer' }} transition"
-                                @if(!$censored)
-                                    onclick="window.location='{{ route('townhall.show', $communication->id) }}'"
-                                @endif
-                                title="{{ $censored ? 'This memo is not intended for you' : '' }}"
-                            >
-                                <td class="px-3 py-3 border-r border-gray-200">
-                                    {{ $censored ? '***' : $communication->ref_no }}
-                                </td>
-
-                                <td class="px-3 py-3 border-r border-gray-200">
-                                    {{ $censored ? '***' : ($communication->communication_date ? \Carbon\Carbon::parse($communication->communication_date)->format('M d, Y') : '—') }}
-                                </td>
-
-                                <td class="px-3 py-3 border-r border-gray-200">
-                                    @if($censored)
-                                        ***
-                                    @elseif($communication->expires_at)
-                                        <div>{{ \Carbon\Carbon::parse($communication->expires_at)->format('M d, Y') }}</div>
-                                        <div class="text-[11px] text-gray-400">
-                                            {{ \Carbon\Carbon::parse($communication->expires_at)->format('h:i A') }}
-                                        </div>
-                                    @else
-                                        —
-                                    @endif
-                                </td>
-
-                                <td class="px-3 py-3 border-r border-gray-200">
-                                    {{ $censored ? '***' : ($communication->department_stakeholder ?: '—') }}
-                                </td>
-
-                                <td class="px-3 py-3 border-r border-gray-200">
-                                    {{ $censored ? '***' : ($communication->from_name ?: '—') }}
-                                </td>
-
-                                <td class="px-3 py-3 border-r border-gray-200">
-                                    {{ $censored ? '***' : ($communication->subject ?: '—') }}
-                                </td>
-
-                                <td class="px-3 py-3 border-r border-gray-200">
-                                    @if($censored)
-                                        ***
-                                    @else
-                                        {{ $communication->recipient_label ?? 'To' }}:
-                                        {{ $communication->recipient_names ?? $communication->to_for ?? 'Selected Recipients' }}
-                                    @endif
-                                </td>
-
-                                <td class="px-3 py-3 border-r border-gray-200">
-                                    @if($censored)
-                                        ***
-                                    @else
-                                        @php
-                                            $priority = $communication->priority ?? 'Low';
-                                            $classes = $priority === 'High'
-                                                ? 'bg-red-50 text-red-700'
-                                                : 'bg-green-50 text-green-700';
-                                        @endphp
-
-                                        <span class="px-2 py-1 text-xs rounded-full font-medium {{ $classes }}">
-                                            {{ $priority }}
-                                        </span>
-                                    @endif
-                                </td>
-
-                                <td class="px-3 py-3 border-r border-gray-200">
-                                    @if($communication->is_archived)
-                                        <span class="px-2 py-1 text-xs rounded-full font-medium bg-gray-200 text-gray-700">
-                                            {{ $censored ? '***' : 'Expired' }}
-                                        </span>
-                                    @else
-                                        @php
-                                            $approval = $communication->approval_status ?? 'Pending';
-                                            $approvalClasses = match($approval) {
-                                                'Approved' => 'bg-green-50 text-green-700',
-                                                'Rejected' => 'bg-red-50 text-red-700',
-                                                'Needs Revision' => 'bg-blue-50 text-blue-700',
-                                                default => 'bg-yellow-50 text-yellow-700',
-                                            };
-                                        @endphp
-                                        <span class="px-2 py-1 text-xs rounded-full font-medium {{ $approvalClasses }}">
-                                            {{ $censored ? '***' : $approval }}
-                                        </span>
-                                    @endif
-                                </td>
-
-                                <td class="px-3 py-3 border-r border-gray-200">
-                                    @if($censored)
-                                        ***
-                                    @elseif($communication->attachment)
-                                        <a
-                                            href="{{ asset('storage/' . $communication->attachment) }}"
-                                            target="_blank"
-                                            class="text-blue-600 hover:underline"
-                                            onclick="event.stopPropagation()"
-                                        >
-                                            View
-                                        </a>
-                                    @else
-                                        —
-                                    @endif
-                                </td>
-
-                                <td class="px-3 py-3 text-center text-gray-400">
-                                    @if($censored)
-                                        <span title="This memo is not intended for you">***</span>
-                                    @else
-                                        <button
-                                            type="button"
-                                            class="hover:text-gray-600"
-                                            onclick="event.stopPropagation(); window.location='{{ route('townhall.show', $communication->id) }}'"
-                                        >
-                                            …
-                                        </button>
-                                    @endif
-                                </td>
-                            </tr>
-                        @empty
-                            <tr>
-                                <td colspan="11" class="px-3 py-8 text-center text-gray-500">
-                                    No Town Hall communications found.
-                                </td>
-                            </tr>
-                        @endforelse
-                    </tbody>
-                </table>
-            </div>
-
-            <div class="mt-2 flex items-center justify-between text-[10px] text-gray-500 px-1">
-                <div class="flex items-center gap-6">
-                    <span class="flex items-center gap-1">
-                        Total Task
-                        <span class="text-black font-medium">{{ $communications->total() }}</span>
-                    </span>
-                    <span class="flex items-center gap-1">
-                        Pending
-                        <span class="text-yellow-600 font-medium">{{ $communications->where('approval_status', 'Pending')->count() }}</span>
-                    </span>
-                    <span class="flex items-center gap-1">
-                        Approved
-                        <span class="text-green-600 font-medium">{{ $communications->where('approval_status', 'Approved')->count() }}</span>
-                    </span>
-                    <span class="flex items-center gap-1">
-                        Needs Revision
-                        <span class="text-blue-600 font-medium">{{ $communications->where('approval_status', 'Needs Revision')->count() }}</span>
-                    </span>
-                    <span class="flex items-center gap-1">
-                        Rejected
-                        <span class="text-red-600 font-medium">{{ $communications->where('approval_status', 'Rejected')->count() }}</span>
-                    </span>
+        {{-- ANNOUNCEMENTS LIST --}}
+        <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div class="flex flex-col gap-4 border-b border-slate-200 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                    <h2 class="text-base font-semibold text-slate-900">Announcements & Memorandums</h2>
+                    <p class="mt-1 text-sm text-slate-500">
+                        Browse official company communications intended for you and your group.
+                    </p>
                 </div>
 
-                <div class="flex items-center gap-5">
-                    <span class="flex items-center gap-1">
-                        Records per page
-                        <select class="bg-transparent text-gray-600 outline-none">
-                            <option>10</option>
-                        </select>
+                <div class="flex flex-wrap items-center gap-2">
+                    <span class="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
+                        <span class="h-2 w-2 rounded-full bg-slate-400"></span>
+                        {{ $communications->firstItem() ?? 0 }}–{{ $communications->lastItem() ?? 0 }} of {{ $communications->total() }}
                     </span>
 
-                    <span>
-                        {{ $communications->firstItem() ?? 0 }} to {{ $communications->lastItem() ?? 0 }}
+                    <span class="inline-flex items-center gap-2 rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700">
+                        <i class="fas fa-eye-slash text-[10px]"></i>
+                        Restricted memos are hidden as ***
                     </span>
+                </div>
+            </div>
+
+            <div class="p-5 space-y-4">
+                @forelse($communications as $communication)
+                    @php
+                        $currentUser = Auth::user();
+                        $role = strtolower(trim((string) $currentUser->role));
+
+                        $recipientUserIds = collect($communication->recipient_user_ids ?? [])
+                            ->map(fn ($id) => (int) $id)
+                            ->toArray();
+
+                        $canViewMemo = $currentUser->hasPermission('approve_townhall')
+                            || ($communication->recipient_type === 'all_users')
+                            || (in_array($communication->recipient_type, ['all', 'all_employees', 'employee'], true)
+                                && $role === 'employee'
+                                && (($communication->recipient_type ?? '') !== 'employee'
+                                    || in_array((int) $currentUser->id, $recipientUserIds, true)
+                                    || (int) $communication->recipient_user_id === (int) $currentUser->id))
+                            || ($communication->recipient_type === 'all_admins'
+                                && in_array($role, ['admin', 'superadmin', 'super admin', 'system super admin'], true))
+                            || ($communication->recipient_type === 'all_clients'
+                                && in_array($role, ['client', 'customer'], true))
+                            || ((int) $communication->recipient_user_id === (int) $currentUser->id)
+                            || in_array((int) $currentUser->id, $recipientUserIds, true);
+
+                        $censored = !$canViewMemo;
+
+                        $priority = $communication->priority ?? 'Low';
+                        $priorityClasses = match($priority) {
+                            'High' => 'bg-red-50 text-red-700 ring-red-100',
+                            'Medium' => 'bg-amber-50 text-amber-700 ring-amber-100',
+                            default => 'bg-emerald-50 text-emerald-700 ring-emerald-100',
+                        };
+
+                        $approval = $communication->approval_status ?? 'Pending';
+                        $approvalClasses = match($approval) {
+                            'Approved' => 'bg-green-50 text-green-700 ring-green-100',
+                            'Rejected' => 'bg-red-50 text-red-700 ring-red-100',
+                            'Needs Revision' => 'bg-blue-50 text-blue-700 ring-blue-100',
+                            default => 'bg-yellow-50 text-yellow-700 ring-yellow-100',
+                        };
+                    @endphp
+
+                    <div
+                        class="group rounded-2xl border {{ $censored ? 'border-slate-200 bg-slate-50/70' : 'border-slate-200 bg-white hover:border-blue-200 hover:shadow-md' }} transition"
+                        @if(!$censored)
+                            onclick="window.location='{{ route('townhall.show', $communication->id) }}'"
+                        @endif
+                        title="{{ $censored ? 'This memo is not intended for you' : '' }}"
+                    >
+                        <div class="p-5">
+                            <div class="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                                <div class="min-w-0 flex-1">
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        <span class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+                                            {{ $censored ? '***' : ($communication->ref_no ?: '—') }}
+                                        </span>
+
+                                        <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ring-1 {{ $priorityClasses }}">
+                                            {{ $censored ? '***' : $priority }}
+                                        </span>
+
+                                        <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ring-1 {{ $communication->is_archived ? 'bg-slate-100 text-slate-600 ring-slate-200' : $approvalClasses }}">
+                                            {{ $censored ? '***' : ($communication->is_archived ? 'Expired' : $approval) }}
+                                        </span>
+
+                                        @if($censored)
+                                            <span class="inline-flex items-center gap-1 rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700">
+                                                <i class="fas fa-lock text-[10px]"></i>
+                                                Restricted
+                                            </span>
+                                        @endif
+                                    </div>
+
+                                    <h3 class="mt-4 text-lg font-semibold {{ $censored ? 'text-slate-400' : 'text-slate-900 group-hover:text-blue-700' }} transition">
+                                        {{ $censored ? '***' : ($communication->subject ?: 'No Subject') }}
+                                    </h3>
+
+                                    <div class="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                                        <div class="rounded-xl bg-slate-50 px-4 py-3">
+                                            <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Date</p>
+                                            <p class="mt-1 text-sm font-medium text-slate-800">
+                                                {{ $censored ? '***' : ($communication->communication_date ? \Carbon\Carbon::parse($communication->communication_date)->format('M d, Y') : '—') }}
+                                            </p>
+                                        </div>
+
+                                        <div class="rounded-xl bg-slate-50 px-4 py-3">
+                                            <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-400">From</p>
+                                            <p class="mt-1 text-sm font-medium text-slate-800">
+                                                {{ $censored ? '***' : ($communication->from_name ?: '—') }}
+                                            </p>
+                                        </div>
+
+                                        <div class="rounded-xl bg-slate-50 px-4 py-3">
+                                            <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Department</p>
+                                            <p class="mt-1 text-sm font-medium text-slate-800">
+                                                {{ $censored ? '***' : ($communication->department_stakeholder ?: '—') }}
+                                            </p>
+                                        </div>
+
+                                        <div class="rounded-xl bg-slate-50 px-4 py-3">
+                                            <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Expiry</p>
+                                            <p class="mt-1 text-sm font-medium text-slate-800">
+                                                @if($censored)
+                                                    ***
+                                                @elseif($communication->expires_at)
+                                                    {{ \Carbon\Carbon::parse($communication->expires_at)->format('M d, Y') }}
+                                                @else
+                                                    —
+                                                @endif
+                                            </p>
+                                            @if(!$censored && $communication->expires_at)
+                                                <p class="mt-0.5 text-xs text-slate-400">
+                                                    {{ \Carbon\Carbon::parse($communication->expires_at)->format('h:i A') }}
+                                                </p>
+                                            @endif
+                                        </div>
+                                    </div>
+
+                                    <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                                        <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                                            {{ $communication->recipient_label ?? 'To' }}
+                                        </p>
+                                        <p class="mt-1 text-sm font-medium text-slate-800">
+                                            @if($censored)
+                                                ***
+                                            @else
+                                                {{ $communication->recipient_names ?? $communication->to_for ?? 'Selected Recipients' }}
+                                            @endif
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div class="xl:ml-6 xl:w-[180px] shrink-0">
+                                    <div class="flex h-full flex-col justify-between gap-3">
+                                        <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                                            <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Attachment</p>
+                                            <div class="mt-2">
+                                                @if($censored)
+                                                    <span class="text-sm font-medium text-slate-400">***</span>
+                                                @elseif($communication->attachment)
+                                                    <a
+                                                        href="{{ asset('storage/' . $communication->attachment) }}"
+                                                        target="_blank"
+                                                        class="inline-flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-sm font-medium text-blue-700 ring-1 ring-slate-200 transition hover:bg-blue-50"
+                                                        onclick="event.stopPropagation()"
+                                                    >
+                                                        <i class="fas fa-paperclip text-xs"></i>
+                                                        View File
+                                                    </a>
+                                                @else
+                                                    <span class="text-sm font-medium text-slate-500">No attachment</span>
+                                                @endif
+                                            </div>
+                                        </div>
+
+                                        <div class="flex flex-col gap-2">
+                                            @if($censored)
+                                                <button
+                                                    type="button"
+                                                    class="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-100 px-4 py-2.5 text-sm font-semibold text-slate-400 cursor-not-allowed"
+                                                >
+                                                    <i class="fas fa-lock text-xs"></i>
+                                                    Restricted
+                                                </button>
+                                            @else
+                                                <button
+                                                    type="button"
+                                                    class="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700"
+                                                    onclick="event.stopPropagation(); window.location='{{ route('townhall.show', $communication->id) }}'"
+                                                >
+                                                    <i class="fas fa-eye text-xs"></i>
+                                                    Open Memo
+                                                </button>
+                                            @endif
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                @empty
+                    <div class="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-6 py-12 text-center">
+                        <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-slate-400 shadow-sm">
+                            <i class="fas fa-folder-open text-lg"></i>
+                        </div>
+                        <h3 class="mt-4 text-base font-semibold text-slate-800">No Town Hall communications found</h3>
+                        <p class="mt-1 text-sm text-slate-500">
+                            Once communications are created and approved, they will appear here.
+                        </p>
+                    </div>
+                @endforelse
+            </div>
+
+            <div class="flex flex-col gap-3 border-t border-slate-200 px-5 py-4 text-sm text-slate-500 md:flex-row md:items-center md:justify-between">
+                <div class="text-xs text-slate-500">
+                    Showing {{ $communications->firstItem() ?? 0 }} to {{ $communications->lastItem() ?? 0 }} of {{ $communications->total() }} entries
+                </div>
+
+                <div class="text-xs text-slate-400">
+                    Restricted communications are shown as *** when not intended for your account.
                 </div>
             </div>
 
             @if(method_exists($communications, 'links'))
-                <div class="mt-3">
+                <div class="border-t border-slate-200 px-5 py-4">
                     {{ $communications->links() }}
                 </div>
             @endif
@@ -764,6 +802,12 @@
 <link href="https://cdn.jsdelivr.net/npm/quill-table-better@1/dist/quill-table-better.css" rel="stylesheet">
 
 <style>
+    #townhall-page {
+        background:
+            radial-gradient(circle at top right, rgba(59, 130, 246, 0.08), transparent 18%),
+            linear-gradient(to bottom, #f8fafc, #f8fafc);
+    }
+
     .word-ribbon {
         background: linear-gradient(to bottom, #ffffff, #f8fafc);
     }
