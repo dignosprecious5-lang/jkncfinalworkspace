@@ -499,6 +499,50 @@ class RecruitmentController extends Controller
     }
 
 
+    private function resolveJpfMrf(Request $request, ?JobPosting $jpf = null): ?ManpowerRequest
+    {
+        $mrfId = $request->input('mrfId')
+            ?: $request->input('mrf_id')
+            ?: optional($jpf)->mrf_id;
+
+        if ($mrfId) {
+            $mrf = ManpowerRequest::find($mrfId);
+
+            if ($mrf) {
+                return $mrf;
+            }
+        }
+
+        $relatedMrfNo = $request->input('relatedMrfNo')
+            ?: $request->input('related_mrf_no')
+            ?: optional($jpf)->related_mrf_no;
+
+        if ($relatedMrfNo) {
+            return ManpowerRequest::where('request_id', $relatedMrfNo)->first();
+        }
+
+        return null;
+    }
+
+    private function requestValue(Request $request, string $camelKey, string $snakeKey, $fallback = null)
+    {
+        if ($request->has($camelKey)) {
+            return $request->input($camelKey);
+        }
+
+        if ($request->has($snakeKey)) {
+            return $request->input($snakeKey);
+        }
+
+        return $fallback;
+    }
+
+    private function approvedMrfIsValid(?ManpowerRequest $mrf): bool
+    {
+        return $mrf && strtolower((string) $mrf->request_status) === 'approved';
+    }
+
+
     private function buildJpfApprovalPayload($payload, string $label, ?array $existing = null): array
     {
         $payload = is_array($payload) ? $payload : [];
@@ -696,7 +740,7 @@ class RecruitmentController extends Controller
 
     public function storeJPF(Request $request)
     {
-        $mrf = ManpowerRequest::find($request->mrfId);
+        $mrf = $this->resolveJpfMrf($request);
 
         if (!$mrf) {
             return response()->json([
@@ -705,7 +749,7 @@ class RecruitmentController extends Controller
             ], 422);
         }
 
-        if (strtolower((string) $mrf->request_status) !== 'approved') {
+        if (!$this->approvedMrfIsValid($mrf)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Only approved MRF records can be used to create a JPF.'
@@ -720,7 +764,7 @@ class RecruitmentController extends Controller
         ];
 
         $data = [
-            'mrf_id'                 => $request->mrfId,
+            'mrf_id'                 => $mrf->id,
             'address_id'             => $request->orgAddressId,
             'branch_id'              => $request->orgBranchId,
             'office_id'              => $request->orgOfficeId,
@@ -791,7 +835,7 @@ class RecruitmentController extends Controller
     public function updateJPF(Request $request, $id)
     {
         $jpf = JobPosting::findOrFail($id);
-        $mrf = ManpowerRequest::find($request->mrfId);
+        $mrf = $this->resolveJpfMrf($request, $jpf);
 
         if (!$mrf) {
             return response()->json([
@@ -800,7 +844,7 @@ class RecruitmentController extends Controller
             ], 422);
         }
 
-        if (strtolower((string) $mrf->request_status) !== 'approved') {
+        if (!$this->approvedMrfIsValid($mrf)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Only approved MRF records can be linked to a JPF.'
@@ -808,70 +852,90 @@ class RecruitmentController extends Controller
         }
 
         $approvalData = [
-            'human_capital_approval' => $this->buildJpfApprovalPayload($request->humanCapitalApproval, 'Human Capital', $jpf->human_capital_approval),
-            'hiring_manager_approval' => $this->buildJpfApprovalPayload($request->hiringManagerApproval, 'Hiring Manager', $jpf->hiring_manager_approval),
-            'finance_approval'       => $this->buildJpfApprovalPayload($request->financeApproval, 'Finance', $jpf->finance_approval),
-            'president_approval'     => $this->buildJpfApprovalPayload($request->presidentApproval, 'President / Final', $jpf->president_approval),
+            'human_capital_approval' => $this->buildJpfApprovalPayload(
+                $request->input('humanCapitalApproval', $request->input('human_capital_approval', $jpf->human_capital_approval)),
+                'Human Capital',
+                $jpf->human_capital_approval
+            ),
+            'hiring_manager_approval' => $this->buildJpfApprovalPayload(
+                $request->input('hiringManagerApproval', $request->input('hiring_manager_approval', $jpf->hiring_manager_approval)),
+                'Hiring Manager',
+                $jpf->hiring_manager_approval
+            ),
+            'finance_approval'       => $this->buildJpfApprovalPayload(
+                $request->input('financeApproval', $request->input('finance_approval', $jpf->finance_approval)),
+                'Finance',
+                $jpf->finance_approval
+            ),
+            'president_approval'     => $this->buildJpfApprovalPayload(
+                $request->input('presidentApproval', $request->input('president_approval', $jpf->president_approval)),
+                'President / Final',
+                $jpf->president_approval
+            ),
         ];
 
         $data = [
-            'mrf_id'                 => $request->mrfId,
-            'address_id'             => $request->orgAddressId,
-            'branch_id'              => $request->orgBranchId,
-            'office_id'              => $request->orgOfficeId,
-            'department_id'          => $request->orgDepartmentId,
-            'division_id'            => $request->orgDivisionId,
-            'unit_id'                => $request->orgUnitId,
-            'position_id'            => $request->orgPositionId,
-            'salary_grade_id'        => $request->salaryGradeId,
+            'mrf_id'                 => $mrf->id,
+            'address_id'             => $this->requestValue($request, 'orgAddressId', 'address_id', $jpf->address_id),
+            'branch_id'              => $this->requestValue($request, 'orgBranchId', 'branch_id', $jpf->branch_id),
+            'office_id'              => $this->requestValue($request, 'orgOfficeId', 'office_id', $jpf->office_id),
+            'department_id'          => $this->requestValue($request, 'orgDepartmentId', 'department_id', $jpf->department_id),
+            'division_id'            => $this->requestValue($request, 'orgDivisionId', 'division_id', $jpf->division_id),
+            'unit_id'                => $this->requestValue($request, 'orgUnitId', 'unit_id', $jpf->unit_id),
+            'position_id'            => $this->requestValue($request, 'orgPositionId', 'position_id', $jpf->position_id),
+            'salary_grade_id'        => $this->requestValue($request, 'salaryGradeId', 'salary_grade_id', $jpf->salary_grade_id),
 
-            'position'               => $request->position,
-            'employment_type'        => $request->employmentType,
-            'location'               => $request->workLocation,
-            'salary_range'           => $request->minSalary . ' - ' . $request->maxSalary,
-            'job_description'        => $request->duties,
-            'requirements'           => $request->education,
-            'status'                 => $this->normalizeJpfStatus($request->status ?: $jpf->status, $approvalData, $jpf),
+            'position'               => $this->requestValue($request, 'position', 'position', $jpf->position),
+            'employment_type'        => $this->requestValue($request, 'employmentType', 'employment_type', $jpf->employment_type),
+            'location'               => $this->requestValue($request, 'workLocation', 'location', $jpf->location),
+            'salary_range'           => trim((string) $this->requestValue($request, 'minSalary', 'min_salary_offer', $jpf->min_salary_offer)) . ' - ' . trim((string) $this->requestValue($request, 'maxSalary', 'max_salary_offer', $jpf->max_salary_offer)),
+            'job_description'        => $this->requestValue($request, 'duties', 'job_description', $jpf->job_description),
+            'requirements'           => $this->requestValue($request, 'education', 'requirements', $jpf->requirements),
+            'status'                 => $this->normalizeJpfStatus($this->requestValue($request, 'status', 'status', $jpf->status), $approvalData, $jpf),
 
             'related_mrf_no'         => $mrf->request_id,
-            'date_opened'            => $request->dateOpened,
-            'hiring_status'          => $request->hiringStatus,
-            'company_name'           => $request->companyName,
-            'office_branch_site'     => $request->officeBranchSite,
-            'department_unit'        => $request->departmentUnit,
-            'hiring_manager'         => $request->hiringManager,
-            'department_superior'    => $request->departmentSuperior,
-            'no_of_vacancies'        => $request->noOfVacancies,
-            'position_level'         => $request->positionLevel,
-            'reports_to'             => $request->reportsTo,
-            'min_salary_offer'       => $request->minSalary,
-            'max_salary_offer'       => $request->maxSalary,
-            'salary_grade'           => $request->salaryGrade,
-            'applicable_region'      => $request->applicableRegion,
-            'applicable_area'        => $request->applicableArea,
-            'current_daily_min_wage' => $request->dailyMinWage,
-            'monthly_equivalent'     => $request->monthlyEquivalent,
-            'wage_compliance'        => $request->wageCompliance,
-            'benefits_package'       => $request->benefits,
-            'work_schedule'          => $request->workSchedule,
-            'rest_days'              => $request->restDays,
-            'education_req'          => $request->education,
-            'experience_req'         => $request->experience,
-            'skills_req'             => $request->skills,
-            'licenses_req'           => $request->licenses,
-            'preferred_qualifications' => $request->preferredQualifications,
-            'duties_responsibilities' => $request->duties,
-            'recruitment_channels'   => $request->channels,
-            'screening_flow'         => $request->screeningFlow,
-            'date_needed'            => $request->dateNeeded,
-            'posting_start_date'     => $request->postingStartDate,
-            'target_hire_date'       => $request->targetHireDate,
-            'human_capital_approval' => $this->buildJpfApprovalPayload($request->humanCapitalApproval, 'Human Capital', $jpf->human_capital_approval),
-            'hiring_manager_approval' => $this->buildJpfApprovalPayload($request->hiringManagerApproval, 'Hiring Manager', $jpf->hiring_manager_approval),
-            'finance_approval'       => $this->buildJpfApprovalPayload($request->financeApproval, 'Finance', $jpf->finance_approval),
-            'president_approval'     => $this->buildJpfApprovalPayload($request->presidentApproval, 'President / Final', $jpf->president_approval),
+            'date_opened'            => $this->requestValue($request, 'dateOpened', 'date_opened', $jpf->date_opened),
+            'hiring_status'          => $this->requestValue($request, 'hiringStatus', 'hiring_status', $jpf->hiring_status),
+            'company_name'           => $this->requestValue($request, 'companyName', 'company_name', $jpf->company_name),
+            'office_branch_site'     => $this->requestValue($request, 'officeBranchSite', 'office_branch_site', $jpf->office_branch_site),
+            'department_unit'        => $this->requestValue($request, 'departmentUnit', 'department_unit', $jpf->department_unit),
+            'hiring_manager'         => $this->requestValue($request, 'hiringManager', 'hiring_manager', $jpf->hiring_manager),
+            'department_superior'    => $this->requestValue($request, 'departmentSuperior', 'department_superior', $jpf->department_superior),
+            'no_of_vacancies'        => $this->requestValue($request, 'noOfVacancies', 'no_of_vacancies', $jpf->no_of_vacancies),
+            'position_level'         => $this->requestValue($request, 'positionLevel', 'position_level', $jpf->position_level),
+            'reports_to'             => $this->requestValue($request, 'reportsTo', 'reports_to', $jpf->reports_to),
+            'min_salary_offer'       => $this->requestValue($request, 'minSalary', 'min_salary_offer', $jpf->min_salary_offer),
+            'max_salary_offer'       => $this->requestValue($request, 'maxSalary', 'max_salary_offer', $jpf->max_salary_offer),
+            'salary_grade'           => $this->requestValue($request, 'salaryGrade', 'salary_grade', $jpf->salary_grade),
+            'applicable_region'      => $this->requestValue($request, 'applicableRegion', 'applicable_region', $jpf->applicable_region),
+            'applicable_area'        => $this->requestValue($request, 'applicableArea', 'applicable_area', $jpf->applicable_area),
+            'current_daily_min_wage' => $this->requestValue($request, 'dailyMinWage', 'current_daily_min_wage', $jpf->current_daily_min_wage),
+            'monthly_equivalent'     => $this->requestValue($request, 'monthlyEquivalent', 'monthly_equivalent', $jpf->monthly_equivalent),
+            'wage_compliance'        => $this->requestValue($request, 'wageCompliance', 'wage_compliance', $jpf->wage_compliance),
+            'benefits_package'       => $this->requestValue($request, 'benefits', 'benefits_package', $jpf->benefits_package),
+            'work_schedule'          => $this->requestValue($request, 'workSchedule', 'work_schedule', $jpf->work_schedule),
+            'rest_days'              => $this->requestValue($request, 'restDays', 'rest_days', $jpf->rest_days),
+            'education_req'          => $this->requestValue($request, 'education', 'education_req', $jpf->education_req),
+            'experience_req'         => $this->requestValue($request, 'experience', 'experience_req', $jpf->experience_req),
+            'skills_req'             => $this->requestValue($request, 'skills', 'skills_req', $jpf->skills_req),
+            'licenses_req'           => $this->requestValue($request, 'licenses', 'licenses_req', $jpf->licenses_req),
+            'preferred_qualifications' => $this->requestValue($request, 'preferredQualifications', 'preferred_qualifications', $jpf->preferred_qualifications),
+            'duties_responsibilities' => $this->requestValue($request, 'duties', 'duties_responsibilities', $jpf->duties_responsibilities),
+            'recruitment_channels'   => $this->requestValue($request, 'channels', 'recruitment_channels', $jpf->recruitment_channels),
+            'screening_flow'         => $this->requestValue($request, 'screeningFlow', 'screening_flow', $jpf->screening_flow),
+            'date_needed'            => $this->requestValue($request, 'dateNeeded', 'date_needed', $jpf->date_needed),
+            'posting_start_date'     => $this->requestValue($request, 'postingStartDate', 'posting_start_date', $jpf->posting_start_date),
+            'target_hire_date'       => $this->requestValue($request, 'targetHireDate', 'target_hire_date', $jpf->target_hire_date),
+            'posted_date'            => $this->requestValue($request, 'posted_date', 'posted_date', $jpf->posted_date),
+            'human_capital_approval' => $approvalData['human_capital_approval'],
+            'hiring_manager_approval' => $approvalData['hiring_manager_approval'],
+            'finance_approval'       => $approvalData['finance_approval'],
+            'president_approval'     => $approvalData['president_approval'],
         ];
+
         $jpf->update($data);
+        $jpf->refresh();
+
         return response()->json(['success' => true, 'data' => $jpf]);
     }
 
