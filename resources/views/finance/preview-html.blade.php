@@ -160,6 +160,16 @@
         .block {
             padding: 7px;
         }
+        .block-title {
+            margin: 0;
+            padding: 6px 8px;
+            background: var(--blue);
+            color: #fff;
+            text-transform: uppercase;
+            letter-spacing: .24em;
+            font-size: 8.5px;
+            font-weight: 700;
+        }
         .box {
             margin: 7px;
             border: 1px solid var(--border);
@@ -182,6 +192,23 @@
             text-decoration: none;
             color: #111827;
             margin-bottom: 10px;
+        }
+        .attachments strong,
+        .attachments span,
+        .attachments small {
+            display: block;
+            word-break: break-word;
+        }
+        .attachments span {
+            margin-top: 4px;
+            color: var(--blue);
+            font-size: 9px;
+            font-weight: 700;
+        }
+        .attachments small {
+            margin-top: 3px;
+            color: var(--muted);
+            font-size: 8px;
         }
         .attachments a:hover { background: #f9fafb; }
         .note-card {
@@ -1000,10 +1027,13 @@
 
         @if(count($attachments))
             <div class="box">
+                <div class="block-title">Attachments</div>
                 <div class="attachments">
                     @foreach($attachments as $attachment)
-                        <a href="{{ data_get($attachment, 'path') }}" target="_blank">
-                            {{ data_get($attachment, 'name') ?: data_get($attachment, 'path') ?: 'Attachment' }}
+                        <a href="{{ data_get($attachment, 'url') ?: data_get($attachment, 'path') }}" target="_blank">
+                            <strong>{{ data_get($attachment, 'name') ?: data_get($attachment, 'path') ?: 'Attachment' }}</strong>
+                            <span>{{ data_get($attachment, 'category') ?: 'Supporting Document' }}</span>
+                            <small>{{ data_get($attachment, 'path') }}</small>
                         </a>
                     @endforeach
                 </div>

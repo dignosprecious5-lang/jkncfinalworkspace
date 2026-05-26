@@ -6,166 +6,276 @@
     <title>Supplier Completion | JK&C INC.</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gradient-to-br from-slate-50 to-blue-50 min-h-screen">
-    <div class="max-w-5xl mx-auto px-4 py-10">
-        <div class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
-            <div class="px-6 py-5 border-b bg-gray-50 flex flex-col sm:flex-row sm:items-center gap-4">
+<body class="bg-slate-50 min-h-screen">
+@php
+    $data = $record['data'] ?? [];
+    $isCompleted = filled($record['supplier_completed_at'] ?? null);
+    $dataValue = fn ($key, $default = '') => old("data.$key", data_get($data, $key, $default));
+    $fieldClass = 'w-full rounded-md border border-gray-300 p-2 text-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100';
+    $entityOptions = ['Sole Proprietorship', 'Partnership', 'Corporation', 'One Person Corporation (OPC)', 'Cooperative', 'Freelancer / Individual Professional', 'Independent Contractor', 'Government Agency', 'Non-Profit Organization', 'Foreign Company', 'Others'];
+    $corporationTypes = ['Domestic Stock Corporation', 'Domestic Non-Stock Corporation', 'Close Corporation', 'Foreign Corporation', 'Branch Office', 'Representative Office', 'Regional Headquarters', 'Regional Operating Headquarters'];
+    $vatStatuses = ['VAT Registered', 'Non-VAT', 'Percentage Tax', 'Tax Exempt'];
+    $supplierCategories = ['Product Supplier', 'Service Provider', 'Contractor', 'Consultant', 'Marketing Agency', 'IT / Software Provider', 'Logistics Provider', 'Printing Supplier', 'Professional Services', 'Outsourcing Partner', 'Equipment Supplier', 'Office Supplies Supplier', 'Others'];
+    $paymentTerms = ['Cash on Delivery', 'Upon Order', 'Upon Completion', 'Weekly', 'Monthly', '7 Days', '15 Days', '30 Days', '45 Days', '60 Days', 'Progress Billing', 'Retainer-Based', 'Others'];
+    $paymentMethods = ['Bank Transfer', 'Check', 'Online Payment', 'Others'];
+    $idTypes = ['Passport', "Driver's License", 'National ID', 'PRC ID', 'Company ID', 'UMID', 'SSS ID', 'PhilHealth ID', "Voter's ID", 'Postal ID', 'Others'];
+    $attachmentRules = [
+        'Corporation' => ['SEC Certificate of Registration', 'BIR 2303 Certificate of Registration', "Mayor's Permit / Business Permit", 'Valid ID of Authorized Representative', 'Company Profile', 'Contract / Agreement'],
+        'One Person Corporation (OPC)' => ['SEC Certificate of Registration', 'BIR 2303 Certificate of Registration', "Mayor's Permit / Business Permit", 'Valid ID of Authorized Representative', 'Company Profile', 'Contract / Agreement'],
+        'Partnership' => ['SEC Certificate of Registration', 'BIR 2303 Certificate of Registration', "Mayor's Permit / Business Permit", 'Valid ID of Authorized Representative', 'Company Profile', 'Contract / Agreement'],
+        'Foreign Company' => ['SEC Certificate of Registration', 'BIR 2303 Certificate of Registration', "Mayor's Permit / Business Permit", 'Valid ID of Authorized Representative', 'Company Profile', 'Contract / Agreement'],
+        'Sole Proprietorship' => ['DTI Certificate of Registration', 'BIR 2303 Certificate of Registration', "Mayor's Permit / Business Permit", 'Valid ID of Owner / Authorized Representative', 'Business Profile / Company Profile', 'Contract / Agreement'],
+        'Cooperative' => ['CDA Certificate of Registration', 'BIR 2303 Certificate of Registration', "Mayor's Permit / Business Permit", 'Valid ID of Authorized Representative', 'Cooperative Profile', 'Contract / Agreement'],
+        'Freelancer / Individual Professional' => ['Resume', 'Valid Government ID', 'TIN / BIR Registration, if applicable', 'Resume / Portfolio, if applicable', 'Professional License, if applicable', 'Signed Contract / Agreement'],
+        'Independent Contractor' => ['Resume', 'Valid Government ID', 'TIN / BIR Registration, if applicable', 'Resume / Portfolio, if applicable', 'Professional License, if applicable', 'Signed Contract / Agreement'],
+        'Government Agency' => ['Agency Profile / Official Agency Information', 'Authorized Representative ID', 'Authority to Transact / Authorization Letter, if applicable', 'Contract / Agreement / Purchase Order'],
+        'Non-Profit Organization' => ['SEC Registration / Relevant Registration Certificate', 'BIR 2303 Certificate of Registration, if applicable', "Mayor's Permit / Business Permit, if applicable", 'Valid ID of Authorized Representative', 'Organization Profile', 'Contract / Agreement'],
+        'Others' => ['Valid Registration Document, if applicable', 'Valid ID of Authorized Representative', 'Supplier Profile', 'Contract / Agreement', 'Other supporting documents required by the Company'],
+    ];
+    $selectedCategories = old('data.supplier_category', data_get($data, 'supplier_category', []));
+    $selectedCategories = is_array($selectedCategories) ? $selectedCategories : array_filter(array_map('trim', explode(',', (string) $selectedCategories)));
+    $existingCategories = collect($record['attachments'] ?? [])->map(fn ($attachment) => $attachment['category'] ?? '')->filter()->values()->all();
+    $legalStatements = [
+        'legal_acknowledgment' => ['Legal Acknowledgment, Consent, and Electronic Signature', 'I acknowledge that by completing, submitting, and/or electronically signing this Supplier Completion Form, I am confirming that all information and documents submitted are true, correct, complete, authentic, and updated. I further certify that I am duly authorized to submit this form on behalf of the supplier, entity, organization, company, or individual identified herein.'],
+        'electronic_signature_consent' => ['Electronic Submission and Signature Consent', 'I agree that my submission of this form, including any typed name, uploaded signature, checked acknowledgment box, uploaded ID, email confirmation, or electronic submission, shall be treated as my valid signature and confirmation, pursuant to the Electronic Commerce Act of 2000, Republic Act No. 8792, which recognizes electronic documents and electronic signatures.'],
+        'data_privacy_consent' => ['Data Privacy Consent', 'I consent to the collection, use, processing, verification, storage, retention, and sharing of the submitted personal information, business information, and documents for supplier accreditation, due diligence, procurement, payment processing, compliance, audit, legal, security, and business purposes, in accordance with the Data Privacy Act of 2012, Republic Act No. 10173.'],
+        'confidentiality_undertaking' => ['Confidentiality and NDA Undertaking', 'I agree that all confidential, proprietary, client, operational, financial, technical, legal, business, and company information obtained from the Company shall remain strictly confidential and shall not be disclosed, copied, transferred, shared, or used without prior written authority from the Company.'],
+        'company_policy_compliance' => ['Compliance with Company Policies', 'I agree that the Supplier shall comply with all applicable laws, rules, regulations, contracts, procurement policies, internal procedures, company memoranda, confidentiality obligations, data privacy requirements, and lawful instructions issued by the Company.'],
+        'false_information_penalty' => ['Penalty for False Information', 'I understand that any false statement, concealment, misrepresentation, falsification, fraudulent document, or unauthorized submission may result in denial of accreditation, suspension, blacklisting, termination of engagement, withholding of payment, recovery of damages, and appropriate civil, criminal, administrative, or legal action, including liability for perjury or false testimony under applicable law. Article 183 of the Revised Penal Code covers false testimony in other cases and perjury in solemn affirmation.'],
+    ];
+@endphp
+
+    <div class="mx-auto max-w-6xl px-4 py-8">
+        <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+            <div class="flex flex-col gap-4 border-b bg-gray-50 px-6 py-5 sm:flex-row sm:items-center">
                 <img src="{{ asset('images/imaglogo.png') }}" alt="John Kelly & Company" class="h-14 w-auto object-contain">
                 <div>
                     <p class="text-xs uppercase tracking-[0.2em] text-gray-500">John Kelly &amp; Company</p>
-                    <h1 class="text-2xl font-semibold text-gray-900 mt-2">Supplier Completion Form</h1>
-                    <p class="text-sm text-gray-600 mt-2">Complete the remaining supplier information below and submit it back for internal review.</p>
+                    <h1 class="mt-2 text-2xl font-semibold text-gray-900">Supplier Completion Form</h1>
+                    <p class="mt-2 text-sm text-gray-600">Complete the supplier accreditation details and submit the required documents for internal review.</p>
                 </div>
             </div>
 
-            @if(session('success'))
-                <div class="mx-6 mt-6 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-green-700 text-sm">
-                    {{ session('success') }}
+            @if(session('success') || $isCompleted)
+                <div class="mx-6 mt-6 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+                    {{ session('success') ?: 'Supplier information has already been submitted and saved.' }}
                 </div>
             @endif
 
-            <form method="POST" action="{{ route('finance.supplier.completion.submit', $record['share_token'] ?? '') }}" enctype="multipart/form-data" class="px-6 py-6">
+            @if($errors->any())
+                <div class="mx-6 mt-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                    <p class="font-semibold">Please review the highlighted fields and submit again.</p>
+                    <ul class="mt-2 list-disc space-y-1 pl-5">
+                        @foreach($errors->all() as $error)
+                            <li>{{ $error }}</li>
+                        @endforeach
+                    </ul>
+                </div>
+            @endif
+
+            <form id="supplierCompletionForm" method="POST" action="{{ route('finance.supplier.completion.submit', $record['share_token'] ?? '') }}" enctype="multipart/form-data" class="space-y-8 px-6 py-6">
                 @csrf
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-sm font-medium mb-1">Supplier Code / ID</label>
-                        <input type="text" name="record_number" value="{{ old('record_number', $record['record_number'] ?? '') }}" class="w-full border rounded-md p-2 bg-gray-100" readonly>
-                        @error('record_number')
-                            <p class="text-xs text-red-600 mt-1">{{ $message }}</p>
-                        @enderror
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium mb-1">Business Name</label>
-                        <input type="text" name="record_title" value="{{ old('record_title', '') }}" class="w-full border rounded-md p-2" placeholder="Enter business name">
-                        @error('record_title')
-                            <p class="text-xs text-red-600 mt-1">{{ $message }}</p>
-                        @enderror
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium mb-1">Created Date</label>
-                        <input type="date" name="record_date" value="{{ old('record_date', $record['record_date'] ?? '') }}" class="w-full border rounded-md p-2 bg-gray-100" readonly>
-                        @error('record_date')
-                            <p class="text-xs text-red-600 mt-1">{{ $message }}</p>
-                        @enderror
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium mb-1">Completion Mode</label>
-                        <input type="text" value="Send to Supplier" class="w-full border rounded-md p-2 bg-gray-100" disabled>
-                    </div>
-                </div>
+                <fieldset class="space-y-8" @disabled($isCompleted)>
 
-                <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-sm font-medium mb-1">Trade Name</label>
-                        <input type="text" name="data[trade_name]" value="{{ old('data.trade_name', $record['data']['trade_name'] ?? '') }}" class="w-full border rounded-md p-2">
+                <section>
+                    <h2 class="text-base font-semibold text-gray-900">Business Registration</h2>
+                    <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+                        <div>
+                            <label class="mb-1 block text-sm font-medium">Supplier Code</label>
+                            <input type="text" name="record_number" value="{{ old('record_number', $record['record_number'] ?? '') }}" class="{{ $fieldClass }} bg-gray-100" readonly>
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-sm font-medium">Date Accomplished</label>
+                            <input type="date" name="record_date" value="{{ old('record_date', $record['record_date'] ?? now()->toDateString()) }}" class="{{ $fieldClass }}">
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-sm font-medium">Registered Business Name <span class="text-red-500">*</span></label>
+                            <input type="text" name="record_title" value="{{ old('record_title', $record['record_title'] ?? '') }}" class="{{ $fieldClass }}" required>
+                            @if($errors->first('record_title')) <p class="mt-1 text-xs text-red-600">{{ $errors->first('record_title') }}</p> @endif
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-sm font-medium">Trade Name / Brand Name</label>
+                            <input type="text" name="data[trade_name]" value="{{ $dataValue('trade_name') }}" class="{{ $fieldClass }}">
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-sm font-medium">Entity Type <span class="text-red-500">*</span></label>
+                            <select id="entityTypeInput" name="data[entity_type]" class="{{ $fieldClass }}" required>
+                                <option value="">Select entity type</option>
+                                @foreach($entityOptions as $option)
+                                    <option value="{{ $option }}" @selected($dataValue('entity_type') === $option)>{{ $option }}</option>
+                                @endforeach
+                            </select>
+                            @if($errors->first('data.entity_type')) <p class="mt-1 text-xs text-red-600">{{ $errors->first('data.entity_type') }}</p> @endif
+                        </div>
+                        <div id="entityTypeOtherWrap">
+                            <label class="mb-1 block text-sm font-medium">Specify Other Entity Type</label>
+                            <input type="text" name="data[entity_type_other]" value="{{ $dataValue('entity_type_other') }}" class="{{ $fieldClass }}">
+                        </div>
+                        <div id="corporationTypeWrap">
+                            <label class="mb-1 block text-sm font-medium">If Corporation, Specify Corporation Type</label>
+                            <select name="data[corporation_type]" class="{{ $fieldClass }}">
+                                <option value="">Select corporation type</option>
+                                @foreach($corporationTypes as $option)
+                                    <option value="{{ $option }}" @selected($dataValue('corporation_type') === $option)>{{ $option }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label id="registrationNumberLabel" class="mb-1 block text-sm font-medium">Registration Number</label>
+                            <input type="text" name="data[registration_number]" value="{{ $dataValue('registration_number') }}" class="{{ $fieldClass }}">
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-sm font-medium">Tax Identification Number (TIN)</label>
+                            <input type="text" name="data[tin]" value="{{ $dataValue('tin') }}" class="{{ $fieldClass }}">
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-sm font-medium">BIR TIN</label>
+                            <input type="text" name="data[bir_tin]" value="{{ $dataValue('bir_tin') }}" class="{{ $fieldClass }}">
+                        </div>
                     </div>
-                    <div>
-                        <label class="block text-sm font-medium mb-1">Supplier Type</label>
-                        <input type="text" name="data[supplier_type]" value="{{ old('data.supplier_type', $record['data']['supplier_type'] ?? '') }}" class="w-full border rounded-md p-2">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium mb-1">Representative Full Name</label>
-                        <input type="text" name="data[representative_full_name]" value="{{ old('data.representative_full_name', $record['data']['representative_full_name'] ?? '') }}" class="w-full border rounded-md p-2">
-                        @error('data.representative_full_name')
-                            <p class="text-xs text-red-600 mt-1">{{ $message }}</p>
-                        @enderror
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium mb-1">Designation</label>
-                        <input type="text" name="data[designation]" value="{{ old('data.designation', $record['data']['designation'] ?? '') }}" class="w-full border rounded-md p-2">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium mb-1">Email Address</label>
-                        <input type="email" name="data[email_address]" value="{{ old('data.email_address', $record['data']['email_address'] ?? '') }}" class="w-full border rounded-md p-2">
-                        @error('data.email_address')
-                            <p class="text-xs text-red-600 mt-1">{{ $message }}</p>
-                        @enderror
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium mb-1">Phone Number</label>
-                        <input type="text" name="data[phone_number]" value="{{ old('data.phone_number', $record['data']['phone_number'] ?? '') }}" class="w-full border rounded-md p-2">
-                        @error('data.phone_number')
-                            <p class="text-xs text-red-600 mt-1">{{ $message }}</p>
-                        @enderror
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium mb-1">Alternate Contact Number</label>
-                        <input type="text" name="data[alternate_contact_number]" value="{{ old('data.alternate_contact_number', $record['data']['alternate_contact_number'] ?? '') }}" class="w-full border rounded-md p-2">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium mb-1">TIN</label>
-                        <input type="text" name="data[tin]" value="{{ old('data.tin', $record['data']['tin'] ?? '') }}" class="w-full border rounded-md p-2">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium mb-1">VAT / Non-VAT</label>
-                        <select name="data[vat_status]" class="w-full border rounded-md p-2">
-                            <option value="">Select VAT status</option>
-                            <option value="VAT" @selected(old('data.vat_status', $record['data']['vat_status'] ?? '') === 'VAT')>VAT</option>
-                            <option value="Non-VAT" @selected(old('data.vat_status', $record['data']['vat_status'] ?? '') === 'Non-VAT')>Non-VAT</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium mb-1">Payment Terms</label>
-                        <input type="text" name="data[payment_terms]" value="{{ old('data.payment_terms', $record['data']['payment_terms'] ?? '') }}" class="w-full border rounded-md p-2">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium mb-1">Accreditation Status</label>
-                        <select name="data[accreditation_status]" class="w-full border rounded-md p-2">
-                            <option value="">Select status</option>
-                            <option value="Pending" @selected(old('data.accreditation_status', $record['data']['accreditation_status'] ?? '') === 'Pending')>Pending</option>
-                            <option value="For Accreditation" @selected(old('data.accreditation_status', $record['data']['accreditation_status'] ?? '') === 'For Accreditation')>For Accreditation</option>
-                            <option value="Accredited" @selected(old('data.accreditation_status', $record['data']['accreditation_status'] ?? '') === 'Accredited')>Accredited</option>
-                            <option value="Blacklisted" @selected(old('data.accreditation_status', $record['data']['accreditation_status'] ?? '') === 'Blacklisted')>Blacklisted</option>
-                        </select>
-                    </div>
-                    <div class="md:col-span-2">
-                        <label class="block text-sm font-medium mb-1">Business Address</label>
-                        <textarea name="data[business_address]" rows="3" class="w-full border rounded-md p-2">{{ old('data.business_address', $record['data']['business_address'] ?? '') }}</textarea>
-                    </div>
-                    <div class="md:col-span-2">
-                        <label class="block text-sm font-medium mb-1">Billing Address</label>
-                        <textarea name="data[billing_address]" rows="3" class="w-full border rounded-md p-2">{{ old('data.billing_address', $record['data']['billing_address'] ?? '') }}</textarea>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium mb-1">Bank Name</label>
-                        <input type="text" name="data[bank_name]" value="{{ old('data.bank_name', $record['data']['bank_name'] ?? '') }}" class="w-full border rounded-md p-2">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium mb-1">Bank Account Name</label>
-                        <input type="text" name="data[bank_account_name]" value="{{ old('data.bank_account_name', $record['data']['bank_account_name'] ?? '') }}" class="w-full border rounded-md p-2">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium mb-1">Bank Account Number</label>
-                        <input type="text" name="data[bank_account_number]" value="{{ old('data.bank_account_number', $record['data']['bank_account_number'] ?? '') }}" class="w-full border rounded-md p-2">
-                    </div>
-                    <div class="md:col-span-2">
-                        <label class="block text-sm font-medium mb-1">Remarks</label>
-                        <textarea name="data[remarks]" rows="3" class="w-full border rounded-md p-2">{{ old('data.remarks', $record['data']['remarks'] ?? '') }}</textarea>
-                    </div>
-                </div>
+                </section>
 
-                <div class="mt-6 rounded-lg border border-blue-100 bg-blue-50/40 p-4">
-                    <label class="block text-sm font-medium mb-1 text-blue-700">Attachments</label>
-                    <select name="attachment_category" class="mb-2 w-full border border-blue-200 rounded-md p-2 bg-white text-sm">
-                        <option value="Supporting Document">Supporting Document</option>
-                        <option value="Invoice">Invoice</option>
-                        <option value="OR">OR</option>
-                        <option value="DR">DR</option>
-                        <option value="Contract">Contract</option>
-                    </select>
-                    <input
-                        name="attachments[]"
-                        type="file"
-                        multiple
-                        class="w-full border border-blue-200 rounded-md p-2 bg-white"
-                    >
-                    <p class="mt-2 text-xs text-gray-500">Attach supplier documents such as permits, accreditation files, bank details, invoices, or supporting files.</p>
-                    @error('attachments.*')
-                        <p class="text-xs text-red-600 mt-1">{{ $message }}</p>
-                    @enderror
+                <section>
+                    <h2 class="text-base font-semibold text-gray-900">Business Details</h2>
+                    <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+                        <div>
+                            <label class="mb-1 block text-sm font-medium">VAT Status</label>
+                            <select name="data[vat_status]" class="{{ $fieldClass }}">
+                                <option value="">Select VAT status</option>
+                                @foreach($vatStatuses as $option)
+                                    <option value="{{ $option }}" @selected($dataValue('vat_status') === $option)>{{ $option }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-sm font-medium">Business Permit Number</label>
+                            <input type="text" name="data[business_permit_number]" value="{{ $dataValue('business_permit_number') }}" class="{{ $fieldClass }}">
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-sm font-medium">Permit Expiry Date</label>
+                            <input type="date" name="data[permit_expiry_date]" value="{{ $dataValue('permit_expiry_date') }}" class="{{ $fieldClass }}">
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-sm font-medium">Years in Operation</label>
+                            <input type="number" name="data[years_in_operation]" value="{{ $dataValue('years_in_operation') }}" class="{{ $fieldClass }}" min="0" step="1">
+                        </div>
+                        <div class="md:col-span-2">
+                            <label class="mb-1 block text-sm font-medium">Nature of Business</label>
+                            <textarea name="data[nature_of_business]" rows="3" class="{{ $fieldClass }}">{{ $dataValue('nature_of_business') }}</textarea>
+                        </div>
+                        <div class="md:col-span-2">
+                            <label class="mb-1 block text-sm font-medium">Products / Services Offered</label>
+                            <textarea name="data[products_services_offered]" rows="3" class="{{ $fieldClass }}">{{ $dataValue('products_services_offered') }}</textarea>
+                        </div>
+                        <div class="md:col-span-2">
+                            <label class="mb-2 block text-sm font-medium">Supplier Category</label>
+                            <div class="grid grid-cols-1 gap-2 md:grid-cols-3">
+                                @foreach($supplierCategories as $option)
+                                    <label class="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm">
+                                        <input type="checkbox" name="data[supplier_category][]" value="{{ $option }}" @checked(in_array($option, $selectedCategories, true)) class="rounded border-gray-300">
+                                        <span>{{ $option }}</span>
+                                    </label>
+                                @endforeach
+                            </div>
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-sm font-medium">Specify Other Supplier Category</label>
+                            <input type="text" name="data[supplier_category_other]" value="{{ $dataValue('supplier_category_other') }}" class="{{ $fieldClass }}">
+                        </div>
+                    </div>
+                </section>
+
+                <section>
+                    <h2 class="text-base font-semibold text-gray-900">Addresses and Contacts</h2>
+                    <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+                        @foreach([
+                            'registered_address' => 'Registered Address',
+                            'office_address' => 'Office Address',
+                            'warehouse_address' => 'Warehouse Address',
+                            'billing_address' => 'Billing Address',
+                        ] as $name => $label)
+                            <div class="md:col-span-2">
+                                <label class="mb-1 block text-sm font-medium">{{ $label }}</label>
+                                <textarea name="data[{{ $name }}]" rows="3" class="{{ $fieldClass }}">{{ $dataValue($name) }}</textarea>
+                            </div>
+                        @endforeach
+                        @foreach([
+                            'telephone_number' => ['Telephone Number', 'text'],
+                            'mobile_number' => ['Mobile Number', 'text'],
+                            'email_address' => ['Official Email Address', 'email'],
+                            'website_social_media' => ['Website / Social Media', 'text'],
+                            'representative_full_name' => ['Authorized Representative Full Name', 'text'],
+                            'designation' => ['Authorized Representative Position / Designation', 'text'],
+                            'phone_number' => ['Authorized Representative Mobile Number', 'text'],
+                            'representative_email_address' => ['Authorized Representative Email Address', 'email'],
+                            'accounting_contact_person' => ['Accounting Contact Person', 'text'],
+                            'accounting_contact_number' => ['Accounting Contact Number', 'text'],
+                            'accounting_email_address' => ['Accounting Email Address', 'email'],
+                        ] as $name => [$label, $type])
+                            <div>
+                                <label class="mb-1 block text-sm font-medium">{{ $label }} @if(in_array($name, ['email_address', 'representative_full_name', 'phone_number'], true))<span class="text-red-500">*</span>@endif</label>
+                                <input type="{{ $type }}" name="data[{{ $name }}]" value="{{ $dataValue($name) }}" class="{{ $fieldClass }}" @if(in_array($name, ['email_address', 'representative_full_name', 'phone_number'], true)) required @endif>
+                                @if($errors->first('data.'.$name)) <p class="mt-1 text-xs text-red-600">{{ $errors->first('data.'.$name) }}</p> @endif
+                            </div>
+                        @endforeach
+                    </div>
+                </section>
+
+                <section>
+                    <h2 class="text-base font-semibold text-gray-900">Payment and Banking</h2>
+                    <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+                        <div>
+                            <label class="mb-1 block text-sm font-medium">Payment Terms</label>
+                            <select name="data[payment_terms]" class="{{ $fieldClass }}">
+                                <option value="">Select payment terms</option>
+                                @foreach($paymentTerms as $option)
+                                    <option value="{{ $option }}" @selected($dataValue('payment_terms') === $option)>{{ $option }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-sm font-medium">Specify Other Payment Terms</label>
+                            <input type="text" name="data[payment_terms_other]" value="{{ $dataValue('payment_terms_other') }}" class="{{ $fieldClass }}">
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-sm font-medium">Preferred Payment Method</label>
+                            <select id="paymentMethodInput" name="data[preferred_payment_method]" class="{{ $fieldClass }}">
+                                <option value="">Select payment method</option>
+                                @foreach($paymentMethods as $option)
+                                    <option value="{{ $option }}" @selected($dataValue('preferred_payment_method') === $option)>{{ $option }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div id="onlinePaymentWrap">
+                            <label class="mb-1 block text-sm font-medium">Online Payment Details</label>
+                            <input type="text" name="data[online_payment_details]" value="{{ $dataValue('online_payment_details') }}" class="{{ $fieldClass }}">
+                        </div>
+                        <div id="paymentMethodOtherWrap">
+                            <label class="mb-1 block text-sm font-medium">Specify Other Payment Method</label>
+                            <input type="text" name="data[preferred_payment_method_other]" value="{{ $dataValue('preferred_payment_method_other') }}" class="{{ $fieldClass }}">
+                        </div>
+                        @foreach([
+                            'bank_name' => 'Bank Name',
+                            'bank_branch' => 'Bank Branch',
+                            'bank_account_name' => 'Bank Account Name',
+                            'bank_account_number' => 'Bank Account Number',
+                            'swift_code' => 'Swift Code',
+                        ] as $name => $label)
+                            <div>
+                                <label class="mb-1 block text-sm font-medium">{{ $label }}</label>
+                                <input type="text" name="data[{{ $name }}]" value="{{ $dataValue($name) }}" class="{{ $fieldClass }}">
+                            </div>
+                        @endforeach
+                    </div>
+                </section>
+
+                <section class="rounded-lg border border-blue-100 bg-blue-50/40 p-4">
+                    <h2 class="text-base font-semibold text-blue-900">Required Attachments</h2>
+                    <p class="mt-1 text-xs text-gray-600">The required uploads change based on the selected entity type. Each document has a separate file upload field.</p>
+                    <div id="requiredAttachmentFields" class="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2"></div>
 
                     @if(!empty($record['attachments']))
-                        <div class="mt-4 space-y-2">
+                        <div class="mt-5 space-y-2">
                             <p class="text-xs font-semibold uppercase tracking-[0.2em] text-gray-500">Uploaded Files</p>
                             @foreach($record['attachments'] as $attachment)
                                 <a href="{{ $attachment['url'] ?? '#' }}" target="_blank" class="flex items-center justify-between gap-3 rounded-md border border-blue-100 bg-white px-3 py-2 text-sm hover:bg-blue-50">
@@ -175,18 +285,154 @@
                             @endforeach
                         </div>
                     @endif
-                </div>
+                </section>
 
-                <div class="mt-8 flex items-center justify-between gap-4">
-                    <div class="text-sm text-gray-500">
-                        Supplier-facing completion page for the Finance Operations module.
+                <section>
+                    <h2 class="text-base font-semibold text-gray-900">Acknowledgment and Signature</h2>
+                    <div class="mt-4 space-y-3">
+                        @foreach($legalStatements as $name => [$title, $statement])
+                            <div class="rounded-lg border border-gray-200 p-3">
+                                <label class="flex items-start gap-3">
+                                    <input type="checkbox" name="data[{{ $name }}]" value="1" @checked(old('data.'.$name, data_get($data, $name)) == 1) class="mt-1 rounded border-gray-300" required>
+                                    <span>
+                                        <span class="block text-sm font-semibold text-gray-900">{{ $title }} <span class="text-red-500">*</span></span>
+                                        <span class="mt-1 block text-sm leading-6 text-gray-700">{{ $statement }}</span>
+                                    </span>
+                                </label>
+                                @if($errors->first('data.'.$name)) <p class="mt-1 text-xs text-red-600">{{ $errors->first('data.'.$name) }}</p> @endif
+                            </div>
+                        @endforeach
                     </div>
-                    <button type="submit" class="bg-blue-600 text-white px-5 py-2 rounded-md hover:bg-blue-700 transition">
-                        Submit Completion
+
+                    <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+                        <div>
+                            <label class="mb-1 block text-sm font-medium">Person Accomplishing the Form Full Name</label>
+                            <input type="text" name="data[person_accomplishing_full_name]" value="{{ $dataValue('person_accomplishing_full_name') }}" class="{{ $fieldClass }}">
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-sm font-medium">Position / Designation</label>
+                            <input type="text" name="data[person_accomplishing_position]" value="{{ $dataValue('person_accomplishing_position') }}" class="{{ $fieldClass }}">
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-sm font-medium">ID Type</label>
+                            <select name="data[id_type]" class="{{ $fieldClass }}">
+                                <option value="">Select ID type</option>
+                                @foreach($idTypes as $option)
+                                    <option value="{{ $option }}" @selected($dataValue('id_type') === $option)>{{ $option }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-sm font-medium">Specify Other ID Type</label>
+                            <input type="text" name="data[id_type_other]" value="{{ $dataValue('id_type_other') }}" class="{{ $fieldClass }}">
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-sm font-medium">ID Number</label>
+                            <input type="text" name="data[id_number]" value="{{ $dataValue('id_number') }}" class="{{ $fieldClass }}">
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-sm font-medium">Date Signed</label>
+                            <input type="text" name="data[date_signed]" value="{{ old('data.date_signed', now()->format('Y-m-d H:i')) }}" class="{{ $fieldClass }} bg-gray-100" readonly>
+                        </div>
+                    </div>
+                </section>
+
+                <div class="flex items-center justify-between gap-4 border-t pt-5">
+                    <p class="text-sm text-gray-500">Supplier-facing completion page for the Finance Operations module.</p>
+                    <button id="supplierCompletionSubmit" type="submit" class="rounded-md px-5 py-2 text-white transition {{ $isCompleted ? 'cursor-not-allowed bg-gray-400' : 'bg-blue-600 hover:bg-blue-700' }}">
+                        {{ $isCompleted ? 'Submitted' : 'Submit Completion' }}
                     </button>
                 </div>
+                </fieldset>
             </form>
         </div>
     </div>
+
+    <script>
+        const attachmentRules = @js($attachmentRules);
+        const existingCategories = @js($existingCategories);
+        const entityTypeInput = document.getElementById('entityTypeInput');
+        const paymentMethodInput = document.getElementById('paymentMethodInput');
+        const attachmentTarget = document.getElementById('requiredAttachmentFields');
+
+        function attachmentSlug(label) {
+            return String(label || '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+        }
+
+        function setWrapVisibility(id, show) {
+            const wrap = document.getElementById(id);
+            if (!wrap) return;
+            wrap.classList.toggle('hidden', !show);
+            wrap.querySelectorAll('input, select, textarea').forEach((input) => {
+                input.disabled = !show;
+            });
+        }
+
+        function registrationLabel(entityType) {
+            if (['Corporation', 'One Person Corporation (OPC)', 'Partnership', 'Foreign Company', 'Non-Profit Organization'].includes(entityType)) {
+                return 'SEC Registration No.';
+            }
+            if (entityType === 'Sole Proprietorship') return 'DTI Registration No.';
+            if (entityType === 'Cooperative') return 'CDA Registration No.';
+            if (['Freelancer / Individual Professional', 'Independent Contractor'].includes(entityType)) return 'Professional License No.';
+            if (entityType === 'Government Agency') return 'Government ID No.';
+            return 'Registration Number';
+        }
+
+        function syncConditionalFields() {
+            const entityType = entityTypeInput?.value || '';
+            const paymentMethod = paymentMethodInput?.value || '';
+            const registrationNumberLabel = document.getElementById('registrationNumberLabel');
+            setWrapVisibility('corporationTypeWrap', ['Corporation', 'One Person Corporation (OPC)', 'Foreign Company'].includes(entityType));
+            setWrapVisibility('entityTypeOtherWrap', entityType === 'Others');
+            setWrapVisibility('onlinePaymentWrap', paymentMethod === 'Online Payment');
+            setWrapVisibility('paymentMethodOtherWrap', paymentMethod === 'Others');
+            if (registrationNumberLabel) {
+                registrationNumberLabel.textContent = registrationLabel(entityType);
+            }
+        }
+
+        function renderAttachmentFields() {
+            if (!attachmentTarget) return;
+            const labels = attachmentRules[entityTypeInput?.value || ''] || [];
+            attachmentTarget.innerHTML = labels.length
+                ? labels.map((label) => {
+                    const slug = attachmentSlug(label);
+                    const uploaded = existingCategories.includes(label);
+                    return `
+                        <div class="rounded-lg border border-blue-100 bg-white p-3">
+                            <label class="block text-sm font-medium text-gray-900">${label}${uploaded ? ' <span class="text-xs font-normal text-green-600">(uploaded)</span>' : ''}</label>
+                            <input type="hidden" name="attachment_labels[${slug}]" value="${label}">
+                            <input type="file" name="attachments[${slug}]" class="mt-2 w-full rounded-md border border-blue-200 bg-blue-50 p-2 text-sm">
+                        </div>
+                    `;
+                }).join('')
+                : '<p class="text-sm text-gray-500 md:col-span-2">Select an entity type to show the required document uploads.</p>';
+        }
+
+        entityTypeInput?.addEventListener('change', () => {
+            syncConditionalFields();
+            renderAttachmentFields();
+        });
+        paymentMethodInput?.addEventListener('change', syncConditionalFields);
+        syncConditionalFields();
+        renderAttachmentFields();
+
+        document.getElementById('supplierCompletionForm')?.addEventListener('submit', (event) => {
+            const form = event.currentTarget;
+            if (!form.checkValidity()) return;
+
+            const submitButton = document.getElementById('supplierCompletionSubmit');
+            if (!submitButton || submitButton.disabled) {
+                event.preventDefault();
+                return;
+            }
+
+            submitButton.disabled = true;
+            submitButton.classList.remove('bg-blue-600', 'hover:bg-blue-700');
+            submitButton.classList.add('cursor-not-allowed', 'bg-gray-400');
+            submitButton.textContent = 'Submitting...';
+        });
+    </script>
 </body>
 </html>
