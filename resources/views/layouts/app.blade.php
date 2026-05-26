@@ -684,11 +684,6 @@
                                class="block px-3 py-2 rounded-lg transition {{ request()->is('human-capital/offboarding') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
                                 OffBoarding
                             </a>
-
-                            <a href="{{ route('homepage.public') }}"
-                               class="block px-3 py-2 rounded-lg transition {{ request()->is('careers') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
-                                Careers / Homepage
-                            </a>
                         @endif
                     </div>
                 </div>

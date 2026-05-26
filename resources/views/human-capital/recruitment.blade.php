@@ -95,14 +95,14 @@
             Download CSV
         </button>
         <div x-show="activeTab === 'CAF'" class="flex items-center gap-1 bg-blue-50 border border-blue-200 rounded-lg p-0.5">
-            <a href="{{ route('careers.apply') }}" target="_blank" 
+            <a href="{{ route('homepage.public') }}" target="_blank"
                 class="flex items-center gap-2 px-4 py-2 text-sm text-blue-700 hover:bg-blue-100/50 rounded-md transition font-bold">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
                 Open Careers Page
             </a>
             <div class="w-px h-6 bg-blue-200 mx-0.5"></div>
             <button type="button" 
-                @click="navigator.clipboard.writeText('{{ route('careers.apply') }}'); linkCopied = true; setTimeout(() => linkCopied = false, 2000)"
+                @click="navigator.clipboard.writeText('{{ route('homepage.public') }}'); linkCopied = true; setTimeout(() => linkCopied = false, 2000)"
                 class="flex items-center gap-2 px-4 py-2 text-sm text-blue-700 hover:bg-blue-100/50 rounded-md transition font-bold relative">
                 <svg x-show="!linkCopied" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/></svg>
                 <svg x-show="linkCopied" class="w-4 h-4 text-green-600" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg>

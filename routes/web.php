@@ -208,10 +208,8 @@ $adminOrSuperAdmin = \App\Http\Middleware\AdminOrSuperAdmin::class;
 |--------------------------------------------------------------------------
 */
 
-Route::get('/careers', function () {
-    return view('human-capital.homepage_public');
-})->name('homepage.public');
-
+Route::get('/careers', [RecruitmentController::class, 'showPublicCareersPage'])->name('homepage.public');
+Route::get('/careers/job/{id}', [RecruitmentController::class, 'showJobDetail'])->name('careers.job-detail');
 Route::get('/careers/apply', [RecruitmentController::class, 'showPublicApplicationForm'])->name('careers.apply');
 Route::post('/careers/apply', [RecruitmentController::class, 'storeCAF'])->name('careers.apply.submit');
 Route::get('/careers/pds/{token?}', [RecruitmentController::class, 'showPublicPDSForm'])->name('careers.pds');

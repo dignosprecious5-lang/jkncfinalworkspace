@@ -171,7 +171,13 @@
                             </div>
                             <h2 class="text-4xl font-black text-gray-900 uppercase tracking-tighter mb-6">Application Successful!</h2>
                             <p class="text-gray-500 font-medium text-lg mb-12 leading-relaxed">Thank you for applying. Your profile is now being reviewed by our Talent Acquisition team. We will reach out via email or phone soon.</p>
-                            <button @click="resetForm()" class="px-12 py-4 bg-gray-900 text-white rounded-full font-black uppercase tracking-widest text-xs hover:shadow-2xl hover:scale-105 active:scale-95 transition-all">Understood</button>
+                            <div class="flex gap-4 justify-center">
+                                <button @click="resetForm()" class="px-12 py-4 bg-gray-900 text-white rounded-full font-black uppercase tracking-widest text-xs hover:shadow-2xl hover:scale-105 active:scale-95 transition-all">Continue</button>
+                                <a href="{{ route('homepage.public') }}" class="px-12 py-4 bg-blue-600 text-white rounded-full font-black uppercase tracking-widest text-xs hover:shadow-2xl hover:scale-105 active:scale-95 transition-all inline-flex items-center gap-2">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+                                    Back to Careers
+                                </a>
+                            </div>
                         </div>
                     </div>
                 </div>

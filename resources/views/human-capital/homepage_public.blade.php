@@ -488,25 +488,12 @@
                 </a>
             </div>
             <div class="nav-menu">
-                <a href="#home">Home</a>
                 <a href="#careers">Careers</a>
             </div>
         </div>
     </nav>
 
-    <!-- Hero Section -->
-    <section id="home" class="hero-section">
-        <div class="hero-content">
-            <h1>Build Your Career with Purpose</h1>
-            <p>
-                At John Kelly & Company (JKNC), we don't just offer jobs — we build careers.
-                <br>
-                Join a consulting firm that empowers businesses and transforms visions across industries.
-                <br>
-                Grow your expertise in corporate governance, finance, HR, and business strategy while shaping the future of organizations.
-            </p>
-        </div>
-    </section>
+
 
     <!-- Careers Section -->
     <section id="careers">
@@ -518,51 +505,25 @@
             </div>
 
             <div class="jobs-grid">
-                <!-- Job Card 1 -->
+                @forelse($jobPostings as $job)
                 <div class="job-card">
-                    <span class="job-badge">Available</span>
-                    <h3>Senior Consultant</h3>
-                    <p>We're looking for an experienced consultant to join our corporate governance team. Work on strategic projects and help our clients achieve their business objectives.</p>
+                    <span class="job-badge">{{ $job->status }}</span>
+                    <h3>{{ $job->position_name }}</h3>
+                    <p>{{ Str::limit($job->job_description, 150) }}</p>
                     <div class="job-location">
                         <svg fill="currentColor" viewBox="0 0 20 20">
                             <path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"></path>
                         </svg>
-                        Metro Manila, Philippines
+                        {{ $job->applicable_area ?? 'Location TBA' }}
                     </div>
-                    <button class="btn btn-apply">Apply Now</button>
+                    <a href="{{ route('careers.job-detail', ['id' => $job->id]) }}" class="btn btn-apply">Apply Now</a>
                 </div>
-
-                <!-- Job Card 2 -->
-                <div class="job-card">
-                    <span class="job-badge">Available</span>
-                    <h3>Finance Manager</h3>
-                    <p>Join our finance team and help drive strategic financial decisions for our clients. Manage complex projects and lead cross-functional teams.</p>
-                    <div class="job-location">
-                        <svg fill="currentColor" viewBox="0 0 20 20">
-                            <path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"></path>
-                        </svg>
-                        Metro Manila, Philippines
-                    </div>
-                    <button class="btn btn-apply">Apply Now</button>
+                @empty
+                <div style="grid-column: 1 / -1; text-align: center; padding: 3rem; color: #6b7280;">
+                    <p style="font-size: 1.125rem; margin-bottom: 1rem;">No job openings available at this time.</p>
+                    <p>Please check back soon for new opportunities!</p>
                 </div>
-
-                <!-- Job Card 3 -->
-                <div class="job-card">
-                    <span class="job-badge">Available</span>
-                    <h3>HR Specialist</h3>
-                    <p>Build and strengthen our HR team to support our growing organization. Lead talent acquisition, development, and retention initiatives.</p>
-                    <div class="job-location">
-                        <svg fill="currentColor" viewBox="0 0 20 20">
-                            <path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"></path>
-                        </svg>
-                        Metro Manila, Philippines
-                    </div>
-                    <button class="btn btn-apply">Apply Now</button>
-                </div>
-            </div>
-
-            <div class="view-all-btn">
-                <a href="{{ route('careers.apply') }}" class="btn btn-primary">View All Positions</a>
+                @endforelse
             </div>
         </div>
     </section>
