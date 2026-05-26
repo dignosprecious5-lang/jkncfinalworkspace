@@ -5862,12 +5862,76 @@ onJpfPayrollLevelChange() {
                 return;
             }
 
+            const mrfId = row.mrf_id || row.mrfId || row.mrf?.id || '';
+            const relatedMrfNo = row.related_mrf_no || row.relatedMrfNo || '';
+
+            if (!mrfId && !relatedMrfNo) {
+                alert('This JPF has no linked approved MRF. Please edit the JPF and select an approved MRF first.');
+                return;
+            }
+
             if (!confirm('Post this approved JPF to the public Careers page?')) {
                 return;
             }
 
             const payload = {
                 ...row,
+
+                // Important:
+                // updateJPF expects camelCase form keys, while the table row from the database uses snake_case.
+                // These mappings prevent the controller from thinking the MRF is missing and also prevent fields from being wiped.
+                mrfId: mrfId,
+                relatedMrfNo: relatedMrfNo,
+
+                orgAddressId: row.address_id || '',
+                orgBranchId: row.branch_id || '',
+                orgOfficeId: row.office_id || '',
+                orgDepartmentId: row.department_id || '',
+                orgDivisionId: row.division_id || '',
+                orgUnitId: row.unit_id || '',
+                orgPositionId: row.position_id || '',
+                salaryGradeId: row.salary_grade_id || '',
+
+                employmentType: row.employment_type || '',
+                workLocation: row.location || '',
+                minSalary: row.min_salary_offer || '',
+                maxSalary: row.max_salary_offer || '',
+                dateOpened: row.date_opened || '',
+                hiringStatus: row.hiring_status || '',
+                companyName: row.company_name || '',
+                officeBranchSite: row.office_branch_site || '',
+                departmentUnit: row.department_unit || '',
+                hiringManager: row.hiring_manager || '',
+                departmentSuperior: row.department_superior || '',
+                noOfVacancies: row.no_of_vacancies || '',
+                positionLevel: row.position_level || '',
+                reportsTo: row.reports_to || '',
+                salaryGrade: row.salary_grade || '',
+                applicableRegion: row.applicable_region || '',
+                applicableArea: row.applicable_area || '',
+                dailyMinWage: row.current_daily_min_wage || '',
+                monthlyEquivalent: row.monthly_equivalent || '',
+                wageCompliance: row.wage_compliance || [],
+                benefits: row.benefits_package || [],
+                workSchedule: row.work_schedule || [],
+                restDays: row.rest_days || '',
+                education: row.education_req || row.requirements || '',
+                experience: row.experience_req || '',
+                skills: row.skills_req || '',
+                licenses: row.licenses_req || '',
+                preferredQualifications: row.preferred_qualifications || '',
+                duties: row.duties_responsibilities || row.job_description || '',
+                channels: row.recruitment_channels || [],
+                screeningFlow: row.screening_flow || [],
+                dateNeeded: row.date_needed || '',
+                postingStartDate: row.posting_start_date || '',
+                targetHireDate: row.target_hire_date || '',
+
+                humanCapitalApproval: row.human_capital_approval || {},
+                hiringManagerApproval: row.hiring_manager_approval || {},
+                financeApproval: row.finance_approval || {},
+                presidentApproval: row.president_approval || {},
+
                 status: 'Posted',
                 posted_date: row.posted_date || new Date().toISOString().slice(0, 10)
             };

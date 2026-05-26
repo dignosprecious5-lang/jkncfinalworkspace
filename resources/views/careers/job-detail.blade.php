@@ -3,549 +3,645 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{{ $job->position_name }} - John Kelly & Company</title>
-    
+    <title>{{ $job->position ?: 'Job Opening' }} | John Kelly &amp; Company</title>
+
     <link rel="shortcut icon" href="{{ asset('images/jknc_logo.png') }}">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        html {
-            scroll-behavior: smooth;
-        }
-
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        html { scroll-behavior: smooth; }
         body {
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #ffffff;
+            color: #111827;
             line-height: 1.6;
-            color: #1f2937;
-            background: #f9fafb;
+        }
+        a { color: inherit; text-decoration: none; }
+
+        :root {
+            --brand: #2563eb;
+            --brand-dark: #1e3a8a;
+            --brand-soft: #eff6ff;
+            --ink: #0f172a;
+            --muted: #64748b;
+            --line: #dbe3ef;
         }
 
-        /* Navigation */
-        nav {
+        .topbar {
             position: sticky;
             top: 0;
-            z-index: 1000;
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            box-shadow: 0 2px 20px rgba(0, 0, 0, 0.08);
+            z-index: 50;
+            background: rgba(255, 255, 255, .97);
+            border-bottom: 1px solid #e5e7eb;
+            box-shadow: 0 1px 8px rgba(15, 23, 42, .04);
         }
 
-        .nav-container {
-            max-width: 1280px;
+        .nav {
+            width: min(1120px, calc(100% - 32px));
+            min-height: 72px;
             margin: 0 auto;
-            padding: 0 2rem;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            height: 80px;
+            gap: 20px;
         }
 
-        .logo img {
-            height: 50px;
-            width: auto;
+        .brand {
+            display: inline-flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .brand img {
+            width: 48px;
+            height: 48px;
             object-fit: contain;
+        }
+
+        .brand-text strong {
+            display: block;
+            color: var(--ink);
+            font-size: 15px;
+            font-weight: 900;
+            letter-spacing: -.03em;
+            line-height: 1.1;
+        }
+
+        .brand-text span {
+            display: block;
+            margin-top: 3px;
+            color: var(--brand);
+            font-size: 10px;
+            font-weight: 900;
+            letter-spacing: .22em;
+            text-transform: uppercase;
         }
 
         .nav-actions {
             display: flex;
-            gap: 1rem;
             align-items: center;
-        }
-
-        .nav-btn {
-            padding: 0.75rem 1.5rem;
-            border: 2px solid #2563eb;
-            background: transparent;
-            color: #2563eb;
-            border-radius: 8px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            text-decoration: none;
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .nav-btn:hover {
-            background: #2563eb;
-            color: white;
-        }
-
-        /* Main Container */
-        .container {
-            max-width: 1000px;
-            margin: 0 auto;
-            padding: 0 2rem;
-        }
-
-        main {
-            padding: 4rem 2rem;
-        }
-
-        /* Breadcrumb */
-        .breadcrumb {
-            display: flex;
-            gap: 0.5rem;
-            align-items: center;
-            margin-bottom: 2rem;
-            color: #6b7280;
-            font-size: 0.9rem;
-        }
-
-        .breadcrumb a {
-            color: #2563eb;
-            text-decoration: none;
-            transition: color 0.3s ease;
-        }
-
-        .breadcrumb a:hover {
-            color: #1e40af;
-            text-decoration: underline;
-        }
-
-        /* Header */
-        .job-header {
-            background: white;
-            border-radius: 16px;
-            padding: 3rem;
-            margin-bottom: 2rem;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
-            border: 1px solid #f0f0f0;
-        }
-
-        .job-header h1 {
-            font-size: 2.5rem;
+            gap: 12px;
+            font-size: 14px;
             font-weight: 800;
-            color: #1f2937;
-            margin-bottom: 1rem;
-            line-height: 1.1;
         }
 
-        .job-meta {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 2rem;
-            margin-top: 2rem;
-            padding-top: 2rem;
-            border-top: 1px solid #e5e7eb;
+        .nav-actions a:first-child {
+            color: #334155;
         }
 
-        .meta-item {
-            display: flex;
-            flex-direction: column;
+        .nav-actions a:first-child:hover {
+            color: var(--brand);
         }
 
-        .meta-label {
-            font-size: 0.875rem;
-            font-weight: 600;
-            color: #6b7280;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 0.5rem;
-        }
-
-        .meta-value {
-            font-size: 1.125rem;
-            font-weight: 700;
-            color: #1f2937;
-        }
-
-        .status-badge {
-            display: inline-block;
-            background: linear-gradient(135deg, #dbeafe, #bfdbfe);
-            color: #1e40af;
-            padding: 0.75rem 1.5rem;
-            border-radius: 8px;
-            font-weight: 600;
-            font-size: 0.875rem;
-            margin-bottom: 1rem;
-            width: fit-content;
-        }
-
-        /* Content Sections */
-        .section {
-            background: white;
-            border-radius: 16px;
-            padding: 2.5rem;
-            margin-bottom: 2rem;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
-            border: 1px solid #f0f0f0;
-        }
-
-        .section h2 {
-            font-size: 1.75rem;
-            font-weight: 700;
-            color: #1f2937;
-            margin-bottom: 1.5rem;
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-        }
-
-        .section h2::before {
-            content: '';
-            display: inline-block;
-            width: 4px;
-            height: 24px;
-            background: linear-gradient(135deg, #2563eb, #1e40af);
-            border-radius: 2px;
-        }
-
-        .section-content {
-            color: #4b5563;
-            line-height: 1.8;
-        }
-
-        .section-content p {
-            margin-bottom: 1.5rem;
-        }
-
-        .section-content ul {
-            list-style: none;
-            padding-left: 0;
-        }
-
-        .section-content li {
-            display: flex;
-            align-items: flex-start;
-            gap: 1rem;
-            margin-bottom: 1rem;
-            padding-left: 1.5rem;
-        }
-
-        .section-content li::before {
-            content: '✓';
-            display: inline-block;
-            color: #2563eb;
-            font-weight: 800;
-            font-size: 1.25rem;
-            flex-shrink: 0;
-            margin-left: -1.5rem;
-        }
-
-        .section-content strong {
-            color: #1f2937;
-        }
-
-        /* Action Buttons */
-        .action-buttons {
-            display: flex;
-            gap: 1rem;
-            flex-wrap: wrap;
-            margin-top: 3rem;
-            padding-top: 2rem;
-            border-top: 1px solid #e5e7eb;
-        }
-
-        .btn {
-            padding: 1rem 2rem;
-            border: none;
-            border-radius: 8px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            font-size: 1rem;
-            text-decoration: none;
+        .outline-btn {
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            gap: 0.75rem;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
+            min-height: 42px;
+            padding: 0 18px;
+            border: 1.5px solid var(--brand);
+            color: var(--brand);
+            border-radius: 10px;
+            background: #fff;
+            font-weight: 900;
         }
 
-        .btn-apply {
-            background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
-            color: white;
-            flex: 1;
-            min-width: 200px;
+        .outline-btn:hover { background: var(--brand-soft); }
+
+        .subnav {
+            border-bottom: 1px solid #e5e7eb;
+            background: #fff;
         }
 
-        .btn-apply:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 12px 30px rgba(37, 99, 235, 0.35);
+        .subnav-inner {
+            width: min(1120px, calc(100% - 32px));
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 14px;
+            padding: 12px 0;
+            color: #334155;
+            font-size: 13px;
+            font-weight: 800;
+            overflow-x: auto;
         }
 
-        .btn-back {
-            background: transparent;
-            color: #2563eb;
-            border: 2px solid #2563eb;
-            flex: 1;
-            min-width: 200px;
+        .subnav-links {
+            display: flex;
+            align-items: center;
+            gap: 22px;
+            white-space: nowrap;
         }
 
-        .btn-back:hover {
-            background: #2563eb;
-            color: white;
+        .subnav-links .active {
+            color: var(--brand);
+            border-bottom: 2px solid var(--brand);
+            padding-bottom: 4px;
         }
 
-        /* Responsive */
-        @media (max-width: 768px) {
-            .nav-container {
-                padding: 0 1rem;
-                height: 70px;
-            }
+        .search-jobs { color: var(--brand); white-space: nowrap; }
 
-            .logo img {
-                height: 40px;
-            }
-
-            main {
-                padding: 2rem 1rem;
-            }
-
-            .job-header {
-                padding: 2rem;
-            }
-
-            .job-header h1 {
-                font-size: 1.75rem;
-            }
-
-            .section {
-                padding: 1.5rem;
-            }
-
-            .section h2 {
-                font-size: 1.25rem;
-            }
-
-            .job-meta {
-                gap: 1.5rem;
-            }
-
-            .action-buttons {
-                flex-direction: column;
-            }
-
-            .btn {
-                width: 100%;
-            }
+        .page {
+            width: min(1120px, calc(100% - 32px));
+            margin: 0 auto;
+            padding: 28px 0 70px;
         }
 
-        /* Icon Styles */
-        .icon {
-            width: 20px;
-            height: 20px;
-            display: inline-block;
+        .breadcrumb {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--muted);
+            font-size: 13px;
+            margin-bottom: 20px;
+        }
+
+        .breadcrumb a { color: var(--brand); font-weight: 700; }
+
+        .job-layout {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 280px;
+            gap: 38px;
+            align-items: start;
+        }
+
+        .main-content { max-width: 760px; }
+
+        .back-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            border: 1px solid #bfdbfe;
+            color: var(--brand);
+            background: #fff;
+            padding: 7px 12px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 800;
+            margin-bottom: 14px;
+        }
+
+        .back-btn:hover { background: var(--brand-soft); }
+
+        .job-company-logo {
+            width: 118px;
+            height: 78px;
+            object-fit: contain;
+            object-position: left center;
+            margin-bottom: 16px;
+        }
+
+        .job-title {
+            color: #020617;
+            font-size: clamp(27px, 4vw, 38px);
+            line-height: 1.08;
+            font-weight: 900;
+            letter-spacing: -.045em;
+            max-width: 720px;
+            margin-bottom: 13px;
+        }
+
+        .job-highlights {
+            display: grid;
+            gap: 7px;
+            margin: 12px 0 12px;
+            color: #334155;
+            font-size: 15px;
+        }
+
+        .highlight-row {
+            display: flex;
+            align-items: center;
+            gap: 9px;
+        }
+
+        .dot {
+            width: 9px;
+            height: 9px;
+            border-radius: 999px;
+            flex: 0 0 auto;
+        }
+
+        .dot-blue { background: var(--brand); }
+        .dot-sky { background: #38bdf8; }
+        .dot-green { background: #16a34a; }
+
+        .company-name {
+            margin: 12px 0 8px;
+            color: var(--brand);
+            font-size: 17px;
+            font-weight: 900;
+        }
+
+        .badges {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 17px;
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            border: 1px solid #bfdbfe;
+            background: #dbeafe;
+            color: #1d4ed8;
+            padding: 6px 10px;
+            border-radius: 7px;
+            font-size: 12px;
+            font-weight: 800;
+        }
+
+        .location-line {
+            display: flex;
+            gap: 8px;
+            align-items: start;
+            color: #111827;
+            font-size: 15px;
+            margin: 14px 0 18px;
+        }
+
+        .posted-line {
+            color: #334155;
+            font-size: 14px;
+            margin-bottom: 22px;
+        }
+
+        .posted-line strong { color: #111827; }
+
+        .apply-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            min-height: 44px;
+            padding: 0 20px;
+            border: 0;
+            border-radius: 8px;
+            background: linear-gradient(135deg, #2563eb, #1d4ed8);
+            color: #fff;
+            font-size: 14px;
+            font-weight: 900;
+            box-shadow: 0 10px 24px rgba(37, 99, 235, .22);
+        }
+
+        .apply-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 14px 30px rgba(37, 99, 235, .28);
+        }
+
+        .details-section {
+            margin-top: 42px;
+            margin-bottom: 36px;
+        }
+
+        .details-section h2,
+        .details-section h3 {
+            color: #020617;
+            font-weight: 900;
+            letter-spacing: -.025em;
+        }
+
+        .details-section h2 {
+            font-size: 22px;
+            border-bottom: 1px solid #cbd5e1;
+            padding-bottom: 9px;
+            margin-bottom: 22px;
+        }
+
+        .details-section h3 {
+            font-size: 17px;
+            margin-bottom: 14px;
+        }
+
+        .body-text {
+            color: #111827;
+            font-size: 15.5px;
+            line-height: 1.8;
+            white-space: pre-line;
+        }
+
+        .body-text p { margin-bottom: 16px; }
+        .body-text ul { margin: 10px 0 18px 22px; }
+        .body-text li { margin-bottom: 7px; }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 9px 34px;
+            margin-top: 10px;
+            font-size: 14px;
+        }
+
+        .info-row {
+            display: grid;
+            grid-template-columns: 112px minmax(0, 1fr);
+            gap: 12px;
+            align-items: start;
+        }
+
+        .info-row strong { color: #020617; font-weight: 900; }
+        .info-row span { color: #334155; }
+
+        .side-panel {
+            position: sticky;
+            top: 102px;
+            border-left: 1px solid #e5e7eb;
+            padding-left: 26px;
+            color: #334155;
+        }
+
+        .side-panel h3 {
+            color: #020617;
+            font-size: 17px;
+            line-height: 1.35;
+            font-weight: 900;
+            margin-bottom: 10px;
+        }
+
+        .side-panel p {
+            color: var(--muted);
+            font-size: 14px;
+            margin-bottom: 16px;
+        }
+
+        .side-panel .apply-btn,
+        .side-panel .outline-btn {
+            width: 100%;
+            margin-bottom: 10px;
+        }
+
+        .side-list {
+            border-top: 1px solid #e5e7eb;
+            margin-top: 16px;
+            padding-top: 16px;
+            display: grid;
+            gap: 10px;
+            font-size: 13px;
+        }
+
+        .side-list div {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        .side-list strong { color: #64748b; }
+        .side-list span { color: #0f172a; font-weight: 800; text-align: right; }
+
+        .footer {
+            border-top: 1px solid #e5e7eb;
+            background: #f8fafc;
+            padding: 22px 0;
+            color: #64748b;
+            font-size: 13px;
+        }
+
+        .footer-inner {
+            width: min(1120px, calc(100% - 32px));
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        .footer strong { color: var(--brand); }
+
+        .mobile-apply { display: none; }
+
+        @media (max-width: 980px) {
+            .job-layout { grid-template-columns: 1fr; }
+            .side-panel { position: static; border-left: 0; border-top: 1px solid #e5e7eb; padding-left: 0; padding-top: 24px; }
+            .main-content { max-width: none; }
+        }
+
+        @media (max-width: 640px) {
+            .brand-text { display: none; }
+            .nav { min-height: 64px; }
+            .nav-actions a:first-child { display: none; }
+            .subnav-links { gap: 14px; }
+            .page { width: calc(100% - 24px); }
+            .job-company-logo { width: 92px; height: 62px; }
+            .info-grid { grid-template-columns: 1fr; }
+            .info-row { grid-template-columns: 105px minmax(0, 1fr); }
+            .mobile-apply {
+                display: block;
+                position: sticky;
+                bottom: 0;
+                z-index: 40;
+                padding: 12px;
+                background: #fff;
+                border-top: 1px solid #e5e7eb;
+            }
+            .mobile-apply .apply-btn { width: 100%; }
+        }
+
+        @media print {
+            .topbar, .subnav, .side-panel, .mobile-apply, .footer, .back-btn { display: none !important; }
+            .page { width: 100%; padding: 0; }
+            .job-layout { display: block; }
+            body { background: white; }
         }
     </style>
 </head>
-
 <body>
-    <!-- Navigation Bar -->
-    <nav>
-        <div class="nav-container">
-            <div class="logo">
-                <a href="{{ route('homepage.public') }}">
-                    <img src="{{ asset('images/jknc_logo.png') }}" alt="JKNC Logo">
-                </a>
+@php
+    $title = $job->position ?: 'Job Opening';
+    $location = $job->location ?: $job->office_branch_site ?: $job->applicable_area ?: 'Location TBA';
+    $department = $job->department_unit ?: $job->department ?: 'Department TBA';
+    $description = $job->job_description ?: $job->duties_responsibilities ?: 'No job description has been added yet.';
+    $requirements = $job->requirements ?: $job->education_req ?: null;
+    $postedDate = $job->posted_date ? optional($job->posted_date)->format('M d, Y') : (optional($job->posting_start_date)->format('M d, Y') ?: 'Recently posted');
+
+    $salary = null;
+    if (!empty($job->min_salary_offer) || !empty($job->max_salary_offer)) {
+        $min = $job->min_salary_offer ? '₱' . number_format((float) $job->min_salary_offer, 0) : null;
+        $max = $job->max_salary_offer ? '₱' . number_format((float) $job->max_salary_offer, 0) : null;
+        $salary = trim(($min ?: '') . (($min && $max) ? ' - ' : '') . ($max ?: ''));
+    }
+
+    $benefits = is_array($job->benefits_package) ? array_values(array_filter($job->benefits_package)) : [];
+    $workSchedule = is_array($job->work_schedule) ? array_values(array_filter($job->work_schedule)) : [];
+    $applyUrl = route('careers.apply') . '?job_id=' . $job->id;
+@endphp
+
+<header class="topbar">
+    <div class="nav">
+        <a href="{{ route('homepage.public') }}" class="brand">
+            <img src="{{ asset('images/jknc_logo.png') }}" onerror="this.src='{{ asset('images/imaglogo.png') }}'" alt="John Kelly &amp; Company Logo">
+            <div class="brand-text">
+                <strong>John Kelly &amp; Company</strong>
+                <span>Careers Portal</span>
             </div>
-            <div class="nav-actions">
-                <a href="{{ route('homepage.public') }}" class="nav-btn">
-                    <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
-                    </svg>
-                    Back to Careers
-                </a>
-            </div>
+        </a>
+        <div class="nav-actions">
+            <a href="{{ route('homepage.public') }}#openings">Search Jobs</a>
+            <a href="{{ route('careers.apply') }}" class="outline-btn">Submit Application</a>
         </div>
-    </nav>
+    </div>
+</header>
 
-    <main>
-        <div class="container">
-            <!-- Breadcrumb -->
-            <div class="breadcrumb">
-                <a href="{{ route('homepage.public') }}">Careers</a>
-                <span>/</span>
-                <span>{{ $job->position_name }}</span>
+<div class="subnav">
+    <div class="subnav-inner">
+        <div class="subnav-links">
+            <span class="active">Job Details</span>
+            <span>{{ $job->employment_type ?: 'Open Role' }}</span>
+            <span>{{ $department }}</span>
+        </div>
+        <a href="{{ route('homepage.public') }}#openings" class="search-jobs">⌕ Search Jobs</a>
+    </div>
+</div>
+
+<main class="page">
+    <a href="{{ route('homepage.public') }}#openings" class="back-btn">‹ Back</a>
+
+    <div class="breadcrumb">
+        <a href="{{ route('homepage.public') }}#openings">Careers</a>
+        <span>/</span>
+        <span>{{ $title }}</span>
+    </div>
+
+    <div class="job-layout">
+        <section class="main-content">
+
+            <img src="{{ asset('images/jknc_logo.png') }}" onerror="this.src='{{ asset('images/imaglogo.png') }}'" alt="John Kelly &amp; Company" class="job-company-logo">
+
+            <h1 class="job-title">{{ $title }}</h1>
+
+            <div class="job-highlights">
+                @if($job->no_of_vacancies)
+                    <div class="highlight-row"><span class="dot dot-blue"></span>{{ $job->no_of_vacancies }} Open {{ ((int) $job->no_of_vacancies) > 1 ? 'Positions' : 'Position' }}</div>
+                @endif
+                @if($job->employment_type)
+                    <div class="highlight-row"><span class="dot dot-sky"></span>{{ $job->employment_type }}</div>
+                @endif
+                <div class="highlight-row"><span class="dot dot-green"></span>Structured role with practical business experience</div>
             </div>
 
-            <!-- Job Header -->
-            <div class="job-header">
-                <span class="status-badge">{{ $job->status }}</span>
-                <h1>{{ $job->position_name }}</h1>
-                
-                <div class="job-meta">
-                    @if($job->applicable_area)
-                    <div class="meta-item">
-                        <span class="meta-label">Location</span>
-                        <span class="meta-value">{{ $job->applicable_area }}</span>
-                    </div>
-                    @endif
+            <div class="company-name">John Kelly &amp; Company</div>
 
-                    @if($job->employment_type)
-                    <div class="meta-item">
-                        <span class="meta-label">Employment Type</span>
-                        <span class="meta-value">{{ $job->employment_type }}</span>
-                    </div>
-                    @endif
+            <div class="badges">
+                @if($job->job_id)<span class="badge">Job ID: {{ $job->job_id }}</span>@endif
+                <span class="badge">Posted: {{ $postedDate }}</span>
+                @if($salary)<span class="badge">{{ $salary }}</span>@endif
+            </div>
 
-                    @if($job->date_needed)
-                    <div class="meta-item">
-                        <span class="meta-label">Start Date</span>
-                        <span class="meta-value">{{ $job->date_needed->format('M d, Y') }}</span>
-                    </div>
-                    @endif
+            <div class="location-line">📍 <span>{{ $location }}</span></div>
 
-                    @if($job->salaryGrade)
-                    <div class="meta-item">
-                        <span class="meta-label">Salary Grade</span>
-                        <span class="meta-value">{{ $job->salaryGrade->salary_grade_name ?? 'Competitive' }}</span>
-                    </div>
-                    @endif
+            <div class="posted-line">
+                <div>Posted On: <strong>{{ $postedDate }}</strong></div>
+                @if($job->job_id)<div>Job ID: {{ $job->job_id }}</div>@endif
+            </div>
+
+            <a href="{{ $applyUrl }}" class="apply-btn">Apply Now ↗</a>
+
+            <div class="details-section">
+                <h2>Details</h2>
+                <div class="body-text">
+                    <p><strong>John Kelly &amp; Company</strong> is looking for a qualified candidate for the <strong>{{ $title }}</strong> position.</p>
+                    <p>{!! nl2br(e($description)) !!}</p>
                 </div>
             </div>
 
-            <!-- Job Description -->
-            @if($job->job_description)
-            <div class="section">
-                <h2>Job Description</h2>
-                <div class="section-content">
-                    {!! nl2br(e($job->job_description)) !!}
+            @if($job->duties_responsibilities && $job->duties_responsibilities !== $job->job_description)
+                <div class="details-section">
+                    <h3>Responsibilities</h3>
+                    <div class="body-text">{!! nl2br(e($job->duties_responsibilities)) !!}</div>
                 </div>
-            </div>
             @endif
 
-            <!-- Responsibilities -->
-            @if($job->job_responsibilities)
-            <div class="section">
-                <h2>Key Responsibilities</h2>
-                <div class="section-content">
-                    {!! nl2br(e($job->job_responsibilities)) !!}
+            @if($requirements || $job->experience_req || $job->skills_req || $job->licenses_req || $job->preferred_qualifications)
+                <div class="details-section">
+                    <h3>Qualifications</h3>
+                    <div class="body-text">
+                        <ul>
+                            @if($requirements)<li>{{ $requirements }}</li>@endif
+                            @if($job->experience_req)<li>{{ $job->experience_req }}</li>@endif
+                            @if($job->skills_req)<li>{{ $job->skills_req }}</li>@endif
+                            @if($job->licenses_req)<li>{{ $job->licenses_req }}</li>@endif
+                            @if($job->preferred_qualifications)<li>{{ $job->preferred_qualifications }}</li>@endif
+                        </ul>
+                    </div>
                 </div>
-            </div>
             @endif
 
-            <!-- Requirements -->
-            @if($job->job_requirements)
-            <div class="section">
-                <h2>Requirements</h2>
-                <div class="section-content">
-                    {!! nl2br(e($job->job_requirements)) !!}
+            <div class="details-section">
+                <h3>Job Information</h3>
+                <div class="info-grid">
+                    <div class="info-row"><strong>Location:</strong><span>{{ $location }}</span></div>
+                    <div class="info-row"><strong>Department:</strong><span>{{ $department }}</span></div>
+                    <div class="info-row"><strong>Type:</strong><span>{{ $job->employment_type ?: 'TBA' }}</span></div>
+                    <div class="info-row"><strong>Vacancies:</strong><span>{{ $job->no_of_vacancies ?: '—' }}</span></div>
+                    <div class="info-row"><strong>Salary:</strong><span>{{ $salary ?: 'Competitive' }}</span></div>
+                    <div class="info-row"><strong>Target Hire:</strong><span>{{ $job->target_hire_date ? optional($job->target_hire_date)->format('M d, Y') : '—' }}</span></div>
                 </div>
             </div>
-            @endif
 
-            <!-- Qualifications -->
-            @if($job->job_qualifications)
-            <div class="section">
-                <h2>Qualifications</h2>
-                <div class="section-content">
-                    {!! nl2br(e($job->job_qualifications)) !!}
-                </div>
-            </div>
-            @endif
-
-            <!-- Benefits -->
-            @if($job->benefits_package && is_array($job->benefits_package))
-            <div class="section">
-                <h2>Benefits Package</h2>
-                <div class="section-content">
-                    <ul>
-                        @foreach($job->benefits_package as $benefit)
-                            @if(is_string($benefit))
+            @if(count($benefits))
+                <div class="details-section">
+                    <h3>What’s in it for you?</h3>
+                    <div class="body-text">
+                        <ul>
+                            @foreach($benefits as $benefit)
                                 <li>{{ $benefit }}</li>
-                            @endif
-                        @endforeach
-                    </ul>
+                            @endforeach
+                        </ul>
+                    </div>
                 </div>
-            </div>
             @endif
 
-            <!-- Work Schedule -->
-            @if($job->work_schedule && is_array($job->work_schedule))
-            <div class="section">
-                <h2>Work Schedule</h2>
-                <div class="section-content">
-                    <ul>
-                        @foreach($job->work_schedule as $schedule)
-                            @if(is_string($schedule))
-                                <li>{{ $schedule }}</li>
-                            @endif
-                        @endforeach
-                    </ul>
+            @if(count($workSchedule) || $job->rest_days)
+                <div class="details-section">
+                    <h3>Work Schedule</h3>
+                    <div class="body-text">
+                        @if(count($workSchedule))
+                            <ul>
+                                @foreach($workSchedule as $schedule)
+                                    <li>{{ $schedule }}</li>
+                                @endforeach
+                            </ul>
+                        @endif
+                        @if($job->rest_days)<p><strong>Rest Days:</strong> {{ $job->rest_days }}</p>@endif
+                    </div>
                 </div>
-            </div>
             @endif
 
-            <!-- Additional Information -->
-            <div class="section">
-                <h2>Additional Information</h2>
-                <div class="section-content">
-                    @if($job->departmentRecord)
-                        <p><strong>Department:</strong> {{ $job->departmentRecord->department_name ?? 'N/A' }}</p>
-                    @endif
-                    
-                    @if($job->office)
-                        <p><strong>Office:</strong> {{ $job->office->office_name ?? 'N/A' }}</p>
-                    @endif
-
-                    @if($job->posting_start_date)
-                        <p><strong>Posting Start Date:</strong> {{ $job->posting_start_date->format('M d, Y') }}</p>
-                    @endif
-
-                    @if($job->target_hire_date)
-                        <p><strong>Target Hire Date:</strong> {{ $job->target_hire_date->format('M d, Y') }}</p>
-                    @endif
-                </div>
-
-                <!-- Action Buttons -->
-                <div class="action-buttons">
-                    <a href="{{ route('careers.apply', ['job_id' => $job->id]) }}" class="btn btn-apply">
-                        <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
-                        </svg>
-                        Apply Now
-                    </a>
-                    <a href="{{ route('homepage.public') }}" class="btn btn-back">
-                        <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
-                        </svg>
-                        Back to Careers
-                    </a>
-                </div>
+            <div class="details-section">
+                <a href="{{ $applyUrl }}" class="apply-btn">Apply Now ↗</a>
             </div>
-        </div>
-    </main>
+        </section>
 
-    <script>
-        // Optional: Add scroll animations
-        document.addEventListener('DOMContentLoaded', function() {
-            const sections = document.querySelectorAll('.section');
-            const observer = new IntersectionObserver((entries) => {
-                entries.forEach(entry => {
-                    if (entry.isIntersecting) {
-                        entry.target.style.animation = 'fadeIn 0.6s ease-out';
-                    }
-                });
-            }, { threshold: 0.1 });
+        <aside class="side-panel">
+            <h3>Interested in this role?</h3>
+            <p>Review the details and submit your application through the online form.</p>
+            <a href="{{ $applyUrl }}" class="apply-btn">Apply Now</a>
+            <a href="{{ route('homepage.public') }}#openings" class="outline-btn">View Other Jobs</a>
 
-            sections.forEach(section => observer.observe(section));
-        });
+            <div class="side-list">
+                @if($job->job_id)<div><strong>Job ID</strong><span>{{ $job->job_id }}</span></div>@endif
+                <div><strong>Status</strong><span>{{ $job->status ?: 'Posted' }}</span></div>
+                <div><strong>Vacancies</strong><span>{{ $job->no_of_vacancies ?: '—' }}</span></div>
+                <div><strong>Salary</strong><span>{{ $salary ?: 'Competitive' }}</span></div>
+                <div><strong>Target Hire</strong><span>{{ $job->target_hire_date ? optional($job->target_hire_date)->format('M d, Y') : '—' }}</span></div>
+            </div>
+        </aside>
+    </div>
+</main>
 
-        // Add fade-in animation
-        const style = document.createElement('style');
-        style.textContent = `
-            @keyframes fadeIn {
-                from {
-                    opacity: 0;
-                    transform: translateY(20px);
-                }
-                to {
-                    opacity: 1;
-                    transform: translateY(0);
-                }
-            }
-        `;
-        document.head.appendChild(style);
-    </script>
+<footer class="footer">
+    <div class="footer-inner">
+        <span><strong>JK&amp;C Careers Portal</strong></span>
+        <span>John Kelly &amp; Company</span>
+    </div>
+</footer>
+
+<div class="mobile-apply">
+    <a href="{{ $applyUrl }}" class="apply-btn">Apply Now ↗</a>
+</div>
 </body>
 </html>
