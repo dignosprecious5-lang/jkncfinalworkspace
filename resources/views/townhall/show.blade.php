@@ -4,7 +4,48 @@
 @section('content')
 <div class="bg-[#f5f6f8] min-h-screen p-6">
 
+    <div class="max-w-[1400px] mx-auto flex gap-6">
 
+        {{-- LEFT SIDE --}}
+        <div id="ack-scroll-container" class="w-[70%] h-[calc(100vh-80px)] overflow-y-auto pr-2">
+
+            {{-- TOP ACTIONS --}}
+            <div class="mb-4 flex justify-between items-center">
+                <a href="{{ route('townhall') }}"
+                   class="border border-gray-300 px-4 py-2 rounded-lg text-sm hover:bg-gray-100">
+                    ← Back
+                </a>
+
+                <div class="flex items-center gap-2">
+                    @if($communication->approval_status === 'Approved')
+                        <a href="{{ route('townhall.download.pdf', $communication->id) }}"
+                           class="inline-flex items-center gap-2 rounded-lg bg-red-600 hover:bg-red-700 text-white px-4 py-2 text-sm shadow">
+                            <i class="fas fa-file-pdf"></i>
+                            Download PDF
+                        </a>
+                    @endif
+
+                    @if(
+                        $communication->approval_status === 'Needs Revision' &&
+                        $communication->created_by === Auth::id() &&
+                        Auth::user()->hasPermission('create_townhall')
+                    )
+                        <a href="{{ route('townhall.edit', $communication->id) }}"
+                           class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm shadow">
+                            Edit Revision
+                        </a>
+                    @endif
+                </div>
+            </div>
+
+            @if(
+                $communication->approval_status === 'Needs Revision' &&
+                $communication->approval_notes
+            )
+                <div class="mb-4 rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">
+                    <span class="font-semibold">Revision Note:</span> {{ $communication->approval_notes }}
+                </div>
+            @endif
 
             {{-- MEMO --}}
             <div class="memo-page">
