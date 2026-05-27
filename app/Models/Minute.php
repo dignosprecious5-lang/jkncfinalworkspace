@@ -28,6 +28,13 @@ class Minute extends Model
         'meeting_no',
         'chairman',
         'secretary',
+
+        // Attendees / attendance section
+        'directors_present',
+        'directors_absent',
+        'secretariat',
+        'guests',
+
         'document_path',
         'approved_minutes_path',
         'tentative_audio_path',

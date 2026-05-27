@@ -242,6 +242,99 @@
                         <label class="text-xs text-gray-600">Secretary</label>
                         <input type="text" name="secretary" x-ref="secretary" class="mt-1 block w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2 text-sm">
                     </div>
+
+                    <div class="md:col-span-2 rounded-xl border border-gray-200 bg-gray-50 p-4">
+                        <div class="flex items-start justify-between gap-3">
+                            <div>
+                                <div class="text-sm font-semibold text-gray-900">Attendees</div>
+                                <div class="mt-1 text-xs text-gray-500">Add each attendee using separate Name and Position/Role fields. You can add as many rows as needed.</div>
+                            </div>
+                        </div>
+
+                        <input type="hidden" name="directors_present" x-ref="directorsPresentInput">
+                        <input type="hidden" name="directors_absent" x-ref="directorsAbsentInput">
+                        <input type="hidden" name="secretariat" x-ref="secretariatInput">
+                        <input type="hidden" name="guests" x-ref="guestsInput">
+
+                        <div class="mt-4 space-y-5">
+                            <div class="rounded-xl border border-gray-200 bg-white p-4">
+                                <div class="flex items-center justify-between gap-3">
+                                    <div>
+                                        <div class="text-xs font-semibold uppercase tracking-wide text-gray-700">Directors Present</div>
+                                        <div class="mt-1 text-xs text-gray-500">Example: John Kelly D. Abalde — President / Chief Executive Officer</div>
+                                    </div>
+                                    <button type="button" @click="addAttendee('directors_present')" class="rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700">+ Add</button>
+                                </div>
+                                <div class="mt-3 space-y-2">
+                                    <template x-for="(person, index) in attendees.directors_present" :key="`directors-present-${index}`">
+                                        <div class="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2">
+                                            <input type="text" x-model="person.name" class="rounded-md border border-gray-300 px-3 py-2 text-sm" placeholder="Name">
+                                            <input type="text" x-model="person.position" class="rounded-md border border-gray-300 px-3 py-2 text-sm" placeholder="Position">
+                                            <button type="button" @click="removeAttendee('directors_present', index)" class="rounded-md border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50" x-show="attendees.directors_present.length > 1">Remove</button>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+
+                            <div class="rounded-xl border border-gray-200 bg-white p-4">
+                                <div class="flex items-center justify-between gap-3">
+                                    <div>
+                                        <div class="text-xs font-semibold uppercase tracking-wide text-gray-700">Directors Absent</div>
+                                        <div class="mt-1 text-xs text-gray-500">Leave blank if there are no absent directors.</div>
+                                    </div>
+                                    <button type="button" @click="addAttendee('directors_absent')" class="rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700">+ Add</button>
+                                </div>
+                                <div class="mt-3 space-y-2">
+                                    <template x-for="(person, index) in attendees.directors_absent" :key="`directors-absent-${index}`">
+                                        <div class="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2">
+                                            <input type="text" x-model="person.name" class="rounded-md border border-gray-300 px-3 py-2 text-sm" placeholder="Name">
+                                            <input type="text" x-model="person.position" class="rounded-md border border-gray-300 px-3 py-2 text-sm" placeholder="Position">
+                                            <button type="button" @click="removeAttendee('directors_absent', index)" class="rounded-md border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50" x-show="attendees.directors_absent.length > 1">Remove</button>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+
+                            <div class="rounded-xl border border-gray-200 bg-white p-4">
+                                <div class="flex items-center justify-between gap-3">
+                                    <div>
+                                        <div class="text-xs font-semibold uppercase tracking-wide text-gray-700">Secretariat</div>
+                                        <div class="mt-1 text-xs text-gray-500">Example: Angelie Avenido — Secretariat / Minutes-Taker</div>
+                                    </div>
+                                    <button type="button" @click="addAttendee('secretariat')" class="rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700">+ Add</button>
+                                </div>
+                                <div class="mt-3 space-y-2">
+                                    <template x-for="(person, index) in attendees.secretariat" :key="`secretariat-${index}`">
+                                        <div class="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2">
+                                            <input type="text" x-model="person.name" class="rounded-md border border-gray-300 px-3 py-2 text-sm" placeholder="Name">
+                                            <input type="text" x-model="person.position" class="rounded-md border border-gray-300 px-3 py-2 text-sm" placeholder="Role">
+                                            <button type="button" @click="removeAttendee('secretariat', index)" class="rounded-md border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50" x-show="attendees.secretariat.length > 1">Remove</button>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+
+                            <div class="rounded-xl border border-gray-200 bg-white p-4">
+                                <div class="flex items-center justify-between gap-3">
+                                    <div>
+                                        <div class="text-xs font-semibold uppercase tracking-wide text-gray-700">Guests</div>
+                                        <div class="mt-1 text-xs text-gray-500">Leave blank if there are no guests.</div>
+                                    </div>
+                                    <button type="button" @click="addAttendee('guests')" class="rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700">+ Add</button>
+                                </div>
+                                <div class="mt-3 space-y-2">
+                                    <template x-for="(person, index) in attendees.guests" :key="`guests-${index}`">
+                                        <div class="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2">
+                                            <input type="text" x-model="person.name" class="rounded-md border border-gray-300 px-3 py-2 text-sm" placeholder="Name">
+                                            <input type="text" x-model="person.position" class="rounded-md border border-gray-300 px-3 py-2 text-sm" placeholder="Role">
+                                            <button type="button" @click="removeAttendee('guests', index)" class="rounded-md border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50" x-show="attendees.guests.length > 1">Remove</button>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <div>
                         <label class="text-xs text-gray-600">Upload Minutes (PDF)</label>
                         <input type="file" name="document_path" accept="application/pdf" class="mt-1 block w-full text-sm text-gray-600 file:mr-4 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-blue-600 file:text-white hover:file:bg-blue-700">
@@ -306,6 +399,12 @@
             initialMinutesRef,
             selectedNoticeId: '',
             minutesBodyHtml: '',
+            attendees: {
+                directors_present: [{ name: '', position: '' }],
+                directors_absent: [{ name: '', position: '' }],
+                secretariat: [{ name: '', position: '' }],
+                guests: [{ name: '', position: '' }],
+            },
             get hasNotices() {
                 return this.notices.length > 0;
             },
@@ -336,6 +435,62 @@
                     if (this.$refs.recordingNotesInput) {
                         this.$refs.recordingNotesInput.value = '';
                     }
+                    this.resetAttendees();
+                    this.syncAttendees();
+                });
+            },
+            emptyAttendeeRow() {
+                return { name: '', position: '' };
+            },
+            resetAttendees() {
+                this.attendees = {
+                    directors_present: [this.emptyAttendeeRow()],
+                    directors_absent: [this.emptyAttendeeRow()],
+                    secretariat: [this.emptyAttendeeRow()],
+                    guests: [this.emptyAttendeeRow()],
+                };
+            },
+            addAttendee(group) {
+                if (!this.attendees[group]) {
+                    return;
+                }
+
+                this.attendees[group].push(this.emptyAttendeeRow());
+                this.$nextTick(() => this.syncAttendees());
+            },
+            removeAttendee(group, index) {
+                if (!this.attendees[group]) {
+                    return;
+                }
+
+                this.attendees[group].splice(index, 1);
+
+                if (!this.attendees[group].length) {
+                    this.attendees[group].push(this.emptyAttendeeRow());
+                }
+
+                this.$nextTick(() => this.syncAttendees());
+            },
+            cleanAttendees(group) {
+                return (this.attendees[group] || [])
+                    .map((person) => ({
+                        name: String(person.name || '').trim(),
+                        position: String(person.position || '').trim(),
+                    }))
+                    .filter((person) => person.name !== '' || person.position !== '');
+            },
+            syncAttendees() {
+                const mapping = {
+                    directors_present: 'directorsPresentInput',
+                    directors_absent: 'directorsAbsentInput',
+                    secretariat: 'secretariatInput',
+                    guests: 'guestsInput',
+                };
+
+                Object.entries(mapping).forEach(([group, refName]) => {
+                    if (this.$refs[refName]) {
+                        this.$refs[refName].value = JSON.stringify(this.cleanAttendees(group));
+                    }
                 });
             },
             normalizeEditorHtml(html) {
@@ -361,6 +516,7 @@
             },
             prepareSubmit() {
                 this.syncMinutesBody();
+                this.syncAttendees();
             },
             async loadDefaults() {
                 if (!this.defaultsEndpoint) {

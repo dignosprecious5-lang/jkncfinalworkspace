@@ -548,6 +548,10 @@ class CompanyCorporateRecordController extends Controller
             'meeting_no' => ['nullable', 'string', 'max:255'],
             'chairman' => ['nullable', 'string', 'max:255'],
             'secretary' => ['nullable', 'string', 'max:255'],
+            'directors_present' => ['nullable', 'string'],
+            'directors_absent' => ['nullable', 'string'],
+            'secretariat' => ['nullable', 'string'],
+            'guests' => ['nullable', 'string'],
             'document_path' => ['nullable', 'file', 'mimes:pdf', 'max:5120'],
         ]);
     }

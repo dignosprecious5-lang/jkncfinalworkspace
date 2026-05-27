@@ -1,3 +1,60 @@
+@php
+    $parseAttendanceRows = function ($value, array $fallback = []) {
+        $rows = [];
+
+        if (is_string($value) && trim($value) !== '') {
+            $decoded = json_decode($value, true);
+
+            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                $rows = $decoded;
+            } else {
+                $rows = collect(preg_split('/\r\n|\r|\n/', $value))
+                    ->map(function ($line) {
+                        $parts = array_map('trim', explode('|', $line, 2));
+
+                        return [
+                            'name' => $parts[0] ?? '',
+                            'position' => $parts[1] ?? '',
+                        ];
+                    })
+                    ->filter(fn ($row) => ($row['name'] ?? '') !== '' || ($row['position'] ?? '') !== '')
+                    ->values()
+                    ->all();
+            }
+        } elseif (is_array($value)) {
+            $rows = $value;
+        }
+
+        $rows = collect($rows)
+            ->map(function ($row) {
+                return [
+                    'name' => trim((string) ($row['name'] ?? '')),
+                    'position' => trim((string) ($row['position'] ?? $row['role'] ?? '')),
+                ];
+            })
+            ->filter(fn ($row) => $row['name'] !== '' || $row['position'] !== '')
+            ->values()
+            ->all();
+
+        return !empty($rows) ? $rows : $fallback;
+    };
+
+    $directorsPresentRows = $parseAttendanceRows($minute->directors_present ?? null, array_values(array_filter([
+        $minute->chairman ? ['name' => $minute->chairman, 'position' => 'President/Chairman'] : null,
+        $minute->secretary ? ['name' => $minute->secretary, 'position' => 'Corporate Secretary'] : null,
+    ])));
+    $directorsAbsentRows = $parseAttendanceRows($minute->directors_absent ?? null);
+    $secretariatRows = $parseAttendanceRows($minute->secretariat ?? null, $minute->uploaded_by ? [
+        ['name' => $minute->uploaded_by, 'position' => 'Secretariat / Minutes-Taker'],
+    ] : []);
+    $guestRows = $parseAttendanceRows($minute->guests ?? null);
+    $jkCompanyName = 'JOHN KELLY & COMPANY';
+    $jkCompanyAddress = '3F, Cebu Holdings Center, Cebu Business Park, Cebu City, Philippines 6000';
+    $meetingTitleLine = trim(($minute->type_of_meeting ?: 'Regular') . ' ' . ($minute->governing_body ?: 'Board of Directors') . ' Meeting');
+    $meetingDateLine = optional($minute->date_of_meeting)->format('F d, Y') ?: '________________';
+    $meetingTimeLine = $minute->time_started ? \Carbon\Carbon::parse($minute->time_started)->format('g:i A') : '________________';
+@endphp
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -23,6 +80,16 @@
 
         .center {
             text-align: center;
+        }
+
+        .brand-main {
+            font-size: 34pt;
+            font-weight: 600;
+            line-height: 0.95;
+        }
+
+        .brand-amp {
+            color: #2563eb;
         }
 
         .company-name {
@@ -61,9 +128,20 @@
         }
 
         .attendance-table td,
+        .attendance-table th,
         .signature-table td {
             padding: 4px 0;
             vertical-align: top;
+        }
+
+        .attendance-table th {
+            text-align: left;
+            font-weight: 700;
+        }
+
+        .attendance-heading {
+            margin-top: 12px;
+            font-weight: 700;
         }
 
         .minutes-body {
@@ -95,37 +173,122 @@
 <body>
     <div class="page">
         <div class="center">
-            <div class="company-name">JOHN KELLY &amp; COMPANY</div>
-            <div class="meta-line">COMPANY REG. NO.: 2025120230900-02</div>
-            <div class="meta-line">3RD FLOOR, UNIT 305 CEBU HOLDINGS CENTER CARDINAL ROSALES AVE., CEBU BUSINESS PARK HIPPODROMO, CEBU CITY, 6000</div>
-            <div class="title">{{ $minute->type_of_meeting ?: 'Special' }} {{ $minute->governing_body ?: 'Directors' }} Meeting</div>
+            <div class="brand-main">John Kelly</div>
+            <div class="brand-main"><span class="brand-amp">&amp;</span> Company</div>
+            <div class="meta-line" style="margin-top:14px;">{{ $jkCompanyAddress }}</div>
+
+            <div class="title" style="margin-top:28px;">MINUTES OF THE</div>
+            <div class="subtitle">{{ $meetingTitleLine }}</div>
             <div class="subtitle">of</div>
-            <div class="subtitle" style="font-weight:700;text-transform:uppercase;">JOHN KELLY &amp; COMPANY</div>
-            <div class="subtitle" style="margin-top:20px;font-style:italic;">Held at</div>
-            <div class="subtitle" style="font-style:italic;">{{ $minute->location ?: '________________' }}</div>
-            <div class="subtitle" style="margin-top:14px;font-style:italic;">On</div>
-            <div class="subtitle" style="font-style:italic;">{{ optional($minute->date_of_meeting)->format('F d, Y') ?: '________________' }}</div>
+            <div class="subtitle" style="text-transform:uppercase;">{{ $jkCompanyName }}</div>
+
+            <div class="subtitle" style="margin-top:24px;">held at</div>
+            <div class="subtitle">{{ $minute->location ?: '________________' }}</div>
+
+            @if($minute->meeting_mode || $minute->call_link)
+                <div class="subtitle">
+                    and Mode of Meeting: {{ $minute->meeting_mode ?: '________________' }}
+                    @if($minute->call_link)
+                        <br>Meeting Link: <span style="color:#2563eb;text-decoration:underline;">{{ $minute->call_link }}</span>
+                    @endif
+                </div>
+            @endif
+
+            <div class="subtitle" style="margin-top:24px;">on</div>
+            <div class="subtitle">{{ $meetingDateLine }}</div>
+            <div class="subtitle">at {{ $meetingTimeLine }}</div>
         </div>
 
         <div class="section">
-            <div style="font-weight:700;">Attending:</div>
+            <div class="attendance-heading">Directors Present</div>
             <table class="attendance-table">
+                <thead>
+                    <tr>
+                        <th style="width:45%;">Name</th>
+                        <th>Position</th>
+                    </tr>
+                </thead>
                 <tbody>
+                    @forelse($directorsPresentRows as $row)
+                        <tr>
+                            <td>{{ $row['name'] ?: '________________' }}</td>
+                            <td>{{ $row['position'] ?: '________________' }}</td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td>________________</td>
+                            <td>________________</td>
+                        </tr>
+                    @endforelse
+                </tbody>
+            </table>
+
+            <div class="attendance-heading">Directors Absent</div>
+            <table class="attendance-table">
+                <thead>
                     <tr>
-                        <td style="width:24%;font-weight:700;">Directors:</td>
-                        <td style="width:40%;">{{ $minute->chairman ?: '________________' }}</td>
-                        <td>President/Chairman</td>
+                        <th style="width:45%;">Name</th>
+                        <th>Position</th>
                     </tr>
+                </thead>
+                <tbody>
+                    @forelse($directorsAbsentRows as $row)
+                        <tr>
+                            <td>{{ $row['name'] ?: '________________' }}</td>
+                            <td>{{ $row['position'] ?: '________________' }}</td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td>________________</td>
+                            <td>________________</td>
+                        </tr>
+                    @endforelse
+                </tbody>
+            </table>
+
+            <div class="attendance-heading" style="margin-top:22px;">Secretariat</div>
+            <table class="attendance-table">
+                <thead>
                     <tr>
-                        <td></td>
-                        <td>{{ $minute->secretary ?: '________________' }}</td>
-                        <td>Corporate Secretary</td>
+                        <th style="width:45%;">Name</th>
+                        <th>Role</th>
                     </tr>
+                </thead>
+                <tbody>
+                    @forelse($secretariatRows as $row)
+                        <tr>
+                            <td>{{ $row['name'] ?: '________________' }}</td>
+                            <td>{{ $row['position'] ?: '________________' }}</td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td>________________</td>
+                            <td>________________</td>
+                        </tr>
+                    @endforelse
+                </tbody>
+            </table>
+
+            <div class="attendance-heading">Guests</div>
+            <table class="attendance-table">
+                <thead>
                     <tr>
-                        <td style="font-weight:700;">Other Attendee:</td>
-                        <td>{{ $minute->uploaded_by ?: '________________' }}</td>
-                        <td>Recorder</td>
+                        <th style="width:45%;">Name</th>
+                        <th>Role</th>
                     </tr>
+                </thead>
+                <tbody>
+                    @forelse($guestRows as $row)
+                        <tr>
+                            <td>{{ $row['name'] ?: '________________' }}</td>
+                            <td>{{ $row['position'] ?: '________________' }}</td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td>________________</td>
+                            <td>________________</td>
+                        </tr>
+                    @endforelse
                 </tbody>
             </table>
         </div>
@@ -135,23 +298,14 @@
             <div class="minutes-body">{!! $minute->recording_notes ?: '<p>________________</p>' !!}</div>
         </div>
 
-        <div class="section">
-            <table class="signature-table">
-                <tbody>
-                    <tr>
-                        <td style="width:20%;font-weight:700;">Prepared by:</td>
-                        <td style="width:32%;padding-right:28px;"><div class="line">{{ $minute->secretary ?: '________________' }}</div></td>
-                        <td style="width:16%;"></td>
-                        <td style="width:32%;"><div class="line">{{ $minute->chairman ?: '________________' }}</div></td>
-                    </tr>
-                    <tr>
-                        <td></td>
-                        <td class="signature-label">Corporate Secretary</td>
-                        <td></td>
-                        <td class="signature-label">President/Chairman</td>
-                    </tr>
-                </tbody>
-            </table>
+        <div class="section" style="margin-top:70px;">
+            <div style="font-weight:700;">Prepared by:</div>
+            <div style="margin-top:22px;font-weight:700;text-transform:uppercase;">{{ $minute->secretary ?: '________________' }}</div>
+            <div style="font-weight:700;">Corporate Secretary</div>
+
+            <div style="margin-top:70px;font-weight:700;">Attested by:</div>
+            <div style="margin-top:22px;font-weight:700;text-transform:uppercase;">{{ $minute->chairman ?: '________________' }}</div>
+            <div style="font-weight:700;">Chairman of the Meeting</div>
         </div>
     </div>
 </body>

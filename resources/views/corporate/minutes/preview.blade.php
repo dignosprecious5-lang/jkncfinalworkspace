@@ -30,6 +30,61 @@
     $workspaceSaveUrl = $workspaceSaveUrl ?? route('minutes.workspace-save', $minute);
     $finalAudioSaveUrl = $finalAudioSaveUrl ?? route('minutes.final-audio', $minute);
     $finalSaveUrl = $finalSaveUrl ?? route('minutes.final-save', $minute);
+
+    $parseAttendanceRows = function ($value, array $fallback = []) {
+        $rows = [];
+
+        if (is_string($value) && trim($value) !== '') {
+            $decoded = json_decode($value, true);
+
+            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                $rows = $decoded;
+            } else {
+                $rows = collect(preg_split('/\r\n|\r|\n/', $value))
+                    ->map(function ($line) {
+                        $parts = array_map('trim', explode('|', $line, 2));
+
+                        return [
+                            'name' => $parts[0] ?? '',
+                            'position' => $parts[1] ?? '',
+                        ];
+                    })
+                    ->filter(fn ($row) => ($row['name'] ?? '') !== '' || ($row['position'] ?? '') !== '')
+                    ->values()
+                    ->all();
+            }
+        } elseif (is_array($value)) {
+            $rows = $value;
+        }
+
+        $rows = collect($rows)
+            ->map(function ($row) {
+                return [
+                    'name' => trim((string) ($row['name'] ?? '')),
+                    'position' => trim((string) ($row['position'] ?? $row['role'] ?? '')),
+                ];
+            })
+            ->filter(fn ($row) => $row['name'] !== '' || $row['position'] !== '')
+            ->values()
+            ->all();
+
+        return !empty($rows) ? $rows : $fallback;
+    };
+
+    $directorsPresentRows = $parseAttendanceRows($minute->directors_present ?? null, array_values(array_filter([
+        $minute->chairman ? ['name' => $minute->chairman, 'position' => 'President/Chairman'] : null,
+        $minute->secretary ? ['name' => $minute->secretary, 'position' => 'Corporate Secretary'] : null,
+    ])));
+    $directorsAbsentRows = $parseAttendanceRows($minute->directors_absent ?? null);
+    $secretariatRows = $parseAttendanceRows($minute->secretariat ?? null, $minute->uploaded_by ? [
+        ['name' => $minute->uploaded_by, 'position' => 'Secretariat / Minutes-Taker'],
+    ] : []);
+    $guestRows = $parseAttendanceRows($minute->guests ?? null);
+    $jkCompanyName = 'JOHN KELLY & COMPANY';
+    $jkCompanyAddress = '3F, Cebu Holdings Center, Cebu Business Park, Cebu City, Philippines 6000';
+    $meetingTitleLine = trim(($minute->type_of_meeting ?: 'Regular') . ' ' . ($minute->governing_body ?: 'Board of Directors') . ' Meeting');
+    $meetingDateLine = optional($minute->date_of_meeting)->format('F d, Y') ?: '________________';
+    $meetingTimeLine = $minute->time_started ? \Carbon\Carbon::parse($minute->time_started)->format('g:i A') : '________________';
 @endphp
 
 <div class="w-full px-4 sm:px-6 lg:px-8 mt-4">
@@ -238,8 +293,8 @@
                         <div class="rounded-2xl border border-slate-200 overflow-hidden bg-[#f8fafc] flex flex-col">
                             <div class="px-4 py-3 border-b border-gray-100 flex flex-wrap items-center gap-2 bg-white">
                                 <div>
-                                    <div class="text-sm font-semibold text-gray-900">Template Builder Page</div>
-                                    <div class="text-xs text-gray-500">This page follows the `resources/doc_templates/[TEMPLATE-SKBL] Minutes of Special Meeting_ (Title).docx` structure and updates in real time.</div>
+                                    <div class="text-sm font-semibold text-gray-900">Minutes Template Preview</div>
+                                    <div class="text-xs text-gray-500">Preview the minutes format before saving the final minutes.</div>
                                 </div>
                                 <div class="flex-1"></div>
                                 <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">Live Template</span>
@@ -247,37 +302,122 @@
                             <div class="flex-1 overflow-auto p-6">
                                 <div class="mx-auto max-w-[860px] rounded-sm bg-white px-14 py-12 shadow-[0_18px_50px_rgba(15,23,42,0.08)]" style="font-family: Georgia, 'Times New Roman', serif;">
                                     <div class="text-center">
-                                        <div class="text-[22px] font-bold uppercase tracking-[0.03em]">JOHN KELLY &amp; COMPANY</div>
-                                        <div class="mt-1 text-[15px]">COMPANY REG. NO.: 2025120230900-02</div>
-                                        <div class="mt-1 text-[15px]">3RD FLOOR, UNIT 305 CEBU HOLDINGS CENTER CARDINAL ROSALES AVE., CEBU BUSINESS PARK HIPPODROMO, CEBU CITY, 6000</div>
-                                        <div class="mt-10 text-[20px] font-bold">{{ $minute->type_of_meeting ?: 'Special' }} {{ $minute->governing_body ?: 'Directors' }} Meeting</div>
-                                        <div class="mt-2 text-[18px]">of</div>
-                                        <div class="mt-2 text-[20px] font-bold uppercase">JOHN KELLY &amp; COMPANY</div>
-                                        <div class="mt-8 text-[16px] italic">Held at</div>
-                                        <div class="mt-1 text-[16px] italic">{{ $minute->location ?: '________________' }}</div>
-                                        <div class="mt-5 text-[16px] italic">On</div>
-                                        <div class="mt-1 text-[16px] italic">{{ optional($minute->date_of_meeting)->format('F d, Y') ?: '________________' }}</div>
+                                        <div class="text-[44px] leading-none font-semibold" style="font-family: Georgia, 'Times New Roman', serif;">John Kelly</div>
+                                        <div class="text-[40px] leading-none font-semibold" style="font-family: Georgia, 'Times New Roman', serif;"><span style="color:#2563eb;">&amp;</span> Company</div>
+                                        <div class="mt-4 text-[15px]">{{ $jkCompanyAddress }}</div>
+
+                                        <div class="mt-8 text-[18px] font-bold uppercase">MINUTES OF THE</div>
+                                        <div class="text-[17px]">{{ $meetingTitleLine }}</div>
+                                        <div class="text-[17px]">of</div>
+                                        <div class="text-[18px] uppercase">{{ $jkCompanyName }}</div>
+
+                                        <div class="mt-8 text-[16px]">held at</div>
+                                        <div class="mt-3 text-[16px] leading-6">{{ $minute->location ?: '________________' }}</div>
+                                        @if($minute->meeting_mode || $minute->call_link)
+                                            <div class="mt-1 text-[16px] leading-6">
+                                                and Mode of Meeting: {{ $minute->meeting_mode ?: '________________' }}
+                                                @if($minute->call_link)
+                                                    Meeting Link:<br>
+                                                    <span style="color:#2563eb;text-decoration:underline;">{{ $minute->call_link }}</span>
+                                                @endif
+                                            </div>
+                                        @endif
+
+                                        <div class="mt-8 text-[16px]">on</div>
+                                        <div class="text-[16px]">{{ $meetingDateLine }}</div>
+                                        <div class="text-[16px]">at {{ $meetingTimeLine }}</div>
                                     </div>
 
-                                    <div class="mt-10">
-                                        <div class="text-[15px] font-bold">Attending:</div>
-                                        <table class="mt-3 w-full table-fixed border-collapse text-[14px] leading-6">
+                                    <div class="mt-8 text-[15px] leading-7">
+                                        <div class="font-bold text-[16px]">Directors Present</div>
+                                        <table class="mt-1 w-full table-fixed border-collapse">
+                                            <thead>
+                                                <tr>
+                                                    <th class="w-[45%] py-1 text-left font-bold">Name</th>
+                                                    <th class="py-1 text-left font-bold">Position</th>
+                                                </tr>
+                                            </thead>
                                             <tbody>
+                                                @forelse($directorsPresentRows as $row)
+                                                    <tr>
+                                                        <td class="py-1 pr-4">{{ $row['name'] ?: '________________' }}</td>
+                                                        <td class="py-1">{{ $row['position'] ?: '________________' }}</td>
+                                                    </tr>
+                                                @empty
+                                                    <tr>
+                                                        <td class="py-1 pr-4">________________</td>
+                                                        <td class="py-1">________________</td>
+                                                    </tr>
+                                                @endforelse
+                                            </tbody>
+                                        </table>
+
+                                        <div class="mt-2 font-bold text-[16px]">Directors Absent</div>
+                                        <table class="mt-1 w-full table-fixed border-collapse">
+                                            <thead>
                                                 <tr>
-                                                    <td class="w-[24%] py-1 font-semibold">Directors:</td>
-                                                    <td class="w-[40%] py-1">{{ $minute->chairman ?: '________________' }}</td>
-                                                    <td class="py-1">President/Chairman</td>
+                                                    <th class="w-[45%] py-1 text-left font-bold">Name</th>
+                                                    <th class="py-1 text-left font-bold">Position</th>
                                                 </tr>
+                                            </thead>
+                                            <tbody>
+                                                @forelse($directorsAbsentRows as $row)
+                                                    <tr>
+                                                        <td class="py-1 pr-4">{{ $row['name'] ?: '________________' }}</td>
+                                                        <td class="py-1">{{ $row['position'] ?: '________________' }}</td>
+                                                    </tr>
+                                                @empty
+                                                    <tr>
+                                                        <td class="py-1 pr-4">________________</td>
+                                                        <td class="py-1">________________</td>
+                                                    </tr>
+                                                @endforelse
+                                            </tbody>
+                                        </table>
+
+                                        <div class="mt-6 font-bold text-[16px]">Secretariat</div>
+                                        <table class="mt-1 w-full table-fixed border-collapse">
+                                            <thead>
                                                 <tr>
-                                                    <td class="py-1"></td>
-                                                    <td class="py-1">{{ $minute->secretary ?: '________________' }}</td>
-                                                    <td class="py-1">Corporate Secretary</td>
+                                                    <th class="w-[45%] py-1 text-left font-bold">Name</th>
+                                                    <th class="py-1 text-left font-bold">Role</th>
                                                 </tr>
+                                            </thead>
+                                            <tbody>
+                                                @forelse($secretariatRows as $row)
+                                                    <tr>
+                                                        <td class="py-1 pr-4">{{ $row['name'] ?: '________________' }}</td>
+                                                        <td class="py-1">{{ $row['position'] ?: '________________' }}</td>
+                                                    </tr>
+                                                @empty
+                                                    <tr>
+                                                        <td class="py-1 pr-4">________________</td>
+                                                        <td class="py-1">________________</td>
+                                                    </tr>
+                                                @endforelse
+                                            </tbody>
+                                        </table>
+
+                                        <div class="mt-2 font-bold text-[16px]">Guests</div>
+                                        <table class="mt-1 w-full table-fixed border-collapse">
+                                            <thead>
                                                 <tr>
-                                                    <td class="py-1 font-semibold">Other Attendee:</td>
-                                                    <td class="py-1">{{ $minute->uploaded_by ?: '________________' }}</td>
-                                                    <td class="py-1">Recorder</td>
+                                                    <th class="w-[45%] py-1 text-left font-bold">Name</th>
+                                                    <th class="py-1 text-left font-bold">Role</th>
                                                 </tr>
+                                            </thead>
+                                            <tbody>
+                                                @forelse($guestRows as $row)
+                                                    <tr>
+                                                        <td class="py-1 pr-4">{{ $row['name'] ?: '________________' }}</td>
+                                                        <td class="py-1">{{ $row['position'] ?: '________________' }}</td>
+                                                    </tr>
+                                                @empty
+                                                    <tr>
+                                                        <td class="py-1 pr-4">________________</td>
+                                                        <td class="py-1">________________</td>
+                                                    </tr>
+                                                @endforelse
                                             </tbody>
                                         </table>
                                     </div>
@@ -287,23 +427,16 @@
                                         <div id="minutes-template-editor" class="minutes-rich-editor mt-4 min-h-[360px] whitespace-pre-wrap text-[15px] leading-8 text-slate-900 outline-none" contenteditable="true" data-placeholder="Type the minutes following the template here..."></div>
                                     </div>
 
-                                    <table class="mt-12 w-full table-fixed border-collapse text-[14px] leading-6">
-                                        <tbody>
-                                            <tr>
-                                                <td class="w-[20%] font-semibold">Prepared by:</td>
-                                                <td class="w-[32%] border-b border-slate-300">{{ $minute->secretary ?: '________________' }}</td>
-                                                <td class="w-[16%]"></td>
-                                                <td class="w-[32%] border-b border-slate-300">{{ $minute->chairman ?: '________________' }}</td>
-                                            </tr>
-                                            <tr>
-                                                <td></td>
-                                                <td class="pt-2 text-center">Corporate Secretary</td>
-                                                <td></td>
-                                                <td class="pt-2 text-center">President/Chairman</td>
-                                            </tr>
-                                        </tbody>
-                                    </table>
-                                </div>
+                                    <div class="mt-24 text-[15px] leading-6">
+                                        <div class="font-bold">Prepared by:</div>
+                                        <div class="mt-6 font-bold uppercase">{{ $minute->secretary ?: '________________' }}</div>
+                                        <div class="font-bold">Corporate Secretary</div>
+
+                                        <div class="mt-20 font-bold">Attested by:</div>
+                                        <div class="mt-6 font-bold uppercase">{{ $minute->chairman ?: '________________' }}</div>
+                                        <div class="font-bold">Chairman of the Meeting</div>
+                                    </div>
+                                </div></div>
                             </div>
                         </div>
                         <div class="rounded-2xl border border-gray-200 bg-white overflow-hidden flex flex-col">
@@ -345,7 +478,7 @@
 
                                     <div class="rounded-xl border border-gray-200 bg-gray-50 p-4">
                                         <div class="text-sm font-semibold text-gray-900">Template Notes</div>
-                                        <div class="mt-1 text-xs text-gray-500">This builder page mirrors the minutes template arrangement: centered heading, `Held at`, `On`, attendance section, minutes proper, and sign-off area.</div>
+                                        <div class="mt-1 text-xs text-gray-500">This builder page mirrors the minutes template arrangement: centered heading, held at, on, attendance section, minutes proper, and sign-off area.</div>
                                     </div>
                                 </div>
                             </div>

@@ -19,8 +19,14 @@ class MinuteController extends Controller
 
     public function index()
     {
-        $minutes = Minute::with('notice')->latest()->get();
-        $notices = Notice::orderBy('date_of_meeting')->get();
+        $minutes = Minute::whereNull('company_id')
+            ->with('notice')
+            ->latest()
+            ->get();
+
+        $notices = Notice::whereNull('company_id')
+            ->orderBy('date_of_meeting')
+            ->get();
 
         return view('corporate.minutes.index', [
             'minutes' => $minutes,
@@ -38,6 +44,7 @@ class MinuteController extends Controller
             'cancelRoute' => route('minutes'),
             'fields' => $this->fields(),
             'item' => new Minute([
+                'company_id' => null,
                 'minutes_ref' => $this->nextMinutesRef(),
                 'date_uploaded' => now()->toDateString(),
                 'uploaded_by' => auth()->user()?->name ?? '',
@@ -49,6 +56,7 @@ class MinuteController extends Controller
     {
         $data = $this->validateData($request);
         $data = $this->mergeNoticeData($data);
+        $data['company_id'] = null;
         $data['document_path'] = $this->handleUpload($request, 'document_path');
         $data['minutes_ref'] = $data['minutes_ref'] ?: $this->nextMinutesRef();
         $data = $this->filterPersistableData($data);
@@ -60,6 +68,8 @@ class MinuteController extends Controller
 
     public function show(Minute $minute)
     {
+        abort_if($minute->company_id !== null, 404);
+
         $minute->load('notice');
         $templatePreviewPath = $this->generateTemplatePreviewPdf($minute);
 
@@ -75,6 +85,8 @@ class MinuteController extends Controller
 
     public function edit(Minute $minute)
     {
+        abort_if($minute->company_id !== null, 404);
+
         return view('corporate.common.form', [
             'title' => 'Edit Minutes of Meeting',
             'action' => route('minutes.update', $minute),
@@ -87,8 +99,11 @@ class MinuteController extends Controller
 
     public function update(Request $request, Minute $minute)
     {
+        abort_if($minute->company_id !== null, 404);
+
         $data = $this->validateData($request);
         $data = $this->mergeNoticeData($data);
+        $data['company_id'] = null;
         $data['document_path'] = $this->handleUpload($request, 'document_path', $minute->document_path);
         $data = $this->filterPersistableData($data);
 
@@ -99,6 +114,7 @@ class MinuteController extends Controller
 
     public function approve(Request $request, Minute $minute)
     {
+        abort_if($minute->company_id !== null, 404);
         abort_unless($this->userCanApprove(), 403);
 
         $validated = $request->validate([
@@ -115,6 +131,8 @@ class MinuteController extends Controller
 
     public function saveWorkspace(Request $request, Minute $minute)
     {
+        abort_if($minute->company_id !== null, 404);
+
         $request->validate([
             'tentative_audio' => ['nullable', 'file', 'max:51200'],
             'remove_tentative_audio' => ['nullable', 'boolean'],
@@ -145,6 +163,8 @@ class MinuteController extends Controller
 
     public function saveFinalRecording(Request $request, Minute $minute)
     {
+        abort_if($minute->company_id !== null, 404);
+
         $request->validate([
             'final_audio' => ['nullable', 'file', 'max:51200'],
             'remove_final_audio' => ['nullable', 'boolean'],
@@ -152,30 +172,23 @@ class MinuteController extends Controller
 
         $finalPath = $this->handleUpload($request, 'final_audio', $minute->final_audio_path);
 
-        if (
-            !$request->hasFile('final_audio')
-            && !$request->boolean('remove_final_audio')
-            && !$finalPath
-            && $minute->tentative_audio_path
-        ) {
+        if (!$request->hasFile('final_audio') && !$request->boolean('remove_final_audio') && !$finalPath && $minute->tentative_audio_path) {
             $finalPath = $this->duplicateUpload($minute->tentative_audio_path);
         }
 
         if (!$finalPath) {
-            return response()->json([
-                'message' => 'No tentative audio is available to save to the final preview.',
-            ], 422);
+            return response()->json(['message' => 'No tentative audio is available to save to the final preview.'], 422);
         }
 
-        $this->updateExistingColumns($minute, [
-            'final_audio_path' => $finalPath,
-        ]);
+        $this->updateExistingColumns($minute, ['final_audio_path' => $finalPath]);
 
         return response()->json($this->workspacePayload($minute->fresh()));
     }
 
     public function saveFinalPreview(Request $request, Minute $minute)
     {
+        abort_if($minute->company_id !== null, 404);
+
         $request->validate([
             'tentative_audio' => ['nullable', 'file', 'max:51200'],
             'remove_tentative_audio' => ['nullable', 'boolean'],
@@ -196,12 +209,7 @@ class MinuteController extends Controller
 
         $finalPath = $this->handleUpload($request, 'final_audio', $minute->final_audio_path);
 
-        if (
-            ! $request->hasFile('final_audio')
-            && ! $request->boolean('remove_final_audio')
-            && ! $finalPath
-            && $minute->tentative_audio_path
-        ) {
+        if (! $request->hasFile('final_audio') && ! $request->boolean('remove_final_audio') && ! $finalPath && $minute->tentative_audio_path) {
             $finalPath = $this->duplicateUpload($minute->tentative_audio_path);
         }
 
@@ -220,6 +228,8 @@ class MinuteController extends Controller
 
     public function destroy(Minute $minute)
     {
+        abort_if($minute->company_id !== null, 404);
+
         $minute->delete();
 
         return redirect()->route('minutes')->with('success', 'Minutes deleted.');
@@ -240,12 +250,16 @@ class MinuteController extends Controller
             ['name' => 'time_started', 'label' => 'Time Started', 'type' => 'time'],
             ['name' => 'time_ended', 'label' => 'Time Ended', 'type' => 'time'],
             ['name' => 'location', 'label' => 'Location', 'type' => 'text'],
-            ['name' => 'call_link', 'label' => 'Call Link', 'type' => 'text'],
-            ['name' => 'recording_notes', 'label' => 'Recording Notes', 'type' => 'textarea'],
+            ['name' => 'call_link', 'label' => 'Call Link / Video Meeting Link', 'type' => 'text'],
+            ['name' => 'recording_notes', 'label' => 'Recording Notes / Minutes Proper', 'type' => 'textarea'],
             ['name' => 'script_text', 'label' => 'Script Text', 'type' => 'textarea'],
             ['name' => 'meeting_no', 'label' => 'Meeting Number', 'type' => 'text'],
             ['name' => 'chairman', 'label' => 'Chairman', 'type' => 'text'],
             ['name' => 'secretary', 'label' => 'Secretary', 'type' => 'text'],
+            ['name' => 'directors_present', 'label' => 'Directors Present', 'type' => 'textarea'],
+            ['name' => 'directors_absent', 'label' => 'Directors Absent', 'type' => 'textarea'],
+            ['name' => 'secretariat', 'label' => 'Secretariat', 'type' => 'textarea'],
+            ['name' => 'guests', 'label' => 'Guests', 'type' => 'textarea'],
             ['name' => 'document_path', 'label' => 'Upload Minutes (PDF)', 'type' => 'file'],
         ];
     }
@@ -271,13 +285,17 @@ class MinuteController extends Controller
             'meeting_no' => ['nullable', 'string', 'max:255'],
             'chairman' => ['nullable', 'string', 'max:255'],
             'secretary' => ['nullable', 'string', 'max:255'],
+            'directors_present' => ['nullable', 'string'],
+            'directors_absent' => ['nullable', 'string'],
+            'secretariat' => ['nullable', 'string'],
+            'guests' => ['nullable', 'string'],
             'document_path' => ['nullable', 'file', 'mimes:pdf', 'max:5120'],
         ]);
     }
 
     private function mergeNoticeData(array $data): array
     {
-        $notice = Notice::find($data['notice_id']);
+        $notice = Notice::whereNull('company_id')->find($data['notice_id']);
         if (!$notice) {
             return $data;
         }

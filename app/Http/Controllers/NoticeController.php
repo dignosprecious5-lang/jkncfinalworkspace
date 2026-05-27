@@ -18,11 +18,14 @@ class NoticeController extends Controller
 
     public function index()
     {
-        $notices = Notice::with(['minutes', 'resolutions', 'secretaryCertificates'])->latest()->get();
+        $notices = Notice::whereNull('company_id')
+            ->with(['minutes', 'resolutions', 'secretaryCertificates'])
+            ->latest()
+            ->get();
 
         return view('corporate.notices.index', [
             'notices' => $notices,
-            'nextNoticeNumber' => $this->nextNoticeNumber(),
+            'nextNoticeNumber' => $this->nextGlobalNoticeNumber(),
         ]);
     }
 
@@ -35,7 +38,8 @@ class NoticeController extends Controller
             'cancelRoute' => route('notices'),
             'fields' => $this->fields(),
             'item' => new Notice([
-                'notice_number' => $this->nextNoticeNumber(),
+                'company_id' => null,
+                'notice_number' => $this->nextGlobalNoticeNumber(),
                 'date_of_notice' => now()->toDateString(),
                 'uploaded_by' => auth()->user()?->name ?? '',
                 'date_updated' => now()->toDateString(),
@@ -48,8 +52,10 @@ class NoticeController extends Controller
         $data = $this->validateData($request);
         $bodyHtml = $data['body_html'] ?? null;
         $hasUploadedDocument = $request->hasFile('document_path');
+
+        $data['company_id'] = null;
         $data['document_path'] = $this->handleUpload($request, 'document_path');
-        $data['notice_number'] = $data['notice_number'] ?: $this->nextNoticeNumber();
+        $data['notice_number'] = $data['notice_number'] ?: $this->nextGlobalNoticeNumber();
         $data['body_mode'] = $this->resolveBodyMode($hasUploadedDocument, $bodyHtml, null, $data['body_mode'] ?? null);
         $data = $this->filterPersistableData($data);
 
@@ -61,6 +67,8 @@ class NoticeController extends Controller
 
     public function show(Notice $notice)
     {
+        abort_if($notice->company_id !== null, 404);
+
         $notice->load(['minutes', 'resolutions', 'secretaryCertificates']);
 
         return view('corporate.notices.preview', [
@@ -70,6 +78,8 @@ class NoticeController extends Controller
 
     public function edit(Notice $notice)
     {
+        abort_if($notice->company_id !== null, 404);
+
         return view('corporate.common.form', [
             'title' => 'Edit Notice of Meeting',
             'action' => route('notices.update', $notice),
@@ -82,9 +92,13 @@ class NoticeController extends Controller
 
     public function update(Request $request, Notice $notice)
     {
+        abort_if($notice->company_id !== null, 404);
+
         $data = $this->validateData($request);
         $bodyHtml = $data['body_html'] ?? null;
         $hasUploadedDocument = $request->hasFile('document_path');
+
+        $data['company_id'] = null;
         $data['document_path'] = $this->handleUpload($request, 'document_path', $notice->document_path);
         $data['body_mode'] = $this->resolveBodyMode($hasUploadedDocument, $bodyHtml, $notice, $data['body_mode'] ?? null);
         $data = $this->filterPersistableData($data);
@@ -97,6 +111,8 @@ class NoticeController extends Controller
 
     public function destroy(Notice $notice)
     {
+        abort_if($notice->company_id !== null, 404);
+
         $notice->delete();
 
         return redirect()->route('notices')->with('success', 'Notice deleted.');
@@ -182,6 +198,24 @@ class NoticeController extends Controller
         return ['Regular', 'Special'];
     }
 
+    private function nextGlobalNoticeNumber(): string
+    {
+        $year = now()->year;
+
+        $lastNotice = Notice::whereNull('company_id')
+            ->where('notice_number', 'like', $year . '-%')
+            ->orderByDesc('notice_number')
+            ->first();
+
+        if (!$lastNotice || !$lastNotice->notice_number) {
+            return $year . '-001';
+        }
+
+        $lastNumber = (int) substr($lastNotice->notice_number, -3);
+
+        return $year . '-' . str_pad($lastNumber + 1, 3, '0', STR_PAD_LEFT);
+    }
+
     private function filterPersistableData(array $data): array
     {
         return collect($data)
@@ -250,6 +284,7 @@ class NoticeController extends Controller
         ])->render();
 
         $tempDirectory = storage_path('app/temp');
+
         if (!is_dir($tempDirectory)) {
             mkdir($tempDirectory, 0777, true);
         }
@@ -260,6 +295,7 @@ class NoticeController extends Controller
         $profilePath = $tempDirectory . DIRECTORY_SEPARATOR . $basename . '-profile-' . Str::uuid();
 
         file_put_contents($htmlPath, $html);
+
         if (!is_dir($profilePath)) {
             mkdir($profilePath, 0777, true);
         }
@@ -288,6 +324,7 @@ class NoticeController extends Controller
             'LOCALAPPDATA' => $tempDirectory,
             'APPDATA' => $tempDirectory,
         ]);
+
         $process->run();
 
         @unlink($htmlPath);
