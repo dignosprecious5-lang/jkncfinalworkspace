@@ -19,6 +19,19 @@ class Notice extends Model
         'meeting_no',
         'chairman',
         'secretary',
+
+        // Meeting procedure fields
+        'meeting_mode',
+        'meeting_platform',
+        'meeting_link_details',
+        'authorized_meeting_officer',
+        'confirmation_email',
+        'confirmation_phone',
+        'office_address',
+        'email_phone_confirmation_deadline',
+        'physical_submission_deadline',
+        'authority_calling_meeting',
+
         'uploaded_by',
         'date_updated',
         'body_html',

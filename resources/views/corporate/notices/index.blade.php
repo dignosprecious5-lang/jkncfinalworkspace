@@ -245,7 +245,7 @@
                         </div>
 
                         <div class="flex-1 overflow-auto p-10">
-                            <div class="mx-auto min-h-full max-w-[920px] bg-white px-16 py-14 text-[15px] leading-8 text-slate-900 shadow-[0_18px_50px_rgba(15,23,42,0.08)] overflow-hidden">
+                            <div class="mx-auto min-h-full max-w-[920px] bg-white px-16 py-14 text-[15px] leading-8 text-slate-900 shadow-[0_18px_50px_rgba(15,23,42,0.08)]">
                                 <div class="text-center leading-6">
                                     <div class="text-[17px] font-bold uppercase tracking-[0.04em]">{{ $companyName }}</div>
                                     <div class="text-[14px] font-bold">COMPANY REG. NO.: {{ $companyRegNo }}</div>
@@ -261,13 +261,29 @@
 
                                 <div class="mt-10 text-[15px] leading-8">
                                     <p class="font-bold" x-text="livePreviewIntro"></p>
+
+                                    <p class="mt-5 text-justify" x-text="livePreviewProceedText"></p>
+
                                     <div class="mt-5">
                                         <div class="font-semibold">Agenda:</div>
                                         <div class="mt-2 notice-preview-body" x-html="livePreviewBody"></div>
                                     </div>
+
+                                    <p class="mt-8 text-justify" x-text="livePreviewProcedureText"></p>
+
+                                    <div class="mt-5 grid grid-cols-1 gap-1 text-[13px] leading-6">
+                                        <div><span class="font-semibold">Chairman / Presiding Officer:</span> <span x-text="livePreviewChairman"></span></div>
+                                        <div><span class="font-semibold">Corporate Secretary / Authorized Meeting Officer:</span> <span x-text="livePreviewOfficer"></span></div>
+                                        <div><span class="font-semibold">Email Address:</span> <span x-text="livePreviewEmail"></span></div>
+                                        <div><span class="font-semibold">Phone Number:</span> <span x-text="livePreviewPhone"></span></div>
+                                        <div><span class="font-semibold">Office Address:</span> <span x-text="livePreviewOfficeAddress"></span></div>
+                                        <div><span class="font-semibold">Email / Phone Confirmation Deadline:</span> <span x-text="livePreviewEmailDeadline"></span></div>
+                                        <div><span class="font-semibold">Physical Submission Deadline:</span> <span x-text="livePreviewPhysicalDeadline"></span></div>
+                                        <div><span class="font-semibold">Authority Calling the Meeting:</span> <span x-text="livePreviewAuthority"></span></div>
+                                    </div>
                                 </div>
 
-                                <div class="mt-20">
+                                <div class="mt-16">
                                     <div>Very truly yours,</div>
                                     <div class="mt-12 text-[18px] font-bold" x-text="livePreviewSecretary"></div>
                                     <div class="text-sm text-slate-600">Corporate Secretary</div>
@@ -392,8 +408,8 @@
                                         <input type="text" name="meeting_no" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm" placeholder="25th Annual Meeting">
                                     </div>
                                     <div>
-                                        <label class="text-xs text-gray-600">Chairman</label>
-                                        <input type="text" name="chairman" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm" placeholder="Chairman">
+                                        <label class="text-xs text-gray-600">Chairman / Presiding Officer</label>
+                                        <input type="text" name="chairman" @input="syncLivePreview()" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm" placeholder="Chairman / Presiding Officer">
                                     </div>
                                     <div>
                                         <label class="text-xs text-gray-600">Secretary</label>
@@ -402,6 +418,81 @@
                                     <div>
                                         <label class="text-xs text-gray-600">Uploaded By</label>
                                         <input type="text" name="uploaded_by" value="{{ $currentUser }}" data-default-field="current_user" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm" placeholder="Uploader">
+                                    </div>
+                                </div>
+
+                                <div class="rounded-xl border border-blue-100 bg-blue-50/60 p-4 space-y-4">
+                                    <div>
+                                        <div class="text-sm font-semibold text-blue-900">Meeting Mode and Submission Details</div>
+                                        <p class="mt-1 text-xs text-blue-700">These fields will appear in the notice before Agenda and before Very truly yours.</p>
+                                    </div>
+
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label class="text-xs text-gray-600">Selected Mode</label>
+                                            <select name="meeting_mode" @change="syncLivePreview()" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
+                                                <option value="Physical">Physical</option>
+                                                <option value="Virtual">Virtual</option>
+                                                <option value="Hybrid">Hybrid</option>
+                                                <option value="In Absentia">In Absentia</option>
+                                                <option value="Proxy">Proxy</option>
+                                                <option value="Written Consent">Written Consent</option>
+                                                <option value="Resolution by Circulation">Resolution by Circulation</option>
+                                                <option value="Email Approval">Email Approval</option>
+                                                <option value="Other">Other</option>
+                                            </select>
+                                        </div>
+
+                                        <div>
+                                            <label class="text-xs text-gray-600">Platform</label>
+                                            <select name="meeting_platform" @change="syncLivePreview()" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
+                                                <option value="Physical Venue">Physical Venue</option>
+                                                <option value="Google Meet">Google Meet</option>
+                                                <option value="Zoom">Zoom</option>
+                                                <option value="Microsoft Teams">Microsoft Teams</option>
+                                                <option value="Other">Other</option>
+                                            </select>
+                                        </div>
+
+                                        <div class="md:col-span-2">
+                                            <label class="text-xs text-gray-600">Meeting Link / Details</label>
+                                            <textarea name="meeting_link_details" rows="2" @input="syncLivePreview()" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm" placeholder="Insert link, meeting ID, room details, or venue instructions"></textarea>
+                                        </div>
+
+                                        <div>
+                                            <label class="text-xs text-gray-600">Corporate Secretary / Authorized Meeting Officer</label>
+                                            <input type="text" name="authorized_meeting_officer" @input="syncLivePreview()" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm" placeholder="Authorized meeting officer">
+                                        </div>
+
+                                        <div>
+                                            <label class="text-xs text-gray-600">Authority Calling the Meeting</label>
+                                            <input type="text" name="authority_calling_meeting" @input="syncLivePreview()" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm" placeholder="Board of Directors / President / Corporate Secretary">
+                                        </div>
+
+                                        <div>
+                                            <label class="text-xs text-gray-600">Email Address</label>
+                                            <input type="email" name="confirmation_email" @input="syncLivePreview()" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm" placeholder="email@example.com">
+                                        </div>
+
+                                        <div>
+                                            <label class="text-xs text-gray-600">Phone Number</label>
+                                            <input type="text" name="confirmation_phone" @input="syncLivePreview()" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm" placeholder="09xx xxx xxxx">
+                                        </div>
+
+                                        <div class="md:col-span-2">
+                                            <label class="text-xs text-gray-600">Office Address</label>
+                                            <textarea name="office_address" rows="2" @input="syncLivePreview()" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm" placeholder="Office address for physical submissions"></textarea>
+                                        </div>
+
+                                        <div>
+                                            <label class="text-xs text-gray-600">Email / Phone Confirmation Deadline</label>
+                                            <input type="text" name="email_phone_confirmation_deadline" value="forty-eight (48) hours" @input="syncLivePreview()" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
+                                        </div>
+
+                                        <div>
+                                            <label class="text-xs text-gray-600">Physical Submission Deadline</label>
+                                            <input type="text" name="physical_submission_deadline" value="three (3) days" @input="syncLivePreview()" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
+                                        </div>
                                     </div>
                                 </div>
 
@@ -482,6 +573,16 @@
             livePreviewIntro: @js("NOTICE is hereby given that a Special Board of Directors Meeting of {$companyName} will be held at __________________ on __________________ at __________________."),
             livePreviewBody: '<p style="color:#94a3b8;">Start typing the notice body to preview it here.</p>',
             livePreviewSecretary: 'Corporate Secretary',
+            livePreviewProceedText: '',
+            livePreviewProcedureText: '',
+            livePreviewChairman: '________________',
+            livePreviewOfficer: 'Corporate Secretary',
+            livePreviewEmail: '________________',
+            livePreviewPhone: '________________',
+            livePreviewOfficeAddress: '________________',
+            livePreviewEmailDeadline: 'forty-eight (48) hours',
+            livePreviewPhysicalDeadline: 'three (3) days',
+            livePreviewAuthority: '________________',
             locationParts: {
                 venue: '',
                 room: '',
@@ -669,17 +770,25 @@
             },
 
             syncLivePreview() {
-                const governingBodyField = document.querySelector('select[name="governing_body"]');
-                const meetingTypeField = document.querySelector('select[name="type_of_meeting"]');
-                const meetingDateField = document.querySelector('input[name="date_of_meeting"]');
-                const meetingTimeField = document.querySelector('input[name="time_started"]');
-                const secretaryField = document.querySelector('input[name="secretary"]');
+                const field = (selector, fallback = '') => document.querySelector(selector)?.value || fallback;
 
-                const governingBody = governingBodyField?.value || 'Board of Directors';
-                const meetingType = meetingTypeField?.value || 'Special';
-                const meetingDate = meetingDateField?.value || '';
-                const meetingTime = meetingTimeField?.value || '';
-                const secretary = secretaryField?.value || 'Corporate Secretary';
+                const governingBody = field('select[name="governing_body"]', 'Board of Directors');
+                const meetingType = field('select[name="type_of_meeting"]', 'Special');
+                const meetingDate = field('input[name="date_of_meeting"]');
+                const meetingTime = field('input[name="time_started"]');
+                const chairman = field('input[name="chairman"]', '________________');
+                const secretary = field('input[name="secretary"]', 'Corporate Secretary');
+
+                const selectedMode = field('select[name="meeting_mode"]', 'Physical');
+                const platform = field('select[name="meeting_platform"]', 'Physical Venue');
+                const meetingDetails = field('textarea[name="meeting_link_details"]', '________________');
+                const authorizedOfficer = field('input[name="authorized_meeting_officer"]', secretary || 'Corporate Secretary');
+                const emailAddress = field('input[name="confirmation_email"]', '________________');
+                const phoneNumber = field('input[name="confirmation_phone"]', '________________');
+                const officeAddress = field('textarea[name="office_address"]', '________________');
+                const emailDeadline = field('input[name="email_phone_confirmation_deadline"]', 'forty-eight (48) hours');
+                const physicalDeadline = field('input[name="physical_submission_deadline"]', 'three (3) days');
+                const authorityCalling = field('input[name="authority_calling_meeting"]', '________________');
 
                 const recipientLabel = governingBody === 'Stockholders'
                     ? 'ALL STOCKHOLDERS'
@@ -693,16 +802,26 @@
 
                 const formattedTime = meetingTime || '________________';
                 const meetingTitle = `${meetingType} ${governingBody} Meeting`.toUpperCase();
+                const accessDetails = `${platform}${meetingDetails && meetingDetails !== '________________' ? ' - ' + meetingDetails : ''}`;
 
                 this.livePreviewTitle = `NOTICE AND AGENDA OF THE ${meetingTitle}`;
                 this.livePreviewFooterTitle = `NOTICE FOR ${meetingTitle}`;
                 this.livePreviewRecipient = recipientLabel;
                 this.livePreviewDate = formattedDate;
                 this.livePreviewIntro = `NOTICE is hereby given that a ${meetingType} ${governingBody} Meeting of ${this.companyName} will be held at ${this.locationPreview || '________________'} on ${formattedDate} at ${formattedTime}.`;
+                this.livePreviewProceedText = `The meeting shall proceed through ${selectedMode}. For virtual or hybrid meetings, access shall be through ${accessDetails}. Only confirmed persons with proper identity, authority, and right to attend, vote, approve, or submit documents shall be allowed or recognized, in accordance with applicable law, the By-Laws, SEC rules, approved procedures, and duly adopted internal policies.`;
+                this.livePreviewProcedureText = `The meeting shall be presided over by ${chairman || 'Chairman / Presiding Officer'}, or by another duly authorized person, and shall be conducted in accordance with the Revised Corporation Code of the Philippines, the Corporation’s Articles of Incorporation, By-Laws, approved rules of procedure, applicable SEC rules and issuances, and duly adopted internal policies. All participants, proxies, written consents, resolutions by circulation, email approvals, confirmations, and related submissions must be sent to ${authorizedOfficer} through ${emailAddress}, ${phoneNumber}, or by personal delivery to ${officeAddress}. Email or phone confirmations must be received at least ${emailDeadline} before the meeting, and physical submissions must be received at least ${physicalDeadline} before the meeting, unless such periods are waived, shortened, or otherwise allowed by the authority calling the meeting. Failure to comply with the required notice, submission, identification, or verification requirements may result in denial of access, attendance, participation, voting, approval, or recognition of the submission, subject to applicable law, the Articles of Incorporation, By-Laws, approved rules of procedure, SEC rules and issuances, and duly adopted internal policies.`;
                 this.livePreviewBody = this.bodyHtml || '<p style="color:#94a3b8;">Start typing the notice body to preview it here.</p>';
                 this.livePreviewSecretary = secretary;
+                this.livePreviewChairman = chairman || '________________';
+                this.livePreviewOfficer = authorizedOfficer || 'Corporate Secretary';
+                this.livePreviewEmail = emailAddress || '________________';
+                this.livePreviewPhone = phoneNumber || '________________';
+                this.livePreviewOfficeAddress = officeAddress || '________________';
+                this.livePreviewEmailDeadline = emailDeadline || 'forty-eight (48) hours';
+                this.livePreviewPhysicalDeadline = physicalDeadline || 'three (3) days';
+                this.livePreviewAuthority = authorityCalling || '________________';
             },
-
             syncLocation() {
                 const parts = [
                     this.locationParts.venue,

@@ -505,6 +505,20 @@ class CompanyCorporateRecordController extends Controller
             'meeting_no' => ['nullable', 'string', 'max:255'],
             'chairman' => ['nullable', 'string', 'max:255'],
             'secretary' => ['nullable', 'string', 'max:255'],
+
+            // President-requested notice procedure fields.
+            // These are saved for company notices separately through company_id.
+            'meeting_mode' => ['nullable', 'string', 'max:255'],
+            'meeting_platform' => ['nullable', 'string', 'max:255'],
+            'meeting_link_details' => ['nullable', 'string', 'max:1000'],
+            'authorized_meeting_officer' => ['nullable', 'string', 'max:255'],
+            'confirmation_email' => ['nullable', 'string', 'max:255'],
+            'confirmation_phone' => ['nullable', 'string', 'max:255'],
+            'office_address' => ['nullable', 'string', 'max:1000'],
+            'email_phone_confirmation_deadline' => ['nullable', 'string', 'max:255'],
+            'physical_submission_deadline' => ['nullable', 'string', 'max:255'],
+            'authority_calling_meeting' => ['nullable', 'string', 'max:255'],
+
             'uploaded_by' => ['nullable', 'string', 'max:255'],
             'date_updated' => ['nullable', 'date'],
             'body_html' => ['nullable', 'string'],
