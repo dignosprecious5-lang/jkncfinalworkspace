@@ -56,6 +56,12 @@
         'data.payroll_expense_coa_id': 'Payroll expense account',
         'data.asset_coa_id': 'Asset account',
         'data.asset_code': 'Asset code',
+        'data.legal_acknowledgment': 'Legal acknowledgment',
+        'data.electronic_signature_consent': 'Electronic submission consent',
+        'data.data_privacy_consent': 'Data privacy consent',
+        'data.confidentiality_undertaking': 'Confidentiality undertaking',
+        'data.company_policy_compliance': 'Company policy compliance',
+        'data.false_information_penalty': 'Penalty for false information',
     };
 
     function friendlyLabelForError(fieldKey) {
@@ -86,6 +92,212 @@
         const hours = String(now.getHours()).padStart(2, '0');
         const minutes = String(now.getMinutes()).padStart(2, '0');
         return `${hours}:${minutes}`;
+    }
+
+    function currentDateTimeValue() {
+        const now = new Date();
+        const date = now.toISOString().slice(0, 10);
+        const hours = String(now.getHours()).padStart(2, '0');
+        const minutes = String(now.getMinutes()).padStart(2, '0');
+        return `${date} ${hours}:${minutes}`;
+    }
+
+    const supplierEntityOptions = [
+        'Sole Proprietorship',
+        'Partnership',
+        'Corporation',
+        'One Person Corporation (OPC)',
+        'Cooperative',
+        'Freelancer / Individual Professional',
+        'Independent Contractor',
+        'Government Agency',
+        'Non-Profit Organization',
+        'Foreign Company',
+        'Others',
+    ].map((value) => ({ value, label: value }));
+
+    const supplierCorporationTypeOptions = [
+        'Domestic Stock Corporation',
+        'Domestic Non-Stock Corporation',
+        'Close Corporation',
+        'Foreign Corporation',
+        'Branch Office',
+        'Representative Office',
+        'Regional Headquarters',
+        'Regional Operating Headquarters',
+    ].map((value) => ({ value, label: value }));
+
+    const supplierCategoryOptions = [
+        'Product Supplier',
+        'Service Provider',
+        'Contractor',
+        'Consultant',
+        'Marketing Agency',
+        'IT / Software Provider',
+        'Logistics Provider',
+        'Printing Supplier',
+        'Professional Services',
+        'Outsourcing Partner',
+        'Equipment Supplier',
+        'Office Supplies Supplier',
+        'Others',
+    ].map((value) => ({ value, label: value }));
+
+    const paymentTermOptions = [
+        'Cash on Delivery',
+        'Upon Order',
+        'Upon Completion',
+        'Weekly',
+        'Monthly',
+        '7 Days',
+        '15 Days',
+        '30 Days',
+        '45 Days',
+        '60 Days',
+        'Progress Billing',
+        'Retainer-Based',
+        'Others',
+    ].map((value) => ({ value, label: value }));
+
+    const preferredPaymentMethodOptions = [
+        'Bank Transfer',
+        'Check',
+        'Online Payment',
+        'Others',
+    ].map((value) => ({ value, label: value }));
+
+    const idTypeOptions = [
+        'Passport',
+        "Driver's License",
+        'National ID',
+        'PRC ID',
+        'Company ID',
+        'UMID',
+        'SSS ID',
+        'PhilHealth ID',
+        "Voter's ID",
+        'Postal ID',
+        'Others',
+    ].map((value) => ({ value, label: value }));
+
+    const supplierLegalAcknowledgments = [
+        {
+            name: 'legal_acknowledgment',
+            label: 'Legal Acknowledgment, Consent, and Electronic Signature',
+            statement: 'I acknowledge that by completing, submitting, and/or electronically signing this Supplier Completion Form, I am confirming that all information and documents submitted are true, correct, complete, authentic, and updated. I further certify that I am duly authorized to submit this form on behalf of the supplier, entity, organization, company, or individual identified herein.',
+        },
+        {
+            name: 'electronic_signature_consent',
+            label: 'Electronic Submission and Signature Consent',
+            statement: 'I agree that my submission of this form, including any typed name, uploaded signature, checked acknowledgment box, uploaded ID, email confirmation, or electronic submission, shall be treated as my valid signature and confirmation, pursuant to the Electronic Commerce Act of 2000, Republic Act No. 8792, which recognizes electronic documents and electronic signatures.',
+        },
+        {
+            name: 'data_privacy_consent',
+            label: 'Data Privacy Consent',
+            statement: 'I consent to the collection, use, processing, verification, storage, retention, and sharing of the submitted personal information, business information, and documents for supplier accreditation, due diligence, procurement, payment processing, compliance, audit, legal, security, and business purposes, in accordance with the Data Privacy Act of 2012, Republic Act No. 10173.',
+        },
+        {
+            name: 'confidentiality_undertaking',
+            label: 'Confidentiality and NDA Undertaking',
+            statement: 'I agree that all confidential, proprietary, client, operational, financial, technical, legal, business, and company information obtained from the Company shall remain strictly confidential and shall not be disclosed, copied, transferred, shared, or used without prior written authority from the Company.',
+        },
+        {
+            name: 'company_policy_compliance',
+            label: 'Compliance with Company Policies',
+            statement: 'I agree that the Supplier shall comply with all applicable laws, rules, regulations, contracts, procurement policies, internal procedures, company memoranda, confidentiality obligations, data privacy requirements, and lawful instructions issued by the Company.',
+        },
+        {
+            name: 'false_information_penalty',
+            label: 'Penalty for False Information',
+            statement: 'I understand that any false statement, concealment, misrepresentation, falsification, fraudulent document, or unauthorized submission may result in denial of accreditation, suspension, blacklisting, termination of engagement, withholding of payment, recovery of damages, and appropriate civil, criminal, administrative, or legal action, including liability for perjury or false testimony under applicable law. Article 183 of the Revised Penal Code covers false testimony in other cases and perjury in solemn affirmation.',
+        },
+    ];
+
+    const supplierAttachmentRules = {
+        corporation: [
+            'SEC Certificate of Registration',
+            'BIR 2303 Certificate of Registration',
+            "Mayor's Permit / Business Permit",
+            'Valid ID of Authorized Representative',
+            'Company Profile',
+            'Contract / Agreement',
+        ],
+        sole: [
+            'DTI Certificate of Registration',
+            'BIR 2303 Certificate of Registration',
+            "Mayor's Permit / Business Permit",
+            'Valid ID of Owner / Authorized Representative',
+            'Business Profile / Company Profile',
+            'Contract / Agreement',
+        ],
+        cooperative: [
+            'CDA Certificate of Registration',
+            'BIR 2303 Certificate of Registration',
+            "Mayor's Permit / Business Permit",
+            'Valid ID of Authorized Representative',
+            'Cooperative Profile',
+            'Contract / Agreement',
+        ],
+        individual: [
+            'Resume',
+            'Valid Government ID',
+            'TIN / BIR Registration, if applicable',
+            'Resume / Portfolio, if applicable',
+            'Professional License, if applicable',
+            'Signed Contract / Agreement',
+        ],
+        government: [
+            'Agency Profile / Official Agency Information',
+            'Authorized Representative ID',
+            'Authority to Transact / Authorization Letter, if applicable',
+            'Contract / Agreement / Purchase Order',
+        ],
+        nonprofit: [
+            'SEC Registration / Relevant Registration Certificate',
+            'BIR 2303 Certificate of Registration, if applicable',
+            "Mayor's Permit / Business Permit, if applicable",
+            'Valid ID of Authorized Representative',
+            'Organization Profile',
+            'Contract / Agreement',
+        ],
+        others: [
+            'Valid Registration Document, if applicable',
+            'Valid ID of Authorized Representative',
+            'Supplier Profile',
+            'Contract / Agreement',
+            'Other supporting documents required by the Company',
+        ],
+    };
+
+    function supplierAttachmentLabelsForEntity(entityType) {
+        if (['Corporation', 'One Person Corporation (OPC)', 'Partnership', 'Foreign Company'].includes(entityType)) {
+            return supplierAttachmentRules.corporation;
+        }
+        if (entityType === 'Sole Proprietorship') return supplierAttachmentRules.sole;
+        if (entityType === 'Cooperative') return supplierAttachmentRules.cooperative;
+        if (['Freelancer / Individual Professional', 'Independent Contractor'].includes(entityType)) return supplierAttachmentRules.individual;
+        if (entityType === 'Government Agency') return supplierAttachmentRules.government;
+        if (entityType === 'Non-Profit Organization') return supplierAttachmentRules.nonprofit;
+        if (entityType === 'Others') return supplierAttachmentRules.others;
+        return [];
+    }
+
+    function supplierAttachmentSlug(label) {
+        return String(label || '')
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '_')
+            .replace(/^_+|_+$/g, '');
+    }
+
+    function supplierRegistrationLabel(entityType) {
+        if (['Corporation', 'One Person Corporation (OPC)', 'Partnership', 'Foreign Company', 'Non-Profit Organization'].includes(entityType)) {
+            return 'SEC Registration No.';
+        }
+        if (entityType === 'Sole Proprietorship') return 'DTI Registration No.';
+        if (entityType === 'Cooperative') return 'CDA Registration No.';
+        if (['Freelancer / Individual Professional', 'Independent Contractor'].includes(entityType)) return 'Professional License No.';
+        if (entityType === 'Government Agency') return 'Government ID No.';
+        return 'Registration Number';
     }
 
     function generateSupplierCode() {
@@ -509,6 +721,14 @@
         return isSupplierModule() && supplierCompletionMode === 'send_to_supplier';
     }
 
+    function isSupplierCompletionFinished(record = null) {
+        return Boolean(record?.supplier_completed_at);
+    }
+
+    function isSupplierDispatchLayout(record = null) {
+        return isSendToSupplierMode() && !isSupplierCompletionFinished(record);
+    }
+
     function renderSupplierModeTabs() {
         const target = $('supplierModeTabs');
         if (!target) return;
@@ -543,12 +763,13 @@
         `;
     }
 
-    function setSupplierFormLayout() {
-        const isSend = isSendToSupplierMode();
+    function setSupplierFormLayout(record = null) {
+        const isSend = isSupplierDispatchLayout(record);
         [
             'recordCoreFields',
             'recordMetaFields',
             'statusField',
+            'attachmentsSection',
         ].forEach((id) => {
             const el = $(id);
             if (el) {
@@ -568,10 +789,10 @@
         supplier: {
             label: 'Supplier',
             addLabel: 'Add Supplier',
-            recordNumberLabel: 'Supplier Code / ID',
-            recordTitleLabel: 'Supplier Name',
-            recordDateLabel: 'Created Date',
-            summaryKeys: ['business_name', 'representative_full_name', 'email_address', 'completion_mode'],
+            recordNumberLabel: 'Supplier Code',
+            recordTitleLabel: 'Registered Business Name',
+            recordDateLabel: 'Date Accomplished',
+            summaryKeys: ['entity_type', 'representative_full_name', 'email_address', 'completion_mode'],
             fields: [
                 selectField('completion_mode', 'Completion Mode', {
                     options: [
@@ -580,35 +801,68 @@
                     ],
                     required: true,
                 }),
-                textField('trade_name', 'Trade Name'),
-                textField('supplier_type', 'Supplier Type'),
-                textField('representative_full_name', 'Representative Full Name', { required: true }),
-                textField('designation', 'Designation'),
-                textField('email_address', 'Email Address', { inputType: 'email', required: true }),
-                textField('phone_number', 'Phone Number', { required: true }),
-                textField('alternate_contact_number', 'Alternate Contact Number'),
-                textareaField('business_address', 'Business Address'),
-                textareaField('billing_address', 'Billing Address'),
-                textField('tin', 'TIN'),
-                selectField('vat_status', 'VAT / Non-VAT', {
+                dateField('date_accomplished', 'Date Accomplished'),
+                textField('trade_name', 'Trade Name / Brand Name'),
+                selectField('entity_type', 'Entity Type', { options: supplierEntityOptions, required: true }),
+                textField('entity_type_other', 'Specify Other Entity Type'),
+                selectField('corporation_type', 'If Corporation, Specify Corporation Type', { options: supplierCorporationTypeOptions }),
+                textField('registration_number', 'Registration Number'),
+                textField('tin', 'Tax Identification Number (TIN)'),
+                textField('bir_tin', 'BIR TIN'),
+                selectField('vat_status', 'VAT Status', {
                     options: [
-                        { value: 'VAT', label: 'VAT' },
+                        { value: 'VAT Registered', label: 'VAT Registered' },
                         { value: 'Non-VAT', label: 'Non-VAT' },
+                        { value: 'Percentage Tax', label: 'Percentage Tax' },
+                        { value: 'Tax Exempt', label: 'Tax Exempt' },
                     ],
                 }),
-                textField('payment_terms', 'Payment Terms'),
-                selectField('accreditation_status', 'Accreditation Status', {
-                    options: [
-                        { value: 'Pending', label: 'Pending' },
-                        { value: 'For Accreditation', label: 'For Accreditation' },
-                        { value: 'Accredited', label: 'Accredited' },
-                        { value: 'Blacklisted', label: 'Blacklisted' },
-                    ],
-                }),
+                textField('business_permit_number', 'Business Permit Number'),
+                dateField('permit_expiry_date', 'Permit Expiry Date'),
+                textareaField('nature_of_business', 'Nature of Business'),
+                textareaField('products_services_offered', 'Products / Services Offered'),
+                checkboxGroupField('supplier_category', 'Supplier Category', { options: supplierCategoryOptions }),
+                textField('supplier_category_other', 'Specify Other Supplier Category'),
+                numberField('years_in_operation', 'Years in Operation'),
+                textareaField('registered_address', 'Registered Address'),
+                textareaField('office_address', 'Office Address'),
+                textareaField('warehouse_address', 'Warehouse Address'),
+                textField('telephone_number', 'Telephone Number'),
+                textField('mobile_number', 'Mobile Number'),
+                textField('email_address', 'Official Email Address', { inputType: 'email', required: true }),
+                textField('website_social_media', 'Website / Social Media'),
+                textField('representative_full_name', 'Authorized Representative Full Name', { required: true }),
+                textField('designation', 'Authorized Representative Position / Designation'),
+                textField('phone_number', 'Authorized Representative Mobile Number', { required: true }),
+                textField('representative_email_address', 'Authorized Representative Email Address', { inputType: 'email' }),
+                textareaField('billing_address', 'Billing Address'),
+                textField('accounting_contact_person', 'Accounting Contact Person'),
+                textField('accounting_contact_number', 'Accounting Contact Number'),
+                textField('accounting_email_address', 'Accounting Email Address', { inputType: 'email' }),
+                selectField('payment_terms', 'Payment Terms', { options: paymentTermOptions }),
+                textField('payment_terms_other', 'Specify Other Payment Terms'),
+                selectField('preferred_payment_method', 'Preferred Payment Method', { options: preferredPaymentMethodOptions }),
+                textField('online_payment_details', 'Online Payment Details'),
+                textField('preferred_payment_method_other', 'Specify Other Payment Method'),
                 textField('bank_name', 'Bank Name'),
+                textField('bank_branch', 'Bank Branch'),
                 textField('bank_account_name', 'Bank Account Name'),
                 textField('bank_account_number', 'Bank Account Number'),
-                textareaField('remarks', 'Remarks'),
+                textField('swift_code', 'Swift Code'),
+                ...supplierLegalAcknowledgments.map((item) => ({
+                    name: item.name,
+                    label: item.label,
+                    statement: item.statement,
+                    type: 'acknowledgment',
+                    required: true,
+                    fullWidth: true,
+                })),
+                textField('person_accomplishing_full_name', 'Person Accomplishing the Form Full Name', { required: true }),
+                textField('person_accomplishing_position', 'Position / Designation', { required: true }),
+                selectField('id_type', 'ID Type', { options: idTypeOptions }),
+                textField('id_type_other', 'Specify Other ID Type'),
+                textField('id_number', 'ID Number'),
+                textField('date_signed', 'Date Signed', { readOnly: true, autoDateTime: true }),
             ],
         },
         service: {
@@ -776,9 +1030,9 @@
             recordNumberLabel: 'PR Number',
             recordTitleLabel: 'Request Title',
             recordDateLabel: 'Date',
-            summaryKeys: ['requesting_department', 'requestor', 'supplier_id', 'coa_id'],
+            summaryKeys: ['requestor', 'for_client', 'needed_date', 'grand_total'],
             fields: [
-                textField('requesting_department', 'Department', { required: true }),
+                textField('requesting_department', 'Department'),
                 selectField('requester_mode', 'Requester Option', {
                     options: [
                         { value: 'own_request', label: 'Own Request' },
@@ -793,7 +1047,6 @@
                         { value: 'Service', label: 'Service' },
                         { value: 'Product', label: 'Product' },
                     ],
-                    required: true,
                 }),
                 selectField('priority', 'Priority', {
                     options: [
@@ -805,6 +1058,7 @@
                     options: [
                         { value: 'Yes', label: 'Yes' },
                         { value: 'No', label: 'No' },
+                        { value: 'Both', label: 'Both' },
                     ],
                 }),
                 checkboxGroupField('pr_reason_categories', 'Reason (tick all that apply)', {
@@ -927,9 +1181,9 @@
             label: 'Cash Advance',
             addLabel: 'Add CA',
             recordNumberLabel: 'CA Number',
-            recordTitleLabel: 'Requestor',
+            recordTitleLabel: 'Cash Advance Request',
             recordDateLabel: 'Date',
-            summaryKeys: ['requestor', 'cash_advance_type', 'amount_requested', 'mode_of_release'],
+            summaryKeys: ['cash_advance_type', 'amount_requested', 'mode_of_release', 'release_schedule'],
             fields: [
                 selectField('requester_mode', 'Requester Option', {
                     options: [
@@ -939,7 +1193,6 @@
                     required: true,
                 }),
                 selectField('requester_employee_id', 'Employee List', { source: 'employee', placeholder: 'Select employee profile' }),
-                textField('requestor', 'Requestor', { required: true }),
                 textField('employee_id', 'Employee ID'),
                 textField('employee_name', 'Employee Name'),
                 textField('employee_email', 'Email', { inputType: 'email' }),
@@ -1327,6 +1580,27 @@
         return values[`data[${name}]`] ?? values[name] ?? fallback;
     }
 
+    function normalizeCashAdvanceReleaseSchedule(value, releaseCount = 1) {
+        const normalized = String(value || '').trim().toLowerCase();
+
+        if (normalized === 'full release' || normalized === 'full') {
+            return 'Full Release';
+        }
+
+        if (
+            normalized === 'staggered release'
+            || normalized === 'staggered'
+            || normalized.includes('stagger')
+            || normalized.includes('schedule')
+            || normalized.includes('installment')
+            || normalized.includes('partial')
+        ) {
+            return 'Staggered Release';
+        }
+
+        return (parseInt(releaseCount, 10) || 1) > 1 ? 'Staggered Release' : 'Full Release';
+    }
+
     function normalizeCashAdvancePaymentEntries(entries = []) {
         const rows = Array.isArray(entries)
             ? entries
@@ -1451,11 +1725,23 @@
         `).join('');
     }
 
-    function renderCashAdvancePaymentSummaryPanel(values = {}, { editable = false } = {}) {
+    function renderCashAdvancePaymentSummaryPanel(values = {}, { editable = false, compact = false } = {}) {
         const state = buildCashAdvancePaymentState(values);
         const statusClass = state.status === 'Fully Released'
             ? 'bg-green-100 text-green-800'
             : (state.status === 'Partially Released' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-700');
+        const metricGridClass = compact
+            ? 'mt-4 space-y-2'
+            : 'mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3';
+        const metricCardClass = compact
+            ? 'flex items-center justify-between gap-3 rounded-lg border border-white/80 bg-white px-3 py-2'
+            : 'rounded-lg border border-white/80 bg-white px-3 py-2';
+        const metricLabelClass = compact
+            ? 'text-[11px] font-medium text-gray-500'
+            : 'text-[11px] uppercase tracking-[0.18em] text-gray-500';
+        const metricValueClass = compact
+            ? 'text-sm font-semibold text-gray-900 text-right'
+            : 'mt-1 text-sm font-semibold text-gray-900';
 
         return `
             <div class="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
@@ -1463,7 +1749,7 @@
                     <h4 class="text-sm font-semibold text-gray-900">Cash Advance Payment Summary</h4>
                     <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${statusClass}">${escapeHtml(state.status)}</span>
                 </div>
-                <div class="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                <div class="${metricGridClass}">
                     ${[
                         ['Per Release', formatCurrency(state.amountPerRelease)],
                         ['Total Cash Advance', formatCurrency(state.amount)],
@@ -1472,9 +1758,9 @@
                         ['Releases Paid', state.paidCount],
                         ['Releases Remaining', state.remainingCount],
                     ].map(([label, value]) => `
-                        <div class="rounded-lg border border-white/80 bg-white px-3 py-2">
-                            <p class="text-[11px] uppercase tracking-[0.18em] text-gray-500">${escapeHtml(label)}</p>
-                            <p class="mt-1 text-sm font-semibold text-gray-900">${escapeHtml(value)}</p>
+                        <div class="${metricCardClass}">
+                            <p class="${metricLabelClass}">${escapeHtml(label)}</p>
+                            <p class="${metricValueClass}">${escapeHtml(value)}</p>
                         </div>
                     `).join('')}
                 </div>
@@ -1483,31 +1769,52 @@
         `;
     }
 
-    function renderCashAdvancePaymentTrackerPanel(values = {}) {
+    function renderCashAdvancePaymentTrackerPanel(values = {}, { compact = false } = {}) {
         const state = buildCashAdvancePaymentState(values);
+        const containerClass = compact
+            ? 'rounded-xl border border-gray-200 bg-white p-3'
+            : 'rounded-xl border border-gray-200 bg-white p-4';
+        const rowsWrapperClass = compact
+            ? 'mt-3 space-y-2'
+            : 'mt-4 space-y-2';
+        const rowClass = compact
+            ? 'rounded-lg border border-gray-100 bg-gray-50 px-3 py-2'
+            : 'rounded-lg border border-gray-100 bg-gray-50 px-3 py-3';
+        const rowLayoutClass = compact
+            ? 'space-y-2'
+            : 'flex items-start justify-between gap-3';
+        const rowAmountClass = compact
+            ? 'flex items-center justify-between gap-3 border-t border-gray-100 pt-2'
+            : 'shrink-0 text-right';
+        const statusBadgeSpacingClass = compact
+            ? 'inline-flex rounded-full px-2 py-1 text-xs font-semibold'
+            : 'mt-2 inline-flex rounded-full px-2 py-1 text-xs font-semibold';
 
         return `
-            <div class="rounded-xl border border-gray-200 bg-white p-4">
-                <h4 class="text-sm font-semibold text-gray-900">Cash Advance Payment Tracker</h4>
-                <div class="mt-4 space-y-2">
+            <div class="${containerClass}">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                    <h4 class="text-sm font-semibold text-gray-900">Cash Advance Payment Tracker</h4>
+                    ${compact ? `<span class="text-xs font-medium text-gray-500">${escapeHtml(state.paidCount)} paid / ${escapeHtml(state.remainingCount)} remaining</span>` : ''}
+                </div>
+                <div class="${rowsWrapperClass}">
                     ${state.rows.length ? state.rows.map((row) => {
                         const badgeClass = row.status === 'Paid'
                             ? 'bg-green-100 text-green-800'
                             : (row.status === 'Partial' ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800');
 
                         return `
-                            <div class="rounded-lg border border-gray-100 bg-gray-50 px-3 py-3">
-                                <div class="flex items-start justify-between gap-3">
-                                    <div>
+                            <div class="${rowClass}">
+                                <div class="${rowLayoutClass}">
+                                    <div class="min-w-0">
                                         <p class="text-xs uppercase tracking-[0.18em] text-gray-500">Release ${escapeHtml(row.no)}</p>
                                         <p class="mt-1 text-sm font-semibold text-gray-900">Scheduled ${escapeHtml(row.scheduled_date || '-')}</p>
                                         <p class="mt-1 text-xs text-gray-500">Payment Date: ${escapeHtml(row.payment_date || '-')}</p>
-                                        ${row.payment_remarks ? `<p class="mt-1 text-xs text-gray-500">${escapeHtml(row.payment_remarks)}</p>` : ''}
+                                        ${row.payment_remarks ? `<p class="mt-1 text-xs text-gray-500 break-words">${escapeHtml(row.payment_remarks)}</p>` : ''}
                                     </div>
-                                    <div class="text-right">
+                                    <div class="${rowAmountClass}">
                                         <p class="text-sm font-semibold text-gray-900">${escapeHtml(formatCurrency(row.amount_value))}</p>
                                         ${row.paid_amount_value > 0 && row.status !== 'Paid' ? `<p class="mt-1 text-xs text-gray-500">Paid ${escapeHtml(formatCurrency(row.paid_amount_value))}</p>` : ''}
-                                        <span class="mt-2 inline-flex rounded-full px-2 py-1 text-xs font-semibold ${badgeClass}">${escapeHtml(row.status)}</span>
+                                        <span class="${statusBadgeSpacingClass} ${badgeClass}">${escapeHtml(row.status)}</span>
                                     </div>
                                 </div>
                             </div>
@@ -1629,9 +1936,9 @@
             <div class="finance-preview-box">
                 <div class="finance-preview-section-title">Cash Advance Payment Tracking</div>
                 <div class="finance-preview-inner">
-                    ${renderCashAdvancePaymentSummaryPanel(values)}
+                    ${renderCashAdvancePaymentSummaryPanel(values, { compact: true })}
                     <div class="mt-3">
-                        ${renderCashAdvancePaymentTrackerPanel(values)}
+                        ${renderCashAdvancePaymentTrackerPanel(values, { compact: true })}
                     </div>
                 </div>
             </div>
@@ -1644,16 +1951,19 @@
         const next = state.nextPaymentRow;
 
         return `
-            <div data-ca-preview-payment-root="${escapeHtml(record.id)}" class="rounded-2xl border border-emerald-100 bg-emerald-50/50 p-4">
-                <h4 class="text-[15px] font-semibold text-gray-900">Cash Advance Payment Tracking</h4>
+            <div data-ca-preview-payment-root="${escapeHtml(record.id)}" class="rounded-2xl border border-blue-100 bg-blue-50/50 p-4">
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                    <h4 class="text-[15px] font-semibold text-gray-900">Cash Advance Payment Tracking</h4>
+                    <span class="rounded-full bg-white px-3 py-1 text-xs font-semibold text-blue-700">${escapeHtml(state.status)}</span>
+                </div>
                 <div class="mt-4 space-y-4">
-                    ${renderCashAdvancePaymentSummaryPanel(values)}
-                    ${renderCashAdvancePaymentTrackerPanel(values)}
+                    ${renderCashAdvancePaymentSummaryPanel(values, { compact: true })}
+                    ${renderCashAdvancePaymentTrackerPanel(values, { compact: true })}
                     <div class="rounded-xl border ${next && record.can_edit ? 'border-emerald-200 bg-white' : 'border-gray-200 bg-gray-50'} p-4">
                         <h5 class="text-sm font-semibold text-gray-900">Record Cash Advance Payment</h5>
                         ${next && record.can_edit ? `
                             <div class="mt-4 grid grid-cols-1 gap-3">
-                                <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                                <div class="grid grid-cols-1 gap-3">
                                     <div>
                                         <label class="text-xs text-gray-600">Release</label>
                                         <input type="text" value="Release ${escapeHtml(next.no)}" class="mt-1 w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-900" readonly>
@@ -1739,6 +2049,7 @@
         });
         const nextData = {
             ...(record.data || {}),
+            release_schedule: normalizeCashAdvanceReleaseSchedule(record.data?.release_schedule, record.data?.release_count),
             ca_payment_entries: normalizeCashAdvancePaymentEntries([...(record.data?.ca_payment_entries || []), ...nextEntries]),
         };
         const formData = new FormData();
@@ -2126,10 +2437,8 @@
     }
 
     function previewApprovalLabel(record) {
-        if (record.module_key === 'supplier' && dataCompletionMode(record) === 'send_to_supplier') {
-            return record.workflow_status === 'Submitted'
-                ? (record.approval_status || 'Pending')
-                : 'Awaiting supplier response';
+        if (isPendingSupplierCompletion(record)) {
+            return 'Awaiting supplier response';
         }
 
         return approvalLabel(record.approval_status);
@@ -2139,12 +2448,8 @@
         return record?.data?.completion_mode || '';
     }
 
-    function isPendingSupplierCompletion(record) {
-        if (!record || record.module_key !== 'supplier') {
-            return false;
-        }
-
-        return false;
+    function hasSupplierCompletion(record) {
+        return Boolean(record?.supplier_completed_at);
     }
 
     function isPendingSupplierCompletion(record) {
@@ -2154,9 +2459,12 @@
 
         const mode = dataCompletionMode(record);
         return mode === 'send_to_supplier'
-            || record.workflow_status === 'Shared'
-            || Boolean(record.share_token)
-            || Boolean(record.supplier_completion_url);
+            && !hasSupplierCompletion(record)
+            && (
+                record.workflow_status === 'Shared'
+                || Boolean(record.share_token)
+                || Boolean(record.supplier_completion_url)
+            );
     }
 
     function filteredRecords() {
@@ -3357,6 +3665,13 @@
                     <span class="text-sm text-gray-700">${label}</span>
                 </label>
             `;
+        } else if (field.type === 'acknowledgment') {
+            control = `
+                <label class="flex items-start gap-3 rounded-lg border border-gray-200 bg-white px-3 py-3">
+                    <input type="checkbox" name="${fieldName}" value="1" ${isTruthyFormValue(value) ? 'checked' : ''} class="mt-1 rounded border-gray-300" ${required}>
+                    <span class="text-sm leading-6 text-gray-700">${escapeHtml(field.statement || field.label)}</span>
+                </label>
+            `;
         } else if (field.type === 'number') {
             control = `<input type="number" step="0.01" name="${fieldName}" value="${escapeHtml(value)}" class="w-full border rounded-md p-2 ${readOnlyClass}" ${required} ${readOnlyAttr}>`;
         } else if (field.type === 'date') {
@@ -4497,11 +4812,31 @@
         syncPrVendorFields({ preserveExisting });
     }
 
+    function syncCashAdvanceHiddenRequestor() {
+        if (currentModuleKey !== 'ca') return;
+
+        const form = $('financeForm');
+        if (!form) return;
+
+        const requestorInput = form.querySelector('input[name="data[requestor]"]');
+        if (!requestorInput) return;
+
+        const employeeName = form.querySelector('[name="data[employee_name]"]')?.value || '';
+        const fallbackName = getPrRequesterDefaults().requestor || bootstrap.currentUserName || '';
+        const nextValue = employeeName || requestorInput.value || fallbackName;
+
+        requestorInput.value = nextValue;
+        financeFormValues.requestor = nextValue;
+        financeFormValues['data[requestor]'] = nextValue;
+    }
+
     function updateCashAdvanceReleaseValues(changedFieldName = '') {
         if (currentModuleKey !== 'ca') return;
 
         const form = $('financeForm');
         if (!form) return;
+
+        syncCashAdvanceHiddenRequestor();
 
         const amountInput = form.querySelector('input[name="data[amount_requested]"]');
         const releaseCountInput = form.querySelector('input[name="data[release_count]"]');
@@ -4535,7 +4870,7 @@
             $('amountInput').value = amount.toFixed(2);
         }
 
-        if (changedFieldName === 'amount_requested' || changedFieldName === 'release_count' || changedFieldName === 'cash_release_date') {
+        if (changedFieldName === 'amount_requested' || changedFieldName === 'release_schedule' || changedFieldName === 'release_count' || changedFieldName === 'cash_release_date') {
             refreshCashAdvancePaymentTracker();
         }
     }
@@ -4755,14 +5090,17 @@
 
         switch (record.module_key) {
             case 'supplier':
-                if (supplierIsPending) {
+                if (supplierIsPending || isPendingSupplierCompletion(record)) {
                     return [];
                 }
 
                 return [
-                    { title: 'Supplier Profile', fieldNames: ['completion_mode', 'trade_name', 'supplier_type', 'representative_full_name', 'designation', 'email_address', 'phone_number', 'alternate_contact_number'] },
-                    { title: 'Business & Billing', fieldNames: ['business_address', 'billing_address', 'tin', 'vat_status', 'payment_terms', 'accreditation_status'] },
-                    { title: 'Banking & Notes', fieldNames: ['bank_name', 'bank_account_name', 'bank_account_number', 'remarks'] },
+                    { title: 'Supplier Profile', fieldNames: ['completion_mode', 'date_accomplished', 'trade_name', 'entity_type', 'corporation_type', 'registration_number', 'tin', 'bir_tin'] },
+                    { title: 'Business Details', fieldNames: ['vat_status', 'business_permit_number', 'permit_expiry_date', 'nature_of_business', 'products_services_offered', 'supplier_category', 'years_in_operation'] },
+                    { title: 'Addresses & Contacts', fieldNames: ['registered_address', 'office_address', 'warehouse_address', 'telephone_number', 'mobile_number', 'email_address', 'website_social_media'] },
+                    { title: 'Authorized Representative', fieldNames: ['representative_full_name', 'designation', 'phone_number', 'representative_email_address'] },
+                    { title: 'Billing & Payment', fieldNames: ['billing_address', 'accounting_contact_person', 'accounting_contact_number', 'accounting_email_address', 'payment_terms', 'preferred_payment_method', 'bank_name', 'bank_branch', 'bank_account_name', 'bank_account_number', 'swift_code'] },
+                    { title: 'Acknowledgment', fieldNames: ['person_accomplishing_full_name', 'person_accomplishing_position', 'id_type', 'id_number', 'date_signed'] },
                     { type: 'notes', renderer: () => renderFinanceReviewNotesSection(record) },
                 ];
             case 'service':
@@ -4792,9 +5130,8 @@
                 ];
             case 'pr':
                 return [
-                    { title: 'Request Details', fieldNames: ['requesting_department', 'request_type', 'priority', 'needed_date', 'for_client', 'pr_reason_categories'] },
+                    { title: 'Request Details', fieldNames: ['priority', 'needed_date', 'for_client', 'pr_reason_categories'] },
                     { title: 'Requester Details', fieldNames: ['requester_mode', 'requester_employee_id', 'requestor', 'employee_id', 'employee_email', 'contact_number', 'position', 'department', 'superior', 'superior_email'] },
-                    { title: 'Vendor Details', fieldNames: ['supplier_id', 'new_vendor', 'vendor_id_number', 'vendors_tin', 'company_name', 'vendor_phone', 'vendor_email', 'vendor_address', 'city', 'province', 'zip'] },
                     { title: 'Items / Cost Details', renderer: () => renderPrPreviewTable(record) },
                     { type: 'notes', renderer: () => renderFinanceReviewNotesSection(record) },
                 ];
@@ -4807,8 +5144,8 @@
                 ];
             case 'ca':
                 return [
-                    { title: 'Request Details', fieldNames: ['requester_mode', 'requester_employee_id', 'requestor', 'department', 'purpose', 'needed_date', 'mode_of_release', 'amount_requested', 'release_schedule', 'release_count', 'amount_per_release', 'cash_release_date', 'cash_release_time', 'paid_through'] },
                     { type: 'ca_payment_tracking', renderer: () => renderCashAdvancePaymentPreview(record) },
+                    { title: 'Request Details', fieldNames: ['requester_mode', 'requester_employee_id', 'requestor', 'department', 'purpose', 'needed_date', 'mode_of_release', 'amount_requested', 'release_schedule', 'release_count', 'amount_per_release', 'cash_release_date', 'cash_release_time', 'paid_through'] },
                     { title: 'Funding & Notes', fieldNames: ['bank_account_id', 'coa_id', 'remarks'] },
                     { type: 'notes', renderer: () => renderFinanceReviewNotesSection(record) },
                 ];
@@ -5857,6 +6194,10 @@
             return value ? 'Yes' : 'No';
         }
 
+        if (field.type === 'acknowledgment') {
+            return value ? 'Agreed' : 'Not agreed';
+        }
+
         if (field.type === 'checkbox-group') {
             if (Array.isArray(value)) {
                 return value.length ? value.join(', ') : 'N/A';
@@ -5910,6 +6251,8 @@
 
     function renderAttachmentList(attachments = []) {
         const target = $('existingAttachmentList');
+        if (!target) return;
+
         if (!attachments.length) {
             target.innerHTML = '<p class="text-xs text-gray-400 italic">No existing attachments.</p>';
             return;
@@ -5924,6 +6267,130 @@
                 <a href="${escapeHtml(attachment.url || normalizeAttachmentUrl(attachment.path || ''))}" target="_blank" class="text-blue-600 hover:underline shrink-0">Open</a>
             </div>
         `).join('');
+    }
+
+    function defaultAttachmentControlsHtml() {
+        return `
+            <label class="block text-sm font-medium mb-1 text-blue-700">Attachments</label>
+            <select
+                id="attachmentCategoryInput"
+                name="attachment_category"
+                class="mb-2 w-full border border-blue-200 rounded-md p-2 bg-white text-sm"
+            >
+                <option value="Supporting Document">Supporting Document</option>
+                <option value="Invoice">Invoice</option>
+                <option value="OR">OR</option>
+                <option value="DR">DR</option>
+                <option value="Contract">Contract</option>
+            </select>
+            <input
+                id="attachmentsInput"
+                name="attachments[]"
+                type="file"
+                multiple
+                class="w-full border border-blue-200 rounded-md p-2 bg-blue-50"
+            >
+            <p id="attachmentHint" class="mt-2 text-xs text-gray-500">Upload supporting files if needed.</p>
+            <div id="existingAttachmentList" class="mt-3 space-y-2"></div>
+        `;
+    }
+
+    function supplierAttachmentControlsHtml(entityType = '') {
+        const labels = supplierAttachmentLabelsForEntity(entityType);
+        const fields = labels.length
+            ? labels.map((label) => {
+                const slug = supplierAttachmentSlug(label);
+                return `
+                    <div class="rounded-lg border border-blue-100 bg-white px-3 py-3">
+                        <label class="block text-sm font-medium text-gray-800">${escapeHtml(label)}</label>
+                        <input type="hidden" name="attachment_labels[${escapeHtml(slug)}]" value="${escapeHtml(label)}">
+                        <input
+                            name="attachments[${escapeHtml(slug)}]"
+                            type="file"
+                            class="mt-2 w-full border border-blue-200 rounded-md p-2 bg-blue-50 text-sm"
+                        >
+                    </div>
+                `;
+            }).join('')
+            : '<p class="text-sm text-gray-500">Select an entity type to show the required document uploads.</p>';
+
+        return `
+            <label class="block text-sm font-medium mb-1 text-blue-700">Required Attachments</label>
+            <p id="attachmentHint" class="mb-3 text-xs text-gray-500">Each required supplier document has its own upload field and will be saved with the matching document label.</p>
+            <div id="supplierAttachmentFields" class="grid grid-cols-1 gap-3">
+                ${fields}
+            </div>
+            <div id="existingAttachmentList" class="mt-3 space-y-2"></div>
+        `;
+    }
+
+    function renderAttachmentControls(existingAttachments = []) {
+        const section = $('attachmentsSection');
+        if (!section) return;
+
+        const currentRecord = currentEditRecordId ? getRecordById(currentEditRecordId) : null;
+        if (currentModuleKey === 'supplier' && !isSupplierDispatchLayout(currentRecord)) {
+            const entityType = $('dynamicFields')?.querySelector('[name="data[entity_type]"]')?.value || '';
+            section.innerHTML = supplierAttachmentControlsHtml(entityType);
+        } else {
+            section.innerHTML = defaultAttachmentControlsHtml();
+        }
+
+        renderAttachmentList(existingAttachments);
+        section.querySelectorAll('input[type="file"]').forEach((input) => {
+            input.addEventListener('change', renderDrawerPreview);
+        });
+    }
+
+    function syncSupplierConditionalFields(existingAttachments = []) {
+        if (currentModuleKey !== 'supplier') return;
+
+        const entityTypeInput = $('dynamicFields')?.querySelector('[name="data[entity_type]"]');
+        const paymentMethodInput = $('dynamicFields')?.querySelector('[name="data[preferred_payment_method]"]');
+        const entityType = entityTypeInput?.value || '';
+        const paymentMethod = paymentMethodInput?.value || '';
+
+        const corporationField = $('dynamicFields')?.querySelector('[data-finance-field="corporation_type"]');
+        if (corporationField) {
+            const show = ['Corporation', 'One Person Corporation (OPC)', 'Foreign Company'].includes(entityType);
+            corporationField.classList.toggle('hidden', !show);
+            corporationField.querySelectorAll('select, input, textarea').forEach((input) => {
+                input.disabled = !show;
+            });
+        }
+
+        const entityOtherField = $('dynamicFields')?.querySelector('[data-finance-field="entity_type_other"]');
+        if (entityOtherField) {
+            const show = entityType === 'Others';
+            entityOtherField.classList.toggle('hidden', !show);
+            entityOtherField.querySelectorAll('select, input, textarea').forEach((input) => {
+                input.disabled = !show;
+            });
+        }
+
+        const onlinePaymentField = $('dynamicFields')?.querySelector('[data-finance-field="online_payment_details"]');
+        if (onlinePaymentField) {
+            const show = paymentMethod === 'Online Payment';
+            onlinePaymentField.classList.toggle('hidden', !show);
+            onlinePaymentField.querySelectorAll('select, input, textarea').forEach((input) => {
+                input.disabled = !show;
+            });
+        }
+
+        const paymentMethodOtherField = $('dynamicFields')?.querySelector('[data-finance-field="preferred_payment_method_other"]');
+        if (paymentMethodOtherField) {
+            const show = paymentMethod === 'Others';
+            paymentMethodOtherField.classList.toggle('hidden', !show);
+            paymentMethodOtherField.querySelectorAll('select, input, textarea').forEach((input) => {
+                input.disabled = !show;
+            });
+        }
+
+        const registrationField = $('dynamicFields')?.querySelector('[data-finance-field="registration_number"]');
+        const registrationLabel = registrationField?.querySelector('label');
+        if (registrationLabel) {
+            registrationLabel.textContent = supplierRegistrationLabel(entityType);
+        }
     }
 
     function wireDynamicFieldEvents() {
@@ -6020,6 +6487,22 @@
                     renderDrawerPreview();
                 });
             }
+        }
+
+        if (currentModuleKey === 'supplier') {
+            ['entity_type', 'preferred_payment_method'].forEach((fieldName) => {
+                const input = form.querySelector(`[name="data[${fieldName}]"]`);
+                if (input) {
+                    input.addEventListener('change', () => {
+                        const supplierRecord = currentEditRecordId ? getRecordById(currentEditRecordId) : null;
+                        syncSupplierConditionalFields(supplierRecord?.attachments || []);
+                        if (fieldName === 'entity_type') {
+                            renderAttachmentControls(supplierRecord?.attachments || []);
+                        }
+                        renderDrawerPreview();
+                    });
+                }
+            });
         }
 
         if (currentModuleKey === 'dv') {
@@ -6152,6 +6635,9 @@
         } else if (currentModuleKey !== 'supplier') {
             supplierCompletionMode = 'complete_internally';
         }
+        if (currentModuleKey === 'supplier' && isSupplierCompletionFinished(record)) {
+            supplierCompletionMode = 'complete_internally';
+        }
 
         const recordNumberValue = record
             ? (record.record_number || '')
@@ -6197,13 +6683,15 @@
         }
         $('statusInput').value = statusValue;
         $('drawerTitle').textContent = record ? `Edit ${moduleConfig.label}` : `Add ${moduleConfig.label}`;
-        $('drawerSubtitle').textContent = isSendToSupplierMode()
+        const supplierDispatchLayout = currentModuleKey === 'supplier' && isSupplierDispatchLayout(record);
+
+        $('drawerSubtitle').textContent = supplierDispatchLayout
             ? 'Enter the supplier email address and send the completion form.'
             : (record
                 ? `Update the ${moduleConfig.label.toLowerCase()} record and save changes.`
                 : `Create a new ${moduleConfig.label.toLowerCase()} record.`);
         $('drawerPreviewTitle').textContent = record ? `Preview: ${record.display_label || record.record_title || moduleConfig.label}` : 'New Finance Record';
-        $('drawerSaveButton').textContent = isSendToSupplierMode() ? 'Send Form' : (record ? 'Update' : 'Save');
+        $('drawerSaveButton').textContent = supplierDispatchLayout ? 'Send Form' : (record ? 'Update' : 'Save');
         $('existingAttachmentsJson').value = JSON.stringify(existingAttachments);
 
         setReadonlyState($('recordNumberInput'), true);
@@ -6230,12 +6718,16 @@
         }
 
         renderSupplierModeTabs();
-        setSupplierFormLayout();
+        setSupplierFormLayout(record);
+        const recordTitleWrapper = $('recordTitleInput')?.closest('#recordCoreFields > div');
+        if (recordTitleWrapper) {
+            recordTitleWrapper.classList.toggle('hidden', currentModuleKey === 'pr');
+        }
 
         const supplierFields = moduleConfig.fields.filter((field) => field.name !== 'completion_mode');
         const fieldsHtml = (() => {
             if (currentModuleKey === 'supplier') {
-                const fieldsToRender = isSendToSupplierMode()
+                const fieldsToRender = supplierDispatchLayout
                     ? supplierFields.filter((field) => field.name === 'email_address')
                     : supplierFields;
 
@@ -6245,6 +6737,9 @@
                         let fieldValue = record ? getModuleFieldValue(record, field) : (values[`data[${field.name}]`] || '');
                         if (!fieldValue && field.autoFillCurrentUser) {
                             fieldValue = bootstrap.currentUserName || '';
+                        }
+                        if (!fieldValue && field.autoDateTime) {
+                            fieldValue = currentDateTimeValue();
                         }
                         values[field.name] = fieldValue;
                         values[`data[${field.name}]`] = fieldValue;
@@ -6660,7 +7155,11 @@
 
             if (currentModuleKey === 'ca') {
                 values.ca_payment_entries = normalizeCashAdvancePaymentEntries(record?.data?.ca_payment_entries || values.ca_payment_entries || []);
+                const requestorValue = getDraftValue('requestor', record) || getDraftValue('employee_name', record) || getPrRequesterDefaults().requestor || '';
+                values.requestor = requestorValue;
+                values['data[requestor]'] = requestorValue;
                 return `
+                    <input type="hidden" name="data[requestor]" value="${escapeHtml(requestorValue)}">
                     <div class="md:col-span-2 rounded-xl border border-blue-100 bg-blue-50/40 p-4">
                         <h4 class="text-sm font-semibold uppercase tracking-[0.24em] text-blue-700">Request Details</h4>
                         <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -6672,7 +7171,7 @@
                         <h4 class="text-sm font-semibold uppercase tracking-[0.24em] text-gray-700">Requester Details</h4>
                         <p class="mt-2 text-xs text-gray-500">Choose Own Request to auto-fill your account details, or Request for Another to enter someone else&apos;s information.</p>
                         <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                            ${renderFieldsByNames(moduleConfig, ['requester_mode', 'requester_employee_id', 'requestor', 'employee_id', 'employee_name', 'employee_email', 'contact_number', 'position', 'department', 'superior', 'superior_email'], values, record)}
+                            ${renderFieldsByNames(moduleConfig, ['requester_mode', 'requester_employee_id', 'employee_id', 'employee_name', 'employee_email', 'contact_number', 'position', 'department', 'superior', 'superior_email'], values, record)}
                         </div>
                     </div>
 
@@ -6703,7 +7202,11 @@
 
             if (currentModuleKey === 'ca') {
                 values.ca_payment_entries = normalizeCashAdvancePaymentEntries(record?.data?.ca_payment_entries || values.ca_payment_entries || []);
+                const requestorValue = getDraftValue('requestor', record) || getDraftValue('employee_name', record) || getPrRequesterDefaults().requestor || '';
+                values.requestor = requestorValue;
+                values['data[requestor]'] = requestorValue;
                 return `
+                    <input type="hidden" name="data[requestor]" value="${escapeHtml(requestorValue)}">
                     <div class="md:col-span-2 rounded-xl border border-blue-100 bg-blue-50/40 p-4">
                         <h4 class="text-sm font-semibold uppercase tracking-[0.24em] text-blue-700">Request Details</h4>
                         <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -6801,7 +7304,7 @@
                     <div class="md:col-span-2 rounded-xl border border-blue-100 bg-blue-50/40 p-4">
                         <h4 class="text-sm font-semibold uppercase tracking-[0.24em] text-blue-700">Request Details</h4>
                         <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                            ${renderFieldsByNames(moduleConfig, ['requesting_department', 'request_type', 'priority', 'needed_date', 'for_client', 'pr_reason_categories'], values, record)}
+                            ${renderFieldsByNames(moduleConfig, ['priority', 'needed_date', 'for_client', 'pr_reason_categories'], values, record)}
                         </div>
                     </div>
 
@@ -6812,14 +7315,6 @@
                             ${renderFieldsByNames(moduleConfig, ['requester_mode', 'requester_employee_id'], values, record)}
                             ${renderDynamicField(requestorField, requestorFieldValue, values)}
                             ${renderFieldsByNames(moduleConfig, ['employee_id', 'employee_email', 'contact_number', 'position', 'department', 'superior', 'superior_email'], values, record)}
-                        </div>
-                    </div>
-
-                    <div class="md:col-span-2 rounded-xl border border-gray-200 bg-white p-4">
-                        <h4 class="text-sm font-semibold uppercase tracking-[0.24em] text-gray-700">Vendor Details</h4>
-                        <p class="mt-2 text-xs text-gray-500">Selecting a supplier will populate the vendor fields from the selected supplier record.</p>
-                        <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                            ${renderFieldsByNames(moduleConfig, ['supplier_id', 'new_vendor', 'vendor_id_number', 'vendors_tin', 'company_name', 'vendor_address', 'city', 'province', 'zip', 'vendor_phone', 'vendor_email'], values, record)}
                         </div>
                     </div>
 
@@ -7007,6 +7502,9 @@
                 if (!fieldValue && field.autoFillCurrentUser) {
                     fieldValue = bootstrap.currentUserName || '';
                 }
+                if (!fieldValue && field.autoDateTime) {
+                    fieldValue = currentDateTimeValue();
+                }
                 values[field.name] = fieldValue;
                 values[`data[${field.name}]`] = fieldValue;
                 return renderDynamicField(field, fieldValue, values);
@@ -7014,8 +7512,9 @@
         })();
 
         $('dynamicFields').innerHTML = fieldsHtml;
-        renderAttachmentList(existingAttachments);
+        renderAttachmentControls(existingAttachments);
         wireDynamicFieldEvents();
+        syncSupplierConditionalFields(existingAttachments);
         syncErrReimbursementModeFields();
         if (currentModuleKey === 'pr') {
             syncPrRequestDetails({ preserveExisting: true });
@@ -7072,13 +7571,14 @@
         const recordTitleValue = $('recordTitleInput').value.trim() || generateDefaultRecordTitle(currentModuleKey);
         const summaryItems = [
             ['Number', recordNumber || 'N/A'],
-            [moduleConfig.recordTitleLabel || 'Name', recordTitleValue || 'N/A'],
+            ...(currentModuleKey === 'pr' ? [] : [[moduleConfig.recordTitleLabel || 'Name', recordTitleValue || 'N/A']]),
             ['Date', recordDate || 'N/A'],
             ['Time', recordTime || 'N/A'],
             ...(shouldShowGenericAmount(currentModuleKey) ? [['Amount', amount || '0.00']] : []),
         ];
 
-        if (currentModuleKey === 'supplier' && isSendToSupplierMode()) {
+        const currentRecord = currentEditRecordId ? getRecordById(currentEditRecordId) : null;
+        if (currentModuleKey === 'supplier' && isSupplierDispatchLayout(currentRecord)) {
             const email = $('dynamicFields').querySelector('input[name="data[email_address]"]')?.value || 'N/A';
 
             $('drawerPreview').innerHTML = `
@@ -7533,6 +8033,18 @@
 
                         <div class="relative border-t border-gray-300">
                             <div class="bg-gray-50 px-4 py-2 border-b border-gray-300">
+                                <h4 class="text-[12px] font-semibold uppercase tracking-[0.26em] text-gray-700">Cash Advance Payment Tracking</h4>
+                            </div>
+                            <div class="p-4">
+                                ${renderCashAdvancePaymentSummaryPanel(summaryValues, { compact: true })}
+                                <div class="mt-4">
+                                    ${renderCashAdvancePaymentTrackerPanel(summaryValues, { compact: true })}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="relative border-t border-gray-300">
+                            <div class="bg-gray-50 px-4 py-2 border-b border-gray-300">
                                 <h4 class="text-[12px] font-semibold uppercase tracking-[0.26em] text-gray-700">Request Details</h4>
                             </div>
                             <div class="grid grid-cols-1 md:grid-cols-2">
@@ -7591,18 +8103,6 @@
                                 <div class="border-r border-t border-gray-300 px-4 py-3">
                                     <p class="text-[11px] uppercase tracking-[0.22em] text-gray-500">Other Business Purpose</p>
                                     <p class="mt-2 min-h-[20px] border-b border-gray-300 text-[14px] font-semibold text-gray-900 break-words">${escapeHtml(formValues['data[other_business_purpose_specify]'] || formValues['data[other_expense_specify]'] || 'Not filled yet')}</p>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="relative border-t border-gray-300">
-                            <div class="bg-gray-50 px-4 py-2 border-b border-gray-300">
-                                <h4 class="text-[12px] font-semibold uppercase tracking-[0.26em] text-gray-700">Cash Advance Payment Tracking</h4>
-                            </div>
-                            <div class="p-4">
-                                ${renderCashAdvancePaymentSummaryPanel(summaryValues)}
-                                <div class="mt-4">
-                                    ${renderCashAdvancePaymentTrackerPanel(summaryValues)}
                                 </div>
                             </div>
                         </div>
@@ -7768,7 +8268,7 @@
         const previewFields = moduleConfig.fields
             .filter((field) => field.name !== 'completion_mode')
             .filter((field) => {
-                if (currentModuleKey === 'supplier' && isSendToSupplierMode()) {
+                if (currentModuleKey === 'supplier' && isSupplierDispatchLayout(currentRecord)) {
                     return field.name === 'email_address';
                 }
 
@@ -7788,7 +8288,7 @@
             });
 
         const dataPairs = previewFields.map((field, index) => {
-            const value = formValues[`data[${field.name}]`];
+            const value = formValues[`data[${field.name}]`] ?? formValues[`data[${field.name}][]`];
             const cellClasses = [
                 'px-4',
                 'py-3',
@@ -7999,12 +8499,14 @@
             if (!data || !data.id) return;
 
             upsertFinanceRecord(data);
+            refreshFinanceView();
 
             if (currentPreviewRecord && String(currentPreviewRecord.id) === String(data.id)) {
                 syncPreviewFromRecord(data);
+                if (!isPendingSupplierCompletion(data)) {
+                    clearPreviewRefreshTimer();
+                }
             }
-
-            clearPreviewRefreshTimer();
         } catch (error) {
             if (!silent) {
                 console.error('Unable to refresh finance preview record:', error);
@@ -8014,11 +8516,21 @@
 
     function startPreviewRefresh(record) {
         clearPreviewRefreshTimer();
-        setTimeout(() => {
-            if (currentPreviewRecord) {
-                refreshPreviewRecord(currentPreviewRecord.id, true);
+
+        const refreshCurrentPreview = () => {
+            if (!currentPreviewRecord) {
+                clearPreviewRefreshTimer();
+                return;
             }
-        }, 2000);
+
+            refreshPreviewRecord(currentPreviewRecord.id, true);
+        };
+
+        window.setTimeout(refreshCurrentPreview, 2000);
+
+        if (isPendingSupplierCompletion(record)) {
+            currentPreviewRefreshTimer = window.setInterval(refreshCurrentPreview, 5000);
+        }
     }
 
     function buildFinancePreviewSourceHtml(record) {
@@ -8333,10 +8845,11 @@
     function renderPreviewDocument(record) {
         const attachmentMode = Boolean(currentPreviewAttachmentUrl);
         const attachmentName = currentPreviewAttachmentUrl
-            ? (record.attachments || []).find((attachment) => normalizeAttachmentUrl(attachment.path) === currentPreviewAttachmentUrl)?.name || 'Attached PDF'
+            ? (record.attachments || []).find((attachment) => (attachment.url || normalizeAttachmentUrl(attachment.path || '')) === currentPreviewAttachmentUrl)?.name || 'Attached PDF'
             : 'Finance Preview PDF';
         const holderLabel = attachmentMode ? 'Attachment PDF' : 'Finance PDF';
-        const previewUrl = currentPreviewAttachmentUrl || `/finance/${record.id}/preview-pdf`;
+        const previewCacheKey = encodeURIComponent(record.supplier_completed_at || record.submitted_at || record.approved_at || Date.now());
+        const previewUrl = currentPreviewAttachmentUrl || `/finance/${record.id}/preview-pdf?t=${previewCacheKey}`;
 
         $('previewDocument').innerHTML = `
             <div class="max-w-5xl mx-auto">
@@ -8355,7 +8868,7 @@
                         ></iframe>
                     </div>
                     <div class="mt-3 flex flex-wrap gap-2">
-                        <a id="financePreviewOpenLink" href="${escapeHtml(currentPreviewAttachmentUrl || `/finance/${record.id}/preview-pdf`)}" target="_blank" class="rounded-full border border-gray-300 bg-white px-4 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50">
+                        <a id="financePreviewOpenLink" href="${escapeHtml(previewUrl)}" target="_blank" class="rounded-full border border-gray-300 bg-white px-4 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50">
                             Open ${escapeHtml(attachmentMode ? 'Attachment' : 'Preview')}
                         </a>
                     </div>
@@ -8366,13 +8879,58 @@
     }
 
     function renderPreviewTabContent(record) {
+        const moduleConfig = getModuleConfig(record.module_key);
+        const attachments = Array.isArray(record.attachments) ? record.attachments : [];
+        const moduleDetailCards = getModulePreviewSections(record)
+            .filter((section) => section && section.type !== 'notes' && Array.isArray(section.fieldNames) && section.fieldNames.length)
+            .map((section) => {
+                const rows = section.fieldNames.map((fieldName) => {
+                    const field = (moduleConfig.fields || []).find((item) => item.name === fieldName);
+                    if (!field) return null;
+
+                    return {
+                        label: field.label,
+                        value: getPreviewFieldValue(record, fieldName, moduleConfig) || 'N/A',
+                    };
+                }).filter(Boolean);
+
+                if (!rows.length) return '';
+
+                return `
+                    <div class="rounded-2xl border border-gray-200 bg-white p-4">
+                        <h4 class="text-[15px] font-semibold text-gray-900">${escapeHtml(section.title || 'Details')}</h4>
+                        <div class="mt-4 space-y-3">
+                            ${rows.map((row) => `
+                                <div class="space-y-1 border-b border-gray-100 pb-3 last:border-b-0 last:pb-0">
+                                    <p class="text-[11px] uppercase tracking-[0.18em] text-gray-500">${escapeHtml(row.label)}</p>
+                                    <p class="text-[14px] font-semibold text-gray-900 break-words">${escapeHtml(row.value)}</p>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        const detailAttachmentsHtml = attachments.length ? `
+            <div class="rounded-2xl border border-emerald-100 bg-emerald-50/50 p-4">
+                <h4 class="text-[15px] font-semibold text-gray-900">Attachments</h4>
+                <div class="mt-4 space-y-3">
+                    ${attachments.map((attachment, index) => `
+                        <a href="${escapeHtml(attachment.url || normalizeAttachmentUrl(attachment.path || ''))}" target="_blank" class="block rounded-xl border border-emerald-100 bg-white px-4 py-3 hover:bg-emerald-50 transition">
+                            <p class="font-semibold text-gray-900 break-all">${escapeHtml(attachment.name || `Attachment ${index + 1}`)}</p>
+                            <p class="mt-1 text-xs font-semibold text-emerald-700">${escapeHtml(attachment.category || 'Supporting Document')}</p>
+                            <p class="mt-1 text-xs text-gray-500 break-all">${escapeHtml(attachment.path || '')}</p>
+                        </a>
+                    `).join('')}
+                </div>
+            </div>
+        ` : '';
         const detailItems = `
             <div class="rounded-2xl border border-blue-100 bg-blue-50/60 p-4">
                 <h4 class="text-[15px] font-semibold text-gray-900">${escapeHtml(record.module_label || 'Finance Record')} Details</h4>
                 <div class="mt-4 space-y-4">
                     ${[
                         ['Record Number', record.record_number || 'N/A'],
-                        [getModuleConfig(record.module_key).recordTitleLabel || 'Name', record.record_title || 'N/A'],
+                        [moduleConfig.recordTitleLabel || 'Name', record.record_title || 'N/A'],
                         ['Record Date', record.record_date || 'N/A'],
                         ...(shouldShowGenericAmount(record) ? [['Amount', record.amount ? formatCurrency(record.amount) : 'N/A']] : []),
                         ['Workflow', record.workflow_status || 'N/A'],
@@ -8406,7 +8964,6 @@
             </div>
         `;
 
-        const attachments = Array.isArray(record.attachments) ? record.attachments : [];
         const pdfAttachments = attachments.filter((attachment) => {
             const name = String(attachment.name || attachment.path || '').toLowerCase();
             const mime = String(attachment.mime || '').toLowerCase();
@@ -8459,7 +9016,9 @@
             ? renderCashAdvancePreviewPaymentManager(record)
             : '';
 
-        $('previewTabContent').innerHTML = currentPreviewTab === 'attachments' ? attachmentsHtml : `${detailItems}${moduleTrackingHtml}${notesHtml}`;
+        $('previewTabContent').innerHTML = currentPreviewTab === 'attachments'
+            ? attachmentsHtml
+            : `${moduleTrackingHtml}${detailItems}${moduleDetailCards}${detailAttachmentsHtml}${notesHtml}`;
     }
 
     function updatePreviewTabButtons() {
@@ -8495,17 +9054,6 @@
     function renderPreviewActions(record) {
         const actions = [];
         const supplierPending = isPendingSupplierCompletion(record);
-        const previewUrl = currentPreviewAttachmentUrl || `/finance/${record.id}/preview-pdf`;
-        const previewLabel = currentPreviewAttachmentUrl ? 'Attachment PDF' : 'Preview';
-        if (!supplierPending) {
-            actions.push(`<a href="${escapeHtml(previewUrl)}" target="_blank" class="block w-full border border-gray-300 rounded-md py-2 text-center hover:bg-gray-50">Open ${escapeHtml(previewLabel)}</a>`);
-        }
-        if (record.can_edit) {
-            actions.push(`<button type="button" onclick="window.financeModule.openFinanceDrawer(window.financeModule.getRecordById(${record.id}))" class="w-full border border-gray-300 rounded-md py-2 hover:bg-gray-50">Edit</button>`);
-        }
-        if (!supplierPending) {
-            actions.push(`<button type="button" onclick="window.financeModule.printFinanceRecord(${record.id})" class="w-full border border-gray-300 rounded-md py-2 hover:bg-gray-50">Print</button>`);
-        }
         if (!supplierPending && record.module_key === 'arf') {
             const assetCode = record.data?.asset_code || record.record_number || '';
             const location = record.data?.location || '';
@@ -8633,9 +9181,14 @@
     async function saveFinanceRecord(event) {
         event.preventDefault();
         const form = $('financeForm');
+        if (currentModuleKey === 'ca') {
+            syncCashAdvanceHiddenRequestor();
+            updateCashAdvanceReleaseValues();
+        }
         const formData = new FormData(form);
         const moduleConfig = getModuleConfig(currentModuleKey);
-        const sendToSupplier = isSendToSupplierMode();
+        const currentRecord = currentEditRecordId ? getRecordById(currentEditRecordId) : null;
+        const sendToSupplier = isSupplierDispatchLayout(currentRecord);
 
         formData.set('module_key', currentModuleKey);
         formData.set('data[completion_mode]', sendToSupplier ? 'send_to_supplier' : 'complete_internally');

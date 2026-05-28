@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Mail\SupplierCompletionMail;
+use App\Models\Company;
+use App\Models\CompanyBif;
 use App\Models\Contact;
 use App\Models\EmployeePayrollProfile;
 use App\Models\Employee;
@@ -154,7 +156,7 @@ class FinanceController extends Controller
             'bank_account' => 'Bank Account Name',
             'pr' => 'Request Title',
             'po' => 'Order Title',
-            'ca' => 'Requestor',
+            'ca' => 'Cash Advance Request',
             'lr' => 'Liquidating Person',
             'err' => 'Requestor',
             'dv' => 'Payee',
@@ -547,27 +549,57 @@ SVG;
                 : [
                     $section('Supplier Profile', [
                         ['name' => 'completion_mode', 'label' => 'Completion Mode'],
-                        ['name' => 'trade_name', 'label' => 'Trade Name'],
-                        ['name' => 'supplier_type', 'label' => 'Supplier Type'],
-                        ['name' => 'representative_full_name', 'label' => 'Representative Full Name'],
-                        ['name' => 'designation', 'label' => 'Designation'],
-                        ['name' => 'email_address', 'label' => 'Email Address'],
-                        ['name' => 'phone_number', 'label' => 'Phone Number'],
-                        ['name' => 'alternate_contact_number', 'label' => 'Alternate Contact Number'],
+                        ['name' => 'date_accomplished', 'label' => 'Date Accomplished'],
+                        ['name' => 'trade_name', 'label' => 'Trade Name / Brand Name'],
+                        ['name' => 'entity_type', 'label' => 'Entity Type'],
+                        ['name' => 'corporation_type', 'label' => 'Corporation Type'],
+                        ['name' => 'registration_number', 'label' => 'Registration Number'],
+                        ['name' => 'tin', 'label' => 'Tax Identification Number (TIN)'],
+                        ['name' => 'bir_tin', 'label' => 'BIR TIN'],
                     ]),
-                $section('Business & Billing', [
-                    ['name' => 'business_address', 'label' => 'Business Address'],
-                    ['name' => 'billing_address', 'label' => 'Billing Address'],
-                    ['name' => 'tin', 'label' => 'TIN'],
-                    ['name' => 'vat_status', 'label' => 'VAT / Non-VAT'],
-                    ['name' => 'payment_terms', 'label' => 'Payment Terms'],
-                    ['name' => 'accreditation_status', 'label' => 'Accreditation Status'],
+                $section('Business Details', [
+                    ['name' => 'vat_status', 'label' => 'VAT Status'],
+                    ['name' => 'business_permit_number', 'label' => 'Business Permit Number'],
+                    ['name' => 'permit_expiry_date', 'label' => 'Permit Expiry Date'],
+                    ['name' => 'nature_of_business', 'label' => 'Nature of Business'],
+                    ['name' => 'products_services_offered', 'label' => 'Products / Services Offered'],
+                    ['name' => 'supplier_category', 'label' => 'Supplier Category'],
+                    ['name' => 'years_in_operation', 'label' => 'Years in Operation'],
                 ]),
-                $section('Banking & Notes', [
+                $section('Addresses & Contacts', [
+                    ['name' => 'registered_address', 'label' => 'Registered Address'],
+                    ['name' => 'office_address', 'label' => 'Office Address'],
+                    ['name' => 'warehouse_address', 'label' => 'Warehouse Address'],
+                    ['name' => 'telephone_number', 'label' => 'Telephone Number'],
+                    ['name' => 'mobile_number', 'label' => 'Mobile Number'],
+                    ['name' => 'email_address', 'label' => 'Official Email Address'],
+                    ['name' => 'website_social_media', 'label' => 'Website / Social Media'],
+                ]),
+                $section('Authorized Representative', [
+                    ['name' => 'representative_full_name', 'label' => 'Authorized Representative Full Name'],
+                    ['name' => 'designation', 'label' => 'Position / Designation'],
+                    ['name' => 'phone_number', 'label' => 'Mobile Number'],
+                    ['name' => 'representative_email_address', 'label' => 'Email Address'],
+                ]),
+                $section('Billing & Payment', [
+                    ['name' => 'billing_address', 'label' => 'Billing Address'],
+                    ['name' => 'accounting_contact_person', 'label' => 'Accounting Contact Person'],
+                    ['name' => 'accounting_contact_number', 'label' => 'Accounting Contact Number'],
+                    ['name' => 'accounting_email_address', 'label' => 'Accounting Email Address'],
+                    ['name' => 'payment_terms', 'label' => 'Payment Terms'],
+                    ['name' => 'preferred_payment_method', 'label' => 'Preferred Payment Method'],
                     ['name' => 'bank_name', 'label' => 'Bank Name'],
+                    ['name' => 'bank_branch', 'label' => 'Bank Branch'],
                     ['name' => 'bank_account_name', 'label' => 'Bank Account Name'],
                     ['name' => 'bank_account_number', 'label' => 'Bank Account Number'],
-                    ['name' => 'remarks', 'label' => 'Remarks'],
+                    ['name' => 'swift_code', 'label' => 'Swift Code'],
+                ]),
+                $section('Acknowledgment', [
+                    ['name' => 'person_accomplishing_full_name', 'label' => 'Person Accomplishing the Form'],
+                    ['name' => 'person_accomplishing_position', 'label' => 'Position / Designation'],
+                    ['name' => 'id_type', 'label' => 'ID Type'],
+                    ['name' => 'id_number', 'label' => 'ID Number'],
+                    ['name' => 'date_signed', 'label' => 'Date Signed'],
                 ]),
                 $notesSection,
             ],
@@ -641,8 +673,6 @@ SVG;
             ],
             'pr' => [
                 $section('Request Details', [
-                    ['name' => 'requesting_department', 'label' => 'Department'],
-                    ['name' => 'request_type', 'label' => 'Type'],
                     ['name' => 'priority', 'label' => 'Priority'],
                     ['name' => 'needed_date', 'label' => 'Needed Date'],
                     ['name' => 'for_client', 'label' => 'Is this for a client?'],
@@ -659,19 +689,6 @@ SVG;
                     ['name' => 'department', 'label' => 'Department'],
                     ['name' => 'superior', 'label' => 'Superior'],
                     ['name' => 'superior_email', 'label' => 'Superior Email'],
-                ]),
-                $section('Vendor Details', [
-                    ['name' => 'supplier_id', 'label' => 'Supplier'],
-                    ['name' => 'new_vendor', 'label' => 'New Vendor?'],
-                    ['name' => 'vendor_id_number', 'label' => 'Vendor ID Number'],
-                    ['name' => 'vendors_tin', 'label' => 'Vendors TIN#'],
-                    ['name' => 'company_name', 'label' => 'Company'],
-                    ['name' => 'vendor_phone', 'label' => 'Phone Number'],
-                    ['name' => 'vendor_email', 'label' => 'Email'],
-                    ['name' => 'vendor_address', 'label' => 'Address'],
-                    ['name' => 'city', 'label' => 'City'],
-                    ['name' => 'province', 'label' => 'Province'],
-                    ['name' => 'zip', 'label' => 'Zip'],
                 ]),
                 ['type' => 'line_items', 'title' => 'Items / Cost Details'],
                 $section('Purpose & Notes', [
@@ -696,9 +713,22 @@ SVG;
                 $notesSection,
             ],
             'ca' => [
+                [
+                    'type' => 'ca_payment_tracking',
+                    'title' => 'Cash Advance Payment Tracking',
+                ],
+                $section('Cash Advance Details', [
+                    ['name' => 'amount_requested', 'label' => 'Amount Requested'],
+                    ['name' => 'release_schedule', 'label' => 'Release Schedule'],
+                    ['name' => 'release_count', 'label' => 'Number of Releases'],
+                    ['name' => 'amount_per_release', 'label' => 'Amount per Release'],
+                    ['name' => 'cash_release_date', 'label' => 'Cash Release Date'],
+                    ['name' => 'cash_release_time', 'label' => 'Cash Release Time'],
+                    ['name' => 'mode_of_release', 'label' => 'Mode of Release'],
+                    ['name' => 'paid_through', 'label' => 'Paid Through'],
+                ]),
                 $section('Request Details', [
                     ['name' => 'requester_mode', 'label' => 'Requester Option'],
-                    ['name' => 'requestor', 'label' => 'Requestor'],
                     ['name' => 'needed_date', 'label' => 'Needed Date'],
                     ['name' => 'priority', 'label' => 'Priority'],
                     ['name' => 'cash_advance_type', 'label' => 'Cash Advance Type'],
@@ -720,20 +750,6 @@ SVG;
                     ['name' => 'superior', 'label' => 'Superior'],
                     ['name' => 'superior_email', 'label' => 'Superior Email'],
                 ]),
-                $section('Cash Advance Details', [
-                    ['name' => 'amount_requested', 'label' => 'Amount Requested'],
-                    ['name' => 'release_schedule', 'label' => 'Release Schedule'],
-                    ['name' => 'release_count', 'label' => 'Number of Releases'],
-                    ['name' => 'amount_per_release', 'label' => 'Amount per Release'],
-                    ['name' => 'cash_release_date', 'label' => 'Cash Release Date'],
-                    ['name' => 'cash_release_time', 'label' => 'Cash Release Time'],
-                    ['name' => 'mode_of_release', 'label' => 'Mode of Release'],
-                    ['name' => 'paid_through', 'label' => 'Paid Through'],
-                ]),
-                [
-                    'type' => 'ca_payment_tracking',
-                    'title' => 'Cash Advance Payment Tracking',
-                ],
                 $section('Declarations & Authorizations', [
                     ['name' => 'official_business_cash_advance', 'label' => 'Official Business Cash Advance'],
                     ['name' => 'employee_cash_advance_personal', 'label' => 'Employee Cash Advance - Personal Purpose'],
@@ -1422,44 +1438,7 @@ SVG;
             ])
             ->values();
 
-        $options['client'] = Contact::query()
-            ->orderBy('first_name')
-            ->get([
-                'id',
-                'salutation',
-                'first_name',
-                'middle_initial',
-                'middle_name',
-                'last_name',
-                'name_extension',
-                'email',
-                'phone',
-                'contact_address',
-                'company_name',
-                'company_address',
-                'position',
-                'customer_type',
-                'client_status',
-                'cif_no',
-                'tin',
-            ])
-            ->map(fn (Contact $contact) => [
-                'id' => $contact->id,
-                'label' => $this->contactDisplayName($contact, includeEmail: true),
-                'record_title' => $this->contactDisplayName($contact),
-                'full_name' => $this->contactDisplayName($contact),
-                'email' => $contact->email,
-                'phone' => $contact->phone,
-                'contact_address' => $contact->contact_address,
-                'company_name' => $contact->company_name,
-                'company_address' => $contact->company_address,
-                'position' => $contact->position,
-                'customer_type' => $contact->customer_type,
-                'client_status' => $contact->client_status,
-                'cif_no' => $contact->cif_no,
-                'tin' => $contact->tin,
-            ])
-            ->values();
+        $options['client'] = $this->financeClientLookupOptions();
 
         $options['employee'] = Schema::hasTable('employees')
             ? Employee::query()
@@ -1479,6 +1458,254 @@ SVG;
             ->values();
 
         return $options;
+    }
+
+    private function financeClientLookupOptions(): \Illuminate\Support\Collection
+    {
+        $contactOptions = Schema::hasTable('contacts')
+            ? Contact::query()
+                ->with([
+                    'companies:id,company_name',
+                    'primaryCompanies:id,company_name,primary_contact_id',
+                ])
+                ->orderBy('first_name')
+                ->orderBy('last_name')
+                ->get([
+                    'id',
+                    'salutation',
+                    'first_name',
+                    'middle_initial',
+                    'middle_name',
+                    'last_name',
+                    'name_extension',
+                    'email',
+                    'phone',
+                    'contact_address',
+                    'company_name',
+                    'company_address',
+                    'position',
+                    'customer_type',
+                    'client_status',
+                    'cif_no',
+                    'tin',
+                ])
+                ->map(fn (Contact $contact) => $this->financeContactClientOption($contact))
+                ->values()
+            : collect();
+
+        return $contactOptions
+            ->concat($this->financeCompanyPersonClientOptions($contactOptions))
+            ->unique(fn (array $option) => (string) ($option['id'] ?? ''))
+            ->values();
+    }
+
+    private function financeContactClientOption(Contact $contact): array
+    {
+        $companyNames = collect([$contact->company_name])
+            ->merge($contact->companies->pluck('company_name'))
+            ->merge($contact->primaryCompanies->pluck('company_name'))
+            ->filter()
+            ->unique()
+            ->values();
+        $displayName = $this->contactDisplayName($contact);
+        $label = $this->contactDisplayName($contact, includeEmail: true);
+
+        if ($companyNames->isNotEmpty()) {
+            $label .= ' - '.$companyNames->implode(', ');
+        }
+
+        return [
+            'id' => $contact->id,
+            'label' => $label,
+            'record_title' => $displayName,
+            'full_name' => $displayName,
+            'email' => $contact->email,
+            'phone' => $contact->phone,
+            'contact_address' => $contact->contact_address,
+            'company_name' => $companyNames->first() ?: $contact->company_name,
+            'company_names' => $companyNames->all(),
+            'company_address' => $contact->company_address,
+            'position' => $contact->position,
+            'customer_type' => $contact->customer_type,
+            'client_status' => $contact->client_status,
+            'cif_no' => $contact->cif_no,
+            'tin' => $contact->tin,
+            'source' => 'contacts',
+        ];
+    }
+
+    private function financeCompanyPersonClientOptions(?\Illuminate\Support\Collection $contactOptions = null): \Illuminate\Support\Collection
+    {
+        if (! Schema::hasTable('companies') || ! Schema::hasTable('company_bifs')) {
+            return collect();
+        }
+
+        $contactOptions ??= collect();
+
+        return Company::query()
+            ->with('latestBif')
+            ->orderBy('company_name')
+            ->get(['id', 'company_name', 'address'])
+            ->flatMap(function (Company $company) use ($contactOptions) {
+                $bif = $company->latestBif;
+
+                if (! $bif) {
+                    return collect();
+                }
+
+                return $this->financeCompanyBifPersonRows($bif)
+                    ->reject(fn (array $person) => $this->financeCompanyPersonMatchesContact($person, $company->company_name, $contactOptions))
+                    ->map(fn (array $person) => $this->financeCompanyPersonClientOption($company, $bif, $person));
+            })
+            ->unique(fn (array $option) => (string) ($option['id'] ?? ''))
+            ->values();
+    }
+
+    private function financeCompanyBifPersonRows(CompanyBif $bif): \Illuminate\Support\Collection
+    {
+        $rows = collect($bif->authorized_signatories ?? [])
+            ->filter(fn (array $item) => filled($item['full_name'] ?? null))
+            ->map(fn (array $item) => $this->financeCompanyPersonRow($item, 'Authorized Signatory'));
+
+        if ($rows->isEmpty() && filled($bif->authorized_signatory_name)) {
+            $rows->push($this->financeCompanyPersonRow([
+                'full_name' => $bif->authorized_signatory_name,
+                'address' => $bif->authorized_signatory_address,
+                'nationality' => $bif->authorized_signatory_nationality,
+                'date_of_birth' => optional($bif->authorized_signatory_date_of_birth)?->format('Y-m-d'),
+                'tin' => $bif->authorized_signatory_tin,
+                'position' => $bif->authorized_signatory_position,
+            ], 'Authorized Signatory'));
+        }
+
+        $ubos = collect($bif->ubos ?? [])
+            ->filter(fn (array $item) => filled($item['full_name'] ?? null))
+            ->map(fn (array $item) => $this->financeCompanyPersonRow($item, 'UBO (20%+ Stockholder)'));
+
+        if ($ubos->isEmpty() && filled($bif->ubo_name)) {
+            $ubos->push($this->financeCompanyPersonRow([
+                'full_name' => $bif->ubo_name,
+                'address' => $bif->ubo_address,
+                'nationality' => $bif->ubo_nationality,
+                'date_of_birth' => optional($bif->ubo_date_of_birth)?->format('Y-m-d'),
+                'tin' => $bif->ubo_tin,
+                'position' => $bif->ubo_position,
+            ], 'UBO (20%+ Stockholder)'));
+        }
+
+        if (filled($bif->authorized_contact_person_name)) {
+            $rows->push($this->financeCompanyPersonRow([
+                'full_name' => $bif->authorized_contact_person_name,
+                'position' => $bif->authorized_contact_person_position,
+                'email' => $bif->authorized_contact_person_email,
+                'phone' => $bif->authorized_contact_person_phone,
+            ], 'Authorized Contact Person'));
+        }
+
+        return $rows
+            ->concat($ubos)
+            ->unique(fn (array $item) => Str::lower(($item['role_label'] ?? '').'|'.($item['full_name'] ?? '').'|'.($item['email'] ?? '').'|'.($item['phone'] ?? '')))
+            ->values();
+    }
+
+    private function financeCompanyPersonRow(array $item, string $roleLabel): array
+    {
+        return [
+            'role_label' => $roleLabel,
+            'full_name' => trim((string) ($item['full_name'] ?? '')),
+            'position' => $item['position'] ?? null,
+            'email' => $item['email'] ?? null,
+            'phone' => $item['phone'] ?? null,
+            'address' => $item['address'] ?? null,
+            'nationality' => $item['nationality'] ?? null,
+            'date_of_birth' => $item['date_of_birth'] ?? null,
+            'tin' => $item['tin'] ?? null,
+        ];
+    }
+
+    private function financeCompanyPersonClientOption(Company $company, CompanyBif $bif, array $person): array
+    {
+        $fullName = trim((string) ($person['full_name'] ?? ''));
+        $roleLabel = trim((string) ($person['role_label'] ?? 'Company Person'));
+        $companyName = trim((string) $company->company_name);
+        $email = trim((string) ($person['email'] ?? ''));
+        $label = $fullName;
+
+        if ($email !== '') {
+            $label .= " ({$email})";
+        }
+
+        $label .= ' - '.$roleLabel;
+
+        if ($companyName !== '') {
+            $label .= ' - '.$companyName;
+        }
+
+        return [
+            'id' => $this->financeCompanyPersonClientId($company->id, $roleLabel, $person),
+            'label' => $label,
+            'record_title' => $fullName,
+            'full_name' => $fullName,
+            'email' => $email,
+            'phone' => $person['phone'] ?? null,
+            'contact_address' => $person['address'] ?? null,
+            'company_name' => $companyName,
+            'company_names' => [$companyName],
+            'company_address' => $company->address,
+            'position' => $person['position'] ?? null,
+            'customer_type' => 'Company BIF Person',
+            'client_status' => null,
+            'cif_no' => null,
+            'tin' => $person['tin'] ?? null,
+            'source' => 'company_bif',
+            'company_id' => $company->id,
+            'company_bif_id' => $bif->id,
+            'role_label' => $roleLabel,
+        ];
+    }
+
+    private function financeCompanyPersonClientId(int $companyId, string $roleLabel, array $person): string
+    {
+        $signature = Str::lower(implode('|', [
+            $roleLabel,
+            $person['full_name'] ?? '',
+            $person['email'] ?? '',
+            $person['phone'] ?? '',
+        ]));
+
+        return 'company-person:'.$companyId.':'.Str::slug($roleLabel ?: 'person').':'.substr(sha1($signature), 0, 12);
+    }
+
+    private function financeCompanyPersonMatchesContact(array $person, string $companyName, \Illuminate\Support\Collection $contactOptions): bool
+    {
+        $email = Str::lower(trim((string) ($person['email'] ?? '')));
+        $phone = preg_replace('/\D+/', '', (string) ($person['phone'] ?? ''));
+        $fullName = Str::lower(trim((string) ($person['full_name'] ?? '')));
+        $companyName = Str::lower(trim($companyName));
+
+        if ($email === '' && $phone === '' && $fullName === '') {
+            return false;
+        }
+
+        return $contactOptions->contains(function (array $option) use ($email, $phone, $fullName, $companyName) {
+            if ($email !== '' && Str::lower(trim((string) ($option['email'] ?? ''))) === $email) {
+                return true;
+            }
+
+            if ($phone !== '' && preg_replace('/\D+/', '', (string) ($option['phone'] ?? '')) === $phone) {
+                return true;
+            }
+
+            $optionName = Str::lower(trim((string) ($option['full_name'] ?? $option['record_title'] ?? '')));
+            $optionCompanyNames = collect($option['company_names'] ?? [])
+                ->push($option['company_name'] ?? '')
+                ->filter()
+                ->map(fn ($name) => Str::lower(trim((string) $name)));
+
+            return $fullName !== ''
+                && $optionName === $fullName
+                && ($companyName === '' || $optionCompanyNames->contains($companyName));
+        });
     }
 
     private function employeeRequesterOption(Employee $employee): array
@@ -2096,28 +2323,120 @@ SVG;
     {
         $attachments = $existingAttachments;
         $category = $request->input('attachment_category');
+        $attachmentLabels = (array) $request->input('attachment_labels', []);
 
         if (!$request->hasFile('attachments')) {
             return $attachments;
         }
 
-        foreach ((array) $request->file('attachments') as $file) {
-            if (!$file) {
-                continue;
+        $storeFile = function ($file, string|int|null $key = null) use (&$attachments, $attachmentLabels, $category): void {
+            if (!$file instanceof \Illuminate\Http\UploadedFile || !$file->isValid()) {
+                return;
             }
 
             $path = $file->store('finance_documents', 'public');
+            $attachmentCategory = data_get($attachmentLabels, (string) $key) ?: $category ?: 'Supporting Document';
 
             $attachments[] = [
                 'name' => $file->getClientOriginalName(),
                 'path' => 'storage/' . $path,
                 'mime' => $file->getClientMimeType(),
                 'size' => $file->getSize(),
-                'category' => $category ?: 'Supporting Document',
+                'category' => $attachmentCategory,
             ];
+        };
+
+        $walkFiles = function ($files, string|int|null $key = null) use (&$walkFiles, $storeFile): void {
+            if ($files instanceof \Illuminate\Http\UploadedFile) {
+                $storeFile($files, $key);
+
+                return;
+            }
+
+            foreach ((array) $files as $childKey => $childFile) {
+                $walkFiles($childFile, $childKey);
+            }
+        };
+
+        foreach ((array) $request->file('attachments') as $key => $file) {
+            $walkFiles($file, $key);
         }
 
         return $attachments;
+    }
+
+    private function supplierAttachmentSlug(string $label): string
+    {
+        return Str::slug($label, '_');
+    }
+
+    private function supplierRequiredAttachmentLabels(?string $entityType): array
+    {
+        return match ($entityType) {
+            'Corporation', 'One Person Corporation (OPC)', 'Partnership', 'Foreign Company' => [
+                'SEC Certificate of Registration',
+                'BIR 2303 Certificate of Registration',
+                "Mayor's Permit / Business Permit",
+                'Valid ID of Authorized Representative',
+                'Company Profile',
+                'Contract / Agreement',
+            ],
+            'Sole Proprietorship' => [
+                'DTI Certificate of Registration',
+                'BIR 2303 Certificate of Registration',
+                "Mayor's Permit / Business Permit",
+                'Valid ID of Owner / Authorized Representative',
+                'Business Profile / Company Profile',
+                'Contract / Agreement',
+            ],
+            'Cooperative' => [
+                'CDA Certificate of Registration',
+                'BIR 2303 Certificate of Registration',
+                "Mayor's Permit / Business Permit",
+                'Valid ID of Authorized Representative',
+                'Cooperative Profile',
+                'Contract / Agreement',
+            ],
+            'Freelancer / Individual Professional', 'Independent Contractor' => [
+                'Resume',
+                'Valid Government ID',
+                'TIN / BIR Registration, if applicable',
+                'Resume / Portfolio, if applicable',
+                'Professional License, if applicable',
+                'Signed Contract / Agreement',
+            ],
+            'Government Agency' => [
+                'Agency Profile / Official Agency Information',
+                'Authorized Representative ID',
+                'Authority to Transact / Authorization Letter, if applicable',
+                'Contract / Agreement / Purchase Order',
+            ],
+            'Non-Profit Organization' => [
+                'SEC Registration / Relevant Registration Certificate',
+                'BIR 2303 Certificate of Registration, if applicable',
+                "Mayor's Permit / Business Permit, if applicable",
+                'Valid ID of Authorized Representative',
+                'Organization Profile',
+                'Contract / Agreement',
+            ],
+            'Others' => [
+                'Valid Registration Document, if applicable',
+                'Valid ID of Authorized Representative',
+                'Supplier Profile',
+                'Contract / Agreement',
+                'Other supporting documents required by the Company',
+            ],
+            default => [],
+        };
+    }
+
+    private function supplierHasAttachment(FinanceRecord $record, string $label): bool
+    {
+        return collect((array) ($record->attachments ?? []))->contains(function ($attachment) use ($label) {
+            $attachment = is_array($attachment) ? $attachment : [];
+
+            return strcasecmp((string) data_get($attachment, 'category'), $label) === 0;
+        });
     }
 
     private function commonValidationRules(): array
@@ -2152,6 +2471,45 @@ SVG;
         });
     }
 
+    private function financeLineItemClientRule(): \Closure
+    {
+        return function (string $attribute, mixed $value, \Closure $fail): void {
+            $value = trim((string) $value);
+
+            if ($value === '') {
+                return;
+            }
+
+            if (ctype_digit($value) && Schema::hasTable('contacts') && Contact::query()->whereKey((int) $value)->exists()) {
+                return;
+            }
+
+            if (str_starts_with($value, 'company-person:') && $this->financeClientLookupOptions()->contains(fn (array $option) => (string) ($option['id'] ?? '') === $value)) {
+                return;
+            }
+
+            $fail('The selected client is invalid.');
+        };
+    }
+
+    private function normalizeCashAdvanceReleaseSchedule(mixed $value, mixed $releaseCount = 1): string
+    {
+        $normalized = Str::lower(trim((string) $value));
+
+        if (in_array($normalized, ['full release', 'full'], true)) {
+            return 'Full Release';
+        }
+
+        if (
+            in_array($normalized, ['staggered release', 'staggered'], true)
+            || Str::contains($normalized, ['stagger', 'schedule', 'installment', 'partial'])
+        ) {
+            return 'Staggered Release';
+        }
+
+        return ((int) $releaseCount) > 1 ? 'Staggered Release' : 'Full Release';
+    }
+
     private function moduleSpecificRules(string $moduleKey): array
     {
         $rules = [
@@ -2160,6 +2518,12 @@ SVG;
                 'data.email_address' => 'required|email|max:255',
                 'data.representative_full_name' => 'required|string|max:255',
                 'data.phone_number' => 'required|string|max:255',
+                'data.legal_acknowledgment' => 'accepted',
+                'data.electronic_signature_consent' => 'accepted',
+                'data.data_privacy_consent' => 'accepted',
+                'data.confidentiality_undertaking' => 'accepted',
+                'data.company_policy_compliance' => 'accepted',
+                'data.false_information_penalty' => 'accepted',
             ],
             'service' => [
                 'data.supplier_id' => ['required', $this->acceptedLinkedRecordRule('supplier')],
@@ -2181,12 +2545,12 @@ SVG;
                 'data.linked_coa_id' => ['required', $this->acceptedLinkedRecordRule('chart_account')],
             ],
             'pr' => [
-                'data.requesting_department' => 'required|string|max:255',
+                'data.requesting_department' => 'nullable|string|max:255',
                 'data.requester_mode' => 'nullable|in:own_request,request_for_another',
                 'data.requester_employee_id' => ['required_if:data.requester_mode,request_for_another', 'nullable', Rule::exists('employees', 'id')],
                 'data.requestor' => 'required|string|max:255',
                 'data.department' => 'nullable|string|max:255',
-                'data.request_type' => 'required|in:Service,Product',
+                'data.request_type' => 'nullable|in:Service,Product',
                 'data.supplier_id' => ['nullable', $this->acceptedLinkedRecordRule('supplier')],
                 'data.master_item_type' => 'nullable|in:service,product',
                 'data.master_item_id' => 'nullable|integer',
@@ -2203,7 +2567,7 @@ SVG;
                 'data.line_items.*.quantity' => 'nullable|numeric|min:0',
                 'data.line_items.*.amount' => 'nullable|numeric|min:0',
                 'data.line_items.*.supplier_id' => ['nullable', $this->acceptedLinkedRecordRule('supplier')],
-                'data.line_items.*.client_id' => ['nullable', Rule::exists('contacts', 'id')],
+                'data.line_items.*.client_id' => ['nullable', 'string', 'max:255', $this->financeLineItemClientRule()],
             ],
             'po' => [
                 'data.linked_pr_id' => ['required', $this->acceptedLinkedRecordRule('pr')],
@@ -2381,6 +2745,16 @@ SVG;
     private function validateModulePayload(Request $request, ?FinanceRecord $financeRecord = null): void
     {
         $moduleKey = (string) $request->input('module_key', $financeRecord?->module_key);
+
+        if ($moduleKey === 'ca') {
+            $data = (array) $request->input('data', []);
+            $data['release_schedule'] = $this->normalizeCashAdvanceReleaseSchedule(
+                $data['release_schedule'] ?? null,
+                $data['release_count'] ?? 1
+            );
+            $request->merge(['data' => $data]);
+        }
+
         $supplierSendMode = $moduleKey === 'supplier'
             && data_get($request->input('data', []), 'completion_mode') === 'send_to_supplier';
         $rules = array_merge($this->commonValidationRules(), $this->moduleSpecificRules($moduleKey));
@@ -2405,6 +2779,12 @@ SVG;
             $rules['data.bank_account_name'] = 'nullable|string|max:255';
             $rules['data.bank_account_number'] = 'nullable|string|max:255';
             $rules['data.remarks'] = 'nullable|string|max:2000';
+            $rules['data.legal_acknowledgment'] = 'nullable';
+            $rules['data.electronic_signature_consent'] = 'nullable';
+            $rules['data.data_privacy_consent'] = 'nullable';
+            $rules['data.confidentiality_undertaking'] = 'nullable';
+            $rules['data.company_policy_compliance'] = 'nullable';
+            $rules['data.false_information_penalty'] = 'nullable';
         }
 
         if ($financeRecord) {
@@ -3384,22 +3764,42 @@ SVG;
             ->where('share_token', $token)
             ->firstOrFail();
 
+        if (filled($record->supplier_completed_at)) {
+            return redirect()
+                ->route('finance.supplier.completion', $token)
+                ->with('success', 'Supplier information has already been submitted.');
+        }
+
         $request->validate([
             'record_title' => 'required|string|max:255',
             'record_number' => 'required|string|max:255',
             'record_date' => 'required|date',
+            'data.entity_type' => 'required|string|max:255',
             'data.representative_full_name' => 'required|string|max:255',
             'data.email_address' => 'required|email|max:255',
             'data.phone_number' => 'required|string|max:255',
-            'data.business_address' => 'nullable|string|max:1000',
+            'data.representative_email_address' => 'nullable|email|max:255',
+            'data.accounting_email_address' => 'nullable|email|max:255',
+            'data.official_email_address' => 'nullable|email|max:255',
+            'data.registered_address' => 'nullable|string|max:1000',
             'data.billing_address' => 'nullable|string|max:1000',
+            'data.legal_acknowledgment' => 'accepted',
+            'data.electronic_signature_consent' => 'accepted',
+            'data.data_privacy_consent' => 'accepted',
+            'data.confidentiality_undertaking' => 'accepted',
+            'data.company_policy_compliance' => 'accepted',
+            'data.false_information_penalty' => 'accepted',
             'attachments' => 'nullable|array',
-            'attachments.*' => 'file|max:10240|mimes:pdf,jpg,jpeg,png,doc,docx,xls,xlsx',
+            'attachments.*' => 'nullable|file|max:10240|mimes:pdf,jpg,jpeg,png,doc,docx,xls,xlsx',
+            'attachment_labels' => 'nullable|array',
             'attachment_category' => 'nullable|in:Invoice,OR,DR,Contract,Supporting Document',
         ]);
 
         $data = array_merge($record->data ?? [], $request->input('data', []));
         $data['business_name'] = $request->record_title;
+        $data['date_accomplished'] = $request->record_date;
+        $data['date_signed'] = now()->format('Y-m-d H:i:s');
+
         $attachments = $this->persistAttachments($request, (array) ($record->attachments ?? []));
 
         $record->update([
@@ -3410,6 +3810,9 @@ SVG;
             'attachments' => $attachments,
             'workflow_status' => 'Submitted',
             'approval_status' => 'Pending',
+            'submitted_at' => now(),
+            'approved_by' => null,
+            'approved_at' => null,
             'supplier_completed_at' => now(),
         ]);
 

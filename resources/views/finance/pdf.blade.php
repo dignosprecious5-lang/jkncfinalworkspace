@@ -648,62 +648,6 @@
             @endforeach
         </table>
 
-        <div class="section-box">
-            <div class="section-title">Details</div>
-            <div class="section-body">
-                @if(count($detailRows ?? []))
-                    <table class="detail-table">
-                        @foreach(array_chunk($detailRows, 2) as $pair)
-                            <tr>
-                                @foreach($pair as $detail)
-                                    <td>
-                                        <div class="detail-label">{{ $detail['label'] }}</div>
-                                        <div class="detail-value">{{ $detail['value'] }}</div>
-                                    </td>
-                                @endforeach
-                                @for($pad = count($pair); $pad < 2; $pad++)
-                                    <td></td>
-                                @endfor
-                            </tr>
-                        @endforeach
-                    </table>
-                @else
-                    <div class="muted">No additional details provided.</div>
-                @endif
-            </div>
-        </div>
-
-        @if($record->module_key === 'dv')
-            @php
-                $dvLineItems = array_values(array_filter((array) data_get($record->data, 'line_items', []), fn ($item) => is_array($item) && collect($item)->contains(fn ($value) => !blank($value))));
-            @endphp
-            <div class="section-box">
-                <div class="section-title">Breakdown / Line Items</div>
-                <div class="section-body">
-                    @if(count($dvLineItems))
-                        <table class="detail-table">
-                            <tr>
-                                <td><div class="detail-label">Description</div></td>
-                                <td><div class="detail-label">Account Code</div></td>
-                                <td><div class="detail-label">Debit</div></td>
-                                <td><div class="detail-label">Credit</div></td>
-                            </tr>
-                            @foreach($dvLineItems as $item)
-                                <tr>
-                                    <td><div class="detail-value">{{ data_get($item, 'description') ?: 'N/A' }}</div></td>
-                                    <td><div class="detail-value">{{ data_get($item, 'account_code') ?: 'N/A' }}</div></td>
-                                    <td><div class="detail-value">{{ number_format((float) data_get($item, 'debit', 0), 2) }}</div></td>
-                                    <td><div class="detail-value">{{ number_format((float) data_get($item, 'credit', 0), 2) }}</div></td>
-                                </tr>
-                            @endforeach
-                        </table>
-                    @else
-                        <div class="muted">No line items added.</div>
-                    @endif
-                </div>
-            </div>
-        @endif
-
         @if($record->module_key === 'ca')
             <div class="section-box">
                 <div class="section-title">Cash Advance Payment Tracking</div>
@@ -747,6 +691,101 @@
                         </table>
                     @else
                         <div class="muted">No cash advance payment tracking available.</div>
+                    @endif
+                </div>
+            </div>
+        @endif
+
+        @php
+            $fieldPreviewSections = collect($previewSections ?? [])
+                ->filter(fn ($section) => data_get($section, 'type') === 'fields')
+                ->values();
+        @endphp
+
+        @if($fieldPreviewSections->isNotEmpty())
+            @foreach($fieldPreviewSections as $section)
+                <div class="section-box">
+                    <div class="section-title">{{ data_get($section, 'title', 'Details') }}</div>
+                    <div class="section-body">
+                        @php $rows = data_get($section, 'rows', []); @endphp
+                        @if(count($rows))
+                            <table class="detail-table">
+                                @foreach(array_chunk($rows, 2) as $pair)
+                                    <tr>
+                                        @foreach($pair as $detail)
+                                            <td>
+                                                <div class="detail-label">{{ $detail['label'] }}</div>
+                                                <div class="detail-value">{{ $detail['value'] }}</div>
+                                            </td>
+                                        @endforeach
+                                        @for($pad = count($pair); $pad < 2; $pad++)
+                                            <td></td>
+                                        @endfor
+                                    </tr>
+                                @endforeach
+                            </table>
+                        @else
+                            <div class="muted">No details provided.</div>
+                        @endif
+                    </div>
+                </div>
+            @endforeach
+        @elseif(count($detailRows ?? []))
+            <div class="section-box">
+                <div class="section-title">Details</div>
+                <div class="section-body">
+                    <table class="detail-table">
+                        @foreach(array_chunk($detailRows, 2) as $pair)
+                            <tr>
+                                @foreach($pair as $detail)
+                                    <td>
+                                        <div class="detail-label">{{ $detail['label'] }}</div>
+                                        <div class="detail-value">{{ $detail['value'] }}</div>
+                                    </td>
+                                @endforeach
+                                @for($pad = count($pair); $pad < 2; $pad++)
+                                    <td></td>
+                                @endfor
+                            </tr>
+                        @endforeach
+                    </table>
+                </div>
+            </div>
+        @else
+            <div class="section-box">
+                <div class="section-title">Details</div>
+                <div class="section-body">
+                    <div class="muted">No additional details provided.</div>
+                </div>
+            </div>
+        @endif
+
+        @if($record->module_key === 'dv')
+            @php
+                $dvLineItems = array_values(array_filter((array) data_get($record->data, 'line_items', []), fn ($item) => is_array($item) && collect($item)->contains(fn ($value) => !blank($value))));
+            @endphp
+            <div class="section-box">
+                <div class="section-title">Breakdown / Line Items</div>
+                <div class="section-body">
+                    @if(count($dvLineItems))
+                        <table class="detail-table">
+                            <tr>
+                                <td><div class="detail-label">Description</div></td>
+                                <td><div class="detail-label">Account Code</div></td>
+                                <td><div class="detail-label">Debit</div></td>
+                                <td><div class="detail-label">Credit</div></td>
+                            </tr>
+                            @foreach($dvLineItems as $item)
+                                <tr>
+                                    <td><div class="detail-value">{{ data_get($item, 'description') ?: 'N/A' }}</div></td>
+                                    <td><div class="detail-value">{{ data_get($item, 'account_code') ?: 'N/A' }}</div></td>
+                                    <td><div class="detail-value">{{ number_format((float) data_get($item, 'debit', 0), 2) }}</div></td>
+                                    <td><div class="detail-value">{{ number_format((float) data_get($item, 'credit', 0), 2) }}</div></td>
+                                </tr>
+                            @endforeach
+                        </table>
+                    @else
+                        <div class="muted">No line items added.</div>
                     @endif
                 </div>
             </div>
@@ -1157,11 +1196,20 @@
             <div class="section-box">
                 <div class="section-title">Attachments</div>
                 <div class="section-body">
-                    <ul class="attachment-list">
-                        @foreach($attachments as $attachment)
-                            <li>{{ data_get($attachment, 'name') ?: data_get($attachment, 'path') ?: 'Attachment' }}</li>
+                    <table class="detail-table">
+                        @foreach($attachments as $index => $attachment)
+                            <tr>
+                                <td>
+                                    <div class="detail-label">File {{ $index + 1 }}</div>
+                                    <div class="detail-value">{{ data_get($attachment, 'name') ?: data_get($attachment, 'path') ?: 'Attachment' }}</div>
+                                </td>
+                                <td>
+                                    <div class="detail-label">{{ data_get($attachment, 'category') ?: 'Supporting Document' }}</div>
+                                    <div class="detail-value">{{ data_get($attachment, 'path') ?: 'N/A' }}</div>
+                                </td>
+                            </tr>
                         @endforeach
-                    </ul>
+                    </table>
                 </div>
             </div>
         @endif
