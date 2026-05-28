@@ -173,6 +173,23 @@ class PolicyController extends Controller
         return view('admin.policies-dashboard', compact('policies'));
     }
 
+    public function review($id)
+    {
+        if (!Auth::user()->hasPermission('approve_policies')) {
+            abort(403, 'Unauthorized');
+        }
+
+        $policy = Policy::findOrFail($id);
+
+        $policy->update([
+            'reviewed_by' => Auth::user()->name,
+        ]);
+
+        return redirect()
+            ->route('admin.policies.show', $policy->id)
+            ->with('success', 'Policy reviewed by ' . Auth::user()->name . '.');
+    }
+
     public function approve($id)
     {
         if (!Auth::user()->hasPermission('approve_policies')) {
@@ -182,11 +199,13 @@ class PolicyController extends Controller
         $policy = Policy::findOrFail($id);
 
         $policy->update([
+            'reviewed_by' => $policy->reviewed_by ?: Auth::user()->name,
             'approval_status' => 'Approved',
             'workflow_status' => 'Accepted',
             'approved_by_user_id' => Auth::id(),
             'approved_by' => Auth::user()->name,
             'approved_at' => now(),
+            'review_note' => null,
             'is_archived' => false,
             'archived_at' => null,
         ]);
@@ -203,6 +222,7 @@ class PolicyController extends Controller
         $policy = Policy::findOrFail($id);
 
         $policy->update([
+            'reviewed_by' => $policy->reviewed_by ?: Auth::user()->name,
             'approval_status' => 'Rejected',
             'workflow_status' => 'Reverted',
             'approved_by_user_id' => Auth::id(),
@@ -225,6 +245,7 @@ class PolicyController extends Controller
         $policy = Policy::findOrFail($id);
 
         $policy->update([
+            'reviewed_by' => $policy->reviewed_by ?: Auth::user()->name,
             'approval_status' => 'Needs Revision',
             'workflow_status' => 'Reverted',
             'approved_by_user_id' => Auth::id(),

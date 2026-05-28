@@ -16,18 +16,10 @@
             <div class="flex justify-center">
                 <div class="policy-paper bg-white border border-gray-300 shadow mb-6">
 
-                    {{-- MEMORANDUM-STYLE HEADER --}}
+                    {{-- POLICY HEADER --}}
                     <div class="policy-memo-header">
                         <div class="policy-memo-logo">
                             <img src="{{ asset('images/jk-logo.png') }}" alt="John Kelly & Company Logo">
-                        </div>
-
-                        <div class="policy-memo-names">
-                            <p>
-                                Atty. Jose B. Ogang, CPA, MMPSM · Jose Tamayo Rio,<br>
-                                MM-BM, CPA · Lyndon Earl P. Rio, RN, CB · John Kelly Abalde,<br>
-                                CLSSBB, CPM
-                            </p>
                         </div>
                     </div>
 
@@ -38,50 +30,15 @@
 
                     {{-- POLICY META --}}
                     <div class="policy-memo-meta">
-                        <p>
-                            <strong>Policy Title:</strong>
-                            {{ $policy->policy ?: '______________________________' }}
-                        </p>
-
-                        <p>
-                            <strong>Code:</strong>
-                            {{ $policy->code ?: 'AUTO-GENERATED' }}
-                        </p>
-
-                        <p>
-                            <strong>Version:</strong>
-                            {{ $policy->version ?: '1.0' }}
-                        </p>
-
-                        <p>
-                            <strong>Effectivity Date:</strong>
-                            {{ $policy->effectivity_date ? \Carbon\Carbon::parse($policy->effectivity_date)->format('F d, Y') : '______________________________' }}
-                        </p>
-
-                        <p>
-                            <strong>Prepared by:</strong>
-                            {{ $policy->prepared_by ?: '______________________________' }}
-                        </p>
-
-                        <p>
-                            <strong>Reviewed by:</strong>
-                            {{ $policy->reviewed_by ?: '______________________________' }}
-                        </p>
-
-                        <p>
-                            <strong>Approved by:</strong>
-                            {{ $policy->approved_by ?: '______________________________' }}
-                        </p>
-
-                        <p>
-                            <strong>Review Cycle:</strong>
-                            {{ $policy->review_cycle ?: '______________________________' }}
-                        </p>
-
-                        <p>
-                            <strong>Classification:</strong>
-                            {{ $policy->classification ?: 'Internal Use Only' }}
-                        </p>
+                        <p><strong>Policy Title:</strong> {{ $policy->policy ?: '______________________________' }}</p>
+                        <p><strong>Code:</strong> {{ $policy->code ?: 'AUTO-GENERATED' }}</p>
+                        <p><strong>Version:</strong> {{ $policy->version ?: '1.0' }}</p>
+                        <p><strong>Effectivity Date:</strong> {{ $policy->effectivity_date ? \Carbon\Carbon::parse($policy->effectivity_date)->format('F d, Y') : '______________________________' }}</p>
+                        <p><strong>Prepared by:</strong> {{ $policy->prepared_by ?: '______________________________' }}</p>
+                        <p><strong>Reviewed by:</strong> {{ $policy->reviewed_by ?: '______________________________' }}</p>
+                        <p><strong>Approved by:</strong> {{ $policy->approved_by ?: '______________________________' }}</p>
+                        <p><strong>Review Cycle:</strong> {{ $policy->review_cycle ?: '______________________________' }}</p>
+                        <p><strong>Classification:</strong> {{ $policy->classification ?: 'Internal Use Only' }}</p>
                     </div>
 
                     <div class="policy-memo-divider"></div>
@@ -90,36 +47,59 @@
                     <div class="description-content">
                         {!! $policy->description ?? '<p style="color:#cbd5e0;">No description provided.</p>' !!}
                     </div>
-
-                    {{-- ATTACHMENT PREVIEW --}}
-                    @if($policy->attachment)
-                        <div class="mt-8">
-                            <h3 class="text-lg font-semibold text-gray-800 mb-3">Attachment Preview</h3>
-
-                            <div class="border rounded-lg overflow-hidden bg-white">
-                                @php
-                                    $ext = strtolower(pathinfo($policy->attachment, PATHINFO_EXTENSION));
-                                @endphp
-
-                                @if(in_array($ext, ['jpg','jpeg','png','gif','webp']))
-                                    <img src="{{ asset('storage/'.$policy->attachment) }}" class="w-full">
-                                @elseif($ext === 'pdf')
-                                    <iframe src="{{ asset('storage/'.$policy->attachment) }}" class="w-full h-[500px]"></iframe>
-                                @else
-                                    <div class="p-4 text-center">
-                                        <a href="{{ asset('storage/'.$policy->attachment) }}"
-                                           target="_blank"
-                                           class="text-blue-600 underline">
-                                            Download Attachment
-                                        </a>
-                                    </div>
-                                @endif
-                            </div>
-                        </div>
-                    @endif
-
                 </div>
             </div>
+
+            {{-- ATTACHMENT PREVIEW OUTSIDE THE A4 DOCUMENT --}}
+            @if($policy->attachment)
+                <div class="mt-6 mb-6">
+                    <div class="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+                        <div class="px-5 py-4 border-b border-gray-200 flex items-center justify-between">
+                            <div>
+                                <h3 class="text-base font-semibold text-gray-900">Attachment Preview</h3>
+                                <p class="text-xs text-gray-500 mt-1">
+                                    This attachment is shown outside and below the policy document.
+                                </p>
+                            </div>
+
+                            <a href="{{ asset('storage/'.$policy->attachment) }}"
+                               target="_blank"
+                               class="inline-flex items-center gap-2 rounded-lg bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-100 transition">
+                                <i class="fas fa-external-link-alt text-[10px]"></i>
+                                Open Attachment
+                            </a>
+                        </div>
+
+                        <div class="bg-gray-50 p-4">
+                            @php
+                                $ext = strtolower(pathinfo($policy->attachment, PATHINFO_EXTENSION));
+                            @endphp
+
+                            @if(in_array($ext, ['jpg','jpeg','png','gif','webp']))
+                                <div class="flex justify-center">
+                                    <img src="{{ asset('storage/'.$policy->attachment) }}"
+                                         class="max-w-full rounded-lg border border-gray-200 bg-white shadow-sm">
+                                </div>
+                            @elseif($ext === 'pdf')
+                                <iframe src="{{ asset('storage/'.$policy->attachment) }}"
+                                        class="w-full h-[650px] rounded-lg border border-gray-200 bg-white"></iframe>
+                            @else
+                                <div class="rounded-lg border border-dashed border-gray-300 bg-white p-8 text-center">
+                                    <p class="text-sm text-gray-600 mb-3">
+                                        Preview is not available for this file type.
+                                    </p>
+                                    <a href="{{ asset('storage/'.$policy->attachment) }}"
+                                       target="_blank"
+                                       class="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition">
+                                        <i class="fas fa-download text-xs"></i>
+                                        Download Attachment
+                                    </a>
+                                </div>
+                            @endif
+                        </div>
+                    </div>
+                </div>
+            @endif
         </div>
 
         {{-- RIGHT ADMIN DETAILS --}}
@@ -145,11 +125,7 @@
 
                     <div>
                         <p class="text-gray-500 text-xs">Effectivity Date</p>
-                        <p>
-                            {{ $policy->effectivity_date
-                                ? \Carbon\Carbon::parse($policy->effectivity_date)->format('M d, Y')
-                                : '-' }}
-                        </p>
+                        <p>{{ $policy->effectivity_date ? \Carbon\Carbon::parse($policy->effectivity_date)->format('M d, Y') : '-' }}</p>
                     </div>
 
                     <div>
@@ -241,54 +217,75 @@
                 </div>
 
                 {{-- ADMIN ACTION BUTTONS --}}
-                <div class="flex flex-wrap gap-3 pt-2">
-                    @if(($policy->workflow_status ?? null) === 'Submitted' && Auth::user()->hasPermission('approve_policies'))
-                        <form method="POST" action="{{ route('admin.policies.approve', $policy->id) }}">
+                <div class="pt-2">
+                    <p class="text-xs font-semibold text-gray-500 uppercase mb-2">Actions</p>
+
+                    <div class="grid grid-cols-2 gap-2">
+                        @if(!$policy->is_archived && Auth::user()->hasPermission('approve_policies'))
+                            <form method="POST" action="{{ route('admin.policies.approve', $policy->id) }}">
+                                @csrf
+                                <button type="submit"
+                                        class="w-full px-4 py-2 text-sm font-medium rounded-lg bg-green-600 text-white hover:bg-green-700 transition">
+                                    Approve
+                                </button>
+                            </form>
+                        @endif
+
+                        <form method="POST" action="{{ route('admin.policies.review', $policy->id) }}">
                             @csrf
                             <button type="submit"
-                                    class="px-4 py-2 text-sm font-medium rounded-lg bg-green-600 text-white hover:bg-green-700 transition">
-                                Approve
+                                    class="w-full px-4 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition">
+                                Review
                             </button>
                         </form>
 
-                        <form method="POST" action="{{ route('admin.policies.reject', $policy->id) }}">
-                            @csrf
-                            <input type="hidden" name="review_note" value="Rejected by admin">
-                            <button type="submit"
-                                    class="px-4 py-2 text-sm font-medium rounded-lg bg-red-600 text-white hover:bg-red-700 transition">
-                                Reject
-                            </button>
-                        </form>
+                        <a href="{{ route('policies.edit', $policy->id) }}"
+                           class="w-full px-4 py-2 text-sm font-medium rounded-lg bg-slate-800 text-white hover:bg-slate-900 transition text-center">
+                            Edit
+                        </a>
 
-                        <form method="POST" action="{{ route('admin.policies.revise', $policy->id) }}">
-                            @csrf
-                            <input type="hidden" name="review_note" value="Needs revision">
-                            <button type="submit"
-                                    class="px-4 py-2 text-sm font-medium rounded-lg bg-slate-800 text-white hover:bg-slate-900 transition">
-                                Revise
-                            </button>
-                        </form>
-                    @endif
+                        @if(!$policy->is_archived && Auth::user()->hasPermission('approve_policies'))
+                            <form method="POST" action="{{ route('admin.policies.reject', $policy->id) }}">
+                                @csrf
+                                <input type="hidden" name="review_note" value="Rejected by admin">
+                                <button type="submit"
+                                        class="w-full px-4 py-2 text-sm font-medium rounded-lg bg-red-600 text-white hover:bg-red-700 transition">
+                                    Reject
+                                </button>
+                            </form>
+                        @endif
 
-                    @if(!$policy->is_archived && Auth::user()->hasPermission('approve_policies'))
-                        <form method="POST" action="{{ route('admin.policies.archive', $policy->id) }}">
-                            @csrf
-                            <button type="submit"
-                                    class="px-4 py-2 text-sm font-medium rounded-lg bg-gray-700 text-white hover:bg-gray-800 transition">
-                                Archive
-                            </button>
-                        </form>
-                    @endif
+                        @if(!$policy->is_archived && Auth::user()->hasPermission('approve_policies'))
+                            <form method="POST" action="{{ route('admin.policies.revise', $policy->id) }}" class="col-span-2">
+                                @csrf
+                                <input type="hidden" name="review_note" value="Needs revision">
+                                <button type="submit"
+                                        class="w-full px-4 py-2 text-sm font-medium rounded-lg border border-yellow-300 bg-yellow-50 text-yellow-700 hover:bg-yellow-100 transition">
+                                    Revise
+                                </button>
+                            </form>
+                        @endif
 
-                    @if($policy->is_archived && Auth::user()->hasPermission('approve_policies'))
-                        <form method="POST" action="{{ route('admin.policies.unarchive', $policy->id) }}">
-                            @csrf
-                            <button type="submit"
-                                    class="px-4 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition">
-                                Unarchive
-                            </button>
-                        </form>
-                    @endif
+                        @if(!$policy->is_archived && Auth::user()->hasPermission('approve_policies'))
+                            <form method="POST" action="{{ route('admin.policies.archive', $policy->id) }}" class="col-span-2">
+                                @csrf
+                                <button type="submit"
+                                        class="w-full px-4 py-2 text-sm font-medium rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 transition">
+                                    Archive
+                                </button>
+                            </form>
+                        @endif
+
+                        @if($policy->is_archived && Auth::user()->hasPermission('approve_policies'))
+                            <form method="POST" action="{{ route('admin.policies.unarchive', $policy->id) }}" class="col-span-2">
+                                @csrf
+                                <button type="submit"
+                                        class="w-full px-4 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition">
+                                    Unarchive
+                                </button>
+                            </form>
+                        @endif
+                    </div>
                 </div>
 
                 {{-- DOWNLOAD PDF --}}
@@ -330,33 +327,24 @@
 
     .policy-memo-header {
         display: flex;
-        align-items: flex-start;
-        gap: 34px;
+        justify-content: center;
+        align-items: center;
         margin-bottom: 34px;
+        text-align: center;
     }
 
     .policy-memo-logo {
-        flex: 0 0 auto;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        width: 100%;
         padding-top: 4px;
     }
 
     .policy-memo-logo img {
-        height: 76px;
+        height: 90px;
         width: auto;
         object-fit: contain;
-    }
-
-    .policy-memo-names {
-        flex: 1 1 auto;
-        padding-top: 8px;
-    }
-
-    .policy-memo-names p {
-        font-size: 12px;
-        line-height: 1.35;
-        color: #111827;
-        font-family: "Times New Roman", Georgia, serif;
-        margin: 0;
     }
 
     .policy-memo-title {
