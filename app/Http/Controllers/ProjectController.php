@@ -604,8 +604,7 @@ class ProjectController extends Controller
         $sow->project_id = $project->id;
         $sow->approval_status = 'approved';
         $sow->approved_at = now();
-        $sow->approved_by_name = $validated['approval_name']
-            ?: ($this->currentEmployeeDisplayName($request) ?: 'Manual Override');
+        $sow->approved_by_name = $this->currentEmployeeDisplayName($request) ?: 'Manual Override';
 
         if ($request->hasFile('signed_document')) {
             if ($sow->client_signed_attachment_path && Storage::disk('public')->exists($sow->client_signed_attachment_path)) {
@@ -811,7 +810,8 @@ class ProjectController extends Controller
     {
         $this->abortIfProjectCompleted($project);
 
-        $ntpRecord = $project->ntps()->latest()->firstOrFail();
+        $ntpRecord = $project->ntps()->latest()->first()
+            ?: $this->generateAndSendProjectNtp($project, false);
         $validated = $this->validateSignedApprovalUpload($request);
 
         $this->replaceClientAttachment(
@@ -823,7 +823,7 @@ class ProjectController extends Controller
         $ntpRecord->fill([
             'client_response_status' => 'approved_to_proceed',
             'client_approved_at' => now(),
-            'client_approved_name' => $validated['approval_name'] ?: ($request->user()?->name ?? 'Manual Override'),
+            'client_approved_name' => $this->currentEmployeeDisplayName($request) ?: 'Manual Override',
             'client_response_notes' => trim((string) ($validated['approval_note'] ?? '')) ?: 'Approved by manual override using uploaded signed NTP.',
         ]);
         $ntpRecord->save();
@@ -1052,9 +1052,9 @@ class ProjectController extends Controller
         $report->fill([
             'client_response_status' => 'approved',
             'client_approved_at' => now(),
-            'client_approved_name' => $validated['approval_name'] ?: ($request->user()?->name ?? 'Manual Override'),
+            'client_approved_name' => $this->currentEmployeeDisplayName($request) ?: 'Manual Override',
             'client_response_notes' => trim((string) ($validated['approval_note'] ?? '')) ?: 'Approved by manual override using uploaded signed report.',
-            'client_confirmation_name' => $validated['approval_name'] ?: ($report->client_confirmation_name ?: $project->client_name),
+            'client_confirmation_name' => $report->client_confirmation_name ?: $project->client_name,
         ]);
         $report->save();
         $this->markProjectReadyForCompletion($project, 'Signed SOW report uploaded manually');
@@ -1816,13 +1816,13 @@ class ProjectController extends Controller
             'is_approved' => (bool) $isApproved,
             'status_label' => $isApproved
                 ? 'Client approved NTP'
-                : ($ntpRecord?->client_form_sent_at ? 'Waiting for client signed NTP upload' : 'NTP not generated'),
-            'button_label' => $isApproved ? 'View Approved NTP' : 'Generate NTP',
-            'button_icon' => $isApproved ? 'fas fa-check-circle' : 'fas fa-file-signature',
+                : ($ntpRecord ? 'NTP generated, waiting for signed upload' : 'NTP not generated'),
+            'button_label' => $ntpRecord ? 'View NTP' : 'Generate NTP',
+            'button_icon' => $isApproved ? 'fas fa-check-circle' : '',
             'button_class' => $isApproved
                 ? 'project-doc-action project-doc-action-approved'
                 : 'project-doc-action',
-            'action_url' => $isApproved
+            'action_url' => $ntpRecord
                 ? route('project.ntp.submission', $project)
                 : route('project.ntp.download', $project),
             'approved_at' => optional($ntpRecord?->client_approved_at)->format('M d, Y h:i A'),
@@ -2718,7 +2718,7 @@ class ProjectController extends Controller
         ];
     }
 
-    private function generateAndSendProjectNtp(Project $project): ProjectNtp
+    private function generateAndSendProjectNtp(Project $project, bool $sendClientLink = true): ProjectNtp
     {
         $ntpPayload = $this->buildProjectNtpPayload($project);
         $sow = $project->sows()->latest()->first();
@@ -2739,7 +2739,7 @@ class ProjectController extends Controller
         $ntpRecord->save();
 
         $recipientEmail = $this->resolveProjectClientEmail($project);
-        if ($recipientEmail !== null) {
+        if ($sendClientLink && $recipientEmail !== null) {
             $this->sendNtpClientLink($project, $ntpRecord, $recipientEmail);
         }
 

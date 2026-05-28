@@ -427,8 +427,7 @@ class RegularController extends Controller
         $rsat->project_id = $regular->id;
         $rsat->status = 'approved';
         $rsat->approved_at = now();
-        $rsat->approved_by_name = $validated['approval_name']
-            ?: ($this->currentEmployeeDisplayName($request) ?: 'Manual Override');
+        $rsat->approved_by_name = $this->currentEmployeeDisplayName($request) ?: 'Manual Override';
 
         $attachments = (array) ($rsat->attachments ?? []);
         if ($request->hasFile('signed_document')) {
@@ -751,6 +750,23 @@ class RegularController extends Controller
         ]);
     }
 
+    public function showNtpSubmission(Project $regular): View
+    {
+        abort_unless($this->isRegularEngagement($regular->engagement_type), 404);
+
+        $ntpRecord = $regular->ntps()->latest()->firstOrFail();
+        $regular->loadMissing(['deal:id,deal_code', 'contact:id,first_name,last_name,email', 'company:id,company_name']);
+        $contactName = trim(collect([$regular->contact?->first_name, $regular->contact?->last_name])->filter()->implode(' '))
+            ?: ($regular->client_name ?: 'Client');
+
+        return view('project.ntp-submission', [
+            'project' => $regular,
+            'ntpRecord' => $ntpRecord,
+            'ntp' => $ntpRecord->payload ?? [],
+            'contactName' => $contactName,
+        ]);
+    }
+
     public function submitClientNtp(Request $request, string $token): RedirectResponse
     {
         $ntpRecord = $this->findRegularNtpByClientToken($token);
@@ -790,14 +806,15 @@ class RegularController extends Controller
         abort_unless($this->isRegularEngagement($regular->engagement_type), 404);
         $this->abortIfRegularCompleted($regular);
 
-        $ntpRecord = $regular->ntps()->latest()->firstOrFail();
+        $ntpRecord = $regular->ntps()->latest()->first()
+            ?: $this->generateAndSendRegularNtp($regular, false);
         $validated = $this->validateSignedApprovalUpload($request);
 
         $this->replaceClientAttachment($ntpRecord, $request, "regular/{$regular->id}/ntp");
         $ntpRecord->fill([
             'client_response_status' => 'approved_to_proceed',
             'client_approved_at' => now(),
-            'client_approved_name' => $validated['approval_name'] ?: ($request->user()?->name ?? 'Manual Override'),
+            'client_approved_name' => $this->currentEmployeeDisplayName($request) ?: 'Manual Override',
             'client_response_notes' => trim((string) ($validated['approval_note'] ?? '')) ?: 'Approved by manual override using uploaded signed NTP.',
         ]);
         $ntpRecord->save();
@@ -820,9 +837,9 @@ class RegularController extends Controller
         $report->fill([
             'client_response_status' => 'approved',
             'client_approved_at' => now(),
-            'client_approved_name' => $validated['approval_name'] ?: ($request->user()?->name ?? 'Manual Override'),
+            'client_approved_name' => $this->currentEmployeeDisplayName($request) ?: 'Manual Override',
             'client_response_notes' => trim((string) ($validated['approval_note'] ?? '')) ?: 'Approved by manual override using uploaded signed RSAT report.',
-            'client_confirmation_name' => $validated['approval_name'] ?: ($report->client_confirmation_name ?: $regular->client_name),
+            'client_confirmation_name' => $report->client_confirmation_name ?: $regular->client_name,
         ]);
         $report->save();
         $this->markRegularReadyForNextProcess($regular, 'Signed RSAT report uploaded manually');
@@ -1794,7 +1811,7 @@ class RegularController extends Controller
         ];
     }
 
-    private function generateAndSendRegularNtp(Project $regular): ProjectNtp
+    private function generateAndSendRegularNtp(Project $regular, bool $sendClientLink = true): ProjectNtp
     {
         $payload = $this->buildRegularNtpPayload($regular);
         $report = $regular->sowReports()
@@ -1819,7 +1836,7 @@ class RegularController extends Controller
         $ntpRecord->save();
 
         $recipientEmail = $this->resolveRegularClientEmail($regular);
-        if ($recipientEmail !== null) {
+        if ($sendClientLink && $recipientEmail !== null) {
             $this->sendRegularNtpClientLink($regular, $ntpRecord, $recipientEmail);
         }
 

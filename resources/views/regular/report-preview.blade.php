@@ -180,9 +180,8 @@
                     @csrf
                     <p class="text-sm font-semibold text-amber-900">Manual Approve RSAT</p>
                     <p class="mt-1 text-xs text-amber-800">Use this when the client signed outside the portal. Upload the signed RSAT report to approve and continue.</p>
-                    <div class="mt-3 grid gap-3 md:grid-cols-[minmax(0,1fr)_220px_auto] md:items-end">
+                    <div class="mt-3 grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
                         <input type="file" name="signed_document" required accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" class="block w-full rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm" @disabled($manualReportApprovalDisabled)>
-                        <input type="text" name="approval_name" placeholder="Approver name" class="h-10 rounded-lg border border-amber-200 bg-white px-3 text-sm" @disabled($manualReportApprovalDisabled)>
                         <button type="submit" class="inline-flex h-10 items-center justify-center rounded-lg bg-amber-600 px-4 text-sm font-semibold text-white hover:bg-amber-700 disabled:opacity-60" @disabled($manualReportApprovalDisabled)>Upload & Approve</button>
                     </div>
                 </form>

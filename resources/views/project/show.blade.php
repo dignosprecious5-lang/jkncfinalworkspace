@@ -17,7 +17,7 @@
     $ntpApproved = $ntpRecord?->client_response_status === 'approved_to_proceed' && $ntpRecord?->client_approved_at;
     $ntpStatusLabel = $ntpApproved
         ? 'Client approved NTP'
-        : (($ntpRecord?->client_form_sent_at) ? 'Waiting for client signed NTP upload' : 'NTP not generated');
+        : ($ntpRecord ? 'NTP generated, waiting for signed upload' : 'NTP not generated');
     $cocMeta = (array) data_get($project->metadata ?? [], 'coc', []);
     $cocApproved = ($project->status === 'Completed') || (($cocMeta['approval_status'] ?? null) === 'approved');
     $projectLocked = $projectLocked ?? ($project->status === 'Completed');
@@ -280,11 +280,11 @@
                                 @if (! $projectLocked || $ntpApproved)
                                     <a
                                         id="projectNtpAction"
-                                        href="{{ $ntpApproved ? route('project.ntp.submission', $project) : route('project.ntp.download', $project) }}"
+                                        href="{{ $ntpRecord ? route('project.ntp.submission', $project) : route('project.ntp.download', $project) }}"
                                         data-approved-view="{{ $ntpApproved ? 'true' : 'false' }}"
                                         data-status-url="{{ route('project.ntp.status', $project) }}"
                                         class="{{ $ntpApproved ? 'project-doc-action project-doc-action-approved' : 'project-doc-action' }}"
-                                    ><i id="projectNtpActionIcon" class="{{ $ntpApproved ? 'fas fa-check-circle' : 'fas fa-file-signature' }}"></i><span id="projectNtpActionText">{{ $ntpApproved ? 'View Approved NTP' : 'Generate NTP' }}</span></a>
+                                    ><span id="projectNtpActionText">{{ $ntpRecord ? 'View NTP' : 'Generate NTP' }}</span></a>
                                 @endif
                                 <a href="{{ route('project.sow.download', $project) }}" class="project-doc-action">Download PDF</a>
                             </div>
@@ -294,7 +294,6 @@
                             <form method="POST" action="{{ route('project.sow.manual-approve', $project) }}" enctype="multipart/form-data" class="project-quick-stack">
                                 @csrf
                                 <input type="file" name="signed_document" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" class="w-full text-xs text-slate-600" @disabled($projectLocked)>
-                                <input type="text" name="approval_name" value="{{ $sow?->approved_by_name ?: '' }}" placeholder="Approver name" class="border border-slate-300 px-3 py-2 text-sm" @disabled($projectLocked)>
                                 <input type="text" name="approval_note" placeholder="Approval note" class="border border-slate-300 px-3 py-2 text-sm" @disabled($projectLocked)>
                                 <button type="submit" class="project-doc-primary" @disabled($projectLocked)>Manual Approve SOW</button>
                             </form>
@@ -302,13 +301,13 @@
                                 <p class="text-xs text-slate-500">Approved {{ optional($sow->approved_at)->format('M d, Y h:i A') }} by {{ $sow->approved_by_name ?: 'Manual Override' }}.</p>
                             @endif
                         </div>
-                        @if (! $projectLocked && $ntpRecord && ! $ntpApproved)
+                        @if (! $projectLocked && ! $ntpApproved)
                             <div class="project-quick-group">
                                 <p class="project-quick-label">Manual NTP Approval</p>
                                 <form method="POST" action="{{ route('project.ntp.manual-approve', $project) }}" enctype="multipart/form-data" class="project-quick-stack">
                                     @csrf
                                     <input type="file" name="signed_document" required accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" class="w-full text-xs text-slate-600">
-                                    <input type="text" name="approval_name" placeholder="Approver name" class="border border-slate-300 px-3 py-2 text-sm">
+                                    <input type="text" name="approval_note" placeholder="Approval note" class="border border-slate-300 px-3 py-2 text-sm">
                                     <button type="submit" class="project-doc-primary">Upload Signed NTP & Approve</button>
                                 </form>
                             </div>
@@ -353,9 +352,9 @@
         @endif
     </div>
 </div>
-@if ($tab === 'sow' && $ntpApproved && $ntpRecord)
+@if ($tab === 'sow' && $ntpRecord)
 <div id="projectApprovedNtpModal" class="project-ntp-modal" aria-hidden="true">
-    <button id="projectApprovedNtpOverlay" type="button" class="project-ntp-overlay" aria-label="Close approved NTP view"></button>
+    <button id="projectApprovedNtpOverlay" type="button" class="project-ntp-overlay" aria-label="Close NTP view"></button>
     <div class="project-ntp-frame">
         <div class="project-ntp-shell">
             <div class="project-doc-view-shell">
@@ -363,7 +362,7 @@
                     <div>
                         <p class="project-doc-view-eyebrow">Project Document Viewer</p>
                         <h2 class="project-doc-view-title">Notice to Proceed</h2>
-                        <p class="project-doc-view-copy">Review the approved NTP in the same branded viewer used across the project workspace. The original document structure is preserved.</p>
+                        <p class="project-doc-view-copy">Review the NTP in the same branded viewer used across the project workspace. The original document structure is preserved.</p>
                     </div>
                     <div class="project-doc-view-actions">
                         <button id="projectApprovedNtpClose" type="button" class="project-doc-view-action">Close View</button>
@@ -436,7 +435,6 @@
         const statusChip = document.getElementById('projectNtpStatusChip');
         const statusIcon = document.getElementById('projectNtpStatusIcon');
         const statusText = document.getElementById('projectNtpStatusText');
-        const actionIcon = document.getElementById('projectNtpActionIcon');
         const actionText = document.getElementById('projectNtpActionText');
         const approvedNtpModal = document.getElementById('projectApprovedNtpModal');
         const approvedNtpOverlay = document.getElementById('projectApprovedNtpOverlay');
@@ -506,7 +504,7 @@
         };
 
         const applyState = (payload) => {
-            if (!action || !statusChip || !statusIcon || !statusText || !actionIcon || !actionText) {
+            if (!action || !statusChip || !statusIcon || !statusText || !actionText) {
                 return;
             }
 
@@ -516,7 +514,6 @@
 
             action.href = payload.action_url || action.href;
             action.className = payload.button_class || 'project-doc-action';
-            actionIcon.className = payload.button_icon || 'fas fa-file-signature';
             actionText.textContent = payload.button_label || 'Generate NTP';
             action.dataset.approvedView = payload.is_approved ? 'true' : 'false';
 
@@ -555,7 +552,7 @@
         };
 
         action?.addEventListener('click', (event) => {
-            if (action.dataset.approvedView === 'true' && approvedNtpModal) {
+            if (actionText?.textContent?.trim() === 'View NTP' && approvedNtpModal) {
                 event.preventDefault();
                 openApprovedNtpModal();
             }
