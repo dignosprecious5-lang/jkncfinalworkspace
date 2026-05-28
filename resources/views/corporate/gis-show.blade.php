@@ -1284,7 +1284,7 @@
             </div>
 
             <div class="flex justify-between">
-                <span class="text-gray-500">Industry</span>
+                <span class="text-gray-500">PRIMARY PURPOSE/ACTIVITY/INDUSTRY PRESENTLY ENGAGED IN</span>
                 <span class="text-right max-w-[180px]">{{ $gis->industry ?: '—' }}</span>
             </div>
 

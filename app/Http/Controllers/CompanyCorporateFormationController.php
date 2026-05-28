@@ -22,7 +22,7 @@ class CompanyCorporateFormationController extends Controller
 
     public function index(int $company): RedirectResponse
     {
-        return redirect()->route('company.corporate-formation.sec-coi', $company);
+        return redirect()->route('company.corporate-formation.company-info', $company);
     }
 
     // -------------------------------------------------------------------------
