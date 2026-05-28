@@ -415,6 +415,7 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::post('/project/{project}/start/approve', [ProjectController::class, 'approveStart'])->name('project.start.approve');
     Route::post('/project/{project}/start/reject', [ProjectController::class, 'rejectStart'])->name('project.start.reject');
     Route::post('/project/{project}/sow', [ProjectController::class, 'updateSow'])->name('project.sow.update');
+    Route::post('/project/{project}/sow/manual-approve', [ProjectController::class, 'manualApproveSow'])->name('project.sow.manual-approve');
     Route::post('/project/{project}/sow/auto-report-settings', [ProjectController::class, 'updateSowAutoReportSettings'])->name('project.sow.auto-settings');
     Route::post('/project/{project}/sow/templates', [ProjectController::class, 'storeSowTemplate'])->name('project.sow.templates.store');
     Route::get('/project/{project}/sow/download', [ProjectController::class, 'downloadSowPdf'])->name('project.sow.download');
@@ -436,6 +437,7 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::post('/regular/manual', [RegularController::class, 'storeManual'])->name('regular.manual.store');
     Route::get('/regular/{regular}', [RegularController::class, 'show'])->name('regular.show');
     Route::post('/regular/{regular}/rsat', [RegularController::class, 'updateRsat'])->name('regular.rsat.update');
+    Route::post('/regular/{regular}/rsat/manual-approve', [RegularController::class, 'manualApproveRsat'])->name('regular.rsat.manual-approve');
     Route::post('/regular/{regular}/rsat/auto-report-settings', [RegularController::class, 'updateRsatAutoReportSettings'])->name('regular.rsat.auto-settings');
     Route::post('/regular/{regular}/rsat/templates', [RegularController::class, 'storeRsatTemplate'])->name('regular.rsat.templates.store');
     Route::post('/regular/{regular}/report/generate', [RegularController::class, 'generateReport'])->name('regular.report.generate');
@@ -492,6 +494,7 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     |--------------------------------------------------------------------------
     */
     Route::get('/company', [CompanyController::class, 'index'])->name('company.index');
+    Route::get('/company/contacts/search', [CompanyController::class, 'searchRoleContacts'])->name('company.contacts.search');
     Route::post('/company', [CompanyController::class, 'store'])->name('company.store');
     Route::post('/company/custom-fields', [CompanyController::class, 'storeCustomField'])->name('company.custom-fields.store');
     Route::delete('/company/bulk-delete', [CompanyController::class, 'bulkDelete'])->name('company.bulk-delete');

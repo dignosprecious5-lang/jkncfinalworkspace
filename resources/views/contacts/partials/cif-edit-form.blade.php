@@ -79,14 +79,14 @@
         <div class="space-y-4">
             <div>
                 <label class="mb-1 block text-sm font-medium text-gray-700">Civil Status</label>
-                <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-[repeat(4,minmax(0,max-content))_minmax(260px,1fr)] lg:items-center">
+                <div class="grid gap-x-2 gap-y-2 sm:grid-cols-2 lg:grid-cols-[repeat(4,minmax(0,max-content))_minmax(220px,1fr)] lg:items-center">
                     @foreach (['single' => 'Single', 'separated' => 'Separated', 'widowed' => 'Widowed', 'married' => 'Married'] as $value => $label)
-                        <label class="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm"><input type="radio" name="civil_status" value="{{ $value }}" @checked(old('civil_status', $cifData['civil_status'] ?? '') === $value)> {{ $label }}</label>
+                        <label class="flex min-h-10 items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm"><input type="radio" name="civil_status" value="{{ $value }}" @checked(old('civil_status', $cifData['civil_status'] ?? '') === $value)> {{ $label }}</label>
                     @endforeach
-                    <div class="lg:col-start-5 lg:row-start-1 lg:min-w-0 lg:justify-self-stretch" data-spouse-row @if($selectedCivilStatus !== 'married') style="display:none;" @endif>
-                        <div class="flex min-w-0 items-center gap-2">
+                    <div class="sm:col-span-2 lg:col-start-5 lg:row-start-1 lg:min-w-0 lg:w-full lg:justify-self-stretch" data-spouse-row @if($selectedCivilStatus !== 'married') style="display:none;" @endif>
+                        <div class="flex w-full min-w-0 items-center gap-2">
                             <label for="edit_spouse_name" class="shrink-0 whitespace-nowrap text-sm font-medium text-gray-700">Spouse's Name</label>
-                            <input id="edit_spouse_name" name="spouse_name" value="{{ old('spouse_name', $cifData['spouse_name'] ?? '') }}" class="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm">
+                            <input id="edit_spouse_name" name="spouse_name" value="{{ old('spouse_name', $cifData['spouse_name'] ?? '') }}" class="h-10 w-full min-w-0 rounded-lg border border-gray-300 px-3 text-sm">
                         </div>
                     </div>
                 </div>

@@ -6,6 +6,7 @@ use App\Http\Controllers\Concerns\GeneratesPdfPreview;
 use App\Models\Company;
 use App\Models\Contact;
 use App\Models\Deal;
+use App\Models\Employee;
 use App\Models\Project;
 use App\Models\ProjectNtp;
 use App\Models\ProjectSowReport;
@@ -141,6 +142,9 @@ class RegularController extends Controller
             $dealRecords = [];
         }
 
+        $employeeRecords = $this->employeeLookupRecords();
+        $defaultApprovalPreparedBy = $this->currentEmployeeDisplayName(request());
+
         return view('regular.index', compact(
             'regulars',
             'stats',
@@ -148,6 +152,8 @@ class RegularController extends Controller
             'contactRecords',
             'companyRecords',
             'dealRecords',
+            'employeeRecords',
+            'defaultApprovalPreparedBy',
             'serviceCatalog',
             'productCatalog',
             'catalogWarnings'
@@ -196,6 +202,7 @@ class RegularController extends Controller
                 })]
                 : ['nullable'],
         ]);
+        $validated['prepared_by_default'] = $this->currentEmployeeDisplayName($request);
 
         $validated['service_area'] = $this->stringifySelectedValues(
             $validated['service_area_options'] ?? [],
@@ -294,7 +301,7 @@ class RegularController extends Controller
             ),
             'clearance' => $this->mergeRegularTemplateClearancePayload(
                 (array) ($templatePayload['clearance'] ?? []),
-                $validated['assigned_project_manager'] ?? ($validated['assigned_consultant'] ?? null),
+                $validated['prepared_by_default'] ?? ($validated['assigned_project_manager'] ?? ($validated['assigned_consultant'] ?? null)),
                 $validated['assigned_consultant'] ?? null,
                 $validated['assigned_associate'] ?? null
             ),
@@ -309,10 +316,10 @@ class RegularController extends Controller
             'client_confirmation_name' => $regular->client_confirmation_name,
             'internal_approval' => [
                 'report_period' => null,
-                'prepared_by' => $validated['assigned_project_manager'] ?? ($validated['assigned_consultant'] ?? null),
+                'prepared_by' => $validated['prepared_by_default'] ?? ($validated['assigned_project_manager'] ?? ($validated['assigned_consultant'] ?? null)),
                 'prepared_by_name' => null,
                 'prepared_by_date' => null,
-                'reviewed_by' => 'Admin',
+                'reviewed_by' => $validated['assigned_project_manager'] ?? ($validated['assigned_consultant'] ?? 'Admin'),
                 'reviewed_by_name' => null,
                 'reviewed_by_date' => null,
                 'referred_by_closed_by' => null,
@@ -401,6 +408,47 @@ class RegularController extends Controller
         $this->persistRsatDocument($request, $regular, $validated);
 
         return redirect()->route('regular.show', ['regular' => $regular, 'tab' => 'rsat'])->with('success', 'RSAT form updated successfully.');
+    }
+
+    public function manualApproveRsat(Request $request, Project $regular): RedirectResponse
+    {
+        abort_unless($this->isRegularEngagement($regular->engagement_type), 404);
+        $this->abortIfRegularCompleted($regular);
+
+        $validated = $request->validate([
+            'signed_document' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png,doc,docx', 'max:10240'],
+            'approval_name' => ['nullable', 'string', 'max:255'],
+            'approval_note' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $rsat = $regular->starts()->latest()->first() ?: new ProjectStart(['project_id' => $regular->id]);
+        $rsat->project_id = $regular->id;
+        $rsat->status = 'approved';
+        $rsat->approved_at = now();
+        $rsat->approved_by_name = $validated['approval_name']
+            ?: ($this->currentEmployeeDisplayName($request) ?: 'Manual Override');
+
+        $attachments = (array) ($rsat->attachments ?? []);
+        if ($request->hasFile('signed_document')) {
+            $attachments[] = [
+                'label' => 'Manual approved RSAT',
+                'path' => $request->file('signed_document')->store("regular/{$regular->id}/rsat/manual-approval", 'public'),
+                'uploaded_at' => now()->toDateTimeString(),
+            ];
+        }
+        $rsat->attachments = $attachments;
+        $rsat->rejection_reason = trim((string) ($validated['approval_note'] ?? '')) ?: null;
+        $rsat->save();
+
+        $regular->forceFill([
+            'status' => 'For NTP Approval',
+            'current_phase' => 'For NTP Approval',
+            'current_step' => 'RSAT manually approved',
+        ])->save();
+
+        return redirect()
+            ->route('regular.show', ['regular' => $regular, 'tab' => 'rsat'])
+            ->with('success', 'RSAT manually approved successfully.');
     }
 
     public function downloadRsatPdf(Project $regular)
@@ -1382,8 +1430,15 @@ class RegularController extends Controller
                 return ['productOptionsByServiceArea' => []];
             }
 
+            $select = ['product_name', 'product_area', 'status'];
+            foreach (['product_area_other', 'linked_service_id', 'linked_service_ids'] as $column) {
+                if (Schema::hasColumn('products', $column)) {
+                    $select[] = $column;
+                }
+            }
+
             $products = \App\Models\Product::query()
-                ->select(['product_name', 'product_area', 'status'])
+                ->select($select)
                 ->whereNotNull('product_name')
                 ->where('product_name', '!=', '')
                 ->when(Schema::hasColumn('products', 'status'), fn ($query) => $query->whereIn('status', ['Pending Approval', 'Active']))
@@ -1398,11 +1453,19 @@ class RegularController extends Controller
                     continue;
                 }
 
+                if (filled($product->linked_service_id) || collect($product->linked_service_ids ?? [])->filter()->isNotEmpty()) {
+                    continue;
+                }
+
                 $areas = collect($product->product_area ?? [])
                     ->filter(fn ($value): bool => is_string($value) && trim($value) !== '')
                     ->map(fn ($value): string => trim((string) $value))
                     ->reject(fn (string $value): bool => $value === 'Others' || $value === 'None')
                     ->values();
+
+                if ($areas->isEmpty() && filled($product->product_area_other ?? null)) {
+                    $areas = collect([trim((string) $product->product_area_other)]);
+                }
 
                 foreach ($areas as $area) {
                     $groups[$area] ??= [];
@@ -1766,5 +1829,51 @@ class RegularController extends Controller
             'day_of_month' => (int) ($raw['day_of_month'] ?? 30),
             'last_generated_on' => filled($raw['last_generated_on'] ?? null) ? (string) $raw['last_generated_on'] : null,
         ];
+    }
+
+    private function employeeLookupRecords(): array
+    {
+        if (! Schema::hasTable('employees')) {
+            return [];
+        }
+
+        return Employee::query()
+            ->select(['id', 'employee_code', 'first_name', 'last_name', 'position', 'email', 'work_email'])
+            ->orderBy('first_name')
+            ->orderBy('last_name')
+            ->get()
+            ->map(function (Employee $employee): array {
+                $label = trim((string) $employee->full_name);
+
+                return [
+                    'id' => $employee->id,
+                    'label' => $label,
+                    'position' => $employee->position,
+                    'employee_code' => $employee->employee_code,
+                    'email' => $employee->work_email ?: $employee->email,
+                    'search_blob' => Str::lower(implode(' ', array_filter([
+                        $label,
+                        $employee->employee_code,
+                        $employee->position,
+                        $employee->work_email,
+                        $employee->email,
+                    ]))),
+                ];
+            })
+            ->filter(fn (array $employee): bool => $employee['label'] !== '')
+            ->values()
+            ->all();
+    }
+
+    private function currentEmployeeDisplayName(Request $request): ?string
+    {
+        $user = $request->user();
+        if (! $user) {
+            return null;
+        }
+
+        $employee = $user->employeeProfile;
+
+        return filled($employee?->full_name) ? $employee->full_name : ($user->name ?: null);
     }
 }

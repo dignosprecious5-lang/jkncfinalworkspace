@@ -183,20 +183,17 @@
                         <div class="space-y-4">
                             <div>
                                 <label for="product_requirements_individual" class="mb-1 block text-sm font-medium text-gray-700">Individual Requirements</label>
-                                <textarea id="product_requirements_individual" name="requirements_individual" rows="4" class="product-requirements-input w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" placeholder="Enter one requirement per line">{{ old('requirements_individual', $requirementTemplateDefaults['individual'] ?? '') }}</textarea>
-                                <p class="mt-1 text-xs text-gray-500">Default template: Valid ID, DTI Registration.</p>
+                                <textarea id="product_requirements_individual" name="requirements_individual" rows="4" class="product-requirements-input w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" placeholder="Enter one requirement per line">{{ old('requirements_individual') }}</textarea>
                                 <div class="product-requirements-preview mt-2 rounded-lg border border-dashed border-gray-200 bg-white px-3 py-2 hidden"></div>
                             </div>
                             <div>
                                 <label for="product_requirements_juridical" class="mb-1 block text-sm font-medium text-gray-700">Juridical Requirements</label>
-                                <textarea id="product_requirements_juridical" name="requirements_juridical" rows="4" class="product-requirements-input w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" placeholder="Enter one requirement per line">{{ old('requirements_juridical', $requirementTemplateDefaults['juridical'] ?? '') }}</textarea>
-                                <p class="mt-1 text-xs text-gray-500">Default template: SEC Registration, GIS, Articles of Incorporation.</p>
+                                <textarea id="product_requirements_juridical" name="requirements_juridical" rows="4" class="product-requirements-input w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" placeholder="Enter one requirement per line">{{ old('requirements_juridical') }}</textarea>
                                 <div class="product-requirements-preview mt-2 rounded-lg border border-dashed border-gray-200 bg-white px-3 py-2 hidden"></div>
                             </div>
                             <div>
                                 <label for="product_requirements_other" class="mb-1 block text-sm font-medium text-gray-700">Other Requirements</label>
-                                <textarea id="product_requirements_other" name="requirements_other" rows="4" class="product-requirements-input w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" placeholder="Enter one requirement per line">{{ old('requirements_other', $requirementTemplateDefaults['other'] ?? '') }}</textarea>
-                                <p class="mt-1 text-xs text-gray-500">Default template: Special Permit.</p>
+                                <textarea id="product_requirements_other" name="requirements_other" rows="4" class="product-requirements-input w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" placeholder="Enter one requirement per line">{{ old('requirements_other') }}</textarea>
                                 <div class="product-requirements-preview mt-2 rounded-lg border border-dashed border-gray-200 bg-white px-3 py-2 hidden"></div>
                             </div>
                             <input id="product_requirement_category" type="hidden" name="requirement_category" value="{{ old('requirement_category') }}">

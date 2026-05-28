@@ -282,6 +282,19 @@
                                 <a href="{{ route('project.sow.download', $project) }}" class="project-doc-action">Download PDF</a>
                             </div>
                         </div>
+                        <div class="project-quick-group">
+                            <p class="project-quick-label">Manual Approve SOW</p>
+                            <form method="POST" action="{{ route('project.sow.manual-approve', $project) }}" enctype="multipart/form-data" class="project-quick-stack">
+                                @csrf
+                                <input type="file" name="signed_document" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" class="w-full text-xs text-slate-600" @disabled($projectLocked)>
+                                <input type="text" name="approval_name" value="{{ $sow?->approved_by_name ?: '' }}" placeholder="Approver name" class="border border-slate-300 px-3 py-2 text-sm" @disabled($projectLocked)>
+                                <input type="text" name="approval_note" placeholder="Approval note" class="border border-slate-300 px-3 py-2 text-sm" @disabled($projectLocked)>
+                                <button type="submit" class="project-doc-primary" @disabled($projectLocked)>Manual Approve SOW</button>
+                            </form>
+                            @if ($sow?->approved_at)
+                                <p class="text-xs text-slate-500">Approved {{ optional($sow->approved_at)->format('M d, Y h:i A') }} by {{ $sow->approved_by_name ?: 'Manual Override' }}.</p>
+                            @endif
+                        </div>
                         @if (! $projectLocked && $ntpRecord && ! $ntpApproved)
                             <div class="project-quick-group">
                                 <p class="project-quick-label">Manual NTP Approval</p>

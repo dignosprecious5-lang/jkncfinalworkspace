@@ -121,6 +121,23 @@
             </button>
         </div>
 
+        @if (session('success'))
+            <div class="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{{ session('success') }}</div>
+        @endif
+        @if (session('error'))
+            <div class="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ session('error') }}</div>
+        @endif
+        @if ($errors->any())
+            <div class="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+                <p class="font-semibold">Create Project was not saved.</p>
+                <ul class="mt-2 list-disc space-y-1 pl-5">
+                    @foreach ($errors->all() as $error)
+                        <li>{{ $error }}</li>
+                    @endforeach
+                </ul>
+            </div>
+        @endif
+
         @if (!empty($catalogWarnings ?? []))
             <div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
                 @foreach ($catalogWarnings as $warning)
@@ -421,15 +438,15 @@
                 </div>
                 <div>
                     <label class="mb-2 block text-sm font-medium text-gray-700">Project Manager</label>
-                    <input name="assigned_project_manager" id="project_assigned_project_manager" value="{{ old('assigned_project_manager') }}" class="h-11 w-full rounded-xl border border-gray-300 px-4 text-sm text-gray-900">
+                    <input name="assigned_project_manager" id="project_assigned_project_manager" value="{{ old('assigned_project_manager') }}" list="projectEmployeeOptions" autocomplete="off" class="h-11 w-full rounded-xl border border-gray-300 px-4 text-sm text-gray-900">
                 </div>
                 <div>
                     <label class="mb-2 block text-sm font-medium text-gray-700">Lead Consultant</label>
-                    <input name="assigned_consultant" id="project_assigned_consultant" value="{{ old('assigned_consultant') }}" class="h-11 w-full rounded-xl border border-gray-300 px-4 text-sm text-gray-900">
+                    <input name="assigned_consultant" id="project_assigned_consultant" value="{{ old('assigned_consultant') }}" list="projectEmployeeOptions" autocomplete="off" class="h-11 w-full rounded-xl border border-gray-300 px-4 text-sm text-gray-900">
                 </div>
                 <div class="md:col-span-2">
                     <label class="mb-2 block text-sm font-medium text-gray-700">Lead Associate</label>
-                    <input name="assigned_associate" id="project_assigned_associate" value="{{ old('assigned_associate') }}" class="h-11 w-full rounded-xl border border-gray-300 px-4 text-sm text-gray-900">
+                    <input name="assigned_associate" id="project_assigned_associate" value="{{ old('assigned_associate') }}" list="projectEmployeeOptions" autocomplete="off" class="h-11 w-full rounded-xl border border-gray-300 px-4 text-sm text-gray-900">
                 </div>
                 <div class="md:col-span-2">
                     <label class="mb-2 block text-sm font-medium text-gray-700">Scope Summary</label>
@@ -513,7 +530,8 @@
 
             <section class="rounded-2xl border border-gray-200 p-4">
                 <h3 class="text-base font-semibold text-gray-900">Products</h3>
-                <p class="mt-1 text-xs text-gray-500">Select a service area first to show the matching products offered.</p>
+                <p class="mt-1 text-xs text-gray-500">Only active products that are not yet linked to a service are shown.</p>
+                <input id="projectProductSearch" type="text" autocomplete="off" placeholder="Search available products..." class="mt-3 h-10 w-full rounded-lg border border-gray-300 px-3 text-sm text-gray-900">
                 <div id="projectProductsEmptyState" class="mt-3 rounded-xl border border-dashed border-gray-200 bg-gray-50/60 p-4 text-sm text-gray-500 {{ count(array_intersect($selectedServiceAreas, array_keys($productOptionsByServiceArea))) > 0 ? 'hidden' : '' }}">
                     Select a matching service area first to show the available products.
                 </div>
@@ -523,7 +541,7 @@
                             <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-600">{{ $serviceArea }}</p>
                             <div class="grid gap-2 sm:grid-cols-2">
                                 @foreach ($options as $option)
-                                    <label class="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700" data-project-product-option data-service-area-product="{{ $serviceArea }}" data-product-value="{{ $option }}">
+                                    <label class="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700" data-project-product-option data-service-area-product="{{ $serviceArea }}" data-product-value="{{ $option }}" data-project-product-search="{{ \Illuminate\Support\Str::lower($option.' '.$serviceArea) }}">
                                         <input type="checkbox" name="product_options[]" value="{{ $option }}" @checked(in_array($option, $selectedProducts, true)) class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500">
                                         <span>{{ $option }}</span>
                                     </label>
@@ -561,6 +579,12 @@
         </div>
     </form>
 </x-slide-over>
+
+<datalist id="projectEmployeeOptions">
+    @foreach (($employeeRecords ?? []) as $employee)
+        <option value="{{ $employee['label'] }}">{{ $employee['position'] ?? '' }}{{ !empty($employee['employee_code']) ? ' - '.$employee['employee_code'] : '' }}</option>
+    @endforeach
+</datalist>
 
 <script>
     (() => {
@@ -753,23 +777,27 @@
 
         const syncProductOptions = () => {
             const selectedAreas = Array.from(document.querySelectorAll('input[name="service_area_options[]"]:checked')).map((input) => input.value);
-            const allowedProducts = new Set(
-                Array.from(document.querySelectorAll('[data-project-product-group]'))
-                    .filter((group) => selectedAreas.includes(group.getAttribute('data-project-product-group')))
-                    .flatMap((group) => Array.from(group.querySelectorAll('[data-product-value]')).map((item) => item.getAttribute('data-product-value')))
-            );
+            const productSearchTerm = String(document.getElementById('projectProductSearch')?.value || '').trim().toLowerCase();
             const productEmptyState = document.getElementById('projectProductsEmptyState');
 
             let visibleCount = 0;
             document.querySelectorAll('[data-project-product-group]').forEach((group) => {
-                const visible = selectedAreas.includes(group.getAttribute('data-project-product-group'));
-                group.classList.toggle('hidden', !visible);
-                if (visible) {
+                const groupAreaVisible = selectedAreas.includes(group.getAttribute('data-project-product-group'));
+                let groupHasVisibleProduct = false;
+
+                group.querySelectorAll('[data-project-product-option]').forEach((option) => {
+                    const optionMatchesSearch = productSearchTerm === '' || String(option.dataset.projectProductSearch || '').includes(productSearchTerm);
+                    const optionVisible = groupAreaVisible && optionMatchesSearch;
+                    option.classList.toggle('hidden', !optionVisible);
+                    groupHasVisibleProduct = groupHasVisibleProduct || optionVisible;
+                    if (!optionVisible) {
+                        option.querySelector('input[name="product_options[]"]')?.checked = false;
+                    }
+                });
+
+                group.classList.toggle('hidden', !groupHasVisibleProduct);
+                if (groupHasVisibleProduct) {
                     visibleCount += 1;
-                } else {
-                    group.querySelectorAll('input[name="product_options[]"]').forEach((input) => {
-                        input.checked = false;
-                    });
                 }
             });
 
@@ -1265,6 +1293,7 @@
         document.querySelector('input[name="product_options[]"][value="Others"]')?.addEventListener('change', (event) => {
             document.getElementById('project_products_other_wrap')?.classList.toggle('hidden', !event.target.checked);
         });
+        document.getElementById('projectProductSearch')?.addEventListener('input', syncProductOptions);
         templateSelect?.addEventListener('change', renderProjectTemplatePreview);
         ['project_client_name', 'project_business_name', 'project_client_confirmation_name', 'project_assigned_project_manager', 'project_assigned_consultant', 'project_assigned_associate'].forEach((id) => {
             document.getElementById(id)?.addEventListener('input', renderProjectTemplatePreview);
@@ -1277,6 +1306,9 @@
         syncCompositeFields();
         setManualSummary();
         renderProjectTemplatePreview();
+        @if ($errors->any())
+            window.jkncSlideOver?.open(document.getElementById('projectManualCreateDrawer'));
+        @endif
     })();
 </script>
 @endsection

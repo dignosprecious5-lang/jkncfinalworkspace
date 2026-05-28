@@ -119,6 +119,23 @@
             </button>
         </div>
 
+        @if (session('success'))
+            <div class="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{{ session('success') }}</div>
+        @endif
+        @if (session('error'))
+            <div class="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ session('error') }}</div>
+        @endif
+        @if ($errors->any())
+            <div class="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+                <p class="font-semibold">Create Regular was not saved.</p>
+                <ul class="mt-2 list-disc space-y-1 pl-5">
+                    @foreach ($errors->all() as $error)
+                        <li>{{ $error }}</li>
+                    @endforeach
+                </ul>
+            </div>
+        @endif
+
         @if (!empty($catalogWarnings ?? []))
             <div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
                 @foreach ($catalogWarnings as $warning)
@@ -411,15 +428,15 @@
                 </div>
                 <div>
                     <label class="mb-2 block text-sm font-medium text-gray-700">Project Manager</label>
-                    <input name="assigned_project_manager" id="regular_assigned_project_manager" value="{{ old('assigned_project_manager') }}" class="h-11 w-full rounded-xl border border-gray-300 px-4 text-sm text-gray-900">
+                    <input name="assigned_project_manager" id="regular_assigned_project_manager" value="{{ old('assigned_project_manager') }}" list="regularEmployeeOptions" autocomplete="off" class="h-11 w-full rounded-xl border border-gray-300 px-4 text-sm text-gray-900">
                 </div>
                 <div>
                     <label class="mb-2 block text-sm font-medium text-gray-700">Lead Consultant</label>
-                    <input name="assigned_consultant" id="regular_assigned_consultant" value="{{ old('assigned_consultant') }}" class="h-11 w-full rounded-xl border border-gray-300 px-4 text-sm text-gray-900">
+                    <input name="assigned_consultant" id="regular_assigned_consultant" value="{{ old('assigned_consultant') }}" list="regularEmployeeOptions" autocomplete="off" class="h-11 w-full rounded-xl border border-gray-300 px-4 text-sm text-gray-900">
                 </div>
                 <div class="md:col-span-2">
                     <label class="mb-2 block text-sm font-medium text-gray-700">Lead Associate</label>
-                    <input name="assigned_associate" id="regular_assigned_associate" value="{{ old('assigned_associate') }}" class="h-11 w-full rounded-xl border border-gray-300 px-4 text-sm text-gray-900">
+                    <input name="assigned_associate" id="regular_assigned_associate" value="{{ old('assigned_associate') }}" list="regularEmployeeOptions" autocomplete="off" class="h-11 w-full rounded-xl border border-gray-300 px-4 text-sm text-gray-900">
                 </div>
                 <div class="md:col-span-2">
                     <label class="mb-2 block text-sm font-medium text-gray-700">RSAT Activities / Requirements</label>
@@ -467,13 +484,15 @@
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700">Products</label>
+                        <p class="mt-1 text-xs text-gray-500">Only active products that are not yet linked to a service are shown.</p>
+                        <input id="regularProductSearch" type="text" autocomplete="off" placeholder="Search available products..." class="mt-3 h-10 w-full rounded-lg border border-gray-300 px-3 text-sm text-gray-900">
                         <div id="regular-product-options-grid" class="mt-3 grid gap-4">
                             @foreach ($productOptionsByServiceArea as $serviceArea => $options)
                                 <div class="{{ in_array($serviceArea, $selectedServiceAreas, true) ? '' : 'hidden' }}" data-regular-product-group="{{ $serviceArea }}">
                                     <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-600">{{ $serviceArea }}</p>
                                     <div class="grid gap-2 sm:grid-cols-2">
                                         @foreach ($options as $option)
-                                            <label class="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700">
+                                            <label class="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700" data-regular-product-option data-regular-product-search="{{ \Illuminate\Support\Str::lower($option.' '.$serviceArea) }}">
                                                 <input type="checkbox" name="product_options[]" value="{{ $option }}" @checked(in_array($option, $selectedProducts, true)) class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500">
                                                 <span>{{ $option }}</span>
                                             </label>
@@ -497,6 +516,12 @@
         </div>
     </form>
 </x-slide-over>
+
+<datalist id="regularEmployeeOptions">
+    @foreach (($employeeRecords ?? []) as $employee)
+        <option value="{{ $employee['label'] }}">{{ $employee['position'] ?? '' }}{{ !empty($employee['employee_code']) ? ' - '.$employee['employee_code'] : '' }}</option>
+    @endforeach
+</datalist>
 
 <script>
     (() => {
@@ -642,16 +667,29 @@
         const syncSelections = () => {
             const areas = serviceAreaChecks.filter((item) => item.checked).map((item) => item.value);
             const services = serviceChecks.filter((item) => item.checked).map((item) => item.value);
-            const products = productChecks.filter((item) => item.checked).map((item) => item.value);
+            const productSearchTerm = String(document.getElementById('regularProductSearch')?.value || '').trim().toLowerCase();
             setValue('regular_service_area', areas.join(', '));
             setValue('regular_services', services.join(', '));
-            setValue('regular_products', products.join(', '));
             document.querySelectorAll('[data-regular-service-group]').forEach((group) => {
                 group.classList.toggle('hidden', !areas.includes(group.dataset.regularServiceGroup));
             });
             document.querySelectorAll('[data-regular-product-group]').forEach((group) => {
-                group.classList.toggle('hidden', !areas.includes(group.dataset.regularProductGroup));
+                const groupAreaVisible = areas.includes(group.dataset.regularProductGroup);
+                let groupHasVisibleProduct = false;
+
+                group.querySelectorAll('[data-regular-product-option]').forEach((option) => {
+                    const optionMatchesSearch = productSearchTerm === '' || String(option.dataset.regularProductSearch || '').includes(productSearchTerm);
+                    const optionVisible = groupAreaVisible && optionMatchesSearch;
+                    option.classList.toggle('hidden', !optionVisible);
+                    groupHasVisibleProduct = groupHasVisibleProduct || optionVisible;
+                    if (!optionVisible) {
+                        option.querySelector('input[name="product_options[]"]')?.checked = false;
+                    }
+                });
+
+                group.classList.toggle('hidden', !groupHasVisibleProduct);
             });
+            setValue('regular_products', productChecks.filter((item) => item.checked).map((item) => item.value).join(', '));
             document.getElementById('regularServicesGrid')?.classList.toggle('hidden', areas.length === 0);
             renderRegularTemplatePreview();
         };
@@ -714,6 +752,7 @@
         serviceAreaChecks.forEach((item) => item.addEventListener('change', syncSelections));
         serviceChecks.forEach((item) => item.addEventListener('change', syncSelections));
         productChecks.forEach((item) => item.addEventListener('change', syncSelections));
+        document.getElementById('regularProductSearch')?.addEventListener('input', syncSelections);
         templateSelect?.addEventListener('change', renderRegularTemplatePreview);
         ['regular_client_name', 'regular_business_name', 'regular_client_confirmation_name', 'regular_assigned_project_manager', 'regular_assigned_consultant', 'regular_assigned_associate'].forEach((id) => {
             document.getElementById(id)?.addEventListener('input', renderRegularTemplatePreview);
@@ -722,6 +761,9 @@
         setSourceMode(sourceModeInput?.value || 'manual');
         syncSelections();
         renderRegularTemplatePreview();
+        @if ($errors->any())
+            window.jkncSlideOver?.open(document.getElementById('regularManualCreateDrawer'));
+        @endif
     })();
 </script>
 @endsection

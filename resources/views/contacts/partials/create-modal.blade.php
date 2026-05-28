@@ -58,6 +58,7 @@
 
             <form method="POST" action="{{ route('contacts.store') }}" class="flex min-h-0 flex-1 flex-col">
                 @csrf
+                <input type="hidden" name="return_to_company" value="{{ request()->boolean('return_to_company') ? '1' : old('return_to_company') }}">
                 <input id="owner_id" type="hidden" name="owner_id" value="{{ old('owner_id', $selectedOwnerId) }}">
 
                 <div class="min-h-0 flex-1 space-y-6 overflow-y-auto px-6 py-6 sm:px-8">

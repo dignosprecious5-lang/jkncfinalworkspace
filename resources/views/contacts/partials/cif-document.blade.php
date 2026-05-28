@@ -11,7 +11,7 @@
 @endphp
 
 <style>
-    .cif-doc { border: 1.2px solid #334155; background: #fff; font-family: "Times New Roman", Georgia, serif; color: #0f172a; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .cif-doc { border: 1.2px solid #334155; background: #fff; font-family: "Times New Roman", Georgia, serif; color: #0f172a; overflow: hidden; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     .cif-doc *, .cif-doc *::before, .cif-doc *::after { box-sizing: border-box; }
     .cif-doc-head { display: grid; grid-template-columns: 164px minmax(0, 1fr); gap: 10px; align-items: start; border-bottom: 1.1px solid #334155; padding: 8px 9px 6px; }
     .cif-doc-brand img { max-width: 140px; height: auto; object-fit: contain; }
@@ -20,20 +20,26 @@
     .cif-doc-head-meta { display: grid; grid-template-columns: minmax(0,1fr) 208px; gap: 10px; align-items: start; }
     .cif-doc-line { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; font-size: 9px; }
     .cif-doc-head-side { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; text-align: right; }
-    .cif-doc-row { display: grid; grid-template-columns: repeat(24, minmax(0, 1fr)); }
+    .cif-doc-row { display: grid; grid-template-columns: repeat(24, minmax(0, 1fr)); border-left: 1.05px solid #334155; border-right: 1.05px solid #334155; margin-left: -1.05px; margin-right: -1.05px; }
     .cif-doc-cell { min-height: 29px; border-right: 1.05px solid #334155; border-bottom: 1.05px solid #334155; padding: 2px 4px; background: #fff; }
     .cif-doc-row > .cif-doc-cell:last-child { border-right: 0; }
+    .cif-doc-cell--expanded { min-height: 40px; padding-bottom: 5px; }
+    .cif-doc-cell--status-row { min-height: 56px; padding-bottom: 8px; }
+    .cif-doc-spouse-box { min-height: 40px; border: 1.05px solid #334155; margin-top: -1.05px; margin-left: -1.05px; margin-right: -1.05px; padding: 2px 4px 5px; background: #fff; }
     .cif-doc-label { display: block; font-size: 8px; line-height: 1.05; text-transform: uppercase; font-weight: 700; color: #111827; }
     .cif-doc-value { display: block; padding-top: 1px; font-size: 9px; line-height: 1.05; color: #0f172a; }
+    .cif-doc-row > .cif-doc-cell.doc-col-24 { border-right: 1.05px solid #334155; }
     .cif-doc-inline { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 3px 8px; padding-top: 2px; font-size: 8px; line-height: 1.05; }
     .cif-doc-inline-compact { display: flex; flex-wrap: wrap; gap: 3px 10px; padding-top: 2px; font-size: 8px; line-height: 1.05; }
-    .cif-doc-inline-two { display: grid; grid-template-columns: repeat(4, minmax(76px, 1fr)) minmax(208px, 1.6fr); gap: 4px 12px; padding-top: 2px; font-size: 8px; line-height: 1.05; align-items: center; padding-right: 6px; }
-    .cif-doc-inline-field { display: flex; align-items: center; gap: 8px; font-size: 8px; line-height: 1.05; min-width: 0; padding-right: 8px; }
-    .cif-doc-inline-field-label { font-weight: 700; white-space: nowrap; }
-    .cif-doc-inline-field-value { flex: 1 1 auto; min-width: 0; border-bottom: 1px solid #334155; padding: 0 8px 1px 2px; font-size: 9px; line-height: 1.05; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .cif-doc-inline-two { display: grid; grid-template-columns: repeat(4, minmax(52px, max-content)) minmax(0, 1fr); gap: 4px 5px; padding-top: 2px; font-size: 8px; line-height: 1.05; align-items: start; }
+    .cif-doc-inline-choice { display: inline-flex; align-items: center; min-width: 0; white-space: nowrap; font-size: 7px; }
+    .cif-doc-inline-field { display: flex; align-items: flex-start; gap: 4px; font-size: 8px; line-height: 1.05; min-width: 0; grid-column: 5; width: 100%; padding-right: 0; }
+    .cif-doc-inline-field-label { font-weight: 700; white-space: nowrap; flex: 0 0 auto; font-size: 7px; }
+    .cif-doc-inline-field-value { flex: 1 1 auto; min-width: 0; width: 100%; border-bottom: 1px solid #334155; padding: 0 3px 1px 2px; font-size: 8px; line-height: 1.15; white-space: normal; overflow-wrap: break-word; word-break: normal; }
+    .cif-doc-inline-field-value--single-line { white-space: normal; overflow: visible; text-overflow: unset; font-size: 8px; overflow-wrap: break-word; word-break: normal; }
     .cif-doc-mark { display: inline-flex; width: 12px; height: 12px; align-items: center; justify-content: center; border: 1px solid #334155; border-radius: 2px; background: #fff; margin-right: 4px; }
     .cif-doc-mark.active { border-color: #1d54e2; background: #1d54e2; box-shadow: inset 0 0 0 2px #1d54e2; }
-    .cif-doc-section { border-bottom: 1.05px solid #334155; padding: 3px 6px; background: #102d79; color: #ffffff; font-size: 9px; font-weight: 700; text-align: center; text-transform: uppercase; letter-spacing: 0.02em; }
+    .cif-doc-section { border-left: 1.05px solid #334155; border-right: 1.05px solid #334155; border-bottom: 1.05px solid #334155; margin-left: -1.05px; margin-right: -1.05px; padding: 3px 6px; background: #102d79; color: #ffffff; font-size: 9px; font-weight: 700; text-align: center; text-transform: uppercase; letter-spacing: 0.02em; }
     .cif-doc-note { font-size: 8px; line-height: 1.28; text-align: justify; color: #1f2937; }
     .cif-doc-sign-cell { display: flex; flex-direction: column; padding: 5px 8px 4px; }
     .cif-doc-sign-fill { flex: 0 0 auto; min-height: 16px; }
@@ -55,19 +61,24 @@
     @media (max-width: 1024px) {
         .cif-doc-head { grid-template-columns: 132px minmax(0, 1fr); gap: 8px; }
         .cif-doc-brand img { max-width: 116px; }
-        .cif-doc-inline-two { grid-template-columns: repeat(4, minmax(66px, 1fr)) minmax(180px, 1.45fr); gap: 4px 8px; padding-right: 4px; }
+        .cif-doc-inline-two { grid-template-columns: repeat(4, minmax(48px, max-content)) minmax(0, 1fr); gap: 4px 4px; }
+        .cif-doc-inline-choice { font-size: 6.6px; }
+        .cif-doc-inline-field-label { font-size: 6.6px; }
+        .cif-doc-inline-field-value,
+        .cif-doc-inline-field-value--single-line { font-size: 7.4px; }
+        .cif-doc-inline-field { grid-column: 1 / -1; }
+        .cif-doc-inline-field-label { min-width: 72px; }
     }
     @media (max-width: 820px) {
         .cif-doc-inline-two {
             grid-template-columns: repeat(2, minmax(0, 1fr));
             row-gap: 5px;
-            column-gap: 10px;
-            padding-right: 0;
+            column-gap: 8px;
         }
-        .cif-doc-inline-two .cif-doc-inline-field {
-            grid-column: 1 / -1;
-            padding-right: 2px;
-        }
+        .cif-doc-inline-field { align-items: flex-start; flex-direction: column; gap: 4px; grid-column: 1 / -1; }
+        .cif-doc-inline-field-label { white-space: normal; }
+        .cif-doc-inline-field-value { width: 100%; }
+        .cif-doc-inline-field-value--single-line { width: 100%; font-size: clamp(6.5px, 1.9vw, 8px); }
     }
 </style>
 
@@ -133,22 +144,22 @@
                 <span><span class="cif-doc-mark {{ $checked(($cifData['gender'] ?? '') === 'female') }}"></span>Female</span>
             </div>
         </div>
-        <div class="cif-doc-cell doc-col-20">
+        <div class="cif-doc-cell cif-doc-cell--status-row doc-col-20">
             <span class="cif-doc-label">Civil Status</span>
             <div class="cif-doc-inline-two">
-                <span><span class="cif-doc-mark {{ $checked(($cifData['civil_status'] ?? '') === 'single') }}"></span>Single</span>
-                <span><span class="cif-doc-mark {{ $checked(($cifData['civil_status'] ?? '') === 'separated') }}"></span>Separated</span>
-                <span><span class="cif-doc-mark {{ $checked(($cifData['civil_status'] ?? '') === 'widowed') }}"></span>Widowed</span>
-                <span><span class="cif-doc-mark {{ $checked(($cifData['civil_status'] ?? '') === 'married') }}"></span>Married</span>
-                @if (($cifData['civil_status'] ?? '') === 'married')
-                    <span class="cif-doc-inline-field">
-                        <span class="cif-doc-inline-field-label">Spouse's Name</span>
-                        <span class="cif-doc-inline-field-value">{{ $spouseName !== '' ? $spouseName : ' ' }}</span>
-                    </span>
-                @endif
+                <span class="cif-doc-inline-choice"><span class="cif-doc-mark {{ $checked(($cifData['civil_status'] ?? '') === 'single') }}"></span>Single</span>
+                <span class="cif-doc-inline-choice"><span class="cif-doc-mark {{ $checked(($cifData['civil_status'] ?? '') === 'separated') }}"></span>Separated</span>
+                <span class="cif-doc-inline-choice"><span class="cif-doc-mark {{ $checked(($cifData['civil_status'] ?? '') === 'widowed') }}"></span>Widowed</span>
+                <span class="cif-doc-inline-choice"><span class="cif-doc-mark {{ $checked(($cifData['civil_status'] ?? '') === 'married') }}"></span>Married</span>
             </div>
         </div>
     </div>
+    @if (($cifData['civil_status'] ?? '') === 'married')
+    <div class="cif-doc-spouse-box">
+        <span class="cif-doc-label">Spouse's Name</span>
+        <span class="cif-doc-value">{{ $spouseName !== '' ? $spouseName : ' ' }}</span>
+    </div>
+    @endif
 
     @if ($showForeignSections)
     <div class="cif-doc-section">Foreigner Information</div>

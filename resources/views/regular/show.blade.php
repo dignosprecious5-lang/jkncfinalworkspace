@@ -452,6 +452,19 @@
                             <a href="{{ route('regular.rsat.download', $regular) }}" class="rsat-doc-action">Download PDF</a>
                         </div>
                     </div>
+                    <div class="rsat-quick-group">
+                        <p class="rsat-quick-label">Manual Approve RSAT</p>
+                        <form method="POST" action="{{ route('regular.rsat.manual-approve', $regular) }}" enctype="multipart/form-data" class="rsat-quick-stack">
+                            @csrf
+                            <input type="file" name="signed_document" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" class="w-full text-xs text-slate-600" @disabled($regularLocked)>
+                            <input type="text" name="approval_name" value="{{ $rsat?->approved_by_name ?: '' }}" placeholder="Approver name" class="border border-slate-300 px-3 py-2 text-sm" @disabled($regularLocked)>
+                            <input type="text" name="approval_note" placeholder="Approval note" class="border border-slate-300 px-3 py-2 text-sm" @disabled($regularLocked)>
+                            <button type="submit" class="rsat-doc-primary" @disabled($regularLocked)>Manual Approve RSAT</button>
+                        </form>
+                        @if ($rsat?->approved_at)
+                            <p class="text-xs text-slate-500">Approved {{ optional($rsat->approved_at)->format('M d, Y h:i A') }} by {{ $rsat->approved_by_name ?: 'Manual Override' }}.</p>
+                        @endif
+                    </div>
                     @if (! $regularLocked && $ntpRecord && ! $ntpApproved)
                         <div class="rsat-quick-group">
                             <p class="rsat-quick-label">Manual NTP Approval</p>
