@@ -1,6 +1,9 @@
 @php
     $defaultReferredBy = old('referred_by', auth()->user()->name ?? '');
     $defaultPresident = old('president_use_only_name', 'John Kelly Abalde');
+    $roleContactOptionsJson = collect($roleContactOptions ?? [])->values()->all();
+    $roleContactSearchUrl = route('company.contacts.search');
+    $addContactUrl = route('contacts.index');
 @endphp
 
 <x-slide-over id="addCompanyModal" width="sm:max-w-[720px] lg:max-w-[820px]">
@@ -14,7 +17,7 @@
         </div>
     </div>
 
-    <form method="POST" action="{{ route('company.store') }}" class="flex min-h-0 flex-1 flex-col" x-data="companyBifForm()" x-init="init()">
+    <form method="POST" action="{{ route('company.store') }}" class="flex min-h-0 flex-1 flex-col" x-data="companyBifForm()" x-init="init()" @submit="clearCompanyDraft()">
         @csrf
         <input type="hidden" name="client_type" value="new_client">
 
@@ -215,8 +218,52 @@
             <section class="rounded-2xl border border-gray-200 bg-gray-50/70 p-4">
                 <h3 class="text-base font-semibold text-gray-900">Key Officers</h3>
                 <div class="grid gap-4 sm:grid-cols-2">
-                    <div><label class="mb-2 block text-sm font-medium text-gray-700">Name of President</label><input type="text" name="president_name" value="{{ old('president_name') }}" class="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"></div>
-                    <div><label class="mb-2 block text-sm font-medium text-gray-700">Name of Treasurer</label><input type="text" name="treasurer_name" value="{{ old('treasurer_name') }}" class="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"></div>
+                    <div>
+                        <label class="mb-2 block text-sm font-medium text-gray-700">Name of President</label>
+                        <div class="relative mb-2">
+                            <input type="text" name="president_name" x-model="keyOfficerSelections.president.full_name" @focus="openRoleSearch(keyOfficerSelections.president, 'president')" @input.debounce.250ms="searchRoleContacts(keyOfficerSelections.president, 'president')" @keydown.escape="closeRoleSearch(keyOfficerSelections.president)" placeholder="Search Contact" autocomplete="off" class="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
+                            <div x-show="keyOfficerSelections.president.search_open" x-cloak @click.outside="closeRoleSearch(keyOfficerSelections.president)" class="absolute z-40 mt-1 max-h-72 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-xl">
+                                <template x-if="roleSearchResults(keyOfficerSelections.president).length > 0">
+                                    <div>
+                                        <template x-for="contact in roleSearchResults(keyOfficerSelections.president)" :key="'president-result-'+contact.id">
+                                            <button type="button" @click="selectKeyOfficer('president_name', keyOfficerSelections.president, contact)" class="block w-full border-b border-gray-100 px-3 py-2 text-left last:border-b-0 hover:bg-blue-50">
+                                                <span class="block text-sm font-medium text-gray-800" x-text="contact.label"></span>
+                                                <span class="block text-xs text-gray-500" x-text="contactOptionMeta(contact)"></span>
+                                            </button>
+                                        </template>
+                                    </div>
+                                </template>
+                                <div x-show="keyOfficerSelections.president.search_loading" class="px-3 py-2 text-sm text-gray-500">Searching...</div>
+                                <div x-show="!keyOfficerSelections.president.search_loading && roleSearchResults(keyOfficerSelections.president).length === 0" class="px-3 py-3">
+                                    <p class="text-sm text-gray-500">No matching contact found.</p>
+                                    <button type="button" @click="goToContactCreate(keyOfficerSelections.president)" class="mt-2 inline-flex h-9 items-center rounded-lg bg-blue-600 px-3 text-sm font-medium text-white hover:bg-blue-700">+ Add Contact</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="mb-2 block text-sm font-medium text-gray-700">Name of Treasurer</label>
+                        <div class="relative mb-2">
+                            <input type="text" name="treasurer_name" x-model="keyOfficerSelections.treasurer.full_name" @focus="openRoleSearch(keyOfficerSelections.treasurer, 'treasurer')" @input.debounce.250ms="searchRoleContacts(keyOfficerSelections.treasurer, 'treasurer')" @keydown.escape="closeRoleSearch(keyOfficerSelections.treasurer)" placeholder="Search Contact" autocomplete="off" class="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
+                            <div x-show="keyOfficerSelections.treasurer.search_open" x-cloak @click.outside="closeRoleSearch(keyOfficerSelections.treasurer)" class="absolute z-40 mt-1 max-h-72 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-xl">
+                                <template x-if="roleSearchResults(keyOfficerSelections.treasurer).length > 0">
+                                    <div>
+                                        <template x-for="contact in roleSearchResults(keyOfficerSelections.treasurer)" :key="'treasurer-result-'+contact.id">
+                                            <button type="button" @click="selectKeyOfficer('treasurer_name', keyOfficerSelections.treasurer, contact)" class="block w-full border-b border-gray-100 px-3 py-2 text-left last:border-b-0 hover:bg-blue-50">
+                                                <span class="block text-sm font-medium text-gray-800" x-text="contact.label"></span>
+                                                <span class="block text-xs text-gray-500" x-text="contactOptionMeta(contact)"></span>
+                                            </button>
+                                        </template>
+                                    </div>
+                                </template>
+                                <div x-show="keyOfficerSelections.treasurer.search_loading" class="px-3 py-2 text-sm text-gray-500">Searching...</div>
+                                <div x-show="!keyOfficerSelections.treasurer.search_loading && roleSearchResults(keyOfficerSelections.treasurer).length === 0" class="px-3 py-3">
+                                    <p class="text-sm text-gray-500">No matching contact found.</p>
+                                    <button type="button" @click="goToContactCreate(keyOfficerSelections.treasurer)" class="mt-2 inline-flex h-9 items-center rounded-lg bg-blue-600 px-3 text-sm font-medium text-white hover:bg-blue-700">+ Add Contact</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </section>
 
@@ -236,7 +283,27 @@
                                 <button type="button" @click="removeSignatory(index)" class="text-xs text-red-600 hover:underline" x-show="signatories.length > 1">Remove</button>
                             </div>
                             <div class="grid gap-3 sm:grid-cols-2">
-                                <input :name="`authorized_signatories[${index}][full_name]`" x-model="row.full_name" placeholder="Full Name" class="h-10 rounded-lg border border-gray-300 px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
+                                <div class="relative sm:col-span-2">
+                                    <input type="hidden" :name="`authorized_signatories[${index}][contact_id]`" x-model="row.contact_id">
+                                    <input type="text" :name="`authorized_signatories[${index}][full_name]`" x-model="row.full_name" @focus="openRoleSearch(row, 'signatory')" @input.debounce.250ms="searchRoleContacts(row, 'signatory')" @keydown.escape="closeRoleSearch(row)" placeholder="Search Contact" autocomplete="off" class="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
+                                    <div x-show="row.search_open" x-cloak @click.outside="closeRoleSearch(row)" class="absolute z-40 mt-1 max-h-72 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-xl">
+                                        <template x-if="roleSearchResults(row).length > 0">
+                                            <div>
+                                                <template x-for="contact in roleSearchResults(row)" :key="'signatory-result-'+index+'-'+contact.id">
+                                                    <button type="button" @click="selectRoleContact(row, contact)" class="block w-full border-b border-gray-100 px-3 py-2 text-left last:border-b-0 hover:bg-blue-50">
+                                                        <span class="block text-sm font-medium text-gray-800" x-text="contact.label"></span>
+                                                        <span class="block text-xs text-gray-500" x-text="contactOptionMeta(contact)"></span>
+                                                    </button>
+                                                </template>
+                                            </div>
+                                        </template>
+                                        <div x-show="row.search_loading" class="px-3 py-2 text-sm text-gray-500">Searching...</div>
+                                        <div x-show="!row.search_loading && roleSearchResults(row).length === 0" class="px-3 py-3">
+                                            <p class="text-sm text-gray-500">No matching contact found.</p>
+                                            <button type="button" @click="goToContactCreate(row)" class="mt-2 inline-flex h-9 items-center rounded-lg bg-blue-600 px-3 text-sm font-medium text-white hover:bg-blue-700">+ Add Contact</button>
+                                        </div>
+                                    </div>
+                                </div>
                                 <input :name="`authorized_signatories[${index}][position]`" x-model="row.position" placeholder="Position" class="h-10 rounded-lg border border-gray-300 px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
                                 <input :name="`authorized_signatories[${index}][nationality]`" x-model="row.nationality" placeholder="Nationality" class="h-10 rounded-lg border border-gray-300 px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
                                 <input :name="`authorized_signatories[${index}][date_of_birth]`" x-model="row.date_of_birth" type="date" class="h-10 rounded-lg border border-gray-300 px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
@@ -264,7 +331,27 @@
                                 <button type="button" @click="removeUbo(index)" class="text-xs text-red-600 hover:underline" x-show="ubos.length > 1">Remove</button>
                             </div>
                             <div class="grid gap-3 sm:grid-cols-2">
-                                <input :name="`ubos[${index}][full_name]`" x-model="row.full_name" placeholder="Full Name" class="h-10 rounded-lg border border-gray-300 px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
+                                <div class="relative sm:col-span-2">
+                                    <input type="hidden" :name="`ubos[${index}][contact_id]`" x-model="row.contact_id">
+                                    <input type="text" :name="`ubos[${index}][full_name]`" x-model="row.full_name" @focus="openRoleSearch(row, 'ubo')" @input.debounce.250ms="searchRoleContacts(row, 'ubo')" @keydown.escape="closeRoleSearch(row)" placeholder="Search Contact" autocomplete="off" class="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
+                                    <div x-show="row.search_open" x-cloak @click.outside="closeRoleSearch(row)" class="absolute z-40 mt-1 max-h-72 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-xl">
+                                        <template x-if="roleSearchResults(row).length > 0">
+                                            <div>
+                                                <template x-for="contact in roleSearchResults(row)" :key="'ubo-result-'+index+'-'+contact.id">
+                                                    <button type="button" @click="selectRoleContact(row, contact)" class="block w-full border-b border-gray-100 px-3 py-2 text-left last:border-b-0 hover:bg-blue-50">
+                                                        <span class="block text-sm font-medium text-gray-800" x-text="contact.label"></span>
+                                                        <span class="block text-xs text-gray-500" x-text="contactOptionMeta(contact)"></span>
+                                                    </button>
+                                                </template>
+                                            </div>
+                                        </template>
+                                        <div x-show="row.search_loading" class="px-3 py-2 text-sm text-gray-500">Searching...</div>
+                                        <div x-show="!row.search_loading && roleSearchResults(row).length === 0" class="px-3 py-3">
+                                            <p class="text-sm text-gray-500">No matching contact found.</p>
+                                            <button type="button" @click="goToContactCreate(row)" class="mt-2 inline-flex h-9 items-center rounded-lg bg-blue-600 px-3 text-sm font-medium text-white hover:bg-blue-700">+ Add Contact</button>
+                                        </div>
+                                    </div>
+                                </div>
                                 <input :name="`ubos[${index}][position]`" x-model="row.position" placeholder="Position" class="h-10 rounded-lg border border-gray-300 px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
                                 <input :name="`ubos[${index}][nationality]`" x-model="row.nationality" placeholder="Nationality" class="h-10 rounded-lg border border-gray-300 px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
                                 <input :name="`ubos[${index}][date_of_birth]`" x-model="row.date_of_birth" type="date" class="h-10 rounded-lg border border-gray-300 px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
@@ -378,22 +465,35 @@
 <script>
 function companyBifForm() {
     const employeeRecords = @json($employeeOptions ?? []);
+    let roleContactRecords = @json($roleContactOptionsJson);
+    const roleContactSearchUrl = @js($roleContactSearchUrl);
+    const addContactUrl = @js($addContactUrl);
+    const draftStorageKey = 'jknc.company.createCompanyDraft';
 
     return {
         businessOrganization: @js(old('business_organization', '')),
         officeType: @js(old('office_type', '')),
+        keyOfficerSelections: {
+            president: null,
+            treasurer: null,
+        },
         employees: {
             male: Number(@js(old('employee_male', 0))) || 0,
             female: Number(@js(old('employee_female', 0))) || 0,
             pwd: Number(@js(old('employee_pwd', 0))) || 0,
             total: Number(@js(old('employee_total', 0))) || 0,
         },
-        signatories: @js(old('authorized_signatories', [['full_name' => '', 'address' => '', 'nationality' => '', 'date_of_birth' => '', 'tin' => '', 'position' => '']])),
-        ubos: @js(old('ubos', [['full_name' => '', 'address' => '', 'nationality' => '', 'date_of_birth' => '', 'tin' => '', 'position' => '']])),
+        signatories: @js(old('authorized_signatories', [['contact_id' => '', 'full_name' => '', 'address' => '', 'nationality' => '', 'date_of_birth' => '', 'tin' => '', 'position' => '', 'email' => '', 'phone' => '']])),
+        ubos: @js(old('ubos', [['contact_id' => '', 'full_name' => '', 'address' => '', 'nationality' => '', 'date_of_birth' => '', 'tin' => '', 'position' => '', 'email' => '', 'phone' => '']])),
         init() {
             this.syncEmployeeTotal();
+            this.keyOfficerSelections.president = this.normalizeRoleRow({ full_name: @js(old('president_name', '')) });
+            this.keyOfficerSelections.treasurer = this.normalizeRoleRow({ full_name: @js(old('treasurer_name', '')) });
             if (!Array.isArray(this.signatories) || this.signatories.length === 0) this.signatories = [this.emptyRow()];
             if (!Array.isArray(this.ubos) || this.ubos.length === 0) this.ubos = [this.emptyRow()];
+            this.signatories = this.signatories.map((row) => this.normalizeRoleRow(row));
+            this.ubos = this.ubos.map((row) => this.normalizeRoleRow(row));
+            this.restoreDraftIfRequested();
             this.initEmployeeSearchPickers();
             this.syncInternalUseDefaults();
             const selectedContact = document.querySelector('select[name="contact_id"]');
@@ -402,7 +502,275 @@ function companyBifForm() {
             }
         },
         emptyRow() {
-            return { full_name: '', address: '', nationality: '', date_of_birth: '', tin: '', position: '' };
+            return this.normalizeRoleRow({});
+        },
+        normalizeRoleRow(row = {}) {
+            const normalized = {
+                contact_id: '',
+                contact_search: '',
+                search_open: false,
+                search_loading: false,
+                search_searched: false,
+                search_results: [],
+                full_name: '',
+                address: '',
+                nationality: '',
+                date_of_birth: '',
+                tin: '',
+                position: '',
+                email: '',
+                phone: '',
+                ...row,
+            };
+            normalized.contact_id = String(normalized.contact_id || '');
+            normalized.contact_search = normalized.contact_search || normalized.full_name || '';
+            normalized.search_open = false;
+            normalized.search_loading = false;
+            normalized.search_searched = false;
+            normalized.search_results = Array.isArray(normalized.search_results) ? normalized.search_results : [];
+
+            return normalized;
+        },
+        filteredRoleContacts() {
+            const businessName = String(document.querySelector('[name="business_name"]')?.value || '').trim().toLowerCase();
+
+            if (businessName === '') {
+                return roleContactRecords;
+            }
+
+            const matching = roleContactRecords.filter((contact) => String(contact.company_name || '').trim().toLowerCase() === businessName);
+
+            return matching.length > 0 ? matching : roleContactRecords;
+        },
+        contactOptionLabel(contact) {
+            const company = String(contact.company_name || '').trim();
+            const position = String(contact.position || '').trim();
+
+            return [contact.label, company, position].filter(Boolean).join(' - ');
+        },
+        contactOptionMeta(contact) {
+            return [
+                contact.company_name,
+                contact.position,
+                contact.email,
+                contact.phone,
+            ].filter(Boolean).join(' - ');
+        },
+        findRoleContact(contactId) {
+            return roleContactRecords.find((contact) => String(contact.id) === String(contactId)) || null;
+        },
+        hydrateKeyOfficer(fieldName, contactId) {
+            const contact = this.findRoleContact(contactId);
+            if (!contact) return;
+            this.setFieldValue(fieldName, contact.label || '');
+        },
+        selectKeyOfficer(fieldName, row, contact) {
+            if (this.isDuplicateRoleContact(contact.id, row)) return;
+
+            if (!roleContactRecords.some((record) => String(record.id) === String(contact.id))) {
+                roleContactRecords.push(contact);
+            }
+
+            row.contact_id = String(contact.id || '');
+            row.contact_search = contact.label || '';
+            row.full_name = contact.label || '';
+            row.search_open = false;
+            this.setFieldValue(fieldName, contact.label || '');
+        },
+        hydrateRoleRow(row, contactId) {
+            const contact = this.findRoleContact(contactId);
+            if (!contact) return;
+            if (this.isDuplicateRoleContact(contact.id, row)) return;
+
+            row.contact_id = String(contact.id || '');
+            row.contact_search = contact.label || '';
+            row.full_name = contact.label || '';
+            row.position = contact.position || '';
+            row.nationality = contact.nationality || '';
+            row.date_of_birth = contact.date_of_birth || '';
+            row.tin = contact.tin || '';
+            row.address = contact.address || '';
+            row.email = contact.email || '';
+            row.phone = contact.phone || '';
+            row.search_open = false;
+        },
+        selectedRoleContactIds(exceptRow = null) {
+            return [this.keyOfficerSelections.president, this.keyOfficerSelections.treasurer, ...this.signatories, ...this.ubos]
+                .filter((row) => row !== exceptRow)
+                .filter(Boolean)
+                .map((row) => String(row.contact_id || ''))
+                .filter(Boolean);
+        },
+        isDuplicateRoleContact(contactId, currentRow = null) {
+            return this.selectedRoleContactIds(currentRow).includes(String(contactId || ''));
+        },
+        roleSearchResults(row) {
+            const results = row.search_searched
+                ? row.search_results
+                : this.filteredRoleContacts();
+
+            return results.filter((contact) => !this.isDuplicateRoleContact(contact.id, row)).slice(0, 8);
+        },
+        openRoleSearch(row, roleType = '') {
+            row.search_open = true;
+            row.search_searched = false;
+            row.search_results = this.filteredRoleContacts();
+            this.searchRoleContacts(row, roleType);
+        },
+        closeRoleSearch(row) {
+            row.search_open = false;
+        },
+        async searchRoleContacts(row, roleType = '') {
+            row.search_open = true;
+            const query = String(row.full_name || row.contact_search || '').trim();
+
+            row.search_loading = true;
+            row.search_searched = query !== '';
+
+            const params = new URLSearchParams({
+                search: query,
+                business_name: document.querySelector('[name="business_name"]')?.value || '',
+                role: roleType,
+            });
+
+            try {
+                const response = await fetch(`${roleContactSearchUrl}?${params.toString()}`, {
+                    headers: { Accept: 'application/json' },
+                });
+
+                if (!response.ok) throw new Error('Unable to search contacts');
+
+                const payload = await response.json();
+                const contacts = Array.isArray(payload.contacts) ? payload.contacts : [];
+                contacts.forEach((contact) => {
+                    if (!roleContactRecords.some((record) => String(record.id) === String(contact.id))) {
+                        roleContactRecords.push(contact);
+                    }
+                });
+                row.search_results = contacts;
+            } catch (error) {
+                row.search_results = this.filteredRoleContacts().filter((contact) => {
+                    const query = String(row.full_name || row.contact_search || '').trim().toLowerCase();
+                    if (query === '') return true;
+
+                    return [
+                        contact.label,
+                        contact.company_name,
+                        contact.position,
+                        contact.email,
+                        contact.phone,
+                    ].join(' ').toLowerCase().includes(query);
+                });
+            } finally {
+                row.search_loading = false;
+            }
+        },
+        selectRoleContact(row, contact) {
+            if (this.isDuplicateRoleContact(contact.id, row)) return;
+
+            if (!roleContactRecords.some((record) => String(record.id) === String(contact.id))) {
+                roleContactRecords.push(contact);
+            }
+
+            this.hydrateRoleRow(row, contact.id);
+        },
+        saveCompanyDraft() {
+            const form = document.querySelector('[x-data="companyBifForm()"]');
+            if (!form) return;
+
+            const fields = {};
+            Array.from(form.elements).forEach((field) => {
+                if (!field.name || field.name === '_token') return;
+                if ((field.type === 'checkbox' || field.type === 'radio') && !field.checked) return;
+                if (field.type === 'checkbox') {
+                    fields[field.name] = fields[field.name] || [];
+                    fields[field.name].push(field.value);
+                    return;
+                }
+                fields[field.name] = field.value;
+            });
+
+            window.localStorage.setItem(draftStorageKey, JSON.stringify({
+                fields,
+                businessOrganization: this.businessOrganization,
+                officeType: this.officeType,
+                keyOfficerSelections: this.keyOfficerSelections,
+                employees: this.employees,
+                signatories: this.signatories,
+                ubos: this.ubos,
+            }));
+        },
+        clearCompanyDraft() {
+            window.localStorage.removeItem(draftStorageKey);
+        },
+        restoreDraftIfRequested() {
+            const params = new URLSearchParams(window.location.search);
+            if (!params.has('open_create_company') && !params.has('company_contact_created')) return;
+
+            const rawDraft = window.localStorage.getItem(draftStorageKey);
+            if (!rawDraft) return;
+
+            try {
+                const draft = JSON.parse(rawDraft);
+                this.businessOrganization = draft.businessOrganization || this.businessOrganization;
+                this.officeType = draft.officeType || this.officeType;
+                if (draft.keyOfficerSelections) {
+                    this.keyOfficerSelections.president = this.normalizeRoleRow(draft.keyOfficerSelections.president || {});
+                    this.keyOfficerSelections.treasurer = this.normalizeRoleRow(draft.keyOfficerSelections.treasurer || {});
+                }
+                this.employees = draft.employees || this.employees;
+                this.signatories = Array.isArray(draft.signatories) && draft.signatories.length > 0
+                    ? draft.signatories.map((row) => this.normalizeRoleRow(row))
+                    : this.signatories;
+                this.ubos = Array.isArray(draft.ubos) && draft.ubos.length > 0
+                    ? draft.ubos.map((row) => this.normalizeRoleRow(row))
+                    : this.ubos;
+
+                this.$nextTick(() => {
+                    const form = document.querySelector('[x-data="companyBifForm()"]');
+                    Object.entries(draft.fields || {}).forEach(([name, value]) => {
+                        const fields = Array.from(form?.elements || []).filter((field) => field.name === name);
+                        fields.forEach((field) => {
+                            if (field.type === 'checkbox' || field.type === 'radio') {
+                                const values = Array.isArray(value) ? value : [value];
+                                field.checked = values.map(String).includes(String(field.value));
+                            } else if (!name.includes('authorized_signatories[') && !name.includes('ubos[')) {
+                                field.value = value;
+                            }
+                            field.dispatchEvent(new Event('input', { bubbles: true }));
+                            field.dispatchEvent(new Event('change', { bubbles: true }));
+                        });
+                    });
+                });
+            } catch (error) {
+                window.localStorage.removeItem(draftStorageKey);
+            }
+        },
+        goToContactCreate(row) {
+            this.saveCompanyDraft();
+
+            const [firstName = '', ...lastNameParts] = String(row.full_name || row.contact_search || '').trim().split(/\s+/).filter(Boolean);
+            const params = new URLSearchParams({
+                open_create: '1',
+                return_to_company: '1',
+            });
+            const prefill = {
+                company_name: document.querySelector('[name="business_name"]')?.value || '',
+                first_name: firstName || '',
+                last_name: lastNameParts.join(' '),
+                email: row.email || '',
+                mobile_number: row.phone || '',
+                position: row.position || '',
+                contact_address: row.address || '',
+            };
+
+            Object.entries(prefill).forEach(([key, value]) => {
+                if (String(value || '').trim() !== '') {
+                    params.set(key, value);
+                }
+            });
+
+            window.location.href = `${addContactUrl}?${params.toString()}`;
         },
         addSignatory() { this.signatories.push(this.emptyRow()); },
         removeSignatory(index) { if (this.signatories.length > 1) this.signatories.splice(index, 1); },

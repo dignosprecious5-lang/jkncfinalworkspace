@@ -44,6 +44,7 @@
             ->all())
         ->filter(fn ($values): bool => $values !== [])
         ->all();
+    $unlinkedProductsGroup = 'Unlinked Products';
     $productOptions = collect($productOptionsByServiceArea)
         ->flatten()
         ->push('Others')
@@ -578,13 +579,13 @@
 
                         <section class="rounded-2xl border border-gray-200 p-4">
                             <h3 class="text-base font-semibold text-gray-900">Products</h3>
-                            <p id="dealProductsHelpText" class="mt-1 text-xs text-gray-500">Select a service area first to show the matching products offered.</p>
-                            <div id="dealProductsEmptyState" class="mt-3 rounded-xl border border-dashed border-gray-200 bg-gray-50/60 p-4 text-sm text-gray-500 {{ count(array_intersect($selectedServiceAreas, array_keys($productOptionsByServiceArea))) > 0 ? 'hidden' : '' }}">
-                                Select a matching service area first to show the available products.
+                            <p id="dealProductsHelpText" class="mt-1 text-xs text-gray-500">Select a service area to narrow matching products. Products without a linked service remain available below.</p>
+                            <div id="dealProductsEmptyState" class="mt-3 rounded-xl border border-dashed border-gray-200 bg-gray-50/60 p-4 text-sm text-gray-500 {{ count(array_intersect($selectedServiceAreas, array_keys($productOptionsByServiceArea))) > 0 || !empty($productOptionsByServiceArea[$unlinkedProductsGroup] ?? []) ? 'hidden' : '' }}">
+                                No matching products are available yet.
                             </div>
                             <div id="product-options-grid" class="mt-3 grid gap-4">
                                 @foreach ($productOptionsByServiceArea as $serviceArea => $options)
-                                    <div class="{{ in_array($serviceArea, $selectedServiceAreas, true) ? '' : 'hidden' }}" data-product-group="{{ $serviceArea }}">
+                                    <div class="{{ $serviceArea === $unlinkedProductsGroup || in_array($serviceArea, $selectedServiceAreas, true) ? '' : 'hidden' }}" data-product-group="{{ $serviceArea }}" @if($serviceArea === $unlinkedProductsGroup) data-unlinked-product-group="1" @endif>
                                         <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-600">{{ $serviceArea }}</p>
                                         <div class="grid gap-2 sm:grid-cols-2">
                                             @foreach ($options as $option)
@@ -1606,7 +1607,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         productGroups.forEach((group) => {
             const serviceArea = group.dataset.productGroup || '';
-            const isVisible = selectedAreas.includes(serviceArea);
+            const isVisible = group.dataset.unlinkedProductGroup === '1' || selectedAreas.includes(serviceArea);
             group.classList.toggle('hidden', !isVisible);
         });
 
@@ -1614,7 +1615,8 @@ document.addEventListener('DOMContentLoaded', function () {
             const productValue = option.dataset.productValue || '';
             const serviceArea = option.dataset.serviceAreaProduct || '';
             const isOthers = productValue === 'Others';
-            const isVisible = isOthers || (serviceArea !== '' && allowedProducts.has(productValue));
+            const isUnlinkedProduct = option.closest('[data-unlinked-product-group="1"]') !== null;
+            const isVisible = isOthers || isUnlinkedProduct || (serviceArea !== '' && allowedProducts.has(productValue));
 
             option.classList.toggle('hidden', !isVisible);
 

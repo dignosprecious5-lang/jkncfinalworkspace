@@ -119,6 +119,23 @@
             </button>
         </div>
 
+        @if (session('success'))
+            <div class="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{{ session('success') }}</div>
+        @endif
+        @if (session('error'))
+            <div class="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ session('error') }}</div>
+        @endif
+        @if ($errors->any())
+            <div class="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+                <p class="font-semibold">Create Regular was not saved.</p>
+                <ul class="mt-2 list-disc space-y-1 pl-5">
+                    @foreach ($errors->all() as $error)
+                        <li>{{ $error }}</li>
+                    @endforeach
+                </ul>
+            </div>
+        @endif
+
         @if (!empty($catalogWarnings ?? []))
             <div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
                 @foreach ($catalogWarnings as $warning)
@@ -409,17 +426,20 @@
                     <label class="mb-2 block text-sm font-medium text-gray-700">Client Confirmation Name</label>
                     <input name="client_confirmation_name" id="regular_client_confirmation_name" value="{{ old('client_confirmation_name') }}" class="h-11 w-full rounded-xl border border-gray-300 px-4 text-sm text-gray-900">
                 </div>
-                <div>
+                <div class="relative" data-employee-picker>
                     <label class="mb-2 block text-sm font-medium text-gray-700">Project Manager</label>
-                    <input name="assigned_project_manager" id="regular_assigned_project_manager" value="{{ old('assigned_project_manager') }}" class="h-11 w-full rounded-xl border border-gray-300 px-4 text-sm text-gray-900">
+                    <input name="assigned_project_manager" id="regular_assigned_project_manager" value="{{ old('assigned_project_manager') }}" autocomplete="off" data-employee-search-input class="h-11 w-full rounded-xl border border-gray-300 px-4 text-sm text-gray-900">
+                    <div class="absolute z-20 mt-1 hidden w-full rounded-xl border border-gray-200 bg-white shadow-lg" data-employee-search-results></div>
                 </div>
-                <div>
+                <div class="relative" data-employee-picker>
                     <label class="mb-2 block text-sm font-medium text-gray-700">Lead Consultant</label>
-                    <input name="assigned_consultant" id="regular_assigned_consultant" value="{{ old('assigned_consultant') }}" class="h-11 w-full rounded-xl border border-gray-300 px-4 text-sm text-gray-900">
+                    <input name="assigned_consultant" id="regular_assigned_consultant" value="{{ old('assigned_consultant') }}" autocomplete="off" data-employee-search-input class="h-11 w-full rounded-xl border border-gray-300 px-4 text-sm text-gray-900">
+                    <div class="absolute z-20 mt-1 hidden w-full rounded-xl border border-gray-200 bg-white shadow-lg" data-employee-search-results></div>
                 </div>
-                <div class="md:col-span-2">
+                <div class="relative md:col-span-2" data-employee-picker>
                     <label class="mb-2 block text-sm font-medium text-gray-700">Lead Associate</label>
-                    <input name="assigned_associate" id="regular_assigned_associate" value="{{ old('assigned_associate') }}" class="h-11 w-full rounded-xl border border-gray-300 px-4 text-sm text-gray-900">
+                    <input name="assigned_associate" id="regular_assigned_associate" value="{{ old('assigned_associate') }}" autocomplete="off" data-employee-search-input class="h-11 w-full rounded-xl border border-gray-300 px-4 text-sm text-gray-900">
+                    <div class="absolute z-20 mt-1 hidden w-full rounded-xl border border-gray-200 bg-white shadow-lg" data-employee-search-results></div>
                 </div>
                 <div class="md:col-span-2">
                     <label class="mb-2 block text-sm font-medium text-gray-700">RSAT Activities / Requirements</label>
@@ -437,14 +457,13 @@
                         <label class="mb-2 block text-sm font-medium text-gray-700">Service Area</label>
                         <div id="regular-service-area-options-grid" class="grid gap-2 sm:grid-cols-2">
                             @foreach ($serviceAreaOptions as $option)
-                                <label class="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700">
-                                    <input type="checkbox" name="service_area_options[]" value="{{ $option }}" @checked(in_array($option, $selectedServiceAreas, true)) {{ $option === 'Others' ? 'data-other-target=regular-service-area-other-wrapper' : '' }} class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500">
-                                    <span>{{ $option }}</span>
-                                </label>
+                                @if ($option !== 'Others')
+                                    <label class="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700">
+                                        <input type="checkbox" name="service_area_options[]" value="{{ $option }}" @checked(in_array($option, $selectedServiceAreas, true)) class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500">
+                                        <span>{{ $option }}</span>
+                                    </label>
+                                @endif
                             @endforeach
-                        </div>
-                        <div id="regular-service-area-other-wrapper" class="{{ (in_array('Others', $selectedServiceAreas, true) || count($serviceAreaOtherEntries) > 0) ? '' : 'hidden' }} mt-2">
-                            <input id="regular-service-area-other-input" type="text" class="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm" placeholder="Enter custom service area and press Enter">
                         </div>
                     </div>
                     <div>
@@ -467,13 +486,15 @@
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700">Products</label>
+                        <p class="mt-1 text-xs text-gray-500">Products follow the selected service area. Without a selected service area, only products without a service area are shown.</p>
+                        <div id="regularProductsEmptyState" class="mt-3 hidden rounded-xl border border-dashed border-gray-200 bg-gray-50/60 p-4 text-sm text-gray-500">No matching products are available.</div>
                         <div id="regular-product-options-grid" class="mt-3 grid gap-4">
                             @foreach ($productOptionsByServiceArea as $serviceArea => $options)
-                                <div class="{{ in_array($serviceArea, $selectedServiceAreas, true) ? '' : 'hidden' }}" data-regular-product-group="{{ $serviceArea }}">
+                                <div data-regular-product-group="{{ $serviceArea }}" data-product-unlinked-group="{{ $serviceArea === 'Products Without Service Area' ? 'true' : 'false' }}">
                                     <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-600">{{ $serviceArea }}</p>
                                     <div class="grid gap-2 sm:grid-cols-2">
                                         @foreach ($options as $option)
-                                            <label class="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700">
+                                            <label class="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700" data-regular-product-option data-product-value="{{ $option }}" data-regular-product-search="{{ \Illuminate\Support\Str::lower($option.' '.$serviceArea) }}">
                                                 <input type="checkbox" name="product_options[]" value="{{ $option }}" @checked(in_array($option, $selectedProducts, true)) class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500">
                                                 <span>{{ $option }}</span>
                                             </label>
@@ -498,11 +519,18 @@
     </form>
 </x-slide-over>
 
+<datalist id="regularEmployeeOptions">
+    @foreach (($employeeRecords ?? []) as $employee)
+        <option value="{{ $employee['label'] }}">{{ $employee['position'] ?? '' }}{{ !empty($employee['employee_code']) ? ' - '.$employee['employee_code'] : '' }}</option>
+    @endforeach
+</datalist>
+
 <script>
     (() => {
         const dealRecords = @json($dealRecords ?? []);
         const contactRecords = @json($contactRecords ?? []);
         const companyRecords = @json($companyRecords ?? []);
+        const employeeRecords = @json($employeeRecords ?? []);
         const rsatTemplatePreviewData = @json($rsatTemplatePreviewData);
         const sourceModeInput = document.getElementById('regular_source_mode');
         const dealIdInput = document.getElementById('regular_deal_id');
@@ -532,14 +560,28 @@
         const templateRequirements = document.getElementById('regularTemplateRequirements');
         const manualSummary = document.getElementById('regularManualSelectionSummary');
         const sourceButtons = Array.from(document.querySelectorAll('[data-regular-source-option]'));
+        const customerTypeInputs = Array.from(document.querySelectorAll('input[name="regular_customer_type"]'));
+        const contactSearchLabel = document.getElementById('regularContactSearchLabel');
+        const selectionSectionTitle = document.getElementById('regularSelectionSectionTitle');
+        const searchHelpText = document.getElementById('regularSearchHelpText');
         const serviceAreaChecks = Array.from(document.querySelectorAll('input[name="service_area_options[]"]'));
         const serviceChecks = Array.from(document.querySelectorAll('input[name="service_options[]"]'));
         const productChecks = Array.from(document.querySelectorAll('input[name="product_options[]"]'));
+        const selectedState = {
+            contact: null,
+            company: null,
+        };
 
         const setValue = (id, value) => {
             const el = document.getElementById(id);
             if (el) el.value = value ?? '';
         };
+
+        const selectedRegularCustomerType = () => document.querySelector('input[name="regular_customer_type"]:checked')?.value || '';
+
+        const selectedRegularServiceAreas = () => Array.from(document.querySelectorAll('input[name="service_area_options[]"]:checked'))
+            .map((input) => input.value)
+            .filter((value) => value !== 'Others');
 
         const applyCommonValues = (record) => {
             setValue('regular_client_name', record.client_name || record.label || '');
@@ -566,6 +608,42 @@
                 button.classList.toggle('ring-2', active);
                 button.classList.toggle('ring-[#102d79]/10', active);
             });
+        };
+
+        const syncRegularCustomerSearchUi = () => {
+            const customerType = selectedRegularCustomerType();
+            const isBusiness = customerType === 'business';
+
+            if (contactSearchLabel) {
+                contactSearchLabel.textContent = isBusiness ? 'Search Existing Business / Company' : 'Search Existing Client';
+            }
+
+            if (selectionSectionTitle) {
+                selectionSectionTitle.textContent = isBusiness ? 'Select Existing Business / Company' : 'Select Existing Contact / Client';
+            }
+
+            if (searchHelpText) {
+                searchHelpText.textContent = isBusiness
+                    ? 'Select a customer type, then search companies by company name, owner, email, or mobile.'
+                    : 'Select a customer type, then search contacts by name, company, email, or mobile.';
+            }
+
+            if (contactSearch) {
+                contactSearch.placeholder = isBusiness
+                    ? 'Type company, owner, email, or mobile...'
+                    : 'Type name, company, email, or mobile...';
+                contactSearch.value = '';
+            }
+
+            contactResults?.classList.add('hidden');
+            contactIdInput.value = '';
+            companyIdInput.value = '';
+            selectedState.contact = null;
+            selectedState.company = null;
+            if (manualSummary) {
+                manualSummary.classList.add('hidden');
+                manualSummary.textContent = '';
+            }
         };
 
         const renderDealResults = (keyword) => {
@@ -602,33 +680,57 @@
 
         const renderContactResults = (keyword) => {
             const term = String(keyword || '').trim().toLowerCase();
-            const matches = [...contactRecords, ...companyRecords].filter((record) => term === '' || String(record.search_blob || '').includes(term)).slice(0, 8);
+            const customerType = selectedRegularCustomerType();
             if (!contactResults) return;
+
+            if (!customerType) {
+                contactResults.innerHTML = '<div class="px-4 py-3 text-sm text-gray-500">Select a customer type first.</div>';
+                contactResults.classList.remove('hidden');
+                return;
+            }
+
+            const searchableRecords = customerType === 'business'
+                ? companyRecords.map((record) => ({ ...record, record_type: 'company' }))
+                : contactRecords.map((record) => ({ ...record, record_type: 'contact' }));
+            const matches = searchableRecords.filter((record) => term === '' || String(record.search_blob || record.label || '').toLowerCase().includes(term)).slice(0, 20);
             if (matches.length === 0) {
-                contactResults.classList.add('hidden');
-                contactResults.innerHTML = '';
+                contactResults.innerHTML = `<div class="px-4 py-3 text-sm text-gray-500">No matching ${customerType === 'business' ? 'companies' : 'contacts'} found.</div>`;
+                contactResults.classList.remove('hidden');
                 return;
             }
             contactResults.classList.remove('hidden');
             contactResults.innerHTML = matches.map((record) => `
                 <button type="button" class="block w-full border-b border-gray-100 px-4 py-3 text-left hover:bg-gray-50">
                     <div class="text-sm font-semibold text-gray-900">${record.label || record.company_name || ''}</div>
-                    <div class="text-xs text-gray-500">${record.company_name || record.email || ''}</div>
+                    <div class="text-xs text-gray-500">${record.record_type === 'company' ? [record.primary_contact_name || record.owner_name, record.email || record.mobile].filter(Boolean).join(' - ') : [record.company_name, record.email || record.mobile].filter(Boolean).join(' - ')}</div>
                 </button>
             `).join('');
             contactResults.querySelectorAll('button').forEach((button, index) => {
                 button.addEventListener('click', () => {
                     const record = matches[index];
                     if (!record) return;
-                    if (record.primary_contact_id || record.company_name) {
+                    if (record.record_type === 'company') {
                         companyIdInput.value = record.id;
+                        selectedState.company = record;
+                        if (record.primary_contact_id) {
+                            contactIdInput.value = record.primary_contact_id;
+                            selectedState.contact = contactRecords.find((item) => Number(item.id) === Number(record.primary_contact_id)) || null;
+                        }
+                        contactSearch.value = record.company_name || record.label || '';
                     } else {
                         contactIdInput.value = record.id;
+                        selectedState.contact = record;
+                        const linkedCompany = record.company_name
+                            ? companyRecords.find((item) => (item.company_name || '') === record.company_name)
+                            : null;
+                        companyIdInput.value = linkedCompany?.id || '';
+                        selectedState.company = linkedCompany || null;
+                        contactSearch.value = record.label || '';
                     }
                     applyCommonValues({
-                        client_name: record.label,
-                        business_name: record.company_name,
-                        client_confirmation_name: record.label,
+                        client_name: record.record_type === 'company' ? (record.primary_contact_name || '') : record.label,
+                        business_name: record.record_type === 'company' ? record.company_name : record.company_name,
+                        client_confirmation_name: record.record_type === 'company' ? (record.primary_contact_name || '') : record.label,
                     });
                     if (manualSummary) {
                         manualSummary.classList.remove('hidden');
@@ -640,20 +742,118 @@
         };
 
         const syncSelections = () => {
-            const areas = serviceAreaChecks.filter((item) => item.checked).map((item) => item.value);
+            const areas = selectedRegularServiceAreas();
             const services = serviceChecks.filter((item) => item.checked).map((item) => item.value);
-            const products = productChecks.filter((item) => item.checked).map((item) => item.value);
+            const productSearchTerm = '';
+            const seenProducts = new Set();
+            let visibleProductCount = 0;
             setValue('regular_service_area', areas.join(', '));
             setValue('regular_services', services.join(', '));
-            setValue('regular_products', products.join(', '));
             document.querySelectorAll('[data-regular-service-group]').forEach((group) => {
                 group.classList.toggle('hidden', !areas.includes(group.dataset.regularServiceGroup));
             });
             document.querySelectorAll('[data-regular-product-group]').forEach((group) => {
-                group.classList.toggle('hidden', !areas.includes(group.dataset.regularProductGroup));
+                let groupHasVisibleProduct = false;
+                const groupArea = group.getAttribute('data-regular-product-group') || '';
+                const isUnlinkedGroup = group.dataset.productUnlinkedGroup === 'true';
+                const groupMatchesArea = areas.length === 0
+                    ? isUnlinkedGroup
+                    : areas.includes(groupArea);
+
+                group.querySelectorAll('[data-regular-product-option]').forEach((option) => {
+                    const optionMatchesSearch = productSearchTerm === '' || String(option.dataset.regularProductSearch || '').includes(productSearchTerm);
+                    const productValue = String(option.dataset.productValue || option.querySelector('input[name="product_options[]"]')?.value || '').trim().toLowerCase();
+                    const isDuplicate = productValue !== '' && seenProducts.has(productValue);
+                    const optionVisible = groupMatchesArea && optionMatchesSearch && !isDuplicate;
+                    option.classList.toggle('hidden', !optionVisible);
+                    groupHasVisibleProduct = groupHasVisibleProduct || optionVisible;
+                    if (optionVisible && productValue !== '') {
+                        seenProducts.add(productValue);
+                    }
+                    if (!optionVisible) {
+                        const productInput = option.querySelector('input[name="product_options[]"]');
+                        if (productInput) {
+                            productInput.checked = false;
+                        }
+                    }
+                });
+
+                group.classList.toggle('hidden', !groupHasVisibleProduct);
+                if (groupHasVisibleProduct) {
+                    visibleProductCount += 1;
+                }
             });
+            document.getElementById('regularProductsEmptyState')?.classList.toggle('hidden', visibleProductCount > 0);
+            setValue('regular_products', productChecks.filter((item) => item.checked).map((item) => item.value).join(', '));
             document.getElementById('regularServicesGrid')?.classList.toggle('hidden', areas.length === 0);
             renderRegularTemplatePreview();
+        };
+
+        const hideEmployeeSearchResults = (picker) => {
+            picker?.querySelector('[data-employee-search-results]')?.classList.add('hidden');
+        };
+
+        const renderEmployeeSearchResults = (picker, keyword = '') => {
+            const input = picker?.querySelector('[data-employee-search-input]');
+            const results = picker?.querySelector('[data-employee-search-results]');
+            if (!input || !results) {
+                return;
+            }
+
+            const query = String(keyword || '').trim().toLowerCase();
+            const matches = employeeRecords.filter((record) => {
+                if (query === '') {
+                    return true;
+                }
+
+                return String(record.search_blob || [
+                    record.label,
+                    record.name,
+                    record.employee_code,
+                    record.position,
+                    record.email,
+                ].filter(Boolean).join(' ')).toLowerCase().includes(query);
+            }).slice(0, 8);
+
+            if (matches.length === 0) {
+                results.innerHTML = '<div class="px-3 py-2 text-sm text-gray-500">No existing employee. You can still type manually.</div>';
+                results.classList.remove('hidden');
+                return;
+            }
+
+            results.replaceChildren(...matches.map((record) => {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'block w-full border-b border-gray-100 px-3 py-2 text-left last:border-b-0 hover:bg-blue-50';
+                button.innerHTML = `<div class="text-sm font-medium text-gray-800">${record.label || record.name || ''}</div><div class="text-xs text-gray-500">${[record.employee_code, record.position, record.email].filter(Boolean).join(' - ')}</div>`;
+                button.addEventListener('click', () => {
+                    input.value = record.label || record.name || '';
+                    hideEmployeeSearchResults(picker);
+                    renderRegularTemplatePreview();
+                    input.dispatchEvent(new Event('change', { bubbles: true }));
+                });
+                return button;
+            }));
+
+            results.classList.remove('hidden');
+        };
+
+        const initEmployeeSearchPickers = () => {
+            Array.from(document.querySelectorAll('[data-employee-picker]')).forEach((picker) => {
+                const input = picker.querySelector('[data-employee-search-input]');
+                if (!input) {
+                    return;
+                }
+
+                input.addEventListener('focus', () => renderEmployeeSearchResults(picker, input.value));
+                input.addEventListener('input', () => renderEmployeeSearchResults(picker, input.value));
+                input.addEventListener('change', renderRegularTemplatePreview);
+                input.addEventListener('keydown', (event) => {
+                    if (event.key === 'Escape') {
+                        hideEmployeeSearchResults(picker);
+                    }
+                });
+            });
         };
 
         const renderRegularTemplatePreview = () => {
@@ -709,8 +909,11 @@
         };
 
         sourceButtons.forEach((button) => button.addEventListener('click', () => setSourceMode(button.dataset.regularSourceOption)));
+        dealSearch?.addEventListener('focus', () => renderDealResults(dealSearch.value));
         dealSearch?.addEventListener('input', () => renderDealResults(dealSearch.value));
+        contactSearch?.addEventListener('focus', () => renderContactResults(contactSearch.value));
         contactSearch?.addEventListener('input', () => renderContactResults(contactSearch.value));
+        customerTypeInputs.forEach((input) => input.addEventListener('change', syncRegularCustomerSearchUi));
         serviceAreaChecks.forEach((item) => item.addEventListener('change', syncSelections));
         serviceChecks.forEach((item) => item.addEventListener('change', syncSelections));
         productChecks.forEach((item) => item.addEventListener('change', syncSelections));
@@ -720,8 +923,34 @@
         });
 
         setSourceMode(sourceModeInput?.value || 'manual');
+        syncRegularCustomerSearchUi();
+        initEmployeeSearchPickers();
         syncSelections();
         renderRegularTemplatePreview();
+        @if ($errors->any())
+            window.jkncSlideOver?.open(document.getElementById('regularManualCreateDrawer'));
+        @endif
+
+        document.addEventListener('click', (event) => {
+            const target = event.target;
+            if (!(target instanceof Node)) {
+                return;
+            }
+
+            if (!dealSearch?.contains(target) && !dealResults?.contains(target)) {
+                dealResults?.classList.add('hidden');
+            }
+
+            if (!contactSearch?.contains(target) && !contactResults?.contains(target)) {
+                contactResults?.classList.add('hidden');
+            }
+
+            Array.from(document.querySelectorAll('[data-employee-picker]')).forEach((picker) => {
+                if (!picker.contains(target)) {
+                    hideEmployeeSearchResults(picker);
+                }
+            });
+        });
     })();
 </script>
 @endsection

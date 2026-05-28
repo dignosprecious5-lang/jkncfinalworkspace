@@ -6,10 +6,13 @@ use App\Http\Controllers\Concerns\GeneratesPdfPreview;
 use App\Models\Company;
 use App\Models\Contact;
 use App\Models\Deal;
+use App\Models\Employee;
+use App\Models\Product;
 use App\Models\Project;
 use App\Models\ProjectNtp;
 use App\Models\ProjectSowReport;
 use App\Models\ProjectStart;
+use App\Models\Service;
 use App\Models\FormTemplate;
 use App\Services\ProjectProvisioner;
 use Illuminate\Http\RedirectResponse;
@@ -141,6 +144,9 @@ class RegularController extends Controller
             $dealRecords = [];
         }
 
+        $employeeRecords = $this->employeeLookupRecords();
+        $defaultApprovalPreparedBy = $this->currentEmployeeDisplayName(request());
+
         return view('regular.index', compact(
             'regulars',
             'stats',
@@ -148,6 +154,8 @@ class RegularController extends Controller
             'contactRecords',
             'companyRecords',
             'dealRecords',
+            'employeeRecords',
+            'defaultApprovalPreparedBy',
             'serviceCatalog',
             'productCatalog',
             'catalogWarnings'
@@ -196,6 +204,7 @@ class RegularController extends Controller
                 })]
                 : ['nullable'],
         ]);
+        $validated['prepared_by_default'] = $this->currentEmployeeDisplayName($request);
 
         $validated['service_area'] = $this->stringifySelectedValues(
             $validated['service_area_options'] ?? [],
@@ -294,7 +303,7 @@ class RegularController extends Controller
             ),
             'clearance' => $this->mergeRegularTemplateClearancePayload(
                 (array) ($templatePayload['clearance'] ?? []),
-                $validated['assigned_project_manager'] ?? ($validated['assigned_consultant'] ?? null),
+                $validated['prepared_by_default'] ?? ($validated['assigned_project_manager'] ?? ($validated['assigned_consultant'] ?? null)),
                 $validated['assigned_consultant'] ?? null,
                 $validated['assigned_associate'] ?? null
             ),
@@ -309,10 +318,10 @@ class RegularController extends Controller
             'client_confirmation_name' => $regular->client_confirmation_name,
             'internal_approval' => [
                 'report_period' => null,
-                'prepared_by' => $validated['assigned_project_manager'] ?? ($validated['assigned_consultant'] ?? null),
+                'prepared_by' => $validated['prepared_by_default'] ?? ($validated['assigned_project_manager'] ?? ($validated['assigned_consultant'] ?? null)),
                 'prepared_by_name' => null,
                 'prepared_by_date' => null,
-                'reviewed_by' => 'Admin',
+                'reviewed_by' => $validated['assigned_project_manager'] ?? ($validated['assigned_consultant'] ?? 'Admin'),
                 'reviewed_by_name' => null,
                 'reviewed_by_date' => null,
                 'referred_by_closed_by' => null,
@@ -401,6 +410,46 @@ class RegularController extends Controller
         $this->persistRsatDocument($request, $regular, $validated);
 
         return redirect()->route('regular.show', ['regular' => $regular, 'tab' => 'rsat'])->with('success', 'RSAT form updated successfully.');
+    }
+
+    public function manualApproveRsat(Request $request, Project $regular): RedirectResponse
+    {
+        abort_unless($this->isRegularEngagement($regular->engagement_type), 404);
+        $this->abortIfRegularCompleted($regular);
+
+        $validated = $request->validate([
+            'signed_document' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png,doc,docx', 'max:10240'],
+            'approval_name' => ['nullable', 'string', 'max:255'],
+            'approval_note' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $rsat = $regular->starts()->latest()->first() ?: new ProjectStart(['project_id' => $regular->id]);
+        $rsat->project_id = $regular->id;
+        $rsat->status = 'approved';
+        $rsat->approved_at = now();
+        $rsat->approved_by_name = $this->currentEmployeeDisplayName($request) ?: 'Manual Override';
+
+        $attachments = (array) ($rsat->attachments ?? []);
+        if ($request->hasFile('signed_document')) {
+            $attachments[] = [
+                'label' => 'Manual approved RSAT',
+                'path' => $request->file('signed_document')->store("regular/{$regular->id}/rsat/manual-approval", 'public'),
+                'uploaded_at' => now()->toDateTimeString(),
+            ];
+        }
+        $rsat->attachments = $attachments;
+        $rsat->rejection_reason = trim((string) ($validated['approval_note'] ?? '')) ?: null;
+        $rsat->save();
+
+        $regular->forceFill([
+            'status' => 'For NTP Approval',
+            'current_phase' => 'For NTP Approval',
+            'current_step' => 'RSAT manually approved',
+        ])->save();
+
+        return redirect()
+            ->route('regular.show', ['regular' => $regular, 'tab' => 'rsat'])
+            ->with('success', 'RSAT manually approved successfully.');
     }
 
     public function downloadRsatPdf(Project $regular)
@@ -701,6 +750,23 @@ class RegularController extends Controller
         ]);
     }
 
+    public function showNtpSubmission(Project $regular): View
+    {
+        abort_unless($this->isRegularEngagement($regular->engagement_type), 404);
+
+        $ntpRecord = $regular->ntps()->latest()->firstOrFail();
+        $regular->loadMissing(['deal:id,deal_code', 'contact:id,first_name,last_name,email', 'company:id,company_name']);
+        $contactName = trim(collect([$regular->contact?->first_name, $regular->contact?->last_name])->filter()->implode(' '))
+            ?: ($regular->client_name ?: 'Client');
+
+        return view('project.ntp-submission', [
+            'project' => $regular,
+            'ntpRecord' => $ntpRecord,
+            'ntp' => $ntpRecord->payload ?? [],
+            'contactName' => $contactName,
+        ]);
+    }
+
     public function submitClientNtp(Request $request, string $token): RedirectResponse
     {
         $ntpRecord = $this->findRegularNtpByClientToken($token);
@@ -740,14 +806,15 @@ class RegularController extends Controller
         abort_unless($this->isRegularEngagement($regular->engagement_type), 404);
         $this->abortIfRegularCompleted($regular);
 
-        $ntpRecord = $regular->ntps()->latest()->firstOrFail();
+        $ntpRecord = $regular->ntps()->latest()->first()
+            ?: $this->generateAndSendRegularNtp($regular, false);
         $validated = $this->validateSignedApprovalUpload($request);
 
         $this->replaceClientAttachment($ntpRecord, $request, "regular/{$regular->id}/ntp");
         $ntpRecord->fill([
             'client_response_status' => 'approved_to_proceed',
             'client_approved_at' => now(),
-            'client_approved_name' => $validated['approval_name'] ?: ($request->user()?->name ?? 'Manual Override'),
+            'client_approved_name' => $this->currentEmployeeDisplayName($request) ?: 'Manual Override',
             'client_response_notes' => trim((string) ($validated['approval_note'] ?? '')) ?: 'Approved by manual override using uploaded signed NTP.',
         ]);
         $ntpRecord->save();
@@ -770,9 +837,9 @@ class RegularController extends Controller
         $report->fill([
             'client_response_status' => 'approved',
             'client_approved_at' => now(),
-            'client_approved_name' => $validated['approval_name'] ?: ($request->user()?->name ?? 'Manual Override'),
+            'client_approved_name' => $this->currentEmployeeDisplayName($request) ?: 'Manual Override',
             'client_response_notes' => trim((string) ($validated['approval_note'] ?? '')) ?: 'Approved by manual override using uploaded signed RSAT report.',
-            'client_confirmation_name' => $validated['approval_name'] ?: ($report->client_confirmation_name ?: $regular->client_name),
+            'client_confirmation_name' => $report->client_confirmation_name ?: $regular->client_name,
         ]);
         $report->save();
         $this->markRegularReadyForNextProcess($regular, 'Signed RSAT report uploaded manually');
@@ -1382,15 +1449,25 @@ class RegularController extends Controller
                 return ['productOptionsByServiceArea' => []];
             }
 
-            $products = \App\Models\Product::query()
-                ->select(['product_name', 'product_area', 'status'])
+            $select = ['product_name', 'status'];
+            foreach (['linked_service_id', 'linked_service_ids'] as $column) {
+                if (Schema::hasColumn('products', $column)) {
+                    $select[] = $column;
+                }
+            }
+
+            $serviceAreasById = $this->regularLinkedServiceAreasById();
+            $products = Product::query()
+                ->select($select)
                 ->whereNotNull('product_name')
                 ->where('product_name', '!=', '')
                 ->when(Schema::hasColumn('products', 'status'), fn ($query) => $query->whereIn('status', ['Pending Approval', 'Active']))
                 ->orderBy('product_name')
                 ->get();
 
-            $groups = [];
+            $groups = [
+                'Products Without Service Area' => [],
+            ];
 
             foreach ($products as $product) {
                 $productName = trim((string) $product->product_name);
@@ -1398,11 +1475,12 @@ class RegularController extends Controller
                     continue;
                 }
 
-                $areas = collect($product->product_area ?? [])
-                    ->filter(fn ($value): bool => is_string($value) && trim($value) !== '')
-                    ->map(fn ($value): string => trim((string) $value))
-                    ->reject(fn (string $value): bool => $value === 'Others' || $value === 'None')
-                    ->values();
+                $areas = $this->normalizeProductServiceAreas($product, $serviceAreasById);
+
+                if ($areas === []) {
+                    $groups['Products Without Service Area'][] = $productName;
+                    continue;
+                }
 
                 foreach ($areas as $area) {
                     $groups[$area] ??= [];
@@ -1411,8 +1489,8 @@ class RegularController extends Controller
             }
 
             $groups = collect($groups)
-                ->map(fn (array $items): array => collect($items)->filter()->unique()->sort()->values()->all())
-                ->filter(fn (array $items): bool => $items !== [])
+                ->map(fn (array $group): array => collect($group)->filter()->unique()->sort()->values()->all())
+                ->filter(fn (array $group): bool => $group !== [])
                 ->sortKeys()
                 ->all();
 
@@ -1420,6 +1498,70 @@ class RegularController extends Controller
         } catch (\Throwable) {
             return ['productOptionsByServiceArea' => []];
         }
+    }
+
+    private function normalizeProductServiceAreas(Product $product, array $serviceAreasById): array
+    {
+        $linkedServiceIds = $this->normalizeProductLinkedServiceIds($product);
+
+        return $linkedServiceIds === []
+            ? []
+            : collect($serviceAreasById)
+                ->only($linkedServiceIds)
+                ->flatten()
+                ->filter()
+                ->unique()
+                ->values()
+                ->all();
+    }
+
+    private function normalizeProductLinkedServiceIds(Product $product): array
+    {
+        return collect($product->linked_service_ids ?? [])
+            ->merge(filled($product->linked_service_id) ? [$product->linked_service_id] : [])
+            ->map(fn ($id): int => (int) $id)
+            ->filter(fn (int $id): bool => $id > 0)
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function regularLinkedServiceAreasById(): array
+    {
+        if (! Schema::hasTable('services')) {
+            return [];
+        }
+
+        return Service::query()
+            ->select(['id', 'service_area', 'service_area_other'])
+            ->get()
+            ->mapWithKeys(fn (Service $service): array => [
+                $service->id => $this->normalizeServiceAreas($service),
+            ])
+            ->filter(fn (array $areas): bool => $areas !== [])
+            ->all();
+    }
+
+    private function normalizeServiceAreas(Service $service): array
+    {
+        $areas = collect($service->service_area ?? [])
+            ->filter(fn ($value): bool => is_string($value) && trim($value) !== '')
+            ->map(fn ($value): string => trim((string) $value))
+            ->reject(fn (string $value): bool => Str::lower($value) === 'none')
+            ->values();
+
+        if ($areas->contains('Others') && filled($service->service_area_other)) {
+            $areas = $areas
+                ->reject(fn (string $value): bool => $value === 'Others')
+                ->push(trim((string) $service->service_area_other))
+                ->values();
+        }
+
+        if ($areas->isEmpty() && filled($service->service_area_other)) {
+            $areas = collect([trim((string) $service->service_area_other)]);
+        }
+
+        return $areas->unique()->values()->all();
     }
 
     private function stringifySelectedValues(array $selected, array $custom, string $customPrefix, array $ignored = []): ?string
@@ -1669,7 +1811,7 @@ class RegularController extends Controller
         ];
     }
 
-    private function generateAndSendRegularNtp(Project $regular): ProjectNtp
+    private function generateAndSendRegularNtp(Project $regular, bool $sendClientLink = true): ProjectNtp
     {
         $payload = $this->buildRegularNtpPayload($regular);
         $report = $regular->sowReports()
@@ -1694,7 +1836,7 @@ class RegularController extends Controller
         $ntpRecord->save();
 
         $recipientEmail = $this->resolveRegularClientEmail($regular);
-        if ($recipientEmail !== null) {
+        if ($sendClientLink && $recipientEmail !== null) {
             $this->sendRegularNtpClientLink($regular, $ntpRecord, $recipientEmail);
         }
 
@@ -1766,5 +1908,51 @@ class RegularController extends Controller
             'day_of_month' => (int) ($raw['day_of_month'] ?? 30),
             'last_generated_on' => filled($raw['last_generated_on'] ?? null) ? (string) $raw['last_generated_on'] : null,
         ];
+    }
+
+    private function employeeLookupRecords(): array
+    {
+        if (! Schema::hasTable('employees')) {
+            return [];
+        }
+
+        return Employee::query()
+            ->select(['id', 'employee_code', 'first_name', 'last_name', 'position', 'email', 'work_email'])
+            ->orderBy('first_name')
+            ->orderBy('last_name')
+            ->get()
+            ->map(function (Employee $employee): array {
+                $label = trim((string) $employee->full_name);
+
+                return [
+                    'id' => $employee->id,
+                    'label' => $label,
+                    'position' => $employee->position,
+                    'employee_code' => $employee->employee_code,
+                    'email' => $employee->work_email ?: $employee->email,
+                    'search_blob' => Str::lower(implode(' ', array_filter([
+                        $label,
+                        $employee->employee_code,
+                        $employee->position,
+                        $employee->work_email,
+                        $employee->email,
+                    ]))),
+                ];
+            })
+            ->filter(fn (array $employee): bool => $employee['label'] !== '')
+            ->values()
+            ->all();
+    }
+
+    private function currentEmployeeDisplayName(Request $request): ?string
+    {
+        $user = $request->user();
+        if (! $user) {
+            return null;
+        }
+
+        $employee = $user->employeeProfile;
+
+        return filled($employee?->full_name) ? $employee->full_name : ($user->name ?: null);
     }
 }

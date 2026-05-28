@@ -303,12 +303,12 @@
 
                 <section class="rounded-xl border border-gray-200 bg-gray-50/70 p-4">
                     <h3 class="text-base font-semibold text-gray-900">Requirements</h3>
-                    <p class="mb-4 text-xs text-gray-500">These are the default service requirements. Deals will fetch only the matching group based on the selected client or business organization type.</p>
+                    <p class="mb-4 text-xs text-gray-500">Deals will fetch only the matching group based on the selected client or business organization type.</p>
                     <div class="space-y-4">
                         <div>
                             <label class="mb-2 block text-sm font-medium text-gray-700">SOLE / NATURAL PERSON / INDIVIDUAL</label>
-                            <textarea id="{{ $fieldPrefix }}FormRequirementsIndividual" name="requirements_individual" x-model="requirementsIndividual" rows="4" placeholder="Enter one requirement per line" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">{{ old('requirements_individual', $requirementTemplateDefaults['individual'] ?? '') }}</textarea>
-                            <p class="mt-2 text-xs text-gray-500">Default template: Valid ID, DTI Registration. Each line is saved as one bullet item.</p>
+                            <textarea id="{{ $fieldPrefix }}FormRequirementsIndividual" name="requirements_individual" x-model="requirementsIndividual" rows="4" placeholder="Enter one requirement per line" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">{{ old('requirements_individual', '') }}</textarea>
+                            <p class="mt-2 text-xs text-gray-500">Each line is saved as one bullet item.</p>
                             <div class="mt-2 rounded-lg border border-dashed border-gray-200 bg-white px-3 py-2" x-show="bulletItems(requirementsIndividual).length" x-cloak>
                                 <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Bullet Preview</p>
                                 <ul class="mt-2 space-y-1 text-sm text-gray-700">
@@ -323,8 +323,8 @@
                         </div>
                         <div>
                             <label class="mb-2 block text-sm font-medium text-gray-700">JURIDICAL ENTITY (Corporation / OPC / Partnership / Cooperative)</label>
-                            <textarea id="{{ $fieldPrefix }}FormRequirementsJuridical" name="requirements_juridical" x-model="requirementsJuridical" rows="4" placeholder="Enter one requirement per line" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">{{ old('requirements_juridical', $requirementTemplateDefaults['juridical'] ?? '') }}</textarea>
-                            <p class="mt-2 text-xs text-gray-500">Default template: SEC Registration, GIS, Articles of Incorporation. Each line is saved as one bullet item.</p>
+                            <textarea id="{{ $fieldPrefix }}FormRequirementsJuridical" name="requirements_juridical" x-model="requirementsJuridical" rows="4" placeholder="Enter one requirement per line" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">{{ old('requirements_juridical', '') }}</textarea>
+                            <p class="mt-2 text-xs text-gray-500">Each line is saved as one bullet item.</p>
                             <div class="mt-2 rounded-lg border border-dashed border-gray-200 bg-white px-3 py-2" x-show="bulletItems(requirementsJuridical).length" x-cloak>
                                 <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Bullet Preview</p>
                                 <ul class="mt-2 space-y-1 text-sm text-gray-700">
@@ -339,8 +339,8 @@
                         </div>
                         <div>
                             <label class="mb-2 block text-sm font-medium text-gray-700">Other Requirements</label>
-                            <textarea id="{{ $fieldPrefix }}FormRequirementsOther" name="requirements_other" x-model="requirementsOther" rows="4" placeholder="Enter one requirement per line" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">{{ old('requirements_other', $requirementTemplateDefaults['other'] ?? '') }}</textarea>
-                            <p class="mt-2 text-xs text-gray-500">Default template: Special Permit. Each line is saved as one bullet item.</p>
+                            <textarea id="{{ $fieldPrefix }}FormRequirementsOther" name="requirements_other" x-model="requirementsOther" rows="4" placeholder="Enter one requirement per line" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">{{ old('requirements_other', '') }}</textarea>
+                            <p class="mt-2 text-xs text-gray-500">Each line is saved as one bullet item.</p>
                             <div class="mt-2 rounded-lg border border-dashed border-gray-200 bg-white px-3 py-2" x-show="bulletItems(requirementsOther).length" x-cloak>
                                 <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Bullet Preview</p>
                                 <ul class="mt-2 space-y-1 text-sm text-gray-700">

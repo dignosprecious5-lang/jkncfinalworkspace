@@ -17,6 +17,7 @@ use App\Models\User;
 use App\Support\ActivityTimelineBuilder;
 use App\Support\CompanyHistoryLogger;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -154,10 +155,39 @@ class CompanyController extends Controller
             'lookupModules' => $this->lookupModules(),
             'companyCreateContacts' => $companyCreateContacts,
             'employeeOptions' => $this->employeeOptions(),
+            'roleContactOptions' => $this->roleContactOptions(),
             'hasApprovedCompanyCreateContacts' => Schema::hasTable('contacts')
                 ? Contact::query()->where('cif_status', 'approved')->exists()
                 : false,
         ]);
+    }
+
+    public function searchRoleContacts(Request $request): JsonResponse
+    {
+        $search = Str::lower(trim((string) $request->query('search', '')));
+        $businessName = Str::lower(trim((string) $request->query('business_name', '')));
+
+        $contacts = collect($this->roleContactOptions())
+            ->when($businessName !== '', function ($collection) use ($businessName) {
+                $matching = $collection->filter(fn (array $contact) => Str::lower(trim((string) ($contact['company_name'] ?? ''))) === $businessName);
+
+                return $matching->isNotEmpty() ? $matching : $collection;
+            })
+            ->when($search !== '', function ($collection) use ($search) {
+                return $collection->filter(function (array $contact) use ($search): bool {
+                    return Str::contains(Str::lower(collect([
+                        $contact['label'] ?? '',
+                        $contact['company_name'] ?? '',
+                        $contact['position'] ?? '',
+                        $contact['email'] ?? '',
+                        $contact['phone'] ?? '',
+                    ])->filter()->implode(' ')), $search);
+                });
+            })
+            ->take(10)
+            ->values();
+
+        return response()->json(['contacts' => $contacts]);
     }
 
     public function store(Request $request): RedirectResponse
@@ -1220,6 +1250,7 @@ class CompanyController extends Controller
             'president_name' => ['nullable', 'string', 'max:255'],
             'treasurer_name' => ['nullable', 'string', 'max:255'],
             'authorized_signatories' => ['nullable', 'array'],
+            'authorized_signatories.*.contact_id' => ['nullable', 'integer', 'exists:contacts,id'],
             'authorized_signatories.*.full_name' => ['nullable', 'string', 'max:255'],
             'authorized_signatories.*.address' => ['nullable', 'string', 'max:255'],
             'authorized_signatories.*.nationality' => ['nullable', 'string', 'max:255'],
@@ -1227,6 +1258,7 @@ class CompanyController extends Controller
             'authorized_signatories.*.tin' => ['nullable', 'string', 'max:255'],
             'authorized_signatories.*.position' => ['nullable', 'string', 'max:255'],
             'ubos' => ['nullable', 'array'],
+            'ubos.*.contact_id' => ['nullable', 'integer', 'exists:contacts,id'],
             'ubos.*.full_name' => ['nullable', 'string', 'max:255'],
             'ubos.*.address' => ['nullable', 'string', 'max:255'],
             'ubos.*.nationality' => ['nullable', 'string', 'max:255'],
@@ -1567,6 +1599,85 @@ class CompanyController extends Controller
         $lastName = $segments->count() > 1 ? (string) $segments->slice(1)->implode(' ') : '';
 
         return [$firstName, $lastName];
+    }
+
+    private function roleContactOptions(): array
+    {
+        if (! Schema::hasTable('contacts')) {
+            return [];
+        }
+
+        return Contact::query()
+            ->with([
+                'primaryCompanies.latestBif',
+                'companies.latestBif',
+            ])
+            ->orderBy('first_name')
+            ->orderBy('last_name')
+            ->get([
+                'id',
+                'first_name',
+                'middle_name',
+                'last_name',
+                'name_extension',
+                'position',
+                'email',
+                'phone',
+                'contact_address',
+                'company_name',
+                'company_address',
+                'tin',
+                'date_of_birth',
+                'cif_status',
+            ])
+            ->map(function (Contact $contact): array {
+                $cifData = $this->loadContactCifData($contact);
+                $bifData = $this->loadLinkedBifData($contact);
+                $fullName = trim(collect([
+                    $cifData['first_name'] ?? $contact->first_name,
+                    $cifData['middle_name'] ?? $contact->middle_name,
+                    $cifData['last_name'] ?? $contact->last_name,
+                    $cifData['name_extension'] ?? $contact->name_extension,
+                ])->filter()->implode(' '));
+
+                return [
+                    'id' => (int) $contact->id,
+                    'label' => $fullName !== '' ? $fullName : 'Contact #'.$contact->id,
+                    'company_name' => $this->firstFilledValue(
+                        $cifData['company_name'] ?? null,
+                        $bifData['business_name'] ?? null,
+                        $contact->company_name
+                    ),
+                    'position' => $this->firstFilledValue(
+                        $cifData['sig_position_left'] ?? null,
+                        $cifData['sig_position_right'] ?? null,
+                        $contact->position,
+                        $cifData['nature_of_work_business'] ?? null
+                    ),
+                    'email' => $this->firstFilledValue($cifData['email'] ?? null, $contact->email),
+                    'phone' => $this->firstFilledValue($cifData['mobile'] ?? null, $contact->phone),
+                    'address' => $this->firstFilledValue(
+                        $contact->contact_address,
+                        $contact->company_address,
+                        collect([
+                            $cifData['present_address_line1'] ?? null,
+                            $cifData['present_address_line2'] ?? null,
+                        ])->filter()->implode(', ')
+                    ),
+                    'nationality' => $this->firstFilledValue(
+                        $cifData['citizenship_nationality'] ?? null,
+                        $bifData['nationality_status'] ?? null
+                    ),
+                    'date_of_birth' => $this->firstFilledValue(
+                        $cifData['date_of_birth'] ?? null,
+                        optional($contact->date_of_birth)->format('Y-m-d')
+                    ),
+                    'tin' => $this->firstFilledValue($contact->tin, $cifData['tin'] ?? null, $bifData['tin_no'] ?? null),
+                    'cif_status' => $contact->cif_status,
+                ];
+            })
+            ->values()
+            ->all();
     }
 
     private function applyCompanyCustomFieldDefaults(array $company, array $customFields): array

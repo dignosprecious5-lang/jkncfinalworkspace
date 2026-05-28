@@ -411,6 +411,12 @@ class ContactsController extends Controller
             ]);
         }
 
+        if ($request->boolean('return_to_company')) {
+            return redirect()
+                ->route('company.index', ['open_create_company' => 1, 'company_contact_created' => $contact->id])
+                ->with('success', $isAdminAutoApprover ? 'Contact created and sent for approval. You can approve or reject it now.' : 'Contact created successfully.');
+        }
+
         return redirect()
             ->route('contacts.index')
             ->with('success', $isAdminAutoApprover ? 'Contact created and sent for approval. You can approve or reject it now.' : 'Contact created successfully.');

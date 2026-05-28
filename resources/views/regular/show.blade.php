@@ -23,6 +23,9 @@
     $generatedReports = $generatedReports ?? collect();
     $rsatAttachments = collect($rsat?->attachments ?? []);
     $ntpApproved = $ntpRecord?->client_response_status === 'approved_to_proceed' && $ntpRecord?->client_approved_at;
+    $ntpStatusLabel = $ntpApproved
+        ? 'Client approved NTP'
+        : ($ntpRecord ? 'NTP generated, waiting for signed upload' : 'NTP not generated');
     $regularLocked = $regularLocked ?? ($regular->status === 'Completed');
 @endphp
 
@@ -105,6 +108,7 @@
         font-weight: 600;
         color: #334155;
     }
+    .rsat-doc-action-approved { border-color: #86efac; background: #dcfce7; color: #166534; }
     .rsat-doc-primary {
         display: inline-flex;
         align-items: center;
@@ -345,6 +349,38 @@
     .rsat-settings-overlay { position: absolute; inset: 0; background: rgba(15, 23, 42, 0.5); }
     .rsat-settings-frame { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 16px; }
     .rsat-settings-card { width: 100%; max-width: 430px; background: #fff; border: 1px solid #dbe3f0; box-shadow: 0 18px 36px rgba(15, 23, 42, 0.2); }
+    .rsat-ntp-modal { position: fixed; inset: 0; z-index: 70; display: none; }
+    .rsat-ntp-modal.is-open { display: block; }
+    .rsat-ntp-overlay { position: absolute; inset: 0; background: rgba(15, 23, 42, 0.55); }
+    .rsat-ntp-frame { position: absolute; inset: 0; overflow-y: auto; padding: 28px 16px; }
+    .rsat-ntp-shell { position: relative; max-width: 1060px; margin: 0 auto; }
+    .rsat-doc-view-shell { border: 1px solid #d8e1ee; background: #fff; box-shadow: 0 16px 34px rgba(15, 23, 42, 0.05); overflow: hidden; }
+    .rsat-doc-view-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; padding: 18px 22px; border-bottom: 1px solid #dbe3f0; background: linear-gradient(180deg, #f8fbff 0%, #ffffff 100%); }
+    .rsat-doc-view-eyebrow { font-size: .72rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: #64748b; }
+    .rsat-doc-view-title { margin-top: 6px; font-size: 1.2rem; font-weight: 700; color: #0f172a; }
+    .rsat-doc-view-copy { margin-top: 6px; max-width: 620px; font-size: .88rem; line-height: 1.45; color: #64748b; }
+    .rsat-doc-view-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 10px; }
+    .rsat-doc-view-action { display: inline-flex; align-items: center; justify-content: center; min-width: 132px; border: 1px solid #cbd5e1; background: #fff; padding: 10px 14px; font-size: .84rem; font-weight: 700; color: #0f172a; text-decoration: none; }
+    .rsat-doc-view-body { max-height: calc(100vh - 210px); overflow-y: auto; padding: 24px; background: linear-gradient(180deg, #eef4ff 0%, #f8fbff 100%); }
+    .rsat-doc-view-body .project-ntp-sheet { border: 1px solid #d8e1ee; background: #fff; box-shadow: 0 16px 34px rgba(15, 23, 42, 0.05); }
+    .rsat-doc-view-body .project-ntp-doc { padding: 32px 34px 36px; border: 2px solid #1c4587; }
+    .rsat-doc-view-body .project-ntp-title { font-family: Georgia, "Times New Roman", serif; font-size: 18pt; font-weight: 700; line-height: 1.05; }
+    .rsat-doc-view-body .project-ntp-code { margin-bottom: 24px; font-family: Georgia, "Times New Roman", serif; font-size: 8pt; font-weight: 700; }
+    .rsat-doc-view-body .project-ntp-issued { margin: 18px 0 12px; font-family: Georgia, "Times New Roman", serif; font-size: 12pt; font-weight: 700; }
+    .rsat-doc-view-body .project-ntp-light { font-weight: 400; }
+    .rsat-doc-view-body .project-ntp-meta, .rsat-doc-view-body .project-ntp-signatures { width: 100%; border-collapse: collapse; table-layout: fixed; }
+    .rsat-doc-view-body .project-ntp-meta td { border: 1px solid #000; padding: 8px 10px; vertical-align: top; font-family: Georgia, "Times New Roman", serif; font-size: 11pt; font-weight: 700; }
+    .rsat-doc-view-body .project-ntp-copy { margin-top: 22px; font-size: 11pt; line-height: 1.35; }
+    .rsat-doc-view-body .project-ntp-copy p { margin: 0 0 18px; text-align: justify; }
+    .rsat-doc-view-body .project-ntp-signatures { margin-top: 34px; }
+    .rsat-doc-view-body .project-ntp-signatures td { border: 1px solid #000; padding: 8px 10px; vertical-align: top; }
+    .rsat-doc-view-body .project-ntp-sign-head { font-family: Georgia, "Times New Roman", serif; font-size: 12pt; font-weight: 700; }
+    .rsat-doc-view-body .project-ntp-sign-box { height: 96px; text-align: center; vertical-align: middle; font-family: Georgia, "Times New Roman", serif; font-size: 11pt; font-weight: 700; }
+    .rsat-doc-view-body .project-ntp-panel { margin-top: 28px; border: 1px solid #dbe3f0; background: #f8fbff; padding: 18px; }
+    .rsat-doc-view-body .project-ntp-grid { display: grid; gap: 14px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .rsat-doc-view-body .project-ntp-label { display: block; margin-bottom: 6px; font-size: .74rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #475569; }
+    .rsat-doc-view-body .project-ntp-value-box { min-height: 44px; border: 1px solid #cbd5e1; background: #fff; padding: 10px 12px; font-size: .95rem; box-sizing: border-box; }
+    .rsat-doc-view-body .project-ntp-attachment-link { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; border: 1px solid #1c4587; background: #1c4587; padding: 0 18px; font-size: .9rem; font-weight: 700; color: #fff; text-decoration: none; }
     @media (max-width: 1024px) {
         .rsat-work-grid { grid-template-columns: 1fr; }
         .rsat-quick-grid { grid-template-columns: 1fr; }
@@ -407,7 +443,14 @@
         <div class="rsat-linked-card rounded-2xl px-5 py-4 text-sm text-gray-600">
             <div class="flex flex-wrap items-start justify-between gap-4">
                 <div class="flex flex-wrap gap-x-8 gap-y-2">
-                    <p>Deal: <a href="{{ route('deals.show', $regular->deal_id) }}" class="font-medium text-blue-700 hover:text-blue-800">{{ $regular->deal?->deal_code ?? 'View linked deal' }}</a></p>
+                    <p>
+                        Deal:
+                        @if ($regular->deal_id)
+                            <a href="{{ route('deals.show', $regular->deal_id) }}" class="font-medium text-blue-700 hover:text-blue-800">{{ $regular->deal?->deal_code ?? 'View linked deal' }}</a>
+                        @else
+                            <span class="font-medium text-gray-500">No linked deal</span>
+                        @endif
+                    </p>
                     @if ($regular->company_id)
                         <p>Company: <a href="{{ route('company.show', $regular->company_id) }}" class="font-medium text-blue-700 hover:text-blue-800">{{ $regular->company?->company_name ?? 'View company' }}</a></p>
                     @endif
@@ -429,7 +472,7 @@
                         <div class="rsat-quick-stack">
                             <span class="inline-flex items-center gap-2 rounded-full border {{ $ntpApproved ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-white text-slate-600' }} px-3 py-2 text-xs font-semibold">
                                 <i class="{{ $ntpApproved ? 'fas fa-check-circle' : 'fas fa-hourglass-half' }}"></i>
-                                {{ $ntpApproved ? 'Client approved NTP' : (($ntpRecord?->client_form_sent_at) ? 'Waiting for client signed NTP upload' : 'NTP not generated') }}
+                                {{ $ntpStatusLabel }}
                             </span>
                         </div>
                     </div>
@@ -447,18 +490,30 @@
                                 <button type="submit" form="regular-rsat-form" class="rsat-doc-primary">Save RSAT</button>
                                 <button type="submit" form="regular-rsat-form" formaction="{{ route('regular.report.generate', $regular) }}" class="rsat-doc-action">Generate RSAT Report</button>
                                 <a href="{{ route('transmittal.create.regular', $regular) }}" class="rsat-doc-action">Generate Transmittal</a>
-                                <a href="{{ route('regular.ntp.download', $regular) }}" class="rsat-doc-action">Generate NTP</a>
+                                <a id="regularNtpAction" href="{{ $ntpRecord ? route('regular.ntp.submission', $regular) : route('regular.ntp.download', $regular) }}" class="{{ $ntpApproved ? 'rsat-doc-action rsat-doc-action-approved' : 'rsat-doc-action' }}">{{ $ntpRecord ? 'View NTP' : 'Generate NTP' }}</a>
                             @endif
                             <a href="{{ route('regular.rsat.download', $regular) }}" class="rsat-doc-action">Download PDF</a>
                         </div>
                     </div>
-                    @if (! $regularLocked && $ntpRecord && ! $ntpApproved)
+                    <div class="rsat-quick-group">
+                        <p class="rsat-quick-label">Manual Approve RSAT</p>
+                        <form method="POST" action="{{ route('regular.rsat.manual-approve', $regular) }}" enctype="multipart/form-data" class="rsat-quick-stack">
+                            @csrf
+                            <input type="file" name="signed_document" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" class="w-full text-xs text-slate-600" @disabled($regularLocked)>
+                            <input type="text" name="approval_note" placeholder="Approval note" class="border border-slate-300 px-3 py-2 text-sm" @disabled($regularLocked)>
+                            <button type="submit" class="rsat-doc-primary" @disabled($regularLocked)>Manual Approve RSAT</button>
+                        </form>
+                        @if ($rsat?->approved_at)
+                            <p class="text-xs text-slate-500">Approved {{ optional($rsat->approved_at)->format('M d, Y h:i A') }} by {{ $rsat->approved_by_name ?: 'Manual Override' }}.</p>
+                        @endif
+                    </div>
+                    @if (! $regularLocked && ! $ntpApproved)
                         <div class="rsat-quick-group">
                             <p class="rsat-quick-label">Manual NTP Approval</p>
                             <form method="POST" action="{{ route('regular.ntp.manual-approve', $regular) }}" enctype="multipart/form-data" class="rsat-quick-stack">
                                 @csrf
                                 <input type="file" name="signed_document" required accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" class="w-full text-xs text-slate-600">
-                                <input type="text" name="approval_name" placeholder="Approver name" class="border border-slate-300 px-3 py-2 text-sm">
+                                <input type="text" name="approval_note" placeholder="Approval note" class="border border-slate-300 px-3 py-2 text-sm">
                                 <button type="submit" class="rsat-doc-primary">Upload Signed NTP & Approve</button>
                             </form>
                         </div>
@@ -856,6 +911,31 @@
     </div>
 </div>
 
+@if ($tab === 'rsat' && $ntpRecord)
+<div id="regularNtpModal" class="rsat-ntp-modal" aria-hidden="true">
+    <button id="regularNtpOverlay" type="button" class="rsat-ntp-overlay" aria-label="Close NTP view"></button>
+    <div class="rsat-ntp-frame">
+        <div class="rsat-ntp-shell">
+            <div class="rsat-doc-view-shell">
+                <div class="rsat-doc-view-header">
+                    <div>
+                        <p class="rsat-doc-view-eyebrow">Regular Document Viewer</p>
+                        <h2 class="rsat-doc-view-title">Notice to Proceed</h2>
+                        <p class="rsat-doc-view-copy">Review the NTP in the same branded viewer used across the regular workspace. The original document structure is preserved.</p>
+                    </div>
+                    <div class="rsat-doc-view-actions">
+                        <button id="regularNtpClose" type="button" class="rsat-doc-view-action">Close View</button>
+                    </div>
+                </div>
+                <div class="rsat-doc-view-body">
+                    @include('project.partials.approved-ntp-document', ['ntp' => $ntpRecord->payload ?? [], 'ntpRecord' => $ntpRecord, 'contactName' => $contactName])
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+@endif
+
 <div id="regularRsatAutoSettingsModal" class="rsat-settings-modal" aria-hidden="true">
     <button id="regularRsatAutoSettingsOverlay" type="button" class="rsat-settings-overlay" aria-label="Close auto-report settings"></button>
     <div class="rsat-settings-frame">
@@ -959,6 +1039,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const autoSettingsModal = document.getElementById('regularRsatAutoSettingsModal');
     const autoSettingsOverlay = document.getElementById('regularRsatAutoSettingsOverlay');
     const autoSettingsClose = document.getElementById('regularRsatAutoSettingsClose');
+    const regularNtpAction = document.getElementById('regularNtpAction');
+    const regularNtpModal = document.getElementById('regularNtpModal');
+    const regularNtpOverlay = document.getElementById('regularNtpOverlay');
+    const regularNtpClose = document.getElementById('regularNtpClose');
 
     const syncRowNumbers = (container) => {
         if (!container) {
@@ -1048,12 +1132,34 @@ document.addEventListener('DOMContentLoaded', () => {
         document.body.classList.remove('overflow-hidden');
     };
 
+    const openRegularNtpModal = () => {
+        if (!regularNtpModal) return;
+        regularNtpModal.classList.add('is-open');
+        regularNtpModal.setAttribute('aria-hidden', 'false');
+        document.body.classList.add('overflow-hidden');
+    };
+
+    const closeRegularNtpModal = () => {
+        if (!regularNtpModal) return;
+        regularNtpModal.classList.remove('is-open');
+        regularNtpModal.setAttribute('aria-hidden', 'true');
+        document.body.classList.remove('overflow-hidden');
+    };
+
     tabButtons.forEach((button) => {
         button.addEventListener('click', () => activateTab(button.dataset.tabButton));
     });
     autoSettingsOpen?.addEventListener('click', openAutoSettingsModal);
     autoSettingsOverlay?.addEventListener('click', closeAutoSettingsModal);
     autoSettingsClose?.addEventListener('click', closeAutoSettingsModal);
+    regularNtpAction?.addEventListener('click', (event) => {
+        if (regularNtpAction.textContent.trim() === 'View NTP' && regularNtpModal) {
+            event.preventDefault();
+            openRegularNtpModal();
+        }
+    });
+    regularNtpOverlay?.addEventListener('click', closeRegularNtpModal);
+    regularNtpClose?.addEventListener('click', closeRegularNtpModal);
 
     (() => {
         const searchInput = document.getElementById('regularReportSearch');

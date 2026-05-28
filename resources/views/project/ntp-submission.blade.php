@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Approved Notice To Proceed</title>
+    <title>Notice To Proceed</title>
     <style>
         body { margin:0; background:linear-gradient(180deg,#f2f6fc 0%,#fbfcfe 100%); font-family:Arial,Helvetica,sans-serif; color:#0f172a; }
         .page { max-width: 980px; margin: 0 auto; padding: 32px 18px 48px; }

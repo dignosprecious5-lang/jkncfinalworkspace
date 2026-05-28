@@ -121,6 +121,23 @@
             </button>
         </div>
 
+        @if (session('success'))
+            <div class="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{{ session('success') }}</div>
+        @endif
+        @if (session('error'))
+            <div class="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ session('error') }}</div>
+        @endif
+        @if ($errors->any())
+            <div class="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+                <p class="font-semibold">Create Project was not saved.</p>
+                <ul class="mt-2 list-disc space-y-1 pl-5">
+                    @foreach ($errors->all() as $error)
+                        <li>{{ $error }}</li>
+                    @endforeach
+                </ul>
+            </div>
+        @endif
+
         @if (!empty($catalogWarnings ?? []))
             <div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
                 @foreach ($catalogWarnings as $warning)
@@ -419,17 +436,20 @@
                     <label class="mb-2 block text-sm font-medium text-gray-700">Client Confirmation Name</label>
                     <input name="client_confirmation_name" id="project_client_confirmation_name" value="{{ old('client_confirmation_name') }}" class="h-11 w-full rounded-xl border border-gray-300 px-4 text-sm text-gray-900">
                 </div>
-                <div>
+                <div class="relative" data-employee-picker>
                     <label class="mb-2 block text-sm font-medium text-gray-700">Project Manager</label>
-                    <input name="assigned_project_manager" id="project_assigned_project_manager" value="{{ old('assigned_project_manager') }}" class="h-11 w-full rounded-xl border border-gray-300 px-4 text-sm text-gray-900">
+                    <input name="assigned_project_manager" id="project_assigned_project_manager" value="{{ old('assigned_project_manager') }}" autocomplete="off" data-employee-search-input class="h-11 w-full rounded-xl border border-gray-300 px-4 text-sm text-gray-900">
+                    <div class="absolute z-20 mt-1 hidden w-full rounded-xl border border-gray-200 bg-white shadow-lg" data-employee-search-results></div>
                 </div>
-                <div>
+                <div class="relative" data-employee-picker>
                     <label class="mb-2 block text-sm font-medium text-gray-700">Lead Consultant</label>
-                    <input name="assigned_consultant" id="project_assigned_consultant" value="{{ old('assigned_consultant') }}" class="h-11 w-full rounded-xl border border-gray-300 px-4 text-sm text-gray-900">
+                    <input name="assigned_consultant" id="project_assigned_consultant" value="{{ old('assigned_consultant') }}" autocomplete="off" data-employee-search-input class="h-11 w-full rounded-xl border border-gray-300 px-4 text-sm text-gray-900">
+                    <div class="absolute z-20 mt-1 hidden w-full rounded-xl border border-gray-200 bg-white shadow-lg" data-employee-search-results></div>
                 </div>
-                <div class="md:col-span-2">
+                <div class="relative md:col-span-2" data-employee-picker>
                     <label class="mb-2 block text-sm font-medium text-gray-700">Lead Associate</label>
-                    <input name="assigned_associate" id="project_assigned_associate" value="{{ old('assigned_associate') }}" class="h-11 w-full rounded-xl border border-gray-300 px-4 text-sm text-gray-900">
+                    <input name="assigned_associate" id="project_assigned_associate" value="{{ old('assigned_associate') }}" autocomplete="off" data-employee-search-input class="h-11 w-full rounded-xl border border-gray-300 px-4 text-sm text-gray-900">
+                    <div class="absolute z-20 mt-1 hidden w-full rounded-xl border border-gray-200 bg-white shadow-lg" data-employee-search-results></div>
                 </div>
                 <div class="md:col-span-2">
                     <label class="mb-2 block text-sm font-medium text-gray-700">Scope Summary</label>
@@ -451,22 +471,13 @@
                         <label class="mb-2 block text-sm font-medium text-gray-700">Service Area</label>
                         <div id="project-service-area-options-grid" class="grid gap-2 sm:grid-cols-2">
                             @foreach ($serviceAreaOptions as $option)
-                                <label class="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700">
-                                    <input type="checkbox" name="service_area_options[]" value="{{ $option }}" @checked(in_array($option, $selectedServiceAreas, true)) {{ $option === 'Others' ? 'data-other-target=project-service-area-other-wrapper' : '' }} class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500">
-                                    <span>{{ $option }}</span>
-                                </label>
+                                @if ($option !== 'Others')
+                                    <label class="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700">
+                                        <input type="checkbox" name="service_area_options[]" value="{{ $option }}" @checked(in_array($option, $selectedServiceAreas, true)) class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500">
+                                        <span>{{ $option }}</span>
+                                    </label>
+                                @endif
                             @endforeach
-                            @foreach ($serviceAreaOtherEntries as $item)
-                                <label class="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700" data-custom-option>
-                                    <input type="checkbox" name="service_area_options[]" value="{{ $item }}" checked class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500">
-                                    <span class="flex-1">{{ $item }}</span>
-                                    <button type="button" class="text-gray-500 hover:text-gray-700" data-custom-option-remove>&times;</button>
-                                    <input type="hidden" name="service_area_other[]" value="{{ $item }}" data-custom-option-hidden>
-                                </label>
-                            @endforeach
-                        </div>
-                        <div id="project-service-area-other-wrapper" class="{{ (in_array('Others', $selectedServiceAreas, true) || count($serviceAreaOtherEntries) > 0) ? '' : 'hidden' }} mt-2">
-                            <input id="project-service-area-other-input" type="text" class="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" placeholder="Enter custom service area and press Enter">
                         </div>
                     </div>
 
@@ -490,40 +501,23 @@
                                 </div>
                             @endforeach
                         </div>
-                        <div id="project-services-custom-options" class="grid gap-2 sm:grid-cols-2">
-                            @foreach ($serviceCustomEntries as $customEntry)
-                                <label class="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700" data-custom-option>
-                                    <input type="checkbox" name="service_options[]" value="{{ $customEntry }}" checked class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500">
-                                    <span class="flex-1">{{ $customEntry }}</span>
-                                    <button type="button" class="text-gray-500 hover:text-gray-700" data-custom-option-remove>&times;</button>
-                                    <input type="hidden" name="services_other[]" value="{{ $customEntry }}" data-custom-option-hidden>
-                                </label>
-                            @endforeach
-                        </div>
-                        <label class="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700">
-                            <input id="project-services-other-toggle" type="checkbox" class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500" {{ count($serviceCustomEntries) > 0 ? 'checked' : '' }}>
-                            <span>Others</span>
-                        </label>
-                        <div id="project-services-other-wrapper" class="{{ count($serviceCustomEntries) > 0 ? '' : 'hidden' }} mt-2">
-                            <input id="project-services-other-input" type="text" class="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" placeholder="Enter custom service and press Enter">
-                        </div>
                     </div>
                 </div>
             </section>
 
             <section class="rounded-2xl border border-gray-200 p-4">
                 <h3 class="text-base font-semibold text-gray-900">Products</h3>
-                <p class="mt-1 text-xs text-gray-500">Select a service area first to show the matching products offered.</p>
-                <div id="projectProductsEmptyState" class="mt-3 rounded-xl border border-dashed border-gray-200 bg-gray-50/60 p-4 text-sm text-gray-500 {{ count(array_intersect($selectedServiceAreas, array_keys($productOptionsByServiceArea))) > 0 ? 'hidden' : '' }}">
-                    Select a matching service area first to show the available products.
+                <p class="mt-1 text-xs text-gray-500">Products follow the selected service area. Without a selected service area, only products without a service area are shown.</p>
+                <div id="projectProductsEmptyState" class="mt-3 rounded-xl border border-dashed border-gray-200 bg-gray-50/60 p-4 text-sm text-gray-500 {{ count($productOptionsByServiceArea) > 0 ? 'hidden' : '' }}">
+                    No unlinked products are available.
                 </div>
                 <div id="project-product-options-grid" class="mt-3 grid gap-4">
                     @foreach ($productOptionsByServiceArea as $serviceArea => $options)
-                        <div class="{{ in_array($serviceArea, $selectedServiceAreas, true) ? '' : 'hidden' }}" data-project-product-group="{{ $serviceArea }}">
+                        <div data-project-product-group="{{ $serviceArea }}" data-product-unlinked-group="{{ $serviceArea === 'Products Without Service Area' ? 'true' : 'false' }}">
                             <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-600">{{ $serviceArea }}</p>
                             <div class="grid gap-2 sm:grid-cols-2">
                                 @foreach ($options as $option)
-                                    <label class="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700" data-project-product-option data-service-area-product="{{ $serviceArea }}" data-product-value="{{ $option }}">
+                                    <label class="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700" data-project-product-option data-service-area-product="{{ $serviceArea }}" data-product-value="{{ $option }}" data-project-product-search="{{ \Illuminate\Support\Str::lower($option.' '.$serviceArea) }}">
                                         <input type="checkbox" name="product_options[]" value="{{ $option }}" @checked(in_array($option, $selectedProducts, true)) class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500">
                                         <span>{{ $option }}</span>
                                     </label>
@@ -531,22 +525,6 @@
                             </div>
                         </div>
                     @endforeach
-                    <label class="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700" data-project-product-option data-product-value="Others">
-                        <input type="checkbox" name="product_options[]" value="Others" @checked(in_array('Others', $selectedProducts, true)) data-other-target="project_products_other_wrap" class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500">
-                        <span>Others</span>
-                    </label>
-                    @foreach ($productCustomEntries as $customEntry)
-                        <label class="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700" data-custom-option>
-                            <input type="checkbox" name="product_options[]" value="{{ $customEntry }}" checked class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500">
-                            <span class="flex-1">{{ $customEntry }}</span>
-                            <button type="button" class="text-gray-500 hover:text-gray-700" data-custom-option-remove>&times;</button>
-                            <input type="hidden" name="products_other_entries[]" value="{{ $customEntry }}" data-custom-option-hidden>
-                        </label>
-                    @endforeach
-                </div>
-                <div id="project_products_other_wrap" class="{{ (in_array('Others', $selectedProducts, true) || count($productCustomEntries) > 0) ? '' : 'hidden' }} mt-3">
-                    <label class="mb-1 block text-sm font-medium text-gray-700">Others (Custom Product)</label>
-                    <input id="project-products-other-input" type="text" class="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" placeholder="Enter custom product and press Enter">
                 </div>
             </section>
                 </div>
@@ -562,11 +540,18 @@
     </form>
 </x-slide-over>
 
+<datalist id="projectEmployeeOptions">
+    @foreach (($employeeRecords ?? []) as $employee)
+        <option value="{{ $employee['label'] }}">{{ $employee['position'] ?? '' }}{{ !empty($employee['employee_code']) ? ' - '.$employee['employee_code'] : '' }}</option>
+    @endforeach
+</datalist>
+
 <script>
     (() => {
         const dealRecords = @json($dealRecords ?? []);
         const contactRecords = @json($contactRecords ?? []);
         const companyRecords = @json($companyRecords ?? []);
+        const employeeRecords = @json($employeeRecords ?? []);
         const sowTemplatePreviewData = @json($sowTemplatePreviewData);
 
         const sourceModeInput = document.getElementById('project_source_mode');
@@ -619,6 +604,10 @@
         };
 
         const selectedProjectCustomerType = () => document.querySelector('input[name="project_customer_type"]:checked')?.value || '';
+
+        const selectedProjectServiceAreas = () => Array.from(document.querySelectorAll('input[name="service_area_options[]"]:checked'))
+            .map((input) => input.value)
+            .filter((value) => value !== 'Others');
 
         const parsePrefixedEntries = (value, prefix) => String(value || '')
             .split(',')
@@ -708,25 +697,15 @@
             const selectedAreas = Array.from(document.querySelectorAll('input[name="service_area_options[]"]:checked'))
                 .map((input) => input.value)
                 .filter((value) => value !== 'Others');
-            const customAreas = Array.from(document.querySelectorAll('input[name="service_area_other[]"]'))
-                .map((input) => `Others: ${input.value}`)
-                .filter((value) => value !== 'Others: ');
             const selectedServices = Array.from(document.querySelectorAll('input[name="service_options[]"]:checked'))
-                .map((input) => input.value)
-                .filter((value) => !Array.from(document.querySelectorAll('input[name="services_other[]"]')).some((custom) => custom.value === value));
-            const customServices = Array.from(document.querySelectorAll('input[name="services_other[]"]'))
-                .map((input) => `Custom: ${input.value}`)
-                .filter((value) => value !== 'Custom: ');
+                .map((input) => input.value);
             const selectedProducts = Array.from(document.querySelectorAll('input[name="product_options[]"]:checked'))
                 .map((input) => input.value)
-                .filter((value) => value !== 'Others' && !Array.from(document.querySelectorAll('input[name="products_other_entries[]"]')).some((custom) => custom.value === value));
-            const customProducts = Array.from(document.querySelectorAll('input[name="products_other_entries[]"]'))
-                .map((input) => `Custom: ${input.value}`)
-                .filter((value) => value !== 'Custom: ');
+                .filter((value) => value !== 'Others');
 
-            setFieldValue('project_service_area', [...selectedAreas, ...customAreas].join(', '));
-            setFieldValue('project_services', [...selectedServices, ...customServices].join(', '));
-            setFieldValue('project_products', [...selectedProducts, ...customProducts].join(', '));
+            setFieldValue('project_service_area', selectedAreas.join(', '));
+            setFieldValue('project_services', selectedServices.join(', '));
+            setFieldValue('project_products', selectedProducts.join(', '));
         };
 
         const syncServiceGroups = () => {
@@ -752,24 +731,41 @@
         };
 
         const syncProductOptions = () => {
-            const selectedAreas = Array.from(document.querySelectorAll('input[name="service_area_options[]"]:checked')).map((input) => input.value);
-            const allowedProducts = new Set(
-                Array.from(document.querySelectorAll('[data-project-product-group]'))
-                    .filter((group) => selectedAreas.includes(group.getAttribute('data-project-product-group')))
-                    .flatMap((group) => Array.from(group.querySelectorAll('[data-product-value]')).map((item) => item.getAttribute('data-product-value')))
-            );
+            const productSearchTerm = '';
             const productEmptyState = document.getElementById('projectProductsEmptyState');
+            const selectedAreas = selectedProjectServiceAreas();
+            const seenProducts = new Set();
 
             let visibleCount = 0;
             document.querySelectorAll('[data-project-product-group]').forEach((group) => {
-                const visible = selectedAreas.includes(group.getAttribute('data-project-product-group'));
-                group.classList.toggle('hidden', !visible);
-                if (visible) {
+                let groupHasVisibleProduct = false;
+                const groupArea = group.getAttribute('data-project-product-group') || '';
+                const isUnlinkedGroup = group.dataset.productUnlinkedGroup === 'true';
+                const groupMatchesArea = selectedAreas.length === 0
+                    ? isUnlinkedGroup
+                    : selectedAreas.includes(groupArea);
+
+                group.querySelectorAll('[data-project-product-option]').forEach((option) => {
+                    const optionMatchesSearch = productSearchTerm === '' || String(option.dataset.projectProductSearch || '').includes(productSearchTerm);
+                    const productValue = String(option.dataset.productValue || option.querySelector('input[name="product_options[]"]')?.value || '').trim().toLowerCase();
+                    const isDuplicate = productValue !== '' && seenProducts.has(productValue);
+                    const optionVisible = groupMatchesArea && optionMatchesSearch && !isDuplicate;
+                    option.classList.toggle('hidden', !optionVisible);
+                    groupHasVisibleProduct = groupHasVisibleProduct || optionVisible;
+                    if (optionVisible && productValue !== '') {
+                        seenProducts.add(productValue);
+                    }
+                    if (!optionVisible && !option.closest('[data-custom-option]')) {
+                        const productInput = option.querySelector('input[name="product_options[]"]');
+                        if (productInput) {
+                            productInput.checked = false;
+                        }
+                    }
+                });
+
+                group.classList.toggle('hidden', !groupHasVisibleProduct);
+                if (groupHasVisibleProduct) {
                     visibleCount += 1;
-                } else {
-                    group.querySelectorAll('input[name="product_options[]"]').forEach((input) => {
-                        input.checked = false;
-                    });
                 }
             });
 
@@ -777,34 +773,81 @@
             syncCompositeFields();
         };
 
+        const hideEmployeeSearchResults = (picker) => {
+            picker?.querySelector('[data-employee-search-results]')?.classList.add('hidden');
+        };
+
+        const renderEmployeeSearchResults = (picker, keyword = '') => {
+            const input = picker?.querySelector('[data-employee-search-input]');
+            const results = picker?.querySelector('[data-employee-search-results]');
+            if (!input || !results) {
+                return;
+            }
+
+            const query = String(keyword || '').trim().toLowerCase();
+            const matches = employeeRecords.filter((record) => {
+                if (query === '') {
+                    return true;
+                }
+
+                return String(record.search_blob || [
+                    record.label,
+                    record.name,
+                    record.employee_code,
+                    record.position,
+                    record.email,
+                ].filter(Boolean).join(' ')).toLowerCase().includes(query);
+            }).slice(0, 8);
+
+            if (matches.length === 0) {
+                results.innerHTML = '<div class="px-3 py-2 text-sm text-gray-500">No existing employee. You can still type manually.</div>';
+                results.classList.remove('hidden');
+                return;
+            }
+
+            results.replaceChildren(...matches.map((record) => {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'block w-full border-b border-gray-100 px-3 py-2 text-left last:border-b-0 hover:bg-blue-50';
+                button.innerHTML = `<div class="text-sm font-medium text-gray-800">${record.label || record.name || ''}</div><div class="text-xs text-gray-500">${[record.employee_code, record.position, record.email].filter(Boolean).join(' - ')}</div>`;
+                button.addEventListener('click', () => {
+                    input.value = record.label || record.name || '';
+                    hideEmployeeSearchResults(picker);
+                    renderProjectTemplatePreview();
+                    input.dispatchEvent(new Event('change', { bubbles: true }));
+                });
+                return button;
+            }));
+
+            results.classList.remove('hidden');
+        };
+
+        const initEmployeeSearchPickers = () => {
+            Array.from(document.querySelectorAll('[data-employee-picker]')).forEach((picker) => {
+                const input = picker.querySelector('[data-employee-search-input]');
+                if (!input) {
+                    return;
+                }
+
+                input.addEventListener('focus', () => renderEmployeeSearchResults(picker, input.value));
+                input.addEventListener('input', () => renderEmployeeSearchResults(picker, input.value));
+                input.addEventListener('change', renderProjectTemplatePreview);
+                input.addEventListener('keydown', (event) => {
+                    if (event.key === 'Escape') {
+                        hideEmployeeSearchResults(picker);
+                    }
+                });
+            });
+        };
+
         const applyServiceSelections = ({ serviceArea = '', services = '', products = '' }) => {
             const serviceAreaBases = parseBaseEntries(serviceArea, ['Others: ']);
-            const serviceAreaCustom = parsePrefixedEntries(serviceArea, 'Others: ');
             const serviceBases = parseBaseEntries(services, ['Custom: ']);
-            const serviceCustom = parsePrefixedEntries(services, 'Custom: ');
             const productBases = parseBaseEntries(products, ['Custom: '], ['Others']);
-            const productCustom = parsePrefixedEntries(products, 'Custom: ');
 
-            setCheckedValues('service_area_options[]', [...serviceAreaBases, ...(serviceAreaCustom.length ? ['Others'] : [])]);
+            setCheckedValues('service_area_options[]', serviceAreaBases);
             setCheckedValues('service_options[]', serviceBases);
-            setCheckedValues('product_options[]', [...productBases, ...(productCustom.length ? ['Others'] : [])]);
-
-            const areaContainer = document.getElementById('project-service-area-options-grid');
-            const serviceContainer = document.getElementById('project-services-custom-options');
-            const productContainer = document.getElementById('project-product-options-grid');
-
-            areaContainer?.querySelectorAll('[data-custom-option]').forEach((node) => node.remove());
-            serviceContainer?.querySelectorAll('[data-custom-option]').forEach((node) => node.remove());
-            productContainer?.querySelectorAll('[data-custom-option]').forEach((node) => node.remove());
-
-            serviceAreaCustom.forEach((value) => ensureCustomOption(areaContainer, { value, checkboxName: 'service_area_options[]', hiddenName: 'service_area_other[]' }));
-            serviceCustom.forEach((value) => ensureCustomOption(serviceContainer, { value, checkboxName: 'service_options[]', hiddenName: 'services_other[]' }));
-            productCustom.forEach((value) => ensureCustomOption(productContainer, { value, checkboxName: 'product_options[]', hiddenName: 'products_other_entries[]' }));
-
-            document.getElementById('project-service-area-other-wrapper')?.classList.toggle('hidden', serviceAreaCustom.length === 0 && !selectedAreasIncludeOthers());
-            document.getElementById('project-services-other-wrapper')?.classList.toggle('hidden', serviceCustom.length === 0);
-            document.getElementById('project-services-other-toggle').checked = serviceCustom.length > 0;
-            document.getElementById('project_products_other_wrap')?.classList.toggle('hidden', productCustom.length === 0 && !document.querySelector('input[name="product_options[]"][value="Others"]')?.checked);
+            setCheckedValues('product_options[]', productBases);
 
             syncServiceGroups();
             syncProductOptions();
@@ -1225,33 +1268,16 @@
             if (!contactSearch?.contains(target) && !contactResults?.contains(target)) {
                 contactResults?.classList.add('hidden');
             }
+
+            Array.from(document.querySelectorAll('[data-employee-picker]')).forEach((picker) => {
+                if (!picker.contains(target)) {
+                    hideEmployeeSearchResults(picker);
+                }
+            });
         });
 
-        document.querySelectorAll('[data-custom-option]').forEach(attachCustomOptionRemove);
-        initCustomOptionInput({
-            inputId: 'project-service-area-other-input',
-            containerId: 'project-service-area-options-grid',
-            checkboxName: 'service_area_options[]',
-            hiddenName: 'service_area_other[]',
-            isEnabled: () => selectedAreasIncludeOthers(),
-        });
-        initCustomOptionInput({
-            inputId: 'project-services-other-input',
-            containerId: 'project-services-custom-options',
-            checkboxName: 'service_options[]',
-            hiddenName: 'services_other[]',
-            isEnabled: () => document.getElementById('project-services-other-toggle')?.checked,
-        });
-        initCustomOptionInput({
-            inputId: 'project-products-other-input',
-            containerId: 'project-product-options-grid',
-            checkboxName: 'product_options[]',
-            hiddenName: 'products_other_entries[]',
-            isEnabled: () => document.querySelector('input[name="product_options[]"][value="Others"]')?.checked,
-        });
         document.querySelectorAll('input[name="service_area_options[]"]').forEach((input) => {
             input.addEventListener('change', () => {
-                document.getElementById('project-service-area-other-wrapper')?.classList.toggle('hidden', !selectedAreasIncludeOthers());
                 syncServiceGroups();
                 syncProductOptions();
             });
@@ -1259,24 +1285,22 @@
         document.querySelectorAll('input[name="service_options[]"], input[name="product_options[]"]').forEach((input) => {
             input.addEventListener('change', syncCompositeFields);
         });
-        document.getElementById('project-services-other-toggle')?.addEventListener('change', (event) => {
-            document.getElementById('project-services-other-wrapper')?.classList.toggle('hidden', !event.target.checked);
-        });
-        document.querySelector('input[name="product_options[]"][value="Others"]')?.addEventListener('change', (event) => {
-            document.getElementById('project_products_other_wrap')?.classList.toggle('hidden', !event.target.checked);
-        });
         templateSelect?.addEventListener('change', renderProjectTemplatePreview);
         ['project_client_name', 'project_business_name', 'project_client_confirmation_name', 'project_assigned_project_manager', 'project_assigned_consultant', 'project_assigned_associate'].forEach((id) => {
             document.getElementById(id)?.addEventListener('input', renderProjectTemplatePreview);
         });
 
         updateSourceUi();
+        initEmployeeSearchPickers();
         syncProjectCustomerSearchUi();
         syncServiceGroups();
         syncProductOptions();
         syncCompositeFields();
         setManualSummary();
         renderProjectTemplatePreview();
+        @if ($errors->any())
+            window.jkncSlideOver?.open(document.getElementById('projectManualCreateDrawer'));
+        @endif
     })();
 </script>
 @endsection
