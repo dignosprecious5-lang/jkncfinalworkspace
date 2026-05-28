@@ -42,6 +42,7 @@
         }
     </style>
 
+    @vite(['resources/js/app.js'])
     @stack('styles')
 </head>
 
@@ -106,10 +107,7 @@
             <div class="w-[260px] flex justify-end">
                 <div class="flex items-center gap-4">
 
-                    <button class="relative h-9 w-9 rounded-full hover:bg-gray-100 text-gray-500 flex items-center justify-center transition">
-                        <i class="far fa-bell text-lg"></i>
-                        <span class="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full"></span>
-                    </button>
+                    @include('partials.notification-bell')
 
                     <div x-data="{ open:false }" class="relative">
                         <button

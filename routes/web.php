@@ -74,6 +74,7 @@ use App\Http\Controllers\OnboardingRecordController;
 use App\Http\Controllers\PayrollController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\EmployeeRequestController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PhilippineLocationController;
 use App\Http\Controllers\SalesMarketingPayoutController;
 use Illuminate\Support\Facades\Auth;
@@ -258,6 +259,18 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::get('/uploads/{path}', [UploadedFileController::class, 'show'])
         ->where('path', '.*')
         ->name('uploads.show');
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | REAL-TIME NOTIFICATIONS
+    |--------------------------------------------------------------------------
+    */
+    Route::post('/notifications/{notification}/read', [NotificationController::class, 'markAsRead'])
+        ->name('notifications.read');
+
+    Route::post('/notifications/read-all', [NotificationController::class, 'markAllAsRead'])
+        ->name('notifications.read-all');
 
     /*
     |--------------------------------------------------------------------------
