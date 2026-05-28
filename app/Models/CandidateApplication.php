@@ -11,6 +11,7 @@ class CandidateApplication extends Model
 
     protected $fillable = [
         'job_posting_id',
+        'applicant_id',
         'name',
         'position',
         'email',
@@ -19,6 +20,11 @@ class CandidateApplication extends Model
         'cv_path',
         'cover_letter_path',
         'cover_letter',
+        'application_data',
+        'attachment_paths',
+        'consent_accepted_at',
+        'consent_version',
+        'submission_metadata',
         'applicant_type',
         'internal_remarks',
         'status',
@@ -27,6 +33,10 @@ class CandidateApplication extends Model
 
     protected $casts = [
         'applied_date' => 'date',
+        'application_data' => 'array',
+        'attachment_paths' => 'array',
+        'submission_metadata' => 'array',
+        'consent_accepted_at' => 'datetime',
     ];
 
     public function jobPosting()

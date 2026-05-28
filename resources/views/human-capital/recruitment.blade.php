@@ -45,6 +45,14 @@
                 class="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400 bg-white">
         </div>
 
+        <select x-show="activeTab === 'CAF'" x-model="filterPosition" @change="currentPage = 1"
+            class="px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-200">
+            <option value="All">All Positions</option>
+            <template x-for="position in uniqueCafPositions" :key="position">
+                <option :value="position" x-text="position"></option>
+            </template>
+        </select>
+
         <div x-show="activeTab === 'JPF'" class="flex items-center gap-1 bg-white border border-gray-200 rounded-lg p-1 shadow-sm">
             <button
                 type="button"
@@ -642,13 +650,68 @@
                         <div>
                             <label class="block text-xs font-semibold text-gray-600 mb-1">Employment Type</label>
                             <div class="grid grid-cols-2 gap-2">
-                                <template x-for="et in ['Intern','Project Hire','Contractual','Regular']" :key="et">
+                                <template x-for="et in employmentTypeOptions" :key="et">
                                     <label class="flex items-center gap-2 text-xs text-gray-700 cursor-pointer bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 hover:bg-blue-50 hover:border-blue-300 transition"
                                         :class="form.employmentType === et ? 'bg-blue-50 border-blue-400 text-blue-700 font-semibold' : ''">
                                         <input type="radio" x-model="form.employmentType" :value="et" class="accent-blue-600">
                                         <span x-text="et"></span>
                                     </label>
                                 </template>
+                            </div>
+                            <p class="mt-2 text-[11px] leading-5 text-gray-500">
+                                Note: Employment Type must be selected based on the nature of engagement, duration of work,
+                                applicable Philippine labor law, and approved JK&amp;C Human Capital policy. Probationary employment
+                                must not exceed six months unless allowed by law. Project-based and fixed-term engagements must
+                                have clear start date, end date, scope, and completion basis.
+                            </p>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-600 mb-1">Immediate Supervisor</label>
+                                <input type="text" x-model="form.immediateSupervisor" placeholder="Select employee or specify others"
+                                    class="w-full text-sm px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-600 mb-1">Target Start Date</label>
+                                <input type="date" x-model="form.targetStartDate"
+                                    class="w-full text-sm px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-600 mb-1">Job Level / Rank</label>
+                                <select x-model="form.jobLevelRank" class="w-full text-sm px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none">
+                                    <option value="">Select...</option>
+                                    <template x-for="option in ['Intern','Staff','Associate','Officer','Supervisor','Manager','Executive','Others']" :key="option">
+                                        <option x-text="option"></option>
+                                    </template>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-600 mb-1">Work Classification</label>
+                                <select x-model="form.workClassification" class="w-full text-sm px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none">
+                                    <option value="">Select...</option>
+                                    <template x-for="option in ['Office-Based','Field-Based','Project-Based','Operational','Others']" :key="option">
+                                        <option x-text="option"></option>
+                                    </template>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-600 mb-1">Work Arrangement</label>
+                                <select x-model="form.workArrangement" class="w-full text-sm px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none">
+                                    <option value="">Select...</option>
+                                    <template x-for="option in ['On-site','Hybrid','Work-from-Home','Field Work','Others']" :key="option">
+                                        <option x-text="option"></option>
+                                    </template>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-600 mb-1">Work Schedule</label>
+                                <select x-model="form.workSchedule" class="w-full text-sm px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none">
+                                    <option value="">Select...</option>
+                                    <template x-for="option in workScheduleOptions" :key="option">
+                                        <option x-text="option"></option>
+                                    </template>
+                                </select>
                             </div>
                         </div>
 
@@ -711,6 +774,50 @@
                             <label class="block text-xs font-semibold text-gray-600 mb-1">Preferred Qualifications / Experience</label>
                             <textarea x-model="form.qualifications" rows="2" placeholder="List preferred skills or experience..."
                                 class="w-full text-sm px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none resize-none bg-gray-50"></textarea>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-600 mb-1">Required Skills / Competencies</label>
+                                <textarea x-model="form.requiredSkills" rows="3" placeholder="One entry per line. These will appear as bullet points."
+                                    class="w-full text-sm px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none resize-none bg-gray-50"></textarea>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-600 mb-1">Required Licenses / Certifications</label>
+                                <textarea x-model="form.requiredLicenses" rows="3" placeholder="One entry per line. These will appear as bullet points."
+                                    class="w-full text-sm px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none resize-none bg-gray-50"></textarea>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-600 mb-1">Salary Budget Minimum</label>
+                                <input type="number" x-model="form.salaryMin" step="0.01"
+                                    class="w-full text-sm px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-600 mb-1">Salary Budget Maximum</label>
+                                <input type="number" x-model="form.salaryMax" step="0.01"
+                                    class="w-full text-sm px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-600 mb-1">Contract Duration</label>
+                                <select x-model="form.contractDuration" class="w-full text-sm px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none">
+                                    <option value="">Select...</option>
+                                    <template x-for="option in ['3 Months','6 Months','1 Year','Project Duration','Probationary Period','Permanent','Others']" :key="option">
+                                        <option x-text="option"></option>
+                                    </template>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-600 mb-1">Urgency Level</label>
+                                <select x-model="form.urgencyLevel" class="w-full text-sm px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none">
+                                    <option value="">Select...</option>
+                                    <template x-for="option in ['Normal','Urgent','Critical','Others']" :key="option">
+                                        <option x-text="option"></option>
+                                    </template>
+                                </select>
+                            </div>
                         </div>
 
                         <div class="border-t pt-3">
@@ -3304,7 +3411,7 @@
                     </button>
                     <button type="submit"
                         class="px-8 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold shadow-lg shadow-blue-100 transition active:scale-95">
-                        Create Job Offer
+                        Save Draft
                     </button>
                 </div>
             </form>
@@ -3392,7 +3499,7 @@
                             <button type="button"
                                 @click="resendJobOfferEmail(viewJobOfferData)"
                                 class="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition shadow-lg shadow-blue-200 uppercase tracking-widest text-[11px]">
-                                Resend Email
+                                Send Job Offer
                             </button>
                         </div>
                     </div>
@@ -3638,6 +3745,8 @@ function recruitmentPage(
         currentUserRole: @json(auth()->user()->role ?? ''),
         approvalUsers: initialApprovalUsers,
         jpfStatusOptions: ['Draft', 'For Approval', 'Approved', 'Posted', 'Screening', 'Interviewing', 'Offer Stage', 'Filled', 'Closed', 'Cancelled'],
+        employmentTypeOptions: ['Intern / OJT', 'Probationary', 'Regular', 'Project-Based', 'Fixed-Term', 'Part-Time', 'Casual / Temporary', 'Consultant / Independent Contractor', 'Others'],
+        workScheduleOptions: ['8:00 A.M. - 5:00 P.M.', '9:00 A.M. - 6:00 P.M.', '10:00 A.M. - 7:00 P.M.', '11:00 A.M. - 8:00 P.M.', '1:00 P.M. - 10:00 P.M.', 'Flexible Schedule', 'Custom Schedule', 'Others'],
 
 startAssessmentPolling() {
     this.refreshAssessments();
@@ -3930,6 +4039,7 @@ refreshJobOffers() {
         currentPage: 1,
         showFilter: false,
         filterStatus: 'All',
+        filterPosition: 'All',
         jpfListView: 'all',
         showModal: false,
         showViewModal: false,
@@ -4011,9 +4121,17 @@ refreshJobOffers() {
 
             department: '', dateRequested: '', dateRequired: '',
             position: '', employmentType: '',
+            immediateSupervisor: '', targetStartDate: '',
+            jobLevelRank: '', workClassification: '', workArrangement: '', workSchedule: '',
             duties: '', natureOfRequest: '', ageRange: '',
             civilStatus: 'No Preference', gender: 'No Preference',
             headcount: '', education: '', qualifications: '',
+            requiredSkills: '', benefitsChecklist: [],
+            requiredLicenses: '', requiredDocuments: [],
+            salaryMin: '', salaryMax: '', contractDuration: '', urgencyLevel: '',
+            candidateProfileAttached: false, jobDescriptionAttached: false,
+            immediateSupervisorEndorsement: '', departmentHeadEndorsement: '',
+            hcHeadValidation: '', financeHeadClearance: '',
             requestedBy: '', approvedBy: '',
             remarks: '', requestStatus: '',
             chargedTo: '', breakdownDetails: '',
@@ -4995,7 +5113,7 @@ onJpfPayrollLevelChange() {
         if (res.data.warning) {
             alert(res.data.warning);
         } else {
-            alert(res.data.message || 'Job Offer created and emailed successfully.');
+            alert(res.data.message || 'Job Offer saved as Draft. Review it before sending.');
         }
     })
     .catch(err => {
@@ -5107,6 +5225,12 @@ onJpfPayrollLevelChange() {
                 dateRequired: row.date_required,
                 position: row.position,
                 employmentType: row.employment_type,
+                immediateSupervisor: row.immediate_supervisor || '',
+                targetStartDate: row.target_start_date || '',
+                jobLevelRank: row.job_level_rank || '',
+                workClassification: row.work_classification || '',
+                workArrangement: row.work_arrangement || '',
+                workSchedule: row.work_schedule || '',
                 duties: row.duties,
                 natureOfRequest: row.nature_of_request,
                 ageRange: row.age_range,
@@ -5115,6 +5239,20 @@ onJpfPayrollLevelChange() {
                 headcount: row.headcount,
                 education: row.education,
                 qualifications: row.qualifications,
+                requiredSkills: row.required_skills || '',
+                benefitsChecklist: row.benefits_checklist || [],
+                requiredLicenses: row.required_licenses || '',
+                requiredDocuments: row.required_documents || [],
+                salaryMin: row.salary_min || '',
+                salaryMax: row.salary_max || '',
+                contractDuration: row.contract_duration || '',
+                urgencyLevel: row.urgency_level || '',
+                candidateProfileAttached: Boolean(row.candidate_profile_attached),
+                jobDescriptionAttached: Boolean(row.job_description_attached),
+                immediateSupervisorEndorsement: row.endorsements?.immediate_supervisor || '',
+                departmentHeadEndorsement: row.endorsements?.department_head || '',
+                hcHeadValidation: row.endorsements?.hc_head || '',
+                financeHeadClearance: row.endorsements?.finance_head || '',
                 requestedBy: row.requested_by,
                 approvedBy: row.approved_by,
                 remarks: row.remarks,
@@ -5238,9 +5376,17 @@ onJpfPayrollLevelChange() {
 
                     department: '', dateRequested: '', dateRequired: '',
                     position: '', employmentType: '',
+                    immediateSupervisor: '', targetStartDate: '',
+                    jobLevelRank: '', workClassification: '', workArrangement: '', workSchedule: '',
                     duties: '', natureOfRequest: '', ageRange: '',
                     civilStatus: 'No Preference', gender: 'No Preference',
                     headcount: '', education: '', qualifications: '',
+                    requiredSkills: '', benefitsChecklist: [],
+                    requiredLicenses: '', requiredDocuments: [],
+                    salaryMin: '', salaryMax: '', contractDuration: '', urgencyLevel: '',
+                    candidateProfileAttached: false, jobDescriptionAttached: false,
+                    immediateSupervisorEndorsement: '', departmentHeadEndorsement: '',
+                    hcHeadValidation: '', financeHeadClearance: '',
                     requestedBy: '', approvedBy: '',
                     remarks: '', requestStatus: '',
                     chargedTo: '', breakdownDetails: '',
@@ -6039,12 +6185,20 @@ onJpfPayrollLevelChange() {
                 rows = rows.filter(r => r.status === this.filterStatus);
             }
 
+            if (this.activeTab === 'CAF' && this.filterPosition !== 'All') {
+                rows = rows.filter(r => r.position === this.filterPosition);
+            }
+
             // Apply Search Filter
             if (!this.search.trim()) return rows;
             const q = this.search.toLowerCase();
             return rows.filter(r =>
                 Object.values(r).some(v => String(v).toLowerCase().includes(q))
             );
+        },
+
+        get uniqueCafPositions() {
+            return [...new Set((this.data['CAF'] || []).map(row => row.position).filter(Boolean))].sort();
         },
     };
 }

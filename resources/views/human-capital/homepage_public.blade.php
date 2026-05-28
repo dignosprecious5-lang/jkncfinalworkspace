@@ -6,13 +6,13 @@
     <title>John Kelly & Company - Build Your Career</title>
     
     <meta name="og:title" content="John Kelly & Company">
-    <meta name="og:image" content="{{ asset('images/jknc_logo.png') }}">
+    <meta name="og:image" content="{{ asset('images/FINAL_LOGO.jpg') }}">
     <meta name="og:url" content="{{ config('app.url') }}">
     <meta name="og:description" content="Build your career with John Kelly & Company (JKNC). Join a consulting firm that empowers businesses and transforms visions across industries.">
     <meta name="description" content="Build your career with John Kelly & Company (JKNC). Join a consulting firm that empowers businesses and transforms visions across industries.">
     <meta name="author" content="JKNC">
 
-    <link rel="shortcut icon" href="{{ asset('images/jknc_logo.png') }}">
+    <link rel="shortcut icon" href="{{ asset('images/FINAL_LOGO.jpg') }}">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 
     <style>
@@ -484,7 +484,7 @@
         <div class="nav-container">
             <div class="logo">
                 <a href="{{ route('homepage.public') }}">
-                    <img src="{{ asset('images/jknc_logo.png') }}" alt="JKNC Logo">
+                    <img src="{{ asset('images/FINAL_LOGO.jpg') }}" alt="John Kelly & Company Logo">
                 </a>
             </div>
             <div class="nav-menu">
@@ -507,14 +507,19 @@
             <div class="jobs-grid">
                 @forelse($jobPostings as $job)
                 <div class="job-card">
-                    <span class="job-badge">{{ $job->status }}</span>
-                    <h3>{{ $job->position_name }}</h3>
+                    <span class="job-badge">{{ $job->status === 'Screening' ? 'Posted / Open' : $job->status }}</span>
+                    <h3>{{ $job->position }}</h3>
                     <p>{{ Str::limit($job->job_description, 150) }}</p>
                     <div class="job-location">
                         <svg fill="currentColor" viewBox="0 0 20 20">
                             <path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"></path>
                         </svg>
                         {{ $job->applicable_area ?? 'Location TBA' }}
+                    </div>
+                    <div style="color:#6b7280; font-size:.875rem; margin-bottom:1rem;">
+                        <strong>Department:</strong> {{ $job->department_unit ?? 'Department TBA' }}<br>
+                        <strong>Type:</strong> {{ $job->employment_type ?? 'TBA' }}<br>
+                        <strong>Level:</strong> {{ $job->position_level ?? 'TBA' }}
                     </div>
                     <a href="{{ route('careers.job-detail', ['id' => $job->id]) }}" class="btn btn-apply">Apply Now</a>
                 </div>
@@ -592,55 +597,26 @@
                 <div class="footer-section">
                     <h4>John Kelly & Company</h4>
                     <p>Building careers and empowering businesses across industries through consulting excellence. Join our team and make an impact.</p>
-                    <div class="social-links">
-                        <a href="#" title="Facebook">
-                            <svg fill="currentColor" viewBox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"></path></svg>
-                        </a>
-                        <a href="#" title="Twitter">
-                            <svg fill="currentColor" viewBox="0 0 24 24"><path d="M23.953 4.57a10 10 0 002.856-3.515 10 10 0 01-2.856.975 4.958 4.958 0 002.165-2.724c-.951.564-2.005.974-3.127 1.195a4.92 4.92 0 00-8.384 4.482C7.69 8.095 4.067 6.13 1.64 3.162a4.822 4.822 0 00-.666 2.475c0 1.71.87 3.213 2.188 4.096a4.904 4.904 0 01-2.228-.616v.06a4.923 4.923 0 003.946 4.827 4.996 4.996 0 01-2.212.085 4.936 4.936 0 004.604 3.417a9.867 9.867 0 01-6.102 2.105c-.39 0-.779-.023-1.17-.067a13.995 13.995 0 007.557 2.209c9.053 0 13.998-7.496 13.998-13.985 0-.21 0-.42-.015-.63A9.935 9.935 0 0024 4.59z"></path></svg>
-                        </a>
-                        <a href="#" title="LinkedIn">
-                            <svg fill="currentColor" viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.475-2.236-1.986-2.236-1.081 0-1.722.722-2.004 1.418-.103.249-.129.597-.129.946v5.441h-3.554s.05-8.824 0-9.745h3.554v1.378c-.009.015-.021.029-.033.042h.033v-.042c.43-.646 1.199-1.554 2.918-1.554 2.134 0 3.732 1.39 3.732 4.377v5.544zM5.337 8.855c-1.144 0-1.915-.762-1.915-1.715 0-.953.77-1.715 1.958-1.715 1.187 0 1.914.762 1.939 1.715 0 .953-.752 1.715-1.982 1.715zm1.581 11.597H3.635V9.562h3.283v10.89zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.225 0z"></path></svg>
-                        </a>
-                    </div>
                 </div>
 
-                <!-- Quick Links -->
                 <div class="footer-section">
-                    <h4>Company</h4>
+                    <h4>Careers</h4>
                     <ul>
-                        <li><a href="#">About Us</a></li>
-                        <li><a href="#">Our Services</a></li>
-                        <li><a href="#">Careers</a></li>
-                        <li><a href="#">News & Blog</a></li>
-                        <li><a href="#">Contact Us</a></li>
-                    </ul>
-                </div>
-
-                <!-- Resources -->
-                <div class="footer-section">
-                    <h4>Resources</h4>
-                    <ul>
-                        <li><a href="#">Support Center</a></li>
-                        <li><a href="#">Privacy Policy</a></li>
-                        <li><a href="#">Terms & Conditions</a></li>
-                        <li><a href="#">FAQ</a></li>
-                        <li><a href="#">Sitemap</a></li>
+                        <li><a href="#careers">Open Positions</a></li>
+                        <li><a href="{{ route('careers.apply') }}">Submit Application</a></li>
                     </ul>
                 </div>
 
                 <!-- Business Hours -->
                 <div class="footer-section">
                     <h4>Business Hours</h4>
-                    <p><strong style="color: white;">Monday - Friday:</strong> 9:00 AM - 5:00 PM</p>
-                    <p><strong style="color: white;">Saturday:</strong> 10:00 AM - 3:00 PM</p>
-                    <p><strong style="color: white;">Sunday:</strong> Closed</p>
+                    <p><strong style="color: white;">Monday - Friday:</strong> 10:00 AM - 7:00 PM</p>
                 </div>
             </div>
 
             <div class="footer-divider">
                 <div class="footer-bottom">
-                    <p>&copy; 2025 John Kelly & Company (JKNC). All rights reserved. | Designed with care for your career growth.</p>
+                    <p>&copy; {{ date('Y') }} John Kelly & Company (JKNC). All rights reserved. | Careers Portal</p>
                 </div>
             </div>
         </div>
