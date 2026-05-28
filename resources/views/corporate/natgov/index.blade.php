@@ -90,20 +90,17 @@
         <form method="POST" action="{{ route('natgov.store') }}" enctype="multipart/form-data" class="flex flex-1 flex-col">
             @csrf
             <div class="p-6 overflow-y-auto space-y-4">
-                <div class="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-xs text-blue-700">
-                    JK&C internal-company details are pre-filled below. You can still adjust them before saving if needed.
-                </div>
-                <div class="rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 text-xs text-amber-700">
+<div class="rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 text-xs text-amber-700">
                     Saving a deadline automatically creates or updates a Town Hall deadline memo for this NatGov record.
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <label class="text-xs text-gray-600">Company</label>
-                        <input type="text" name="client" value="{{ old('client', $companyDefaults['client']) }}" data-company-default="{{ $companyDefaults['client'] }}" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm" placeholder="Company">
+                        <input type="text" name="client" value="{{ old('client') }}" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm" placeholder="Company">
                     </div>
                     <div>
                         <label class="text-xs text-gray-600">TIN</label>
-                        <input type="text" name="tin" value="{{ old('tin', $companyDefaults['tin']) }}" data-company-default="{{ $companyDefaults['tin'] }}" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm" placeholder="TIN">
+                        <input type="text" name="tin" value="{{ old('tin') }}" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm" placeholder="TIN">
                     </div>
                     <div>
                         <label class="text-xs text-gray-600">Govt Body/Agency</label>
@@ -192,13 +189,7 @@
                     field.value = currentUser;
                 }
             });
-
-            addPanel.querySelectorAll('[data-company-default]').forEach((field) => {
-                if (!field.value) {
-                    field.value = field.dataset.companyDefault || '';
-                }
-            });
-        };
+};
 
         if (addButton) {
             addButton.addEventListener('click', applyDefaults);

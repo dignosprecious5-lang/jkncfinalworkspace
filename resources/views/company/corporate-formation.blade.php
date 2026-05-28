@@ -103,32 +103,15 @@
                             </button>
                         </div>
 
-                        <div class="flex items-center gap-2 shrink-0">
-                            <button type="button" class="w-9 h-9 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center">
-                                <i class="fas fa-bars text-sm"></i>
-                            </button>
-
-                            <button type="button" class="w-9 h-9 rounded-full border border-gray-200 text-gray-500 flex items-center justify-center hover:bg-gray-50">
-                                <i class="fas fa-table-cells-large text-sm"></i>
-                            </button>
-
-                            <div class="flex items-center">
+                        @if (!empty($topButtonLabel))
+                            <div class="flex items-center gap-2 shrink-0">
                                 <button type="button" @click="openPanel = true"
-                                        class="px-4 h-9 rounded-l-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium flex items-center gap-2">
+                                        class="px-5 h-9 rounded-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium flex items-center gap-2 shadow-sm">
                                     <span class="text-base leading-none">+</span>
                                     {{ $topButtonLabel }}
                                 </button>
-
-                                <button type="button"
-                                        class="w-10 h-9 rounded-r-full bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center border-l border-white/20">
-                                    <i class="fas fa-caret-down text-xs"></i>
-                                </button>
                             </div>
-
-                            <button type="button" class="w-9 h-9 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center">
-                                <i class="fas fa-ellipsis-v text-sm"></i>
-                            </button>
-                        </div>
+                        @endif
                     </div>
                 </div>
 
