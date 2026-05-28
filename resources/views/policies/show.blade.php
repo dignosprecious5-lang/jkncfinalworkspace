@@ -42,32 +42,58 @@
                     <div class="description-content">
                         {!! $policy->description ?? '<p style="color:#cbd5e0;">No description provided.</p>' !!}
                     </div>
-
-                    @if($policy->attachment)
-                        <div class="mt-8">
-                            <h3 class="text-lg font-semibold text-gray-800 mb-3">Attachment Preview</h3>
-
-                            <div class="border rounded-lg overflow-hidden bg-white">
-                                @php
-                                    $ext = strtolower(pathinfo($policy->attachment, PATHINFO_EXTENSION));
-                                @endphp
-
-                                @if(in_array($ext, ['jpg','jpeg','png','gif','webp']))
-                                    <img src="{{ asset('storage/'.$policy->attachment) }}" class="w-full">
-                                @elseif($ext === 'pdf')
-                                    <iframe src="{{ asset('storage/'.$policy->attachment) }}" class="w-full h-[500px]"></iframe>
-                                @else
-                                    <div class="p-4 text-center">
-                                        <a href="{{ asset('storage/'.$policy->attachment) }}" target="_blank" class="text-blue-600 underline">
-                                            Download Attachment
-                                        </a>
-                                    </div>
-                                @endif
-                            </div>
-                        </div>
-                    @endif
                 </div>
             </div>
+
+            @if($policy->attachment)
+                <div class="mt-6 mb-6">
+                    <div class="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+                        <div class="px-5 py-4 border-b border-gray-200 flex items-center justify-between">
+                            <div>
+                                <h3 class="text-base font-semibold text-gray-900">Attachment Preview</h3>
+                                <p class="text-xs text-gray-500 mt-1">
+                                    This attachment is shown outside the policy document.
+                                </p>
+                            </div>
+
+                            <a href="{{ asset('storage/'.$policy->attachment) }}"
+                               target="_blank"
+                               class="inline-flex items-center gap-2 rounded-lg bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-100 transition">
+                                <i class="fas fa-external-link-alt text-[10px]"></i>
+                                Open Attachment
+                            </a>
+                        </div>
+
+                        <div class="bg-gray-50 p-4">
+                            @php
+                                $ext = strtolower(pathinfo($policy->attachment, PATHINFO_EXTENSION));
+                            @endphp
+
+                            @if(in_array($ext, ['jpg','jpeg','png','gif','webp']))
+                                <div class="flex justify-center">
+                                    <img src="{{ asset('storage/'.$policy->attachment) }}"
+                                         class="max-w-full rounded-lg border border-gray-200 bg-white shadow-sm">
+                                </div>
+                            @elseif($ext === 'pdf')
+                                <iframe src="{{ asset('storage/'.$policy->attachment) }}"
+                                        class="w-full h-[650px] rounded-lg border border-gray-200 bg-white"></iframe>
+                            @else
+                                <div class="rounded-lg border border-dashed border-gray-300 bg-white p-8 text-center">
+                                    <p class="text-sm text-gray-600 mb-3">
+                                        Preview is not available for this file type.
+                                    </p>
+                                    <a href="{{ asset('storage/'.$policy->attachment) }}"
+                                       target="_blank"
+                                       class="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition">
+                                        <i class="fas fa-download text-xs"></i>
+                                        Download Attachment
+                                    </a>
+                                </div>
+                            @endif
+                        </div>
+                    </div>
+                </div>
+            @endif
         </div>
 
         <div class="w-[30%]">
