@@ -241,54 +241,75 @@
                 </div>
 
                 {{-- ADMIN ACTION BUTTONS --}}
-                <div class="flex flex-wrap gap-3 pt-2">
-                    @if(($policy->workflow_status ?? null) === 'Submitted' && Auth::user()->hasPermission('approve_policies'))
-                        <form method="POST" action="{{ route('admin.policies.approve', $policy->id) }}">
-                            @csrf
-                            <button type="submit"
-                                    class="px-4 py-2 text-sm font-medium rounded-lg bg-green-600 text-white hover:bg-green-700 transition">
-                                Approve
-                            </button>
-                        </form>
+                <div class="pt-2">
+                    <p class="text-xs font-semibold text-gray-500 uppercase mb-2">Actions</p>
 
-                        <form method="POST" action="{{ route('admin.policies.reject', $policy->id) }}">
-                            @csrf
-                            <input type="hidden" name="review_note" value="Rejected by admin">
-                            <button type="submit"
-                                    class="px-4 py-2 text-sm font-medium rounded-lg bg-red-600 text-white hover:bg-red-700 transition">
-                                Reject
-                            </button>
-                        </form>
+                    <div class="grid grid-cols-2 gap-2">
+                        @if(!$policy->is_archived && Auth::user()->hasPermission('approve_policies'))
+                            <form method="POST" action="{{ route('admin.policies.approve', $policy->id) }}">
+                                @csrf
+                                <button type="submit"
+                                        class="w-full px-4 py-2 text-sm font-medium rounded-lg bg-green-600 text-white hover:bg-green-700 transition">
+                                    Approve
+                                </button>
+                            </form>
+                        @endif
 
-                        <form method="POST" action="{{ route('admin.policies.revise', $policy->id) }}">
-                            @csrf
-                            <input type="hidden" name="review_note" value="Needs revision">
-                            <button type="submit"
-                                    class="px-4 py-2 text-sm font-medium rounded-lg bg-slate-800 text-white hover:bg-slate-900 transition">
-                                Revise
-                            </button>
-                        </form>
-                    @endif
+                        <form method="POST" action="{{ route('admin.policies.review', $policy->id) }}">
+                                @csrf
+                                <button type="submit"
+                                        class="w-full px-4 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition">
+                                    Review
+                                </button>
+                            </form>
 
-                    @if(!$policy->is_archived && Auth::user()->hasPermission('approve_policies'))
-                        <form method="POST" action="{{ route('admin.policies.archive', $policy->id) }}">
-                            @csrf
-                            <button type="submit"
-                                    class="px-4 py-2 text-sm font-medium rounded-lg bg-gray-700 text-white hover:bg-gray-800 transition">
-                                Archive
-                            </button>
-                        </form>
-                    @endif
+                        <a href="{{ route('policies.edit', $policy->id) }}"
+                           class="w-full px-4 py-2 text-sm font-medium rounded-lg bg-slate-800 text-white hover:bg-slate-900 transition text-center">
+                            Edit
+                        </a>
 
-                    @if($policy->is_archived && Auth::user()->hasPermission('approve_policies'))
-                        <form method="POST" action="{{ route('admin.policies.unarchive', $policy->id) }}">
-                            @csrf
-                            <button type="submit"
-                                    class="px-4 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition">
-                                Unarchive
-                            </button>
-                        </form>
-                    @endif
+                        @if(!$policy->is_archived && Auth::user()->hasPermission('approve_policies'))
+                            <form method="POST" action="{{ route('admin.policies.reject', $policy->id) }}">
+                                @csrf
+                                <input type="hidden" name="review_note" value="Rejected by admin">
+                                <button type="submit"
+                                        class="w-full px-4 py-2 text-sm font-medium rounded-lg bg-red-600 text-white hover:bg-red-700 transition">
+                                    Reject
+                                </button>
+                            </form>
+                        @endif
+
+                        @if(!$policy->is_archived && Auth::user()->hasPermission('approve_policies'))
+                            <form method="POST" action="{{ route('admin.policies.revise', $policy->id) }}" class="col-span-2">
+                                @csrf
+                                <input type="hidden" name="review_note" value="Needs revision">
+                                <button type="submit"
+                                        class="w-full px-4 py-2 text-sm font-medium rounded-lg border border-yellow-300 bg-yellow-50 text-yellow-700 hover:bg-yellow-100 transition">
+                                    Revise
+                                </button>
+                            </form>
+                        @endif
+
+                        @if(!$policy->is_archived && Auth::user()->hasPermission('approve_policies'))
+                            <form method="POST" action="{{ route('admin.policies.archive', $policy->id) }}" class="col-span-2">
+                                @csrf
+                                <button type="submit"
+                                        class="w-full px-4 py-2 text-sm font-medium rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 transition">
+                                    Archive
+                                </button>
+                            </form>
+                        @endif
+
+                        @if($policy->is_archived && Auth::user()->hasPermission('approve_policies'))
+                            <form method="POST" action="{{ route('admin.policies.unarchive', $policy->id) }}" class="col-span-2">
+                                @csrf
+                                <button type="submit"
+                                        class="w-full px-4 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition">
+                                    Unarchive
+                                </button>
+                            </form>
+                        @endif
+                    </div>
                 </div>
 
                 {{-- DOWNLOAD PDF --}}
