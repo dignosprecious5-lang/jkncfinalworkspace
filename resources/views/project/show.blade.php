@@ -223,7 +223,14 @@
         <div class="project-linked-card rounded-2xl px-5 py-4 text-sm text-gray-600">
             <div class="flex flex-wrap items-start justify-between gap-4">
                 <div class="flex flex-wrap gap-x-8 gap-y-2">
-                    <p>Deal: <a href="{{ route('deals.show', $project->deal_id) }}" class="font-medium text-blue-700 hover:text-blue-800">{{ $project->deal?->deal_code ?? 'View linked deal' }}</a></p>
+                    <p>
+                        Deal:
+                        @if ($project->deal_id)
+                            <a href="{{ route('deals.show', $project->deal_id) }}" class="font-medium text-blue-700 hover:text-blue-800">{{ $project->deal?->deal_code ?? 'View linked deal' }}</a>
+                        @else
+                            <span class="font-medium text-gray-500">No linked deal</span>
+                        @endif
+                    </p>
                     @if ($project->company_id)
                         <p>Company: <a href="{{ route('company.show', $project->company_id) }}" class="font-medium text-blue-700 hover:text-blue-800">{{ $project->company?->company_name ?? 'View company' }}</a></p>
                     @endif

@@ -407,7 +407,14 @@
         <div class="rsat-linked-card rounded-2xl px-5 py-4 text-sm text-gray-600">
             <div class="flex flex-wrap items-start justify-between gap-4">
                 <div class="flex flex-wrap gap-x-8 gap-y-2">
-                    <p>Deal: <a href="{{ route('deals.show', $regular->deal_id) }}" class="font-medium text-blue-700 hover:text-blue-800">{{ $regular->deal?->deal_code ?? 'View linked deal' }}</a></p>
+                    <p>
+                        Deal:
+                        @if ($regular->deal_id)
+                            <a href="{{ route('deals.show', $regular->deal_id) }}" class="font-medium text-blue-700 hover:text-blue-800">{{ $regular->deal?->deal_code ?? 'View linked deal' }}</a>
+                        @else
+                            <span class="font-medium text-gray-500">No linked deal</span>
+                        @endif
+                    </p>
                     @if ($regular->company_id)
                         <p>Company: <a href="{{ route('company.show', $regular->company_id) }}" class="font-medium text-blue-700 hover:text-blue-800">{{ $regular->company?->company_name ?? 'View company' }}</a></p>
                     @endif

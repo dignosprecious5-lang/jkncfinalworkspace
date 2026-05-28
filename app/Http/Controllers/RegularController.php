@@ -7,10 +7,12 @@ use App\Models\Company;
 use App\Models\Contact;
 use App\Models\Deal;
 use App\Models\Employee;
+use App\Models\Product;
 use App\Models\Project;
 use App\Models\ProjectNtp;
 use App\Models\ProjectSowReport;
 use App\Models\ProjectStart;
+use App\Models\Service;
 use App\Models\FormTemplate;
 use App\Services\ProjectProvisioner;
 use Illuminate\Http\RedirectResponse;
@@ -1430,14 +1432,15 @@ class RegularController extends Controller
                 return ['productOptionsByServiceArea' => []];
             }
 
-            $select = ['product_name', 'product_area', 'status'];
-            foreach (['product_area_other', 'linked_service_id', 'linked_service_ids'] as $column) {
+            $select = ['product_name', 'status'];
+            foreach (['linked_service_id', 'linked_service_ids'] as $column) {
                 if (Schema::hasColumn('products', $column)) {
                     $select[] = $column;
                 }
             }
 
-            $products = \App\Models\Product::query()
+            $serviceAreasById = $this->regularLinkedServiceAreasById();
+            $products = Product::query()
                 ->select($select)
                 ->whereNotNull('product_name')
                 ->where('product_name', '!=', '')
@@ -1445,7 +1448,9 @@ class RegularController extends Controller
                 ->orderBy('product_name')
                 ->get();
 
-            $groups = [];
+            $groups = [
+                'Products Without Service Area' => [],
+            ];
 
             foreach ($products as $product) {
                 $productName = trim((string) $product->product_name);
@@ -1453,18 +1458,11 @@ class RegularController extends Controller
                     continue;
                 }
 
-                if (filled($product->linked_service_id) || collect($product->linked_service_ids ?? [])->filter()->isNotEmpty()) {
+                $areas = $this->normalizeProductServiceAreas($product, $serviceAreasById);
+
+                if ($areas === []) {
+                    $groups['Products Without Service Area'][] = $productName;
                     continue;
-                }
-
-                $areas = collect($product->product_area ?? [])
-                    ->filter(fn ($value): bool => is_string($value) && trim($value) !== '')
-                    ->map(fn ($value): string => trim((string) $value))
-                    ->reject(fn (string $value): bool => $value === 'Others' || $value === 'None')
-                    ->values();
-
-                if ($areas->isEmpty() && filled($product->product_area_other ?? null)) {
-                    $areas = collect([trim((string) $product->product_area_other)]);
                 }
 
                 foreach ($areas as $area) {
@@ -1474,8 +1472,8 @@ class RegularController extends Controller
             }
 
             $groups = collect($groups)
-                ->map(fn (array $items): array => collect($items)->filter()->unique()->sort()->values()->all())
-                ->filter(fn (array $items): bool => $items !== [])
+                ->map(fn (array $group): array => collect($group)->filter()->unique()->sort()->values()->all())
+                ->filter(fn (array $group): bool => $group !== [])
                 ->sortKeys()
                 ->all();
 
@@ -1483,6 +1481,70 @@ class RegularController extends Controller
         } catch (\Throwable) {
             return ['productOptionsByServiceArea' => []];
         }
+    }
+
+    private function normalizeProductServiceAreas(Product $product, array $serviceAreasById): array
+    {
+        $linkedServiceIds = $this->normalizeProductLinkedServiceIds($product);
+
+        return $linkedServiceIds === []
+            ? []
+            : collect($serviceAreasById)
+                ->only($linkedServiceIds)
+                ->flatten()
+                ->filter()
+                ->unique()
+                ->values()
+                ->all();
+    }
+
+    private function normalizeProductLinkedServiceIds(Product $product): array
+    {
+        return collect($product->linked_service_ids ?? [])
+            ->merge(filled($product->linked_service_id) ? [$product->linked_service_id] : [])
+            ->map(fn ($id): int => (int) $id)
+            ->filter(fn (int $id): bool => $id > 0)
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function regularLinkedServiceAreasById(): array
+    {
+        if (! Schema::hasTable('services')) {
+            return [];
+        }
+
+        return Service::query()
+            ->select(['id', 'service_area', 'service_area_other'])
+            ->get()
+            ->mapWithKeys(fn (Service $service): array => [
+                $service->id => $this->normalizeServiceAreas($service),
+            ])
+            ->filter(fn (array $areas): bool => $areas !== [])
+            ->all();
+    }
+
+    private function normalizeServiceAreas(Service $service): array
+    {
+        $areas = collect($service->service_area ?? [])
+            ->filter(fn ($value): bool => is_string($value) && trim($value) !== '')
+            ->map(fn ($value): string => trim((string) $value))
+            ->reject(fn (string $value): bool => Str::lower($value) === 'none')
+            ->values();
+
+        if ($areas->contains('Others') && filled($service->service_area_other)) {
+            $areas = $areas
+                ->reject(fn (string $value): bool => $value === 'Others')
+                ->push(trim((string) $service->service_area_other))
+                ->values();
+        }
+
+        if ($areas->isEmpty() && filled($service->service_area_other)) {
+            $areas = collect([trim((string) $service->service_area_other)]);
+        }
+
+        return $areas->unique()->values()->all();
     }
 
     private function stringifySelectedValues(array $selected, array $custom, string $customPrefix, array $ignored = []): ?string
