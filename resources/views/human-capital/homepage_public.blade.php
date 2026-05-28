@@ -12,7 +12,7 @@
     <meta name="description" content="Build your career with John Kelly & Company (JKNC). Join a consulting firm that empowers businesses and transforms visions across industries.">
     <meta name="author" content="JKNC">
 
-    <link rel="shortcut icon" href="{{ asset('images/FINAL_LOGO.jpg') }}">
+    <link rel="icon" type="image/png" href="{{ asset('images/image.png') }}">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 
     <style>
