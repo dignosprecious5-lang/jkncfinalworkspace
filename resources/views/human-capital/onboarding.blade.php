@@ -2492,11 +2492,15 @@ inferPayrollType(value) {
         },
 
         generateEmployeeId() {
-            const year = new Date().getFullYear();
             const existing = this.data['Employee Registration'] ?? [];
-            const seq = existing.length + 1;
+            const used = new Set(existing.map(item => String(item.employeeId || item.employee_id || '')));
+            let id = '';
 
-            return 'EMP-' + year + '-' + String(seq).padStart(3, '0');
+            do {
+                id = String(Math.floor(10000 + Math.random() * 90000));
+            } while (used.has(id));
+
+            return id;
         },
 
         downloadPdsPdf() {
