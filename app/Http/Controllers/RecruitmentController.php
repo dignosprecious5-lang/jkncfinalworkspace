@@ -228,6 +228,21 @@ class RecruitmentController extends Controller
             ->orderBy('position')
             ->get()
             ->filter(fn($jpf) => $this->jpfApprovalsAllApproved($jpf))
+            ->map(fn ($job) => [
+                'id' => $job->id,
+                'job_id' => $job->job_id,
+                'position' => $job->position,
+                'department' => $job->department,
+                'department_unit' => $job->department_unit,
+                'employment_type' => $job->employment_type,
+                'work_arrangement' => $job->work_arrangement,
+                'work_schedule' => $job->work_schedule,
+                'location' => $job->location,
+                'office_branch_site' => $job->office_branch_site,
+                'applicable_area' => $job->applicable_area,
+                'target_hire_date' => optional($job->target_hire_date)->format('Y-m-d'),
+                'date_needed' => optional($job->date_needed)->format('Y-m-d'),
+            ])
             ->values();
 
         return view('careers.apply', compact('jobPostings'));
