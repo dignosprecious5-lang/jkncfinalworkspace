@@ -15,6 +15,15 @@
         'governing_body' => $notice->governing_body,
         'type_of_meeting' => $notice->type_of_meeting,
         'meeting_no' => $notice->meeting_no,
+        'meeting_mode' => $notice->meeting_mode,
+        'meeting_platform' => $notice->meeting_platform,
+        'meeting_link_details' => $notice->meeting_link_details,
+        'attendees' => $notice->relationLoaded('attendees') ? $notice->attendees->map(fn ($attendee) => [
+            'name' => $attendee->name,
+            'position' => $attendee->position,
+            'email' => $attendee->email,
+            'is_selected' => (bool) $attendee->is_selected,
+        ])->values() : [],
         'date_of_meeting' => optional($notice->date_of_meeting)->toDateString(),
         'time_started' => $notice->time_started,
         'location' => $notice->location,
@@ -183,7 +192,7 @@
                     </div>
                     <div>
                         <label class="text-xs text-gray-600">Governing Body</label>
-                        <select name="governing_body" x-ref="governingBody" class="mt-1 block w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2 text-sm">
+                        <select name="governing_body" x-ref="governingBody" x-model="governingBodyValue" @change="$nextTick(() => syncAttendees())" class="mt-1 block w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2 text-sm">
                             <option value="Stockholders">Stockholders</option>
                             <option value="Board of Directors">Board of Directors</option>
                             <option value="Joint Stockholders and Board of Directors">Joint Stockholders and Board of Directors</option>
@@ -200,10 +209,13 @@
                     </div>
                     <div>
                         <label class="text-xs text-gray-600">Meeting Mode</label>
-                        <select name="meeting_mode" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
+                        <select name="meeting_mode" x-ref="meetingMode" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
+                            <option value="Physical">Physical</option>
                             <option value="In-Person">In-Person</option>
                             <option value="Virtual">Virtual</option>
                             <option value="Hybrid">Hybrid</option>
+                            <option value="Online">Online</option>
+                            <option value="Email Approval">Email Approval</option>
                         </select>
                     </div>
                     <div>
@@ -228,7 +240,7 @@
                     </div>
                     <div>
                         <label class="text-xs text-gray-600">Call Link</label>
-                        <input type="text" name="call_link" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
+                        <input type="text" name="call_link" x-ref="callLink" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
                     </div>
                     <div>
                         <label class="text-xs text-gray-600">Meeting #</label>
@@ -247,7 +259,7 @@
                         <div class="flex items-start justify-between gap-3">
                             <div>
                                 <div class="text-sm font-semibold text-gray-900">Attendees</div>
-                                <div class="mt-1 text-xs text-gray-500">Add each attendee using separate Name and Position/Role fields. You can add as many rows as needed.</div>
+                                <div class="mt-1 text-xs text-gray-500">Expected attendees are auto-loaded from the linked Notice. Move names to Absent only when needed; leave Absent or Guests blank to show NO ABSENT / NO GUESTS.</div>
                             </div>
                         </div>
 
@@ -260,8 +272,8 @@
                             <div class="rounded-xl border border-gray-200 bg-white p-4">
                                 <div class="flex items-center justify-between gap-3">
                                     <div>
-                                        <div class="text-xs font-semibold uppercase tracking-wide text-gray-700">Directors Present</div>
-                                        <div class="mt-1 text-xs text-gray-500">Example: John Kelly D. Abalde — President / Chief Executive Officer</div>
+                                        <div class="text-xs font-semibold uppercase tracking-wide text-gray-700" x-text="presentLabel()">Present</div>
+                                        <div class="mt-1 text-xs text-gray-500">Auto-loaded from the selected Notice expected attendees. You may still edit names or positions.</div>
                                     </div>
                                     <button type="button" @click="addAttendee('directors_present')" class="rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700">+ Add</button>
                                 </div>
@@ -279,8 +291,8 @@
                             <div class="rounded-xl border border-gray-200 bg-white p-4">
                                 <div class="flex items-center justify-between gap-3">
                                     <div>
-                                        <div class="text-xs font-semibold uppercase tracking-wide text-gray-700">Directors Absent</div>
-                                        <div class="mt-1 text-xs text-gray-500">Leave blank if there are no absent directors.</div>
+                                        <div class="text-xs font-semibold uppercase tracking-wide text-gray-700" x-text="absentLabel()">Absent</div>
+                                        <div class="mt-1 text-xs text-gray-500">Leave blank if no one is absent. The minutes will show NO ABSENT.</div>
                                     </div>
                                     <button type="button" @click="addAttendee('directors_absent')" class="rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700">+ Add</button>
                                 </div>
@@ -298,8 +310,8 @@
                             <div class="rounded-xl border border-gray-200 bg-white p-4">
                                 <div class="flex items-center justify-between gap-3">
                                     <div>
-                                        <div class="text-xs font-semibold uppercase tracking-wide text-gray-700">Secretariat</div>
-                                        <div class="mt-1 text-xs text-gray-500">Example: Angelie Avenido — Secretariat / Minutes-Taker</div>
+                                        <div class="text-xs font-semibold uppercase tracking-wide text-gray-700">Corporate Secretary</div>
+                                        <div class="mt-1 text-xs text-gray-500">This should be Corporate Secretary, not Secretariat. You can edit the name/role if needed.</div>
                                     </div>
                                     <button type="button" @click="addAttendee('secretariat')" class="rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700">+ Add</button>
                                 </div>
@@ -318,7 +330,7 @@
                                 <div class="flex items-center justify-between gap-3">
                                     <div>
                                         <div class="text-xs font-semibold uppercase tracking-wide text-gray-700">Guests</div>
-                                        <div class="mt-1 text-xs text-gray-500">Leave blank if there are no guests.</div>
+                                        <div class="mt-1 text-xs text-gray-500">Leave blank if there are no guests. The minutes will show NO GUESTS.</div>
                                     </div>
                                     <button type="button" @click="addAttendee('guests')" class="rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700">+ Add</button>
                                 </div>
@@ -398,6 +410,7 @@
             defaultsEndpoint,
             initialMinutesRef,
             selectedNoticeId: '',
+            governingBodyValue: 'Board of Directors',
             minutesBodyHtml: '',
             attendees: {
                 directors_present: [{ name: '', position: '' }],
@@ -426,7 +439,6 @@
                     this.selectedNoticeId = String(this.notices[0].id);
                 }
 
-                this.$nextTick(() => this.applyNotice());
                 this.$nextTick(() => {
                     this.minutesBodyHtml = '';
                     if (this.$refs.minutesEditor) {
@@ -436,7 +448,7 @@
                         this.$refs.recordingNotesInput.value = '';
                     }
                     this.resetAttendees();
-                    this.syncAttendees();
+                    this.applyNotice();
                 });
             },
             emptyAttendeeRow() {
@@ -537,30 +549,81 @@
                     // ignore defaults errors
                 }
             },
+
+            attendanceBaseLabel() {
+                const selected = this.notices.find((notice) => String(notice.id) === String(this.selectedNoticeId));
+                const body = String(this.governingBodyValue || this.$refs.governingBody?.value || selected?.governing_body || '').toLowerCase();
+
+                if (body.includes('joint')) {
+                    return 'Directors and Stockholders';
+                }
+
+                if (body.includes('stockholder') && !body.includes('board')) {
+                    return 'Stockholders';
+                }
+
+                return 'Directors';
+            },
+            presentLabel() {
+                return `${this.attendanceBaseLabel()} Present`;
+            },
+            absentLabel() {
+                return `${this.attendanceBaseLabel()} Absent`;
+            },
+            expectedAttendeeRows(selected) {
+                return (Array.isArray(selected?.attendees) ? selected.attendees : [])
+                    .filter((attendee) => attendee && attendee.is_selected !== false)
+                    .map((attendee) => ({
+                        name: String(attendee.name || '').trim(),
+                        position: String(attendee.position || attendee.role || 'Attendee').trim(),
+                    }))
+                    .filter((attendee) => attendee.name !== '');
+            },
             applyNotice() {
                 const selected = this.notices.find((notice) => String(notice.id) === String(this.selectedNoticeId));
                 if (!selected) {
                     this.$refs.noticeRef.value = '';
-                    this.$refs.governingBody.value = 'Board of Directors';
+                    this.governingBodyValue = 'Board of Directors';
+                    this.$refs.governingBody.value = this.governingBodyValue;
                     this.$refs.meetingType.value = 'Regular';
                     this.$refs.meetingDate.value = this.today || '';
                     this.$refs.timeStarted.value = '';
                     this.$refs.location.value = '';
+                    if (this.$refs.meetingMode) this.$refs.meetingMode.value = 'Physical';
+                    if (this.$refs.callLink) this.$refs.callLink.value = '';
                     this.$refs.meetingNo.value = '';
                     this.$refs.chairman.value = '';
                     this.$refs.secretary.value = '';
+                    this.resetAttendees();
+                    this.syncAttendees();
                     return;
                 }
 
                 this.$refs.noticeRef.value = selected.notice_number || '';
-                this.$refs.governingBody.value = selected.governing_body || 'Board of Directors';
+                this.governingBodyValue = selected.governing_body || 'Board of Directors';
+                this.$refs.governingBody.value = this.governingBodyValue;
                 this.$refs.meetingType.value = selected.type_of_meeting || 'Regular';
                 this.$refs.meetingDate.value = selected.date_of_meeting || '';
                 this.$refs.timeStarted.value = selected.time_started || '';
                 this.$refs.location.value = selected.location || '';
+                if (this.$refs.meetingMode) {
+                    this.$refs.meetingMode.value = selected.meeting_mode || selected.meeting_platform || 'Physical';
+                }
+                if (this.$refs.callLink) {
+                    this.$refs.callLink.value = selected.meeting_link_details || '';
+                }
                 this.$refs.meetingNo.value = selected.meeting_no || '';
                 this.$refs.chairman.value = selected.chairman || '';
                 this.$refs.secretary.value = selected.secretary || '';
+
+                const expectedRows = this.expectedAttendeeRows(selected);
+                this.attendees.directors_present = expectedRows.length ? expectedRows : [this.emptyAttendeeRow()];
+                this.attendees.directors_absent = [this.emptyAttendeeRow()];
+                this.attendees.secretariat = selected.secretary
+                    ? [{ name: selected.secretary, position: 'Corporate Secretary' }]
+                    : [this.emptyAttendeeRow()];
+                this.attendees.guests = [this.emptyAttendeeRow()];
+                this.$nextTick(() => this.syncAttendees());
             },
         };
     }

@@ -76,10 +76,20 @@
         $minute->secretary ? ['name' => $minute->secretary, 'position' => 'Corporate Secretary'] : null,
     ])));
     $directorsAbsentRows = $parseAttendanceRows($minute->directors_absent ?? null);
-    $secretariatRows = $parseAttendanceRows($minute->secretariat ?? null, $minute->uploaded_by ? [
-        ['name' => $minute->uploaded_by, 'position' => 'Secretariat / Minutes-Taker'],
+    $secretariatRows = $parseAttendanceRows($minute->secretariat ?? null, $minute->secretary ? [
+        ['name' => $minute->secretary, 'position' => 'Corporate Secretary'],
     ] : []);
     $guestRows = $parseAttendanceRows($minute->guests ?? null);
+    $governingBodyLower = strtolower((string) ($minute->governing_body ?? ''));
+    if (str_contains($governingBodyLower, 'joint')) {
+        $attendanceBaseLabel = 'Directors and Stockholders';
+    } elseif (str_contains($governingBodyLower, 'stockholder') && !str_contains($governingBodyLower, 'board')) {
+        $attendanceBaseLabel = 'Stockholders';
+    } else {
+        $attendanceBaseLabel = 'Directors';
+    }
+    $presentHeading = $attendanceBaseLabel . ' Present';
+    $absentHeading = $attendanceBaseLabel . ' Absent';
     $jkCompanyName = 'JOHN KELLY & COMPANY';
     $jkCompanyAddress = '3F, Cebu Holdings Center, Cebu Business Park, Cebu City, Philippines 6000';
     $meetingTitleLine = trim(($minute->type_of_meeting ?: 'Regular') . ' ' . ($minute->governing_body ?: 'Board of Directors') . ' Meeting');
@@ -110,6 +120,67 @@
         content: attr(data-placeholder);
         color: #94a3b8;
         pointer-events: none;
+    }
+
+    #minutes-template-editor {
+        min-height: 0 !important;
+        line-height: 1.45 !important;
+        padding-bottom: 0 !important;
+        margin-bottom: 0 !important;
+    }
+
+    #minutes-template-editor p,
+    #minutes-template-editor div {
+        margin-top: 0 !important;
+        margin-bottom: 4px !important;
+        min-height: 0 !important;
+    }
+
+    #minutes-print-signatures {
+        margin-top: 14px !important;
+    }
+
+
+    .minutes-template-workspace {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 16px;
+        align-items: start;
+    }
+
+    @media (min-width: 1280px) {
+        .minutes-template-workspace {
+            grid-template-columns: minmax(0, 840px) minmax(380px, 1fr);
+        }
+    }
+
+    .minutes-preview-scroller {
+        max-height: calc(100vh - 235px);
+        overflow: auto;
+    }
+
+    .minutes-builder-sticky {
+        position: sticky;
+        top: 96px;
+        max-height: calc(100vh - 130px);
+        overflow: auto;
+    }
+
+    .minutes-a4-sheet {
+        width: 794px;
+        min-height: 1123px;
+        max-width: none;
+    }
+
+    @media (max-width: 1279px) {
+        .minutes-builder-sticky {
+            position: static;
+            max-height: none;
+        }
+
+        .minutes-a4-sheet {
+            max-width: 100%;
+        }
     }
 </style>
 
@@ -289,8 +360,9 @@
                 </section>
 
                 <section data-preview-tab="template" class="hidden space-y-4">
-                    <div class="grid grid-cols-1 xl:grid-cols-[minmax(0,1.7fr)_minmax(420px,0.95fr)] gap-6 min-h-[calc(100vh-15rem)]">
-                        <div class="rounded-2xl border border-slate-200 overflow-hidden bg-[#f8fafc] flex flex-col">
+                    <div class="minutes-template-workspace">
+                        {{-- LEFT SIDE: A4 TEMPLATE PREVIEW --}}
+                        <div class="min-w-0 rounded-2xl border border-slate-200 overflow-hidden bg-[#f8fafc] flex flex-col self-start">
                             <div class="px-4 py-3 border-b border-gray-100 flex flex-wrap items-center gap-2 bg-white">
                                 <div>
                                     <div class="text-sm font-semibold text-gray-900">Minutes Template Preview</div>
@@ -298,9 +370,23 @@
                                 </div>
                                 <div class="flex-1"></div>
                                 <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">Live Template</span>
+                                <a
+                                    id="minutes-template-download-btn"
+                                    href="{{ $templatePreviewDownloadUrl ?: '#' }}"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    class="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700 {{ $templatePreviewDownloadUrl ? '' : 'pointer-events-none opacity-50' }}"
+                                >
+                                    <i class="fas fa-download"></i>
+                                    Download PDF
+                                </a>
                             </div>
-                            <div class="flex-1 overflow-auto p-6">
-                                <div class="mx-auto max-w-[860px] rounded-sm bg-white px-14 py-12 shadow-[0_18px_50px_rgba(15,23,42,0.08)]" style="font-family: Georgia, 'Times New Roman', serif;">
+
+                            <div class="minutes-preview-scroller p-4">
+                                <div
+                                    class="minutes-a4-sheet mx-auto rounded-sm bg-white shadow-[0_18px_50px_rgba(15,23,42,0.08)]"
+                                    style="font-family: Georgia, 'Times New Roman', serif; padding: 56px 64px;"
+                                >
                                     <div class="text-center">
                                         <div class="text-[44px] leading-none font-semibold" style="font-family: Georgia, 'Times New Roman', serif;">John Kelly</div>
                                         <div class="text-[40px] leading-none font-semibold" style="font-family: Georgia, 'Times New Roman', serif;"><span style="color:#2563eb;">&amp;</span> Company</div>
@@ -313,23 +399,23 @@
 
                                         <div class="mt-8 text-[16px]">held at</div>
                                         <div class="mt-3 text-[16px] leading-6">{{ $minute->location ?: '________________' }}</div>
-                                        @if($minute->meeting_mode || $minute->call_link)
+                                        @if($minute->meeting_mode)
+                                            <div class="mt-2 text-[16px] leading-6">and Mode of Meeting: {{ $minute->meeting_mode }}</div>
+                                        @endif
+                                        @if($minute->call_link && !str_contains(strtolower((string) $minute->meeting_mode), 'physical'))
                                             <div class="mt-1 text-[16px] leading-6">
-                                                and Mode of Meeting: {{ $minute->meeting_mode ?: '________________' }}
-                                                @if($minute->call_link)
-                                                    Meeting Link:<br>
-                                                    <span style="color:#2563eb;text-decoration:underline;">{{ $minute->call_link }}</span>
-                                                @endif
+                                                Meeting Link:<br>
+                                                <span style="color:#2563eb;text-decoration:underline;word-break:break-all;">{{ $minute->call_link }}</span>
                                             </div>
                                         @endif
 
-                                        <div class="mt-8 text-[16px]">on</div>
+                                        <div class="mt-5 text-[16px]">on</div>
                                         <div class="text-[16px]">{{ $meetingDateLine }}</div>
                                         <div class="text-[16px]">at {{ $meetingTimeLine }}</div>
                                     </div>
 
-                                    <div class="mt-8 text-[15px] leading-7">
-                                        <div class="font-bold text-[16px]">Directors Present</div>
+                                    <div class="mt-5 text-[15px] leading-7">
+                                        <div class="font-bold text-[16px]">{{ $presentHeading }}</div>
                                         <table class="mt-1 w-full table-fixed border-collapse">
                                             <thead>
                                                 <tr>
@@ -352,7 +438,7 @@
                                             </tbody>
                                         </table>
 
-                                        <div class="mt-2 font-bold text-[16px]">Directors Absent</div>
+                                        <div class="mt-2 font-bold text-[16px]">{{ $absentHeading }}</div>
                                         <table class="mt-1 w-full table-fixed border-collapse">
                                             <thead>
                                                 <tr>
@@ -368,14 +454,13 @@
                                                     </tr>
                                                 @empty
                                                     <tr>
-                                                        <td class="py-1 pr-4">________________</td>
-                                                        <td class="py-1">________________</td>
+                                                        <td class="py-1 pr-4 font-bold" colspan="2">NO ABSENT</td>
                                                     </tr>
                                                 @endforelse
                                             </tbody>
                                         </table>
 
-                                        <div class="mt-6 font-bold text-[16px]">Secretariat</div>
+                                        <div class="mt-6 font-bold text-[16px]">Corporate Secretary</div>
                                         <table class="mt-1 w-full table-fixed border-collapse">
                                             <thead>
                                                 <tr>
@@ -392,7 +477,7 @@
                                                 @empty
                                                     <tr>
                                                         <td class="py-1 pr-4">________________</td>
-                                                        <td class="py-1">________________</td>
+                                                        <td class="py-1">Corporate Secretary</td>
                                                     </tr>
                                                 @endforelse
                                             </tbody>
@@ -414,73 +499,70 @@
                                                     </tr>
                                                 @empty
                                                     <tr>
-                                                        <td class="py-1 pr-4">________________</td>
-                                                        <td class="py-1">________________</td>
+                                                        <td class="py-1 pr-4 font-bold" colspan="2">NO GUESTS</td>
                                                     </tr>
                                                 @endforelse
                                             </tbody>
                                         </table>
                                     </div>
 
-                                    <div class="mt-10">
+                                    <div class="mt-3">
                                         <div class="text-[15px] font-bold">Minutes Proper:</div>
-                                        <div id="minutes-template-editor" class="minutes-rich-editor mt-4 min-h-[360px] whitespace-pre-wrap text-[15px] leading-8 text-slate-900 outline-none" contenteditable="true" data-placeholder="Type the minutes following the template here..."></div>
+                                        <div id="minutes-template-editor" class="minutes-rich-editor mt-1 min-h-0 whitespace-pre-wrap text-[15px] leading-6 text-slate-900 outline-none" contenteditable="true" data-placeholder="Type the minutes following the template here..."></div>
                                     </div>
 
-                                    <div class="mt-24 text-[15px] leading-6">
+                                    <div id="minutes-print-signatures" class="mt-3 text-[15px] leading-6">
                                         <div class="font-bold">Prepared by:</div>
-                                        <div class="mt-6 font-bold uppercase">{{ $minute->secretary ?: '________________' }}</div>
+                                        <div class="mt-1 font-bold uppercase">{{ $minute->secretary ?: '________________' }}</div>
                                         <div class="font-bold">Corporate Secretary</div>
 
-                                        <div class="mt-20 font-bold">Attested by:</div>
-                                        <div class="mt-6 font-bold uppercase">{{ $minute->chairman ?: '________________' }}</div>
+                                        <div class="mt-5 font-bold">Attested by:</div>
+                                        <div class="mt-1 font-bold uppercase">{{ $minute->chairman ?: '________________' }}</div>
                                         <div class="font-bold">Chairman of the Meeting</div>
                                     </div>
-                                </div></div>
+                                </div>
                             </div>
                         </div>
-                        <div class="rounded-2xl border border-gray-200 bg-white overflow-hidden flex flex-col">
-                            <div class="flex-1 overflow-y-auto">
-                                <div class="px-6 py-5 space-y-5">
-                                    <div class="rounded-2xl border border-gray-200 overflow-hidden sticky top-0 bg-white z-10 shadow-sm">
-                                        <div class="px-4 py-3 border-b border-gray-100 bg-gray-50">
-                                            <div class="text-sm font-semibold text-gray-900">Minutes Body Builder</div>
-                                            <div class="mt-1 text-xs text-gray-500">Write the minutes here with formatting tools. The template and final preview use this exact content.</div>
-                                        </div>
-                                        <div class="flex flex-wrap items-center gap-2 border-b border-gray-100 px-4 py-3 bg-white">
-                                            <select id="notes-font" class="rounded-lg border border-gray-300 px-2 py-1 text-xs">
-                                                <option value="Arial">Arial</option>
-                                                <option value="Times New Roman">Times New Roman</option>
-                                                <option value="Georgia">Georgia</option>
-                                                <option value="Verdana">Verdana</option>
-                                                <option value="Courier New">Courier New</option>
-                                            </select>
-                                            <select id="notes-size" class="rounded-lg border border-gray-300 px-2 py-1 text-xs">
-                                                <option value="1">10</option>
-                                                <option value="2">12</option>
-                                                <option value="3" selected>14</option>
-                                                <option value="4">16</option>
-                                                <option value="5">18</option>
-                                            </select>
-                                            <button type="button" class="px-2 py-1 border border-gray-300 rounded-lg text-xs" data-cmd="bold">Bold</button>
-                                            <button type="button" class="px-2 py-1 border border-gray-300 rounded-lg text-xs" data-cmd="italic">Italic</button>
-                                            <button type="button" class="px-2 py-1 border border-gray-300 rounded-lg text-xs" data-cmd="underline">Underline</button>
-                                            <button type="button" class="px-2 py-1 border border-gray-300 rounded-lg text-xs" data-cmd="insertUnorderedList">Bullets</button>
-                                            <button type="button" class="px-2 py-1 border border-gray-300 rounded-lg text-xs" data-cmd="insertOrderedList">Numbering</button>
-                                            <button type="button" class="px-2 py-1 border border-gray-300 rounded-lg text-xs" data-cmd="justifyLeft">Left</button>
-                                            <button type="button" class="px-2 py-1 border border-gray-300 rounded-lg text-xs" data-cmd="justifyCenter">Center</button>
-                                            <button type="button" class="px-2 py-1 border border-gray-300 rounded-lg text-xs" data-cmd="justifyRight">Right</button>
-                                            <button type="button" class="px-2 py-1 border border-gray-300 rounded-lg text-xs" data-cmd="hiliteColor" data-value="yellow">Highlight</button>
-                                            <button type="button" class="px-2 py-1 border border-gray-300 rounded-lg text-xs" data-cmd="removeFormat">Clear</button>
-                                        </div>
-                                        <div id="notes-editor" class="minutes-rich-editor min-h-[360px] p-4 text-sm leading-7 outline-none" contenteditable="true" data-placeholder="Type the minutes of meeting here...">{!! $minute->recording_notes ?: '' !!}</div>
-                                    </div>
 
-                                    <div class="rounded-xl border border-gray-200 bg-gray-50 p-4">
-                                        <div class="text-sm font-semibold text-gray-900">Template Notes</div>
-                                        <div class="mt-1 text-xs text-gray-500">This builder page mirrors the minutes template arrangement: centered heading, held at, on, attendance section, minutes proper, and sign-off area.</div>
-                                    </div>
-                                </div>
+                        {{-- RIGHT SIDE: BODY BUILDER --}}
+                        <div class="minutes-builder-sticky min-w-0 rounded-2xl border border-gray-200 bg-white overflow-hidden self-start">
+                            <div class="px-4 py-3 border-b border-gray-100 bg-gray-50">
+                                <div class="text-sm font-semibold text-gray-900">Minutes Body Builder</div>
+                                <div class="mt-1 text-xs text-gray-500">Write the minutes here with formatting tools. The template and final preview use this exact content.</div>
+                            </div>
+
+                            <div class="flex flex-wrap items-center gap-2 border-b border-gray-100 px-4 py-3 bg-white">
+                                <select id="notes-font" class="rounded-lg border border-gray-300 px-2 py-1 text-xs">
+                                    <option value="Arial">Arial</option>
+                                    <option value="Times New Roman">Times New Roman</option>
+                                    <option value="Georgia">Georgia</option>
+                                    <option value="Verdana">Verdana</option>
+                                    <option value="Courier New">Courier New</option>
+                                </select>
+                                <select id="notes-size" class="rounded-lg border border-gray-300 px-2 py-1 text-xs">
+                                    <option value="1">10</option>
+                                    <option value="2">12</option>
+                                    <option value="3" selected>14</option>
+                                    <option value="4">16</option>
+                                    <option value="5">18</option>
+                                </select>
+                                <button type="button" class="px-2 py-1 border border-gray-300 rounded-lg text-xs" data-cmd="bold">Bold</button>
+                                <button type="button" class="px-2 py-1 border border-gray-300 rounded-lg text-xs" data-cmd="italic">Italic</button>
+                                <button type="button" class="px-2 py-1 border border-gray-300 rounded-lg text-xs" data-cmd="underline">Underline</button>
+                                <button type="button" class="px-2 py-1 border border-gray-300 rounded-lg text-xs" data-cmd="insertUnorderedList">Bullets</button>
+                                <button type="button" class="px-2 py-1 border border-gray-300 rounded-lg text-xs" data-cmd="insertOrderedList">Numbering</button>
+                                <button type="button" class="px-2 py-1 border border-gray-300 rounded-lg text-xs" data-cmd="justifyLeft">Left</button>
+                                <button type="button" class="px-2 py-1 border border-gray-300 rounded-lg text-xs" data-cmd="justifyCenter">Center</button>
+                                <button type="button" class="px-2 py-1 border border-gray-300 rounded-lg text-xs" data-cmd="justifyRight">Right</button>
+                                <button type="button" class="px-2 py-1 border border-gray-300 rounded-lg text-xs" data-cmd="hiliteColor" data-value="yellow">Highlight</button>
+                                <button type="button" class="px-2 py-1 border border-gray-300 rounded-lg text-xs" data-cmd="removeFormat">Clear</button>
+                            </div>
+
+                            <div id="notes-editor" class="minutes-rich-editor min-h-[420px] p-4 text-sm leading-7 outline-none" contenteditable="true" data-placeholder="Type the minutes of meeting here...">{!! $minute->recording_notes ?: '' !!}</div>
+
+                            <div class="border-t border-gray-100 bg-gray-50 p-4">
+                                <div class="text-sm font-semibold text-gray-900">Template Notes</div>
+                                <div class="mt-1 text-xs text-gray-500">This builder page mirrors the minutes template arrangement: centered heading, held at, on, attendance section, minutes proper, and sign-off area.</div>
                             </div>
                         </div>
                     </div>
@@ -665,8 +747,23 @@
     const finalScriptEmpty = document.getElementById('final-script-empty');
     const templatePdfFrame = document.getElementById('minutes-template-pdf-frame');
     const templatePdfEmpty = document.getElementById('minutes-template-pdf-empty');
+    const templateDownloadButton = document.getElementById('minutes-template-download-btn');
 
     let activeMinutesEditor = editor;
+
+    const compactMinutesHtml = (html = '') => {
+        let output = String(html || '').trim();
+
+        // Remove empty trailing editor blocks that create a huge blank gap before Prepared by / Attested by.
+        const emptyTailPattern = /(?:\s|&nbsp;|<br\s*\/?>(?:\s|&nbsp;)*|<p[^>]*>(?:\s|&nbsp;|<br\s*\/?\s*)*<\/p>|<div[^>]*>(?:\s|&nbsp;|<br\s*\/?\s*)*<\/div>)+$/gi;
+        let previous;
+        do {
+            previous = output;
+            output = output.replace(emptyTailPattern, '').trim();
+        } while (output !== previous);
+
+        return output;
+    };
 
     const updateMinutesEditors = (html, source = 'builder') => {
         if (source !== 'builder' && editor) {
@@ -674,7 +771,7 @@
         }
 
         if (source !== 'template' && templateEditor) {
-            templateEditor.innerHTML = html;
+            templateEditor.innerHTML = compactMinutesHtml(html);
         }
     };
 
@@ -697,6 +794,16 @@
     };
 
     const syncTemplatePdfPreview = (url = null, downloadUrl = null) => {
+        if (templateDownloadButton) {
+            if (downloadUrl) {
+                templateDownloadButton.href = downloadUrl;
+                templateDownloadButton.classList.remove('pointer-events-none', 'opacity-50');
+            } else {
+                templateDownloadButton.href = '#';
+                templateDownloadButton.classList.add('pointer-events-none', 'opacity-50');
+            }
+        }
+
         if (!templatePdfFrame || !templatePdfEmpty) {
             return;
         }

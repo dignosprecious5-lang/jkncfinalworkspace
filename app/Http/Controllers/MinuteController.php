@@ -25,6 +25,7 @@ class MinuteController extends Controller
             ->get();
 
         $notices = Notice::whereNull('company_id')
+            ->with('attendees')
             ->orderBy('date_of_meeting')
             ->get();
 
@@ -56,6 +57,7 @@ class MinuteController extends Controller
     {
         $data = $this->validateData($request);
         $data = $this->mergeNoticeData($data);
+        $data = $this->syncAttendanceFromNotice($data);
         $data['company_id'] = null;
         $data['document_path'] = $this->handleUpload($request, 'document_path');
         $data['minutes_ref'] = $data['minutes_ref'] ?: $this->nextMinutesRef();
@@ -103,6 +105,7 @@ class MinuteController extends Controller
 
         $data = $this->validateData($request);
         $data = $this->mergeNoticeData($data);
+        $data = $this->syncAttendanceFromNotice($data);
         $data['company_id'] = null;
         $data['document_path'] = $this->handleUpload($request, 'document_path', $minute->document_path);
         $data = $this->filterPersistableData($data);
@@ -309,6 +312,48 @@ class MinuteController extends Controller
         $data['meeting_no'] = $data['meeting_no'] ?: $notice->meeting_no;
         $data['chairman'] = $data['chairman'] ?: $notice->chairman;
         $data['secretary'] = $data['secretary'] ?: $notice->secretary;
+        $data['meeting_mode'] = $data['meeting_mode'] ?: ($notice->meeting_mode ?: $notice->meeting_platform);
+        $data['call_link'] = $data['call_link'] ?: $notice->meeting_link_details;
+
+        return $data;
+    }
+
+
+    private function syncAttendanceFromNotice(array $data): array
+    {
+        if (empty($data['notice_id'])) {
+            return $data;
+        }
+
+        $notice = Notice::with('attendees')->find($data['notice_id']);
+        if (!$notice) {
+            return $data;
+        }
+
+        if (empty($data['directors_present'])) {
+            $expectedRows = $notice->attendees
+                ->filter(fn ($attendee) => (bool) ($attendee->is_selected ?? true))
+                ->map(fn ($attendee) => [
+                    'name' => trim((string) $attendee->name),
+                    'position' => trim((string) ($attendee->position ?: 'Attendee')),
+                ])
+                ->filter(fn ($row) => $row['name'] !== '')
+                ->values()
+                ->all();
+
+            if (!empty($expectedRows)) {
+                $data['directors_present'] = json_encode($expectedRows);
+            }
+        }
+
+        if (empty($data['secretariat'])) {
+            $secretaryName = trim((string) ($data['secretary'] ?? $notice->secretary ?? ''));
+            if ($secretaryName !== '') {
+                $data['secretariat'] = json_encode([
+                    ['name' => $secretaryName, 'position' => 'Corporate Secretary'],
+                ]);
+            }
+        }
 
         return $data;
     }

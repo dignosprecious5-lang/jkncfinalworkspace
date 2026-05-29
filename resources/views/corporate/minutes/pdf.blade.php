@@ -44,15 +44,39 @@
         $minute->secretary ? ['name' => $minute->secretary, 'position' => 'Corporate Secretary'] : null,
     ])));
     $directorsAbsentRows = $parseAttendanceRows($minute->directors_absent ?? null);
-    $secretariatRows = $parseAttendanceRows($minute->secretariat ?? null, $minute->uploaded_by ? [
-        ['name' => $minute->uploaded_by, 'position' => 'Secretariat / Minutes-Taker'],
+    $secretariatRows = $parseAttendanceRows($minute->secretariat ?? null, $minute->secretary ? [
+        ['name' => $minute->secretary, 'position' => 'Corporate Secretary'],
     ] : []);
     $guestRows = $parseAttendanceRows($minute->guests ?? null);
+    $governingBodyLower = strtolower((string) ($minute->governing_body ?? ''));
+    if (str_contains($governingBodyLower, 'joint')) {
+        $attendanceBaseLabel = 'Directors and Stockholders';
+    } elseif (str_contains($governingBodyLower, 'stockholder') && !str_contains($governingBodyLower, 'board')) {
+        $attendanceBaseLabel = 'Stockholders';
+    } else {
+        $attendanceBaseLabel = 'Directors';
+    }
+    $presentHeading = $attendanceBaseLabel . ' Present';
+    $absentHeading = $attendanceBaseLabel . ' Absent';
     $jkCompanyName = 'JOHN KELLY & COMPANY';
     $jkCompanyAddress = '3F, Cebu Holdings Center, Cebu Business Park, Cebu City, Philippines 6000';
     $meetingTitleLine = trim(($minute->type_of_meeting ?: 'Regular') . ' ' . ($minute->governing_body ?: 'Board of Directors') . ' Meeting');
     $meetingDateLine = optional($minute->date_of_meeting)->format('F d, Y') ?: '________________';
     $meetingTimeLine = $minute->time_started ? \Carbon\Carbon::parse($minute->time_started)->format('g:i A') : '________________';
+
+    $compactMinutesHtml = function ($html) {
+        $html = trim((string) $html);
+
+        do {
+            $previous = $html;
+            $html = preg_replace('/(?:\s|&nbsp;|<br\s*\/?>(?:\s|&nbsp;)*|<p[^>]*>(?:\s|&nbsp;|<br\s*\/?\s*)*<\/p>|<div[^>]*>(?:\s|&nbsp;|<br\s*\/?\s*)*<\/div>)+$/i', '', $html);
+            $html = trim((string) $html);
+        } while ($html !== $previous);
+
+        return $html !== '' ? $html : '<p>________________</p>';
+    };
+
+    $minutesProperHtml = $compactMinutesHtml($minute->recording_notes ?? '');
 @endphp
 
 <!DOCTYPE html>
@@ -62,15 +86,19 @@
     <title>{{ $minutesDocumentTitle }}</title>
     <style>
         @page {
-            size: A4;
-            margin: 18mm 16mm 20mm;
+            size: A4 portrait;
+            margin: 14mm 16mm 14mm 16mm;
+        }
+
+        * {
+            box-sizing: border-box;
         }
 
         body {
             font-family: Georgia, "Times New Roman", serif;
             color: #111827;
-            font-size: 12.5pt;
-            line-height: 1.75;
+            font-size: 11.5pt;
+            line-height: 1.28;
             margin: 0;
         }
 
@@ -83,7 +111,7 @@
         }
 
         .brand-main {
-            font-size: 34pt;
+            font-size: 31pt;
             font-weight: 600;
             line-height: 0.95;
         }
@@ -92,45 +120,41 @@
             color: #2563eb;
         }
 
-        .company-name {
-            font-size: 15pt;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.03em;
-        }
-
         .meta-line {
-            margin-top: 4px;
-            font-size: 11.5pt;
+            margin-top: 8px;
+            font-size: 10.5pt;
         }
 
         .title {
-            margin-top: 30px;
-            font-size: 14pt;
+            margin-top: 15px;
+            font-size: 13pt;
             font-weight: 700;
             text-align: center;
         }
 
         .subtitle {
-            margin-top: 8px;
+            margin-top: 4px;
             text-align: center;
-            font-size: 12pt;
+            font-size: 11pt;
+        }
+
+        .meeting-block {
+            margin-top: 13px;
         }
 
         .section {
-            margin-top: 28px;
+            margin-top: 12px;
         }
 
-        .attendance-table,
-        .signature-table {
+        .attendance-table {
             width: 100%;
             border-collapse: collapse;
+            margin-top: 2px;
         }
 
         .attendance-table td,
-        .attendance-table th,
-        .signature-table td {
-            padding: 4px 0;
+        .attendance-table th {
+            padding: 2.8px 0;
             vertical-align: top;
         }
 
@@ -140,33 +164,44 @@
         }
 
         .attendance-heading {
-            margin-top: 12px;
+            margin-top: 10px;
             font-weight: 700;
         }
 
         .minutes-body {
-            margin-top: 16px;
-            min-height: 280px;
+            margin-top: 5px;
+            min-height: 0;
+            line-height: 1.32;
         }
 
-        .minutes-body p {
-            margin: 0 0 14px;
+        .minutes-body p,
+        .minutes-body div {
+            margin: 0 0 5px;
         }
 
         .minutes-body ol,
         .minutes-body ul {
-            margin: 0 0 14px 28px;
+            margin: 0 0 7px 24px;
+            padding: 0;
         }
 
-        .line {
-            border-bottom: 1px solid #94a3b8;
-            min-height: 18px;
+        .signature-section {
+            margin-top: 14px;
+            line-height: 1.32;
         }
 
-        .signature-label {
-            padding-top: 6px;
-            text-align: center;
-            font-size: 10pt;
+        .signature-name {
+            margin-top: 3px;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .attested-block {
+            margin-top: 13px;
+        }
+
+        .avoid-break {
+            page-break-inside: avoid;
         }
     </style>
 </head>
@@ -175,32 +210,30 @@
         <div class="center">
             <div class="brand-main">John Kelly</div>
             <div class="brand-main"><span class="brand-amp">&amp;</span> Company</div>
-            <div class="meta-line" style="margin-top:14px;">{{ $jkCompanyAddress }}</div>
+            <div class="meta-line">{{ $jkCompanyAddress }}</div>
 
-            <div class="title" style="margin-top:28px;">MINUTES OF THE</div>
+            <div class="title">MINUTES OF THE</div>
             <div class="subtitle">{{ $meetingTitleLine }}</div>
             <div class="subtitle">of</div>
             <div class="subtitle" style="text-transform:uppercase;">{{ $jkCompanyName }}</div>
 
-            <div class="subtitle" style="margin-top:24px;">held at</div>
+            <div class="subtitle meeting-block">held at</div>
             <div class="subtitle">{{ $minute->location ?: '________________' }}</div>
 
-            @if($minute->meeting_mode || $minute->call_link)
-                <div class="subtitle">
-                    and Mode of Meeting: {{ $minute->meeting_mode ?: '________________' }}
-                    @if($minute->call_link)
-                        <br>Meeting Link: <span style="color:#2563eb;text-decoration:underline;">{{ $minute->call_link }}</span>
-                    @endif
-                </div>
+            @if($minute->meeting_mode)
+                <div class="subtitle">and Mode of Meeting: {{ $minute->meeting_mode }}</div>
+            @endif
+            @if($minute->call_link && !str_contains(strtolower((string) $minute->meeting_mode), 'physical'))
+                <div class="subtitle">Meeting Link:<br><span style="color:#2563eb;text-decoration:underline;word-break:break-all;">{{ $minute->call_link }}</span></div>
             @endif
 
-            <div class="subtitle" style="margin-top:24px;">on</div>
+            <div class="subtitle meeting-block">on</div>
             <div class="subtitle">{{ $meetingDateLine }}</div>
             <div class="subtitle">at {{ $meetingTimeLine }}</div>
         </div>
 
         <div class="section">
-            <div class="attendance-heading">Directors Present</div>
+            <div class="attendance-heading">{{ $presentHeading }}</div>
             <table class="attendance-table">
                 <thead>
                     <tr>
@@ -223,7 +256,7 @@
                 </tbody>
             </table>
 
-            <div class="attendance-heading">Directors Absent</div>
+            <div class="attendance-heading">{{ $absentHeading }}</div>
             <table class="attendance-table">
                 <thead>
                     <tr>
@@ -239,14 +272,13 @@
                         </tr>
                     @empty
                         <tr>
-                            <td>________________</td>
-                            <td>________________</td>
+                            <td colspan="2" style="font-weight:700;">NO ABSENT</td>
                         </tr>
                     @endforelse
                 </tbody>
             </table>
 
-            <div class="attendance-heading" style="margin-top:22px;">Secretariat</div>
+            <div class="attendance-heading">Corporate Secretary</div>
             <table class="attendance-table">
                 <thead>
                     <tr>
@@ -263,7 +295,7 @@
                     @empty
                         <tr>
                             <td>________________</td>
-                            <td>________________</td>
+                            <td>Corporate Secretary</td>
                         </tr>
                     @endforelse
                 </tbody>
@@ -285,26 +317,25 @@
                         </tr>
                     @empty
                         <tr>
-                            <td>________________</td>
-                            <td>________________</td>
+                            <td colspan="2" style="font-weight:700;">NO GUESTS</td>
                         </tr>
                     @endforelse
                 </tbody>
             </table>
         </div>
 
-        <div class="section">
+        <div class="section avoid-break">
             <div style="font-weight:700;">Minutes Proper:</div>
-            <div class="minutes-body">{!! $minute->recording_notes ?: '<p>________________</p>' !!}</div>
+            <div class="minutes-body">{!! $minutesProperHtml !!}</div>
         </div>
 
-        <div class="section" style="margin-top:70px;">
+        <div class="signature-section avoid-break">
             <div style="font-weight:700;">Prepared by:</div>
-            <div style="margin-top:22px;font-weight:700;text-transform:uppercase;">{{ $minute->secretary ?: '________________' }}</div>
+            <div class="signature-name">{{ $minute->secretary ?: '________________' }}</div>
             <div style="font-weight:700;">Corporate Secretary</div>
 
-            <div style="margin-top:70px;font-weight:700;">Attested by:</div>
-            <div style="margin-top:22px;font-weight:700;text-transform:uppercase;">{{ $minute->chairman ?: '________________' }}</div>
+            <div class="attested-block" style="font-weight:700;">Attested by:</div>
+            <div class="signature-name">{{ $minute->chairman ?: '________________' }}</div>
             <div style="font-weight:700;">Chairman of the Meeting</div>
         </div>
     </div>
