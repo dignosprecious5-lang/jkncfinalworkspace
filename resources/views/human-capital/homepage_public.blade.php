@@ -487,9 +487,6 @@
                     <img src="{{ asset('images/FINAL_LOGO.jpg') }}" alt="John Kelly & Company Logo">
                 </a>
             </div>
-            <div class="nav-menu">
-                <a href="#careers">Careers</a>
-            </div>
         </div>
     </nav>
 

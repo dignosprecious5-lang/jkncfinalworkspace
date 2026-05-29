@@ -15,21 +15,44 @@
         .field:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37, 99, 235, .12); }
         .label { display: block; margin-bottom: .4rem; font-size: .68rem; font-weight: 900; text-transform: uppercase; letter-spacing: .12em; color: #4b5563; }
         .section-title { font-size: 1rem; font-weight: 900; text-transform: uppercase; letter-spacing: .12em; color: #111827; }
+        nav {
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            box-shadow: 0 2px 20px rgba(0, 0, 0, 0.08);
+        }
+        .nav-container {
+            max-width: 1280px;
+            margin: 0 auto;
+            padding: 0 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            height: 80px;
+        }
+        .logo img {
+            height: 50px;
+            width: auto;
+            object-fit: contain;
+        }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-900">
+    <!-- Navigation Bar -->
+    <nav>
+        <div class="nav-container">
+            <div class="logo">
+                <a href="{{ route('homepage.public') }}">
+                    <img src="{{ asset('images/FINAL_LOGO.jpg') }}" alt="John Kelly &amp; Company Logo">
+                </a>
+            </div>
+        </div>
+    </nav>
+
 <div class="min-h-screen px-4 py-8" x-data='publicApplication(@json($jobPostings ?? []))'>
     <div class="mx-auto max-w-5xl">
-        <header class="mb-8 flex flex-col gap-4 border-b border-slate-200 pb-6 sm:flex-row sm:items-center sm:justify-between">
-            <a href="{{ route('homepage.public') }}" class="flex items-center gap-4">
-                <img src="{{ asset('images/FINAL_LOGO.jpg') }}" alt="John Kelly &amp; Company" class="h-16 w-auto object-contain">
-                <div>
-                    <h1 class="text-xl font-black uppercase tracking-tight">Career Portal</h1>
-                    <p class="text-sm font-semibold text-slate-500">Candidate Application Form</p>
-                </div>
-            </a>
-            <a href="{{ route('homepage.public') }}" class="inline-flex items-center justify-center rounded-lg border border-blue-200 px-4 py-2 text-sm font-bold text-blue-700 hover:bg-blue-50">Back to Careers</a>
-        </header>
 
         <form @submit.prevent="submitForm" class="space-y-6">
             @csrf

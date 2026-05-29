@@ -29,70 +29,29 @@
             --panel: #f8fafc;
         }
 
-        .topbar {
+        nav {
             position: sticky;
             top: 0;
-            z-index: 50;
-            background: rgba(255, 255, 255, .97);
-            border-bottom: 1px solid #e5e7eb;
-            box-shadow: 0 1px 8px rgba(15, 23, 42, .04);
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            box-shadow: 0 2px 20px rgba(0, 0, 0, 0.08);
         }
 
-        .nav {
-            width: min(1120px, calc(100% - 32px));
-            min-height: 72px;
+        .nav-container {
+            max-width: 1280px;
             margin: 0 auto;
+            padding: 0 2rem;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            gap: 20px;
+            height: 80px;
         }
 
-        .brand {
-            display: inline-flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .brand img {
-            width: 48px;
-            height: 48px;
+        .logo img {
+            height: 50px;
+            width: auto;
             object-fit: contain;
-        }
-
-        .brand-text strong {
-            display: block;
-            color: var(--ink);
-            font-size: 15px;
-            font-weight: 900;
-            letter-spacing: -.03em;
-            line-height: 1.1;
-        }
-
-        .brand-text span {
-            display: block;
-            margin-top: 3px;
-            color: var(--brand);
-            font-size: 10px;
-            font-weight: 900;
-            letter-spacing: .22em;
-            text-transform: uppercase;
-        }
-
-        .nav-actions {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            font-size: 14px;
-            font-weight: 800;
-        }
-
-        .nav-actions a:first-child {
-            color: #334155;
-        }
-
-        .nav-actions a:first-child:hover {
-            color: var(--brand);
         }
 
         .outline-btn {
@@ -459,7 +418,7 @@
         }
 
         @media print {
-            .topbar, .subnav, .side-panel, .mobile-apply, .footer, .back-btn { display: none !important; }
+            nav, .subnav, .side-panel, .mobile-apply, .footer, .back-btn { display: none !important; }
             .page { width: 100%; padding: 0; }
             .job-layout { display: block; }
             body { background: white; }
@@ -487,20 +446,16 @@
     $applyUrl = route('careers.apply') . '?job_id=' . $job->id;
 @endphp
 
-<header class="topbar">
-    <div class="nav">
-        <a href="{{ route('homepage.public') }}" class="brand">
-            <img src="{{ asset('images/FINAL_LOGO.jpg') }}" onerror="this.src='{{ asset('images/imaglogo.png') }}'" alt="John Kelly &amp; Company Logo">
-            <div class="brand-text">
-                <strong>John Kelly &amp; Company</strong>
-                <span>Careers Portal</span>
-            </div>
-        </a>
-        <div class="nav-actions">
-            <a href="{{ route('homepage.public') }}#careers">Search Jobs</a>
+<!-- Navigation Bar -->
+<nav>
+    <div class="nav-container">
+        <div class="logo">
+            <a href="{{ route('homepage.public') }}">
+                <img src="{{ asset('images/FINAL_LOGO.jpg') }}" onerror="this.src='{{ asset('images/imaglogo.png') }}'" alt="John Kelly &amp; Company Logo">
+            </a>
         </div>
     </div>
-</header>
+</nav>
 
 <div class="subnav">
     <div class="subnav-inner">
