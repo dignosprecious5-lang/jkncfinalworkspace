@@ -45,14 +45,6 @@
                 class="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400 bg-white">
         </div>
 
-        <select x-show="activeTab === 'CAF'" x-model="filterPosition" @change="currentPage = 1"
-            class="px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-200">
-            <option value="All">All Positions</option>
-            <template x-for="position in uniqueCafPositions" :key="position">
-                <option :value="position" x-text="position"></option>
-            </template>
-        </select>
-
         <div x-show="activeTab === 'JPF'" class="flex items-center gap-1 bg-white border border-gray-200 rounded-lg p-1 shadow-sm">
             <button
                 type="button"
@@ -79,14 +71,14 @@
                 class="flex items-center gap-2 px-4 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-700 transition"
                 :class="filterStatus !== 'All' ? 'border-blue-500 bg-blue-50' : ''">
                 <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 6h18M6 12h12M10 18h4"/></svg>
-                Filter <span x-show="filterStatus !== 'All'" class="ml-1 text-blue-600 font-bold" x-text="'('+filterStatus+')'"></span>
+                Status <span x-show="filterStatus !== 'All'" class="ml-1 text-blue-600 font-bold" x-text="'('+filterStatus+')'"></span>
             </button>
             
             <div x-show="showFilter" x-transition class="absolute left-0 mt-2 w-48 bg-white border border-gray-100 rounded-xl shadow-xl z-30 p-2">
                 <p class="px-2 py-1.5 text-[10px] uppercase font-bold text-gray-400 tracking-wider">Filter by Status</p>
                 <div class="space-y-1">
-                    <template x-for="st in ['All', 'Pending', 'Open', 'Filled', 'Hold', 'Cancelled', 'Disapproved']">
-                        <button @click="filterStatus = st; showFilter = false" 
+                    <template x-for="st in statusFilterOptions" :key="st">
+                        <button @click="filterStatus = st; currentPage = 1; showFilter = false" 
                             class="w-full text-left px-3 py-2 rounded-lg text-sm transition font-medium"
                             :class="filterStatus === st ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50'"
                             x-text="st"></button>
@@ -94,6 +86,35 @@
                 </div>
                 <div class="mt-2 pt-2 border-t border-gray-100">
                     <button @click="filterStatus = 'All'; showFilter = false" class="w-full text-center text-xs text-gray-400 hover:text-gray-600 font-medium">Clear all filters</button>
+                </div>
+            </div>
+        </div>
+        <div x-show="activeTab === 'CAF'" class="relative" @click.away="showPositionFilter = false">
+            <button type="button" @click="showPositionFilter = !showPositionFilter"
+                class="flex items-center gap-2 px-4 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-700 transition max-w-72"
+                :class="filterPosition !== 'All' ? 'border-blue-500 bg-blue-50' : ''">
+                <svg class="w-4 h-4 text-gray-500 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 7h16M4 12h10M4 17h7"/></svg>
+                <span>Position</span>
+                <span x-show="filterPosition !== 'All'" class="ml-1 text-blue-600 font-bold truncate" x-text="'('+filterPosition+')'"></span>
+            </button>
+
+            <div x-show="showPositionFilter" x-transition class="absolute left-0 mt-2 w-72 bg-white border border-gray-100 rounded-xl shadow-xl z-30 p-2">
+                <p class="px-2 py-1.5 text-[10px] uppercase font-bold text-gray-400 tracking-wider">Filter by Position</p>
+                <div class="space-y-1 max-h-72 overflow-y-auto">
+                    <button @click="filterPosition = 'All'; currentPage = 1; showPositionFilter = false"
+                        class="w-full text-left px-3 py-2 rounded-lg text-sm transition font-medium"
+                        :class="filterPosition === 'All' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50'">
+                        All Positions
+                    </button>
+                    <template x-for="position in uniqueCafPositions" :key="position">
+                        <button @click="filterPosition = position; currentPage = 1; showPositionFilter = false"
+                            class="w-full text-left px-3 py-2 rounded-lg text-sm transition font-medium"
+                            :class="filterPosition === position ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50'"
+                            x-text="position"></button>
+                    </template>
+                </div>
+                <div class="mt-2 pt-2 border-t border-gray-100">
+                    <button @click="filterPosition = 'All'; currentPage = 1; showPositionFilter = false" class="w-full text-center text-xs text-gray-400 hover:text-gray-600 font-medium">Clear position filter</button>
                 </div>
             </div>
         </div>
@@ -261,23 +282,22 @@
                 <thead class="bg-white text-gray-600 sticky top-0 z-10">
                     <tr class="border-b border-gray-200">
                         <th class="px-4 py-3 text-left font-semibold">Name</th>
-                        <th class="px-4 py-3 text-left font-semibold">Position</th>
                         <th class="px-4 py-3 text-left font-semibold">Email</th>
                         <th class="px-4 py-3 text-left font-semibold">Phone</th>
                         <th class="px-4 py-3 text-left font-semibold">Type</th>
                         <th class="px-4 py-3 text-left font-semibold">Status</th>
+                        <th class="px-4 py-3 text-left font-semibold">Position</th>
                         <th class="px-4 py-3 text-left font-semibold">Applied</th>
                         <th class="px-4 py-3 text-left font-semibold">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     <template x-if="filteredRows.length === 0">
-                        <tr><td colspan="7" class="px-4 py-16 text-center text-gray-400"><div class="flex flex-col items-center gap-2"><svg class="w-10 h-10 text-gray-300" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5.586a1 1 0 0 1 .707.293l5.414 5.414a1 1 0 0 1 .293.707V19a2 2 0 0 1-2 2z"/></svg><span class="text-sm" x-text="'No ' + activeTab + ' records found.'"></span></div></td></tr>
+                        <tr><td colspan="8" class="px-4 py-16 text-center text-gray-400"><div class="flex flex-col items-center gap-2"><svg class="w-10 h-10 text-gray-300" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5.586a1 1 0 0 1 .707.293l5.414 5.414a1 1 0 0 1 .293.707V19a2 2 0 0 1-2 2z"/></svg><span class="text-sm" x-text="'No ' + activeTab + ' records found.'"></span></div></td></tr>
                     </template>
                     <template x-for="(row, i) in paginatedRows" :key="i">
                         <tr class="border-t border-gray-100 hover:bg-gray-50 transition">
                             <td class="px-4 py-3 text-gray-800 font-medium" x-text="row.name"></td>
-                            <td class="px-4 py-3 text-gray-600" x-text="row.position"></td>
                             <td class="px-4 py-3 text-gray-600" x-text="row.email"></td>
                             <td class="px-4 py-3 text-gray-600" x-text="row.phone"></td>
                             <td class="px-4 py-3">
@@ -288,6 +308,7 @@
                                 ></span>
                             </td>
                             <td class="px-4 py-3"><span x-text="row.status" :class="statusClass(row.status)" class="px-2 py-0.5 rounded-full text-xs font-medium"></span></td>
+                            <td class="px-4 py-3 text-gray-600" x-text="row.position"></td>
                             <td class="px-4 py-3 text-gray-500" x-text="row.applied_date || row.applied"></td>
                             <td class="px-4 py-3">
                                 <button @click="viewCAF(row)" class="text-xs text-blue-600 hover:underline mr-2">View</button>
@@ -4301,6 +4322,7 @@ refreshJobOffers() {
         perPage: 50,
         currentPage: 1,
         showFilter: false,
+        showPositionFilter: false,
         filterStatus: 'All',
         filterPosition: 'All',
         jpfListView: 'all',
@@ -4590,6 +4612,22 @@ refreshJobOffers() {
                 return this.positions.filter(position => String(position.address_id) === String(this.form.orgAddressId));
             }
             return this.positions;
+        },
+
+        get statusFilterOptions() {
+            if (this.activeTab === 'CAF') {
+                const statuses = (this.data['CAF'] || [])
+                    .map(row => row.status)
+                    .filter(status => status && String(status).trim() !== '');
+                return ['All', ...new Set(statuses)]
+                    .sort((a, b) => a === 'All' ? -1 : b === 'All' ? 1 : String(a).localeCompare(String(b)));
+            }
+
+            if (this.activeTab === 'Assessment') {
+                return ['All', 'Pending Assessment', 'In Progress', 'Passed', 'Failed'];
+            }
+
+            return ['All', 'Pending', 'Open', 'Filled', 'Hold', 'Cancelled', 'Disapproved'];
         },
 
         onOrgAddressChange() {
