@@ -113,6 +113,9 @@ Route::get('/', function () {
     return redirect()->route('login');
 });
 
+Route::get('/employee-verification/{employee?}', [EmployeeController::class, 'verificationForm'])->name('employee.verify.form');
+Route::post('/employee-verification', [EmployeeController::class, 'verify'])->name('employee.verify.submit');
+
 /*
 |--------------------------------------------------------------------------
 | CLIENT RESPONSE ROUTES

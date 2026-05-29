@@ -21,6 +21,7 @@ use App\Models\PayrollLevel;
 use App\Models\OnboardingChecklist;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use App\Mail\AssessmentProceedingMail;
 use App\Mail\AssessmentTestMail;
@@ -397,9 +398,71 @@ class RecruitmentController extends Controller
     }
 
 
+    private function requestArray(Request $request, string $key): array
+    {
+        $value = $request->input($key, []);
+
+        if (is_string($value)) {
+            $decoded = json_decode($value, true);
+            return is_array($decoded) ? array_values(array_filter($decoded)) : array_values(array_filter([$value]));
+        }
+
+        return is_array($value) ? array_values(array_filter($value)) : [];
+    }
+
+    private function normalizeBulletText(?string $value): ?string
+    {
+        if (!$value) {
+            return null;
+        }
+
+        $items = preg_split('/\r\n|\r|\n|•/', $value);
+        $items = array_values(array_filter(array_map(function ($item) {
+            return trim(preg_replace('/^[-*]\s*/', '', $item));
+        }, $items)));
+
+        return count($items) ? implode("\n", array_map(fn ($item) => '• ' . $item, $items)) : null;
+    }
+
+    private function nextMrfReference(): string
+    {
+        $year = date('Y');
+        $last = ManpowerRequest::where('request_id', 'like', "MRF-{$year}-%")
+            ->orderByDesc('request_id')
+            ->value('request_id');
+
+        $sequence = 1;
+        if ($last && preg_match('/MRF-' . $year . '-(\d+)/', $last, $matches)) {
+            $sequence = ((int) $matches[1]) + 1;
+        }
+
+        return "MRF-{$year}-" . str_pad($sequence, 3, '0', STR_PAD_LEFT);
+    }
+
+    private function storeMrfAttachment(Request $request, string $inputName, ?string $existingPath = null): ?string
+    {
+        if (!$request->hasFile($inputName)) {
+            return $existingPath;
+        }
+
+        if ($existingPath) {
+            Storage::disk('public')->delete($existingPath);
+        }
+
+        return $request->file($inputName)->store('mrf-attachments', 'public');
+    }
+
     public function storeMRF(Request $request)
     {
+        if ($request->requestId && ManpowerRequest::where('request_id', $request->requestId)->exists()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'The MRF Reference Number already exists. Please use a unique reference number.',
+            ], 422);
+        }
+
         $data = [
+            'request_id'          => $request->requestId ?: $this->nextMrfReference(),
             'address_id'          => $request->orgAddressId,
             'branch_id'           => $request->orgBranchId,
             'office_id'           => $request->orgOfficeId,
@@ -413,6 +476,12 @@ class RecruitmentController extends Controller
             'date_required'      => $request->dateRequired,
             'position'           => $request->position,
             'employment_type'    => $request->employmentType,
+            'immediate_supervisor' => $request->immediateSupervisor,
+            'target_start_date'   => $request->targetStartDate,
+            'job_level_rank'      => $request->jobLevelRank,
+            'work_classification' => $request->workClassification,
+            'work_arrangement'    => $request->workArrangement,
+            'work_schedule'       => $request->workSchedule,
             'duties'             => $request->duties,
             'nature_of_request'  => $request->natureOfRequest,
             'age_range'          => $request->ageRange,
@@ -421,6 +490,24 @@ class RecruitmentController extends Controller
             'headcount'          => $request->headcount,
             'education'          => $request->education,
             'qualifications'     => $request->qualifications,
+            'required_skills'     => $this->normalizeBulletText($request->requiredSkills),
+            'benefits_checklist'  => $this->requestArray($request, 'benefitsChecklist'),
+            'required_licenses'   => $this->normalizeBulletText($request->requiredLicenses),
+            'required_documents'  => $this->requestArray($request, 'requiredDocuments'),
+            'salary_min'          => $request->salaryMin,
+            'salary_max'          => $request->salaryMax,
+            'contract_duration'   => $request->contractDuration,
+            'urgency_level'       => $request->urgencyLevel,
+            'candidate_profile_attached' => $request->boolean('candidateProfileAttached'),
+            'job_description_attached'   => $request->boolean('jobDescriptionAttached'),
+            'candidate_profile_path'     => $this->storeMrfAttachment($request, 'candidateProfileFile'),
+            'job_description_path'       => $this->storeMrfAttachment($request, 'jobDescriptionFile'),
+            'endorsements'        => [
+                'immediate_supervisor' => $request->immediateSupervisorEndorsement,
+                'department_head' => $request->departmentHeadEndorsement,
+                'hc_head' => $request->hcHeadValidation,
+                'finance_head' => $request->financeHeadClearance,
+            ],
             'requested_by'       => $request->requestedBy,
             'approved_by'        => $request->approvedBy,
             'remarks'            => $request->remarks,
@@ -433,12 +520,6 @@ class RecruitmentController extends Controller
             'checked_by'         => $request->checkedBy,
         ];
 
-        if (!isset($data['request_id'])) {
-            $year = date('Y');
-            $count = ManpowerRequest::whereYear('created_at', $year)->count() + 1;
-            $data['request_id'] = "MRF-{$year}-" . str_pad($count, 3, '0', STR_PAD_LEFT);
-        }
-
         $mrf = ManpowerRequest::create($data);
         return response()->json(['success' => true, 'data' => $mrf]);
     }
@@ -446,7 +527,16 @@ class RecruitmentController extends Controller
     public function updateMRF(Request $request, $id)
     {
         $mrf = ManpowerRequest::findOrFail($id);
+
+        if ($request->requestId && ManpowerRequest::where('request_id', $request->requestId)->whereKeyNot($mrf->id)->exists()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'The MRF Reference Number already exists. Please use a unique reference number.',
+            ], 422);
+        }
+
         $data = [
+            'request_id'          => $request->requestId ?: $mrf->request_id,
             'address_id'          => $request->orgAddressId,
             'branch_id'           => $request->orgBranchId,
             'office_id'           => $request->orgOfficeId,
@@ -460,6 +550,12 @@ class RecruitmentController extends Controller
             'date_required'      => $request->dateRequired,
             'position'           => $request->position,
             'employment_type'    => $request->employmentType,
+            'immediate_supervisor' => $request->immediateSupervisor,
+            'target_start_date'   => $request->targetStartDate,
+            'job_level_rank'      => $request->jobLevelRank,
+            'work_classification' => $request->workClassification,
+            'work_arrangement'    => $request->workArrangement,
+            'work_schedule'       => $request->workSchedule,
             'duties'             => $request->duties,
             'nature_of_request'  => $request->natureOfRequest,
             'age_range'          => $request->ageRange,
@@ -468,6 +564,24 @@ class RecruitmentController extends Controller
             'headcount'          => $request->headcount,
             'education'          => $request->education,
             'qualifications'     => $request->qualifications,
+            'required_skills'     => $this->normalizeBulletText($request->requiredSkills),
+            'benefits_checklist'  => $this->requestArray($request, 'benefitsChecklist'),
+            'required_licenses'   => $this->normalizeBulletText($request->requiredLicenses),
+            'required_documents'  => $this->requestArray($request, 'requiredDocuments'),
+            'salary_min'          => $request->salaryMin,
+            'salary_max'          => $request->salaryMax,
+            'contract_duration'   => $request->contractDuration,
+            'urgency_level'       => $request->urgencyLevel,
+            'candidate_profile_attached' => $request->boolean('candidateProfileAttached'),
+            'job_description_attached'   => $request->boolean('jobDescriptionAttached'),
+            'candidate_profile_path'     => $this->storeMrfAttachment($request, 'candidateProfileFile', $mrf->candidate_profile_path),
+            'job_description_path'       => $this->storeMrfAttachment($request, 'jobDescriptionFile', $mrf->job_description_path),
+            'endorsements'        => [
+                'immediate_supervisor' => $request->immediateSupervisorEndorsement,
+                'department_head' => $request->departmentHeadEndorsement,
+                'hc_head' => $request->hcHeadValidation,
+                'finance_head' => $request->financeHeadClearance,
+            ],
             'requested_by'       => $request->requestedBy,
             'approved_by'        => $request->approvedBy,
             'remarks'            => $request->remarks,
@@ -941,6 +1055,19 @@ class RecruitmentController extends Controller
 
     public function storeCAF(Request $request)
     {
+        $isPublicSubmission = $request->routeIs('careers.apply.submit');
+
+        $request->validate([
+            'jobPostingId' => ['required', 'exists:job_postings,id'],
+            'firstName' => ['nullable', 'string', 'max:255'],
+            'lastName' => ['nullable', 'string', 'max:255'],
+            'fullName' => ['nullable', 'string', 'max:255'],
+            'email' => ['required', 'email', 'max:255'],
+            'phone' => ['required', 'string', 'max:100'],
+            'cv' => [$isPublicSubmission ? 'required' : 'nullable', 'file', 'max:4096'],
+            'consentAccepted' => [$isPublicSubmission ? 'accepted' : 'nullable'],
+        ]);
+
         $cvPath = null;
         if ($request->hasFile('cv')) {
             $cvPath = $request->file('cv')->store('resumes', 'public');
@@ -954,6 +1081,16 @@ class RecruitmentController extends Controller
         $coverLetterPath = null;
         if ($request->hasFile('cover_letter_file')) {
             $coverLetterPath = $request->file('cover_letter_file')->store('cover_letters', 'public');
+        }
+
+        $portfolioPath = null;
+        if ($request->hasFile('portfolio_file')) {
+            $portfolioPath = $request->file('portfolio_file')->store('portfolios', 'public');
+        }
+
+        $governmentIdPath = null;
+        if ($request->hasFile('government_id')) {
+            $governmentIdPath = $request->file('government_id')->store('candidate_ids', 'public');
         }
 
         $jobPosting = JobPosting::find($request->jobPostingId);
@@ -973,10 +1110,41 @@ class RecruitmentController extends Controller
         }
 
         $applicantType = $request->applicantType ?: 'New Applicant';
+        $fullName = $request->fullName ?: trim(implode(' ', array_filter([
+            $request->firstName,
+            $request->middleName,
+            $request->lastName,
+        ])));
+
+        $applicationData = $request->except([
+            '_token',
+            'photo',
+            'cv',
+            'cover_letter_file',
+            'portfolio_file',
+            'government_id',
+        ]);
+        $applicationData['job'] = [
+            'id' => $jobPosting->id,
+            'job_id' => $jobPosting->job_id,
+            'position' => $jobPosting->position,
+            'department_unit' => $jobPosting->department_unit,
+            'employment_type' => $jobPosting->employment_type,
+            'work_arrangement' => $jobPosting->work_arrangement ?? null,
+        ];
+
+        $attachmentPaths = [
+            'photo' => $photoPath,
+            'resume_cv' => $cvPath,
+            'cover_letter' => $coverLetterPath,
+            'portfolio' => $portfolioPath,
+            'government_id' => $governmentIdPath,
+        ];
 
         $caf = CandidateApplication::create([
+            'applicant_id' => $this->generateApplicantId(),
             'job_posting_id' => $jobPosting->id,
-            'name' => $request->fullName,
+            'name' => $fullName,
             'position' => $request->positionApplied ?: $jobPosting->position,
             'email' => $request->email,
             'phone' => $request->phone,
@@ -984,6 +1152,15 @@ class RecruitmentController extends Controller
             'cv_path' => $cvPath,
             'cover_letter_path' => $coverLetterPath,
             'cover_letter' => $request->coverLetter,
+            'application_data' => $applicationData,
+            'attachment_paths' => $attachmentPaths,
+            'consent_accepted_at' => $request->boolean('consentAccepted') ? now() : null,
+            'consent_version' => $request->boolean('consentAccepted') ? '2026-05-28-v1' : null,
+            'submission_metadata' => [
+                'ip_address' => $request->ip(),
+                'user_agent' => $request->userAgent(),
+                'submitted_at' => now()->toDateTimeString(),
+            ],
             'applicant_type' => $applicantType,
             'internal_remarks' => $request->internalRemarks,
             'status' => 'Pending',
@@ -995,6 +1172,19 @@ class RecruitmentController extends Controller
         }
 
         return response()->json(['success' => true, 'data' => $caf]);
+    }
+
+    private function generateApplicantId(): string
+    {
+        $year = date('Y');
+        $count = CandidateApplication::whereYear('created_at', $year)->count() + 1;
+
+        do {
+            $id = 'CAF-' . $year . '-' . str_pad($count, 4, '0', STR_PAD_LEFT);
+            $count++;
+        } while (CandidateApplication::where('applicant_id', $id)->exists());
+
+        return $id;
     }
 
     public function updateCAF(Request $request, $id)
@@ -1299,42 +1489,16 @@ class RecruitmentController extends Controller
                 'company_address'  => $request->companyAddress ?: $jpf->location,
                 'benefits'         => $request->benefits,
                 'accept_token'     => $this->generateJobOfferToken(),
-                'status'           => 'Pending',
+                'status'           => $request->status ?: 'Draft',
             ]);
 
             if (!in_array($jpf->status, ['Filled', 'Closed', 'Cancelled'], true)) {
                 $jpf->update(['status' => 'Offer Stage']);
             }
 
-            if ($candidateEmail) {
-                try {
-                    Mail::to($candidateEmail)->send(new JobOfferMail($jobOffer, $interview, $jpf));
-
-                    $jobOffer->update([
-                        'status' => 'Sent',
-                    ]);
-
-                    $jobOffer->refresh();
-
-                    return response()->json([
-                        'success' => true,
-                        'message' => 'Job Offer created and emailed successfully.',
-                        'data' => $jobOffer
-                    ]);
-                } catch (\Exception $mailError) {
-                    Log::error("Failed to send job offer email to {$candidateEmail}: " . $mailError->getMessage());
-
-                    return response()->json([
-                        'success' => true,
-                        'warning' => 'Job Offer was saved, but the email failed to send: ' . $mailError->getMessage(),
-                        'data' => $jobOffer
-                    ]);
-                }
-            }
-
             return response()->json([
                 'success' => true,
-                'warning' => 'Job Offer was saved, but no candidate email was found.',
+                'message' => 'Job Offer saved as Draft. Review the details and click Send Job Offer when ready.',
                 'data' => $jobOffer
             ]);
         } catch (\Exception $e) {

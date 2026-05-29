@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ $job->position ?: 'Job Opening' }} | John Kelly &amp; Company</title>
 
-    <link rel="shortcut icon" href="{{ asset('images/jknc_logo.png') }}">
+    <link rel="icon" type="image/png" href="{{ asset('images/image.png') }}">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 
     <style>
@@ -26,6 +26,7 @@
             --ink: #0f172a;
             --muted: #64748b;
             --line: #dbe3ef;
+            --panel: #f8fafc;
         }
 
         .topbar {
@@ -144,9 +145,9 @@
         .search-jobs { color: var(--brand); white-space: nowrap; }
 
         .page {
-            width: min(1120px, calc(100% - 32px));
+            width: min(1180px, calc(100% - 32px));
             margin: 0 auto;
-            padding: 28px 0 70px;
+            padding: 30px 0 70px;
         }
 
         .breadcrumb {
@@ -162,12 +163,12 @@
 
         .job-layout {
             display: grid;
-            grid-template-columns: minmax(0, 1fr) 280px;
-            gap: 38px;
+            grid-template-columns: minmax(0, 1fr) 320px;
+            gap: 34px;
             align-items: start;
         }
 
-        .main-content { max-width: 760px; }
+        .main-content { min-width: 0; }
 
         .back-btn {
             display: inline-flex;
@@ -185,61 +186,56 @@
 
         .back-btn:hover { background: var(--brand-soft); }
 
+        .job-hero {
+            border-bottom: 1px solid #e5e7eb;
+            padding-bottom: 28px;
+            margin-bottom: 30px;
+        }
+
+        .job-brand-row {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 18px;
+        }
+
         .job-company-logo {
-            width: 118px;
-            height: 78px;
+            width: 86px;
+            height: 56px;
             object-fit: contain;
             object-position: left center;
-            margin-bottom: 16px;
+        }
+
+        .eyebrow {
+            color: var(--brand);
+            font-size: 11px;
+            font-weight: 900;
+            letter-spacing: .16em;
+            text-transform: uppercase;
+        }
+
+        .company-name {
+            margin-top: 3px;
+            color: #334155;
+            font-size: 14px;
+            font-weight: 800;
         }
 
         .job-title {
             color: #020617;
-            font-size: clamp(27px, 4vw, 38px);
+            font-size: clamp(30px, 5vw, 48px);
             line-height: 1.08;
             font-weight: 900;
             letter-spacing: -.045em;
-            max-width: 720px;
-            margin-bottom: 13px;
-        }
-
-        .job-highlights {
-            display: grid;
-            gap: 7px;
-            margin: 12px 0 12px;
-            color: #334155;
-            font-size: 15px;
-        }
-
-        .highlight-row {
-            display: flex;
-            align-items: center;
-            gap: 9px;
-        }
-
-        .dot {
-            width: 9px;
-            height: 9px;
-            border-radius: 999px;
-            flex: 0 0 auto;
-        }
-
-        .dot-blue { background: var(--brand); }
-        .dot-sky { background: #38bdf8; }
-        .dot-green { background: #16a34a; }
-
-        .company-name {
-            margin: 12px 0 8px;
-            color: var(--brand);
-            font-size: 17px;
-            font-weight: 900;
+            max-width: 820px;
+            margin-bottom: 18px;
         }
 
         .badges {
             display: flex;
             flex-wrap: wrap;
             gap: 8px;
-            margin-bottom: 17px;
+            margin-bottom: 20px;
         }
 
         .badge {
@@ -255,22 +251,37 @@
             font-weight: 800;
         }
 
-        .location-line {
-            display: flex;
-            gap: 8px;
-            align-items: start;
-            color: #111827;
-            font-size: 15px;
-            margin: 14px 0 18px;
+        .job-summary-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 12px;
+            margin-top: 18px;
         }
 
-        .posted-line {
-            color: #334155;
+        .summary-item {
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            background: var(--panel);
+            padding: 13px 14px;
+            min-height: 76px;
+        }
+
+        .summary-item strong {
+            display: block;
+            color: #64748b;
+            font-size: 10px;
+            font-weight: 900;
+            letter-spacing: .12em;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }
+
+        .summary-item span {
+            color: #0f172a;
             font-size: 14px;
-            margin-bottom: 22px;
+            font-weight: 800;
+            overflow-wrap: anywhere;
         }
-
-        .posted-line strong { color: #111827; }
 
         .apply-btn {
             display: inline-flex;
@@ -294,8 +305,7 @@
         }
 
         .details-section {
-            margin-top: 42px;
-            margin-bottom: 36px;
+            margin-bottom: 34px;
         }
 
         .details-section h2,
@@ -306,10 +316,10 @@
         }
 
         .details-section h2 {
-            font-size: 22px;
-            border-bottom: 1px solid #cbd5e1;
-            padding-bottom: 9px;
-            margin-bottom: 22px;
+            font-size: 21px;
+            border-bottom: 1px solid #e2e8f0;
+            padding-bottom: 10px;
+            margin-bottom: 18px;
         }
 
         .details-section h3 {
@@ -331,7 +341,7 @@
         .info-grid {
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 9px 34px;
+            gap: 10px 24px;
             margin-top: 10px;
             font-size: 14px;
         }
@@ -349,8 +359,11 @@
         .side-panel {
             position: sticky;
             top: 102px;
-            border-left: 1px solid #e5e7eb;
-            padding-left: 26px;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 20px;
+            background: #fff;
+            box-shadow: 0 16px 40px rgba(15, 23, 42, .07);
             color: #334155;
         }
 
@@ -416,8 +429,9 @@
 
         @media (max-width: 980px) {
             .job-layout { grid-template-columns: 1fr; }
-            .side-panel { position: static; border-left: 0; border-top: 1px solid #e5e7eb; padding-left: 0; padding-top: 24px; }
+            .side-panel { position: static; }
             .main-content { max-width: none; }
+            .job-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         }
 
         @media (max-width: 640px) {
@@ -427,8 +441,11 @@
             .subnav-links { gap: 14px; }
             .page { width: calc(100% - 24px); }
             .job-company-logo { width: 92px; height: 62px; }
+            .job-brand-row { align-items: flex-start; }
+            .job-summary-grid { grid-template-columns: 1fr; }
             .info-grid { grid-template-columns: 1fr; }
             .info-row { grid-template-columns: 105px minmax(0, 1fr); }
+            .side-panel { display: none; }
             .mobile-apply {
                 display: block;
                 position: sticky;
@@ -460,8 +477,8 @@
 
     $salary = null;
     if (!empty($job->min_salary_offer) || !empty($job->max_salary_offer)) {
-        $min = $job->min_salary_offer ? '₱' . number_format((float) $job->min_salary_offer, 0) : null;
-        $max = $job->max_salary_offer ? '₱' . number_format((float) $job->max_salary_offer, 0) : null;
+        $min = $job->min_salary_offer ? 'PHP ' . number_format((float) $job->min_salary_offer, 0) : null;
+        $max = $job->max_salary_offer ? 'PHP ' . number_format((float) $job->max_salary_offer, 0) : null;
         $salary = trim(($min ?: '') . (($min && $max) ? ' - ' : '') . ($max ?: ''));
     }
 
@@ -473,15 +490,14 @@
 <header class="topbar">
     <div class="nav">
         <a href="{{ route('homepage.public') }}" class="brand">
-            <img src="{{ asset('images/jknc_logo.png') }}" onerror="this.src='{{ asset('images/imaglogo.png') }}'" alt="John Kelly &amp; Company Logo">
+            <img src="{{ asset('images/FINAL_LOGO.jpg') }}" onerror="this.src='{{ asset('images/imaglogo.png') }}'" alt="John Kelly &amp; Company Logo">
             <div class="brand-text">
                 <strong>John Kelly &amp; Company</strong>
                 <span>Careers Portal</span>
             </div>
         </a>
         <div class="nav-actions">
-            <a href="{{ route('homepage.public') }}#openings">Search Jobs</a>
-            <a href="{{ route('careers.apply') }}" class="outline-btn">Submit Application</a>
+            <a href="{{ route('homepage.public') }}#careers">Search Jobs</a>
         </div>
     </div>
 </header>
@@ -493,15 +509,15 @@
             <span>{{ $job->employment_type ?: 'Open Role' }}</span>
             <span>{{ $department }}</span>
         </div>
-        <a href="{{ route('homepage.public') }}#openings" class="search-jobs">⌕ Search Jobs</a>
+        <a href="{{ route('homepage.public') }}#careers" class="search-jobs">Search Jobs</a>
     </div>
 </div>
 
 <main class="page">
-    <a href="{{ route('homepage.public') }}#openings" class="back-btn">‹ Back</a>
+    <a href="{{ route('homepage.public') }}#careers" class="back-btn">Back</a>
 
     <div class="breadcrumb">
-        <a href="{{ route('homepage.public') }}#openings">Careers</a>
+        <a href="{{ route('homepage.public') }}#careers">Careers</a>
         <span>/</span>
         <span>{{ $title }}</span>
     </div>
@@ -509,41 +525,46 @@
     <div class="job-layout">
         <section class="main-content">
 
-            <img src="{{ asset('images/jknc_logo.png') }}" onerror="this.src='{{ asset('images/imaglogo.png') }}'" alt="John Kelly &amp; Company" class="job-company-logo">
+            <div class="job-hero">
+                <div class="job-brand-row">
+                    <img src="{{ asset('images/FINAL_LOGO.jpg') }}" onerror="this.src='{{ asset('images/imaglogo.png') }}'" alt="John Kelly &amp; Company" class="job-company-logo">
+                    <div>
+                        <div class="eyebrow">Career Opportunity</div>
+                        <div class="company-name">John Kelly &amp; Company</div>
+                    </div>
+                </div>
 
-            <h1 class="job-title">{{ $title }}</h1>
+                <h1 class="job-title">{{ $title }}</h1>
 
-            <div class="job-highlights">
-                @if($job->no_of_vacancies)
-                    <div class="highlight-row"><span class="dot dot-blue"></span>{{ $job->no_of_vacancies }} Open {{ ((int) $job->no_of_vacancies) > 1 ? 'Positions' : 'Position' }}</div>
-                @endif
-                @if($job->employment_type)
-                    <div class="highlight-row"><span class="dot dot-sky"></span>{{ $job->employment_type }}</div>
-                @endif
-                <div class="highlight-row"><span class="dot dot-green"></span>Structured role with practical business experience</div>
+                <div class="badges">
+                    @if($job->job_id)<span class="badge">Job ID: {{ $job->job_id }}</span>@endif
+                    <span class="badge">{{ $job->status === 'Screening' ? 'Posted / Open' : ($job->status ?: 'Posted') }}</span>
+                    <span class="badge">Posted: {{ $postedDate }}</span>
+                </div>
+
+                <div class="job-summary-grid">
+                    <div class="summary-item">
+                        <strong>Department</strong>
+                        <span>{{ $department }}</span>
+                    </div>
+                    <div class="summary-item">
+                        <strong>Employment Type</strong>
+                        <span>{{ $job->employment_type ?: 'TBA' }}</span>
+                    </div>
+                    <div class="summary-item">
+                        <strong>Location</strong>
+                        <span>{{ $location }}</span>
+                    </div>
+                    <div class="summary-item">
+                        <strong>Vacancies</strong>
+                        <span>{{ $job->no_of_vacancies ? $job->no_of_vacancies . (((int) $job->no_of_vacancies) > 1 ? ' Open Positions' : ' Open Position') : 'TBA' }}</span>
+                    </div>
+                </div>
             </div>
-
-            <div class="company-name">John Kelly &amp; Company</div>
-
-            <div class="badges">
-                @if($job->job_id)<span class="badge">Job ID: {{ $job->job_id }}</span>@endif
-                <span class="badge">Posted: {{ $postedDate }}</span>
-                @if($salary)<span class="badge">{{ $salary }}</span>@endif
-            </div>
-
-            <div class="location-line">📍 <span>{{ $location }}</span></div>
-
-            <div class="posted-line">
-                <div>Posted On: <strong>{{ $postedDate }}</strong></div>
-                @if($job->job_id)<div>Job ID: {{ $job->job_id }}</div>@endif
-            </div>
-
-            <a href="{{ $applyUrl }}" class="apply-btn">Apply Now ↗</a>
 
             <div class="details-section">
-                <h2>Details</h2>
+                <h2>Role Overview</h2>
                 <div class="body-text">
-                    <p><strong>John Kelly &amp; Company</strong> is looking for a qualified candidate for the <strong>{{ $title }}</strong> position.</p>
                     <p>{!! nl2br(e($description)) !!}</p>
                 </div>
             </div>
@@ -573,18 +594,21 @@
             <div class="details-section">
                 <h3>Job Information</h3>
                 <div class="info-grid">
+                    <div class="info-row"><strong>Title:</strong><span>{{ $title }}</span></div>
                     <div class="info-row"><strong>Location:</strong><span>{{ $location }}</span></div>
                     <div class="info-row"><strong>Department:</strong><span>{{ $department }}</span></div>
                     <div class="info-row"><strong>Type:</strong><span>{{ $job->employment_type ?: 'TBA' }}</span></div>
-                    <div class="info-row"><strong>Vacancies:</strong><span>{{ $job->no_of_vacancies ?: '—' }}</span></div>
+                    <div class="info-row"><strong>Level:</strong><span>{{ $job->position_level ?: 'TBA' }}</span></div>
+                    <div class="info-row"><strong>Vacancies:</strong><span>{{ $job->no_of_vacancies ?: 'TBA' }}</span></div>
                     <div class="info-row"><strong>Salary:</strong><span>{{ $salary ?: 'Competitive' }}</span></div>
-                    <div class="info-row"><strong>Target Hire:</strong><span>{{ $job->target_hire_date ? optional($job->target_hire_date)->format('M d, Y') : '—' }}</span></div>
+                    <div class="info-row"><strong>Schedule:</strong><span>{{ count($workSchedule) ? implode(', ', $workSchedule) : ($job->rest_days ?: 'TBA') }}</span></div>
+                    <div class="info-row"><strong>Target Hire:</strong><span>{{ $job->target_hire_date ? optional($job->target_hire_date)->format('M d, Y') : 'TBA' }}</span></div>
                 </div>
             </div>
 
             @if(count($benefits))
                 <div class="details-section">
-                    <h3>What’s in it for you?</h3>
+                    <h3>Benefits</h3>
                     <div class="body-text">
                         <ul>
                             @foreach($benefits as $benefit)
@@ -610,24 +634,20 @@
                     </div>
                 </div>
             @endif
-
-            <div class="details-section">
-                <a href="{{ $applyUrl }}" class="apply-btn">Apply Now ↗</a>
-            </div>
         </section>
 
         <aside class="side-panel">
             <h3>Interested in this role?</h3>
             <p>Review the details and submit your application through the online form.</p>
             <a href="{{ $applyUrl }}" class="apply-btn">Apply Now</a>
-            <a href="{{ route('homepage.public') }}#openings" class="outline-btn">View Other Jobs</a>
+            <a href="{{ route('homepage.public') }}#careers" class="outline-btn">View Other Jobs</a>
 
             <div class="side-list">
                 @if($job->job_id)<div><strong>Job ID</strong><span>{{ $job->job_id }}</span></div>@endif
                 <div><strong>Status</strong><span>{{ $job->status ?: 'Posted' }}</span></div>
-                <div><strong>Vacancies</strong><span>{{ $job->no_of_vacancies ?: '—' }}</span></div>
+                <div><strong>Vacancies</strong><span>{{ $job->no_of_vacancies ?: 'TBA' }}</span></div>
                 <div><strong>Salary</strong><span>{{ $salary ?: 'Competitive' }}</span></div>
-                <div><strong>Target Hire</strong><span>{{ $job->target_hire_date ? optional($job->target_hire_date)->format('M d, Y') : '—' }}</span></div>
+                <div><strong>Target Hire</strong><span>{{ $job->target_hire_date ? optional($job->target_hire_date)->format('M d, Y') : 'TBA' }}</span></div>
             </div>
         </aside>
     </div>
@@ -641,7 +661,9 @@
 </footer>
 
 <div class="mobile-apply">
-    <a href="{{ $applyUrl }}" class="apply-btn">Apply Now ↗</a>
+    <a href="{{ $applyUrl }}" class="apply-btn">Apply Now</a>
 </div>
 </body>
 </html>
+
+

@@ -14,7 +14,13 @@ class ManpowerRequest extends Model
     protected $casts = [
         'date_requested' => 'date',
         'date_required' => 'date',
+        'target_start_date' => 'date',
         'date_hired' => 'date',
+        'benefits_checklist' => 'array',
+        'required_documents' => 'array',
+        'endorsements' => 'array',
+        'candidate_profile_attached' => 'boolean',
+        'job_description_attached' => 'boolean',
     ];
 
     public function address()
