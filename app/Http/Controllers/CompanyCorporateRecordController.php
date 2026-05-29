@@ -9,7 +9,11 @@ use App\Http\Controllers\Concerns\ResolvesCompanyRecords;
 use App\Models\Company;
 use App\Models\GisRecord;
 use App\Models\Minute;
+use App\Mail\NoticeOfMeetingMail;
 use App\Models\Notice;
+use App\Models\NoticeAttendee;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Support\Facades\Mail;
 use App\Models\Resolution;
 use App\Models\SecAoi;
 use App\Models\SecCoi;
@@ -36,7 +40,7 @@ class CompanyCorporateRecordController extends Controller
     {
         $companyData = $this->findCompanyOrAbort($request, $company);
         $notices = $this->companyScopedQuery(Notice::query(), new Notice(), $company)
-            ->with(['minutes', 'resolutions', 'secretaryCertificates'])
+            ->with(['minutes', 'resolutions', 'secretaryCertificates', 'attendees'])
             ->latest()
             ->get()
             ->each(fn (Notice $notice) => $notice->preview_url = route('company.corporate-formation.notices.preview', [$company, $notice->id]));
@@ -64,6 +68,7 @@ class CompanyCorporateRecordController extends Controller
 
         $notice = Notice::create($data);
         $this->syncGeneratedNoticePdf($notice, $bodyHtml, $hasUploadedDocument);
+        $this->syncNoticeAttendeesFromLatestGis($notice);
 
         return redirect()->route('company.corporate-formation.notices', $company)->with('success', 'Notice created.');
     }
@@ -72,12 +77,14 @@ class CompanyCorporateRecordController extends Controller
     {
         $companyData = $this->findCompanyOrAbort($request, $company);
         $noticeRecord = $this->findCompanyNotice($company, $notice);
-        $noticeRecord->load(['minutes', 'resolutions', 'secretaryCertificates']);
+        $this->syncNoticeAttendeesFromLatestGis($noticeRecord->fresh());
+        $noticeRecord->load(['minutes', 'resolutions', 'secretaryCertificates', 'attendees']);
 
         return view('corporate.notices.preview', [
             'notice' => $noticeRecord,
             'backRoute' => route('company.corporate-formation.notices', $company),
             'sectionRibbonPartial' => 'company.partials.corporate-formation-ribbon',
+            'sendRoute' => route('company.corporate-formation.notices.send', [$company, $noticeRecord->id]),
             ...$this->companyViewData($companyData, $company),
         ]);
     }
@@ -95,6 +102,7 @@ class CompanyCorporateRecordController extends Controller
 
         $noticeRecord->update($data);
         $this->syncGeneratedNoticePdf($noticeRecord->fresh(), $bodyHtml, $hasUploadedDocument);
+        $this->syncNoticeAttendeesFromLatestGis($noticeRecord->fresh());
 
         return redirect()->route('company.corporate-formation.notices', $company)->with('success', 'Notice updated.');
     }
@@ -105,6 +113,23 @@ class CompanyCorporateRecordController extends Controller
         $this->findCompanyNotice($company, $notice)->delete();
 
         return redirect()->route('company.corporate-formation.notices', $company)->with('success', 'Notice deleted.');
+    }
+
+
+    public function sendNotice(Request $request, int $company, int $notice): RedirectResponse
+    {
+        $this->findCompanyOrAbort($request, $company);
+        $noticeRecord = $this->findCompanyNotice($company, $notice);
+        $noticeRecord->load('attendees');
+        $attendees = $noticeRecord->attendees()->whereIn('id', $request->input('attendee_ids', []))->whereNotNull('email')->get();
+        if ($attendees->isEmpty()) return back()->with('error', 'No selected attendees with valid email addresses.');
+        $pdfBinary = $this->noticePdfBinary($noticeRecord->fresh(['attendees']));
+        $filename = 'notice-' . Str::slug($noticeRecord->notice_number ?: 'meeting') . '.pdf';
+        foreach ($attendees as $attendee) {
+            Mail::to($attendee->email)->send(new NoticeOfMeetingMail($noticeRecord, $attendee, $pdfBinary, $filename));
+            $attendee->update(['sent_at' => now(), 'is_selected' => true]);
+        }
+        return back()->with('success', 'Notice sent to ' . $attendees->count() . ' attendee(s).');
     }
 
     public function minutes(Request $request, int $company): View
@@ -166,6 +191,7 @@ class CompanyCorporateRecordController extends Controller
             'templatePreviewUrl' => $templatePreviewPath ? route('uploads.show', ['path' => $templatePreviewPath]) : null,
             'templatePreviewDownloadUrl' => $templatePreviewPath ? route('uploads.show', ['path' => $templatePreviewPath, 'download' => 1]) : null,
             'sectionRibbonPartial' => 'company.partials.corporate-formation-ribbon',
+            'sendRoute' => route('company.corporate-formation.notices.send', [$company, $noticeRecord->id]),
             ...$this->companyViewData($companyData, $company),
         ]);
     }
@@ -374,6 +400,7 @@ class CompanyCorporateRecordController extends Controller
             'updateRoute' => route('company.corporate-formation.resolutions.update', [$company, $resolutionRecord->id]),
             'deleteRoute' => route('company.corporate-formation.resolutions.destroy', [$company, $resolutionRecord->id]),
             'sectionRibbonPartial' => 'company.partials.corporate-formation-ribbon',
+            'sendRoute' => route('company.corporate-formation.notices.send', [$company, $noticeRecord->id]),
             ...$this->companyViewData($companyData, $company),
         ]);
     }
@@ -466,6 +493,7 @@ class CompanyCorporateRecordController extends Controller
             'updateRoute' => route('company.corporate-formation.secretary-certificates.update', [$company, $certificateRecord->id]),
             'deleteRoute' => route('company.corporate-formation.secretary-certificates.destroy', [$company, $certificateRecord->id]),
             'sectionRibbonPartial' => 'company.partials.corporate-formation-ribbon',
+            'sendRoute' => route('company.corporate-formation.notices.send', [$company, $noticeRecord->id]),
             ...$this->companyViewData($companyData, $company),
         ]);
     }
@@ -1167,5 +1195,45 @@ class CompanyCorporateRecordController extends Controller
             ['id' => 2, 'company_name' => 'Company 2', 'company_type' => 'Corporation', 'email' => 'company2@example.com', 'phone' => '09000345678', 'website' => 'https://bigin.example', 'description' => 'Sample company record', 'address' => 'Taguig City', 'owner_name' => 'Owner 2', 'created_at' => '2026-03-02 10:00:00'],
             ['id' => 3, 'company_name' => 'Company 3', 'company_type' => 'Corporation', 'email' => 'company3@example.com', 'phone' => '09777345678', 'website' => 'https://bigin.example', 'description' => 'Sample company record', 'address' => 'Pasig City', 'owner_name' => 'Owner 3', 'created_at' => '2026-03-03 10:00:00'],
         ];
+    }
+
+    private function syncNoticeAttendeesFromLatestGis(Notice $notice): void
+    {
+        $latestGisQuery = GisRecord::with(['directors', 'stockholders']);
+
+        if ($notice->company_id) {
+            $latestGisQuery->where('company_id', $notice->company_id);
+        }
+
+        $latestGis = $latestGisQuery->latest('id')->first();
+
+        if (!$latestGis) return;
+        $rows = collect();
+        $governingBody = strtolower((string) $notice->governing_body);
+        if (str_contains($governingBody, 'board') || str_contains($governingBody, 'director') || str_contains($governingBody, 'joint')) {
+            foreach ($latestGis->directors as $director) {
+                $rows->push(['name'=>$director->officer_name,'position'=>$director->officer_type ?: $director->board,'email'=>$director->email,'source_type'=>'director_officer','source_id'=>$director->id]);
+            }
+        }
+        if (str_contains($governingBody, 'stockholder') || str_contains($governingBody, 'joint')) {
+            foreach ($latestGis->stockholders as $stockholder) {
+                $rows->push(['name'=>$stockholder->stockholder_name,'position'=>'Stockholder','email'=>$stockholder->email,'source_type'=>'stockholder','source_id'=>$stockholder->id]);
+            }
+        }
+        if ($rows->isEmpty()) {
+            foreach ($latestGis->directors as $director) {
+                $rows->push(['name'=>$director->officer_name,'position'=>$director->officer_type ?: $director->board,'email'=>$director->email,'source_type'=>'director_officer','source_id'=>$director->id]);
+            }
+        }
+        $rows->unique(fn($row)=>strtolower(trim($row['source_type'].':'.$row['source_id'].':'.$row['name'])))->values()->each(function(array $row, int $index) use ($notice) {
+            if (blank($row['name'])) return;
+            NoticeAttendee::updateOrCreate(['notice_id'=>$notice->id,'source_type'=>$row['source_type'],'source_id'=>$row['source_id']], ['name'=>$row['name'],'position'=>$row['position'],'email'=>$row['email'],'is_selected'=>filled($row['email']),'sort_order'=>$index+1]);
+        });
+    }
+
+    private function noticePdfBinary(Notice $notice): string
+    {
+        $notice->loadMissing('attendees');
+        return Pdf::loadView('corporate.notices.pdf', ['notice'=>$notice,'bodyHtml'=>$notice->body_html])->setPaper('a4')->output();
     }
 }

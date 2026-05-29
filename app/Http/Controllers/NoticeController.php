@@ -4,7 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\GeneratesCorporateDocumentNumbers;
 use App\Http\Controllers\Concerns\HandlesUploads;
+use App\Mail\NoticeOfMeetingMail;
+use App\Models\GisRecord;
 use App\Models\Notice;
+use App\Models\NoticeAttendee;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
@@ -19,7 +24,7 @@ class NoticeController extends Controller
     public function index()
     {
         $notices = Notice::whereNull('company_id')
-            ->with(['minutes', 'resolutions', 'secretaryCertificates'])
+            ->with(['minutes', 'resolutions', 'secretaryCertificates', 'attendees'])
             ->latest()
             ->get();
 
@@ -61,6 +66,7 @@ class NoticeController extends Controller
 
         $notice = Notice::create($data);
         $this->syncGeneratedNoticePdf($notice, $bodyHtml, $hasUploadedDocument);
+        $this->syncNoticeAttendeesFromLatestGis($notice);
 
         return redirect()->route('notices')->with('success', 'Notice created.');
     }
@@ -69,7 +75,8 @@ class NoticeController extends Controller
     {
         abort_if($notice->company_id !== null, 404);
 
-        $notice->load(['minutes', 'resolutions', 'secretaryCertificates']);
+        $this->syncNoticeAttendeesFromLatestGis($notice->fresh());
+        $notice->load(['minutes', 'resolutions', 'secretaryCertificates', 'attendees']);
 
         return view('corporate.notices.preview', [
             'notice' => $notice,
@@ -105,6 +112,7 @@ class NoticeController extends Controller
 
         $notice->update($data);
         $this->syncGeneratedNoticePdf($notice->fresh(), $bodyHtml, $hasUploadedDocument);
+        $this->syncNoticeAttendeesFromLatestGis($notice->fresh());
 
         return redirect()->route('notices')->with('success', 'Notice updated.');
     }
@@ -116,6 +124,24 @@ class NoticeController extends Controller
         $notice->delete();
 
         return redirect()->route('notices')->with('success', 'Notice deleted.');
+    }
+
+
+    public function sendNotice(Request $request, Notice $notice)
+    {
+        abort_if($notice->company_id !== null, 404);
+        $notice->load('attendees');
+        $attendees = $notice->attendees()->whereIn('id', $request->input('attendee_ids', []))->whereNotNull('email')->get();
+        if ($attendees->isEmpty()) {
+            return back()->with('error', 'No selected attendees with valid email addresses.');
+        }
+        $pdfBinary = $this->noticePdfBinary($notice->fresh(['attendees']));
+        $filename = 'notice-' . Str::slug($notice->notice_number ?: 'meeting') . '.pdf';
+        foreach ($attendees as $attendee) {
+            Mail::to($attendee->email)->send(new NoticeOfMeetingMail($notice, $attendee, $pdfBinary, $filename));
+            $attendee->update(['sent_at' => now(), 'is_selected' => true]);
+        }
+        return back()->with('success', 'Notice sent to ' . $attendees->count() . ' attendee(s).');
     }
 
     private function fields(): array
@@ -385,5 +411,154 @@ class NoticeController extends Controller
         }
 
         @rmdir($directory);
+    }
+
+    private function syncNoticeAttendeesFromLatestGis(Notice $notice): void
+    {
+        /*
+            Corporate Notices usually have company_id = null.
+            Do not simply use the latest GIS record because the latest GIS may have no
+            directors/stockholders encoded yet. Instead, use the latest Accepted/Approved GIS
+            that actually contains the needed attendee type with email addresses.
+        */
+
+        $governingBody = strtolower((string) $notice->governing_body);
+
+        $needsDirectors = str_contains($governingBody, 'board')
+            || str_contains($governingBody, 'director')
+            || str_contains($governingBody, 'joint');
+
+        $needsStockholders = str_contains($governingBody, 'stockholder')
+            || str_contains($governingBody, 'joint');
+
+        // If governing body is blank/unknown, default to directors so the preview is not empty.
+        if (!$needsDirectors && !$needsStockholders) {
+            $needsDirectors = true;
+        }
+
+        $latestGis = $this->latestGisWithExpectedAttendees(
+            notice: $notice,
+            needsDirectors: $needsDirectors,
+            needsStockholders: $needsStockholders
+        );
+
+        if (!$latestGis) {
+            return;
+        }
+
+        $rows = collect();
+
+        if ($needsDirectors) {
+            foreach ($latestGis->directors as $director) {
+                if (blank($director->officer_name)) {
+                    continue;
+                }
+
+                $rows->push([
+                    'name' => $director->officer_name,
+                    'position' => $director->officer_type ?: $director->board,
+                    'email' => $director->email,
+                    'source_type' => 'director_officer',
+                    'source_id' => $director->id,
+                ]);
+            }
+        }
+
+        if ($needsStockholders) {
+            foreach ($latestGis->stockholders as $stockholder) {
+                if (blank($stockholder->stockholder_name)) {
+                    continue;
+                }
+
+                $rows->push([
+                    'name' => $stockholder->stockholder_name,
+                    'position' => 'Stockholder',
+                    'email' => $stockholder->email,
+                    'source_type' => 'stockholder',
+                    'source_id' => $stockholder->id,
+                ]);
+            }
+        }
+
+        $rows
+            ->unique(fn ($row) => strtolower(trim($row['source_type'] . ':' . $row['source_id'] . ':' . $row['name'])))
+            ->values()
+            ->each(function (array $row, int $index) use ($notice) {
+                NoticeAttendee::updateOrCreate(
+                    [
+                        'notice_id' => $notice->id,
+                        'source_type' => $row['source_type'],
+                        'source_id' => $row['source_id'],
+                    ],
+                    [
+                        'name' => $row['name'],
+                        'position' => $row['position'],
+                        'email' => $row['email'],
+                        'is_selected' => filled($row['email']),
+                        'sort_order' => $index + 1,
+                    ]
+                );
+            });
+    }
+
+    private function latestGisWithExpectedAttendees(Notice $notice, bool $needsDirectors, bool $needsStockholders): ?GisRecord
+    {
+        $baseQuery = GisRecord::query()
+            ->with(['directors', 'stockholders'])
+            ->when($notice->company_id, fn ($query) => $query->where('company_id', $notice->company_id))
+            ->where(function ($query) {
+                $query->where('workflow_status', 'Accepted')
+                    ->orWhere('approval_status', 'Approved');
+            });
+
+        /*
+            Prefer a GIS that has the needed attendee email type.
+            This fixes global Corporate Notices where company_id is null and the latest GIS
+            may not have encoded Directors/Officers or Stockholders yet.
+        */
+        if ($needsDirectors && !$needsStockholders) {
+            $gis = (clone $baseQuery)
+                ->whereHas('directors', fn ($query) => $query->whereNotNull('email')->where('email', '<>', ''))
+                ->latest('id')
+                ->first();
+
+            if ($gis) {
+                return $gis;
+            }
+        }
+
+        if ($needsStockholders && !$needsDirectors) {
+            $gis = (clone $baseQuery)
+                ->whereHas('stockholders', fn ($query) => $query->whereNotNull('email')->where('email', '<>', ''))
+                ->latest('id')
+                ->first();
+
+            if ($gis) {
+                return $gis;
+            }
+        }
+
+        if ($needsDirectors && $needsStockholders) {
+            $gis = (clone $baseQuery)
+                ->where(function ($query) {
+                    $query->whereHas('directors', fn ($subQuery) => $subQuery->whereNotNull('email')->where('email', '<>', ''))
+                        ->orWhereHas('stockholders', fn ($subQuery) => $subQuery->whereNotNull('email')->where('email', '<>', ''));
+                })
+                ->latest('id')
+                ->first();
+
+            if ($gis) {
+                return $gis;
+            }
+        }
+
+        // Last fallback: latest accepted/approved GIS even if no emails are encoded.
+        return $baseQuery->latest('id')->first();
+    }
+
+    private function noticePdfBinary(Notice $notice): string
+    {
+        $notice->loadMissing('attendees');
+        return Pdf::loadView('corporate.notices.pdf', ['notice'=>$notice,'bodyHtml'=>$notice->body_html])->setPaper('a4')->output();
     }
 }

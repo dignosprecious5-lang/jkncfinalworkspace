@@ -58,6 +58,7 @@ class StockholderController extends Controller
         $request->validate([
             'gis_id'           => 'required|exists:gis_records,id',
             'stockholder_name' => 'required|string|max:255',
+            'email' => 'nullable|email|max:255',
             'address'          => 'required|string|max:255',
             'gender'           => 'required|in:M,F',
             'nationality'      => 'required|string|max:255',
@@ -98,6 +99,7 @@ class StockholderController extends Controller
     {
         $request->validate([
             'stockholder_name' => 'required|string|max:255',
+            'email' => 'nullable|email|max:255',
             'address'          => 'required|string|max:255',
             'gender'           => 'required|in:M,F',
             'nationality'      => 'required|string|max:255',

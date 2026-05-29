@@ -60,18 +60,7 @@
     $physicalDeadline = $selected->physical_submission_deadline ?: 'three (3) days';
     $authorityCalling = $selected->authority_calling_meeting ?: '________________';
 
-    $procedureDetailsHtml = '
-        <div class="procedure-details">
-            <div><strong>Chairman / Presiding Officer:</strong> ' . e($chairmanName) . '</div>
-            <div><strong>Corporate Secretary / Authorized Meeting Officer:</strong> ' . e($meetingOfficer) . '</div>
-            <div><strong>Email Address:</strong> ' . e($confirmationEmail) . '</div>
-            <div><strong>Phone Number:</strong> ' . e($confirmationPhone) . '</div>
-            <div><strong>Office Address:</strong> ' . e($officeAddress) . '</div>
-            <div><strong>Email / Phone Confirmation Deadline:</strong> ' . e($emailDeadline) . '</div>
-            <div><strong>Physical Submission Deadline:</strong> ' . e($physicalDeadline) . '</div>
-            <div><strong>Authority Calling the Meeting:</strong> ' . e($authorityCalling) . '</div>
-        </div>
-    ';
+    // President-requested cleanup: do not show internal meeting officer/contact/deadline block in the notice output.
 
 
     $generatedNoticePane = <<<HTML
@@ -286,10 +275,8 @@
             </div>
 
             <p class="procedure-text">
-                The meeting shall be presided over by {$chairmanName}, or by another duly authorized person, and shall be conducted in accordance with the Revised Corporation Code of the Philippines, the Corporation’s Articles of Incorporation, By-Laws, approved rules of procedure, applicable SEC rules and issuances, and duly adopted internal policies. All participants, proxies, written consents, resolutions by circulation, email approvals, confirmations, and related submissions must be sent to {$meetingOfficer} through {$confirmationEmail}, {$confirmationPhone}, or by personal delivery to {$officeAddress}. Email or phone confirmations must be received at least {$emailDeadline} before the meeting, and physical submissions must be received at least {$physicalDeadline} before the meeting, unless such periods are waived, shortened, or otherwise allowed by the authority calling the meeting. Failure to comply with the required notice, submission, identification, or verification requirements may result in denial of access, attendance, participation, voting, approval, or recognition of the submission, subject to applicable law, the Articles of Incorporation, By-Laws, approved rules of procedure, SEC rules and issuances, and duly adopted internal policies.
+                The meeting shall be presided over by {$chairmanName}, or by another duly authorized person, and shall be conducted in accordance with the Revised Corporation Code of the Philippines, the Corporation’s Articles of Incorporation, By-Laws, approved rules of procedure, applicable SEC rules and issuances, and duly adopted internal policies. Only confirmed persons with proper identity, authority, and right to attend, vote, approve, or submit documents shall be allowed or recognized, subject to applicable law and the Corporation’s approved procedures.
             </p>
-
-            {$procedureDetailsHtml}
         </div>
 
         <div class="signature">
@@ -362,6 +349,12 @@ HTML;
             </div>
 
             <div class="flex-1"></div>
+
+            @if ($documentUrl)
+                <a href="{{ $documentUrl }}" target="_blank" class="px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium">
+                    <i class="fas fa-file-pdf mr-1"></i> Open / Download PDF
+                </a>
+            @endif
 
             <span class="px-3 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-700">
                 {{ $selected->type_of_meeting }}
@@ -444,6 +437,58 @@ HTML;
                             <div class="font-medium text-gray-900">{{ $selected->secretaryCertificates->count() }} linked</div>
                         </div>
                     </div>
+                </div>
+
+                <div class="bg-white border border-gray-200 rounded-xl p-4">
+                    <div class="flex items-start justify-between gap-3 mb-3">
+                        <div>
+                            <div class="text-sm font-semibold text-gray-900">Expected Attendees</div>
+                            <div class="text-xs text-gray-500">Auto-loaded from the latest GIS. Add/edit emails in GIS Directors/Officers or Stockholders.</div>
+                        </div>
+                        <span class="px-2 py-1 rounded-full bg-blue-50 text-blue-700 text-[11px] font-semibold">{{ $selected->attendees->count() }} listed</span>
+                    </div>
+
+                    @if (session('success'))
+                        <div class="mb-3 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-700">{{ session('success') }}</div>
+                    @endif
+                    @if (session('error'))
+                        <div class="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{{ session('error') }}</div>
+                    @endif
+
+                    @php
+                        $noticeSendRoute = $sendRoute ?? route('notices.send', $selected);
+                    @endphp
+
+                    @if ($selected->attendees->isNotEmpty())
+                        <form method="POST" action="{{ $noticeSendRoute }}" class="space-y-3">
+                            @csrf
+                            <div class="max-h-72 overflow-y-auto divide-y divide-gray-100 border border-gray-100 rounded-lg">
+                                @foreach ($selected->attendees->sortBy('sort_order') as $attendee)
+                                    <label class="flex items-start gap-3 p-3 hover:bg-gray-50">
+                                        <input type="checkbox" name="attendee_ids[]" value="{{ $attendee->id }}" class="mt-1 rounded border-gray-300 text-blue-600 focus:ring-blue-500" @checked($attendee->is_selected && $attendee->email) @disabled(blank($attendee->email))>
+                                        <div class="min-w-0 flex-1">
+                                            <div class="text-sm font-semibold text-gray-900">{{ $attendee->name }}</div>
+                                            <div class="text-xs text-gray-500">{{ $attendee->position ?: ucfirst(str_replace('_', ' ', $attendee->source_type)) }}</div>
+                                            <div class="text-xs {{ $attendee->email ? 'text-gray-700' : 'text-red-600' }} break-all">
+                                                {{ $attendee->email ?: 'No email yet. Add email in the latest GIS record.' }}
+                                            </div>
+                                            @if ($attendee->sent_at)
+                                                <div class="mt-1 text-[11px] text-green-700">Sent {{ optional($attendee->sent_at)->format('M d, Y h:i A') }}</div>
+                                            @endif
+                                        </div>
+                                    </label>
+                                @endforeach
+                            </div>
+
+                            <button type="submit" class="w-full px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold">
+                                <i class="fas fa-paper-plane mr-1"></i> Send Notice with PDF
+                            </button>
+                        </form>
+                    @else
+                        <div class="rounded-lg border border-yellow-200 bg-yellow-50 px-3 py-3 text-xs text-yellow-800">
+                            No expected attendees were found. For company notices, add Directors/Officers or Stockholders with email addresses in the latest GIS first.
+                        </div>
+                    @endif
                 </div>
 
                 <div class="bg-white border border-gray-200 rounded-xl p-4">

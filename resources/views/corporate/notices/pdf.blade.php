@@ -30,18 +30,7 @@
     $physicalDeadline = $selected->physical_submission_deadline ?: 'three (3) days';
     $authorityCalling = $selected->authority_calling_meeting ?: '________________';
 
-    $procedureDetailsHtml = '
-        <div class="procedure-details">
-            <div><strong>Chairman / Presiding Officer:</strong> ' . e($chairmanName) . '</div>
-            <div><strong>Corporate Secretary / Authorized Meeting Officer:</strong> ' . e($meetingOfficer) . '</div>
-            <div><strong>Email Address:</strong> ' . e($confirmationEmail) . '</div>
-            <div><strong>Phone Number:</strong> ' . e($confirmationPhone) . '</div>
-            <div><strong>Office Address:</strong> ' . e($officeAddress) . '</div>
-            <div><strong>Email / Phone Confirmation Deadline:</strong> ' . e($emailDeadline) . '</div>
-            <div><strong>Physical Submission Deadline:</strong> ' . e($physicalDeadline) . '</div>
-            <div><strong>Authority Calling the Meeting:</strong> ' . e($authorityCalling) . '</div>
-        </div>
-    ';
+    // Do not show internal meeting officer/contact/deadline details in the issued notice.
 
 @endphp
 <!DOCTYPE html>
@@ -53,7 +42,7 @@
     <style>
         @page {
             size: A4;
-            margin: 12mm 12mm 16mm;
+            margin: 12mm 12mm 18mm;
         }
         body {
             margin: 0;
@@ -111,6 +100,11 @@
             justify-content: space-between;
             font-size: 11px;
             line-height: 1.4;
+            break-inside: avoid;
+            page-break-inside: avoid;
+        }
+        .page-number:after {
+            content: counter(page);
         }
 
         .procedure-text {
@@ -166,9 +160,7 @@
                 {!! $agendaHtml !!}
             </div>
 
-            <p class="procedure-text">The meeting shall be presided over by {{ $chairmanName }}, or by another duly authorized person, and shall be conducted in accordance with the Revised Corporation Code of the Philippines, the Corporation’s Articles of Incorporation, By-Laws, approved rules of procedure, applicable SEC rules and issuances, and duly adopted internal policies. All participants, proxies, written consents, resolutions by circulation, email approvals, confirmations, and related submissions must be sent to {{ $meetingOfficer }} through {{ $confirmationEmail }}, {{ $confirmationPhone }}, or by personal delivery to {{ $officeAddress }}. Email or phone confirmations must be received at least {{ $emailDeadline }} before the meeting, and physical submissions must be received at least {{ $physicalDeadline }} before the meeting, unless such periods are waived, shortened, or otherwise allowed by the authority calling the meeting. Failure to comply with the required notice, submission, identification, or verification requirements may result in denial of access, attendance, participation, voting, approval, or recognition of the submission, subject to applicable law, the Articles of Incorporation, By-Laws, approved rules of procedure, SEC rules and issuances, and duly adopted internal policies.</p>
-
-            {!! $procedureDetailsHtml !!}
+            <p class="procedure-text">The meeting shall be presided over by {{ $chairmanName }}, or by another duly authorized person, and shall be conducted in accordance with the Revised Corporation Code of the Philippines, the Corporation’s Articles of Incorporation, By-Laws, approved rules of procedure, applicable SEC rules and issuances, and duly adopted internal policies. Only confirmed persons with proper identity, authority, and right to attend, vote, approve, or submit documents shall be allowed or recognized, subject to applicable law and the Corporation’s approved procedures.</p>
         </div>
 
         <div class="signature">
@@ -184,7 +176,7 @@
                 <div>Company Reg. No.: {{ $companyRegNo }}</div>
                 <div>{{ $companyAddress }}</div>
             </div>
-            <div style="font-weight:700;">Page</div>
+            <div style="font-weight:700;">Page <span class="page-number"></span></div>
         </div>
     </div>
 </body>

@@ -36,6 +36,7 @@ class DirectorOfficerController extends Controller
     {
         $rules = [
             'officer_name'  => 'required|string|max:255',
+            'email'         => 'nullable|email|max:255',
             'address'       => 'required|string|max:255',
             'gender'        => 'required|in:M,F',
             'nationality'   => 'required|string|max:255',

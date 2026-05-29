@@ -271,16 +271,7 @@
 
                                     <p class="mt-8 text-justify" x-text="livePreviewProcedureText"></p>
 
-                                    <div class="mt-5 grid grid-cols-1 gap-1 text-[13px] leading-6">
-                                        <div><span class="font-semibold">Chairman / Presiding Officer:</span> <span x-text="livePreviewChairman"></span></div>
-                                        <div><span class="font-semibold">Corporate Secretary / Authorized Meeting Officer:</span> <span x-text="livePreviewOfficer"></span></div>
-                                        <div><span class="font-semibold">Email Address:</span> <span x-text="livePreviewEmail"></span></div>
-                                        <div><span class="font-semibold">Phone Number:</span> <span x-text="livePreviewPhone"></span></div>
-                                        <div><span class="font-semibold">Office Address:</span> <span x-text="livePreviewOfficeAddress"></span></div>
-                                        <div><span class="font-semibold">Email / Phone Confirmation Deadline:</span> <span x-text="livePreviewEmailDeadline"></span></div>
-                                        <div><span class="font-semibold">Physical Submission Deadline:</span> <span x-text="livePreviewPhysicalDeadline"></span></div>
-                                        <div><span class="font-semibold">Authority Calling the Meeting:</span> <span x-text="livePreviewAuthority"></span></div>
-                                    </div>
+                                    {{-- Internal meeting officer/contact/deadline details intentionally hidden from the issued notice. --}}
                                 </div>
 
                                 <div class="mt-16">
@@ -810,7 +801,7 @@
                 this.livePreviewDate = formattedDate;
                 this.livePreviewIntro = `NOTICE is hereby given that a ${meetingType} ${governingBody} Meeting of ${this.companyName} will be held at ${this.locationPreview || '________________'} on ${formattedDate} at ${formattedTime}.`;
                 this.livePreviewProceedText = `The meeting shall proceed through ${selectedMode}. For virtual or hybrid meetings, access shall be through ${accessDetails}. Only confirmed persons with proper identity, authority, and right to attend, vote, approve, or submit documents shall be allowed or recognized, in accordance with applicable law, the By-Laws, SEC rules, approved procedures, and duly adopted internal policies.`;
-                this.livePreviewProcedureText = `The meeting shall be presided over by ${chairman || 'Chairman / Presiding Officer'}, or by another duly authorized person, and shall be conducted in accordance with the Revised Corporation Code of the Philippines, the Corporation’s Articles of Incorporation, By-Laws, approved rules of procedure, applicable SEC rules and issuances, and duly adopted internal policies. All participants, proxies, written consents, resolutions by circulation, email approvals, confirmations, and related submissions must be sent to ${authorizedOfficer} through ${emailAddress}, ${phoneNumber}, or by personal delivery to ${officeAddress}. Email or phone confirmations must be received at least ${emailDeadline} before the meeting, and physical submissions must be received at least ${physicalDeadline} before the meeting, unless such periods are waived, shortened, or otherwise allowed by the authority calling the meeting. Failure to comply with the required notice, submission, identification, or verification requirements may result in denial of access, attendance, participation, voting, approval, or recognition of the submission, subject to applicable law, the Articles of Incorporation, By-Laws, approved rules of procedure, SEC rules and issuances, and duly adopted internal policies.`;
+                this.livePreviewProcedureText = `The meeting shall be presided over by ${chairman || 'Chairman / Presiding Officer'}, or by another duly authorized person, and shall be conducted in accordance with the Revised Corporation Code of the Philippines, the Corporation’s Articles of Incorporation, By-Laws, approved rules of procedure, applicable SEC rules and issuances, and duly adopted internal policies. Only confirmed persons with proper identity, authority, and right to attend, vote, approve, or submit documents shall be allowed or recognized, subject to applicable law and the Corporation’s approved procedures.`;
                 this.livePreviewBody = this.bodyHtml || '<p style="color:#94a3b8;">Start typing the notice body to preview it here.</p>';
                 this.livePreviewSecretary = secretary;
                 this.livePreviewChairman = chairman || '________________';
@@ -839,7 +830,7 @@
                 if (this.$refs.locationField) {
                     this.$refs.locationField.value = this.locationPreview;
                 }
-
+                
                 this.syncLivePreview();
             },
         };

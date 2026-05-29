@@ -333,6 +333,7 @@
                 <thead class="bg-gray-50 text-xs uppercase">
                     <tr>
                         <th class="border px-4 py-3">Officer Name</th>
+                        <th class="border px-4 py-3">Email</th>
                         <th class="border px-4 py-3">Address</th>
                         <th class="border px-4 py-3">Nationality</th>
                         <th class="border px-4 py-3">INCR</th>
@@ -350,6 +351,7 @@
                     @forelse($gis->directors as $row)
                         <tr class="hover:bg-blue-50">
                             <td class="border px-4 py-3">{{ $row->officer_name }}</td>
+                            <td class="border px-4 py-3">{{ $row->email ?: '-' }}</td>
                             <td class="border px-4 py-3">{{ $row->address }}</td>
                             <td class="border px-4 py-3">{{ $row->nationality }}</td>
                             <td class="border px-4 py-3">{{ $row->incr ? 'Y' : 'N' }}</td>
@@ -362,7 +364,7 @@
                             <td class="border px-4 py-3 text-center">
                                 <div class="flex items-center justify-center gap-2">
                                     <button type="button"
-                                        @click="panel='directorEdit'; editAction='{{ route('director.update', $row->id) }}'; editForm={ officer_name:@js($row->officer_name), address:@js($row->address), nationality:@js($row->nationality), incr:@js($row->incr ? 'Y' : 'N'), board:@js($row->board), gender:@js($row->gender), stockholder:@js($row->stockholder ? 'Y' : 'N'), officer_type:@js($row->officer_type), committee:@js($row->committee), tin:@js($row->tin) }"
+                                        @click="panel='directorEdit'; editAction='{{ route('director.update', $row->id) }}'; editForm={ officer_name:@js($row->officer_name), email:@js($row->email), address:@js($row->address), nationality:@js($row->nationality), incr:@js($row->incr ? 'Y' : 'N'), board:@js($row->board), gender:@js($row->gender), stockholder:@js($row->stockholder ? 'Y' : 'N'), officer_type:@js($row->officer_type), committee:@js($row->committee), tin:@js($row->tin) }"
                                         class="text-blue-600 hover:underline text-xs">Edit</button>
                                     <form action="{{ route('director.destroy', $row->id) }}" method="POST" onsubmit="return confirm('Delete this director/officer record?')">
                                         @csrf
@@ -400,6 +402,7 @@
                 <thead class="bg-gray-50 text-xs uppercase">
                     <tr>
                         <th class="border px-4 py-3">Stockholder Name</th>
+                        <th class="border px-4 py-3">Email</th>
                         <th class="border px-4 py-3">Address</th>
                         <th class="border px-4 py-3">Gender</th>
                         <th class="border px-4 py-3">Nationality</th>
@@ -418,6 +421,7 @@
                     @forelse($gis->stockholders as $row)
                         <tr class="hover:bg-blue-50">
                             <td class="border px-4 py-3">{{ $row->stockholder_name }}</td>
+                            <td class="border px-4 py-3">{{ $row->email ?: '-' }}</td>
                             <td class="border px-4 py-3">{{ $row->address }}</td>
                             <td class="border px-4 py-3">{{ $row->gender }}</td>
                             <td class="border px-4 py-3">{{ $row->nationality }}</td>
@@ -431,7 +435,7 @@
                             <td class="border px-4 py-3 text-center">
                                 <div class="flex items-center justify-center gap-2">
                                     <button type="button"
-                                        @click="panel='stockholderEdit'; editAction='{{ route('stockholder.update', $row->id) }}'; editForm={ stockholder_name:@js($row->stockholder_name), address:@js($row->address), gender:@js($row->gender), nationality:@js($row->nationality), incr:@js($row->incr ? 'Y' : 'N'), share_type:@js($row->share_type), shares:@js($row->shares), amount_paid:@js($row->amount_paid), tin:@js($row->tin) }"
+                                        @click="panel='stockholderEdit'; editAction='{{ route('stockholder.update', $row->id) }}'; editForm={ stockholder_name:@js($row->stockholder_name), email:@js($row->email), address:@js($row->address), gender:@js($row->gender), nationality:@js($row->nationality), incr:@js($row->incr ? 'Y' : 'N'), share_type:@js($row->share_type), shares:@js($row->shares), amount_paid:@js($row->amount_paid), tin:@js($row->tin) }"
                                         class="text-blue-600 hover:underline text-xs">Edit</button>
                                     <form action="{{ route('stockholder.destroy', $row->id) }}" method="POST" onsubmit="return confirm('Delete this stockholder record?')">
                                         @csrf
@@ -643,6 +647,7 @@
                 @method('PUT')
 
                 <input name="officer_name" x-model="editForm.officer_name" placeholder="Officer Name" class="border w-full p-2 rounded" required>
+                <input type="email" name="email" x-model="editForm.email" placeholder="Email Address" class="border w-full p-2 rounded">
                 <input name="address" x-model="editForm.address" placeholder="Address" class="border w-full p-2 rounded" required>
 
                 <select name="nationality" x-model="editForm.nationality" class="border w-full p-2 rounded" required>
@@ -690,6 +695,7 @@
                 @method('PUT')
 
                 <input name="stockholder_name" x-model="editForm.stockholder_name" placeholder="Stockholder Name" class="border w-full p-2 rounded" required>
+                <input type="email" name="email" x-model="editForm.email" placeholder="Email Address" class="border w-full p-2 rounded">
                 <input name="address" x-model="editForm.address" placeholder="Address" class="border w-full p-2 rounded" required>
 
                 <select name="gender" x-model="editForm.gender" class="border w-full p-2 rounded" required>
@@ -854,6 +860,7 @@
                 <input type="hidden" name="gis_id" value="{{ $gis->id }}">
 
                 <input name="officer_name" placeholder="Officer Name" class="border w-full p-2 rounded" required>
+                <input type="email" name="email" placeholder="Email Address" class="border w-full p-2 rounded">
                 <input name="address" placeholder="Address" class="border w-full p-2 rounded" required>
 
                 <select name="nationality" class="border w-full p-2 rounded" required>
@@ -898,6 +905,7 @@
                 <input type="hidden" name="gis_id" value="{{ $gis->id }}">
 
                 <input name="stockholder_name" placeholder="Stockholder Name" class="border w-full p-2 rounded" required>
+                <input type="email" name="email" placeholder="Email Address" class="border w-full p-2 rounded">
                 <input name="address" placeholder="Address" class="border w-full p-2 rounded" required>
 
                 <select name="gender" class="border w-full p-2 rounded" required>
