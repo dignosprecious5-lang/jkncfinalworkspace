@@ -127,6 +127,22 @@ class NoticeController extends Controller
     }
 
 
+    public function downloadPdf(Notice $notice)
+    {
+        abort_if($notice->company_id !== null, 404);
+
+        $this->syncNoticeAttendeesFromLatestGis($notice->fresh());
+        $notice = $notice->fresh(['attendees']);
+
+        $filename = 'notice-' . Str::slug($notice->notice_number ?: 'meeting') . '.pdf';
+
+        return response($this->noticePdfBinary($notice), 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="' . $filename . '"',
+        ]);
+    }
+
+
     public function sendNotice(Request $request, Notice $notice)
     {
         abort_if($notice->company_id !== null, 404);

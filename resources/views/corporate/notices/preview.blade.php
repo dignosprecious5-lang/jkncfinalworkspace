@@ -25,6 +25,9 @@
         ? route('uploads.show', ['path' => $resolvedDocumentPath])
         : null;
 
+    $livePdfUrl = route('notices.download', $selected);
+    $previewPdfUrl = $documentUrl ?: $livePdfUrl;
+
     $meetingTitle = strtoupper(trim(($selected->type_of_meeting ?: 'Special') . ' ' . ($selected->governing_body ?: 'Board of Directors') . ' Meeting'));
     $noticeDate = optional($selected->date_of_notice)->format('F d, Y')
         ?: optional($selected->created_at)->format('F d, Y')
@@ -350,11 +353,9 @@ HTML;
 
             <div class="flex-1"></div>
 
-            @if ($documentUrl)
-                <a href="{{ $documentUrl }}" target="_blank" class="px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium">
-                    <i class="fas fa-file-pdf mr-1"></i> Open / Download PDF
-                </a>
-            @endif
+            <a href="{{ $livePdfUrl }}" target="_blank" class="px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium">
+                <i class="fas fa-file-pdf mr-1"></i> Open / Download PDF
+            </a>
 
             <span class="px-3 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-700">
                 {{ $selected->type_of_meeting }}
@@ -363,17 +364,10 @@ HTML;
 
         <div class="grid grid-cols-1 lg:grid-cols-5 gap-6 p-6">
             <div class="lg:col-span-3 space-y-4">
-                @if ($documentUrl)
-                    <iframe
-                        src="{{ $documentUrl }}"
-                        class="w-full h-[700px] border rounded bg-white">
-                    </iframe>
-                @else
-                    <iframe
-                        src="{{ $generatedNoticePaneUrl }}"
-                        class="w-full h-[700px] border rounded bg-white">
-                    </iframe>
-                @endif
+                <iframe
+                    src="{{ $previewPdfUrl }}"
+                    class="w-full h-[700px] border rounded bg-white">
+                </iframe>
             </div>
 
             <div class="lg:col-span-2 space-y-4">

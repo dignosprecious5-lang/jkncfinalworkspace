@@ -857,6 +857,7 @@ Route::delete('/gis/ubo/{record}', [UltimateBeneficialOwnerController::class, 'd
     Route::get('/corporate/notices', [NoticeController::class, 'index'])->name('notices');
     Route::get('/corporate/notices/create', [NoticeController::class, 'create'])->name('notices.create');
     Route::post('/corporate/notices', [NoticeController::class, 'store'])->name('notices.store');
+    Route::get('/corporate/notices/{notice}/download', [NoticeController::class, 'downloadPdf'])->name('notices.download');
     Route::get('/corporate/notices/{notice}', [NoticeController::class, 'show'])->name('notices.preview');
     Route::get('/corporate/notices/{notice}/edit', [NoticeController::class, 'edit'])->name('notices.edit');
     Route::put('/corporate/notices/{notice}', [NoticeController::class, 'update'])->name('notices.update');
