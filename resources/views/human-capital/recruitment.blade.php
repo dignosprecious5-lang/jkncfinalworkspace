@@ -3378,7 +3378,7 @@
         <div @click="showInterviewViewModal = false" class="absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity"
             x-show="showInterviewViewModal" x-transition:enter="ease-out duration-300" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
             x-transition:leave="ease-in duration-200" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"></div>
-        <div class="fixed inset-y-0 right-0 max-w-xl w-full flex pointer-events-none">
+        <div class="fixed inset-y-0 right-0 max-w-6xl w-full flex pointer-events-none">
             <div x-show="showInterviewViewModal" 
                 x-transition:enter="transform transition ease-in-out duration-500"
                 x-transition:enter-start="translate-x-full"
@@ -3390,7 +3390,7 @@
                 <template x-if="viewInterviewData">
                     <div class="flex flex-col h-full">
                         {{-- Aesthetic Header --}}
-                        <div class="h-32 bg-gradient-to-br from-purple-600 to-indigo-700 flex items-center justify-center overflow-hidden shrink-0 relative">
+                        <div class="h-32 bg-gradient-to-r from-blue-900 to-blue-700 flex items-center justify-center overflow-hidden shrink-0 relative">
                             <div class="absolute inset-0 opacity-10">
                                 <svg class="w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none"><path d="M0 100 C 20 0 50 0 100 100 Z" fill="white"></path></svg>
                             </div>
@@ -3398,14 +3398,25 @@
                                 <div class="inline-flex p-3 bg-white/20 backdrop-blur-md rounded-2xl mb-2 border border-white/30">
                                     <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
                                 </div>
-                                <h3 class="text-white font-black text-xl tracking-tight uppercase">Interview Details</h3>
+                                <h3 class="text-white font-black text-xl tracking-tight uppercase">Candidate Interview</h3>
                             </div>
                             <button @click="showInterviewViewModal = false" class="absolute top-6 right-6 text-white/50 hover:text-white transition group bg-white/10 p-2 rounded-full backdrop-blur-md">
                                 <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12"/></svg>
                             </button>
                         </div>
 
-                        <div class="flex-1 overflow-y-auto p-8 space-y-8 bg-white">
+                        <div class="px-8 py-3 border-b border-slate-200 bg-white flex gap-2 overflow-x-auto shrink-0">
+                            <template x-for="tab in interviewViewTabs" :key="tab">
+                                <button type="button" @click="interviewViewTab = tab"
+                                    class="px-4 py-2 rounded-lg text-[11px] font-black uppercase tracking-widest whitespace-nowrap transition"
+                                    :class="interviewViewTab === tab ? 'bg-blue-700 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100'">
+                                    <span x-text="tab"></span>
+                                </button>
+                            </template>
+                        </div>
+
+                        <div class="flex-1 overflow-y-auto p-8 bg-slate-50">
+                            <div x-show="interviewViewTab === 'Candidate Information'" class="space-y-8">
                             <div class="grid grid-cols-2 gap-8">
                                 <div class="space-y-1">
                                     <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Candidate Name</p>
@@ -3413,7 +3424,7 @@
                                 </div>
                                 <div class="space-y-1">
                                     <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Position</p>
-                                    <p class="text-purple-600 font-bold text-lg" x-text="viewInterviewData.position"></p>
+                                    <p class="text-blue-700 font-bold text-lg" x-text="viewInterviewData.position"></p>
                                 </div>
                             </div>
 
@@ -3448,6 +3459,111 @@
                                 <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Meeting Link</p>
                                 <a :href="viewInterviewData.meeting_link" target="_blank" class="text-blue-600 hover:underline font-medium break-all text-sm block bg-blue-50/50 p-4 rounded-2xl border border-blue-100" x-text="viewInterviewData.meeting_link"></a>
                             </div>
+                            <template x-for="section in interviewApplicationSections()" :key="section.title">
+                                <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+                                    <h4 class="text-xs font-black text-blue-900 uppercase tracking-widest border-b border-blue-100 pb-2 mb-4" x-text="section.title"></h4>
+                                    <div class="grid grid-cols-2 gap-3">
+                                        <template x-for="field in section.fields" :key="field.label">
+                                            <div class="rounded-xl bg-slate-50 border border-slate-200 p-3" :class="field.full ? 'col-span-2' : ''">
+                                                <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest" x-text="field.label"></p>
+                                                <p class="mt-1 text-sm font-semibold text-slate-800 whitespace-pre-wrap break-words" x-text="formatCafValue(field.value)"></p>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </div>
+                            </template>
+                            <div class="grid grid-cols-1 gap-4">
+                                <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm" x-show="interviewEducationRows().length">
+                                    <h4 class="text-xs font-black text-blue-900 uppercase tracking-widest border-b border-blue-100 pb-2 mb-4">Educational Background</h4>
+                                    <template x-for="edu in interviewEducationRows()" :key="edu.level + edu.school + edu.year">
+                                        <div class="py-2 border-b border-slate-100 last:border-0">
+                                            <p class="text-sm font-black text-slate-900" x-text="edu.level"></p>
+                                            <p class="text-sm text-slate-700" x-text="[edu.school, edu.degree, edu.course, edu.year].filter(Boolean).join(' | ') || '-'"></p>
+                                        </div>
+                                    </template>
+                                </div>
+                                <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm" x-show="interviewEmploymentRows().length">
+                                    <h4 class="text-xs font-black text-blue-900 uppercase tracking-widest border-b border-blue-100 pb-2 mb-4">Employment History</h4>
+                                    <template x-for="job in interviewEmploymentRows()" :key="job.company + job.position + job.inclusiveDates">
+                                        <div class="py-2 border-b border-slate-100 last:border-0">
+                                            <p class="text-sm font-black text-slate-900" x-text="[job.company, job.position].filter(Boolean).join(' - ') || 'Employment Record'"></p>
+                                            <p class="text-sm text-slate-700" x-text="[job.address, job.inclusiveDates].filter(Boolean).join(' | ')"></p>
+                                            <p class="text-xs text-slate-500" x-show="job.responsibilities" x-text="job.responsibilities"></p>
+                                        </div>
+                                    </template>
+                                </div>
+                                <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm" x-show="interviewCertificationRows().length">
+                                    <h4 class="text-xs font-black text-blue-900 uppercase tracking-widest border-b border-blue-100 pb-2 mb-4">Certifications & Trainings</h4>
+                                    <template x-for="cert in interviewCertificationRows()" :key="cert.name + cert.provider + cert.code">
+                                        <div class="py-2 border-b border-slate-100 last:border-0">
+                                            <p class="text-sm font-black text-slate-900" x-text="cert.name || 'Certification / Training'"></p>
+                                            <p class="text-sm text-slate-700" x-text="[cert.provider, cert.status, cert.dateTaken || cert.datePlanned, cert.validity].filter(Boolean).join(' | ')"></p>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                            </div>
+
+                            <div x-show="interviewViewTab === 'Resume / CV'" class="h-full min-h-[640px] bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+                                <template x-if="interviewFilePath('resume_cv') || interviewFilePath('cv_path')">
+                                    <iframe :src="'/storage/' + (interviewFilePath('resume_cv') || interviewFilePath('cv_path'))" class="w-full h-[720px] border-0"></iframe>
+                                </template>
+                                <div x-show="!(interviewFilePath('resume_cv') || interviewFilePath('cv_path'))" class="h-80 flex items-center justify-center text-slate-400 font-semibold">No resume file available.</div>
+                            </div>
+
+                            <div x-show="interviewViewTab === 'Portfolio'" class="space-y-4">
+                                <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+                                    <h4 class="text-xs font-black text-blue-900 uppercase tracking-widest mb-4">Portfolio</h4>
+                                    <a x-show="interviewFilePath('portfolio')" :href="'/storage/' + interviewFilePath('portfolio')" target="_blank" class="inline-flex px-4 py-3 rounded-xl bg-blue-50 text-blue-700 font-bold border border-blue-100">Open Uploaded Portfolio</a>
+                                    <p x-show="!interviewFilePath('portfolio')" class="text-sm text-slate-500">No uploaded portfolio file available.</p>
+                                    <p class="mt-4 text-sm text-slate-700 whitespace-pre-wrap" x-show="interviewValue('attachmentNotes')" x-text="interviewValue('attachmentNotes')"></p>
+                                </div>
+                            </div>
+
+                            <div x-show="interviewViewTab === 'Attachments'" class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+                                <h4 class="text-xs font-black text-blue-900 uppercase tracking-widest mb-4">Supporting Documents</h4>
+                                <div class="grid grid-cols-2 gap-3">
+                                    <template x-for="file in interviewAttachmentLinks()" :key="file.label">
+                                        <a :href="'/storage/' + file.path" target="_blank" class="rounded-xl border border-slate-200 bg-slate-50 p-4 font-bold text-slate-700 hover:text-blue-700 hover:border-blue-200 transition">
+                                            <span x-text="file.label"></span>
+                                        </a>
+                                    </template>
+                                </div>
+                                <p x-show="!interviewAttachmentLinks().length" class="text-sm text-slate-500">No uploaded supporting documents available.</p>
+                            </div>
+
+                            <div x-show="interviewViewTab === 'Interview Questions'" class="space-y-5">
+                                <div class="flex flex-wrap gap-2">
+                                    <template x-for="stage in interviewQuestionStages" :key="stage">
+                                        <button type="button" @click="interviewQuestionStage = stage"
+                                            class="px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest"
+                                            :class="interviewQuestionStage === stage ? 'bg-blue-700 text-white' : 'bg-white border border-slate-200 text-slate-600'">
+                                            <span x-text="stage"></span>
+                                        </button>
+                                    </template>
+                                </div>
+                                <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
+                                    <template x-for="(question, index) in interviewQuestionsForStage(interviewQuestionStage)" :key="interviewQuestionStage + index">
+                                        <div class="rounded-xl border border-slate-200 p-4 space-y-3">
+                                            <input x-model="question.question" class="w-full text-sm font-bold text-slate-900 border-0 border-b border-slate-200 focus:ring-0" placeholder="Interview question">
+                                            <textarea x-model="question.answer" rows="2" class="w-full rounded-xl border-slate-200 text-sm" placeholder="Candidate answer"></textarea>
+                                            <div class="grid grid-cols-3 gap-3">
+                                                <input x-model="question.notes" class="rounded-xl border-slate-200 text-sm" placeholder="Notes">
+                                                <input x-model="question.score" type="number" min="0" max="100" class="rounded-xl border-slate-200 text-sm" placeholder="Score">
+                                                <input x-model="question.recommendation" class="rounded-xl border-slate-200 text-sm" placeholder="Recommendation">
+                                            </div>
+                                        </div>
+                                    </template>
+                                    <div class="grid grid-cols-2 gap-3">
+                                        <textarea x-model="interviewQuestionMeta().remarks" rows="3" class="rounded-xl border-slate-200 text-sm" placeholder="Overall remarks"></textarea>
+                                        <textarea x-model="interviewQuestionMeta().recommendation" rows="3" class="rounded-xl border-slate-200 text-sm" placeholder="Overall recommendation"></textarea>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <button type="button" @click="addInterviewQuestion(interviewQuestionStage)" class="px-4 py-2 rounded-xl border border-blue-200 text-blue-700 font-bold">Add Question</button>
+                                        <button type="button" @click="saveInterviewDetails()" class="px-5 py-2 rounded-xl bg-blue-700 text-white font-black">Save Interview Details</button>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
                         <div class="px-8 py-6 border-t border-gray-100 space-y-3 shrink-0">
@@ -3474,7 +3590,7 @@
                                 <button @click="openJobOfferModal(viewInterviewData)"
                                     :disabled="!interviewAllowsJobOffer(viewInterviewData)"
                                     :class="interviewAllowsJobOffer(viewInterviewData)
-                                        ? 'bg-purple-600 hover:bg-purple-700 text-white shadow-lg shadow-purple-200'
+                                        ? 'bg-blue-700 hover:bg-blue-800 text-white shadow-lg shadow-blue-200'
                                         : 'bg-gray-200 text-gray-400 cursor-not-allowed'"
                                     class="flex-1 py-3 font-bold rounded-xl transition uppercase tracking-widest text-[11px]"
                                     x-text="interviewAllowsJobOffer(viewInterviewData) ? 'Send a Job Offer' : 'Complete/Pass Interview First'">
@@ -3633,7 +3749,7 @@
                         class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 text-gray-700 text-sm bg-gray-50/50 resize-none"></textarea>
                 </div>
 
-                <div class="pt-4 border-t flex justify-end gap-3">
+                <div class="sticky bottom-0 -mx-8 -mb-8 mt-6 px-8 py-6 border-t border-slate-200 bg-white flex justify-end gap-3">
                     <button type="button" @click="showJobOfferModal = false"
                         class="px-6 py-2.5 border border-gray-200 text-gray-600 rounded-xl text-sm font-bold hover:bg-gray-50 transition">
                         Cancel
@@ -3812,7 +3928,7 @@
                         class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 text-gray-700 text-sm bg-gray-50/50 resize-none"></textarea>
                 </div>
 
-                <div class="pt-4 border-t flex justify-end gap-3">
+                <div class="sticky bottom-0 -mx-8 -mb-8 mt-6 px-8 py-6 border-t border-slate-200 bg-white flex justify-end gap-3">
                     <button type="button" @click="showAssessmentModal = false"
                         class="px-6 py-2.5 border border-gray-200 text-gray-600 rounded-xl text-sm font-bold hover:bg-gray-50 transition">
                         Discard
@@ -3826,7 +3942,7 @@
         </div>
     </div>
 
-    {{-- ===================== ADD NEW INTERVIEW MODAL ===================== --}}
+    {{-- ===================== ADD NEW INTERVIEW SLIDE-OVER ===================== --}}
     <div
         x-show="showInterviewModal"
         x-transition:enter="transition ease-out duration-300"
@@ -3835,25 +3951,31 @@
         x-transition:leave="transition ease-in duration-200"
         x-transition:leave-start="opacity-100"
         x-transition:leave-end="opacity-0"
-        class="fixed inset-0 z-[70] flex justify-center items-center bg-black/50 backdrop-blur-sm"
+        class="fixed inset-0 z-[9999] overflow-hidden"
         style="display:none;"
-        @click.self="showInterviewModal = false"
     >
+        <div @click="showInterviewModal = false" class="absolute inset-0 bg-black/40 backdrop-blur-sm"></div>
         <div 
-            class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden transform transition-all"
+            class="fixed inset-y-0 right-0 bg-white shadow-2xl w-full max-w-3xl overflow-hidden transform transition-all flex flex-col"
             x-show="showInterviewModal"
-            x-transition:enter="ease-out duration-300"
-            x-transition:enter-start="opacity-0 translate-y-4 scale-95"
-            x-transition:enter-end="opacity-100 translate-y-0 scale-100"
+            x-transition:enter="transform transition ease-in-out duration-500"
+            x-transition:enter-start="translate-x-full"
+            x-transition:enter-end="translate-x-0"
+            x-transition:leave="transform transition ease-in-out duration-300"
+            x-transition:leave-start="translate-x-0"
+            x-transition:leave-end="translate-x-full"
         >
-            <div class="px-6 py-4 border-b flex items-center justify-between bg-white text-gray-800">
-                <h3 class="font-bold text-lg tracking-tight">Add New Interview</h3>
-                <button @click="showInterviewModal = false" class="text-gray-400 hover:text-gray-600 transition">
+            <div class="h-32 px-8 py-6 flex items-center justify-between bg-gradient-to-r from-blue-900 to-blue-700 text-white shrink-0">
+                <div>
+                    <p class="text-[10px] font-black text-blue-100 uppercase tracking-[0.3em]">Human Capital</p>
+                    <h3 class="font-black text-2xl tracking-tight uppercase">Schedule Interview</h3>
+                </div>
+                <button @click="showInterviewModal = false" class="text-white/60 hover:text-white transition bg-white/10 p-2 rounded-full">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12"/></svg>
                 </button>
             </div>
 
-            <form @submit.prevent="submitInterview()" class="p-6 space-y-5 bg-white">
+            <form @submit.prevent="submitInterview()" class="flex-1 overflow-y-auto p-8 space-y-6 bg-slate-50">
                 <div>
                     <label class="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Passed Assessment Candidate</label>
                     <select x-model="interviewForm.assessmentId" @change="onInterviewAssessmentChange()" required
@@ -3890,7 +4012,7 @@
                     <div>
                         <label class="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Type of Interview</label>
                         <select x-model="interviewForm.type" required
-                            @change="interviewForm.type === 'Online' ? generateMeetingLink() : interviewForm.meeting_link = ''"
+                            @change="if (interviewForm.type !== 'Online') interviewForm.meeting_link = ''"
                             class="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 text-gray-700 text-sm bg-gray-50/50 transition-all cursor-pointer appearance-none">
                             <option value="Online">Online</option>
                             <option value="In Person">In Person</option>
@@ -3919,18 +4041,13 @@
                 <div x-show="interviewForm.type === 'Online'">
                     <label class="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Meeting Link</label>
                     <div class="flex gap-2 items-center">
-                        <input type="url" x-model="interviewForm.meeting_link" placeholder="https://meet.jit.si/..."
-                            class="flex-1 px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 text-gray-700 text-sm bg-gray-50/50 font-mono text-xs" readonly>
-                        <button type="button" @click="generateMeetingLink()"
-                            class="flex items-center gap-2 px-4 py-3 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-xs font-bold rounded-xl transition shadow-sm shadow-blue-200 whitespace-nowrap">
-                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-                            Generate
-                        </button>
+                        <input type="url" x-model="interviewForm.meeting_link" placeholder="Paste Google Meet, Zoom, Teams, or any interview link"
+                            class="flex-1 px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 text-gray-700 text-sm bg-white font-mono text-xs">
                     </div>
-                    <p class="text-[10px] text-gray-400 mt-1.5">Mock link — replace with a real meeting URL before sending.</p>
+                    <p class="text-[10px] text-gray-400 mt-1.5">Paste the actual meeting link that will be sent to the selected candidate.</p>
                 </div>
 
-                <div class="pt-4 border-t flex justify-end gap-3">
+                <div class="sticky bottom-0 -mx-8 -mb-8 mt-6 px-8 py-6 border-t border-slate-200 bg-white flex justify-end gap-3">
                     <button type="button" @click="showInterviewModal = false"
                         class="px-6 py-2.5 border border-gray-200 text-gray-600 rounded-xl text-sm font-bold hover:bg-gray-50 transition">
                         Cancel
@@ -4339,6 +4456,7 @@ refreshJobOffers() {
         showJobOfferModal: false,
         showJobOfferViewModal: false,
         linkCopied: false,
+        currentUserName: @js(Auth::user()->name ?? ''),
         isEditing: false,
         editingId: null,
         viewData: null,
@@ -4347,6 +4465,11 @@ refreshJobOffers() {
         viewAssessmentData: null,
         viewInterviewData: null,
         viewJobOfferData: null,
+        interviewViewTabs: ['Candidate Information', 'Resume / CV', 'Portfolio', 'Attachments', 'Interview Questions'],
+        interviewViewTab: 'Candidate Information',
+        interviewQuestionStages: ['First Interview', 'Second Interview', 'Third / Final Interview'],
+        interviewQuestionStage: 'First Interview',
+        interviewDetailsDraft: {},
 
         organizationalAddresses: initialOrganizationalAddresses,
         branches: initialBranches,
@@ -5398,6 +5521,199 @@ onJpfPayrollLevelChange() {
             return Array.isArray(rows) ? rows : [];
         },
 
+        interviewCafRecord() {
+            if (!this.viewInterviewData) return null;
+            const email = String(this.viewInterviewData.email || '').toLowerCase();
+            const position = String(this.viewInterviewData.position || '').toLowerCase();
+            return (this.data['CAF'] || []).find(caf => {
+                const cafEmail = String(caf.email || '').toLowerCase();
+                const cafPosition = String(caf.position || '').toLowerCase();
+                return cafEmail && cafEmail === email && (!position || cafPosition === position);
+            }) || (this.data['CAF'] || []).find(caf => String(caf.email || '').toLowerCase() === email) || null;
+        },
+
+        interviewApplicationData() {
+            return this.parseCafPayload(this.interviewCafRecord()?.application_data, {});
+        },
+
+        interviewAttachmentData() {
+            return this.parseCafPayload(this.interviewCafRecord()?.attachment_paths, {});
+        },
+
+        interviewValue(path, fallback = '') {
+            const data = this.interviewApplicationData();
+            const value = String(path).split('.').reduce((current, key) => {
+                if (current && Object.prototype.hasOwnProperty.call(current, key)) {
+                    return current[key];
+                }
+                return undefined;
+            }, data);
+
+            return this.parseCafMaybeJson(value ?? fallback);
+        },
+
+        interviewFilePath(key) {
+            const caf = this.interviewCafRecord() || {};
+            const attachments = this.interviewAttachmentData();
+            const aliases = {
+                resume_cv: caf.cv_path || attachments.resume_cv,
+                cv_path: caf.cv_path || attachments.resume_cv,
+                portfolio: attachments.portfolio,
+                government_id: attachments.government_id,
+                cover_letter: caf.cover_letter_path || attachments.cover_letter,
+                photo: caf.photo_path || attachments.photo,
+            };
+            return aliases[key] || attachments[key] || '';
+        },
+
+        interviewAttachmentLinks() {
+            const labels = {
+                photo: 'Photo',
+                resume_cv: 'Resume / CV',
+                cover_letter: 'Cover Letter',
+                portfolio: 'Portfolio',
+                government_id: 'Government ID',
+            };
+            return Object.entries(this.interviewAttachmentData())
+                .filter(([key, path]) => path && key !== 'photo')
+                .map(([key, path]) => ({ label: labels[key] || key.replaceAll('_', ' '), path }));
+        },
+
+        interviewApplicationSections() {
+            const caf = this.interviewCafRecord() || {};
+            return [
+                {
+                    title: 'Personal Information',
+                    fields: [
+                        { label: 'Applicant ID', value: caf.applicant_id },
+                        { label: 'Email', value: caf.email || this.viewInterviewData?.email },
+                        { label: 'Phone', value: caf.phone },
+                        { label: 'Date of Birth', value: this.interviewValue('dateOfBirth') },
+                        { label: 'Age', value: this.interviewValue('age') },
+                        { label: 'Gender', value: this.interviewValue('gender') },
+                        { label: 'Civil Status', value: this.interviewValue('civilStatus') },
+                        { label: 'Current Address', value: this.interviewValue('currentAddress'), full: true },
+                        { label: 'Permanent Address', value: this.interviewValue('permanentAddress'), full: true },
+                    ],
+                },
+                {
+                    title: 'Position Applied For',
+                    fields: [
+                        { label: 'Position Applied', value: caf.position || this.viewInterviewData?.position },
+                        { label: 'Job ID', value: this.interviewValue('jobId') || this.interviewValue('job.job_id') },
+                        { label: 'Department / Team', value: this.interviewValue('departmentTeam') || this.interviewValue('job.department_unit') },
+                        { label: 'Employment Type', value: this.interviewValue('employmentType') || this.interviewValue('job.employment_type') },
+                        { label: 'Work Arrangement', value: this.interviewValue('preferredWorkArrangement') || this.interviewValue('job.work_arrangement') },
+                        { label: 'Date Available', value: this.interviewValue('dateAvailable') },
+                    ],
+                },
+                {
+                    title: 'Skills, Certifications & Consent',
+                    fields: [
+                        { label: 'Technical Skills', value: this.interviewValue('technicalSkills'), full: true },
+                        { label: 'Software / Tools', value: this.interviewValue('softwareTools'), full: true },
+                        { label: 'Certifications / Licenses', value: this.interviewValue('certificationsLicenses'), full: true },
+                        { label: 'Languages', value: this.interviewValue('languages'), full: true },
+                        { label: 'Background Check Consent', value: this.interviewValue('backgroundCheck') },
+                        { label: 'Data Privacy Consent', value: this.interviewValue('consentAccepted') || (caf.consent_accepted_at ? 'Yes' : '') },
+                    ],
+                },
+            ];
+        },
+
+        interviewEducationRows() {
+            const rows = this.interviewValue('education', []);
+            return Array.isArray(rows) ? rows : [];
+        },
+
+        interviewEmploymentRows() {
+            const rows = this.interviewValue('employmentHistory', []);
+            return Array.isArray(rows) ? rows : [];
+        },
+
+        interviewCertificationRows() {
+            const rows = this.interviewValue('certifications', []);
+            return Array.isArray(rows) ? rows : [];
+        },
+
+        defaultInterviewQuestions(stage) {
+            const sets = {
+                'First Interview': [
+                    'Please walk us through your background and most relevant work experience.',
+                    'What interests you about this role and John Kelly & Company?',
+                    'Which skills make you a strong match for this position?',
+                    'Describe a professional challenge you handled well.',
+                    'What are your availability and salary expectations?',
+                ],
+                'Second Interview': [
+                    'How would you approach the key responsibilities of this role?',
+                    'Describe a project where you had to coordinate with multiple stakeholders.',
+                    'What tools, systems, or methods do you use to stay organized?',
+                    'How do you handle feedback and changing priorities?',
+                ],
+                'Third / Final Interview': [
+                    'Why should we select you for this role?',
+                    'How do your career goals align with this position?',
+                    'What support would help you perform well in your first 90 days?',
+                    'Do you have any final questions for management?',
+                ],
+            };
+            return (sets[stage] || []).map(question => ({ question, answer: '', notes: '', score: '', recommendation: '' }));
+        },
+
+        ensureInterviewDetailsDraft() {
+            const source = this.parseCafPayload(this.viewInterviewData?.application_details, {});
+            const draft = {
+                questions: source.questions || {},
+                meta: source.meta || {},
+            };
+            this.interviewQuestionStages.forEach(stage => {
+                if (!Array.isArray(draft.questions[stage]) || draft.questions[stage].length === 0) {
+                    draft.questions[stage] = this.defaultInterviewQuestions(stage);
+                }
+                if (!draft.meta[stage]) {
+                    draft.meta[stage] = { remarks: '', recommendation: '' };
+                }
+            });
+            this.interviewDetailsDraft = draft;
+        },
+
+        interviewQuestionsForStage(stage) {
+            if (!this.interviewDetailsDraft.questions) this.ensureInterviewDetailsDraft();
+            return this.interviewDetailsDraft.questions[stage] || [];
+        },
+
+        interviewQuestionMeta() {
+            if (!this.interviewDetailsDraft.meta) this.ensureInterviewDetailsDraft();
+            if (!this.interviewDetailsDraft.meta[this.interviewQuestionStage]) {
+                this.interviewDetailsDraft.meta[this.interviewQuestionStage] = { remarks: '', recommendation: '' };
+            }
+            return this.interviewDetailsDraft.meta[this.interviewQuestionStage];
+        },
+
+        addInterviewQuestion(stage) {
+            if (!this.interviewDetailsDraft.questions) this.ensureInterviewDetailsDraft();
+            this.interviewDetailsDraft.questions[stage].push({ question: '', answer: '', notes: '', score: '', recommendation: '' });
+        },
+
+        saveInterviewDetails() {
+            if (!this.viewInterviewData?.id) return;
+
+            axios.post(`/human-capital/recruitment/interview/${this.viewInterviewData.id}/details`, {
+                application_details: this.interviewDetailsDraft,
+            })
+            .then(res => {
+                const updated = res.data.data || {};
+                const idx = this.data['Interview'].findIndex(item => item.id === this.viewInterviewData.id);
+                if (idx !== -1) this.data['Interview'][idx] = { ...this.data['Interview'][idx], ...updated };
+                this.viewInterviewData = { ...this.viewInterviewData, ...updated };
+                alert('Interview details saved.');
+            })
+            .catch(err => {
+                alert('Failed to save interview details: ' + (err.response?.data?.message || err.message));
+            });
+        },
+
         viewCAF(row) {
             this.viewCafData = row;
             this.showCafViewModal = true;
@@ -5431,6 +5747,9 @@ onJpfPayrollLevelChange() {
 
         viewInterview(row) {
             this.viewInterviewData = row;
+            this.interviewViewTab = 'Candidate Information';
+            this.interviewQuestionStage = 'First Interview';
+            this.ensureInterviewDetailsDraft();
             this.showInterviewViewModal = true;
         },
 
@@ -5472,19 +5791,13 @@ onJpfPayrollLevelChange() {
                 email: item.email || '',
                 position: item.position || '',
                 type: 'Online',
-                interviewer: '', 
+                interviewer: this.currentUserName || '', 
                 interview_date: '',
                 duration: '60',
                 meeting_link: ''
             };
-            this.generateMeetingLink();
             this.activeTab = 'Interview';
             this.showInterviewModal = true;
-        },
-
-        generateMeetingLink() {
-            const seg = (len) => Array.from({length: len}, () => 'abcdefghijklmnopqrstuvwxyz'[Math.floor(Math.random() * 26)]).join('');
-            this.interviewForm.meeting_link = `https://meet.google.com/${seg(3)}-${seg(4)}-${seg(3)}`;
         },
 
         interviewAllowsJobOffer(interview) {
@@ -5972,7 +6285,7 @@ onJpfPayrollLevelChange() {
                     name: '', email: '', position: '', type: 'Online', interviewer: '', 
                     interview_date: '', duration: '60', meeting_link: ''
                 };
-                this.generateMeetingLink();
+                this.interviewForm.interviewer = this.currentUserName || '';
                 this.showInterviewModal = true;
             } else if (this.activeTab === 'Assessment') {
                 this.assessmentForm = {
@@ -6507,6 +6820,9 @@ onJpfPayrollLevelChange() {
             this.interviewForm.name = selected.name || '';
             this.interviewForm.email = selected.email || '';
             this.interviewForm.position = selected.position || '';
+            if (!this.interviewForm.interviewer) {
+                this.interviewForm.interviewer = this.currentUserName || '';
+            }
         },
 
         viewMRF(row) {
@@ -6823,3 +7139,5 @@ onJpfPayrollLevelChange() {
 </script>
 @endpush
 @endsection
+
+

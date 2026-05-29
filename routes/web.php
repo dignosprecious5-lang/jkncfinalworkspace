@@ -1169,6 +1169,8 @@ Route::delete('/gis/ubo/{record}', [UltimateBeneficialOwnerController::class, 'd
             Route::delete('/recruitment/interview/{id}', [RecruitmentController::class, 'deleteInterview'])->name('recruitment.delete_interview');
             Route::post('/recruitment/interview/{id}/status', [RecruitmentController::class, 'updateInterviewStatus'])
                 ->name('recruitment.interview_status');
+            Route::post('/recruitment/interview/{id}/details', [RecruitmentController::class, 'updateInterviewDetails'])
+                ->name('recruitment.interview_details');
 
             Route::get('/recruitment/job-offer/latest', [RecruitmentController::class, 'latestJobOffers'])->name('recruitment.job_offer.latest');
             Route::post('/recruitment/job-offer', [RecruitmentController::class, 'storeJobOffer'])->name('recruitment.store_job_offer');

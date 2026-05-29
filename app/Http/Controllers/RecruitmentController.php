@@ -1412,6 +1412,23 @@ class RecruitmentController extends Controller
         ]);
     }
 
+    public function updateInterviewDetails(Request $request, $id)
+    {
+        $request->validate([
+            'application_details' => 'nullable|array',
+        ]);
+
+        $interview = CandidateInterview::findOrFail($id);
+        $interview->update([
+            'application_details' => $request->input('application_details', []),
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'data' => $interview,
+        ]);
+    }
+
     public function deleteInterview($id)
     {
         CandidateInterview::findOrFail($id)->delete();
