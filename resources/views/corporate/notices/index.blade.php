@@ -234,18 +234,18 @@
                 </button>
             </div>
 
-            <form method="POST" action="{{ $noticeStoreUrl }}" enctype="multipart/form-data" class="flex-1 overflow-y-auto p-6" @submit="prepareSubmit()">
+            <form method="POST" action="{{ $noticeStoreUrl }}" enctype="multipart/form-data" class="flex-1 overflow-hidden p-6" @submit="prepareSubmit()">
                 @csrf
 
-                <div class="grid grid-cols-1 xl:grid-cols-[minmax(0,1.7fr)_minmax(420px,0.95fr)] gap-6 min-h-[calc(100vh-12rem)]">
-                    <div class="rounded-2xl border border-slate-200 overflow-hidden bg-[#f7f7fb] flex flex-col">
-                        <div class="px-5 py-4 border-b border-slate-200 bg-white">
+                <div class="grid grid-cols-1 xl:grid-cols-[minmax(0,1.35fr)_minmax(420px,0.95fr)] gap-6 h-[calc(100vh-8rem)] min-h-0 overflow-hidden">
+                    <div class="rounded-2xl border border-slate-200 overflow-hidden bg-[#f7f7fb] flex flex-col min-h-0">
+                        <div class="px-5 py-4 border-b border-slate-200 bg-white shrink-0">
                             <div class="text-sm font-semibold text-slate-900">Live Notice Preview</div>
                             <div class="mt-1 text-xs text-slate-500">This updates in real time from the slider and uses the same company notice layout as the saved preview.</div>
                         </div>
 
-                        <div class="flex-1 overflow-auto p-10">
-                            <div class="mx-auto min-h-full max-w-[920px] bg-white px-16 py-14 text-[15px] leading-8 text-slate-900 shadow-[0_18px_50px_rgba(15,23,42,0.08)]">
+                        <div class="min-h-0 flex-1 overflow-auto p-6">
+                            <div class="mx-auto bg-white px-12 py-12 text-[14px] leading-7 text-slate-900 shadow-[0_18px_50px_rgba(15,23,42,0.08)]" style="width:min(100%, 794px); min-height:1123px; display:flex; flex-direction:column; overflow:visible;">
                                 <div class="text-center leading-6">
                                     <div class="text-[17px] font-bold uppercase tracking-[0.04em]">{{ $companyName }}</div>
                                     <div class="text-[14px] font-bold">COMPANY REG. NO.: {{ $companyRegNo }}</div>
@@ -274,27 +274,29 @@
                                     {{-- Internal meeting officer/contact/deadline details intentionally hidden from the issued notice. --}}
                                 </div>
 
-                                <div class="mt-16">
+                                <div class="mt-12">
                                     <div>Very truly yours,</div>
-                                    <div class="mt-12 text-[18px] font-bold" x-text="livePreviewSecretary"></div>
+                                    <div class="mt-10 text-[18px] font-bold" x-text="livePreviewSecretary"></div>
                                     <div class="text-sm text-slate-600">Corporate Secretary</div>
                                 </div>
 
-                                <div class="mt-16 flex items-end justify-between gap-6 border-t border-slate-200 pt-4 text-[11px] leading-4 text-slate-600">
-                                    <div class="min-w-0">
-                                        <div class="font-bold uppercase break-words" x-text="livePreviewFooterTitle"></div>
-                                        <div>{{ $companyName }}</div>
-                                        <div>Company Reg. No.: {{ $companyRegNo }}</div>
-                                        <div>{{ $companyAddress }}</div>
+                                <div class="mt-auto pt-10">
+                                    <div class="flex items-end justify-between gap-6 border-t border-slate-200 pt-4 text-[11px] leading-4 text-slate-600">
+                                        <div class="min-w-0">
+                                            <div class="font-bold uppercase break-words" x-text="livePreviewFooterTitle"></div>
+                                            <div>{{ $companyName }}</div>
+                                            <div>Company Reg. No.: {{ $companyRegNo }}</div>
+                                            <div>{{ $companyAddress }}</div>
+                                        </div>
+                                        <div class="font-bold shrink-0">Page 1 of 1</div>
                                     </div>
-                                    <div class="font-bold shrink-0">Page 1 of 1</div>
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <div class="rounded-2xl border border-gray-200 bg-white overflow-hidden flex flex-col">
-                        <div class="flex-1 overflow-y-auto">
+                    <div class="rounded-2xl border border-gray-200 bg-white overflow-hidden flex flex-col min-h-0">
+                        <div class="min-h-0 flex-1 overflow-y-auto">
                             <div class="px-6 py-5 space-y-5">
                                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
@@ -323,7 +325,7 @@
                                     </select>
                                 </div>
 
-                                <div class="rounded-2xl border border-gray-200 overflow-hidden sticky top-0 bg-white z-10 shadow-sm">
+                                <div class="rounded-2xl border border-gray-200 overflow-hidden bg-white shadow-sm">
                                     <div class="px-4 py-3 border-b border-gray-100 bg-gray-50">
                                         <div class="text-sm font-semibold text-gray-900">Notice Body Builder</div>
                                         <div class="mt-1 text-xs text-gray-500">Write the body here with formatting tools. The saved notice preview will use this exact builder content.</div>
@@ -801,7 +803,7 @@
                 this.livePreviewDate = formattedDate;
                 this.livePreviewIntro = `NOTICE is hereby given that a ${meetingType} ${governingBody} Meeting of ${this.companyName} will be held at ${this.locationPreview || '________________'} on ${formattedDate} at ${formattedTime}.`;
                 this.livePreviewProceedText = `The meeting shall proceed through ${selectedMode}. For virtual or hybrid meetings, access shall be through ${accessDetails}. Only confirmed persons with proper identity, authority, and right to attend, vote, approve, or submit documents shall be allowed or recognized, in accordance with applicable law, the By-Laws, SEC rules, approved procedures, and duly adopted internal policies.`;
-                this.livePreviewProcedureText = `The meeting shall be presided over by ${chairman || 'Chairman / Presiding Officer'}, or by another duly authorized person, and shall be conducted in accordance with the Revised Corporation Code of the Philippines, the Corporation’s Articles of Incorporation, By-Laws, approved rules of procedure, applicable SEC rules and issuances, and duly adopted internal policies. Only confirmed persons with proper identity, authority, and right to attend, vote, approve, or submit documents shall be allowed or recognized, subject to applicable law and the Corporation’s approved procedures.`;
+                this.livePreviewProcedureText = `The meeting shall be presided over by ${chairman || 'Chairman / Presiding Officer'}, or by another duly authorized person, and shall be conducted in accordance with the Revised Corporation Code of the Philippines, the Corporationâ€™s Articles of Incorporation, By-Laws, approved rules of procedure, applicable SEC rules and issuances, and duly adopted internal policies. Only confirmed persons with proper identity, authority, and right to attend, vote, approve, or submit documents shall be allowed or recognized, subject to applicable law and the Corporationâ€™s approved procedures.`;
                 this.livePreviewBody = this.bodyHtml || '<p style="color:#94a3b8;">Start typing the notice body to preview it here.</p>';
                 this.livePreviewSecretary = secretary;
                 this.livePreviewChairman = chairman || '________________';
