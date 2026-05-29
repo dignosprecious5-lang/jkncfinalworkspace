@@ -615,6 +615,7 @@
                                         </template>
                                     </select>
                                 </div>
+
                             </div>
 
 
@@ -2893,12 +2894,12 @@
                     <div class="flex h-full overflow-hidden">
                         
                         {{-- LEFT: DOCUMENT VIEW --}}
-                        <div class="flex-1 flex flex-col bg-gray-200 border-r border-gray-300 p-6 overflow-hidden" x-data="{ docTab: 'summary' }">
+                        <div class="flex-1 flex flex-col bg-slate-100 border-r border-slate-200 p-6 overflow-hidden" x-data="{ docTab: 'summary' }">
                             <div class="flex items-center justify-between mb-4 shrink-0">
                                 <div class="flex bg-white rounded-xl p-1 border border-gray-300 shadow-sm">
-                                    <button @click="docTab = 'summary'" :class="docTab === 'summary' ? 'bg-teal-600 text-white shadow-lg' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'" class="px-5 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all">Summary</button>
-                                    <button x-show="viewCafData.cv_path" @click="docTab = 'resume'" :class="docTab === 'resume' ? 'bg-teal-600 text-white shadow-lg' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'" class="px-5 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all">Resume / CV</button>
-                                    <button x-show="viewCafData.cover_letter_path" @click="docTab = 'coverletter'" :class="docTab === 'coverletter' ? 'bg-teal-600 text-white shadow-lg' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'" class="px-5 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all">Cover Letter File</button>
+                                    <button @click="docTab = 'summary'" :class="docTab === 'summary' ? 'bg-blue-700 text-white shadow-lg' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'" class="px-5 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all">Full Application</button>
+                                    <button x-show="viewCafData.cv_path" @click="docTab = 'resume'" :class="docTab === 'resume' ? 'bg-blue-700 text-white shadow-lg' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'" class="px-5 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all">Resume / CV</button>
+                                    <button x-show="viewCafData.cover_letter_path" @click="docTab = 'coverletter'" :class="docTab === 'coverletter' ? 'bg-blue-700 text-white shadow-lg' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'" class="px-5 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all">Cover Letter File</button>
                                 </div>
                                 <div class="flex gap-2">
                                     <template x-if="viewCafData.cv_path">
@@ -2910,8 +2911,8 @@
                             <div class="flex-1 bg-white rounded-2xl shadow-inner border border-gray-300 flex flex-col overflow-hidden relative">
                                 {{-- SUMMARY TAB --}}
                                 <div x-show="docTab === 'summary'" class="flex-1 overflow-y-auto p-12 bg-gray-100/50 flex flex-col items-center">
-                                    <div class="w-full max-w-4xl bg-white shadow-2xl border border-gray-200 p-16 font-sans space-y-12 min-h-[1200px]">
-                                        <div class="flex justify-between items-start border-b-2 border-gray-800 pb-8">
+                                    <div class="w-full max-w-5xl bg-white shadow-2xl border border-slate-200 p-12 font-sans space-y-10 min-h-[1200px]">
+                                        <div class="flex justify-between items-start border-b-2 border-blue-800 pb-8">
                                             <div class="w-32 h-32 border-2 border-gray-100 rounded-2xl overflow-hidden bg-gray-50 shrink-0">
                                                 <template x-if="viewCafData.photo_path">
                                                     <img :src="'/storage/' + viewCafData.photo_path" class="w-full h-full object-cover">
@@ -2923,18 +2924,89 @@
                                                 </template>
                                             </div>
                                             <div class="flex-1 ml-10">
+                                                <p class="text-[10px] font-black text-blue-700 uppercase tracking-[0.3em] mb-2">Candidate Application Form</p>
                                                 <h1 class="text-4xl font-black text-gray-900 tracking-tighter uppercase mb-2" x-text="viewCafData.name"></h1>
-                                                <p class="text-xl text-teal-600 font-bold uppercase tracking-widest" x-text="viewCafData.position"></p>
+                                                <p class="text-xl text-blue-700 font-bold uppercase tracking-widest" x-text="viewCafData.position"></p>
                                                 <div class="mt-4 space-y-1 text-xs font-bold text-gray-500">
+                                                    <p x-text="'Applicant ID: ' + (viewCafData.applicant_id || 'Pending')"></p>
                                                     <p x-text="viewCafData.email"></p>
                                                     <p x-text="viewCafData.phone"></p>
                                                 </div>
                                             </div>
-                                            <img src="{{ asset('images/imaglogo.png') }}" onerror="this.src='{{ asset('images/imag1logo.jpg') }}'" alt="Logo" class="h-16 w-auto object-contain">
+                                            <img src="{{ asset('images/FINAL_LOGO.jpg') }}" onerror="this.src='{{ asset('images/imaglogo.png') }}'" alt="Logo" class="h-16 w-auto object-contain">
+                                        </div>
+
+                                        <div class="grid grid-cols-3 gap-3">
+                                            <div class="rounded-xl border border-blue-100 bg-blue-50 p-4">
+                                                <p class="text-[10px] font-black text-blue-500 uppercase tracking-widest">Position Applied</p>
+                                                <p class="mt-1 text-sm font-black text-slate-900" x-text="viewCafData.position || '—'"></p>
+                                            </div>
+                                            <div class="rounded-xl border border-blue-100 bg-blue-50 p-4">
+                                                <p class="text-[10px] font-black text-blue-500 uppercase tracking-widest">Department</p>
+                                                <p class="mt-1 text-sm font-black text-slate-900" x-text="cafValue('departmentTeam') || cafValue('job.department_unit') || '—'"></p>
+                                            </div>
+                                            <div class="rounded-xl border border-blue-100 bg-blue-50 p-4">
+                                                <p class="text-[10px] font-black text-blue-500 uppercase tracking-widest">Employment Type</p>
+                                                <p class="mt-1 text-sm font-black text-slate-900" x-text="cafValue('employmentType') || cafValue('job.employment_type') || '—'"></p>
+                                            </div>
+                                        </div>
+
+                                        <template x-for="section in cafApplicationSections()" :key="section.title">
+                                            <div class="space-y-4">
+                                                <h3 class="text-sm font-black text-blue-900 uppercase tracking-widest border-b border-blue-100 pb-2" x-text="section.title"></h3>
+                                                <div class="grid grid-cols-2 gap-3">
+                                                    <template x-for="field in section.fields" :key="field.label">
+                                                        <div class="rounded-xl border border-slate-200 bg-slate-50 p-4" :class="field.full ? 'col-span-2' : ''">
+                                                            <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest" x-text="field.label"></p>
+                                                            <p class="mt-1 text-sm font-bold text-slate-800 whitespace-pre-wrap break-words" x-text="formatCafValue(field.value)"></p>
+                                                        </div>
+                                                    </template>
+                                                </div>
+                                            </div>
+                                        </template>
+
+                                        <div class="space-y-4" x-show="cafEducationRows().length">
+                                            <h3 class="text-sm font-black text-blue-900 uppercase tracking-widest border-b border-blue-100 pb-2">Educational Background</h3>
+                                            <div class="space-y-3">
+                                                <template x-for="edu in cafEducationRows()" :key="edu.level + edu.school + edu.year">
+                                                    <div class="rounded-xl border border-slate-200 p-4">
+                                                        <p class="text-sm font-black text-slate-900" x-text="edu.level"></p>
+                                                        <p class="mt-1 text-sm text-slate-700" x-text="[edu.school, edu.degree, edu.course, edu.year].filter(Boolean).join(' | ') || '—'"></p>
+                                                        <p class="mt-1 text-xs font-semibold text-slate-500" x-show="edu.honors" x-text="'Honors / Awards: ' + edu.honors"></p>
+                                                    </div>
+                                                </template>
+                                            </div>
+                                        </div>
+
+                                        <div class="space-y-4" x-show="cafEmploymentRows().length">
+                                            <h3 class="text-sm font-black text-blue-900 uppercase tracking-widest border-b border-blue-100 pb-2">Employment History</h3>
+                                            <div class="space-y-3">
+                                                <template x-for="job in cafEmploymentRows()" :key="job.company + job.position + job.inclusiveDates">
+                                                    <div class="rounded-xl border border-slate-200 p-4">
+                                                        <p class="text-sm font-black text-slate-900" x-text="[job.company, job.position].filter(Boolean).join(' - ') || 'Employment Record'"></p>
+                                                        <p class="mt-1 text-sm text-slate-700" x-text="[job.address, job.inclusiveDates].filter(Boolean).join(' | ')"></p>
+                                                        <p class="mt-1 text-xs text-slate-500" x-show="job.responsibilities" x-text="job.responsibilities"></p>
+                                                        <p class="mt-1 text-xs font-semibold text-slate-500" x-show="job.reasonForLeaving" x-text="'Reason for leaving: ' + job.reasonForLeaving"></p>
+                                                    </div>
+                                                </template>
+                                            </div>
+                                        </div>
+
+                                        <div class="space-y-4" x-show="cafCertificationRows().length">
+                                            <h3 class="text-sm font-black text-blue-900 uppercase tracking-widest border-b border-blue-100 pb-2">Certifications & Trainings</h3>
+                                            <div class="space-y-3">
+                                                <template x-for="cert in cafCertificationRows()" :key="cert.name + cert.provider + cert.code">
+                                                    <div class="rounded-xl border border-slate-200 p-4">
+                                                        <p class="text-sm font-black text-slate-900" x-text="cert.name || 'Certification / Training'"></p>
+                                                        <p class="mt-1 text-sm text-slate-700" x-text="[cert.provider, cert.status, cert.dateTaken || cert.datePlanned, cert.validity].filter(Boolean).join(' | ')"></p>
+                                                        <p class="mt-1 text-xs text-slate-500" x-show="cert.notes" x-text="cert.notes"></p>
+                                                    </div>
+                                                </template>
+                                            </div>
                                         </div>
 
                                         <div class="space-y-6">
-                                            <h3 class="text-sm font-black text-gray-900 uppercase tracking-widest border-b pb-2">Cover Letter / Statement</h3>
+                                            <h3 class="text-sm font-black text-blue-900 uppercase tracking-widest border-b border-blue-100 pb-2">Cover Letter / Statement</h3>
                                             <div class="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap" x-text="viewCafData.cover_letter && viewCafData.cover_letter !== 'null' ? viewCafData.cover_letter : (viewCafData.cover_letter_path ? 'See attached cover letter file.' : 'No cover letter text provided.')"></div>
                                         </div>
                                         
@@ -2958,13 +3030,13 @@
                         </div>
 
                         {{-- RIGHT: CANDIDATE INFO --}}
-                        <div class="w-[450px] bg-white border-l border-gray-200 flex flex-col shrink-0">
-                            <div class="h-44 bg-gradient-to-r from-teal-500 to-emerald-600 relative shrink-0">
+                        <div class="w-[450px] bg-white border-l border-slate-200 flex flex-col shrink-0">
+                            <div class="h-44 bg-gradient-to-r from-blue-900 to-blue-700 relative shrink-0">
                                 <button @click="showCafViewModal = false" class="absolute top-6 right-6 text-white/50 hover:text-white transition group bg-white/10 p-2 rounded-full backdrop-blur-md z-20">
                                     <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12"/></svg>
                                 </button>
                                 <div class="absolute -bottom-12 left-10 z-10 text-center">
-                                    <div class="w-32 h-32 bg-white rounded-3xl shadow-2xl flex items-center justify-center border-4 border-white text-teal-600 overflow-hidden mx-auto">
+                                    <div class="w-32 h-32 bg-white rounded-3xl shadow-2xl flex items-center justify-center border-4 border-white text-blue-700 overflow-hidden mx-auto">
                                         <template x-if="viewCafData.photo_path">
                                             <img :src="'/storage/' + viewCafData.photo_path" class="w-full h-full object-cover">
                                         </template>
@@ -2978,15 +3050,15 @@
                             <div class="flex-1 overflow-y-auto px-10 pt-16 pb-8 space-y-10">
                                 <div class="text-center">
                                     <h2 class="text-3xl font-black text-gray-900 tracking-tight capitalize" x-text="viewCafData.name"></h2>
-                                    <p class="text-teal-600 font-bold tracking-[0.2em] uppercase text-[11px] mt-1" x-text="viewCafData.position"></p>
-                                    <span class="inline-flex mt-3 px-3 py-1 rounded-full bg-indigo-50 text-indigo-700 text-[10px] font-black uppercase tracking-widest" x-text="viewCafData.applicant_type || 'New Applicant'"></span>
+                                    <p class="text-blue-700 font-bold tracking-[0.2em] uppercase text-[11px] mt-1" x-text="viewCafData.position"></p>
+                                    <span class="inline-flex mt-3 px-3 py-1 rounded-full bg-blue-50 text-blue-800 text-[10px] font-black uppercase tracking-widest" x-text="viewCafData.applicant_type || 'New Applicant'"></span>
                                 </div>
 
                                 <div class="grid grid-cols-1 gap-5">
                                     <div class="bg-gray-50/50 p-6 rounded-[2rem] border border-gray-100 font-medium shadow-sm transition hover:shadow-md">
                                         <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Email Address</p>
                                         <div class="flex items-center gap-3">
-                                            <div class="w-8 h-8 bg-white rounded-xl shadow-sm border border-gray-100 flex items-center justify-center text-teal-600 shrink-0">
+                                            <div class="w-8 h-8 bg-white rounded-xl shadow-sm border border-gray-100 flex items-center justify-center text-blue-700 shrink-0">
                                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
                                             </div>
                                             <p class="text-gray-800 break-all text-sm font-bold" x-text="viewCafData.email"></p>
@@ -2995,7 +3067,7 @@
                                     <div class="bg-gray-50/50 p-6 rounded-[2rem] border border-gray-100 font-medium shadow-sm transition hover:shadow-md">
                                         <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Phone Number</p>
                                         <div class="flex items-center gap-3">
-                                            <div class="w-8 h-8 bg-white rounded-xl shadow-sm border border-gray-100 flex items-center justify-center text-teal-600 shrink-0">
+                                            <div class="w-8 h-8 bg-white rounded-xl shadow-sm border border-gray-100 flex items-center justify-center text-blue-700 shrink-0">
                                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 5.25a.75.75 0 01.75-.75H9a.75.75 0 01.75.75v3.31A.75.75 0 019 9.31L7.15 10.63a.75.75 0 00-.2 1.05c.87 1.34 2.1 2.57 3.44 3.44a.75.75 0 001.05-.2l1.32-1.85a.75.75 0 011-.31h3.31a.75.75 0 01.75.75v5.25a.75.75 0 01-.75.75h-2.25c-7.46 0-13.5-6.04-13.5-13.5v-2.25z"/></svg>
                                             </div>
                                             <p class="text-gray-800 text-sm font-bold" x-text="viewCafData.phone"></p>
@@ -3003,18 +3075,37 @@
                                     </div>
                                 </div>
 
-                                <div class="bg-teal-50/30 p-6 rounded-[2rem] border border-teal-100 shadow-sm">
+                                <div class="bg-blue-50/50 p-6 rounded-[2rem] border border-blue-100 shadow-sm">
                                     <div class="flex items-center gap-2 mb-4">
-                                        <div class="w-2 h-2 bg-teal-500 rounded-full animate-pulse"></div>
-                                        <p class="text-[10px] font-black text-teal-700 uppercase tracking-widest">Application Status</p>
+                                        <div class="w-2 h-2 bg-blue-600 rounded-full animate-pulse"></div>
+                                        <p class="text-[10px] font-black text-blue-700 uppercase tracking-widest">Application Status</p>
                                     </div>
-                                    <p class="text-sm font-bold text-teal-900" x-text="'Applied on ' + (viewCafData.created_at ? new Date(viewCafData.created_at).toLocaleDateString() : '—')"></p>
+                                    <p class="text-sm font-bold text-blue-950" x-text="'Applied on ' + (viewCafData.created_at ? new Date(viewCafData.created_at).toLocaleDateString() : '-')"></p>
+                                </div>
+
+                                <div class="bg-slate-50 p-6 rounded-[2rem] border border-slate-200 shadow-sm">
+                                    <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Submitted Files</p>
+                                    <div class="space-y-2 text-sm font-bold">
+                                        <a x-show="viewCafData.cv_path" :href="'/storage/' + viewCafData.cv_path" target="_blank" class="flex items-center justify-between rounded-xl bg-white border border-slate-200 px-4 py-3 text-slate-700 hover:text-blue-700 hover:border-blue-200 transition">
+                                            <span>Resume / CV</span><span class="text-[10px] uppercase tracking-widest">Open</span>
+                                        </a>
+                                        <a x-show="viewCafData.cover_letter_path" :href="'/storage/' + viewCafData.cover_letter_path" target="_blank" class="flex items-center justify-between rounded-xl bg-white border border-slate-200 px-4 py-3 text-slate-700 hover:text-blue-700 hover:border-blue-200 transition">
+                                            <span>Cover Letter File</span><span class="text-[10px] uppercase tracking-widest">Open</span>
+                                        </a>
+                                        <a x-show="cafAttachmentPath('portfolio')" :href="'/storage/' + cafAttachmentPath('portfolio')" target="_blank" class="flex items-center justify-between rounded-xl bg-white border border-slate-200 px-4 py-3 text-slate-700 hover:text-blue-700 hover:border-blue-200 transition">
+                                            <span>Portfolio</span><span class="text-[10px] uppercase tracking-widest">Open</span>
+                                        </a>
+                                        <a x-show="cafAttachmentPath('government_id')" :href="'/storage/' + cafAttachmentPath('government_id')" target="_blank" class="flex items-center justify-between rounded-xl bg-white border border-slate-200 px-4 py-3 text-slate-700 hover:text-blue-700 hover:border-blue-200 transition">
+                                            <span>Government ID</span><span class="text-[10px] uppercase tracking-widest">Open</span>
+                                        </a>
+                                        <p x-show="!viewCafData.cv_path && !viewCafData.cover_letter_path && !cafAttachmentPath('portfolio') && !cafAttachmentPath('government_id')" class="text-sm font-semibold text-slate-400">No submitted files available.</p>
+                                    </div>
                                 </div>
                             </div>
 
                             <div class="px-10 py-8 border-t border-gray-100 bg-gray-50 flex flex-col gap-3 shrink-0">
                                 <button @click="openAssessmentFromCaf(viewCafData)" 
-                                    class="w-full py-4 bg-teal-600 hover:bg-teal-700 text-white font-black rounded-[2rem] transition-all shadow-xl shadow-teal-100 uppercase tracking-[0.25em] text-[11px] active:scale-95">
+                                    class="w-full py-4 bg-blue-700 hover:bg-blue-800 text-white font-black rounded-[2rem] transition-all shadow-xl shadow-blue-100 uppercase tracking-[0.25em] text-[11px] active:scale-95">
                                     Proceed to Assessment
                                 </button>
                                 <button @click="showCafViewModal = false" class="w-full py-3 text-gray-500 hover:text-gray-800 font-bold uppercase tracking-widest text-[10px] transition">
@@ -5103,6 +5194,170 @@ onJpfPayrollLevelChange() {
                     btn.disabled = false;
                 }
             });
+        },
+
+        parseCafPayload(payload, fallback = {}) {
+            if (!payload) return fallback;
+            if (typeof payload === 'string') {
+                try {
+                    return JSON.parse(payload) || fallback;
+                } catch (e) {
+                    return fallback;
+                }
+            }
+            return payload;
+        },
+
+        cafApplicationData() {
+            return this.parseCafPayload(this.viewCafData?.application_data, {});
+        },
+
+        cafAttachmentData() {
+            return this.parseCafPayload(this.viewCafData?.attachment_paths, {});
+        },
+
+        cafAttachmentPath(key) {
+            return this.cafAttachmentData()?.[key] || '';
+        },
+
+        cafValue(path, fallback = '') {
+            const data = this.cafApplicationData();
+            const value = String(path).split('.').reduce((current, key) => {
+                if (current && Object.prototype.hasOwnProperty.call(current, key)) {
+                    return current[key];
+                }
+                return undefined;
+            }, data);
+
+            return this.parseCafMaybeJson(value ?? fallback);
+        },
+
+        parseCafMaybeJson(value) {
+            if (typeof value !== 'string') return value;
+            const trimmed = value.trim();
+            if (trimmed === 'true') return true;
+            if (trimmed === 'false') return false;
+            if (trimmed === 'null') return null;
+            if (!trimmed || !['[', '{'].includes(trimmed.charAt(0))) return value;
+            try {
+                return JSON.parse(trimmed);
+            } catch (e) {
+                return value;
+            }
+        },
+
+        formatCafValue(value) {
+            if (value === null || value === undefined || value === '') return '-';
+            if (Array.isArray(value)) {
+                const items = value.filter(item => item !== null && item !== undefined && String(item).trim() !== '');
+                return items.length ? items.map(item => `• ${this.formatCafValue(item)}`).join('\n') : '-';
+            }
+            if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+            if (typeof value === 'object') {
+                const parts = Object.values(value).filter(item => item !== null && item !== undefined && String(item).trim() !== '');
+                return parts.length ? parts.join(', ') : '-';
+            }
+            return String(value);
+        },
+
+        cafApplicationSections() {
+            return [
+                {
+                    title: 'Personal Information',
+                    fields: [
+                        { label: 'First Name', value: this.cafValue('firstName') },
+                        { label: 'Middle Name', value: this.cafValue('middleName') },
+                        { label: 'Last Name', value: this.cafValue('lastName') },
+                        { label: 'Suffix', value: this.cafValue('suffix') },
+                        { label: 'Nickname / Preferred Name', value: this.cafValue('nickname') },
+                        { label: 'Date of Birth', value: this.cafValue('dateOfBirth') },
+                        { label: 'Age', value: this.cafValue('age') },
+                        { label: 'Gender', value: this.cafValue('gender') },
+                        { label: 'Civil Status', value: this.cafValue('civilStatus') },
+                        { label: 'Nationality', value: this.cafValue('nationality') },
+                        { label: 'Religion', value: this.cafValue('religion') },
+                        { label: 'PWD', value: this.cafValue('pwd') },
+                        { label: 'Solo Parent', value: this.cafValue('soloParent') },
+                        { label: 'Senior Citizen', value: this.cafValue('seniorCitizen') },
+                        { label: 'Current Address', value: this.cafValue('currentAddress'), full: true },
+                        { label: 'Permanent Address', value: this.cafValue('permanentAddress'), full: true },
+                        { label: 'Mobile Number', value: this.viewCafData?.phone || this.cafValue('mobileNumber') },
+                        { label: 'Email Address', value: this.viewCafData?.email || this.cafValue('email') },
+                    ],
+                },
+                {
+                    title: 'Position Applied For',
+                    fields: [
+                        { label: 'Position Applied', value: this.viewCafData?.position || this.cafValue('positionApplied') },
+                        { label: 'Job ID', value: this.cafValue('jobId') },
+                        { label: 'Department / Team', value: this.cafValue('departmentTeam') || this.cafValue('job.department_unit') },
+                        { label: 'Employment Type', value: this.cafValue('employmentType') || this.cafValue('job.employment_type') },
+                        { label: 'Preferred Work Arrangement', value: this.cafValue('preferredWorkArrangement') || this.cafValue('job.work_arrangement') },
+                        { label: 'Date Available', value: this.cafValue('dateAvailable') },
+                        { label: 'Applicant Type', value: this.viewCafData?.applicant_type },
+                        { label: 'Application Status', value: this.viewCafData?.status },
+                    ],
+                },
+                {
+                    title: 'Skills & Qualifications',
+                    fields: [
+                        { label: 'Technical Skills', value: this.cafValue('technicalSkills'), full: true },
+                        { label: 'Software / Tools', value: this.cafValue('softwareTools'), full: true },
+                        { label: 'Certifications / Licenses', value: this.cafValue('certificationsLicenses'), full: true },
+                        { label: 'Languages Spoken', value: this.cafValue('languages'), full: true },
+                    ],
+                },
+                {
+                    title: 'Salary & Work Preferences',
+                    fields: [
+                        { label: 'Current Salary', value: this.cafValue('currentSalary') },
+                        { label: 'Expected Salary', value: this.cafValue('expectedSalary') },
+                        { label: 'Willing to Render Overtime', value: this.cafValue('willingOvertime') },
+                        { label: 'Willing to Work in Small Team', value: this.cafValue('willingSmallTeam') },
+                        { label: 'Willing to Work in Residential Office', value: this.cafValue('willingResidentialOffice') },
+                        { label: 'No Previous Employment', value: this.cafValue('noPreviousEmployment') },
+                    ],
+                },
+                {
+                    title: 'Legal, Compliance & Consent',
+                    fields: [
+                        { label: 'Authorized to Work', value: this.cafValue('authorizedToWork') },
+                        { label: 'Pending Obligations', value: this.cafValue('pendingObligations') },
+                        { label: 'Crime Conviction', value: this.cafValue('crimeConviction') },
+                        { label: 'Legal Explanation', value: this.cafValue('legalExplanation'), full: true },
+                        { label: 'Background Check Consent', value: this.cafValue('backgroundCheck') },
+                        { label: 'Data Privacy Consent', value: this.cafValue('consentAccepted') },
+                    ],
+                },
+                {
+                    title: 'Emergency Contact & Source',
+                    fields: [
+                        { label: 'Emergency Contact Name', value: this.cafValue('emergencyName') },
+                        { label: 'Relationship', value: this.cafValue('emergencyRelationship') },
+                        { label: 'Contact Number', value: this.cafValue('emergencyNumber') },
+                        { label: 'Emergency Address', value: this.cafValue('emergencyAddress'), full: true },
+                        { label: 'Application Source', value: this.cafValue('applicationSource') },
+                        { label: 'Application Source - Others', value: this.cafValue('applicationSourceOther') },
+                        { label: 'Attachment Notes', value: this.cafValue('attachmentNotes'), full: true },
+                    ],
+                },
+            ];
+        },
+
+        cafEducationRows() {
+            const rows = this.cafValue('education', []);
+            return Array.isArray(rows) ? rows : [];
+        },
+
+        cafEmploymentRows() {
+            if (this.cafValue('noPreviousEmployment')) return [];
+            const rows = this.cafValue('employmentHistory', []);
+            return Array.isArray(rows) ? rows : [];
+        },
+
+        cafCertificationRows() {
+            const rows = this.cafValue('certifications', []);
+            return Array.isArray(rows) ? rows : [];
         },
 
         viewCAF(row) {
