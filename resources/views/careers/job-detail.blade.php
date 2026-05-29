@@ -212,7 +212,7 @@
 
         .job-summary-grid {
             display: grid;
-            grid-template-columns: repeat(4, minmax(0, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
             gap: 12px;
             margin-top: 18px;
         }
@@ -444,6 +444,26 @@
     $benefits = is_array($job->benefits_package) ? array_values(array_filter($job->benefits_package)) : [];
     $workSchedule = is_array($job->work_schedule) ? array_values(array_filter($job->work_schedule)) : [];
     $applyUrl = route('careers.apply') . '?job_id=' . $job->id;
+
+    // Get MRF data for required documents
+    $mrf = $job->mrf;
+    $requiredDocuments = [];
+    if ($mrf && is_array($mrf->required_documents)) {
+        $requiredDocuments = array_values(array_filter($mrf->required_documents));
+    }
+    
+    // Get division/unit info
+    $divisionUnit = null;
+    if ($job->division) {
+        $divisionUnit = $job->division->name;
+        if ($job->unit) {
+            $divisionUnit .= ' / ' . $job->unit->name;
+        }
+    } elseif ($job->unit) {
+        $divisionUnit = $job->unit->name;
+    }
+    
+    $jobStatus = $job->status === 'Screening' ? 'Posted / Open' : ($job->status ?: 'Posted');
 @endphp
 
 <!-- Navigation Bar -->
@@ -499,26 +519,58 @@
 
                 <div class="job-summary-grid">
                     <div class="summary-item">
+                        <strong>Position / Title</strong>
+                        <span>{{ $title }}</span>
+                    </div>
+                    <div class="summary-item">
+                        <strong>Date Posted</strong>
+                        <span>{{ $postedDate }}</span>
+                    </div>
+                    <div class="summary-item">
+                        <strong>Job Status</strong>
+                        <span>{{ $jobStatus }}</span>
+                    </div>
+                    <div class="summary-item">
                         <strong>Department</strong>
                         <span>{{ $department }}</span>
+                    </div>
+                    <div class="summary-item">
+                        <strong>Division / Unit</strong>
+                        <span>{{ $divisionUnit ?: 'TBA' }}</span>
                     </div>
                     <div class="summary-item">
                         <strong>Employment Type</strong>
                         <span>{{ $job->employment_type ?: 'TBA' }}</span>
                     </div>
                     <div class="summary-item">
-                        <strong>Location</strong>
+                        <strong>Job Level / Rank</strong>
+                        <span>{{ $job->position_level ?: 'TBA' }}</span>
+                    </div>
+                    <div class="summary-item">
+                        <strong>Work Location</strong>
                         <span>{{ $location }}</span>
+                    </div>
+                    <div class="summary-item">
+                        <strong>Work Arrangement</strong>
+                        <span>{{ $job->office_branch_site ?: 'TBA' }}</span>
+                    </div>
+                    <div class="summary-item">
+                        <strong>Work Schedule</strong>
+                        <span>{{ count($workSchedule) ? implode(', ', array_slice($workSchedule, 0, 1)) : ($job->rest_days ?: 'TBA') }}</span>
                     </div>
                     <div class="summary-item">
                         <strong>Vacancies</strong>
                         <span>{{ $job->no_of_vacancies ? $job->no_of_vacancies . (((int) $job->no_of_vacancies) > 1 ? ' Open Positions' : ' Open Position') : 'TBA' }}</span>
                     </div>
+                    <div class="summary-item">
+                        <strong>Salary Range</strong>
+                        <span>{{ $salary ?: 'Competitive' }}</span>
+                    </div>
                 </div>
             </div>
 
             <div class="details-section">
-                <h2>Role Overview</h2>
+                <h2>Job Summary</h2>
                 <div class="body-text">
                     <p>{!! nl2br(e($description)) !!}</p>
                 </div>
@@ -526,44 +578,73 @@
 
             @if($job->duties_responsibilities && $job->duties_responsibilities !== $job->job_description)
                 <div class="details-section">
-                    <h3>Responsibilities</h3>
+                    <h3>Duties & Responsibilities</h3>
                     <div class="body-text">{!! nl2br(e($job->duties_responsibilities)) !!}</div>
                 </div>
             @endif
 
-            @if($requirements || $job->experience_req || $job->skills_req || $job->licenses_req || $job->preferred_qualifications)
-                <div class="details-section">
-                    <h3>Qualifications</h3>
+            <div class="details-section">
+                <h2>Qualifications</h2>
+                
+                @if($job->education_req)
+                    <h3>Educational Requirement</h3>
                     <div class="body-text">
-                        <ul>
-                            @if($requirements)<li>{{ $requirements }}</li>@endif
-                            @if($job->experience_req)<li>{{ $job->experience_req }}</li>@endif
-                            @if($job->skills_req)<li>{{ $job->skills_req }}</li>@endif
-                            @if($job->licenses_req)<li>{{ $job->licenses_req }}</li>@endif
-                            @if($job->preferred_qualifications)<li>{{ $job->preferred_qualifications }}</li>@endif
-                        </ul>
+                        <p>{!! nl2br(e($job->education_req)) !!}</p>
                     </div>
-                </div>
-            @endif
+                @endif
+
+                @if($job->experience_req)
+                    <h3>Preferred Qualifications / Experience</h3>
+                    <div class="body-text">
+                        <p>{!! nl2br(e($job->experience_req)) !!}</p>
+                    </div>
+                @endif
+
+                @if($job->skills_req)
+                    <h3>Required Skills / Competencies</h3>
+                    <div class="body-text">
+                        <p>{!! nl2br(e($job->skills_req)) !!}</p>
+                    </div>
+                @endif
+            </div>
 
             <div class="details-section">
-                <h3>Job Information</h3>
+                <h2>Work Details</h2>
                 <div class="info-grid">
-                    <div class="info-row"><strong>Title:</strong><span>{{ $title }}</span></div>
-                    <div class="info-row"><strong>Location:</strong><span>{{ $location }}</span></div>
-                    <div class="info-row"><strong>Department:</strong><span>{{ $department }}</span></div>
-                    <div class="info-row"><strong>Type:</strong><span>{{ $job->employment_type ?: 'TBA' }}</span></div>
-                    <div class="info-row"><strong>Level:</strong><span>{{ $job->position_level ?: 'TBA' }}</span></div>
-                    <div class="info-row"><strong>Vacancies:</strong><span>{{ $job->no_of_vacancies ?: 'TBA' }}</span></div>
-                    <div class="info-row"><strong>Salary:</strong><span>{{ $salary ?: 'Competitive' }}</span></div>
-                    <div class="info-row"><strong>Schedule:</strong><span>{{ count($workSchedule) ? implode(', ', $workSchedule) : ($job->rest_days ?: 'TBA') }}</span></div>
-                    <div class="info-row"><strong>Target Hire:</strong><span>{{ $job->target_hire_date ? optional($job->target_hire_date)->format('M d, Y') : 'TBA' }}</span></div>
+                    <div class="info-row">
+                        <strong>Work Classification:</strong>
+                        <span>{{ $job->office_branch_site ?: 'TBA' }}</span>
+                    </div>
+                    <div class="info-row">
+                        <strong>Work Arrangement:</strong>
+                        <span>{{ $job->applicable_area ?: 'TBA' }}</span>
+                    </div>
+                    <div class="info-row">
+                        <strong>Work Location:</strong>
+                        <span>{{ $location }}</span>
+                    </div>
+                    @if(count($workSchedule))
+                        <div class="info-row">
+                            <strong>Work Schedule:</strong>
+                            <span>
+                                @foreach($workSchedule as $schedule)
+                                    {{ $schedule }}<br>
+                                @endforeach
+                            </span>
+                        </div>
+                    @endif
+                    @if($job->rest_days)
+                        <div class="info-row">
+                            <strong>Rest Days:</strong>
+                            <span>{{ $job->rest_days }}</span>
+                        </div>
+                    @endif
                 </div>
             </div>
 
             @if(count($benefits))
                 <div class="details-section">
-                    <h3>Benefits</h3>
+                    <h2>Benefits</h2>
                     <div class="body-text">
                         <ul>
                             @foreach($benefits as $benefit)
@@ -574,18 +655,15 @@
                 </div>
             @endif
 
-            @if(count($workSchedule) || $job->rest_days)
+            @if(count($requiredDocuments))
                 <div class="details-section">
-                    <h3>Work Schedule</h3>
+                    <h2>Required Applicant Documents</h2>
                     <div class="body-text">
-                        @if(count($workSchedule))
-                            <ul>
-                                @foreach($workSchedule as $schedule)
-                                    <li>{{ $schedule }}</li>
-                                @endforeach
-                            </ul>
-                        @endif
-                        @if($job->rest_days)<p><strong>Rest Days:</strong> {{ $job->rest_days }}</p>@endif
+                        <ul>
+                            @foreach($requiredDocuments as $document)
+                                <li>{{ $document }}</li>
+                            @endforeach
+                        </ul>
                     </div>
                 </div>
             @endif
