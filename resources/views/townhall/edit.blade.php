@@ -340,7 +340,7 @@
                         </div>
                     </div>
 
-                    <p class="mt-1 text-xs text-gray-400">You can select multiple departments. Choices come directly from the departments table.</p>
+                    <p class="mt-1 text-xs text-gray-400">You can select multiple departments. Choices use the same employee department source as the approver cards.</p>
                     </div>
                 </div>
 

@@ -731,11 +731,37 @@ class TownHallController extends Controller
 
         /*
         |--------------------------------------------------------------------------
-        | Main source: departments table
+        | Same source as approver department display
         |--------------------------------------------------------------------------
-        | The Department / Stakeholder dropdown should show departments directly
-        | from the departments table first. This avoids an empty dropdown when
-        | divisions.department_id has no linked rows yet.
+        | The approver cards display department using:
+        | employees.department_id -> resolveDepartmentName($departmentId)
+        |
+        | So the Department / Stakeholder dropdown now also uses active employees'
+        | department_id values and resolves them with the same resolver.
+        */
+        if (class_exists(Employee::class)) {
+            $employeeDepartmentIds = Employee::query()
+                ->whereNotNull('department_id')
+                ->where(function ($query) {
+                    $query->whereNull('employment_status')
+                        ->orWhereIn('employment_status', ['Active', 'active', 'Regular', 'regular', 'Probationary', 'probationary']);
+                })
+                ->distinct()
+                ->pluck('department_id')
+                ->filter()
+                ->unique()
+                ->values();
+
+            $departmentNames = $departmentNames->merge(
+                $employeeDepartmentIds->map(fn ($departmentId) => $this->resolveDepartmentName($departmentId))
+            );
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Secondary source: departments table
+        |--------------------------------------------------------------------------
+        | Kept as fallback in case there are departments with no employee yet.
         */
         if (Schema::hasTable('departments')) {
             $departmentColumns = Schema::getColumnListing('departments');
@@ -744,7 +770,6 @@ class TownHallController extends Controller
                 'department_name',
                 'name',
                 'title',
-                'division_name',
             ])->first(fn ($column) => in_array($column, $departmentColumns, true));
 
             if ($departmentNameColumn) {
@@ -754,48 +779,6 @@ class TownHallController extends Controller
                         ->where($departmentNameColumn, '!=', '')
                         ->orderBy($departmentNameColumn)
                         ->pluck($departmentNameColumn)
-                );
-            } elseif (in_array('id', $departmentColumns, true)) {
-                $departmentNames = $departmentNames->merge(
-                    DB::table('departments')
-                        ->whereNotNull('id')
-                        ->orderBy('id')
-                        ->pluck('id')
-                        ->map(fn ($id) => 'Department #' . $id)
-                );
-            }
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | Secondary source: divisions.department_id joined to departments.id
-        |--------------------------------------------------------------------------
-        | This is only a fallback/additional source, useful when departments are
-        | referenced through the divisions table.
-        */
-        if (
-            Schema::hasTable('divisions') &&
-            Schema::hasColumn('divisions', 'department_id') &&
-            Schema::hasTable('departments')
-        ) {
-            $departmentColumns = Schema::getColumnListing('departments');
-
-            $departmentNameColumn = collect([
-                'department_name',
-                'name',
-                'title',
-            ])->first(fn ($column) => in_array($column, $departmentColumns, true));
-
-            if ($departmentNameColumn && in_array('id', $departmentColumns, true)) {
-                $departmentNames = $departmentNames->merge(
-                    DB::table('divisions')
-                        ->join('departments', 'divisions.department_id', '=', 'departments.id')
-                        ->whereNotNull('divisions.department_id')
-                        ->whereNotNull("departments.{$departmentNameColumn}")
-                        ->where("departments.{$departmentNameColumn}", '!=', '')
-                        ->orderBy("departments.{$departmentNameColumn}")
-                        ->distinct()
-                        ->pluck("departments.{$departmentNameColumn}")
                 );
             }
         }
@@ -819,6 +802,7 @@ class TownHallController extends Controller
             ->merge($existingTownHallDepartments)
             ->map(fn ($item) => trim((string) $item))
             ->filter()
+            ->reject(fn ($item) => $item === '—')
             ->unique()
             ->sort()
             ->values();
