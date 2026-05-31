@@ -266,8 +266,26 @@
                                         @if($item->revise_route)
                                             <form action="{{ $item->revise_route }}" method="POST">
                                                 @csrf
-                                                <button class="px-3 py-1.5 text-xs font-medium rounded-lg bg-gray-800 text-white hover:bg-black transition">
+                                                <button class="px-3 py-1.5 text-xs font-medium rounded-lg bg-yellow-500 text-white hover:bg-yellow-600 transition">
                                                     Revise
+                                                </button>
+                                            </form>
+                                        @endif
+
+                                        @if(!empty($item->archive_route))
+                                            <form action="{{ $item->archive_route }}" method="POST">
+                                                @csrf
+                                                <button class="px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 transition">
+                                                    Archive
+                                                </button>
+                                            </form>
+                                        @endif
+
+                                        @if(!empty($item->unarchive_route))
+                                            <form action="{{ $item->unarchive_route }}" method="POST">
+                                                @csrf
+                                                <button class="px-3 py-1.5 text-xs font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition">
+                                                    Unarchive
                                                 </button>
                                             </form>
                                         @endif

@@ -341,6 +341,8 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::post('/townhall/{id}/approve', [TownHallController::class, 'approve'])->name('townhall.approve');
     Route::post('/townhall/{id}/reject', [TownHallController::class, 'reject'])->name('townhall.reject');
     Route::post('/townhall/{id}/revise', [TownHallController::class, 'revise'])->name('townhall.revise');
+    Route::post('/townhall/{id}/archive', [TownHallController::class, 'archive'])->name('townhall.archive');
+    Route::post('/townhall/{id}/unarchive', [TownHallController::class, 'unarchive'])->name('townhall.unarchive');
     Route::post('/townhall/{id}/acknowledge', [TownHallController::class, 'acknowledge'])->name('townhall.acknowledge');
     Route::get('/townhall/recipients/search', [TownHallController::class, 'searchRecipients'])
         ->name('townhall.recipients.search');

@@ -74,6 +74,7 @@ class TownHallController extends Controller
 
         $managementApprovers = $this->activeEmployeeApprovers();
         $executiveApprover = $this->resolveExecutiveApprover();
+        $departmentOptions = $this->departmentOptions();
 
         return view('townhall.townhall', compact(
             'communications',
@@ -83,7 +84,8 @@ class TownHallController extends Controller
             'usersForRecipients',
             'contactsForRecipients',
             'managementApprovers',
-            'executiveApprover'
+            'executiveApprover',
+            'departmentOptions'
         ));
     }
 
@@ -95,7 +97,7 @@ class TownHallController extends Controller
 
         $validated = $request->validate([
             'communication_date' => ['nullable', 'date'],
-            'department_stakeholder' => ['nullable', 'string', 'max:255'],
+            'department_stakeholder' => ['nullable', 'string', 'max:1000'],
             'recipient_label' => ['nullable', 'in:To,For'],
             'to_for' => ['nullable', 'string', 'max:255'],
             'recipient_type' => ['nullable', 'in:all,employee,all_admins,all_clients,all_users'],
@@ -266,6 +268,7 @@ class TownHallController extends Controller
 
         $managementApprovers = $this->activeEmployeeApprovers();
         $executiveApprover = $this->resolveExecutiveApprover();
+        $departmentOptions = $this->departmentOptions();
 
         return view('townhall.edit', compact(
             'communication',
@@ -274,7 +277,8 @@ class TownHallController extends Controller
             'contactsForRecipients',
             'managementApprovers',
             'executiveApprover'
-        ));
+        ,
+            'departmentOptions'));
     }
 
     public function update(Request $request, $id)
@@ -296,7 +300,7 @@ class TownHallController extends Controller
 
         $validated = $request->validate([
             'communication_date' => ['nullable', 'date'],
-            'department_stakeholder' => ['nullable', 'string', 'max:255'],
+            'department_stakeholder' => ['nullable', 'string', 'max:1000'],
             'recipient_label' => ['nullable', 'in:To,For'],
             'to_for' => ['nullable', 'string', 'max:255'],
             'recipient_type' => ['nullable', 'in:all,employee,all_admins,all_clients,all_users'],
@@ -539,6 +543,39 @@ class TownHallController extends Controller
         return redirect()->back()->with('success', 'Communication returned for revision.');
     }
 
+
+    public function archive($id)
+    {
+        if (!Auth::user()->hasPermission('approve_townhall')) {
+            abort(403, 'Unauthorized');
+        }
+
+        $communication = TownHallCommunication::findOrFail($id);
+
+        $communication->update([
+            'is_archived' => true,
+            'archived_at' => Carbon::now(),
+        ]);
+
+        return redirect()->back()->with('success', 'Communication archived successfully.');
+    }
+
+    public function unarchive($id)
+    {
+        if (!Auth::user()->hasPermission('approve_townhall')) {
+            abort(403, 'Unauthorized');
+        }
+
+        $communication = TownHallCommunication::findOrFail($id);
+
+        $communication->update([
+            'is_archived' => false,
+            'archived_at' => null,
+        ]);
+
+        return redirect()->back()->with('success', 'Communication unarchived successfully.');
+    }
+
     public function destroy($id)
     {
         if (!Auth::user()->hasPermission('create_townhall')) {
@@ -686,6 +723,45 @@ class TownHallController extends Controller
         ));
     }
 
+
+
+    private function departmentOptions()
+    {
+        $departmentNames = collect();
+
+        if (Schema::hasTable('departments')) {
+            $columns = Schema::getColumnListing('departments');
+
+            $nameColumn = collect(['name', 'department_name', 'title'])
+                ->first(fn ($column) => in_array($column, $columns, true));
+
+            if ($nameColumn) {
+                $departmentNames = $departmentNames->merge(
+                    DB::table('departments')
+                        ->whereNotNull($nameColumn)
+                        ->orderBy($nameColumn)
+                        ->pluck($nameColumn)
+                );
+            }
+        }
+
+        $existingTownHallDepartments = TownHallCommunication::query()
+            ->whereNotNull('department_stakeholder')
+            ->pluck('department_stakeholder')
+            ->flatMap(function ($value) {
+                return collect(explode(',', (string) $value))
+                    ->map(fn ($item) => trim($item))
+                    ->filter();
+            });
+
+        return $departmentNames
+            ->merge($existingTownHallDepartments)
+            ->map(fn ($item) => trim((string) $item))
+            ->filter()
+            ->unique()
+            ->sort()
+            ->values();
+    }
 
     private function activeEmployeeApprovers()
     {

@@ -170,8 +170,11 @@ class AdminDashboardController extends Controller
                     : $this->resolveTownHallApprovalStatus($communication);
 
                 $levelInfo = $this->resolveTownHallApprovalLevel($communication);
-                $canStillAct = ! $communication->is_archived
-                    && ! in_array($status, ['Approved', 'Rejected', 'Expired'], true);
+                $canApprove = ! $communication->is_archived
+                    && ! in_array($status, ['Approved', 'Rejected', 'Expired', 'Needs Revision'], true);
+                $canReviewAction = ! $communication->is_archived;
+                $canArchive = ! $communication->is_archived;
+                $canUnarchive = $communication->is_archived;
 
                 return (object) [
                     'ref_no' => $communication->ref_no ?: 'MEMO-' . $communication->id,
@@ -205,9 +208,11 @@ class AdminDashboardController extends Controller
                     | - second click approves Level 2 Executive Management
                     */
                     'approve_label' => $levelInfo['approve_label'],
-                    'approve_route' => $canStillAct ? route('townhall.approve', $communication->id) : null,
-                    'reject_route' => $canStillAct ? route('townhall.reject', $communication->id) : null,
-                    'revise_route' => $canStillAct ? route('townhall.revise', $communication->id) : null,
+                    'approve_route' => $canApprove ? route('townhall.approve', $communication->id) : null,
+                    'reject_route' => $canReviewAction ? route('townhall.reject', $communication->id) : null,
+                    'revise_route' => $canReviewAction ? route('townhall.revise', $communication->id) : null,
+                    'archive_route' => $canArchive ? route('townhall.archive', $communication->id) : null,
+                    'unarchive_route' => $canUnarchive ? route('townhall.unarchive', $communication->id) : null,
 
                     'date_sort' => $this->sortTimestamp($communication->communication_date ?: $communication->created_at),
                 ];

@@ -7,6 +7,11 @@
     previewDate: @js(old('communication_date', $communication->communication_date)),
     previewFrom: @js($communication->from_name),
     previewDepartment: @js(old('department_stakeholder', $communication->department_stakeholder)),
+        departmentOptions: @js(($departmentOptions ?? collect())->values()),
+        selectedDepartments: (@js(old('department_stakeholder', $communication->department_stakeholder)) || '')
+            .split(',')
+            .map(item => item.trim())
+            .filter(Boolean),
     previewRecipientLabel: @js(old('recipient_label', $communication->recipient_label ?? 'To')),
     previewRecipientType: @js(old('recipient_type', $communication->recipient_type ?? 'all')),
     previewRecipientUserIds: @js(old('recipient_user_ids', $communication->recipient_user_ids ?? [])),
@@ -276,16 +281,66 @@
                         <p class="mt-1 text-xs text-gray-400">Automatically set based on creator</p>
                     </div>
 
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-500 mb-1">Department / Stakeholder</label>
-                        <input
-                            type="text"
-                            name="department_stakeholder"
-                            x-model="previewDepartment"
-                            value="{{ old('department_stakeholder', $communication->department_stakeholder) }}"
-                            placeholder="Enter department or stakeholder"
-                            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500"
-                        >
+                    <div x-data="{
+                        openDepartmentDropdown: false,
+                        departmentSearch: ''
+                    }" @click.outside="openDepartmentDropdown = false">
+                    <label class="block text-xs font-semibold text-gray-500 mb-1">Department / Stakeholder</label>
+
+                    <input type="hidden" name="department_stakeholder" x-model="previewDepartment">
+
+                    <div
+                        class="min-h-[42px] w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white cursor-pointer focus-within:ring-2 focus-within:ring-blue-200 focus-within:border-blue-500"
+                        @click="openDepartmentDropdown = true"
+                    >
+                        <div class="flex flex-wrap gap-2" x-show="selectedDepartments.length > 0">
+                            <template x-for="department in selectedDepartments" :key="department">
+                                <span class="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 border border-blue-100">
+                                    <span x-text="department"></span>
+                                    <button type="button" class="text-blue-400 hover:text-red-500" @click.stop="removeDepartment(department)">
+                                        &times;
+                                    </button>
+                                </span>
+                            </template>
+                        </div>
+
+                        <div class="text-gray-400" x-show="selectedDepartments.length === 0">
+                            Click to select one or more departments
+                        </div>
+                    </div>
+
+                    <div x-show="openDepartmentDropdown" x-cloak class="relative z-50">
+                        <div class="absolute mt-2 w-full rounded-xl border border-gray-200 bg-white shadow-xl overflow-hidden">
+                            <div class="p-3 border-b border-gray-100">
+                                <input
+                                    type="text"
+                                    x-model="departmentSearch"
+                                    placeholder="Search departments..."
+                                    class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500"
+                                    @click.stop
+                                >
+                            </div>
+
+                            <div class="max-h-56 overflow-y-auto p-2">
+                                <template x-for="department in filteredDepartments(departmentSearch)" :key="department">
+                                    <button
+                                        type="button"
+                                        class="w-full text-left px-3 py-2 rounded-lg text-sm hover:bg-blue-50 flex items-center justify-between"
+                                        @click.stop="toggleDepartment(department)"
+                                    >
+                                        <span x-text="department"></span>
+                                        <span x-show="isDepartmentSelected(department)" class="text-blue-600 text-xs font-bold">Selected</span>
+                                    </button>
+                                </template>
+
+                                <div x-show="filteredDepartments(departmentSearch).length === 0" class="px-3 py-4 text-sm text-gray-400 text-center">
+                                    No departments found.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <p class="mt-1 text-xs text-gray-400">You can select multiple departments. Selected names are saved as comma-separated values.</p>
                     </div>
                 </div>
 
