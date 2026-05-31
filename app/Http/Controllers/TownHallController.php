@@ -13,6 +13,8 @@ use Carbon\Carbon;
 use App\Models\User;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\DB;
+use App\Models\Employee;
 
 class TownHallController extends Controller
 {
@@ -70,13 +72,18 @@ class TownHallController extends Controller
             ->orderBy('last_name')
             ->get();
 
+        $managementApprovers = $this->activeEmployeeApprovers();
+        $executiveApprover = $this->resolveExecutiveApprover();
+
         return view('townhall.townhall', compact(
             'communications',
             'departments',
             'employees',
             'todayAttendance',
             'usersForRecipients',
-            'contactsForRecipients'
+            'contactsForRecipients',
+            'managementApprovers',
+            'executiveApprover'
         ));
     }
 
@@ -103,6 +110,7 @@ class TownHallController extends Controller
             'additional' => ['nullable', 'string', 'max:255'],
             'attachment' => ['nullable', 'file', 'mimes:jpg,jpeg,png,gif,webp,pdf,doc,docx', 'max:5120'],
             'expires_at' => ['nullable', 'date'],
+            'management_approver_id' => ['required', 'integer'],
         ]);
 
         if ($request->hasFile('attachment')) {
@@ -118,6 +126,7 @@ class TownHallController extends Controller
         }
 
         $validated = $this->normalizeRecipientFields($validated, $request);
+        $validated = array_merge($validated, $this->buildApprovalData($request->input('management_approver_id')));
 
         // Default to today's date when Add Communication is submitted without a date.
         // The field is still editable from the form.
@@ -126,7 +135,10 @@ class TownHallController extends Controller
         $validated['from_name'] = Auth::user()->name;
         $validated['priority'] = $request->priority ?? 'Low';
         $validated['created_by'] = Auth::id();
-        $validated['approval_status'] = 'Pending';
+        $validated['approval_status'] = 'Pending Approval';
+        $validated['workflow_status'] = 'Submitted';
+        $validated['status'] = 'Pending Approval';
+        $validated['submitted_at'] = now();
         $validated['is_archived'] = false;
         $validated['archived_at'] = null;
 
@@ -137,7 +149,7 @@ class TownHallController extends Controller
 
         return redirect()
             ->route('townhall')
-            ->with('success', 'Town Hall communication created successfully.');
+            ->with('success', 'Communication submitted for approval workflow.');
     }
 
     public function department(Request $request)
@@ -225,8 +237,9 @@ class TownHallController extends Controller
             abort(403, 'You can only edit your own communication.');
         }
 
-        if ($communication->approval_status !== 'Needs Revision') {
-            abort(403, 'Only communications marked for revision can be edited.');
+        if (!in_array($communication->approval_status, ['Draft', 'Needs Revision'], true)
+            && !in_array((string) ($communication->workflow_status ?? ''), ['Draft', 'Needs Revision'], true)) {
+            abort(403, 'Only draft communications or communications returned for revision can be edited.');
         }
 
         $employees = User::where('role', 'Employee')
@@ -251,11 +264,16 @@ class TownHallController extends Controller
             ->orderBy('last_name')
             ->get();
 
+        $managementApprovers = $this->activeEmployeeApprovers();
+        $executiveApprover = $this->resolveExecutiveApprover();
+
         return view('townhall.edit', compact(
             'communication',
             'employees',
             'usersForRecipients',
-            'contactsForRecipients'
+            'contactsForRecipients',
+            'managementApprovers',
+            'executiveApprover'
         ));
     }
 
@@ -271,8 +289,9 @@ class TownHallController extends Controller
             abort(403, 'You can only update your own communication.');
         }
 
-        if ($communication->approval_status !== 'Needs Revision') {
-            abort(403, 'Only communications marked for revision can be updated.');
+        if (!in_array($communication->approval_status, ['Draft', 'Needs Revision'], true)
+            && !in_array((string) ($communication->workflow_status ?? ''), ['Draft', 'Needs Revision'], true)) {
+            abort(403, 'Only draft communications or communications returned for revision can be updated.');
         }
 
         $validated = $request->validate([
@@ -292,6 +311,7 @@ class TownHallController extends Controller
             'additional' => ['nullable', 'string', 'max:255'],
             'attachment' => ['nullable', 'file', 'mimes:jpg,jpeg,png,gif,webp,pdf,doc,docx', 'max:5120'],
             'expires_at' => ['nullable', 'date'],
+            'management_approver_id' => ['required', 'integer'],
         ]);
 
         if ($request->hasFile('attachment')) {
@@ -311,8 +331,12 @@ class TownHallController extends Controller
         }
 
         $validated = $this->normalizeRecipientFields($validated, $request);
+        $validated = array_merge($validated, $this->buildApprovalData($request->input('management_approver_id')));
 
-        $validated['approval_status'] = 'Pending';
+        $validated['approval_status'] = 'Pending Approval';
+        $validated['workflow_status'] = 'Submitted';
+        $validated['status'] = 'Pending Approval';
+        $validated['submitted_at'] = now();
         $validated['approved_by'] = null;
         $validated['approved_at'] = null;
         $validated['approval_notes'] = null;
@@ -412,11 +436,54 @@ class TownHallController extends Controller
 
         $communication = TownHallCommunication::findOrFail($id);
 
+        if ($communication->is_archived) {
+            abort(403, 'Archived communications cannot be approved.');
+        }
+
+        $notes = $request->input('approval_notes');
+        $now = Carbon::now();
+
+        if (Schema::hasColumn('townhall_communications', 'management_approval_status')) {
+            if (($communication->management_approval_status ?? 'Pending') !== 'Approved') {
+                $communication->update([
+                    'management_approval_status' => 'Approved',
+                    'management_approved_at' => $now,
+                    'approval_status' => 'Level 1 Approved',
+                    'workflow_status' => 'Pending Executive Approval',
+                    'status' => 'Pending Executive Approval',
+                    'approved_by' => Auth::id(),
+                    'approved_at' => $now,
+                    'approval_notes' => $notes,
+                ]);
+
+                return redirect()->back()->with('success', 'Level 1 Management approval completed. Waiting for Executive Management approval.');
+            }
+
+            if (($communication->executive_approval_status ?? 'Pending') !== 'Approved') {
+                $communication->update([
+                    'executive_approval_status' => 'Approved',
+                    'executive_approved_at' => $now,
+                    'approval_status' => 'Approved',
+                    'workflow_status' => 'Approved',
+                    'status' => 'Approved',
+                    'approved_by' => Auth::id(),
+                    'approved_at' => $now,
+                    'approval_notes' => $notes,
+                    'is_archived' => false,
+                    'archived_at' => null,
+                ]);
+
+                return redirect()->back()->with('success', 'Executive Management approval completed. Communication is now approved.');
+            }
+
+            return redirect()->back()->with('success', 'This communication is already fully approved.');
+        }
+
         $communication->update([
             'approval_status' => 'Approved',
             'approved_by' => Auth::id(),
-            'approved_at' => Carbon::now(),
-            'approval_notes' => $request->input('approval_notes'),
+            'approved_at' => $now,
+            'approval_notes' => $notes,
         ]);
 
         return redirect()->back()->with('success', 'Communication approved successfully.');
@@ -432,12 +499,18 @@ class TownHallController extends Controller
 
         $communication->update([
             'approval_status' => 'Rejected',
+            'workflow_status' => 'Rejected',
+            'status' => 'Rejected',
+            'management_approval_status' => 'Rejected',
+            'executive_approval_status' => 'Pending',
             'approved_by' => Auth::id(),
             'approved_at' => Carbon::now(),
-            'approval_notes' => $request->input('approval_notes'),
+            'approval_notes' => $request->input('approval_notes') ?: 'Rejected by approver.',
+            'is_archived' => false,
+            'archived_at' => null,
         ]);
 
-        return redirect()->back()->with('success', 'Communication rejected successfully.');
+        return redirect()->back()->with('success', 'Communication rejected successfully. It will not appear in Town Hall.');
     }
 
     public function revise(Request $request, $id)
@@ -450,12 +523,20 @@ class TownHallController extends Controller
 
         $communication->update([
             'approval_status' => 'Needs Revision',
+            'workflow_status' => 'Needs Revision',
+            'status' => 'Needs Revision',
+            'management_approval_status' => 'Pending',
+            'executive_approval_status' => 'Pending',
+            'management_approved_at' => null,
+            'executive_approved_at' => null,
             'approved_by' => Auth::id(),
             'approved_at' => Carbon::now(),
-            'approval_notes' => $request->input('approval_notes'),
+            'approval_notes' => $request->input('approval_notes') ?: 'Needs revision.',
+            'is_archived' => false,
+            'archived_at' => null,
         ]);
 
-        return redirect()->back()->with('success', 'Communication marked for revision.');
+        return redirect()->back()->with('success', 'Communication returned for revision.');
     }
 
     public function destroy($id)
@@ -525,7 +606,12 @@ class TownHallController extends Controller
             abort(403, 'Only active approved communications can be downloaded.');
         }
 
-        $pdf = Pdf::loadView('townhall.show-pdf', compact('communication'));
+        $pdf = Pdf::loadView('townhall.show-pdf', compact('communication'))
+            ->setPaper('a4', 'portrait')
+            ->setOptions([
+                'isHtml5ParserEnabled' => true,
+                'isRemoteEnabled' => true,
+            ]);
 
         return $pdf->download($communication->ref_no . '.pdf');
     }
@@ -598,6 +684,138 @@ class TownHallController extends Controller
             'isAdmin',
             'selectedEmployee'
         ));
+    }
+
+
+    private function activeEmployeeApprovers()
+    {
+        if (!class_exists(Employee::class)) {
+            return collect();
+        }
+
+        return Employee::query()
+            ->whereNotNull('user_id')
+            ->where(function ($query) {
+                $query->whereNull('employment_status')
+                    ->orWhereIn('employment_status', ['Active', 'active', 'Regular', 'regular', 'Probationary', 'probationary']);
+            })
+            ->orderBy('last_name')
+            ->orderBy('first_name')
+            ->get()
+            ->map(function ($employee) {
+                return $this->formatEmployeeApprover($employee);
+            })
+            ->filter(fn ($employee) => !empty($employee['name']))
+            ->values();
+    }
+
+    private function buildApprovalData($managementApproverId): array
+    {
+        $management = $this->getEmployeeApproverData($managementApproverId);
+        $executive = $this->resolveExecutiveApprover();
+
+        return [
+            'management_approver_id' => $management['id'] ?? null,
+            'management_approver_user_id' => $management['user_id'] ?? null,
+            'management_approver_name' => $management['name'] ?? null,
+            'management_approver_position' => $management['position'] ?? null,
+            'management_approver_department' => $management['department'] ?? null,
+            'management_approval_status' => 'Pending',
+            'management_approved_at' => null,
+
+            'executive_approver_id' => $executive['id'] ?? null,
+            'executive_approver_user_id' => $executive['user_id'] ?? null,
+            'executive_approver_name' => $executive['name'] ?? 'John Kelly D. Abalde',
+            'executive_approver_position' => $executive['position'] ?? 'President and CEO',
+            'executive_approver_department' => $executive['department'] ?? 'Executive Management',
+            'executive_approval_status' => 'Pending',
+            'executive_approved_at' => null,
+        ];
+    }
+
+    private function getEmployeeApproverData($employeeId): array
+    {
+        if (!$employeeId || !class_exists(Employee::class)) {
+            return [];
+        }
+
+        $employee = Employee::find($employeeId);
+
+        return $employee ? $this->formatEmployeeApprover($employee) : [];
+    }
+
+    private function resolveExecutiveApprover(): array
+    {
+        if (class_exists(Employee::class)) {
+            $employee = Employee::query()
+                ->where(function ($query) {
+                    $query->whereNull('employment_status')
+                        ->orWhereIn('employment_status', ['Active', 'active', 'Regular', 'regular', 'Probationary', 'probationary']);
+                })
+                ->where(function ($query) {
+                    $query->where('position', 'like', '%President%')
+                        ->orWhere('position', 'like', '%President and CEO%')
+                        ->orWhere('position', 'like', '%CEO%');
+                })
+                ->latest('updated_at')
+                ->first();
+
+            if ($employee) {
+                return $this->formatEmployeeApprover($employee);
+            }
+        }
+
+        return [
+            'id' => null,
+            'user_id' => null,
+            'name' => 'John Kelly D. Abalde',
+            'position' => 'President and CEO',
+            'department' => 'Executive Management',
+        ];
+    }
+
+    private function formatEmployeeApprover($employee): array
+    {
+        $name = trim(collect([
+            $employee->first_name ?? null,
+            $employee->middle_name ?? null,
+            $employee->last_name ?? null,
+            $employee->suffix ?? null,
+        ])->filter()->implode(' '));
+
+        if (!$name && !empty($employee->user_id)) {
+            $name = User::whereKey($employee->user_id)->value('name');
+        }
+
+        return [
+            'id' => $employee->id,
+            'user_id' => $employee->user_id,
+            'name' => $name ?: 'Unnamed Employee',
+            'position' => $employee->position ?: '—',
+            'department' => $this->resolveDepartmentName($employee->department_id ?? null),
+        ];
+    }
+
+    private function resolveDepartmentName($departmentId): string
+    {
+        if (!$departmentId) {
+            return '—';
+        }
+
+        foreach (['departments', 'organizational_departments'] as $table) {
+            if (Schema::hasTable($table)) {
+                $record = DB::table($table)->where('id', $departmentId)->first();
+
+                if ($record) {
+                    return $record->name
+                        ?? $record->department_name
+                        ?? $record->title
+                        ?? ('Department #' . $departmentId);
+                }
+            }
+        }
+
+        return 'Department #' . $departmentId;
     }
 
     private function normalizeRecipientFields(array $validated, Request $request): array

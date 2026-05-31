@@ -143,7 +143,8 @@
                             <th class="px-4 py-3 border-r border-gray-200 font-semibold">Department</th>
                             <th class="px-4 py-3 border-r border-gray-200 font-semibold">Uploaded By</th>
                             <th class="px-4 py-3 border-r border-gray-200 font-semibold">Date Uploaded</th>
-                            <th class="px-4 py-3 border-r border-gray-200 font-semibold">Approver</th>
+                            <th class="px-4 py-3 border-r border-gray-200 font-semibold">Approval Level</th>
+                            <th class="px-4 py-3 border-r border-gray-200 font-semibold">Current Approver</th>
                             <th class="px-4 py-3 border-r border-gray-200 font-semibold">Priority</th>
                             <th class="px-4 py-3 border-r border-gray-200 font-semibold">Status</th>
                             <th class="px-4 py-3 font-semibold text-center">Action</th>
@@ -157,6 +158,8 @@
                                     'Approved' => 'bg-green-50 text-green-700',
                                     'Rejected' => 'bg-red-50 text-red-700',
                                     'Needs Revision' => 'bg-yellow-50 text-yellow-700',
+                                    'Pending Management Approval' => 'bg-blue-50 text-blue-700',
+                                    'Pending Executive Approval' => 'bg-indigo-50 text-indigo-700',
                                     'Expired' => 'bg-gray-200 text-gray-700',
                                     default => 'bg-blue-50 text-blue-700',
                                 };
@@ -204,7 +207,28 @@
                                 </td>
 
                                 <td class="px-4 py-3 border-r border-gray-200">
-                                    {{ $item->approver }}
+                                    @if(!empty($item->approval_level))
+                                        <span class="px-2 py-1 text-xs rounded-full bg-indigo-50 text-indigo-700 font-medium">
+                                            {{ $item->approval_level }}
+                                        </span>
+                                    @else
+                                        <span class="text-gray-400">—</span>
+                                    @endif
+                                </td>
+
+                                <td class="px-4 py-3 border-r border-gray-200">
+                                    <div class="font-medium text-gray-800">
+                                        {{ $item->current_approver ?? $item->approver ?? '—' }}
+                                    </div>
+
+                                    @if(!empty($item->current_approver_position) || !empty($item->current_approver_department))
+                                        <div class="text-xs text-gray-400 mt-1">
+                                            {{ $item->current_approver_position ?? '—' }}
+                                            @if(!empty($item->current_approver_department))
+                                                · {{ $item->current_approver_department }}
+                                            @endif
+                                        </div>
+                                    @endif
                                 </td>
 
                                 <td class="px-4 py-3 border-r border-gray-200">
@@ -225,7 +249,7 @@
                                             <form action="{{ $item->approve_route }}" method="POST">
                                                 @csrf
                                                 <button class="px-3 py-1.5 text-xs font-medium rounded-lg bg-green-600 text-white hover:bg-green-700 transition">
-                                                    Approve
+                                                    {{ $item->approve_label ?? 'Approve' }}
                                                 </button>
                                             </form>
                                         @endif
@@ -259,7 +283,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="10" class="px-4 py-8 text-center text-gray-500">
+                                <td colspan="11" class="px-4 py-8 text-center text-gray-500">
                                     No approvals found for the selected filters.
                                 </td>
                             </tr>

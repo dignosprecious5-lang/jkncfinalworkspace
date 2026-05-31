@@ -58,7 +58,7 @@
                         </div>
 
                         <div class="flex-1 pt-1">
-                            <p class="text-[12px] leading-[1.35] text-gray-700 font-serif m-0">
+                            <p class="text-[12px] leading-[1.35] text-blue-700 font-serif m-0">
                                 Atty. Jose B. Ogang, CPA, MMPSM · Jose Tamayo Rio,<br>
                                 MM-BM, CPA · Lyndon Earl P. Rio, RN, CB · John Kelly Abalde,<br>
                                 CLSSBB, CPM
@@ -96,43 +96,100 @@
                     {!! $communication->message ?: '<p style="color:#9ca3af;">No memorandum body provided.</p>' !!}
                 </div>
 
-                {{-- FOOT SECTION --}}
-                <div class="memo-page-footer">
-                    <div class="issued-block memo-content-inset">
-                        Issued this
-                        <strong>
-                            {{ $communication->communication_date ? \Carbon\Carbon::parse($communication->communication_date)->format('jS \\d\\a\\y \\o\\f F, Y') : '______________' }}
-                        </strong>
-                        in Cebu City, Philippines.
+                {{-- EFFECTIVITY --}}
+                <div class="memo-effectivity memo-content-inset">
+                    This Memorandum shall take effect immediately and shall remain in force until amended,
+                    superseded, or revoked by a subsequent issuance.
+                </div>
+
+                {{-- ISSUANCE --}}
+                <div class="issued-block memo-content-inset">
+                    Issued this
+                    <strong>
+                        {{ $communication->communication_date ? \Carbon\Carbon::parse($communication->communication_date)->format('jS \\d\\a\\y') : '______________' }}
+                    </strong>
+                    day of
+                    <strong>
+                        {{ $communication->communication_date ? \Carbon\Carbon::parse($communication->communication_date)->format('F, Y') : '______________' }}
+                    </strong>
+                    in Cebu City, Philippines.
+                </div>
+
+                {{-- APPROVAL / ROUTING BLOCKS --}}
+                <div class="approval-routing memo-content-inset">
+                    <div class="approval-block">
+                        <p class="approval-title">Prepared By:</p>
+                        <p>{{ $communication->from_name ?: 'Name' }}</p>
+                        <p>{{ $communication->uploader?->employee?->position ?? 'Position' }}</p>
+                        <p>{{ $communication->department_stakeholder ?: 'Department' }}</p>
+                        <p>
+                            Prepared on:
+                            {{ $communication->submitted_at ? \Carbon\Carbon::parse($communication->submitted_at)->format('F d, Y h:i A') : optional($communication->created_at)->format('F d, Y h:i A') }}
+                        </p>
                     </div>
 
-                    <div class="prepared-block memo-content-inset">
-                        <p class="prepared-label">Prepared by:</p>
-                        <p class="prepared-name">{{ $communication->from_name ?: '—' }}</p>
+                    <div class="approval-block">
+                        <p class="approval-title">From Management</p>
+                        <p>{{ $communication->management_approver_name ?: 'Name' }}</p>
+                        <p>{{ $communication->management_approver_position ?: 'Position' }}</p>
+                        <p>{{ $communication->management_approver_department ?: 'Department' }}</p>
+                        <p>
+                            Approved on:
+                            {{ $communication->management_approved_at ? \Carbon\Carbon::parse($communication->management_approved_at)->format('F d, Y h:i A') : 'Date and Time' }}
+                        </p>
                     </div>
 
-                    <div class="approved-block memo-content-inset">
-                        <p class="prepared-label">Approved by:</p>
-                        <p class="prepared-name">John Kelly D. Abalde</p>
-                        <p class="prepared-role">President and CEO</p>
+                    <div class="approval-block">
+                        <p class="approval-title">From Executive Management</p>
+                        <p>{{ $communication->executive_approver_name ?: 'John Kelly D. Abalde' }}</p>
+                        <p>{{ $communication->executive_approver_position ?: 'President and CEO' }}</p>
+                        <p>{{ $communication->executive_approver_department ?: 'Executive Management' }}</p>
+                        <p>
+                            Approved on:
+                            {{ $communication->executive_approved_at ? \Carbon\Carbon::parse($communication->executive_approved_at)->format('F d, Y h:i A') : 'Date and Time' }}
+                        </p>
                     </div>
 
-                    <div class="memo-extra-details memo-content-inset">
-                        <p><strong>CC:</strong> {{ $communication->cc ?: '—' }}</p>
-                        <p><strong>Additional:</strong> {{ $communication->additional ?: '—' }}</p>
+                    <p class="computer-generated">
+                        This is a computer-generated document. Signature is not required.
+                    </p>
+                </div>
+
+                <div class="memo-footer-note memo-content-inset">
+                    This Memorandum is an official corporate record of JK&amp;C INC. Unauthorized reproduction,
+                    alteration, disclosure, or misuse of this Memorandum, in whole or in part, is strictly prohibited
+                    and may result in administrative sanctions, termination of employment or engagement, and/or the
+                    institution of appropriate civil, criminal, or regulatory actions, in accordance with applicable
+                    laws and company policies.
+                </div>
+
+                <div class="memo-footer-address memo-content-inset">
+                    JK&amp;C INC.<br>
+                    3F Cebu Holdings Center Cebu Business Park, Cebu City, Philippines, 6000
+                </div>
+            </div>
+
+
+
+            {{-- APPROVAL WORKFLOW --}}
+            <div class="bg-white border rounded-xl shadow p-5 mb-6">
+                <h3 class="font-semibold mb-4">Approval Workflow</h3>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="rounded-xl border border-blue-100 bg-blue-50/50 p-4">
+                        <p class="text-xs font-bold uppercase text-blue-700 mb-2">Level 1 — From Management</p>
+                        <p class="text-sm"><span class="font-semibold">Name:</span> {{ $communication->management_approver_name ?: '—' }}</p>
+                        <p class="text-sm"><span class="font-semibold">Position:</span> {{ $communication->management_approver_position ?: '—' }}</p>
+                        <p class="text-sm"><span class="font-semibold">Department:</span> {{ $communication->management_approver_department ?: '—' }}</p>
+                        <p class="text-sm mt-2"><span class="font-semibold">Status:</span> {{ $communication->management_approval_status ?: 'Pending' }}</p>
                     </div>
 
-                    <div class="memo-footer-note memo-content-inset">
-                        This Memorandum is an official corporate record of JK&amp;C INC. Unauthorized reproduction,
-                        alteration, disclosure, or misuse of this Memorandum, in whole or in part, is strictly prohibited
-                        and may result in administrative sanctions, termination of employment or engagement, and/or the
-                        institution of appropriate civil, criminal, or regulatory actions, in accordance with applicable
-                        laws and company policies.
-                    </div>
-
-                    <div class="memo-footer-address memo-content-inset">
-                        JK&amp;C INC.<br>
-                        3F Cebu Holdings Center Cebu Business Park, Cebu City, Philippines, 6000
+                    <div class="rounded-xl border border-purple-100 bg-purple-50/50 p-4">
+                        <p class="text-xs font-bold uppercase text-purple-700 mb-2">Level 2 — From Executive Management</p>
+                        <p class="text-sm"><span class="font-semibold">Name:</span> {{ $communication->executive_approver_name ?: 'John Kelly D. Abalde' }}</p>
+                        <p class="text-sm"><span class="font-semibold">Position:</span> {{ $communication->executive_approver_position ?: 'President and CEO' }}</p>
+                        <p class="text-sm"><span class="font-semibold">Department:</span> {{ $communication->executive_approver_department ?: 'Executive Management' }}</p>
+                        <p class="text-sm mt-2"><span class="font-semibold">Status:</span> {{ $communication->executive_approval_status ?: 'Pending' }}</p>
                     </div>
                 </div>
             </div>
@@ -486,6 +543,42 @@
     font-size: 11px;
     line-height: 1.45;
 }
+
+    .memo-effectivity {
+        margin-top: 22px;
+        font-size: 14px;
+        line-height: 1.45;
+        text-align: justify;
+        font-family: "Times New Roman", Georgia, serif;
+    }
+
+    .approval-routing {
+        margin-top: 26px;
+        font-family: "Times New Roman", Georgia, serif;
+        font-size: 13px;
+        line-height: 1.25;
+        color: #111827;
+    }
+
+    .approval-block {
+        margin-bottom: 18px;
+    }
+
+    .approval-block p {
+        margin: 0 0 2px 0;
+    }
+
+    .approval-title {
+        font-weight: 700;
+        margin-bottom: 8px !important;
+    }
+
+    .computer-generated {
+        margin-top: 4px;
+        font-weight: 700;
+        font-size: 12px;
+    }
+
 </style>
 @endpush
 
