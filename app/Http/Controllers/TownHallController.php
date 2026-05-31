@@ -731,17 +731,47 @@ class TownHallController extends Controller
 
         /*
         |--------------------------------------------------------------------------
-        | Source of Department / Stakeholder choices
+        | Main source: departments table
         |--------------------------------------------------------------------------
-        | The divisions table has department_id, so we use department_id to get the
-        | actual department names from the departments table when possible.
-        |
-        | Expected divisions columns:
-        | - id
-        | - division_name
-        | - department_id
-        | - address_id
-        | - division_head
+        | The Department / Stakeholder dropdown should show departments directly
+        | from the departments table first. This avoids an empty dropdown when
+        | divisions.department_id has no linked rows yet.
+        */
+        if (Schema::hasTable('departments')) {
+            $departmentColumns = Schema::getColumnListing('departments');
+
+            $departmentNameColumn = collect([
+                'department_name',
+                'name',
+                'title',
+                'division_name',
+            ])->first(fn ($column) => in_array($column, $departmentColumns, true));
+
+            if ($departmentNameColumn) {
+                $departmentNames = $departmentNames->merge(
+                    DB::table('departments')
+                        ->whereNotNull($departmentNameColumn)
+                        ->where($departmentNameColumn, '!=', '')
+                        ->orderBy($departmentNameColumn)
+                        ->pluck($departmentNameColumn)
+                );
+            } elseif (in_array('id', $departmentColumns, true)) {
+                $departmentNames = $departmentNames->merge(
+                    DB::table('departments')
+                        ->whereNotNull('id')
+                        ->orderBy('id')
+                        ->pluck('id')
+                        ->map(fn ($id) => 'Department #' . $id)
+                );
+            }
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Secondary source: divisions.department_id joined to departments.id
+        |--------------------------------------------------------------------------
+        | This is only a fallback/additional source, useful when departments are
+        | referenced through the divisions table.
         */
         if (
             Schema::hasTable('divisions') &&
@@ -772,25 +802,10 @@ class TownHallController extends Controller
 
         /*
         |--------------------------------------------------------------------------
-        | Fallback
+        | Existing TownHall values
         |--------------------------------------------------------------------------
-        | If departments table/name column is not available yet, show department_id
-        | values so the dropdown still works instead of becoming empty.
+        | Keeps previously used department/stakeholder labels available.
         */
-        if ($departmentNames->isEmpty()
-            && Schema::hasTable('divisions')
-            && Schema::hasColumn('divisions', 'department_id')
-        ) {
-            $departmentNames = $departmentNames->merge(
-                DB::table('divisions')
-                    ->whereNotNull('department_id')
-                    ->distinct()
-                    ->orderBy('department_id')
-                    ->pluck('department_id')
-                    ->map(fn ($id) => 'Department #' . $id)
-            );
-        }
-
         $existingTownHallDepartments = TownHallCommunication::query()
             ->whereNotNull('department_stakeholder')
             ->pluck('department_stakeholder')
