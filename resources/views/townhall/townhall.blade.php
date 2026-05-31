@@ -242,7 +242,7 @@
                             </div>
                         </div>
 
-                        <p class="mt-1 text-xs text-gray-400">You can select multiple departments. Selected names are saved as comma-separated values.</p>
+                        <p class="mt-1 text-xs text-gray-400">You can select multiple departments/divisions. Choices come from the divisions table.</p>
                         </div>
                     </div>
 

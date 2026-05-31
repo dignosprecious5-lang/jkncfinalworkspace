@@ -729,20 +729,26 @@ class TownHallController extends Controller
     {
         $departmentNames = collect();
 
-        if (Schema::hasTable('departments')) {
-            $columns = Schema::getColumnListing('departments');
-
-            $nameColumn = collect(['name', 'department_name', 'title'])
-                ->first(fn ($column) => in_array($column, $columns, true));
-
-            if ($nameColumn) {
-                $departmentNames = $departmentNames->merge(
-                    DB::table('departments')
-                        ->whereNotNull($nameColumn)
-                        ->orderBy($nameColumn)
-                        ->pluck($nameColumn)
-                );
-            }
+        /*
+        |--------------------------------------------------------------------------
+        | Source of Department / Stakeholder choices
+        |--------------------------------------------------------------------------
+        | Per current database structure, the available choices come from the
+        | divisions table:
+        | - id
+        | - division_name
+        | - department_id
+        | - address_id
+        | - division_head
+        */
+        if (Schema::hasTable('divisions') && Schema::hasColumn('divisions', 'division_name')) {
+            $departmentNames = $departmentNames->merge(
+                DB::table('divisions')
+                    ->whereNotNull('division_name')
+                    ->where('division_name', '!=', '')
+                    ->orderBy('division_name')
+                    ->pluck('division_name')
+            );
         }
 
         $existingTownHallDepartments = TownHallCommunication::query()
