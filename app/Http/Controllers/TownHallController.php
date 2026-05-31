@@ -733,21 +733,61 @@ class TownHallController extends Controller
         |--------------------------------------------------------------------------
         | Source of Department / Stakeholder choices
         |--------------------------------------------------------------------------
-        | Per current database structure, the available choices come from the
-        | divisions table:
+        | The divisions table has department_id, so we use department_id to get the
+        | actual department names from the departments table when possible.
+        |
+        | Expected divisions columns:
         | - id
         | - division_name
         | - department_id
         | - address_id
         | - division_head
         */
-        if (Schema::hasTable('divisions') && Schema::hasColumn('divisions', 'division_name')) {
+        if (
+            Schema::hasTable('divisions') &&
+            Schema::hasColumn('divisions', 'department_id') &&
+            Schema::hasTable('departments')
+        ) {
+            $departmentColumns = Schema::getColumnListing('departments');
+
+            $departmentNameColumn = collect([
+                'department_name',
+                'name',
+                'title',
+            ])->first(fn ($column) => in_array($column, $departmentColumns, true));
+
+            if ($departmentNameColumn && in_array('id', $departmentColumns, true)) {
+                $departmentNames = $departmentNames->merge(
+                    DB::table('divisions')
+                        ->join('departments', 'divisions.department_id', '=', 'departments.id')
+                        ->whereNotNull('divisions.department_id')
+                        ->whereNotNull("departments.{$departmentNameColumn}")
+                        ->where("departments.{$departmentNameColumn}", '!=', '')
+                        ->orderBy("departments.{$departmentNameColumn}")
+                        ->distinct()
+                        ->pluck("departments.{$departmentNameColumn}")
+                );
+            }
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Fallback
+        |--------------------------------------------------------------------------
+        | If departments table/name column is not available yet, show department_id
+        | values so the dropdown still works instead of becoming empty.
+        */
+        if ($departmentNames->isEmpty()
+            && Schema::hasTable('divisions')
+            && Schema::hasColumn('divisions', 'department_id')
+        ) {
             $departmentNames = $departmentNames->merge(
                 DB::table('divisions')
-                    ->whereNotNull('division_name')
-                    ->where('division_name', '!=', '')
-                    ->orderBy('division_name')
-                    ->pluck('division_name')
+                    ->whereNotNull('department_id')
+                    ->distinct()
+                    ->orderBy('department_id')
+                    ->pluck('department_id')
+                    ->map(fn ($id) => 'Department #' . $id)
             );
         }
 

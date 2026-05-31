@@ -340,7 +340,7 @@
                         </div>
                     </div>
 
-                    <p class="mt-1 text-xs text-gray-400">You can select multiple departments/divisions. Choices come from the divisions table.</p>
+                    <p class="mt-1 text-xs text-gray-400">You can select multiple departments. Choices come from divisions.department_id joined to departments.</p>
                     </div>
                 </div>
 
