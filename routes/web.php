@@ -662,7 +662,7 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::post('/company/{company}/corporate-formation/gis', [CompanyCorporateFormationController::class, 'storeGis'])->name('company.corporate-formation.gis.store');
     Route::match(['put', 'patch'], '/company/{company}/corporate-formation/gis/{record}', [CompanyCorporateFormationController::class, 'updateGis'])->name('company.corporate-formation.gis.update');
 
-    // Company corporate-formation — show / upload-draft / upload-notary / submit (all 4 document types)
+    // Company corporate-formation â€” show / upload-draft / upload-notary / submit (all 4 document types)
     Route::get('/company/{company}/corporate-formation/sec-coi/{record}', [CompanyCorporateFormationController::class, 'showSecCoi'])->name('company.corporate-formation.sec-coi.show');
     Route::post('/company/{company}/corporate-formation/sec-coi/{record}/upload-draft', [CompanyCorporateFormationController::class, 'uploadDraftSecCoi'])->name('company.corporate-formation.sec-coi.upload-draft');
     Route::post('/company/{company}/corporate-formation/sec-coi/{record}/upload-notary', [CompanyCorporateFormationController::class, 'uploadNotarySecCoi'])->name('company.corporate-formation.sec-coi.upload-notary');
@@ -881,6 +881,7 @@ Route::delete('/gis/ubo/{record}', [UltimateBeneficialOwnerController::class, 'd
     Route::get('/corporate/resolutions', [ResolutionController::class, 'index'])->name('resolutions');
     Route::get('/corporate/resolutions/create', [ResolutionController::class, 'create'])->name('resolutions.create');
     Route::post('/corporate/resolutions', [ResolutionController::class, 'store'])->name('resolutions.store');
+    Route::get('/corporate/resolutions/{resolution}/download', [ResolutionController::class, 'downloadPdf'])->name('resolutions.download');
     Route::get('/corporate/resolutions/{resolution}', [ResolutionController::class, 'show'])->name('resolutions.preview');
     Route::get('/corporate/resolutions/{resolution}/edit', [ResolutionController::class, 'edit'])->name('resolutions.edit');
     Route::put('/corporate/resolutions/{resolution}', [ResolutionController::class, 'update'])->name('resolutions.update');

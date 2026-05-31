@@ -21,6 +21,8 @@
         'location' => $minute->location,
         'chairman' => $minute->chairman,
         'secretary' => $minute->secretary,
+        'directors_present' => $minute->directors_present,
+        'directors_absent' => $minute->directors_absent,
     ])->values();
 @endphp
 
@@ -122,7 +124,7 @@
             <div class="px-6 py-4 border-b border-gray-100 flex items-center gap-3">
                 <div>
                     <div class="text-lg font-semibold">Add Resolution</div>
-                    <div class="text-xs text-gray-500">Choose an existing minutes record and the linked meeting details will fill automatically for the resolution and downstream secretary certificates.</div>
+                    <div class="text-xs text-gray-500">Choose existing minutes. Meeting details and approval signatories are auto-filled from the linked minutes attendance / latest GIS.</div>
                 </div>
                 <div class="flex-1"></div>
                 <button class="text-gray-500 hover:text-gray-700" @click="showAddPanel = false" type="button">
@@ -134,7 +136,7 @@
                 @csrf
 
                 <div class="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
-                    Select an existing minutes record first. The resolution now stays tied to that minutes entry, and the linked meeting fields below are auto-filled from it.
+                    Select an existing minutes record first. The resolution will use that meeting details and only the recorded present attendees will appear in the approval section.
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -193,7 +195,7 @@
                         <input type="text" name="location" x-ref="location" class="mt-1 block w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2 text-sm">
                     </div>
                     <div class="md:col-span-2">
-                        <label class="text-xs text-gray-600">Board Resolution Title</label>
+                        <label class="text-xs text-gray-600">Resolution Title</label>
                         <input type="text" name="board_resolution" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm" placeholder="Authority to transact with government agencies">
                     </div>
                     <div class="md:col-span-2">
@@ -227,24 +229,25 @@
                             <div
                                 x-ref="resolutionEditor"
                                 contenteditable="true"
-                                data-placeholder="Write the full resolved clauses here. This will be used in the draft preview and as the basis for the secretary certificate."
+                                data-placeholder="Write only the resolution body/details here. The closing, certification, approval/signatories, and notarial page are generated automatically."
                                 class="resolution-rich-editor min-h-[260px] bg-white p-4 text-sm leading-7 outline-none"
                                 @input="syncResolutionBody()"
                             ></div>
                             <input type="hidden" name="resolution_body" x-ref="resolutionBodyField">
                         </div>
                     </div>
-                    <div>
-                        <label class="text-xs text-gray-600">Directors / Attendees</label>
-                        <input type="text" name="directors" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm" placeholder="Comma-separated names">
+                    <div class="md:col-span-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+                        <div class="font-semibold">Approval signatories are automatic.</div>
+                        <div class="mt-1">The PDF will use only attendees marked present in the linked Minutes. If Minutes has no attendance yet, it will fall back to the latest approved GIS records.</div>
+                        <input type="hidden" name="directors" value="">
                     </div>
                     <div>
                         <label class="text-xs text-gray-600">Chairman</label>
-                        <input type="text" name="chairman" x-ref="chairman" class="mt-1 block w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2 text-sm">
+                        <input type="text" name="chairman" x-ref="chairman" readonly class="mt-1 block w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2 text-sm">
                     </div>
                     <div>
                         <label class="text-xs text-gray-600">Secretary</label>
-                        <input type="text" name="secretary" x-ref="secretary" class="mt-1 block w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2 text-sm">
+                        <input type="text" name="secretary" x-ref="secretary" readonly class="mt-1 block w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2 text-sm">
                     </div>
                     <div>
                         <label class="text-xs text-gray-600">Notary Public</label>

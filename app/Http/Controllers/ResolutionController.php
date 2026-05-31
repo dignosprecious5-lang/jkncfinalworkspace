@@ -4,13 +4,17 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\GeneratesCorporateDocumentNumbers;
 use App\Http\Controllers\Concerns\HandlesUploads;
+use App\Models\DirectorOfficer;
+use App\Models\GisRecord;
 use App\Models\Minute;
+use App\Models\Notice;
 use App\Models\Resolution;
+use App\Models\Stockholder;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-use Symfony\Component\Process\Process;
 
 class ResolutionController extends Controller
 {
@@ -19,8 +23,8 @@ class ResolutionController extends Controller
 
     public function index()
     {
-        $resolutions = Resolution::with(['minute', 'notice', 'secretaryCertificates'])->latest()->get();
-        $minutes = Minute::with('notice')->orderBy('date_of_meeting')->get();
+        $resolutions = Resolution::with(['minute.notice.attendees', 'notice.attendees', 'secretaryCertificates'])->latest()->get();
+        $minutes = Minute::with('notice.attendees')->orderByDesc('date_of_meeting')->get();
 
         return view('corporate.resolutions.index', [
             'resolutions' => $resolutions,
@@ -49,6 +53,7 @@ class ResolutionController extends Controller
     {
         $data = $this->validateData($request);
         $data = $this->mergeMinuteData($data);
+        $data = $this->applyAutomaticResolutionPeople($data);
         $data['draft_file_path'] = $this->handleUpload($request, 'draft_file_path');
         $data['notarized_file_path'] = $this->handleUpload($request, 'notarized_file_path');
         $data['resolution_no'] = $data['resolution_no'] ?: $this->nextResolutionNumber();
@@ -65,7 +70,8 @@ class ResolutionController extends Controller
     {
         $this->syncGeneratedResolutionPdf($resolution, false);
         $resolution = $resolution->fresh();
-        $resolution->load(['notice', 'secretaryCertificates']);
+        $resolution->load(['minute.notice.attendees', 'notice.attendees', 'secretaryCertificates']);
+        $document = $this->resolutionDocumentData($resolution);
         $generatedBodyPreviewPath = $this->generateResolutionPdf(
             $resolution,
             'generated-previews/resolutions/' . ($resolution->resolution_no ?: $resolution->id) . '-body-built.pdf'
@@ -73,12 +79,27 @@ class ResolutionController extends Controller
 
         return view('corporate.resolutions.preview', [
             'resolution' => $resolution,
+            'document' => $document,
             'generatedBodyPreviewUrl' => $generatedBodyPreviewPath ? route('uploads.show', ['path' => $generatedBodyPreviewPath]) : null,
+            'downloadRoute' => route('resolutions.download', $resolution),
             'backRoute' => route('resolutions'),
             'editRoute' => route('resolutions.edit', $resolution),
             'updateRoute' => route('resolutions.update', $resolution),
             'deleteRoute' => route('resolutions.destroy', $resolution),
         ]);
+    }
+
+    public function downloadPdf(Resolution $resolution)
+    {
+        $resolution->load(['minute.notice.attendees', 'notice.attendees']);
+        $filename = 'resolution-' . Str::slug($resolution->resolution_no ?: ('resolution-' . $resolution->id)) . '.pdf';
+
+        return Pdf::loadView('corporate.resolutions.pdf', [
+                'resolution' => $resolution,
+                'document' => $this->resolutionDocumentData($resolution),
+            ])
+            ->setPaper('a4')
+            ->download($filename);
     }
 
     public function edit(Resolution $resolution)
@@ -97,6 +118,7 @@ class ResolutionController extends Controller
     {
         $data = $this->validateData($request);
         $data = $this->mergeMinuteData($data);
+        $data = $this->applyAutomaticResolutionPeople($data);
         $data['draft_file_path'] = $this->handleUpload($request, 'draft_file_path', $resolution->draft_file_path);
         $data['notarized_file_path'] = $this->handleUpload($request, 'notarized_file_path', $resolution->notarized_file_path);
         $data = $this->filterPersistableData($data);
@@ -129,11 +151,8 @@ class ResolutionController extends Controller
             ['name' => 'meeting_no', 'label' => 'Meeting No.', 'type' => 'text'],
             ['name' => 'date_of_meeting', 'label' => 'Date of Meeting', 'type' => 'date'],
             ['name' => 'location', 'label' => 'Location of Meeting', 'type' => 'text'],
-            ['name' => 'board_resolution', 'label' => 'Board Resolution', 'type' => 'text'],
+            ['name' => 'board_resolution', 'label' => 'Resolution Title', 'type' => 'text'],
             ['name' => 'resolution_body', 'label' => 'Resolution Body', 'type' => 'textarea'],
-            ['name' => 'directors', 'label' => 'Directors', 'type' => 'text'],
-            ['name' => 'chairman', 'label' => 'Chairman', 'type' => 'text'],
-            ['name' => 'secretary', 'label' => 'Secretary', 'type' => 'text'],
             ['name' => 'notary_doc_no', 'label' => 'Notary Doc No.', 'type' => 'text'],
             ['name' => 'notary_page_no', 'label' => 'Notary Page No.', 'type' => 'text'],
             ['name' => 'notary_book_no', 'label' => 'Notary Book No.', 'type' => 'text'],
@@ -190,6 +209,7 @@ class ResolutionController extends Controller
 
         $notice = $minute->notice;
 
+        $data['company_id'] = $minute->company_id ?: $notice?->company_id;
         $data['notice_id'] = $minute->notice_id;
         $data['notice_ref'] = $minute->notice_ref ?: $notice?->notice_number;
         $data['governing_body'] = $minute->governing_body ?: $notice?->governing_body;
@@ -200,6 +220,24 @@ class ResolutionController extends Controller
         $data['location'] = $minute->location ?: $notice?->location;
         $data['chairman'] = $minute->chairman ?: $notice?->chairman;
         $data['secretary'] = $minute->secretary ?: $notice?->secretary;
+
+        return $data;
+    }
+
+    private function applyAutomaticResolutionPeople(array $data): array
+    {
+        $resolution = new Resolution($data);
+        $document = $this->resolutionDocumentData($resolution);
+
+        $data['directors'] = collect($document['approval_rows'] ?? [])->pluck('name')->implode(', ');
+
+        $data['chairman'] = !empty($document['chairman']['name'])
+            ? $document['chairman']['name']
+            : null;
+
+        if (empty($data['secretary'])) {
+            $data['secretary'] = 'Corporate Secretary';
+        }
 
         return $data;
     }
@@ -254,120 +292,451 @@ class ResolutionController extends Controller
 
         $pdfPath = $this->generateResolutionPdf($resolution->fresh());
 
-        if (!$pdfPath) {
-            return;
+        if ($pdfPath) {
+            $resolution->update(['draft_file_path' => $pdfPath]);
         }
-
-        $resolution->update(['draft_file_path' => $pdfPath]);
     }
 
     private function generateResolutionPdf(Resolution $resolution, ?string $targetPath = null): ?string
     {
-        $browserBinary = $this->browserBinary();
-
-        if (!$browserBinary) {
-            return null;
-        }
-
-        $html = view('corporate.resolutions.pdf', [
-            'resolution' => $resolution,
-        ])->render();
-
-        $tempDirectory = storage_path('app/temp');
-        if (!is_dir($tempDirectory)) {
-            mkdir($tempDirectory, 0777, true);
-        }
-
-        $basename = 'resolution-' . Str::slug($resolution->resolution_no ?: 'draft-resolution');
-        $htmlPath = $tempDirectory . DIRECTORY_SEPARATOR . $basename . '-' . Str::uuid() . '.html';
-        $pdfPath = $tempDirectory . DIRECTORY_SEPARATOR . $basename . '-' . Str::uuid() . '.pdf';
-        $profilePath = $tempDirectory . DIRECTORY_SEPARATOR . $basename . '-profile-' . Str::uuid();
-
-        file_put_contents($htmlPath, $html);
-        if (!is_dir($profilePath)) {
-            mkdir($profilePath, 0777, true);
-        }
-
-        $process = new Process([
-            $browserBinary,
-            '--headless',
-            '--disable-gpu',
-            '--user-data-dir=' . $profilePath,
-            '--no-first-run',
-            '--no-default-browser-check',
-            '--disable-crash-reporter',
-            '--disable-features=Crashpad',
-            '--noerrdialogs',
-            '--allow-file-access-from-files',
-            '--disable-web-security',
-            '--print-to-pdf=' . $pdfPath,
-            '--no-pdf-header-footer',
-            'file:///' . str_replace(DIRECTORY_SEPARATOR, '/', $htmlPath),
-        ]);
-
-        $process->setTimeout(60);
-        $process->setEnv([
-            'TEMP' => $tempDirectory,
-            'TMP' => $tempDirectory,
-            'LOCALAPPDATA' => $tempDirectory,
-            'APPDATA' => $tempDirectory,
-        ]);
-        $process->run();
-
-        @unlink($htmlPath);
-        $this->deleteDirectory($profilePath);
-
-        if (!file_exists($pdfPath) || filesize($pdfPath) === 0) {
-            @unlink($pdfPath);
-
-            return null;
-        }
-
+        $resolution->loadMissing(['minute.notice.attendees', 'notice.attendees']);
         $targetPath = $targetPath ?: 'uploads/resolutions/' . ($resolution->resolution_no ?: 'draft-resolution') . '.pdf';
 
+        $pdf = Pdf::loadView('corporate.resolutions.pdf', [
+            'resolution' => $resolution,
+            'document' => $this->resolutionDocumentData($resolution),
+        ])->setPaper('a4');
+
         Storage::disk('public')->delete($targetPath);
-        Storage::disk('public')->put($targetPath, file_get_contents($pdfPath));
-        @unlink($pdfPath);
+        Storage::disk('public')->put($targetPath, $pdf->output());
 
         return $targetPath;
     }
 
-    private function browserBinary(): ?string
+    private function resolutionDocumentData(Resolution $resolution): array
     {
-        $candidates = [
-            'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-            'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
-            'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
-            'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
+        $resolution->loadMissing(['minute.notice.attendees', 'notice.attendees']);
+
+        // Corporate module resolutions must use the Corporate GIS as the source
+        // of company identity/header information, not the separate Company module
+        // record. Prefer the GIS that supplied the linked Notice/Minutes attendees;
+        // otherwise use the latest approved Corporate GIS.
+        $gis = $this->gisForResolution($resolution);
+
+        $governingBody = trim((string) ($resolution->governing_body ?: $resolution->minute?->governing_body ?: $resolution->notice?->governing_body));
+        $approvalRows = collect($this->attendingSignatories($resolution, $gis));
+
+        $chairman = null;
+        $approvalRows = $approvalRows
+            ->reject(function ($row) use (&$chairman) {
+                $role = Str::lower((string) ($row['role'] ?? ''));
+                $position = Str::lower((string) ($row['position'] ?? ''));
+
+                $isChairman = Str::contains($role, 'chair')
+                    || Str::contains($position, 'chair');
+
+                if ($isChairman && !$chairman) {
+                    $chairman = [
+                        'name' => $row['name'],
+                        'role' => 'Chairman',
+                    ];
+                }
+
+                return $isChairman;
+            })
+            ->values()
+            ->all();
+
+        return [
+            'company_name' => $gis?->corporation_name ?: 'JK&C INC.',
+            'company_reg_no' => $gis?->company_reg_no ?: '2025120230900-02',
+            'company_address' => $gis?->principal_address ?: $gis?->business_address ?: '3RD FLOOR, UNIT 305 CEBU HOLDINGS CENTER CARDINAL ROSALES AVE., CEBU BUSINESS PARK HIPPODROMO, CEBU CITY, 6000',
+            'approval_rows' => $approvalRows,
+            'chairman' => $chairman,
+            'resolution_label' => $this->resolutionNumberLabel($governingBody),
+            'certifying_body' => $this->certifyingBodyLabel($governingBody),
         ];
-
-        foreach ($candidates as $candidate) {
-            if (file_exists($candidate)) {
-                return $candidate;
-            }
-        }
-
-        return null;
     }
 
-    private function deleteDirectory(string $directory): void
+    private function gisForResolution(Resolution $resolution): ?GisRecord
     {
-        if (!is_dir($directory)) {
-            return;
+        $resolution->loadMissing(['minute.notice.attendees', 'notice.attendees']);
+
+        $notice = $resolution->notice ?: $resolution->minute?->notice;
+        $candidateGisIds = collect();
+
+        // 1) Best source: the attendees selected in the linked Notice. These rows
+        // usually remember whether the person came from Directors/Officers or Stockholders.
+        if ($notice && $notice->relationLoaded('attendees')) {
+            $attendees = $notice->attendees;
+        } elseif ($notice) {
+            $attendees = $notice->attendees()->get();
+        } else {
+            $attendees = collect();
         }
 
-        $items = array_diff(scandir($directory) ?: [], ['.', '..']);
+        $directorIds = $attendees
+            ->filter(fn ($attendee) => Str::contains(Str::lower((string) $attendee->source_type), ['director', 'officer']))
+            ->pluck('source_id')
+            ->filter()
+            ->unique()
+            ->values();
 
-        foreach ($items as $item) {
-            $path = $directory . DIRECTORY_SEPARATOR . $item;
+        if ($directorIds->isNotEmpty()) {
+            $candidateGisIds = $candidateGisIds->merge(
+                DirectorOfficer::whereIn('id', $directorIds)->pluck('gis_id')
+            );
+        }
 
-            if (is_dir($path)) {
-                $this->deleteDirectory($path);
-            } else {
-                @unlink($path);
+        $stockholderIds = $attendees
+            ->filter(fn ($attendee) => Str::contains(Str::lower((string) $attendee->source_type), 'stockholder'))
+            ->pluck('source_id')
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($stockholderIds->isNotEmpty()) {
+            $candidateGisIds = $candidateGisIds->merge(
+                Stockholder::whereIn('id', $stockholderIds)->pluck('gis_id')
+            );
+        }
+
+        // 2) Fallback: match Minutes present names against active people in approved GIS records.
+        // This handles older minutes where source_id/source_type was not saved.
+        $minutePresentNames = collect($this->parsePeopleRows($resolution->minute?->directors_present))
+            ->pluck('name')
+            ->map(fn ($name) => $this->normalizeName($name))
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($minutePresentNames->isNotEmpty()) {
+            DirectorOfficer::query()
+                ->whereNotNull('gis_id')
+                ->get(['gis_id', 'officer_name'])
+                ->each(function (DirectorOfficer $person) use ($minutePresentNames, &$candidateGisIds) {
+                    if ($minutePresentNames->contains($this->normalizeName($person->officer_name))) {
+                        $candidateGisIds->push($person->gis_id);
+                    }
+                });
+
+            Stockholder::query()
+                ->whereNotNull('gis_id')
+                ->get(['gis_id', 'stockholder_name'])
+                ->each(function (Stockholder $person) use ($minutePresentNames, &$candidateGisIds) {
+                    if ($minutePresentNames->contains($this->normalizeName($person->stockholder_name))) {
+                        $candidateGisIds->push($person->gis_id);
+                    }
+                });
+        }
+
+        $bestGisId = $candidateGisIds
+            ->filter()
+            ->countBy()
+            ->sortDesc()
+            ->keys()
+            ->first();
+
+        if ($bestGisId) {
+            $matched = GisRecord::with(['directors', 'stockholders'])
+                ->where('id', $bestGisId)
+                ->first();
+
+            if ($matched) {
+                return $matched;
             }
         }
 
-        @rmdir($directory);
+        // 3) Final fallback: latest approved Corporate GIS globally.
+        // Do not scope by company_id here, because this Resolution is in the Corporate
+        // module and company_id can point to the separate Company module record.
+        return $this->latestApprovedGis();
+    }
+
+    private function latestApprovedGis($companyId = null): ?GisRecord
+    {
+        $query = GisRecord::with(['directors', 'stockholders'])
+            ->whereIn('workflow_status', ['Accepted', 'accepted', 'APPROVED', 'Approved'])
+            ->whereIn('approval_status', ['Approved', 'approved', 'ACCEPTED', 'Accepted']);
+
+        if ($companyId) {
+            $companyScoped = (clone $query)->where('company_id', $companyId)->latest()->first();
+
+            if ($companyScoped) {
+                return $companyScoped;
+            }
+        }
+
+        return $query->latest()->first();
+    }
+
+    private function attendingSignatories(Resolution $resolution, ?GisRecord $gis): array
+    {
+        $governingBody = Str::lower((string) ($resolution->governing_body ?: $resolution->minute?->governing_body ?: $resolution->notice?->governing_body));
+        $minute = $resolution->minute;
+        $notice = $resolution->notice ?: $minute?->notice;
+
+        $absentNames = collect($this->parsePeopleRows($minute?->directors_absent))
+            ->pluck('name')
+            ->map(fn ($name) => $this->normalizeName($name))
+            ->filter()
+            ->all();
+
+        $presentRows = collect($this->parsePeopleRows($minute?->directors_present));
+
+        if ($presentRows->isEmpty() && $notice) {
+            $presentRows = $notice->attendees
+                ->where('is_selected', true)
+                ->map(fn ($attendee) => [
+                    'name' => $attendee->name,
+                    'position' => $attendee->position,
+                    'source_type' => $attendee->source_type,
+                    'source_id' => $attendee->source_id,
+                ])
+                ->values();
+        }
+
+        if ($presentRows->isEmpty() && $gis) {
+            $presentRows = $this->gisPeopleForGoverningBody($gis, $governingBody);
+        }
+
+        $noticeSourceMap = $notice
+            ? $notice->attendees
+                ->mapWithKeys(fn ($attendee) => [
+                    $this->normalizeName($attendee->name) => [
+                        'source_type' => $attendee->source_type,
+                        'position' => $attendee->position,
+                        'source_id' => $attendee->source_id,
+                    ],
+                ])
+                ->all()
+            : [];
+
+        $gisSourceMap = $gis ? $this->gisSourceMap($gis) : [];
+
+        return $presentRows
+            ->map(function ($row) use ($governingBody, $noticeSourceMap, $gisSourceMap) {
+                $name = trim((string) ($row['name'] ?? ''));
+
+                if ($name === '') {
+                    return null;
+                }
+
+                $normalizedName = $this->normalizeName($name);
+                $position = trim((string) ($row['position'] ?? ''));
+                $sourceType = $row['source_type'] ?? null;
+
+                if (!$sourceType && isset($noticeSourceMap[$normalizedName])) {
+                    $sourceType = $noticeSourceMap[$normalizedName]['source_type'] ?? null;
+                    $position = $position ?: (string) ($noticeSourceMap[$normalizedName]['position'] ?? '');
+                }
+
+                if (!$sourceType && isset($gisSourceMap[$normalizedName])) {
+                    $sourceType = $gisSourceMap[$normalizedName]['source_type'] ?? null;
+                    $position = $position ?: (string) ($gisSourceMap[$normalizedName]['position'] ?? '');
+                }
+
+                $role = $this->resolutionRoleLabel($governingBody, $sourceType, $position);
+
+                if (!$this->roleAllowedForGoverningBody($governingBody, $role)) {
+                    return null;
+                }
+
+                return [
+                    'name' => $name,
+                    'position' => $position,
+                    'source_type' => $sourceType,
+                    'role' => $role,
+                ];
+            })
+            ->filter()
+            ->reject(fn ($row) => in_array($this->normalizeName($row['name']), $absentNames, true))
+            ->unique(fn ($row) => $this->normalizeName($row['name']))
+            ->values()
+            ->all();
+    }
+
+    private function gisPeopleForGoverningBody(GisRecord $gis, string $governingBody)
+    {
+        $people = collect();
+
+        if (Str::contains($governingBody, 'director') || Str::contains($governingBody, 'board') || Str::contains($governingBody, 'joint')) {
+            $people = $people->merge($gis->directors->map(fn (DirectorOfficer $person) => [
+                'name' => $person->officer_name,
+                'position' => $person->officer_type,
+                'source_type' => 'director',
+            ]));
+        }
+
+        if (Str::contains($governingBody, 'stockholder') || Str::contains($governingBody, 'joint')) {
+            $people = $people->merge($gis->stockholders->map(fn (Stockholder $person) => [
+                'name' => $person->stockholder_name,
+                'position' => 'Stockholder',
+                'source_type' => 'stockholder',
+            ]));
+        }
+
+        return $people->values();
+    }
+
+    private function gisSourceMap(GisRecord $gis): array
+    {
+        $directors = $gis->directors->mapWithKeys(fn (DirectorOfficer $person) => [
+            $this->normalizeName($person->officer_name) => [
+                'source_type' => 'director',
+                'position' => $person->officer_type,
+            ],
+        ]);
+
+        $stockholders = $gis->stockholders->mapWithKeys(fn (Stockholder $person) => [
+            $this->normalizeName($person->stockholder_name) => [
+                'source_type' => 'stockholder',
+                'position' => 'Stockholder',
+            ],
+        ]);
+
+        return $directors->merge($stockholders)->all();
+    }
+
+    private function parsePeopleRows($value): array
+    {
+        if (blank($value)) {
+            return [];
+        }
+
+        $decoded = json_decode((string) $value, true);
+
+        if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+            return collect($decoded)
+                ->map(function ($row) {
+                    if (is_string($row)) {
+                        return ['name' => trim($row), 'position' => '', 'source_type' => null];
+                    }
+
+                    return [
+                        'name' => trim((string) ($row['name'] ?? $row['person'] ?? '')),
+                        'position' => trim((string) ($row['position'] ?? $row['role'] ?? '')),
+                        'source_type' => $row['source_type'] ?? null,
+                        'source_id' => $row['source_id'] ?? null,
+                    ];
+                })
+                ->filter(fn ($row) => $row['name'] !== '')
+                ->values()
+                ->all();
+        }
+
+        return collect(preg_split('/[\r\n,;]+/', (string) $value))
+            ->map(fn ($name) => ['name' => trim($name), 'position' => '', 'source_type' => null])
+            ->filter(fn ($row) => $row['name'] !== '')
+            ->values()
+            ->all();
+    }
+
+    private function resolutionRoleLabel(string $governingBody, $sourceType = null, string $position = ''): string
+    {
+        $source = Str::lower((string) $sourceType . ' ' . $position);
+
+        if (Str::contains($source, 'chair')) {
+            return 'Chairman';
+        }
+
+        /*
+         * The minutes attendance rows are the source of truth for who actually attended.
+         * Older minutes/notice records may still store the selected attendee inside a
+         * generic/director-style field even when the meeting is for Stockholders.
+         * Because of that, decide the legal role from the governing body first for
+         * single-body meetings, then use the GIS/source role only for joint meetings.
+         */
+        if ($this->isStockholdersOnly($governingBody)) {
+            return 'Stockholder';
+        }
+
+        if ($this->isBoardOnly($governingBody)) {
+            return 'Director';
+        }
+
+        if (Str::contains($source, 'stockholder')) {
+            return 'Stockholder';
+        }
+
+        if (Str::contains($source, 'director') || Str::contains($source, 'board')) {
+            return 'Director';
+        }
+
+        return 'Director';
+    }
+
+    private function roleAllowedForGoverningBody(string $governingBody, string $role): bool
+    {
+        $role = Str::lower($role);
+
+        if (Str::contains($role, 'chair')) {
+            return true;
+        }
+
+        if ($this->isStockholdersOnly($governingBody)) {
+            return Str::contains($role, 'stockholder');
+        }
+
+        if ($this->isBoardOnly($governingBody)) {
+            return Str::contains($role, 'director');
+        }
+
+        return Str::contains($role, 'director') || Str::contains($role, 'stockholder');
+    }
+
+    private function isStockholdersOnly(string $governingBody): bool
+    {
+        return Str::contains($governingBody, 'stockholder')
+            && !Str::contains($governingBody, 'director')
+            && !Str::contains($governingBody, 'board')
+            && !Str::contains($governingBody, 'joint');
+    }
+
+    private function isBoardOnly(string $governingBody): bool
+    {
+        return (Str::contains($governingBody, 'director') || Str::contains($governingBody, 'board'))
+            && !Str::contains($governingBody, 'stockholder')
+            && !Str::contains($governingBody, 'joint');
+    }
+
+    private function resolutionNumberLabel(string $governingBody): string
+    {
+        $body = Str::lower($governingBody);
+
+        if ($this->isStockholdersOnly($body)) {
+            return "Stockholders' Resolution No.";
+        }
+
+        if (Str::contains($body, 'joint')) {
+            return 'Joint Board and Stockholders Resolution No.';
+        }
+
+        return 'Board Resolution No.';
+    }
+
+    private function certifyingBodyLabel(string $governingBody): string
+    {
+        $body = Str::lower($governingBody);
+
+        if ($this->isStockholdersOnly($body)) {
+            return 'Stockholders';
+        }
+
+        if (Str::contains($body, 'joint')) {
+            return 'Stockholders and Board of Directors';
+        }
+
+        return 'Board of Directors';
+    }
+
+    private function normalizeName($name): string
+    {
+        return Str::of((string) $name)->lower()->replaceMatches('/\s+/', ' ')->trim()->toString();
+    }
+
+    private function sameName($left, $right): bool
+    {
+        return $this->normalizeName($left) !== '' && $this->normalizeName($left) === $this->normalizeName($right);
     }
 }
