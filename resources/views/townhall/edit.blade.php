@@ -30,12 +30,80 @@
             'role' => 'Client',
         ];
     })->values()),
+    managementApprovers: @js($managementApprovers ?? []),
+    previewManagementApproverId: @js(old('management_approver_id', $communication->management_approver_id ?? '')),
+    previewManagementName: @js($communication->management_approver_name ?? ''),
+    previewManagementPosition: @js($communication->management_approver_position ?? ''),
+    previewManagementDepartment: @js($communication->management_approver_department ?? ''),
+    previewExecutiveName: @js(($communication->executive_approver_name ?? null) ?: ($executiveApprover['name'] ?? 'John Kelly D. Abalde')),
+    previewExecutivePosition: @js(($communication->executive_approver_position ?? null) ?: ($executiveApprover['position'] ?? 'President and CEO')),
+    previewExecutiveDepartment: @js(($communication->executive_approver_department ?? null) ?: ($executiveApprover['department'] ?? 'Executive Management')),
     previewTo: @js(old('to_for', $communication->to_for ?? 'All Employees')),
     previewPriority: @js(old('priority', $communication->priority ?? 'Low')),
     previewSubject: @js(old('subject', $communication->subject)),
     previewBody: @js(old('message', $communication->message ?: '<p style=&quot;color:#9ca3af;&quot;>Write the formal communication here...</p>')),
     previewCc: @js(old('cc', $communication->cc)),
     previewAdditional: @js(old('additional', $communication->additional)),
+    syncManagementApprover() {
+        const approver = this.managementApprovers.find(item => String(item.id) === String(this.previewManagementApproverId));
+
+        this.previewManagementName = approver ? approver.name : '';
+        this.previewManagementPosition = approver ? approver.position : '';
+        this.previewManagementDepartment = approver ? approver.department : '';
+    },
+    formatPreviewDate(value) {
+        if (!value) return '—';
+
+        const raw = String(value).includes('T') ? String(value).split('T')[0] : String(value).split(' ')[0];
+        const date = new Date(raw + 'T00:00:00');
+
+        if (Number.isNaN(date.getTime())) return value;
+
+        return date.toLocaleDateString('en-US', {
+            month: 'long',
+            day: '2-digit',
+            year: 'numeric'
+        });
+    },
+    ordinalDay(value) {
+        if (!value) return '______________';
+
+        const raw = String(value).includes('T') ? String(value).split('T')[0] : String(value).split(' ')[0];
+        const date = new Date(raw + 'T00:00:00');
+
+        if (Number.isNaN(date.getTime())) return '______________';
+
+        const number = date.getDate();
+        const mod100 = number % 100;
+
+        if (mod100 >= 11 && mod100 <= 13) {
+            return number + 'th';
+        }
+
+        switch (number % 10) {
+            case 1:
+                return number + 'st';
+            case 2:
+                return number + 'nd';
+            case 3:
+                return number + 'rd';
+            default:
+                return number + 'th';
+        }
+    },
+    issuedMonth(value) {
+        if (!value) return '______________';
+
+        const raw = String(value).includes('T') ? String(value).split('T')[0] : String(value).split(' ')[0];
+        const date = new Date(raw + 'T00:00:00');
+
+        if (Number.isNaN(date.getTime())) return '______________';
+
+        return date.toLocaleDateString('en-US', {
+            month: 'long',
+            year: 'numeric'
+        });
+    },
     syncRecipientFields() {
         const selectedUserIds = Array.isArray(this.previewRecipientUserIds)
             ? this.previewRecipientUserIds.map(id => String(id))
@@ -101,7 +169,7 @@
             .filter(item => String(item) !== String(id));
         this.syncRecipientFields();
     }
-}" x-init="syncRecipientFields()">
+}" x-init="syncRecipientFields(); syncManagementApprover()">
 
     @if(session('success'))
         <div class="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
@@ -146,78 +214,105 @@
             </div>
 
             <div class="max-w-[850px] mx-auto">
-                <div id="memo-preview-pdf" class="memo-preview bg-white border border-gray-300 shadow min-h-[1100px] px-[72px] py-[72px]">
+                <div id="memo-preview-pdf" class="memo-edit-preview bg-white border border-gray-300 shadow min-h-[1100px] px-[72px] py-[72px]">
 
-                    {{-- LETTERHEAD --}}
-                    <div class="flex items-start justify-between border-b border-gray-300 pb-6 mb-8">
-                        <div>
-                            <h1 class="text-[22px] font-bold tracking-wide text-gray-900">JOHN KELLY & COMPANY</h1>
-                            <p class="text-[12px] text-gray-500 mt-1">Corporate Memorandum</p>
+                    {{-- HEADER --}}
+                    <div class="memo-page-header">
+                        <div class="flex items-start gap-4 mb-6">
+                            <div class="shrink-0 pt-1">
+                                <img src="{{ asset('images/jk-logo.png') }}" alt="JK Logo" class="h-[72px] w-auto object-contain">
+                            </div>
+
+                            <div class="flex-1 pt-1">
+                                <p class="text-[12px] leading-[1.35] text-blue-700 font-serif m-0">
+                                    Atty. Jose B. Ogang, CPA, MMPSM · Jose Tamayo Rio,<br>
+                                    MM-BM, CPA · Lyndon Earl P. Rio, RN, CB · John Kelly Abalde,<br>
+                                    CLSSBB, CPM
+                                </p>
+                            </div>
                         </div>
 
-                        <div class="text-right text-[12px] text-gray-600 leading-5">
-                            <p>Ref No: <span class="font-semibold" x-text="previewRef"></span></p>
-                            <p>Date: <span class="font-semibold" x-text="previewDate || '________________'"></span></p>
-                        </div>
-                    </div>
-
-                    {{-- MEMO TITLE --}}
-                    <div class="text-center mb-8">
-                        <h2 class="text-[20px] font-bold tracking-[0.18em] text-gray-900">MEMORANDUM</h2>
-                    </div>
-
-                    {{-- META --}}
-                    <div class="space-y-3 text-[14px] text-gray-800 mb-10">
-                        <div class="grid grid-cols-[120px_1fr] gap-3">
-                            <p class="font-semibold uppercase tracking-wide" x-text="previewRecipientLabel"></p>
-                            <p class="border-b border-dotted border-gray-300 pb-1" x-text="previewTo || '______________________________'"></p>
+                        <div class="memo-page-title">
+                            <h2>MEMORANDUM</h2>
                         </div>
 
-                        <div class="grid grid-cols-[120px_1fr] gap-3">
-                            <p class="font-semibold uppercase tracking-wide">From</p>
-                            <p class="border-b border-dotted border-gray-300 pb-1" x-text="previewFrom || '______________________________'"></p>
+                        <div class="memo-page-meta memo-content-inset">
+                            <p><strong>Memo NO.:</strong> <span x-text="previewRef || 'MEMO-AUTO-INCREMENT'"></span></p>
+                            <p><strong>Date:</strong> <span x-text="formatPreviewDate(previewDate)"></span></p>
+                            <p>
+                                <strong><span x-text="previewRecipientLabel || 'To'"></span>:</strong>
+                                <span x-text="previewTo || 'All Employees'"></span>
+                            </p>
+                            <p><strong>From:</strong> <span x-text="previewFrom || '—'"></span></p>
+                            <p><strong>SUBJECT:</strong> <span x-text="previewSubject || '—'"></span></p>
                         </div>
 
-                        <div class="grid grid-cols-[120px_1fr] gap-3">
-                            <p class="font-semibold uppercase tracking-wide">Department</p>
-                            <p class="border-b border-dotted border-gray-300 pb-1" x-text="previewDepartment || '______________________________'"></p>
-                        </div>
-
-                        <div class="grid grid-cols-[120px_1fr] gap-3">
-                            <p class="font-semibold uppercase tracking-wide">Priority</p>
-                            <p class="border-b border-dotted border-gray-300 pb-1" x-text="previewPriority || 'Low'"></p>
-                        </div>
-
-                        <div class="grid grid-cols-[120px_1fr] gap-3">
-                            <p class="font-semibold uppercase tracking-wide">Subject</p>
-                            <p class="border-b border-dotted border-gray-300 pb-1 font-semibold" x-text="previewSubject || '______________________________'"></p>
-                        </div>
+                        <div class="memo-page-divider memo-content-inset"></div>
                     </div>
 
                     {{-- BODY --}}
-                    <div class="text-[15px] leading-8 text-gray-900 min-h-[420px]">
-                        <div class="prose prose-sm max-w-none [&_p]:my-4 [&_p]:leading-8 [&_ul]:my-4 [&_ol]:my-4" x-html="previewBody"></div>
+                    <div class="memo-page-body memo-content-inset">
+                        <div x-html="previewBody || '<p style=&quot;color:#9ca3af;&quot;>No memorandum body provided.</p>'"></div>
                     </div>
 
-                    {{-- SIGNATURE AREA --}}
-                    <div class="mt-16 space-y-10 text-[14px] text-gray-800">
-                        <div>
-                            <p>Prepared by:</p>
-                            <p class="mt-2 font-semibold" x-text="previewFrom || '________________'"></p>
-                        </div>
-
-                        <div>
-                            <p>Approved by:</p>
-                            <p class="mt-2 font-semibold">John Kelly D. Abalde</p>
-                            <p>President and CEO</p>
-                        </div>
-
-                        <div class="pt-6 border-t border-gray-200 space-y-2">
-                            <p><span class="font-semibold">CC:</span> <span x-text="previewCc || '______________________________'"></span></p>
-                            <p><span class="font-semibold">Additional:</span> <span x-text="previewAdditional || '______________________________'"></span></p>
-                        </div>
+                    {{-- EFFECTIVITY --}}
+                    <div class="memo-effectivity memo-content-inset">
+                        This Memorandum shall take effect immediately and shall remain in force until amended,
+                        superseded, or revoked by a subsequent issuance.
                     </div>
 
+                    {{-- ISSUANCE --}}
+                    <div class="issued-block memo-content-inset">
+                        Issued this
+                        <strong><span x-text="ordinalDay(previewDate)"></span></strong>
+                        day of
+                        <strong><span x-text="issuedMonth(previewDate)"></span></strong>
+                        in Cebu City, Philippines.
+                    </div>
+
+                    {{-- APPROVAL / ROUTING BLOCKS --}}
+                    <div class="approval-routing memo-content-inset">
+                        <div class="approval-block">
+                            <p class="approval-title">Prepared By:</p>
+                            <p x-text="previewFrom || 'Name'"></p>
+                            <p>Position</p>
+                            <p x-text="previewDepartment || 'Department'"></p>
+                            <p>Prepared on: Date and Time</p>
+                        </div>
+
+                        <div class="approval-block">
+                            <p class="approval-title">From Management</p>
+                            <p x-text="previewManagementName || 'Name'"></p>
+                            <p x-text="previewManagementPosition || 'Position'"></p>
+                            <p x-text="previewManagementDepartment || 'Department'"></p>
+                            <p>Approved on: Date and Time</p>
+                        </div>
+
+                        <div class="approval-block">
+                            <p class="approval-title">From Executive Management</p>
+                            <p x-text="previewExecutiveName || 'John Kelly D. Abalde'"></p>
+                            <p x-text="previewExecutivePosition || 'President and CEO'"></p>
+                            <p x-text="previewExecutiveDepartment || 'Executive Management'"></p>
+                            <p>Approved on: Date and Time</p>
+                        </div>
+
+                        <p class="computer-generated">
+                            This is a computer-generated document. Signature is not required.
+                        </p>
+                    </div>
+
+                    <div class="memo-footer-note memo-content-inset">
+                        This Memorandum is an official corporate record of JK&amp;C INC. Unauthorized reproduction,
+                        alteration, disclosure, or misuse of this Memorandum, in whole or in part, is strictly prohibited
+                        and may result in administrative sanctions, termination of employment or engagement, and/or the
+                        institution of appropriate civil, criminal, or regulatory actions, in accordance with applicable
+                        laws and company policies.
+                    </div>
+
+                    <div class="memo-footer-address memo-content-inset">
+                        JK&amp;C INC.<br>
+                        3F Cebu Holdings Center Cebu Business Park, Cebu City, Philippines, 6000
+                    </div>
                 </div>
             </div>
         </div>
@@ -488,6 +583,43 @@
                     </div>
                 </div>
 
+                <div class="rounded-xl border border-blue-100 bg-blue-50/50 p-4 space-y-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-blue-700 mb-1">
+                            Level 1 Approver - From Management
+                        </label>
+
+                        <select
+                            name="management_approver_id"
+                            x-model="previewManagementApproverId"
+                            @change="syncManagementApprover()"
+                            class="w-full border border-blue-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500"
+                            required
+                        >
+                            <option value="">Select active employee approver</option>
+                            @foreach(($managementApprovers ?? collect()) as $approver)
+                                <option value="{{ $approver['id'] }}">
+                                    {{ $approver['name'] }} — {{ $approver['position'] ?? 'Position' }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <div class="rounded-lg border border-blue-100 bg-white p-3 text-sm">
+                        <p class="text-xs font-bold uppercase text-blue-700 mb-2">From Management</p>
+                        <p><span class="font-semibold">Name:</span> <span x-text="previewManagementName || '—'"></span></p>
+                        <p><span class="font-semibold">Position:</span> <span x-text="previewManagementPosition || '—'"></span></p>
+                        <p><span class="font-semibold">Department:</span> <span x-text="previewManagementDepartment || '—'"></span></p>
+                    </div>
+
+                    <div class="rounded-lg border border-blue-100 bg-white p-3 text-sm">
+                        <p class="text-xs font-bold uppercase text-blue-700 mb-2">From Executive Management</p>
+                        <p><span class="font-semibold">Name:</span> <span x-text="previewExecutiveName || 'John Kelly D. Abalde'"></span></p>
+                        <p><span class="font-semibold">Position:</span> <span x-text="previewExecutivePosition || 'President and CEO'"></span></p>
+                        <p><span class="font-semibold">Department:</span> <span x-text="previewExecutiveDepartment || 'Executive Management'"></span></p>
+                    </div>
+                </div>
+
                 <div>
                     <label class="block text-xs font-semibold text-gray-500 mb-1">Replace Attachment</label>
                     <input
@@ -530,6 +662,172 @@
     </div>
 </div>
 @endsection
+
+
+@push('styles')
+<style>
+    .memo-edit-preview {
+        font-family: "Times New Roman", Georgia, serif;
+        color: #111827;
+        font-size: 14px;
+        line-height: 1.5;
+    }
+
+    .memo-content-inset {
+        margin-left: 40px;
+        margin-right: 40px;
+    }
+
+    .memo-page-header {
+        margin-bottom: 24px;
+    }
+
+    .memo-page-title {
+        text-align: center;
+        margin-bottom: 28px;
+    }
+
+    .memo-page-title h2 {
+        font-size: 24px;
+        font-weight: 700;
+        color: #111827;
+        font-family: "Times New Roman", Georgia, serif;
+        margin: 0;
+    }
+
+    .memo-page-meta {
+        margin-bottom: 10px;
+        font-size: 14px;
+        line-height: 1.35;
+        color: #111827;
+        font-family: "Times New Roman", Georgia, serif;
+    }
+
+    .memo-page-meta p {
+        margin: 2px 0;
+    }
+
+    .memo-page-divider {
+        border-bottom: 1px solid #6b7280;
+        margin-top: 10px;
+        margin-bottom: 24px;
+    }
+
+    .memo-page-body,
+    .memo-page-body p,
+    .memo-page-body li,
+    .memo-page-body span,
+    .memo-page-body div,
+    .memo-page-body td,
+    .memo-page-body th {
+        font-family: "Times New Roman", Georgia, serif !important;
+        color: #111827;
+    }
+
+    .memo-page-body {
+        font-size: 14px;
+        line-height: 1.3;
+        text-align: justify;
+        min-height: 360px;
+    }
+
+    .memo-page-body p,
+    .memo-page-body li {
+        text-align: justify;
+    }
+
+    .memo-page-body p {
+        margin: 0 0 3px 0;
+    }
+
+    .memo-page-body ul,
+    .memo-page-body ol {
+        margin: 0 0 18px 24px;
+        padding-left: 18px;
+    }
+
+    .memo-page-body table {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+        margin: 12px 0 16px 0;
+    }
+
+    .memo-page-body th,
+    .memo-page-body td {
+        border: 1px solid #94a3b8;
+        padding: 10px 12px;
+        vertical-align: top;
+        word-break: break-word;
+        overflow-wrap: anywhere;
+    }
+
+    .memo-page-body th {
+        background: #f8fafc;
+        font-weight: 600;
+    }
+
+    .memo-effectivity {
+        margin-top: 22px;
+        font-size: 14px;
+        line-height: 1.45;
+        text-align: justify;
+        font-family: "Times New Roman", Georgia, serif;
+    }
+
+    .issued-block {
+        margin-top: 14px;
+        margin-bottom: 26px;
+        font-size: 14px;
+        line-height: 1.7;
+        font-family: "Times New Roman", Georgia, serif;
+    }
+
+    .approval-routing {
+        margin-top: 26px;
+        font-family: "Times New Roman", Georgia, serif;
+        font-size: 13px;
+        line-height: 1.25;
+        color: #111827;
+    }
+
+    .approval-block {
+        margin-bottom: 18px;
+    }
+
+    .approval-block p {
+        margin: 0 0 2px 0;
+    }
+
+    .approval-title {
+        font-weight: 700;
+        margin-bottom: 8px !important;
+    }
+
+    .computer-generated {
+        margin-top: 4px;
+        font-weight: 700;
+        font-size: 12px;
+    }
+
+    .memo-footer-note {
+        margin-top: 56px;
+        font-size: 11px;
+        line-height: 1.45;
+        text-align: justify;
+    }
+
+    .memo-footer-address {
+        margin-top: 24px;
+        font-size: 11px;
+        line-height: 1.45;
+    }
+
+    #editor .ql-editor {
+        min-height: 260px;
+    }
+</style>
+@endpush
 
 @push('scripts')
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
