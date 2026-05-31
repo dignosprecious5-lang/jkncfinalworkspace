@@ -13,6 +13,9 @@ use Carbon\Carbon;
 use App\Models\User;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Schema;
+use App\Mail\TownHallPostedNotification;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\DB;
 use App\Models\Employee;
 
@@ -337,6 +340,9 @@ class TownHallController extends Controller
         $validated['submitted_at'] = now();
         $validated['approved_by'] = null;
         $validated['approved_at'] = null;
+        $validated['posted_at'] = null;
+        $validated['posted_by'] = null;
+        $validated['recipient_notified_at'] = null;
         $validated['approval_notes'] = null;
         $validated['is_archived'] = false;
         $validated['archived_at'] = null;
@@ -462,8 +468,10 @@ class TownHallController extends Controller
                     'executive_approval_status' => 'Approved',
                     'executive_approved_at' => $now,
                     'approval_status' => 'Approved',
-                    'workflow_status' => 'Approved',
-                    'status' => 'Approved',
+                    'workflow_status' => 'Posted',
+                    'status' => 'Posted',
+                    'posted_at' => $now,
+                    'posted_by' => Auth::id(),
                     'approved_by' => Auth::id(),
                     'approved_at' => $now,
                     'approval_notes' => $notes,
@@ -471,7 +479,11 @@ class TownHallController extends Controller
                     'archived_at' => null,
                 ]);
 
-                return redirect()->back()->with('success', 'Executive Management approval completed. Communication is now approved.');
+                $communication->refresh();
+
+                $this->notifyRecipientsAfterPosting($communication);
+
+                return redirect()->back()->with('success', 'Executive Management approval completed. Communication is now posted and recipients were notified.');
             }
 
             return redirect()->back()->with('success', 'This communication is already fully approved.');
@@ -479,12 +491,20 @@ class TownHallController extends Controller
 
         $communication->update([
             'approval_status' => 'Approved',
+            'workflow_status' => 'Posted',
+            'status' => 'Posted',
+            'posted_at' => $now,
+            'posted_by' => Auth::id(),
             'approved_by' => Auth::id(),
             'approved_at' => $now,
             'approval_notes' => $notes,
         ]);
 
-        return redirect()->back()->with('success', 'Communication approved successfully.');
+        $communication->refresh();
+
+        $this->notifyRecipientsAfterPosting($communication);
+
+        return redirect()->back()->with('success', 'Communication approved, posted, and recipients were notified.');
     }
 
     public function reject(Request $request, $id)
@@ -1153,6 +1173,61 @@ class TownHallController extends Controller
             ->sortBy('name')
             ->values();
     }
+
+
+    private function notifyRecipientsAfterPosting(TownHallCommunication $communication): void
+    {
+        if (!Schema::hasColumn('townhall_communications', 'recipient_notified_at')) {
+            return;
+        }
+
+        if (!is_null($communication->recipient_notified_at)) {
+            return;
+        }
+
+        $recipients = $this->getNotificationRecipients($communication);
+
+        if ($recipients->isEmpty()) {
+            $communication->update([
+                'recipient_notified_at' => Carbon::now(),
+            ]);
+
+            return;
+        }
+
+        try {
+            $pdfBinary = Pdf::loadView('townhall.show-pdf', compact('communication'))
+                ->setPaper('a4', 'portrait')
+                ->output();
+
+            $filename = ($communication->ref_no ?: 'townhall-communication') . '.pdf';
+
+            foreach ($recipients as $recipient) {
+                Mail::to($recipient->email)->send(
+                    new TownHallPostedNotification($communication, $pdfBinary, $filename)
+                );
+            }
+
+            $communication->update([
+                'recipient_notified_at' => Carbon::now(),
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('TownHall recipient notification failed.', [
+                'communication_id' => $communication->id,
+                'ref_no' => $communication->ref_no,
+                'message' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    private function getNotificationRecipients(TownHallCommunication $communication)
+    {
+        return $this->getAcknowledgementUsers($communication)
+            ->filter(fn ($user) => !empty($user->email))
+            ->unique('email')
+            ->values();
+    }
+
 
     public function searchRecipients(Request $request)
     {
