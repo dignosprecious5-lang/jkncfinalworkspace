@@ -74,8 +74,6 @@ class TownHallController extends Controller
 
         $managementApprovers = $this->activeEmployeeApprovers();
         $executiveApprover = $this->resolveExecutiveApprover();
-        $departmentOptions = $this->departmentOptions();
-
         return view('townhall.townhall', compact(
             'communications',
             'departments',
@@ -84,8 +82,7 @@ class TownHallController extends Controller
             'usersForRecipients',
             'contactsForRecipients',
             'managementApprovers',
-            'executiveApprover',
-            'departmentOptions'
+            'executiveApprover'
         ));
     }
 
@@ -268,8 +265,6 @@ class TownHallController extends Controller
 
         $managementApprovers = $this->activeEmployeeApprovers();
         $executiveApprover = $this->resolveExecutiveApprover();
-        $departmentOptions = $this->departmentOptions();
-
         return view('townhall.edit', compact(
             'communication',
             'employees',
@@ -277,8 +272,7 @@ class TownHallController extends Controller
             'contactsForRecipients',
             'managementApprovers',
             'executiveApprover'
-        ,
-            'departmentOptions'));
+        ));
     }
 
     public function update(Request $request, $id)
@@ -724,89 +718,6 @@ class TownHallController extends Controller
     }
 
 
-
-    private function departmentOptions()
-    {
-        $departmentNames = collect();
-
-        /*
-        |--------------------------------------------------------------------------
-        | Same source as approver department display
-        |--------------------------------------------------------------------------
-        | The approver cards display department using:
-        | employees.department_id -> resolveDepartmentName($departmentId)
-        |
-        | So the Department / Stakeholder dropdown now also uses active employees'
-        | department_id values and resolves them with the same resolver.
-        */
-        if (class_exists(Employee::class)) {
-            $employeeDepartmentIds = Employee::query()
-                ->whereNotNull('department_id')
-                ->where(function ($query) {
-                    $query->whereNull('employment_status')
-                        ->orWhereIn('employment_status', ['Active', 'active', 'Regular', 'regular', 'Probationary', 'probationary']);
-                })
-                ->distinct()
-                ->pluck('department_id')
-                ->filter()
-                ->unique()
-                ->values();
-
-            $departmentNames = $departmentNames->merge(
-                $employeeDepartmentIds->map(fn ($departmentId) => $this->resolveDepartmentName($departmentId))
-            );
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | Secondary source: departments table
-        |--------------------------------------------------------------------------
-        | Kept as fallback in case there are departments with no employee yet.
-        */
-        if (Schema::hasTable('departments')) {
-            $departmentColumns = Schema::getColumnListing('departments');
-
-            $departmentNameColumn = collect([
-                'department_name',
-                'name',
-                'title',
-            ])->first(fn ($column) => in_array($column, $departmentColumns, true));
-
-            if ($departmentNameColumn) {
-                $departmentNames = $departmentNames->merge(
-                    DB::table('departments')
-                        ->whereNotNull($departmentNameColumn)
-                        ->where($departmentNameColumn, '!=', '')
-                        ->orderBy($departmentNameColumn)
-                        ->pluck($departmentNameColumn)
-                );
-            }
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | Existing TownHall values
-        |--------------------------------------------------------------------------
-        | Keeps previously used department/stakeholder labels available.
-        */
-        $existingTownHallDepartments = TownHallCommunication::query()
-            ->whereNotNull('department_stakeholder')
-            ->pluck('department_stakeholder')
-            ->flatMap(function ($value) {
-                return collect(explode(',', (string) $value))
-                    ->map(fn ($item) => trim($item))
-                    ->filter();
-            });
-
-        return $departmentNames
-            ->merge($existingTownHallDepartments)
-            ->map(fn ($item) => trim((string) $item))
-            ->filter()
-            ->reject(fn ($item) => $item === '—')
-            ->unique()
-            ->sort()
-            ->values();
-    }
 
     private function activeEmployeeApprovers()
     {
