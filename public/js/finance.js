@@ -1,7 +1,30 @@
 ﻿(() => {
     const bootstrap = window.financeBootstrap || {};
     const csrfToken = bootstrap.csrfToken || '';
-    const workflowFilters = ['all', 'Uploaded', 'Shared', 'Submitted', 'Accepted', 'Reverted', 'Archived', 'Delete Requested'];
+
+    function currentCsrfToken() {
+        return document.querySelector('meta[name="csrf-token"]')?.content
+            || document.querySelector('input[name="_token"]')?.value
+            || csrfToken
+            || '';
+    }
+
+    function csrfFetch(url, options = {}) {
+        const headers = new Headers(options.headers || {});
+        const token = currentCsrfToken();
+
+        if (token) {
+            headers.set('X-CSRF-TOKEN', token);
+        }
+        headers.set('X-Requested-With', 'XMLHttpRequest');
+
+        return fetch(url, {
+            credentials: 'same-origin',
+            ...options,
+            headers,
+        });
+    }
+    const workflowFilters = ['all', 'Uploaded', 'Shared', 'Submitted', 'On Hold', 'Accepted', 'Reverted', 'Archived', 'Delete Requested'];
 
     const textField = (name, label, options = {}) => ({ name, label, type: 'text', ...options });
     const numberField = (name, label, options = {}) => ({ name, label, type: 'number', ...options });
@@ -338,8 +361,11 @@
             return record.record_title;
         }
 
-        const moduleConfig = getModuleConfig(moduleKey);
-        return moduleConfig.recordTitleLabel || moduleConfig.label || 'Finance Record';
+        return '';
+    }
+
+    function isFinanceRecordTitleRequired(moduleKey) {
+        return ['supplier', 'service', 'product', 'chart_account', 'bank_account'].includes(moduleKey);
     }
 
     function generateFinanceBarcodeSvg(value) {
@@ -782,6 +808,11 @@
             dynamicFields.classList.toggle('grid', !isSend);
             dynamicFields.classList.toggle('md:grid-cols-2', !isSend);
             dynamicFields.classList.toggle('gap-4', !isSend);
+        }
+
+        const recordTitleInput = $('recordTitleInput');
+        if (recordTitleInput) {
+            recordTitleInput.required = !isSend && isFinanceRecordTitleRequired(currentModuleKey);
         }
     }
 
@@ -1351,28 +1382,20 @@
             fields: [
                 selectField('source_document_type', 'Linked Source Document Type', {
                     options: [
-                        { value: 'pr', label: 'PR' },
                         { value: 'po', label: 'PO' },
                         { value: 'ca', label: 'CA' },
-                        { value: 'lr', label: 'LR' },
                         { value: 'err', label: 'ERR' },
                         { value: 'pda', label: 'PDA' },
-                        { value: 'crf', label: 'CRF' },
                         { value: 'ibtf', label: 'IBTF' },
-                        { value: 'arf', label: 'ARF' },
                     ],
                 }),
                 selectField('source_document_id', 'Linked Source Document', {
                     sourceMap: {
-                        pr: 'pr',
                         po: 'po',
                         ca: 'ca',
-                        lr: 'lr',
                         err: 'err',
                         pda: 'pda',
-                        crf: 'crf',
                         ibtf: 'ibtf',
-                        arf: 'arf',
                     },
                     sourceKey: 'source_document_type',
                 }),
@@ -1505,23 +1528,60 @@
             recordNumberLabel: 'ARF Number',
             recordTitleLabel: 'Asset Name',
             recordDateLabel: 'Date',
-            summaryKeys: ['asset_code', 'linked_po_id', 'linked_dv_id', 'acquisition_cost', 'asset_coa_id'],
+            summaryKeys: ['item_classification', 'asset_code', 'current_quantity', 'available_quantity', 'acquisition_cost'],
             fields: [
                 selectField('linked_po_id', 'Linked PO', { source: 'po' }),
                 selectField('linked_dv_id', 'Linked DV', { source: 'dv' }),
+                selectField('item_classification', 'Item Classification', {
+                    required: true,
+                    options: [
+                        { value: 'Fixed Asset', label: 'Fixed Asset' },
+                        { value: 'Consumable Inventory', label: 'Consumable Inventory' },
+                    ],
+                }),
                 textField('asset_code', 'Asset Code', { required: true }),
+                textField('item_name', 'Item Name'),
+                textField('item_code', 'Item Code'),
+                textField('sku', 'SKU'),
+                textField('barcode', 'Barcode'),
+                textField('qr_code', 'QR Code'),
                 textareaField('asset_description', 'Asset Description'),
-                textField('asset_category', 'Asset Category'),
+                textField('asset_category', 'Category'),
                 textField('serial_number', 'Serial Number'),
                 textField('model', 'Model'),
                 selectField('supplier_id', 'Supplier', { source: 'supplier' }),
+                textField('goods_receiving_reference', 'Goods Receiving Reference'),
+                numberField('ordered_quantity', 'Ordered Quantity'),
+                numberField('delivered_quantity', 'Delivered Quantity'),
+                numberField('accepted_quantity', 'Accepted Quantity'),
+                numberField('rejected_quantity', 'Rejected Quantity'),
+                textField('unit_of_measure', 'Unit of Measure'),
+                numberField('beginning_quantity', 'Beginning Quantity'),
+                numberField('current_quantity', 'Current Quantity'),
+                numberField('reserved_quantity', 'Reserved Quantity'),
+                numberField('available_quantity', 'Available Quantity', { readOnly: true }),
+                numberField('reorder_level', 'Reorder Level'),
+                numberField('minimum_stock_level', 'Minimum Stock Level'),
+                numberField('maximum_stock_level', 'Maximum Stock Level'),
+                numberField('safety_stock_level', 'Safety Stock Level'),
+                numberField('unit_cost', 'Unit Cost'),
+                numberField('total_cost', 'Total Cost', { readOnly: true }),
+                numberField('average_cost', 'Average Cost'),
+                numberField('last_purchase_cost', 'Last Purchase Cost'),
                 numberField('acquisition_cost', 'Acquisition Cost'),
                 dateField('acquisition_date', 'Acquisition Date'),
                 selectField('asset_coa_id', 'Asset Account from Chart of Accounts', { source: 'chart_account' }),
                 textField('location', 'Location'),
-                textField('custodian', 'Custodian'),
-                textField('useful_life', 'Useful Life'),
+                textField('department', 'Department'),
+                selectField('custodian', 'Custodian', { source: 'employee' }),
+                numberField('useful_life', 'Useful Life (Years)'),
                 numberField('residual_value', 'Residual Value'),
+                numberField('depreciable_amount', 'Depreciable Amount', { readOnly: true }),
+                numberField('annual_depreciation', 'Annual Depreciation', { readOnly: true }),
+                numberField('monthly_depreciation', 'Monthly Depreciation', { readOnly: true }),
+                numberField('accumulated_depreciation', 'Accumulated Depreciation', { readOnly: true }),
+                numberField('net_book_value', 'Net Book Value', { readOnly: true }),
+                textareaField('movement_history_note', 'Inventory / Asset Movement Note'),
                 textareaField('remarks', 'Remarks'),
             ],
         },
@@ -2053,7 +2113,11 @@
             ca_payment_entries: normalizeCashAdvancePaymentEntries([...(record.data?.ca_payment_entries || []), ...nextEntries]),
         };
         const formData = new FormData();
+        const token = currentCsrfToken();
 
+        if (token) {
+            formData.set('_token', token);
+        }
         formData.set('_method', 'PUT');
         formData.set('module_key', record.module_key);
         formData.set('record_number', record.record_number || generateModuleRecordNumber(record.module_key));
@@ -2064,10 +2128,9 @@
         formData.set('existing_attachments_json', JSON.stringify(record.attachments || []));
         Object.entries(nextData).forEach(([key, value]) => appendFinanceDataToFormData(formData, value, `data[${key}]`));
 
-        const res = await fetch(`/finance/${record.id}`, {
+        const res = await csrfFetch(`/finance/${record.id}`, {
             method: 'POST',
             headers: {
-                'X-CSRF-TOKEN': csrfToken,
                 'Accept': 'application/json',
             },
             body: formData,
@@ -2303,10 +2366,9 @@
 
         payload[activeDropdownSettingsModuleKey] = activeModuleOptions;
 
-        const res = await fetch('/finance/dropdown-settings', {
+        const res = await csrfFetch('/finance/dropdown-settings', {
             method: 'POST',
             headers: {
-                'X-CSRF-TOKEN': csrfToken,
                 'Accept': 'application/json',
                 'Content-Type': 'application/json',
             },
@@ -2408,6 +2470,7 @@
         if (v === 'uploaded') return 'text-orange-700';
         if (v === 'shared') return 'text-sky-700';
         if (v === 'submitted') return 'text-blue-700';
+        if (v === 'on hold') return 'text-amber-700';
         if (v === 'accepted') return 'text-green-700';
         if (v === 'reverted') return 'text-yellow-700';
         if (v === 'archived') return 'text-gray-700';
@@ -2420,6 +2483,8 @@
         const v = (value || '').toLowerCase();
         if (v === 'approved') return 'text-green-700';
         if (v === 'pending') return 'text-yellow-700';
+        if (v === 'partially approved') return 'text-blue-700';
+        if (v === 'on hold') return 'text-amber-700';
         if (v === 'pending supplier completion') return 'text-sky-700';
         if (v === 'deletion pending') return 'text-red-700';
         if (v === 'deleted') return 'text-gray-700';
@@ -2493,6 +2558,7 @@
             Uploaded: 'Draft records are saved locally and ready for submission.',
             Shared: 'These supplier records have been shared for external completion.',
             Submitted: 'These records are submitted and waiting for review.',
+            'On Hold': 'These records are on hold and require a reasoned review action.',
             Accepted: 'These records are approved and active for lookup flows.',
             Reverted: 'These records were reverted and can be corrected then resubmitted.',
             Archived: 'These records are archived.',
@@ -2503,6 +2569,7 @@
             Uploaded: 'border-blue-200 bg-blue-50 text-blue-700',
             Shared: 'border-sky-200 bg-sky-50 text-sky-700',
             Submitted: 'border-yellow-200 bg-yellow-50 text-yellow-700',
+            'On Hold': 'border-amber-200 bg-amber-50 text-amber-700',
             Accepted: 'border-green-200 bg-green-50 text-green-700',
             Reverted: 'border-red-200 bg-red-50 text-red-700',
             Archived: 'border-gray-200 bg-gray-50 text-gray-700',
@@ -2547,6 +2614,22 @@
     }
 
     function renderTableHeader() {
+        if (currentModuleKey === 'pr') {
+            $('tableHeadRow').innerHTML = `
+                <th class="w-36 p-3 text-left">Number</th>
+                <th class="w-44 p-3 text-left">Title</th>
+                <th class="w-44 p-3 text-left">Requestor</th>
+                <th class="w-28 p-3 text-left">Priority</th>
+                <th class="w-32 p-3 text-left">Date Needed</th>
+                <th class="w-32 p-3 text-left">Amount</th>
+                <th class="w-32 p-3 text-left">Date</th>
+                <th class="w-36 p-3 text-left">Workflow</th>
+                <th class="w-36 p-3 text-left">Approval</th>
+                <th class="w-32 p-3 text-left">Actions</th>
+            `;
+            return;
+        }
+
         $('tableHeadRow').innerHTML = `
             <th class="w-36 p-3 text-left">Number</th>
             <th class="w-44 p-3 text-left">Title</th>
@@ -2568,13 +2651,35 @@
         if (!rows.length) {
             tableBody.innerHTML = `
                 <tr>
-                    <td colspan="7" class="p-10 text-center text-gray-400 italic">No records found</td>
+                    <td colspan="${currentModuleKey === 'pr' ? '10' : '7'}" class="p-10 text-center text-gray-400 italic">No records found</td>
                 </tr>
             `;
             return;
         }
 
         rows.forEach((item) => {
+            if (currentModuleKey === 'pr') {
+                tableBody.innerHTML += `
+                    <tr class="border-t hover:bg-blue-50 cursor-pointer" onclick="window.financeModule.openPreview(${item.id})">
+                        <td class="p-3 break-words">${escapeHtml(item.record_number || '')}</td>
+                        <td class="p-3 break-words">${escapeHtml(item.record_title || '')}</td>
+                        <td class="p-3 break-words">${escapeHtml(item.data?.requestor || item.data?.employee_name || '')}</td>
+                        <td class="p-3">${escapeHtml(item.data?.priority || '')}</td>
+                        <td class="p-3">${escapeHtml(formatDate(item.data?.needed_date))}</td>
+                        <td class="p-3">${escapeHtml(formatCurrency(item.amount || item.data?.grand_total || 0))}</td>
+                        <td class="p-3">${escapeHtml(formatDate(item.record_date))}</td>
+                        <td class="p-3 ${workflowBadgeClass(item.workflow_status)} font-medium">${escapeHtml(workflowLabel(item.workflow_status))}</td>
+                        <td class="p-3 ${approvalBadgeClass(item.approval_status)} font-medium">${escapeHtml(approvalLabel(item.approval_status))}</td>
+                        <td class="p-3">
+                            <button type="button" onclick="event.stopPropagation(); window.financeModule.openPreview(${item.id})" class="text-blue-600 hover:underline">
+                                View
+                            </button>
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
             tableBody.innerHTML += `
                 <tr class="border-t hover:bg-blue-50 cursor-pointer" onclick="window.financeModule.openPreview(${item.id})">
                     <td class="p-3 break-words">${escapeHtml(item.record_number || '')}</td>
@@ -4637,6 +4742,58 @@
         renderDrawerPreview();
     }
 
+    function updateArfCalculatedFields() {
+        if (currentModuleKey !== 'arf') return;
+
+        const form = $('financeForm');
+        if (!form) return;
+
+        const valueFor = (fieldName) => numericAmount(form.querySelector(`[name="data[${fieldName}]"]`)?.value || 0);
+        const setValue = (fieldName, value) => {
+            const input = form.querySelector(`[name="data[${fieldName}]"]`);
+            if (!input) return;
+            input.value = Number.isFinite(value) ? value.toFixed(2) : '';
+            financeFormValues[fieldName] = input.value;
+            financeFormValues[`data[${fieldName}]`] = input.value;
+        };
+
+        const classification = form.querySelector('[name="data[item_classification]"]')?.value || 'Fixed Asset';
+        const currentQuantity = valueFor('current_quantity') || valueFor('accepted_quantity') || valueFor('beginning_quantity');
+        const reservedQuantity = valueFor('reserved_quantity');
+        const unitCost = valueFor('unit_cost');
+        const acquisitionCost = valueFor('acquisition_cost');
+        const residualValue = valueFor('residual_value');
+        const usefulLife = valueFor('useful_life');
+
+        setValue('available_quantity', Math.max(currentQuantity - reservedQuantity, 0));
+        setValue('total_cost', currentQuantity * unitCost);
+
+        const depreciationFields = ['useful_life', 'residual_value', 'depreciable_amount', 'annual_depreciation', 'monthly_depreciation', 'accumulated_depreciation', 'net_book_value'];
+        depreciationFields.forEach((fieldName) => {
+            const wrapper = form.querySelector(`[data-finance-field="${fieldName}"]`);
+            if (wrapper) {
+                wrapper.classList.toggle('hidden', classification === 'Consumable Inventory');
+            }
+        });
+
+        form.querySelector('[name="data[useful_life]"]')?.toggleAttribute('required', classification === 'Fixed Asset');
+
+        if (classification === 'Consumable Inventory') {
+            ['depreciable_amount', 'annual_depreciation', 'monthly_depreciation', 'accumulated_depreciation', 'net_book_value'].forEach((fieldName) => setValue(fieldName, 0));
+            return;
+        }
+
+        const depreciableAmount = Math.max(acquisitionCost - residualValue, 0);
+        const annualDepreciation = usefulLife > 0 ? depreciableAmount / usefulLife : 0;
+        const monthlyDepreciation = annualDepreciation / 12;
+
+        setValue('depreciable_amount', depreciableAmount);
+        setValue('annual_depreciation', annualDepreciation);
+        setValue('monthly_depreciation', monthlyDepreciation);
+        setValue('accumulated_depreciation', 0);
+        setValue('net_book_value', acquisitionCost);
+    }
+
     function getBankAccountCodeValue(bankAccountId) {
         const bankRecord = getRecordById(bankAccountId) || getRecordByLookupValue('bank_account', bankAccountId);
         const linkedCoaId = bankRecord?.data?.linked_coa_id || '';
@@ -6264,7 +6421,33 @@
                     <p class="font-medium text-gray-900 break-all">${escapeHtml(attachment.name || `Attachment ${index + 1}`)}</p>
                     <p class="text-xs text-gray-500 break-all">${escapeHtml(attachment.category || 'Supporting Document')} - ${escapeHtml(attachment.path || '')}</p>
                 </div>
-                <a href="${escapeHtml(attachment.url || normalizeAttachmentUrl(attachment.path || ''))}" target="_blank" class="text-blue-600 hover:underline shrink-0">Open</a>
+                <div class="flex shrink-0 items-center gap-2">
+                    <span class="rounded-full bg-green-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-green-700">${escapeHtml(attachment.status || 'uploaded')}</span>
+                    <a href="${escapeHtml(attachment.url || normalizeAttachmentUrl(attachment.path || ''))}" target="_blank" class="text-blue-600 hover:underline">Open</a>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function renderPendingAttachmentList(container) {
+        const target = container?.querySelector('#pendingAttachmentList');
+        if (!target) return;
+
+        const pendingFiles = Array.from(container.querySelectorAll('input[type="file"]'))
+            .flatMap((input) => Array.from(input.files || []).map((file) => ({
+                name: file.name,
+                size: file.size,
+            })));
+
+        if (!pendingFiles.length) {
+            target.innerHTML = '';
+            return;
+        }
+
+        target.innerHTML = pendingFiles.map((file) => `
+            <div class="flex items-center justify-between gap-3 rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-sm">
+                <span class="min-w-0 break-all font-medium text-gray-800">${escapeHtml(file.name)}</span>
+                <span class="shrink-0 rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-blue-700">ready to upload</span>
             </div>
         `).join('');
     }
@@ -6291,6 +6474,7 @@
                 class="w-full border border-blue-200 rounded-md p-2 bg-blue-50"
             >
             <p id="attachmentHint" class="mt-2 text-xs text-gray-500">Upload supporting files if needed.</p>
+            <div id="pendingAttachmentList" class="mt-3 space-y-2"></div>
             <div id="existingAttachmentList" class="mt-3 space-y-2"></div>
         `;
     }
@@ -6320,6 +6504,7 @@
             <div id="supplierAttachmentFields" class="grid grid-cols-1 gap-3">
                 ${fields}
             </div>
+            <div id="pendingAttachmentList" class="mt-3 space-y-2"></div>
             <div id="existingAttachmentList" class="mt-3 space-y-2"></div>
         `;
     }
@@ -6338,8 +6523,12 @@
 
         renderAttachmentList(existingAttachments);
         section.querySelectorAll('input[type="file"]').forEach((input) => {
-            input.addEventListener('change', renderDrawerPreview);
+            input.addEventListener('change', () => {
+                renderPendingAttachmentList(section);
+                renderDrawerPreview();
+            });
         });
+        renderPendingAttachmentList(section);
     }
 
     function syncSupplierConditionalFields(existingAttachments = []) {
@@ -6621,6 +6810,22 @@
                     syncArfLinkedDocumentFields({ preserveExisting: false });
                 });
             }
+
+            ['item_classification', 'current_quantity', 'reserved_quantity', 'accepted_quantity', 'beginning_quantity', 'unit_cost', 'acquisition_cost', 'residual_value', 'useful_life'].forEach((fieldName) => {
+                const input = form.querySelector(`[name="data[${fieldName}]"]`);
+                if (input) {
+                    input.addEventListener('input', () => {
+                        updateArfCalculatedFields();
+                        renderDrawerPreview();
+                    });
+                    input.addEventListener('change', () => {
+                        updateArfCalculatedFields();
+                        renderDrawerPreview();
+                    });
+                }
+            });
+
+            updateArfCalculatedFields();
         }
     }
 
@@ -6663,11 +6868,13 @@
         $('recordNumberInput').placeholder = `${getModuleRecordPrefix(currentModuleKey)}-00001`;
         const recordTitleLabel = $('recordTitleLabel');
         if (recordTitleLabel) {
-            recordTitleLabel.textContent = moduleConfig.recordTitleLabel || `${moduleConfig.label} Name`;
+            const titleLabel = moduleConfig.recordTitleLabel || `${moduleConfig.label} Name`;
+            recordTitleLabel.innerHTML = `${escapeHtml(titleLabel)}${isFinanceRecordTitleRequired(currentModuleKey) ? ' <span class="text-red-500">*</span>' : ''}`;
         }
         const recordTitleInput = $('recordTitleInput');
         if (recordTitleInput) {
             recordTitleInput.placeholder = moduleConfig.recordTitleLabel || `${moduleConfig.label} Name`;
+            recordTitleInput.required = isFinanceRecordTitleRequired(currentModuleKey);
         }
         $('recordNumberInput').value = recordNumberValue;
         $('recordTitleInput').value = recordTitleValue;
@@ -7054,15 +7261,11 @@
                                 ${renderDynamicField(selectField('source_document_type', 'Linked Source Document Type', {
                                     required: true,
                                     options: [
-                                        { value: 'pr', label: 'PR' },
                                         { value: 'po', label: 'PO' },
                                         { value: 'ca', label: 'CA' },
-                                        { value: 'lr', label: 'LR' },
                                         { value: 'err', label: 'ERR' },
                                         { value: 'pda', label: 'PDA' },
-                                        { value: 'crf', label: 'CRF' },
                                         { value: 'ibtf', label: 'IBTF' },
-                                        { value: 'arf', label: 'ARF' },
                                     ],
                                 }), resolvedSourceTypeValue, values)}
                             </div>
@@ -7382,6 +7585,7 @@
             if (currentModuleKey === 'arf') {
                 const linkedPoId = getDraftValue('linked_po_id', record);
                 const linkedDvId = getDraftValue('linked_dv_id', record);
+                const itemClassificationValue = getDraftValue('item_classification', record) || 'Fixed Asset';
                 const assetCodeValue = getDraftValue('asset_code', record) || recordNumberValue;
                 const assetDescriptionValue = getDraftValue('asset_description', record);
                 const assetCategoryValue = getDraftValue('asset_category', record);
@@ -7401,6 +7605,7 @@
                 [
                     ['linked_po_id', linkedPoId],
                     ['linked_dv_id', linkedDvId],
+                    ['item_classification', itemClassificationValue],
                     ['asset_code', assetCodeValue],
                     ['asset_description', assetDescriptionValue],
                     ['asset_category', assetCategoryValue],
@@ -7422,9 +7627,16 @@
 
                 return `
                     <div class="md:col-span-2 rounded-xl border border-blue-100 bg-blue-50/40 p-4">
-                        <h4 class="text-sm font-semibold uppercase tracking-[0.24em] text-blue-700">Asset Details</h4>
+                        <h4 class="text-sm font-semibold uppercase tracking-[0.24em] text-blue-700">Asset / Inventory Details</h4>
                         <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                            ${renderFieldsByNames(moduleConfig, ['linked_po_id', 'linked_dv_id', 'supplier_id', 'asset_code', 'asset_description', 'asset_category', 'serial_number', 'model'], values, record)}
+                            ${renderFieldsByNames(moduleConfig, ['linked_po_id', 'linked_dv_id', 'supplier_id', 'item_classification', 'asset_code', 'item_name', 'item_code', 'sku', 'barcode', 'qr_code', 'asset_description', 'asset_category', 'serial_number', 'model'], values, record)}
+                        </div>
+                    </div>
+
+                    <div class="md:col-span-2 rounded-xl border border-gray-200 bg-white p-4">
+                        <h4 class="text-sm font-semibold uppercase tracking-[0.24em] text-gray-700">Inventory & Receiving</h4>
+                        <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                            ${renderFieldsByNames(moduleConfig, ['goods_receiving_reference', 'ordered_quantity', 'delivered_quantity', 'accepted_quantity', 'rejected_quantity', 'unit_of_measure', 'beginning_quantity', 'current_quantity', 'reserved_quantity', 'available_quantity', 'reorder_level', 'minimum_stock_level', 'maximum_stock_level', 'safety_stock_level', 'unit_cost', 'total_cost', 'average_cost', 'last_purchase_cost'], values, record)}
                         </div>
                     </div>
 
@@ -7439,7 +7651,7 @@
                     <div class="md:col-span-2 rounded-xl border border-gray-200 bg-white p-4">
                         <h4 class="text-sm font-semibold uppercase tracking-[0.24em] text-gray-700">Valuation & Custody</h4>
                         <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                            ${renderFieldsByNames(moduleConfig, ['acquisition_cost', 'acquisition_date', 'asset_coa_id', 'location', 'custodian', 'useful_life', 'residual_value', 'remarks'], values, record)}
+                            ${renderFieldsByNames(moduleConfig, ['acquisition_cost', 'acquisition_date', 'asset_coa_id', 'location', 'department', 'custodian', 'useful_life', 'residual_value', 'depreciable_amount', 'annual_depreciation', 'monthly_depreciation', 'accumulated_depreciation', 'net_book_value', 'movement_history_note', 'remarks'], values, record)}
                         </div>
                     </div>
                 `;
@@ -7536,6 +7748,7 @@
         }
         if (currentModuleKey === 'arf') {
             syncArfLinkedDocumentFields({ preserveExisting: true });
+            updateArfCalculatedFields();
         }
         if (currentModuleKey === 'bank_account') {
             renderBankAccountLookupList(activeBankAccountLookupQuery);
@@ -8533,6 +8746,176 @@
         }
     }
 
+    function financeHistoryEntries(record, limit = null) {
+        const history = Array.isArray(record?.data?.history) ? record.data.history : [];
+        const entries = history
+            .filter((entry) => entry && typeof entry === 'object')
+            .slice()
+            .reverse();
+
+        return Number.isFinite(limit) ? entries.slice(0, limit) : entries;
+    }
+
+    function financeHistoryDisplayValue(value) {
+        if (value === null || value === undefined || value === '') {
+            return 'Blank';
+        }
+
+        if (Array.isArray(value) || (typeof value === 'object' && value !== null)) {
+            try {
+                return JSON.stringify(value);
+            } catch (error) {
+                return String(value);
+            }
+        }
+
+        return String(value);
+    }
+
+    function financeHistoryChangeRows(entry, limit = 6) {
+        const changes = Array.isArray(entry?.changes) ? entry.changes : [];
+        const rows = changes.slice(0, limit).map((change) => ({
+            field: String(change?.field || 'Field').replace(/^data\./, '').replace(/_/g, ' '),
+            oldValue: financeHistoryDisplayValue(change?.old_value),
+            newValue: financeHistoryDisplayValue(change?.new_value),
+        }));
+
+        return {
+            rows,
+            remaining: Math.max(changes.length - rows.length, 0),
+        };
+    }
+
+    function renderFinanceHistoryCards(record) {
+        const entries = financeHistoryEntries(record, 10);
+
+        if (!entries.length) {
+            return `
+                <div class="rounded-2xl border border-gray-200 bg-white p-4">
+                    <h4 class="text-[15px] font-semibold text-gray-900">Record History / Audit Trail</h4>
+                    <p class="mt-3 text-sm text-gray-500">No audit entries have been recorded yet.</p>
+                </div>
+            `;
+        }
+
+        return `
+            <div class="rounded-2xl border border-gray-200 bg-white p-4">
+                <div class="flex items-center justify-between gap-3">
+                    <h4 class="text-[15px] font-semibold text-gray-900">Record History / Audit Trail</h4>
+                    <span class="rounded-full bg-gray-100 px-3 py-1 text-[11px] font-semibold text-gray-600">${escapeHtml(String(entries.length))} latest</span>
+                </div>
+                <div class="mt-4 space-y-3">
+                    ${entries.map((entry) => {
+                        const changeRows = financeHistoryChangeRows(entry, 6);
+                        return `
+                            <div class="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
+                                <div class="flex flex-wrap items-start justify-between gap-3">
+                                    <div>
+                                        <p class="font-semibold text-gray-900">${escapeHtml(entry.action || 'Action')}</p>
+                                        <p class="mt-1 text-xs text-gray-500">${escapeHtml(entry.changed_by || 'System')} | ${escapeHtml(entry.changed_at || 'N/A')} | ${escapeHtml(entry.module || record.module_key || 'Finance')}</p>
+                                    </div>
+                                </div>
+                                ${entry.reason ? `<p class="mt-2 rounded-lg border border-amber-100 bg-white px-3 py-2 text-xs text-amber-800">${escapeHtml(entry.reason)}</p>` : ''}
+                                ${changeRows.rows.length ? `
+                                    <div class="mt-3 overflow-hidden rounded-lg border border-gray-200 bg-white">
+                                        <table class="w-full text-left text-xs">
+                                            <thead class="bg-gray-50 text-[10px] uppercase tracking-[0.16em] text-gray-500">
+                                                <tr>
+                                                    <th class="px-3 py-2">Field</th>
+                                                    <th class="px-3 py-2">Old Value</th>
+                                                    <th class="px-3 py-2">New Value</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                ${changeRows.rows.map((row) => `
+                                                    <tr class="border-t border-gray-100">
+                                                        <td class="px-3 py-2 font-semibold text-gray-700">${escapeHtml(row.field)}</td>
+                                                        <td class="px-3 py-2 text-gray-500 break-words">${escapeHtml(row.oldValue)}</td>
+                                                        <td class="px-3 py-2 text-gray-900 break-words">${escapeHtml(row.newValue)}</td>
+                                                    </tr>
+                                                `).join('')}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    ${changeRows.remaining ? `<p class="mt-2 text-xs text-gray-500">+${escapeHtml(String(changeRows.remaining))} more change(s)</p>` : ''}
+                                ` : '<p class="mt-2 text-xs text-gray-500">No field-level changes were captured for this action.</p>'}
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            </div>
+        `;
+    }
+
+    function renderFinanceHistorySourceHtml(record) {
+        const entries = financeHistoryEntries(record, 8);
+
+        if (!entries.length) {
+            return '';
+        }
+
+        return `
+            <div class="finance-preview-box">
+                <div class="finance-preview-section-title">Record History / Audit Trail</div>
+                <div class="finance-preview-inner">
+                    ${entries.map((entry) => {
+                        const changeRows = financeHistoryChangeRows(entry, 5);
+                        return `
+                            <div class="finance-preview-audit-entry">
+                                <p class="finance-preview-value">${escapeHtml(entry.action || 'Action')}</p>
+                                <p class="finance-preview-muted">${escapeHtml(entry.changed_by || 'System')} | ${escapeHtml(entry.changed_at || 'N/A')} | ${escapeHtml(entry.module || record.module_key || 'Finance')}</p>
+                                ${entry.reason ? `<p class="finance-preview-muted">Reason: ${escapeHtml(entry.reason)}</p>` : ''}
+                                ${changeRows.rows.length ? `
+                                    <table class="finance-preview-details">
+                                        ${changeRows.rows.map((row) => `
+                                            <tr>
+                                                <td><p class="finance-preview-label">${escapeHtml(row.field)}</p></td>
+                                                <td><p class="finance-preview-muted">Old: ${escapeHtml(row.oldValue)}</p></td>
+                                                <td><p class="finance-preview-value">New: ${escapeHtml(row.newValue)}</p></td>
+                                            </tr>
+                                        `).join('')}
+                                    </table>
+                                    ${changeRows.remaining ? `<p class="finance-preview-muted">+${escapeHtml(String(changeRows.remaining))} more change(s)</p>` : ''}
+                                ` : '<p class="finance-preview-muted">No field-level changes were captured for this action.</p>'}
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            </div>
+        `;
+    }
+
+    function renderFinanceHistoryPrintHtml(record) {
+        const entries = financeHistoryEntries(record, 10);
+
+        if (!entries.length) {
+            return '';
+        }
+
+        return `
+            <div class="section">
+                <h2>Record History / Audit Trail</h2>
+                ${entries.map((entry) => {
+                    const changeRows = financeHistoryChangeRows(entry, 5);
+                    return `
+                        <div class="audit-entry">
+                            <div style="font-weight:700;">${escapeHtml(entry.action || 'Action')}</div>
+                            <div style="color:#6b7280;">${escapeHtml(entry.changed_by || 'System')} | ${escapeHtml(entry.changed_at || 'N/A')} | ${escapeHtml(entry.module || record.module_key || 'Finance')}</div>
+                            ${entry.reason ? `<div style="margin-top:3px; color:#92400e;">Reason: ${escapeHtml(entry.reason)}</div>` : ''}
+                            ${changeRows.rows.map((row) => `
+                                <div class="row">
+                                    <div style="color:#6b7280;">${escapeHtml(row.field)}</div>
+                                    <div style="text-align:right; max-width:68%;"><span style="color:#6b7280;">Old:</span> ${escapeHtml(row.oldValue)} <span style="color:#6b7280;">New:</span> ${escapeHtml(row.newValue)}</div>
+                                </div>
+                            `).join('')}
+                            ${changeRows.remaining ? `<div style="margin-top:3px; color:#6b7280;">+${escapeHtml(String(changeRows.remaining))} more change(s)</div>` : ''}
+                        </div>
+                    `;
+                }).join('')}
+            </div>
+        `;
+    }
+
     function buildFinancePreviewSourceHtml(record) {
         const moduleConfig = getModuleConfig(record.module_key);
         const companyName = 'John Kelly & Company';
@@ -8731,6 +9114,13 @@
                         padding: 6px 7px;
                         vertical-align: top;
                     }
+                    .finance-preview-audit-entry {
+                        border: 1px solid #dbe2ea;
+                        border-radius: 8px;
+                        padding: 7px;
+                        margin-bottom: 7px;
+                        break-inside: avoid;
+                    }
                 </style>
                 <div class="finance-preview-header">
                     <div class="finance-preview-brand">
@@ -8767,6 +9157,8 @@
                 </table>
 
                 ${modulePreviewHtml || '<p class="finance-preview-muted">No additional details provided.</p>'}
+
+                ${renderFinanceHistorySourceHtml(record)}
 
                 ${record.attachments?.length ? `
                     <div class="finance-preview-box">
@@ -8843,13 +9235,18 @@
     }
 
     function renderPreviewDocument(record) {
+        const templateMode = currentPreviewTab === 'template' && record.module_key === 'supplier';
         const attachmentMode = Boolean(currentPreviewAttachmentUrl);
-        const attachmentName = currentPreviewAttachmentUrl
+        const attachmentName = templateMode
+            ? 'Supplier PDF Template'
+            : (currentPreviewAttachmentUrl
             ? (record.attachments || []).find((attachment) => (attachment.url || normalizeAttachmentUrl(attachment.path || '')) === currentPreviewAttachmentUrl)?.name || 'Attached PDF'
-            : 'Finance Preview PDF';
-        const holderLabel = attachmentMode ? 'Attachment PDF' : 'Finance PDF';
+            : 'Finance Preview PDF');
+        const holderLabel = templateMode ? 'Template PDF' : (attachmentMode ? 'Attachment PDF' : 'Finance PDF');
         const previewCacheKey = encodeURIComponent(record.supplier_completed_at || record.submitted_at || record.approved_at || Date.now());
-        const previewUrl = currentPreviewAttachmentUrl || `/finance/${record.id}/preview-pdf?t=${previewCacheKey}`;
+        const previewUrl = templateMode
+            ? `/finance/${record.id}/preview-pdf?template=1&t=${previewCacheKey}`
+            : (currentPreviewAttachmentUrl || `/finance/${record.id}/preview-pdf?t=${previewCacheKey}`);
 
         $('previewDocument').innerHTML = `
             <div class="max-w-5xl mx-auto">
@@ -8869,11 +9266,41 @@
                     </div>
                     <div class="mt-3 flex flex-wrap gap-2">
                         <a id="financePreviewOpenLink" href="${escapeHtml(previewUrl)}" target="_blank" class="rounded-full border border-gray-300 bg-white px-4 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50">
-                            Open ${escapeHtml(attachmentMode ? 'Attachment' : 'Preview')}
+                            Open ${escapeHtml(templateMode ? 'Template PDF' : (attachmentMode ? 'Attachment' : 'Preview'))}
                         </a>
                     </div>
                 </div>
                 <div id="financePreviewPdfSource" class="fixed top-0 left-0 w-[816px] bg-white" style="transform: translateX(-120vw); pointer-events: none;" aria-hidden="true"></div>
+            </div>
+        `;
+    }
+
+    function renderFinanceProgressTracker(record) {
+        const steps = Array.isArray(record?.data?.transaction_progress) ? record.data.transaction_progress : [];
+        if (!steps.length) return '';
+
+        return `
+            <div class="rounded-2xl border border-slate-200 bg-white p-4">
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                    <h4 class="text-[15px] font-semibold text-gray-900">Transaction Progress</h4>
+                    <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">${escapeHtml(record.data?.relationship_status || 'In Progress')}</span>
+                </div>
+                <div class="mt-4 space-y-2">
+                    ${steps.map((step) => {
+                        const state = step.state || (step.completed ? 'completed' : 'pending');
+                        const badgeClass = state === 'completed'
+                            ? 'bg-emerald-100 text-emerald-700'
+                            : (state === 'current' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500');
+                        const marker = state === 'completed' ? 'Done' : (state === 'current' ? 'Now' : 'Next');
+
+                        return `
+                            <div class="flex items-center justify-between gap-3 rounded-lg border border-gray-100 px-3 py-2">
+                                <span class="text-sm font-medium text-gray-900">${escapeHtml(step.label || 'Step')}</span>
+                                <span class="rounded-full px-2.5 py-1 text-[11px] font-semibold ${badgeClass}">${marker}</span>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
             </div>
         `;
     }
@@ -8935,6 +9362,8 @@
                         ...(shouldShowGenericAmount(record) ? [['Amount', record.amount ? formatCurrency(record.amount) : 'N/A']] : []),
                         ['Workflow', record.workflow_status || 'N/A'],
                         ['Approval', previewApprovalLabel(record)],
+                        ['Relationship Status', record.data?.relationship_status || 'N/A'],
+                        ['Next Action', record.data?.next_action || 'N/A'],
                         ['Status', record.status || 'N/A'],
                         ['Created By', record.user || 'N/A'],
                     ].map(([label, value]) => `
@@ -9011,28 +9440,62 @@
                 </div>
             </div>
         `;
+        const templateHtml = record.module_key === 'supplier' ? `
+            <div class="space-y-4">
+                <div class="rounded-2xl border border-sky-100 bg-sky-50/60 p-4">
+                    <h4 class="text-[15px] font-semibold text-gray-900">Supplier PDF Template</h4>
+                    <p class="mt-2 text-sm text-gray-600">The preview pane is showing the in-system PDF template for the supplier record.</p>
+                    <div class="mt-4 rounded-xl border border-sky-100 bg-white px-4 py-3">
+                        <p class="text-[11px] uppercase tracking-[0.18em] text-gray-500">PDF Source</p>
+                        <p class="mt-2 break-all text-sm font-semibold text-gray-900">${escapeHtml(`/finance/${record.id}/preview-pdf?template=1`)}</p>
+                    </div>
+                    <a href="${escapeHtml(`/finance/${record.id}/preview-pdf?template=1`)}" target="_blank" class="mt-4 inline-flex rounded-full border border-sky-200 bg-white px-4 py-2 text-xs font-medium text-sky-700 hover:bg-sky-50">
+                        Open Template PDF
+                    </a>
+                </div>
+            </div>
+        ` : `
+            <div class="rounded-2xl border border-gray-200 bg-white p-4">
+                <h4 class="text-[15px] font-semibold text-gray-900">Template</h4>
+                <p class="mt-3 text-sm text-gray-500">No supplier template link is available for this record.</p>
+            </div>
+        `;
 
         const moduleTrackingHtml = record.module_key === 'ca'
             ? renderCashAdvancePreviewPaymentManager(record)
             : '';
+        const progressHtml = renderFinanceProgressTracker(record);
+        const historyHtml = renderFinanceHistoryCards(record);
 
         $('previewTabContent').innerHTML = currentPreviewTab === 'attachments'
             ? attachmentsHtml
-            : `${moduleTrackingHtml}${detailItems}${moduleDetailCards}${detailAttachmentsHtml}${notesHtml}`;
+            : (currentPreviewTab === 'template'
+                ? templateHtml
+                : `${moduleTrackingHtml}${detailItems}${progressHtml}${moduleDetailCards}${detailAttachmentsHtml}${notesHtml}${historyHtml}`);
     }
 
     function updatePreviewTabButtons() {
         const detailsButton = $('previewTabDetails');
         const attachmentsButton = $('previewTabAttachments');
-        if (!detailsButton || !attachmentsButton) return;
+        const templateButton = $('previewTabTemplate');
+        if (!detailsButton || !attachmentsButton || !templateButton) return;
+
+        const hasTemplate = currentPreviewRecord?.module_key === 'supplier';
+        templateButton.classList.toggle('hidden', !hasTemplate);
+        if (!hasTemplate && currentPreviewTab === 'template') {
+            currentPreviewTab = 'details';
+        }
 
         const isDetails = currentPreviewTab === 'details';
+        const isAttachments = currentPreviewTab === 'attachments';
+        const isTemplate = currentPreviewTab === 'template';
         detailsButton.className = `rounded-full px-4 py-2 text-sm font-medium transition ${isDetails ? 'bg-white text-blue-700 shadow-sm border border-gray-200' : 'text-gray-600 hover:text-gray-900'}`;
-        attachmentsButton.className = `rounded-full px-4 py-2 text-sm font-medium transition ${!isDetails ? 'bg-white text-blue-700 shadow-sm border border-gray-200' : 'text-gray-600 hover:text-gray-900'}`;
+        attachmentsButton.className = `rounded-full px-4 py-2 text-sm font-medium transition ${isAttachments ? 'bg-white text-blue-700 shadow-sm border border-gray-200' : 'text-gray-600 hover:text-gray-900'}`;
+        templateButton.className = `${hasTemplate ? '' : 'hidden '}rounded-full px-4 py-2 text-sm font-medium transition ${isTemplate ? 'bg-white text-blue-700 shadow-sm border border-gray-200' : 'text-gray-600 hover:text-gray-900'}`;
     }
 
     function changePreviewTab(tab) {
-        currentPreviewTab = tab === 'attachments' ? 'attachments' : 'details';
+        currentPreviewTab = ['attachments', 'template'].includes(tab) ? tab : 'details';
         if (currentPreviewRecord) {
             if (currentPreviewTab === 'attachments') {
                 const firstPdf = (currentPreviewRecord.attachments || []).find((attachment) => {
@@ -9076,6 +9539,10 @@
 
         if (record.can_approve || record.can_review) {
             actions.push(`<button type="button" onclick="window.financeModule.approveFinanceRecord(${record.id})" class="w-full bg-green-600 text-white rounded-md py-2 hover:bg-green-700">Approve</button>`);
+        }
+
+        if (record.can_hold) {
+            actions.push(`<button type="button" onclick="window.financeModule.holdFinanceRecord(${record.id})" class="w-full bg-yellow-500 text-white rounded-md py-2 hover:bg-yellow-600">Hold</button>`);
         }
 
         if (record.can_revert || record.can_review) {
@@ -9181,15 +9648,24 @@
     async function saveFinanceRecord(event) {
         event.preventDefault();
         const form = $('financeForm');
+        if (!form.checkValidity()) {
+            form.reportValidity();
+            return;
+        }
+
         if (currentModuleKey === 'ca') {
             syncCashAdvanceHiddenRequestor();
             updateCashAdvanceReleaseValues();
         }
         const formData = new FormData(form);
+        const token = currentCsrfToken();
         const moduleConfig = getModuleConfig(currentModuleKey);
         const currentRecord = currentEditRecordId ? getRecordById(currentEditRecordId) : null;
         const sendToSupplier = isSupplierDispatchLayout(currentRecord);
 
+        if (token) {
+            formData.set('_token', token);
+        }
         formData.set('module_key', currentModuleKey);
         formData.set('data[completion_mode]', sendToSupplier ? 'send_to_supplier' : 'complete_internally');
 
@@ -9201,7 +9677,7 @@
             }
 
             formData.set('record_number', $('recordNumberInput').value.trim() || generateModuleRecordNumber(currentModuleKey));
-            formData.set('record_title', $('recordTitleInput').value.trim() || 'Supplier Completion');
+            formData.set('record_title', $('recordTitleInput').value.trim());
             formData.set('record_date', $('recordDateInput').value || new Date().toISOString().slice(0, 10));
             formData.set('amount', $('amountInput').value || '');
             formData.set('status', $('statusInput').value || 'Active');
@@ -9213,7 +9689,7 @@
             }
 
             formData.set('record_number', $('recordNumberInput').value.trim() || generateModuleRecordNumber(currentModuleKey));
-            formData.set('record_title', $('recordTitleInput').value.trim() || generateDefaultRecordTitle(currentModuleKey));
+            formData.set('record_title', $('recordTitleInput').value.trim());
             formData.set('record_date', $('recordDateInput').value);
             if (currentModuleKey !== 'dv') {
                 formData.set('amount', $('amountInput').value);
@@ -9231,10 +9707,9 @@
             formData.append('_method', 'PUT');
         }
 
-        const res = await fetch(endpoint, {
+        const res = await csrfFetch(endpoint, {
             method: 'POST',
             headers: {
-                'X-CSRF-TOKEN': csrfToken,
                 'Accept': 'application/json'
             },
             body: formData
@@ -9262,10 +9737,9 @@
     }
 
     async function submitFinanceRecord(id) {
-        const res = await fetch(`/finance/${id}/submit`, {
+        const res = await csrfFetch(`/finance/${id}/submit`, {
             method: 'POST',
             headers: {
-                'X-CSRF-TOKEN': csrfToken,
                 'Accept': 'application/json'
             }
         });
@@ -9282,10 +9756,9 @@
     }
 
     async function approveFinanceRecord(id) {
-        const res = await fetch(`/finance/${id}/approve`, {
+        const res = await csrfFetch(`/finance/${id}/approve`, {
             method: 'POST',
             headers: {
-                'X-CSRF-TOKEN': csrfToken,
                 'Accept': 'application/json'
             }
         });
@@ -9301,6 +9774,32 @@
         openPreview(data.data.id);
     }
 
+    async function holdFinanceRecord(id) {
+        const note = prompt('Enter the reason for placing this record on hold:');
+        if (!note) return;
+
+        const formData = new FormData();
+        formData.append('review_note', note);
+
+        const res = await csrfFetch(`/finance/${id}/hold`, {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json'
+            },
+            body: formData
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+            alert(data.message || 'Unable to place record on hold.');
+            return;
+        }
+
+        upsertFinanceRecord(data.data);
+        refreshFinanceView();
+        openPreview(data.data.id);
+    }
+
     async function revertFinanceRecord(id) {
         const note = prompt('Enter a review note for reverting this record:');
         if (!note) return;
@@ -9308,10 +9807,9 @@
         const formData = new FormData();
         formData.append('review_note', note);
 
-        const res = await fetch(`/finance/${id}/revert`, {
+        const res = await csrfFetch(`/finance/${id}/revert`, {
             method: 'POST',
             headers: {
-                'X-CSRF-TOKEN': csrfToken,
                 'Accept': 'application/json'
             },
             body: formData
@@ -9329,10 +9827,9 @@
     }
 
     async function archiveFinanceRecord(id) {
-        const res = await fetch(`/finance/${id}/archive`, {
+        const res = await csrfFetch(`/finance/${id}/archive`, {
             method: 'POST',
             headers: {
-                'X-CSRF-TOKEN': csrfToken,
                 'Accept': 'application/json'
             }
         });
@@ -9354,10 +9851,9 @@
         const formData = new FormData();
         formData.append('review_note', note);
 
-        const res = await fetch(`/finance/${id}/request-delete`, {
+        const res = await csrfFetch(`/finance/${id}/request-delete`, {
             method: 'POST',
             headers: {
-                'X-CSRF-TOKEN': csrfToken,
                 'Accept': 'application/json'
             },
             body: formData
@@ -9376,10 +9872,9 @@
     }
 
     async function shareSupplierRecord(id) {
-        const res = await fetch(`/finance/${id}/share-supplier-link`, {
+        const res = await csrfFetch(`/finance/${id}/share-supplier-link`, {
             method: 'POST',
             headers: {
-                'X-CSRF-TOKEN': csrfToken,
                 'Accept': 'application/json'
             }
         });
@@ -9402,10 +9897,9 @@
     }
 
     async function resendSupplierForm(id) {
-        const res = await fetch(`/finance/${id}/share-supplier-link`, {
+        const res = await csrfFetch(`/finance/${id}/share-supplier-link`, {
             method: 'POST',
             headers: {
-                'X-CSRF-TOKEN': csrfToken,
                 'Accept': 'application/json'
             }
         });
@@ -9438,10 +9932,9 @@
         const formData = new FormData();
         formData.append('email_address', email.trim());
 
-        const res = await fetch(`/finance/${id}/supplier-email`, {
+        const res = await csrfFetch(`/finance/${id}/supplier-email`, {
             method: 'POST',
             headers: {
-                'X-CSRF-TOKEN': csrfToken,
                 'Accept': 'application/json'
             },
             body: formData
@@ -9495,6 +9988,7 @@
                         .value { margin-top: 2px; font-weight: 600; }
                         .section { margin-top: 8px; }
                         .row { display: flex; justify-content: space-between; gap: 8px; border-bottom: 1px dashed #e5e7eb; padding: 3px 0; break-inside: avoid; }
+                        .audit-entry { border: 1px solid #e5e7eb; border-radius: 7px; padding: 6px; margin-bottom: 6px; break-inside: avoid; }
                     </style>
                 </head>
                 <body>
@@ -9532,6 +10026,8 @@
                                 </div>
                             `).join('')}
                         </div>
+
+                        ${renderFinanceHistoryPrintHtml(record)}
                     </div>
                     <script>window.onload = function(){ window.print(); };</script>
                 </body>
@@ -9574,6 +10070,7 @@
         const url = new URL(window.location.href);
         const moduleParam = url.searchParams.get('module');
         const workflowParam = url.searchParams.get('workflow_status');
+        const recordParam = url.searchParams.get('record');
 
         if (moduleParam && financeModules[moduleParam]) {
             currentModuleKey = moduleParam;
@@ -9589,6 +10086,9 @@
         requestAnimationFrame(() => {
             const activeTab = document.getElementById(`finance-tab-${currentModuleKey}`);
             activeTab?.scrollIntoView({ behavior: 'auto', inline: 'center', block: 'nearest' });
+            if (recordParam && getRecordById(recordParam)) {
+                openPreview(recordParam);
+            }
         });
     }
 
@@ -9618,6 +10118,7 @@
         saveFinanceRecord,
         submitFinanceRecord,
         approveFinanceRecord,
+        holdFinanceRecord,
         revertFinanceRecord,
         archiveFinanceRecord,
         requestDeleteFinanceRecord,

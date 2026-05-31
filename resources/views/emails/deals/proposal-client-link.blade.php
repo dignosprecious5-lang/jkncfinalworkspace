@@ -24,8 +24,7 @@
                     This secure link is active until <strong>{{ $expiresAt->format('F j, Y g:i A') }}</strong>.
                 </p>
                 <div style="margin:20px 0 0;font-size:13px;line-height:1.8;color:#64748b;">
-                    <p style="margin:0 0 8px;">ordo.jknc.io is the official system of John Kelly &amp; Company.</p>
-                    <p style="margin:0 0 8px;">This is a system-generated message. Do not reply to this email.</p>
+                    <p style="margin:0 0 8px;">For concerns, please contact the Finance Department of JK&amp;C Inc.</p>
                     <p style="margin:0;">For assistance, please contact your assigned JK&amp;C Associate or Consultant.</p>
                 </div>
             </div>

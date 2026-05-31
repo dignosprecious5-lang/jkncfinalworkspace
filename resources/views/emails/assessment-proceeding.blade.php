@@ -82,7 +82,7 @@
         </div>
         <div class="footer">
             &copy; {{ date('Y') }} John Kelly & Company. All rights reserved.<br>
-            This is an automated message, please do not reply directly to this email.
+            For concerns, please contact the Finance Department of JK&amp;C Inc.
         </div>
     </div>
 </body>

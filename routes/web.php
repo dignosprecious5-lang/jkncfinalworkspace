@@ -149,6 +149,11 @@ Route::post('/proposal/respond/{token}/approve', [DealProposalController::class,
 Route::post('/proposal/respond/{token}/quotation-upload', [DealProposalController::class, 'uploadClientQuotation'])->name('deals.proposal.client.quotation-upload');
 Route::get('/proposal/respond/{token}/download', [DealProposalController::class, 'downloadClientProposal'])->name('deals.proposal.client.download');
 
+Route::get('/finance/supplier/completion/{token}', [FinanceController::class, 'supplierCompletionForm'])
+    ->name('finance.supplier.completion');
+Route::post('/finance/supplier/completion/{token}', [FinanceController::class, 'submitSupplierCompletion'])
+    ->name('finance.supplier.completion.submit');
+
 /*
 |--------------------------------------------------------------------------
 | ACTIVITIES PAGE + API
@@ -250,6 +255,27 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     */
     Route::get('/change-password', [ChangePasswordController::class, 'edit'])->name('password.change');
     Route::post('/change-password', [ChangePasswordController::class, 'update'])->name('password.change.update');
+    Route::post('/notifications/read-all', function () {
+        if (\Illuminate\Support\Facades\Schema::hasTable('notifications')) {
+            Auth::user()->unreadNotifications()->update(['read_at' => now()]);
+        }
+
+        return back();
+    })->name('notifications.read-all');
+    Route::post('/notifications/{notification}/read', function (\Illuminate\Notifications\DatabaseNotification $notification) {
+        $user = Auth::user();
+
+        if (
+            $notification->notifiable_type !== $user->getMorphClass()
+            || (string) $notification->notifiable_id !== (string) $user->getKey()
+        ) {
+            abort(403, 'Unauthorized');
+        }
+
+        $notification->markAsRead();
+
+        return redirect(data_get($notification->data, 'url') ?: url()->previous());
+    })->name('notifications.read');
 
     /*
     |--------------------------------------------------------------------------
@@ -901,22 +927,19 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::get('/finance', [FinanceController::class, 'index'])->name('finance');
     Route::post('/finance/dropdown-settings', [FinanceController::class, 'updateDropdownSettings'])->name('finance.dropdown-settings.update');
     Route::get('/finance/{financeRecord}', [FinanceController::class, 'show'])->name('finance.show');
+    Route::get('/finance/{financeRecord}/record', [FinanceController::class, 'openRecord'])->name('finance.record.open');
     Route::get('/finance/{financeRecord}/preview-html', [FinanceController::class, 'previewHtml'])->name('finance.preview.html');
     Route::get('/finance/{financeRecord}/preview-pdf', [FinanceController::class, 'previewPdf'])->name('finance.preview.pdf');
     Route::post('/finance', [FinanceController::class, 'store'])->name('finance.store');
     Route::put('/finance/{financeRecord}', [FinanceController::class, 'update'])->name('finance.update');
     Route::post('/finance/{financeRecord}/submit', [FinanceController::class, 'submit'])->name('finance.submit');
     Route::post('/finance/{financeRecord}/approve', [FinanceController::class, 'approve'])->name('finance.approve');
+    Route::post('/finance/{financeRecord}/hold', [FinanceController::class, 'hold'])->name('finance.hold');
     Route::post('/finance/{financeRecord}/revert', [FinanceController::class, 'revert'])->name('finance.revert');
     Route::post('/finance/{financeRecord}/archive', [FinanceController::class, 'archive'])->name('finance.archive');
     Route::post('/finance/{financeRecord}/request-delete', [FinanceController::class, 'requestDelete'])->name('finance.delete.request');
     Route::post('/finance/{financeRecord}/share-supplier-link', [FinanceController::class, 'shareSupplierLink'])->name('finance.supplier.share');
     Route::post('/finance/{financeRecord}/supplier-email', [FinanceController::class, 'updateSupplierEmailAndResend'])->name('finance.supplier.email');
-
-    Route::get('/finance/supplier/completion/{token}', [FinanceController::class, 'supplierCompletionForm'])
-        ->name('finance.supplier.completion');
-    Route::post('/finance/supplier/completion/{token}', [FinanceController::class, 'submitSupplierCompletion'])
-        ->name('finance.supplier.completion.submit');
 
     Route::get('/banking/data', [BankingController::class, 'index'])->name('banking.index');
     Route::post('/banking/store', [BankingController::class, 'store'])->name('banking.store');

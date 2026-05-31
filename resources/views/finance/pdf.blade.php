@@ -648,6 +648,26 @@
             @endforeach
         </table>
 
+        @if(empty($isTemplatePreview) && !empty($transactionProgress))
+            <div class="section-box">
+                <div class="section-title">Transaction Progress Tracker</div>
+                <div class="section-body">
+                    <table class="line-table">
+                        <tr>
+                            <th>Step</th>
+                            <th>Status</th>
+                        </tr>
+                        @foreach($transactionProgress as $step)
+                            <tr>
+                                <td>{{ data_get($step, 'label') ?: 'Step' }}</td>
+                                <td>{{ data_get($step, 'completed') ? 'Completed' : (data_get($step, 'state') === 'current' ? 'Current' : 'Pending') }}</td>
+                            </tr>
+                        @endforeach
+                    </table>
+                </div>
+            </div>
+        @endif
+
         @if($record->module_key === 'ca')
             <div class="section-box">
                 <div class="section-title">Cash Advance Payment Tracking</div>
@@ -1188,6 +1208,73 @@
                             </div>
                         </div>
                     </div>
+                </div>
+            </div>
+        @endif
+
+        @php
+            $historyEntries = collect(data_get($record->data ?? [], 'history', []))
+                ->filter(fn ($entry) => is_array($entry))
+                ->reverse()
+                ->take(10)
+                ->values();
+
+            $historyValue = function ($value) {
+                if (is_null($value) || $value === '') {
+                    return 'Blank';
+                }
+
+                if (is_array($value)) {
+                    return json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+                }
+
+                return (string) $value;
+            };
+        @endphp
+
+        @if(empty($isTemplatePreview) && $historyEntries->isNotEmpty())
+            <div class="section-box">
+                <div class="section-title">Record History / Audit Trail</div>
+                <div class="section-body">
+                    @foreach($historyEntries as $entry)
+                        @php
+                            $entryChanges = (array) data_get($entry, 'changes', []);
+                            $changes = collect($entryChanges)
+                                ->filter(fn ($change) => is_array($change))
+                                ->take(6)
+                                ->values();
+                            $remainingChanges = max(count($entryChanges) - $changes->count(), 0);
+                        @endphp
+                        <div style="border:1px solid #dbe2ea;border-radius:8px;padding:7px;margin-bottom:7px;page-break-inside:avoid;">
+                            <div class="detail-value">{{ data_get($entry, 'action') ?: 'Action' }}</div>
+                            <div class="muted">{{ data_get($entry, 'changed_by') ?: 'System' }} | {{ data_get($entry, 'changed_at') ?: 'N/A' }} | {{ data_get($entry, 'module') ?: $record->module_key }}</div>
+                            @if(data_get($entry, 'reason'))
+                                <div class="muted" style="color:#92400e;margin-top:3px;">Reason: {{ data_get($entry, 'reason') }}</div>
+                            @endif
+
+                            @if($changes->isNotEmpty())
+                                <table class="detail-table" style="margin-top:6px;">
+                                    <tr>
+                                        <td><div class="detail-label">Field</div></td>
+                                        <td><div class="detail-label">Old Value</div></td>
+                                        <td><div class="detail-label">New Value</div></td>
+                                    </tr>
+                                    @foreach($changes as $change)
+                                        <tr>
+                                            <td><div class="detail-value">{{ str_replace('_', ' ', data_get($change, 'field') ?: 'Field') }}</div></td>
+                                            <td><div class="detail-value">{{ $historyValue(data_get($change, 'old_value')) }}</div></td>
+                                            <td><div class="detail-value">{{ $historyValue(data_get($change, 'new_value')) }}</div></td>
+                                        </tr>
+                                    @endforeach
+                                </table>
+                                @if($remainingChanges > 0)
+                                    <div class="muted" style="margin-top:4px;">+{{ $remainingChanges }} more change(s)</div>
+                                @endif
+                            @else
+                                <div class="muted" style="margin-top:4px;">No field-level changes were captured for this action.</div>
+                            @endif
+                        </div>
+                    @endforeach
                 </div>
             </div>
         @endif

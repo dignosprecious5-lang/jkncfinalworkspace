@@ -22,6 +22,10 @@ return Application::configure(basePath: dirname(__DIR__))
                 | Request::HEADER_X_FORWARDED_AWS_ELB
         );
 
+        $middleware->validateCsrfTokens(except: [
+            'finance/supplier/completion/*',
+        ]);
+
         $middleware->alias([
             'prevent-back-history' => \App\Http\Middleware\PreventBackHistory::class,
         ]);

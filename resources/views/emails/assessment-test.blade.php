@@ -115,7 +115,7 @@
                 <a href="{{ $testUrl }}" class="btn">Start Assessment Test</a>
             </div>
             
-            <p>The link will remain active for the next 48 hours. If you encounter any technical difficulties, please reply to this email or contact our support team.</p>
+            <p>The link will remain active for the next 48 hours. For concerns, please contact the Finance Department of JK&amp;C Inc.</p>
             
             <p>Good luck!</p>
             
@@ -125,7 +125,7 @@
         </div>
         <div class="footer">
             &copy; {{ date('Y') }} John Kelly & Company. All rights reserved.<br>
-            This is an automated message, please do not reply directly to this email.
+            For concerns, please contact the Finance Department of JK&amp;C Inc.
         </div>
     </div>
 </body>

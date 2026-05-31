@@ -79,6 +79,7 @@
                         <div class="inline-flex rounded-full border border-gray-200 bg-gray-50 p-1 mb-4 shadow-sm">
                             <button type="button" id="previewTabDetails" onclick="window.financeModule.changePreviewTab('details')" class="rounded-full px-4 py-2 text-sm font-medium transition bg-white text-blue-700 shadow-sm border border-gray-200">Details</button>
                             <button type="button" id="previewTabAttachments" onclick="window.financeModule.changePreviewTab('attachments')" class="rounded-full px-4 py-2 text-sm font-medium transition text-gray-600 hover:text-gray-900">Attachments</button>
+                            <button type="button" id="previewTabTemplate" onclick="window.financeModule.changePreviewTab('template')" class="hidden rounded-full px-4 py-2 text-sm font-medium transition text-gray-600 hover:text-gray-900">Template</button>
                         </div>
 
                         <div id="previewTabContent"></div>

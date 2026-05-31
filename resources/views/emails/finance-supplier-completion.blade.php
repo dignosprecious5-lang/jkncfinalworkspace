@@ -21,6 +21,9 @@
                 We have prepared a supplier completion form for <strong>{{ $record->record_title ?: 'your supplier record' }}</strong>.
                 Please click the button below to review and fill out the remaining details.
             </p>
+            <p>
+                A PDF copy of the current form is attached for reference.
+            </p>
 
             <table cellpadding="8" cellspacing="0" border="0" style="border-collapse: collapse; margin: 20px 0;">
                 <tr>
@@ -44,8 +47,11 @@
             </p>
 
             <p style="margin-top: 24px;">
+                For concerns, please contact the Finance Department of JK&amp;C Inc.
+            </p>
+
+            <p style="margin-top: 24px;">
                 Thank you,<br>
-                John Kelly &amp; Company<br>
                 JK&amp;C INC.
             </p>
         </div>

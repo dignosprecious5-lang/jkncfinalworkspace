@@ -13,16 +13,20 @@ use App\Models\PayrollPeriod;
 use App\Models\PayrollSummary;
 use App\Models\PayrollSummaryItem;
 use App\Models\Setting;
+use App\Models\User;
+use App\Notifications\FinanceRecordWorkflowNotification;
 use App\Services\PayrollCalculator;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Str;
+use Throwable;
 
 class FinanceController extends Controller
 {
@@ -47,6 +51,7 @@ class FinanceController extends Controller
     private const WORKFLOW_STATUSES = [
         'Uploaded',
         'Submitted',
+        'On Hold',
         'Shared',
         'Accepted',
         'Reverted',
@@ -60,6 +65,73 @@ class FinanceController extends Controller
     private function canApproveFinance(): bool
     {
         return $this->canAdministerFinance();
+    }
+
+    private function financeApprovalThreshold(string $moduleKey): int
+    {
+        return in_array($moduleKey, $this->moduleKeys(), true) ? 2 : 1;
+    }
+
+    private function defaultFinanceApprovalSteps(array $data = []): array
+    {
+        $existing = array_values((array) data_get($data, 'approval_steps', []));
+
+        if (count($existing) >= 2) {
+            return $existing;
+        }
+
+        return [
+            [
+                'role' => 'Treasurer',
+                'label' => 'Treasurer',
+                'required' => true,
+            ],
+            [
+                'role' => 'President',
+                'label' => 'President',
+                'required' => true,
+            ],
+        ];
+    }
+
+    private function initializeFinanceApprovalState(array $data, string $moduleKey): array
+    {
+        $data['approval_steps'] = $this->defaultFinanceApprovalSteps($data);
+        $data['approval_required_count'] = $this->financeApprovalThreshold($moduleKey);
+        $data['approval_actions'] = array_values((array) data_get($data, 'approval_actions', []));
+
+        return $data;
+    }
+
+    private function financeApprovalActions(FinanceRecord $record): array
+    {
+        return array_values(array_filter((array) data_get($record->data ?? [], 'approval_actions', []), 'is_array'));
+    }
+
+    private function financeUserApprovalRole(): string
+    {
+        $user = Auth::user();
+        $position = trim((string) ($user?->position ?: $user?->employeeProfile?->position ?: ''));
+        $name = trim((string) ($user?->name ?: ''));
+        $haystack = Str::lower($position . ' ' . $name);
+
+        if (Str::contains($haystack, 'treasurer')) {
+            return 'Treasurer';
+        }
+
+        if (Str::contains($haystack, 'president')) {
+            return 'President';
+        }
+
+        return $position ?: 'Finance Approver';
+    }
+
+    private function currentUserHasApprovedFinanceRecord(FinanceRecord $record): bool
+    {
+        $userId = Auth::id();
+
+        return collect($this->financeApprovalActions($record))
+            ->contains(fn (array $action) => (int) data_get($action, 'approved_by') === (int) $userId);
     }
 
     private function canAdministerFinance(): bool
@@ -149,7 +221,7 @@ class FinanceController extends Controller
     private function moduleRecordTitleLabel(string $moduleKey): string
     {
         return match ($moduleKey) {
-            'supplier' => 'Supplier Name',
+            'supplier' => 'Registered Business Name',
             'service' => 'Service Name',
             'product' => 'Product Name',
             'chart_account' => 'Account Name',
@@ -166,6 +238,128 @@ class FinanceController extends Controller
             'arf' => 'Asset Name',
             default => 'Record Name',
         };
+    }
+
+    private function recordTitleRequiredModules(): array
+    {
+        return ['supplier', 'service', 'product', 'chart_account', 'bank_account'];
+    }
+
+    private function recordTitleLooksLikePlaceholder(string $moduleKey, ?string $recordTitle): bool
+    {
+        $title = Str::lower(trim((string) $recordTitle));
+
+        if ($title === '') {
+            return false;
+        }
+
+        $placeholderTitles = [
+            Str::lower($this->moduleRecordTitleLabel($moduleKey)),
+            Str::lower($this->moduleLabel($moduleKey)),
+        ];
+
+        if ($moduleKey === 'supplier') {
+            $placeholderTitles[] = 'supplier completion';
+            $placeholderTitles[] = 'supplier name';
+        }
+
+        return in_array($title, array_unique($placeholderTitles), true);
+    }
+
+    private function cleanRecordTitleForDisplay(string $moduleKey, ?string $recordTitle): string
+    {
+        return $this->recordTitleLooksLikePlaceholder($moduleKey, $recordTitle)
+            ? ''
+            : trim((string) $recordTitle);
+    }
+
+    private function financeHistoryActor(): string
+    {
+        $user = Auth::user();
+
+        return $user?->name ?: $user?->email ?: 'System';
+    }
+
+    private function financeHistorySnapshot(array $values): array
+    {
+        $snapshot = [];
+        $cleanHistoryValue = function (array $items) use (&$cleanHistoryValue): array {
+            $cleaned = [];
+
+            foreach ($items as $key => $value) {
+                if (in_array((string) $key, ['history', 'dv_payload'], true)) {
+                    continue;
+                }
+
+                $cleaned[$key] = is_array($value) ? $cleanHistoryValue($value) : $value;
+            }
+
+            return $cleaned;
+        };
+        $walk = function (array $items, string $prefix = '') use (&$snapshot, &$walk, $cleanHistoryValue): void {
+            foreach ($items as $key => $value) {
+                if (in_array((string) $key, ['history', 'dv_payload'], true)) {
+                    continue;
+                }
+
+                $field = $prefix === '' ? (string) $key : "{$prefix}.{$key}";
+
+                if (is_array($value)) {
+                    $value = $cleanHistoryValue($value);
+                    $hasNested = collect($value)->contains(fn ($nested) => is_array($nested));
+                    if ($hasNested) {
+                        $snapshot[$field] = json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+                    } else {
+                        $snapshot[$field] = implode(', ', array_map(fn ($item) => is_bool($item) ? ($item ? 'Yes' : 'No') : (string) $item, $value));
+                    }
+                    continue;
+                }
+
+                $snapshot[$field] = is_bool($value) ? ($value ? 'Yes' : 'No') : (string) ($value ?? '');
+            }
+        };
+
+        $walk($values);
+
+        return $snapshot;
+    }
+
+    private function appendFinanceHistoryEntry(array $data, string $action, string $moduleKey, array $oldValues = [], array $newValues = [], ?string $reason = null): array
+    {
+        $oldSnapshot = $this->financeHistorySnapshot($oldValues);
+        $newSnapshot = $this->financeHistorySnapshot($newValues);
+        $fieldNames = array_unique(array_merge(array_keys($oldSnapshot), array_keys($newSnapshot)));
+        $changes = [];
+
+        foreach ($fieldNames as $fieldName) {
+            $oldValue = $oldSnapshot[$fieldName] ?? '';
+            $newValue = $newSnapshot[$fieldName] ?? '';
+
+            if ($oldValue === $newValue && $action !== 'Created') {
+                continue;
+            }
+
+            $changes[] = [
+                'field' => $fieldName,
+                'old_value' => $action === 'Created' ? null : $oldValue,
+                'new_value' => $newValue,
+            ];
+        }
+
+        $history = array_values((array) data_get($data, 'history', []));
+        $history[] = [
+            'action' => $action,
+            'module' => $moduleKey,
+            'changed_by' => $this->financeHistoryActor(),
+            'changed_by_id' => Auth::id(),
+            'changed_at' => now()->format('Y-m-d H:i:s'),
+            'reason' => $reason,
+            'changes' => $changes,
+        ];
+
+        $data['history'] = $history;
+
+        return $data;
     }
 
     private function financePdfImageDataUri(string $relativePath): ?string
@@ -365,6 +559,389 @@ SVG;
             ->find((int) $recordId);
     }
 
+    private function financeRecordIsApproved(?FinanceRecord $record): bool
+    {
+        return $record
+            && (($record->workflow_status ?? '') === 'Accepted'
+                || ($record->approval_status ?? '') === 'Approved');
+    }
+
+    private function financeRecordIsReleased(?FinanceRecord $record): bool
+    {
+        if (!$record) {
+            return false;
+        }
+
+        $status = Str::lower((string) ($record->status ?? ''));
+        $workflow = Str::lower((string) ($record->workflow_status ?? ''));
+        $relationshipStatus = Str::lower((string) data_get($record->data ?? [], 'relationship_status'));
+        $paymentStatus = Str::lower((string) data_get($record->data ?? [], 'ca_payment_status', data_get($record->data ?? [], 'payment_status')));
+
+        return collect([$status, $workflow, $relationshipStatus, $paymentStatus])
+            ->contains(fn ($value) => in_array($value, [
+                'released',
+                'paid',
+                'disbursed',
+                'fully released',
+                'completed',
+                'closed',
+            ], true));
+    }
+
+    private function financeRecordIsFinalLocked(FinanceRecord $record): bool
+    {
+        if (in_array($record->workflow_status ?? 'Uploaded', ['Delete Requested', 'Deleted'], true)) {
+            return true;
+        }
+
+        $status = Str::lower((string) ($record->status ?? ''));
+        $relationshipStatus = Str::lower((string) data_get($record->data ?? [], 'relationship_status'));
+
+        return collect([$status, $relationshipStatus])
+            ->contains(fn ($value) => in_array($value, [
+                'completed',
+                'paid',
+                'disbursed',
+                'liquidated',
+                'closed',
+            ], true));
+    }
+
+    private function financeOwnLinkedRecordIds(FinanceRecord $record): array
+    {
+        $data = $record->data ?? [];
+        $ids = [];
+
+        foreach (['linked_pr_id', 'linked_po_id', 'linked_ca_id', 'linked_lr_id', 'linked_dv_id', 'source_document_id'] as $field) {
+            $value = data_get($data, $field);
+            if (!blank($value) && is_numeric($value)) {
+                $ids[] = (int) $value;
+            }
+        }
+
+        return array_values(array_unique(array_filter($ids, fn ($id) => $id > 0)));
+    }
+
+    private function financeRecordsLinkedTo(FinanceRecord $record): \Illuminate\Support\Collection
+    {
+        return FinanceRecord::query()
+            ->where('id', '!=', $record->id)
+            ->where('workflow_status', '!=', 'Deleted')
+            ->get()
+            ->filter(fn (FinanceRecord $candidate) => in_array((int) $record->id, $this->financeOwnLinkedRecordIds($candidate), true))
+            ->values();
+    }
+
+    private function financeLifecycleRecordIds(FinanceRecord $record): array
+    {
+        $seen = [(int) $record->id => true];
+        $queue = [(int) $record->id];
+        $guard = 0;
+
+        while ($queue && $guard < 100) {
+            $guard++;
+            $current = FinanceRecord::query()->find(array_shift($queue));
+
+            if (!$current) {
+                continue;
+            }
+
+            $linkedIds = $this->financeOwnLinkedRecordIds($current);
+            $linkedIds = array_merge(
+                $linkedIds,
+                $this->financeRecordsLinkedTo($current)->pluck('id')->map(fn ($id) => (int) $id)->all()
+            );
+
+            foreach (array_unique($linkedIds) as $linkedId) {
+                if ($linkedId <= 0 || isset($seen[$linkedId])) {
+                    continue;
+                }
+
+                $seen[$linkedId] = true;
+                $queue[] = $linkedId;
+            }
+        }
+
+        return array_keys($seen);
+    }
+
+    private function financeRelatedRecords(string $moduleKey, callable $filter): \Illuminate\Support\Collection
+    {
+        return FinanceRecord::query()
+            ->where('module_key', $moduleKey)
+            ->where('workflow_status', '!=', 'Deleted')
+            ->orderByDesc('created_at')
+            ->get()
+            ->filter($filter)
+            ->values();
+    }
+
+    private function financeFirstRelatedRecord(string $moduleKey, callable $filter): ?FinanceRecord
+    {
+        return $this->financeRelatedRecords($moduleKey, $filter)->first();
+    }
+
+    private function financeFirstDvForSource(string $moduleKey, mixed $recordId): ?FinanceRecord
+    {
+        return $this->financeFirstRelatedRecord('dv', function (FinanceRecord $record) use ($moduleKey, $recordId) {
+            return (string) data_get($record->data ?? [], 'source_document_type') === $moduleKey
+                && (string) data_get($record->data ?? [], 'source_document_id') === (string) $recordId;
+        });
+    }
+
+    private function financeFirstPoForPr(mixed $recordId): ?FinanceRecord
+    {
+        return $this->financeFirstRelatedRecord('po', fn (FinanceRecord $record) => (string) data_get($record->data ?? [], 'linked_pr_id') === (string) $recordId);
+    }
+
+    private function financeFirstLiquidationForCa(mixed $recordId): ?FinanceRecord
+    {
+        return $this->financeFirstRelatedRecord('lr', fn (FinanceRecord $record) => (string) data_get($record->data ?? [], 'linked_ca_id') === (string) $recordId);
+    }
+
+    private function financeLifecycleLinkedRecords(FinanceRecord $record): array
+    {
+        $data = $record->data ?? [];
+        $po = $record->module_key === 'pr'
+            ? $this->financeFirstPoForPr($record->id)
+            : $this->financeResolveModuleRecord('po', data_get($data, 'linked_po_id'));
+
+        $dv = match ($record->module_key) {
+            'dv' => $record,
+            'pr' => $po ? $this->financeFirstDvForSource('po', $po->id) : null,
+            'po', 'ca', 'err', 'pda', 'ibtf' => $this->financeFirstDvForSource($record->module_key, $record->id),
+            'lr', 'arf' => $this->financeResolveModuleRecord('dv', data_get($data, 'linked_dv_id')),
+            default => null,
+        };
+
+        $ca = $record->module_key === 'ca'
+            ? $record
+            : $this->financeResolveModuleRecord('ca', data_get($data, 'linked_ca_id'));
+
+        $lr = $record->module_key === 'lr'
+            ? $record
+            : ($ca ? $this->financeFirstLiquidationForCa($ca->id) : $this->financeResolveModuleRecord('lr', data_get($data, 'linked_lr_id')));
+
+        $arf = $this->financeFirstRelatedRecord('arf', function (FinanceRecord $candidate) use ($po, $dv) {
+            return ($po && (string) data_get($candidate->data ?? [], 'linked_po_id') === (string) $po->id)
+                || ($dv && (string) data_get($candidate->data ?? [], 'linked_dv_id') === (string) $dv->id);
+        });
+
+        return compact('po', 'dv', 'ca', 'lr', 'arf');
+    }
+
+    private function financeDerivedRelationshipStatus(FinanceRecord $record): string
+    {
+        if (($record->workflow_status ?? '') === 'Deleted') {
+            return 'Cancelled';
+        }
+
+        if (in_array(Str::lower((string) ($record->status ?? '')), ['cancelled', 'inactive'], true)) {
+            return 'Cancelled';
+        }
+
+        ['po' => $po, 'dv' => $dv, 'ca' => $ca, 'lr' => $lr, 'arf' => $arf] = $this->financeLifecycleLinkedRecords($record);
+
+        if ($record->module_key === 'pr') {
+            if (!$this->financeRecordIsApproved($record)) {
+                return $record->workflow_status ?: 'Draft';
+            }
+
+            if (!$po) {
+                return 'Awaiting Purchase Order';
+            }
+
+            if (!$this->financeRecordIsApproved($po)) {
+                return 'Converted to Purchase Order';
+            }
+
+            if (!$dv) {
+                return 'Purchase Order Approved';
+            }
+
+            if (!$this->financeRecordIsApproved($dv)) {
+                return 'For Payment Processing';
+            }
+
+            return $this->financeRecordIsReleased($dv)
+                ? ($arf && $this->financeRecordIsApproved($arf) ? 'Completed' : 'Disbursed')
+                : 'Approved for Payment';
+        }
+
+        if ($record->module_key === 'po') {
+            if (!$this->financeRecordIsApproved($record)) {
+                return $record->workflow_status ?: 'Draft';
+            }
+
+            if (!$dv) {
+                return 'Awaiting Disbursement';
+            }
+
+            if (!$this->financeRecordIsApproved($dv)) {
+                return 'Pending Disbursement';
+            }
+
+            return $this->financeRecordIsReleased($dv)
+                ? ($arf && $this->financeRecordIsApproved($arf) ? 'Completed' : 'Disbursed')
+                : 'Approved for Payment';
+        }
+
+        if ($record->module_key === 'dv') {
+            return $this->financeRecordIsReleased($record)
+                ? 'Disbursed'
+                : ($this->financeRecordIsApproved($record) ? 'Approved' : 'Pending Approval');
+        }
+
+        if ($record->module_key === 'ca') {
+            if (!$this->financeRecordIsApproved($record)) {
+                return $record->workflow_status ?: 'Draft';
+            }
+
+            if (!$dv) {
+                return 'Awaiting Disbursement';
+            }
+
+            if (!$this->financeRecordIsApproved($dv)) {
+                return 'Pending Disbursement';
+            }
+
+            if (!$this->financeRecordIsReleased($record) && !$this->financeRecordIsReleased($dv)) {
+                return 'Approved for Release';
+            }
+
+            if (!$lr) {
+                return 'Awaiting Liquidation';
+            }
+
+            return $this->financeRecordIsApproved($lr) ? 'Completed' : 'Awaiting Liquidation Approval';
+        }
+
+        if ($record->module_key === 'lr') {
+            return $this->financeRecordIsApproved($record) ? 'Completed' : ($record->workflow_status ?: 'Draft');
+        }
+
+        if (in_array($record->module_key, ['err', 'pda', 'ibtf'], true)) {
+            if (!$this->financeRecordIsApproved($record)) {
+                return $record->workflow_status ?: 'Draft';
+            }
+
+            if (!$dv) {
+                return 'Awaiting Disbursement Voucher';
+            }
+
+            if (!$this->financeRecordIsApproved($dv)) {
+                return 'Pending Disbursement';
+            }
+
+            return $this->financeRecordIsReleased($dv) ? 'Completed' : 'Approved for Payment';
+        }
+
+        if ($record->module_key === 'arf') {
+            return $this->financeRecordIsApproved($record) ? 'Completed' : ($record->workflow_status ?: 'Draft');
+        }
+
+        return $this->financeRecordIsApproved($record) ? 'Completed' : ($record->workflow_status ?: 'Draft');
+    }
+
+    private function financeDerivedNextAction(string $relationshipStatus): string
+    {
+        return match ($relationshipStatus) {
+            'Awaiting Purchase Order' => 'Create Purchase Order',
+            'Converted to Purchase Order' => 'Approve Purchase Order',
+            'Purchase Order Approved', 'Awaiting Disbursement', 'Awaiting Disbursement Voucher' => 'Create Disbursement Voucher',
+            'For Payment Processing', 'Pending Disbursement', 'Pending Approval' => 'Approve Disbursement Voucher',
+            'Approved for Release', 'Approved for Payment', 'Approved' => 'Release Funds',
+            'Disbursed', 'Awaiting Liquidation' => 'Submit Liquidation Report',
+            'Awaiting Liquidation Approval' => 'Approve Liquidation Report',
+            'Completed' => 'No further action',
+            'Cancelled' => 'No further action',
+            default => 'Continue workflow',
+        };
+    }
+
+    private function financeProgressTracker(FinanceRecord $record, string $relationshipStatus): array
+    {
+        ['dv' => $dv, 'lr' => $lr] = $this->financeLifecycleLinkedRecords($record);
+        $isApproved = $this->financeRecordIsApproved($record);
+        $dvCreated = $record->module_key === 'dv' || (bool) $dv;
+        $dvApproved = $record->module_key === 'dv'
+            ? $this->financeRecordIsApproved($record)
+            : $this->financeRecordIsApproved($dv);
+        $fundsReleased = $this->financeRecordIsReleased($record) || $this->financeRecordIsReleased($dv);
+        $liquidatedOrReceived = $this->financeRecordIsApproved($lr)
+            || filled(data_get(($dv ?: $record)->data ?? [], 'received_by_name'))
+            || filled(data_get(($dv ?: $record)->data ?? [], 'date_received'));
+        $completed = $relationshipStatus === 'Completed'
+            || in_array(Str::lower((string) ($record->status ?? '')), ['completed', 'paid', 'liquidated', 'closed'], true);
+
+        $steps = [
+            ['label' => 'Request Created', 'completed' => true],
+            ['label' => 'Submitted', 'completed' => filled($record->submitted_at) || $isApproved],
+            ['label' => 'Approved', 'completed' => $isApproved],
+            ['label' => 'Disbursement Voucher Created', 'completed' => $dvCreated],
+            ['label' => 'Disbursement Voucher Approved', 'completed' => $dvApproved],
+            ['label' => 'Funds Released', 'completed' => $fundsReleased],
+            ['label' => 'Liquidated / Received', 'completed' => $liquidatedOrReceived],
+            ['label' => 'Completed', 'completed' => $completed],
+        ];
+
+        $firstPending = collect($steps)->search(fn (array $step) => !$step['completed']);
+
+        return array_map(function (array $step, int $index) use ($firstPending) {
+            $step['state'] = $step['completed']
+                ? 'completed'
+                : ($firstPending === $index ? 'current' : 'pending');
+
+            return $step;
+        }, $steps, array_keys($steps));
+    }
+
+    private function financeLifecycleSnapshot(FinanceRecord $record): array
+    {
+        $relationshipStatus = $this->financeDerivedRelationshipStatus($record);
+
+        return [
+            'relationship_status' => $relationshipStatus,
+            'next_action' => $this->financeDerivedNextAction($relationshipStatus),
+            'transaction_progress' => $this->financeProgressTracker($record, $relationshipStatus),
+            'related_record_ids' => array_values(array_diff($this->financeLifecycleRecordIds($record), [(int) $record->id])),
+        ];
+    }
+
+    private function syncFinanceRelationshipLifecycle(FinanceRecord $record): void
+    {
+        $rootRecord = $record->fresh() ?: $record;
+
+        foreach ($this->financeLifecycleRecordIds($rootRecord) as $recordId) {
+            $linkedRecord = FinanceRecord::query()->find($recordId);
+
+            if (!$linkedRecord) {
+                continue;
+            }
+
+            $oldData = $linkedRecord->data ?? [];
+            $snapshot = $this->financeLifecycleSnapshot($linkedRecord);
+            $hasChanged = collect($snapshot)->contains(function ($value, $key) use ($oldData) {
+                return json_encode(data_get($oldData, $key)) !== json_encode($value);
+            });
+
+            if (!$hasChanged) {
+                continue;
+            }
+
+            $newData = array_merge($oldData, $snapshot);
+            $newData = $this->appendFinanceHistoryEntry($newData, 'Relationship Status Updated', $linkedRecord->module_key, [
+                'relationship_status' => data_get($oldData, 'relationship_status'),
+                'next_action' => data_get($oldData, 'next_action'),
+            ], [
+                'relationship_status' => $snapshot['relationship_status'],
+                'next_action' => $snapshot['next_action'],
+            ]);
+
+            $linkedRecord->update(['data' => $newData]);
+        }
+    }
+
     private function financeLegacyLineItems(FinanceRecord $record): array
     {
         $data = $record->data ?? [];
@@ -524,7 +1101,7 @@ SVG;
         }, $groups));
     }
 
-    private function financePreviewSections(FinanceRecord $record, array $lookupOptions): array
+    private function financePreviewSections(FinanceRecord $record, array $lookupOptions, bool $forceSupplierTemplate = false): array
     {
         $moduleKey = $record->module_key;
         $data = $record->data ?? [];
@@ -544,7 +1121,7 @@ SVG;
         };
 
         return match ($moduleKey) {
-            'supplier' => data_get($data, 'completion_mode') === 'send_to_supplier' && blank($record->supplier_completed_at)
+            'supplier' => data_get($data, 'completion_mode') === 'send_to_supplier' && blank($record->supplier_completed_at) && ! $forceSupplierTemplate
                 ? []
                 : [
                     $section('Supplier Profile', [
@@ -927,15 +1504,41 @@ SVG;
                 $notesSection,
             ],
             'arf' => [
-                $section('Asset Details', [
+                $section('Asset / Inventory Details', [
                     ['name' => 'linked_po_id', 'label' => 'Linked PO'],
                     ['name' => 'linked_dv_id', 'label' => 'Linked DV'],
                     ['name' => 'supplier_id', 'label' => 'Supplier'],
+                    ['name' => 'item_classification', 'label' => 'Item Classification'],
                     ['name' => 'asset_code', 'label' => 'Asset Code'],
+                    ['name' => 'item_name', 'label' => 'Item Name'],
+                    ['name' => 'item_code', 'label' => 'Item Code'],
+                    ['name' => 'sku', 'label' => 'SKU'],
+                    ['name' => 'barcode', 'label' => 'Barcode'],
+                    ['name' => 'qr_code', 'label' => 'QR Code'],
                     ['name' => 'asset_description', 'label' => 'Asset Description'],
-                    ['name' => 'asset_category', 'label' => 'Asset Category'],
+                    ['name' => 'asset_category', 'label' => 'Category'],
                     ['name' => 'serial_number', 'label' => 'Serial Number'],
                     ['name' => 'model', 'label' => 'Model'],
+                ]),
+                $section('Inventory & Goods Receiving', [
+                    ['name' => 'goods_receiving_reference', 'label' => 'Goods Receiving Reference'],
+                    ['name' => 'ordered_quantity', 'label' => 'Ordered Quantity'],
+                    ['name' => 'delivered_quantity', 'label' => 'Delivered Quantity'],
+                    ['name' => 'accepted_quantity', 'label' => 'Accepted Quantity'],
+                    ['name' => 'rejected_quantity', 'label' => 'Rejected Quantity'],
+                    ['name' => 'unit_of_measure', 'label' => 'Unit of Measure'],
+                    ['name' => 'beginning_quantity', 'label' => 'Beginning Quantity'],
+                    ['name' => 'current_quantity', 'label' => 'Current Quantity'],
+                    ['name' => 'reserved_quantity', 'label' => 'Reserved Quantity'],
+                    ['name' => 'available_quantity', 'label' => 'Available Quantity'],
+                    ['name' => 'reorder_level', 'label' => 'Reorder Level'],
+                    ['name' => 'minimum_stock_level', 'label' => 'Minimum Stock Level'],
+                    ['name' => 'maximum_stock_level', 'label' => 'Maximum Stock Level'],
+                    ['name' => 'safety_stock_level', 'label' => 'Safety Stock Level'],
+                    ['name' => 'unit_cost', 'label' => 'Unit Cost'],
+                    ['name' => 'total_cost', 'label' => 'Total Cost'],
+                    ['name' => 'average_cost', 'label' => 'Average Cost'],
+                    ['name' => 'last_purchase_cost', 'label' => 'Last Purchase Cost'],
                 ]),
                 [
                     'type' => 'asset_tag',
@@ -950,9 +1553,16 @@ SVG;
                     ['name' => 'acquisition_date', 'label' => 'Acquisition Date'],
                     ['name' => 'asset_coa_id', 'label' => 'Asset Account from Chart of Accounts'],
                     ['name' => 'location', 'label' => 'Location'],
+                    ['name' => 'department', 'label' => 'Department'],
                     ['name' => 'custodian', 'label' => 'Custodian'],
-                    ['name' => 'useful_life', 'label' => 'Useful Life'],
+                    ['name' => 'useful_life', 'label' => 'Useful Life (Years)'],
                     ['name' => 'residual_value', 'label' => 'Residual Value'],
+                    ['name' => 'depreciable_amount', 'label' => 'Depreciable Amount'],
+                    ['name' => 'annual_depreciation', 'label' => 'Annual Depreciation'],
+                    ['name' => 'monthly_depreciation', 'label' => 'Monthly Depreciation'],
+                    ['name' => 'accumulated_depreciation', 'label' => 'Accumulated Depreciation'],
+                    ['name' => 'net_book_value', 'label' => 'Net Book Value'],
+                    ['name' => 'movement_history_note', 'label' => 'Inventory / Asset Movement Note'],
                     ['name' => 'remarks', 'label' => 'Remarks'],
                 ]),
                 $notesSection,
@@ -1017,9 +1627,9 @@ SVG;
         ];
     }
 
-    private function financePdfContext(FinanceRecord $record, bool $includeLogo = true): array
+    private function financePdfContext(FinanceRecord $record, bool $includeLogo = true, bool $forceSupplierTemplate = false): array
     {
-        $data = $record->data ?? [];
+        $data = array_merge($record->data ?? [], $this->financeLifecycleSnapshot($record));
         $lookupOptions = $this->resolveLookupOptions();
         $moduleLabel = $this->moduleLabel($record->module_key);
         $recordTitleLabel = $this->moduleRecordTitleLabel($record->module_key);
@@ -1036,6 +1646,8 @@ SVG;
             ['label' => 'Status', 'value' => $record->status ?: 'N/A'],
             ['label' => 'Workflow', 'value' => $record->workflow_status ?: 'N/A'],
             ['label' => 'Approval', 'value' => $record->approval_status ?: 'N/A'],
+            ['label' => 'Relationship Status', 'value' => data_get($data, 'relationship_status') ?: 'N/A'],
+            ['label' => 'Next Action', 'value' => data_get($data, 'next_action') ?: 'N/A'],
             ['label' => 'Created By', 'value' => $record->user ?: 'N/A'],
             ['label' => 'Submitted At', 'value' => optional($record->submitted_at)->format('Y-m-d H:i:s') ?: 'N/A'],
             ['label' => 'Approved At', 'value' => optional($record->approved_at)->format('Y-m-d H:i:s') ?: 'N/A'],
@@ -1080,10 +1692,16 @@ SVG;
 
         $detailRows = $record->module_key === 'arf'
             ? [
+                $this->financePreviewRow($record, $lookupOptions, 'item_classification', 'Item Classification'),
                 $this->financePreviewRow($record, $lookupOptions, 'asset_code', 'Asset Code'),
                 $this->financePreviewRow($record, $lookupOptions, 'linked_po_id', 'Linked PO'),
                 $this->financePreviewRow($record, $lookupOptions, 'linked_dv_id', 'Linked DV'),
                 $this->financePreviewRow($record, $lookupOptions, 'supplier_id', 'Supplier'),
+                $this->financePreviewRow($record, $lookupOptions, 'current_quantity', 'Current Quantity'),
+                $this->financePreviewRow($record, $lookupOptions, 'reserved_quantity', 'Reserved Quantity'),
+                $this->financePreviewRow($record, $lookupOptions, 'available_quantity', 'Available Quantity'),
+                $this->financePreviewRow($record, $lookupOptions, 'unit_cost', 'Unit Cost'),
+                $this->financePreviewRow($record, $lookupOptions, 'total_cost', 'Total Cost'),
                 $this->financePreviewRow($record, $lookupOptions, 'asset_description', 'Asset Description'),
                 $this->financePreviewRow($record, $lookupOptions, 'asset_category', 'Asset Category'),
                 $this->financePreviewRow($record, $lookupOptions, 'serial_number', 'Serial Number'),
@@ -1093,8 +1711,13 @@ SVG;
                 $this->financePreviewRow($record, $lookupOptions, 'asset_coa_id', 'Asset Account from Chart of Accounts'),
                 $this->financePreviewRow($record, $lookupOptions, 'location', 'Location'),
                 $this->financePreviewRow($record, $lookupOptions, 'custodian', 'Custodian'),
-                $this->financePreviewRow($record, $lookupOptions, 'useful_life', 'Useful Life'),
+                $this->financePreviewRow($record, $lookupOptions, 'useful_life', 'Useful Life (Years)'),
                 $this->financePreviewRow($record, $lookupOptions, 'residual_value', 'Residual Value'),
+                $this->financePreviewRow($record, $lookupOptions, 'depreciable_amount', 'Depreciable Amount'),
+                $this->financePreviewRow($record, $lookupOptions, 'annual_depreciation', 'Annual Depreciation'),
+                $this->financePreviewRow($record, $lookupOptions, 'monthly_depreciation', 'Monthly Depreciation'),
+                $this->financePreviewRow($record, $lookupOptions, 'accumulated_depreciation', 'Accumulated Depreciation'),
+                $this->financePreviewRow($record, $lookupOptions, 'net_book_value', 'Net Book Value'),
                 $this->financePreviewRow($record, $lookupOptions, 'remarks', 'Remarks'),
             ]
             : [];
@@ -1131,17 +1754,149 @@ SVG;
                 'serial_number' => data_get($data, 'serial_number') ?: 'N/A',
                 'barcode_svg' => $this->financeBarcodeSvg(data_get($data, 'asset_code') ?: $record->record_number ?: ''),
             ] : null,
+            'isTemplatePreview' => $forceSupplierTemplate,
             'summaryCards' => $summaryCards,
             'detailRows' => $detailRows,
-            'previewSections' => $this->financePreviewSections($record, $lookupOptions),
+            'previewSections' => $this->financePreviewSections($record, $lookupOptions, $forceSupplierTemplate),
             'lineItems' => $lineItems,
             'poSupplierGroups' => $poSupplierGroups,
             'costSummary' => $costSummary,
             'liquidationReport' => $liquidationReport,
             'cashAdvancePaymentTracking' => $this->financeCashAdvancePaymentTracking($record),
+            'transactionProgress' => data_get($data, 'transaction_progress', []),
             'attachments' => $attachments,
             'chartAccountLabel' => $this->financePdfLookupLabel($lookupOptions, 'chart_account', data_get($data, 'coa_id')) ?: data_get($data, 'coa_id') ?: 'N/A',
         ];
+    }
+
+    private function financeRecordPdfFilename(FinanceRecord $record): string
+    {
+        $recordNumber = $this->normalizeFinanceRecordNumber($record->module_key, $record->record_number)
+            ?: ('finance-record-' . $record->id);
+
+        return Str::slug($recordNumber) . '.pdf';
+    }
+
+    private function financeRecordPdfData(FinanceRecord $record): string
+    {
+        $freshRecord = $record->fresh() ?: $record;
+        $forceSupplierTemplate = $freshRecord->module_key === 'supplier'
+            && data_get($freshRecord->data ?? [], 'completion_mode') === 'send_to_supplier';
+
+        return Pdf::loadView('finance.pdf', $this->financePdfContext($freshRecord, false, $forceSupplierTemplate))
+            ->setPaper('letter', 'portrait')
+            ->output();
+    }
+
+    private function financeRecordSystemUrl(FinanceRecord $record): string
+    {
+        return route('finance.record.open', $record);
+    }
+
+    private function financeApproverUsers()
+    {
+        return User::query()
+            ->with('userPermission')
+            ->get()
+            ->filter(fn (User $user) => $user->isSuperAdmin()
+                || $user->isAdmin()
+                || $user->hasPermission('manage_users')
+                || $user->hasPermission('access_admin_dashboard'))
+            ->values();
+    }
+
+    private function financeNotificationRecipients(FinanceRecord $record, string $action)
+    {
+        $owner = $record->submitted_by ? User::query()->find($record->submitted_by) : null;
+        $approvers = $this->financeApproverUsers();
+
+        $recipients = match ($action) {
+            'submitted', 'supplier_submitted' => $approvers->merge($owner ? [$owner] : []),
+            'updated' => in_array($record->workflow_status ?? 'Uploaded', ['Submitted', 'On Hold', 'Shared'], true)
+                ? $approvers->merge($owner ? [$owner] : [])
+                : collect($owner ? [$owner] : []),
+            'approved', 'partially_approved', 'reverted', 'held' => collect($owner ? [$owner] : []),
+            default => collect($owner ? [$owner] : [])->merge($approvers),
+        };
+
+        return $recipients
+            ->filter()
+            ->unique('id')
+            ->reject(fn (User $user) => Auth::check() && (int) $user->id === (int) Auth::id())
+            ->values();
+    }
+
+    private function sendFinanceRecordWorkflowNotification(FinanceRecord $record, string $action, ?string $reviewNote = null): void
+    {
+        $freshRecord = $record->fresh() ?: $record;
+        $recipients = $this->financeNotificationRecipients($freshRecord, $action);
+
+        if ($recipients->isEmpty()) {
+            return;
+        }
+
+        $recordLabel = trim(implode(' - ', array_filter([
+            $this->normalizeFinanceRecordNumber($freshRecord->module_key, $freshRecord->record_number),
+            $freshRecord->record_title,
+        ]))) ?: ($this->moduleLabel($freshRecord->module_key) . ' #' . $freshRecord->id);
+
+        [$title, $body, $buttonLabel] = match ($action) {
+            'submitted' => [
+                'Finance Request Submitted: ' . $recordLabel,
+                'A finance record has been submitted and is ready for review.',
+                'Review Request',
+            ],
+            'supplier_submitted' => [
+                'Supplier Completion Submitted: ' . $recordLabel,
+                'A supplier has submitted the completion form and it is ready for internal review.',
+                'Review Request',
+            ],
+            'approved' => [
+                'Finance Record Approved: ' . $recordLabel,
+                'A finance record has been approved.',
+                'View Record',
+            ],
+            'partially_approved' => [
+                'Finance Approval Recorded: ' . $recordLabel,
+                'A finance approval has been recorded and another approval is still required.',
+                'Review Request',
+            ],
+            'reverted' => [
+                'Finance Record Returned for Revision: ' . $recordLabel,
+                'A finance record has been returned for revision.',
+                'View Record',
+            ],
+            'held' => [
+                'Finance Record Placed on Hold: ' . $recordLabel,
+                'A finance record has been placed on hold.',
+                'View Record',
+            ],
+            'updated' => [
+                'Finance Record Updated: ' . $recordLabel,
+                'A finance record has been updated.',
+                'View Record',
+            ],
+            default => [
+                'Finance Record Notification: ' . $recordLabel,
+                'A finance record requires attention.',
+                'View Record',
+            ],
+        };
+
+        try {
+            Notification::send($recipients, new FinanceRecordWorkflowNotification(
+                recordId: $freshRecord->id,
+                title: $title,
+                body: $body,
+                buttonLabel: $buttonLabel,
+                url: $this->financeRecordSystemUrl($freshRecord),
+                reviewNote: $reviewNote,
+                pdfData: $this->financeRecordPdfData($freshRecord),
+                pdfFilename: $this->financeRecordPdfFilename($freshRecord)
+            ));
+        } catch (Throwable $exception) {
+            report($exception);
+        }
     }
 
     private function acceptedRecordQuery(string $moduleKey, array $dataConstraints = [])
@@ -1162,7 +1917,7 @@ SVG;
 
     private function canEditRecord(FinanceRecord $record): bool
     {
-        if (in_array($record->workflow_status ?? 'Uploaded', ['Delete Requested', 'Deleted'], true)) {
+        if ($this->financeRecordIsFinalLocked($record)) {
             return false;
         }
 
@@ -1208,12 +1963,20 @@ SVG;
     private function canApproveSubmittedFinanceRecord(FinanceRecord $record): bool
     {
         return $this->canApproveFinance()
-            && ($record->workflow_status ?? 'Uploaded') === 'Submitted';
+            && in_array($record->workflow_status ?? 'Uploaded', ['Submitted', 'On Hold'], true)
+            && in_array($record->approval_status ?? 'Pending', ['Pending', 'Partially Approved', 'On Hold'], true)
+            && ! $this->currentUserHasApprovedFinanceRecord($record);
     }
 
     private function canRevertSubmittedFinanceRecord(FinanceRecord $record): bool
     {
-        return $this->canApproveSubmittedFinanceRecord($record);
+        return $this->canApproveFinance()
+            && in_array($record->workflow_status ?? 'Uploaded', ['Submitted', 'On Hold'], true);
+    }
+
+    private function canHoldSubmittedFinanceRecord(FinanceRecord $record): bool
+    {
+        return $this->canRevertSubmittedFinanceRecord($record);
     }
 
     private function canArchiveFinanceRecord(FinanceRecord $record): bool
@@ -1250,11 +2013,22 @@ SVG;
 
     private function ensureSupplierCompletionLink(FinanceRecord $record): string
     {
+        $data = $this->appendFinanceHistoryEntry($record->data ?? [], 'Shared Supplier Completion', $record->module_key, [
+            'workflow_status' => $record->workflow_status,
+            'approval_status' => $record->approval_status,
+            'shared_at' => optional($record->shared_at)->format('Y-m-d H:i:s'),
+        ], [
+            'workflow_status' => 'Shared',
+            'approval_status' => 'Pending Supplier Completion',
+            'shared_at' => now()->format('Y-m-d H:i:s'),
+        ]);
+
         $record->update([
             'share_token' => $record->share_token ?: Str::random(64),
             'shared_at' => now(),
             'workflow_status' => 'Shared',
             'approval_status' => 'Pending Supplier Completion',
+            'data' => $data,
         ]);
 
         return route('finance.supplier.completion', $record->fresh()->share_token);
@@ -1274,7 +2048,12 @@ SVG;
         $freshRecord = $record->fresh();
 
         Mail::to($email)->send(
-            new SupplierCompletionMail($freshRecord, $link)
+            new SupplierCompletionMail(
+                $freshRecord,
+                $link,
+                $this->financeRecordPdfData($freshRecord),
+                $this->financeRecordPdfFilename($freshRecord)
+            )
         );
 
         return $link;
@@ -2081,7 +2860,7 @@ SVG;
 
     private function transformRecord(FinanceRecord $record): array
     {
-        $data = $record->data ?? [];
+        $data = array_merge($record->data ?? [], $this->financeLifecycleSnapshot($record));
         $existingDvPayload = is_array(data_get($data, 'dv_payload')) ? data_get($data, 'dv_payload') : [];
 
         return [
@@ -2089,7 +2868,7 @@ SVG;
             'module_key' => $record->module_key,
             'module_label' => $this->moduleLabel($record->module_key),
             'record_number' => $this->normalizeFinanceRecordNumber($record->module_key, $record->record_number),
-            'record_title' => $record->record_title,
+            'record_title' => $this->cleanRecordTitleForDisplay($record->module_key, $record->record_title),
             'display_label' => $this->optionLabel($record),
             'record_date' => optional($record->record_date)->format('Y-m-d'),
             'amount' => $record->amount,
@@ -2124,6 +2903,7 @@ SVG;
             'can_review' => $this->canApproveSubmittedFinanceRecord($record),
             'can_approve' => $this->canApproveSubmittedFinanceRecord($record),
             'can_revert' => $this->canRevertSubmittedFinanceRecord($record),
+            'can_hold' => $this->canHoldSubmittedFinanceRecord($record),
             'can_archive' => $this->canArchiveFinanceRecord($record),
             'can_unarchive' => $this->canUnarchiveFinanceRecord($record),
             'can_request_delete' => $this->canRequestDeleteRecord($record),
@@ -2136,6 +2916,8 @@ SVG;
 
     private function financeActionResponse(Request $request, string $message, FinanceRecord $record, int $status = 200)
     {
+        $this->syncFinanceRelationshipLifecycle($record->fresh() ?: $record);
+
         if ($request->expectsJson()) {
             return response()->json([
                 'message' => $message,
@@ -2343,6 +3125,9 @@ SVG;
                 'mime' => $file->getClientMimeType(),
                 'size' => $file->getSize(),
                 'category' => $attachmentCategory,
+                'status' => 'uploaded',
+                'uploaded_at' => now()->format('Y-m-d H:i:s'),
+                'uploaded_by' => Auth::user()->name ?? 'Unknown User',
             ];
         };
 
@@ -2638,7 +3423,7 @@ SVG;
                 'data.supplier_id' => ['nullable', $this->acceptedLinkedRecordRule('supplier')],
             ],
             'dv' => [
-                'data.source_document_type' => 'required|in:pr,po,ca,lr,err,pda,crf,ibtf,arf',
+                'data.source_document_type' => 'required|in:po,ca,err,pda,ibtf',
                 'data.source_document_id' => 'required',
                 'data.amount' => 'required|numeric|min:0',
                 'data.payment_type' => 'required|in:Cash,Check,Bank Transfer,E-Wallet',
@@ -2701,11 +3486,34 @@ SVG;
             'arf' => [
                 'data.linked_po_id' => ['nullable', $this->acceptedLinkedRecordRule('po')],
                 'data.linked_dv_id' => ['nullable', $this->acceptedLinkedRecordRule('dv')],
+                'data.item_classification' => 'required|in:Fixed Asset,Consumable Inventory',
                 'data.asset_code' => 'required|string|max:255',
+                'data.item_name' => 'nullable|string|max:255',
+                'data.item_code' => 'nullable|string|max:255',
+                'data.sku' => 'nullable|string|max:255',
+                'data.barcode' => 'nullable|string|max:255',
+                'data.qr_code' => 'nullable|string|max:255',
                 'data.supplier_id' => ['required', $this->acceptedLinkedRecordRule('supplier')],
                 'data.acquisition_cost' => 'required|numeric|min:0',
                 'data.acquisition_date' => 'required|date',
                 'data.asset_coa_id' => ['required', $this->acceptedLinkedRecordRule('chart_account')],
+                'data.ordered_quantity' => 'nullable|numeric|min:0',
+                'data.delivered_quantity' => 'nullable|numeric|min:0',
+                'data.accepted_quantity' => 'nullable|numeric|min:0',
+                'data.rejected_quantity' => 'nullable|numeric|min:0',
+                'data.beginning_quantity' => 'nullable|numeric|min:0',
+                'data.current_quantity' => 'nullable|numeric|min:0',
+                'data.reserved_quantity' => 'nullable|numeric|min:0',
+                'data.reorder_level' => 'nullable|numeric|min:0',
+                'data.minimum_stock_level' => 'nullable|numeric|min:0',
+                'data.maximum_stock_level' => 'nullable|numeric|min:0',
+                'data.safety_stock_level' => 'nullable|numeric|min:0',
+                'data.unit_cost' => 'nullable|numeric|min:0',
+                'data.average_cost' => 'nullable|numeric|min:0',
+                'data.last_purchase_cost' => 'nullable|numeric|min:0',
+                'data.useful_life' => 'required_if:data.item_classification,Fixed Asset|nullable|numeric|min:1',
+                'data.residual_value' => 'nullable|numeric|min:0',
+                'data.custodian' => ['nullable', Rule::exists('employees', 'id')],
             ],
         ];
 
@@ -2759,6 +3567,10 @@ SVG;
             && data_get($request->input('data', []), 'completion_mode') === 'send_to_supplier';
         $rules = array_merge($this->commonValidationRules(), $this->moduleSpecificRules($moduleKey));
 
+        if (!$supplierSendMode && in_array($moduleKey, $this->recordTitleRequiredModules(), true)) {
+            $rules['record_title'] = 'required|string|max:255';
+        }
+
         if ($supplierSendMode) {
             $rules['record_number'] = 'nullable|string|max:255';
             $rules['record_title'] = 'nullable|string|max:255';
@@ -2792,6 +3604,12 @@ SVG;
         }
 
         $validated = $request->validate($rules);
+
+        if ($this->recordTitleLooksLikePlaceholder($moduleKey, data_get($validated, 'record_title'))) {
+            throw ValidationException::withMessages([
+                'record_title' => $this->moduleRecordTitleLabel($moduleKey) . ' must be entered as a real value, not saved as the placeholder text.',
+            ]);
+        }
 
         if ($moduleKey === 'chart_account' && !blank(data_get($validated, 'data.is_sub_account')) && blank(data_get($validated, 'data.parent_account_id'))) {
             throw ValidationException::withMessages([
@@ -2828,15 +3646,11 @@ SVG;
             $sourceDocumentId = data_get($validated, 'data.source_document_id');
 
             $allowedModule = match ($sourceDocumentType) {
-                'pr' => 'pr',
                 'po' => 'po',
                 'ca' => 'ca',
-                'lr' => 'lr',
                 'err' => 'err',
                 'pda' => 'pda',
-                'crf' => 'crf',
                 'ibtf' => 'ibtf',
-                'arf' => 'arf',
                 default => null,
             };
 
@@ -3187,6 +4001,47 @@ SVG;
             }
         }
 
+        if ($moduleKey === 'arf') {
+            $classification = (string) data_get($data, 'item_classification', 'Fixed Asset');
+            $currentQuantity = (float) data_get($data, 'current_quantity', data_get($data, 'accepted_quantity', data_get($data, 'beginning_quantity', 0)));
+            $reservedQuantity = (float) data_get($data, 'reserved_quantity', 0);
+            $unitCost = (float) data_get($data, 'unit_cost', 0);
+
+            data_set($data, 'available_quantity', number_format(max($currentQuantity - $reservedQuantity, 0), 2, '.', ''));
+            data_set($data, 'total_cost', number_format($currentQuantity * $unitCost, 2, '.', ''));
+
+            if ($classification === 'Fixed Asset') {
+                $acquisitionCost = (float) data_get($data, 'acquisition_cost', 0);
+                $residualValue = (float) data_get($data, 'residual_value', 0);
+                $usefulLife = max((float) data_get($data, 'useful_life', 0), 0);
+                $depreciableAmount = max($acquisitionCost - $residualValue, 0);
+                $annualDepreciation = $usefulLife > 0 ? $depreciableAmount / $usefulLife : 0;
+                $monthlyDepreciation = $annualDepreciation / 12;
+                $acquisitionDate = data_get($data, 'acquisition_date');
+                $monthsElapsed = 0;
+
+                if (!blank($acquisitionDate)) {
+                    try {
+                        $monthsElapsed = max(now()->startOfMonth()->diffInMonths(\Carbon\Carbon::parse($acquisitionDate)->startOfMonth()), 0);
+                    } catch (\Throwable) {
+                        $monthsElapsed = 0;
+                    }
+                }
+
+                $accumulatedDepreciation = min($monthlyDepreciation * $monthsElapsed, $depreciableAmount);
+
+                data_set($data, 'depreciable_amount', number_format($depreciableAmount, 2, '.', ''));
+                data_set($data, 'annual_depreciation', number_format($annualDepreciation, 2, '.', ''));
+                data_set($data, 'monthly_depreciation', number_format($monthlyDepreciation, 2, '.', ''));
+                data_set($data, 'accumulated_depreciation', number_format($accumulatedDepreciation, 2, '.', ''));
+                data_set($data, 'net_book_value', number_format(max($acquisitionCost - $accumulatedDepreciation, 0), 2, '.', ''));
+            } else {
+                foreach (['useful_life', 'residual_value', 'depreciable_amount', 'annual_depreciation', 'monthly_depreciation', 'accumulated_depreciation', 'net_book_value'] as $field) {
+                    unset($data[$field]);
+                }
+            }
+        }
+
         if (in_array($moduleKey, ['err', 'crf'], true) && !filter_var(data_get($data, 'manual_liquidation_entry'), FILTER_VALIDATE_BOOLEAN)) {
             $linkedLr = FinanceRecord::query()
                 ->where('module_key', 'lr')
@@ -3415,9 +4270,11 @@ SVG;
         return view('finance.preview-html', $this->financePdfContext($financeRecord->fresh()));
     }
 
-    public function previewPdf(FinanceRecord $financeRecord)
+    public function previewPdf(Request $request, FinanceRecord $financeRecord)
     {
-        $context = $this->financePdfContext($financeRecord->fresh(), false);
+        $forceSupplierTemplate = $financeRecord->module_key === 'supplier'
+            && $request->boolean('template');
+        $context = $this->financePdfContext($financeRecord->fresh(), false, $forceSupplierTemplate);
         $pdf = Pdf::loadView('finance.pdf', $context)->setPaper('letter', 'portrait');
 
         $fileName = $this->normalizeFinanceRecordNumber($financeRecord->module_key, $financeRecord->record_number) ?: 'finance-record';
@@ -3425,13 +4282,25 @@ SVG;
         return $pdf->stream($fileName . '.pdf');
     }
 
+    public function openRecord(FinanceRecord $financeRecord)
+    {
+        if (!$this->canApproveFinance() && (int) $financeRecord->submitted_by !== (int) Auth::id()) {
+            abort(403, 'Unauthorized');
+        }
+
+        return redirect()->route('finance', [
+            'module' => $financeRecord->module_key,
+            'record' => $financeRecord->id,
+        ]);
+    }
+
     public function store(Request $request)
     {
         $this->validateModulePayload($request);
 
-        $isApprover = $this->canApproveFinance();
         $attachments = $this->persistAttachments($request);
         $data = $this->normalizeModuleData($request->module_key, $request->input('data', []));
+        $data = $this->initializeFinanceApprovalState($data, $request->module_key);
         $supplierSendMode = $request->module_key === 'supplier' && data_get($data, 'completion_mode') === 'send_to_supplier';
         $recordNumber = trim((string) $request->input('record_number', ''));
         $recordTitle = trim((string) $request->input('record_title', ''));
@@ -3439,27 +4308,39 @@ SVG;
 
         if ($supplierSendMode) {
             $recordNumber = $recordNumber ?: $this->normalizeFinanceRecordNumber('supplier', '');
-            $recordTitle = $recordTitle ?: 'Supplier Completion';
+            $recordTitle = $this->recordTitleLooksLikePlaceholder('supplier', $recordTitle) ? '' : $recordTitle;
             $recordDate = $recordDate ?: now()->toDateString();
-        } elseif ($recordTitle === '') {
-            $recordTitle = self::MODULES[$request->module_key] ?? Str::headline($request->module_key);
         }
 
         $recordNumber = $this->normalizeFinanceRecordNumber($request->module_key, $recordNumber);
+        $recordAmount = in_array($request->module_key, ['dv', 'pda'], true)
+            ? data_get($data, $request->module_key === 'pda' ? 'total_payroll_amount' : 'amount')
+            : $request->amount;
+        $data = $this->appendFinanceHistoryEntry($data, 'Created', $request->module_key, [], [
+            'record_number' => $recordNumber,
+            'record_title' => $recordTitle,
+            'record_date' => $recordDate,
+            'amount' => $recordAmount,
+            'status' => $request->status,
+            'workflow_status' => 'Uploaded',
+            'approval_status' => 'Pending',
+            'data' => $data,
+            'attachments' => $attachments,
+        ]);
 
         $record = FinanceRecord::create([
             'module_key' => $request->module_key,
             'record_number' => $recordNumber,
             'record_title' => $recordTitle,
             'record_date' => $recordDate,
-            'amount' => in_array($request->module_key, ['dv', 'pda'], true) ? data_get($data, $request->module_key === 'pda' ? 'total_payroll_amount' : 'amount') : $request->amount,
+            'amount' => $recordAmount,
             'status' => $request->status,
-            'workflow_status' => $isApprover ? 'Accepted' : 'Uploaded',
-            'approval_status' => $isApprover ? 'Approved' : 'Pending',
+            'workflow_status' => 'Uploaded',
+            'approval_status' => 'Pending',
             'submitted_by' => Auth::id(),
-            'submitted_at' => $isApprover ? now() : null,
-            'approved_by' => $isApprover ? Auth::id() : null,
-            'approved_at' => $isApprover ? now() : null,
+            'submitted_at' => null,
+            'approved_by' => null,
+            'approved_at' => null,
             'review_note' => null,
             'data' => $data,
             'attachments' => $attachments,
@@ -3473,10 +4354,13 @@ SVG;
             $record = $record->fresh();
         }
 
+        $this->syncFinanceRelationshipLifecycle($record);
+        $record = $record->fresh();
+
         return response()->json([
             'message' => $record->workflow_status === 'Shared'
                 ? 'Finance record created and emailed to the supplier.'
-                : ($isApprover ? 'Finance record saved and accepted.' : 'Finance record saved successfully.'),
+                : 'Finance record saved successfully.',
             'data' => $this->transformRecord($record),
         ], 201);
     }
@@ -3493,6 +4377,12 @@ SVG;
         $existingAttachments = is_array($existingAttachments) ? $existingAttachments : [];
         $attachments = $this->persistAttachments($request, $existingAttachments);
         $data = $this->normalizeModuleData($request->module_key, $request->input('data', []));
+        foreach (['approval_steps', 'approval_actions', 'approval_required_count', 'approval_completed_count', 'approval_remaining_count'] as $approvalField) {
+            if (!array_key_exists($approvalField, $data) && array_key_exists($approvalField, (array) ($financeRecord->data ?? []))) {
+                $data[$approvalField] = data_get($financeRecord->data, $approvalField);
+            }
+        }
+        $data = $this->initializeFinanceApprovalState($data, $request->module_key);
         $supplierSendMode = $request->module_key === 'supplier' && data_get($data, 'completion_mode') === 'send_to_supplier';
         $recordNumber = trim((string) $request->input('record_number', ''));
         $recordTitle = trim((string) $request->input('record_title', ''));
@@ -3500,20 +4390,46 @@ SVG;
 
         if ($supplierSendMode) {
             $recordNumber = $recordNumber ?: ($financeRecord->record_number ?: $this->normalizeFinanceRecordNumber('supplier', ''));
-            $recordTitle = $recordTitle ?: ($financeRecord->record_title ?: 'Supplier Completion');
+            $recordTitle = $this->recordTitleLooksLikePlaceholder('supplier', $recordTitle) ? '' : $recordTitle;
             $recordDate = $recordDate ?: optional($financeRecord->record_date)->format('Y-m-d') ?: now()->toDateString();
-        } elseif ($recordTitle === '') {
-            $recordTitle = $financeRecord->record_title ?: (self::MODULES[$request->module_key] ?? Str::headline($request->module_key));
         }
 
         $recordNumber = $this->normalizeFinanceRecordNumber($request->module_key, $recordNumber);
+        $recordAmount = in_array($request->module_key, ['dv', 'pda'], true)
+            ? data_get($data, $request->module_key === 'pda' ? 'total_payroll_amount' : 'amount')
+            : $request->amount;
+        $oldHistorySnapshot = [
+            'record_number' => $financeRecord->record_number,
+            'record_title' => $financeRecord->record_title,
+            'record_date' => optional($financeRecord->record_date)->format('Y-m-d'),
+            'amount' => $financeRecord->amount,
+            'status' => $financeRecord->status,
+            'workflow_status' => $financeRecord->workflow_status,
+            'approval_status' => $financeRecord->approval_status,
+            'review_note' => $financeRecord->review_note,
+            'data' => $financeRecord->data ?? [],
+            'attachments' => $financeRecord->attachments ?? [],
+        ];
+        $newHistorySnapshot = [
+            'record_number' => $recordNumber,
+            'record_title' => $recordTitle,
+            'record_date' => $recordDate,
+            'amount' => $recordAmount,
+            'status' => $request->status,
+            'workflow_status' => $financeRecord->workflow_status,
+            'approval_status' => ($financeRecord->workflow_status ?? 'Uploaded') === 'Reverted' ? 'Pending' : $financeRecord->approval_status,
+            'review_note' => ($financeRecord->workflow_status ?? 'Uploaded') === 'Reverted' ? null : $financeRecord->review_note,
+            'data' => $data,
+            'attachments' => $attachments,
+        ];
+        $data = $this->appendFinanceHistoryEntry($data, 'Updated', $request->module_key, $oldHistorySnapshot, $newHistorySnapshot);
 
         $payload = [
             'module_key' => $request->module_key,
             'record_number' => $recordNumber,
             'record_title' => $recordTitle,
             'record_date' => $recordDate,
-            'amount' => in_array($request->module_key, ['dv', 'pda'], true) ? data_get($data, $request->module_key === 'pda' ? 'total_payroll_amount' : 'amount') : $request->amount,
+            'amount' => $recordAmount,
             'status' => $request->status,
             'data' => $data,
             'attachments' => $attachments,
@@ -3530,6 +4446,10 @@ SVG;
             $this->sendSupplierCompletionEmail($financeRecord);
             $financeRecord = $financeRecord->fresh();
         }
+
+        $this->syncFinanceRelationshipLifecycle($financeRecord);
+        $financeRecord = $financeRecord->fresh();
+        $this->sendFinanceRecordWorkflowNotification($financeRecord, 'updated');
 
         return response()->json([
             'message' => $financeRecord->workflow_status === 'Shared'
@@ -3551,16 +4471,38 @@ SVG;
             ], 422);
         }
 
+        $data = $this->initializeFinanceApprovalState($financeRecord->data ?? [], $financeRecord->module_key);
+        $data['approval_actions'] = [];
+        $data['approval_completed_count'] = 0;
+        $data['approval_remaining_count'] = $this->financeApprovalThreshold($financeRecord->module_key);
+
+        $data = $this->appendFinanceHistoryEntry($data, 'Submitted', $financeRecord->module_key, [
+            'workflow_status' => $financeRecord->workflow_status,
+            'approval_status' => $financeRecord->approval_status,
+            'review_note' => $financeRecord->review_note,
+            'data' => $financeRecord->data ?? [],
+        ], [
+            'workflow_status' => 'Submitted',
+            'approval_status' => 'Pending',
+            'review_note' => null,
+            'data' => $data,
+        ]);
+
         $financeRecord->update([
             'workflow_status' => 'Submitted',
             'approval_status' => 'Pending',
             'submitted_at' => now(),
             'review_note' => null,
+            'data' => $data,
         ]);
+
+        $this->syncFinanceRelationshipLifecycle($financeRecord);
+        $financeRecord = $financeRecord->fresh();
+        $this->sendFinanceRecordWorkflowNotification($financeRecord, 'submitted');
 
         return response()->json([
             'message' => 'Finance record submitted for review successfully.',
-            'data' => $this->transformRecord($financeRecord->fresh()),
+            'data' => $this->transformRecord($financeRecord),
         ]);
     }
 
@@ -3570,14 +4512,99 @@ SVG;
             abort(403, 'Unauthorized');
         }
 
-        $financeRecord->update([
-            'workflow_status' => 'Accepted',
-            'approval_status' => 'Approved',
+        $oldData = $financeRecord->data ?? [];
+        $data = $this->initializeFinanceApprovalState($oldData, $financeRecord->module_key);
+        $actions = array_values((array) data_get($data, 'approval_actions', []));
+        $actions[] = [
             'approved_by' => Auth::id(),
-            'approved_at' => now(),
+            'approved_by_name' => Auth::user()?->name ?: 'Finance Approver',
+            'approver_role' => $this->financeUserApprovalRole(),
+            'approved_at' => now()->format('Y-m-d H:i:s'),
+        ];
+
+        $uniqueApproverCount = collect($actions)
+            ->pluck('approved_by')
+            ->filter()
+            ->unique()
+            ->count();
+        $requiredApprovals = $this->financeApprovalThreshold($financeRecord->module_key);
+        $isFullyApproved = $uniqueApproverCount >= $requiredApprovals;
+        $nextWorkflowStatus = $isFullyApproved ? 'Accepted' : 'Submitted';
+        $nextApprovalStatus = $isFullyApproved ? 'Approved' : 'Partially Approved';
+
+        $data['approval_actions'] = $actions;
+        $data['approval_required_count'] = $requiredApprovals;
+        $data['approval_completed_count'] = min($uniqueApproverCount, $requiredApprovals);
+        $data['approval_remaining_count'] = max($requiredApprovals - $uniqueApproverCount, 0);
+
+        $data = $this->appendFinanceHistoryEntry($data, $isFullyApproved ? 'Approved' : 'Partially Approved', $financeRecord->module_key, [
+            'workflow_status' => $financeRecord->workflow_status,
+            'approval_status' => $financeRecord->approval_status,
+            'approved_by' => $financeRecord->approved_by,
+            'approved_at' => optional($financeRecord->approved_at)->format('Y-m-d H:i:s'),
+            'data' => $oldData,
+        ], [
+            'workflow_status' => $nextWorkflowStatus,
+            'approval_status' => $nextApprovalStatus,
+            'approved_by' => Auth::id(),
+            'approved_at' => now()->format('Y-m-d H:i:s'),
+            'data' => $data,
         ]);
 
-        return $this->financeActionResponse($request, 'Finance record approved successfully.', $financeRecord);
+        $financeRecord->update([
+            'workflow_status' => $nextWorkflowStatus,
+            'approval_status' => $nextApprovalStatus,
+            'approved_by' => Auth::id(),
+            'approved_at' => $isFullyApproved ? now() : null,
+            'review_note' => null,
+            'data' => $data,
+        ]);
+        $this->syncFinanceRelationshipLifecycle($financeRecord);
+        $financeRecord = $financeRecord->fresh();
+        $this->sendFinanceRecordWorkflowNotification($financeRecord, $isFullyApproved ? 'approved' : 'partially_approved');
+
+        return $this->financeActionResponse(
+            $request,
+            $isFullyApproved
+                ? 'Finance record approved successfully.'
+                : 'Approval recorded. One more approver is required before final approval.',
+            $financeRecord
+        );
+    }
+
+    public function hold(Request $request, FinanceRecord $financeRecord)
+    {
+        if (!$this->canHoldSubmittedFinanceRecord($financeRecord)) {
+            abort(403, 'Unauthorized');
+        }
+
+        $request->validate([
+            'review_note' => 'required|string|max:1000',
+        ]);
+
+        $data = $this->appendFinanceHistoryEntry($financeRecord->data ?? [], 'Placed On Hold', $financeRecord->module_key, [
+            'workflow_status' => $financeRecord->workflow_status,
+            'approval_status' => $financeRecord->approval_status,
+            'review_note' => $financeRecord->review_note,
+        ], [
+            'workflow_status' => 'On Hold',
+            'approval_status' => 'On Hold',
+            'review_note' => $request->review_note,
+            'held_by' => Auth::id(),
+            'held_at' => now()->format('Y-m-d H:i:s'),
+        ], $request->review_note);
+
+        $financeRecord->update([
+            'workflow_status' => 'On Hold',
+            'approval_status' => 'On Hold',
+            'review_note' => $request->review_note,
+            'data' => $data,
+        ]);
+        $this->syncFinanceRelationshipLifecycle($financeRecord);
+        $financeRecord = $financeRecord->fresh();
+        $this->sendFinanceRecordWorkflowNotification($financeRecord, 'held', $request->review_note);
+
+        return $this->financeActionResponse($request, 'Finance record placed on hold.', $financeRecord);
     }
 
     public function revert(Request $request, FinanceRecord $financeRecord)
@@ -3590,13 +4617,30 @@ SVG;
             'review_note' => 'required|string|max:1000',
         ]);
 
+        $data = $this->appendFinanceHistoryEntry($financeRecord->data ?? [], 'Reverted', $financeRecord->module_key, [
+            'workflow_status' => $financeRecord->workflow_status,
+            'approval_status' => $financeRecord->approval_status,
+            'review_note' => $financeRecord->review_note,
+        ], [
+            'workflow_status' => 'Reverted',
+            'approval_status' => 'Needs Revision',
+            'review_note' => $request->review_note,
+        ], $request->review_note);
+        $data['approval_actions'] = [];
+        $data['approval_completed_count'] = 0;
+        $data['approval_remaining_count'] = $this->financeApprovalThreshold($financeRecord->module_key);
+
         $financeRecord->update([
             'workflow_status' => 'Reverted',
             'approval_status' => 'Needs Revision',
             'review_note' => $request->review_note,
             'approved_by' => Auth::id(),
             'approved_at' => now(),
+            'data' => $data,
         ]);
+        $this->syncFinanceRelationshipLifecycle($financeRecord);
+        $financeRecord = $financeRecord->fresh();
+        $this->sendFinanceRecordWorkflowNotification($financeRecord, 'reverted', $request->review_note);
 
         return $this->financeActionResponse($request, 'Finance record reverted for revision.', $financeRecord);
     }
@@ -3607,11 +4651,20 @@ SVG;
             abort(403, 'Unauthorized');
         }
 
+        $data = $this->appendFinanceHistoryEntry($financeRecord->data ?? [], 'Archived', $financeRecord->module_key, [
+            'workflow_status' => $financeRecord->workflow_status,
+            'approval_status' => $financeRecord->approval_status,
+        ], [
+            'workflow_status' => 'Archived',
+            'approval_status' => 'Archived',
+        ]);
+
         $financeRecord->update([
             'workflow_status' => 'Archived',
             'approval_status' => 'Archived',
             'approved_by' => Auth::id(),
             'approved_at' => now(),
+            'data' => $data,
         ]);
 
         return $this->financeActionResponse($request, 'Finance record archived successfully.', $financeRecord);
@@ -3623,12 +4676,23 @@ SVG;
             abort(403, 'Unauthorized');
         }
 
+        $data = $this->appendFinanceHistoryEntry($financeRecord->data ?? [], 'Unarchived', $financeRecord->module_key, [
+            'workflow_status' => $financeRecord->workflow_status,
+            'approval_status' => $financeRecord->approval_status,
+            'review_note' => $financeRecord->review_note,
+        ], [
+            'workflow_status' => 'Accepted',
+            'approval_status' => 'Approved',
+            'review_note' => null,
+        ]);
+
         $financeRecord->update([
             'workflow_status' => 'Accepted',
             'approval_status' => 'Approved',
             'approved_by' => Auth::id(),
             'approved_at' => now(),
             'review_note' => null,
+            'data' => $data,
         ]);
 
         return $this->financeActionResponse($request, 'Finance record unarchived successfully.', $financeRecord);
@@ -3645,6 +4709,15 @@ SVG;
         $data['delete_requested_by_name'] = Auth::user()?->name ?: 'Unknown User';
         $data['delete_requested_at'] = now()->toDateTimeString();
         $data['delete_request_note'] = trim((string) $request->input('review_note', ''));
+        $data = $this->appendFinanceHistoryEntry($data, 'Delete Requested', $financeRecord->module_key, [
+            'workflow_status' => $financeRecord->workflow_status,
+            'approval_status' => $financeRecord->approval_status,
+            'review_note' => $financeRecord->review_note,
+        ], [
+            'workflow_status' => 'Delete Requested',
+            'approval_status' => 'Deletion Pending',
+            'review_note' => $data['delete_request_note'] ?: 'Deletion requested for admin approval.',
+        ], $data['delete_request_note'] ?: null);
 
         $financeRecord->update([
             'workflow_status' => 'Delete Requested',
@@ -3666,6 +4739,15 @@ SVG;
         $data['delete_approved_by'] = Auth::id();
         $data['delete_approved_by_name'] = Auth::user()?->name ?: 'Admin User';
         $data['delete_approved_at'] = now()->toDateTimeString();
+        $data = $this->appendFinanceHistoryEntry($data, 'Delete Approved', $financeRecord->module_key, [
+            'workflow_status' => $financeRecord->workflow_status,
+            'approval_status' => $financeRecord->approval_status,
+            'status' => $financeRecord->status,
+        ], [
+            'workflow_status' => 'Deleted',
+            'approval_status' => 'Deleted',
+            'status' => 'Deleted',
+        ]);
 
         $financeRecord->update([
             'workflow_status' => 'Deleted',
@@ -3689,11 +4771,21 @@ SVG;
         $data['delete_rejected_by'] = Auth::id();
         $data['delete_rejected_by_name'] = Auth::user()?->name ?: 'Admin User';
         $data['delete_rejected_at'] = now()->toDateTimeString();
+        $reviewNote = $request->input('review_note') ?: 'Deletion request rejected.';
+        $data = $this->appendFinanceHistoryEntry($data, 'Delete Rejected', $financeRecord->module_key, [
+            'workflow_status' => $financeRecord->workflow_status,
+            'approval_status' => $financeRecord->approval_status,
+            'review_note' => $financeRecord->review_note,
+        ], [
+            'workflow_status' => 'Reverted',
+            'approval_status' => 'Needs Revision',
+            'review_note' => $reviewNote,
+        ], $reviewNote);
 
         $financeRecord->update([
             'workflow_status' => 'Reverted',
             'approval_status' => 'Needs Revision',
-            'review_note' => $request->input('review_note') ?: 'Deletion request rejected.',
+            'review_note' => $reviewNote,
             'approved_by' => Auth::id(),
             'approved_at' => now(),
             'data' => $data,
@@ -3729,7 +4821,13 @@ SVG;
         ]);
 
         $data = $financeRecord->data ?? [];
+        $oldData = $data;
         $data['email_address'] = $request->email_address;
+        $data = $this->appendFinanceHistoryEntry($data, 'Supplier Email Updated', $financeRecord->module_key, [
+            'data' => $oldData,
+        ], [
+            'data' => $data,
+        ]);
 
         $financeRecord->update([
             'data' => $data,
@@ -3737,6 +4835,7 @@ SVG;
 
         $link = $this->sendSupplierCompletionEmail($financeRecord->fresh());
         $financeRecord = $financeRecord->fresh();
+        $this->sendFinanceRecordWorkflowNotification($financeRecord, 'updated');
 
         return response()->json([
             'message' => 'Supplier email updated and completion form resent.',
@@ -3795,12 +4894,33 @@ SVG;
             'attachment_category' => 'nullable|in:Invoice,OR,DR,Contract,Supporting Document',
         ]);
 
+        if ($this->recordTitleLooksLikePlaceholder('supplier', $request->record_title)) {
+            throw ValidationException::withMessages([
+                'record_title' => 'Registered Business Name must be entered as a real value, not saved as the placeholder text.',
+            ]);
+        }
+
         $data = array_merge($record->data ?? [], $request->input('data', []));
         $data['business_name'] = $request->record_title;
         $data['date_accomplished'] = $request->record_date;
         $data['date_signed'] = now()->format('Y-m-d H:i:s');
 
         $attachments = $this->persistAttachments($request, (array) ($record->attachments ?? []));
+        $data = $this->appendFinanceHistoryEntry($data, 'Supplier Submitted', 'supplier', [
+            'record_title' => $record->record_title,
+            'record_date' => optional($record->record_date)->format('Y-m-d'),
+            'workflow_status' => $record->workflow_status,
+            'approval_status' => $record->approval_status,
+            'data' => $record->data ?? [],
+            'attachments' => $record->attachments ?? [],
+        ], [
+            'record_title' => $request->record_title,
+            'record_date' => $request->record_date,
+            'workflow_status' => 'Submitted',
+            'approval_status' => 'Pending',
+            'data' => $data,
+            'attachments' => $attachments,
+        ]);
 
         $record->update([
             'record_number' => $request->record_number,
@@ -3815,6 +4935,10 @@ SVG;
             'approved_at' => null,
             'supplier_completed_at' => now(),
         ]);
+
+        $this->syncFinanceRelationshipLifecycle($record);
+        $record = $record->fresh();
+        $this->sendFinanceRecordWorkflowNotification($record, 'supplier_submitted');
 
         return redirect()
             ->route('finance.supplier.completion', $token)
