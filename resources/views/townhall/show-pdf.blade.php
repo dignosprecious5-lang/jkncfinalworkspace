@@ -223,19 +223,39 @@
     </style>
 </head>
 <body>
-
     @php
-        $pdfViewer = auth()->user();
-        $acknowledgementRecord = null;
+        $logoCandidates = [
+            public_path('images/jk-logo.png'),
+            public_path('images/jk-logo.jpg'),
+            public_path('images/jk-logo.jpeg'),
+            public_path('images/logo.png'),
+            public_path('images/logo.jpg'),
+            public_path('storage/images/jk-logo.png'),
+        ];
 
-        if ($pdfViewer) {
-            $acknowledgementRecord = \App\Models\TownHallAcknowledgement::where('townhall_communication_id', $communication->id)
-                ->where('user_id', $pdfViewer->id)
-                ->first();
+        $logoDataUri = null;
+
+        foreach ($logoCandidates as $candidate) {
+            if ($candidate && file_exists($candidate)) {
+                $extension = strtolower(pathinfo($candidate, PATHINFO_EXTENSION));
+                $mime = match ($extension) {
+                    'jpg', 'jpeg' => 'image/jpeg',
+                    'gif' => 'image/gif',
+                    'webp' => 'image/webp',
+                    default => 'image/png',
+                };
+
+                $logoDataUri = 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($candidate));
+                break;
+            }
         }
 
-        $acknowledgmentRequired = false;
+        $acknowledgedRecords = \App\Models\TownHallAcknowledgement::where('townhall_communication_id', $communication->id)
+            ->whereNotNull('acknowledged_at')
+            ->orderBy('acknowledged_at')
+            ->get();
 
+        $acknowledgmentRequired = false;
         $recipientType = $communication->recipient_type ?? 'all';
 
         if (($communication->approval_status ?? null) === 'Approved' && !($communication->is_archived ?? false)) {
@@ -255,8 +275,7 @@
         }
     @endphp
 
-
-    <div class="footer-fixed">
+<div class="footer-fixed">
         <div class="footer-inner">
             <div class="footer-meta">
                 Page <span class="page-number"></span> of <span class="page-count"></span>
@@ -286,7 +305,11 @@
             <table class="header-table">
                 <tr>
                     <td class="logo-cell">
-                        <img src="{{ public_path('images/jk-logo.png') }}" alt="JK Logo" class="logo">
+                        @if($logoDataUri)
+                            <img src="{{ $logoDataUri }}" alt="" class="logo">
+                        @else
+                            <div style="width:36mm;height:18mm;border:1px solid #ddd;text-align:center;font-size:10px;line-height:18mm;color:#888;">JK&amp;C</div>
+                        @endif
                     </td>
                     <td class="partners">
                         Atty. Jose B. Ogang, CPA, MMPSM · Jose Tamayo Rio,<br>
@@ -331,7 +354,7 @@
             <div class="issued">
                 Issued this
                 <strong>
-                    {{ $communication->communication_date ? \Carbon\Carbon::parse($communication->communication_date)->format('jS \\d\\a\\y') : '______________' }}
+                    {{ $communication->communication_date ? \Carbon\Carbon::parse($communication->communication_date)->format('jS') : '______________' }}
                 </strong>
                 day of
                 <strong>
@@ -384,13 +407,17 @@
                     <p class="acknowledgement-section-title">Acknowledgment Tracking</p>
                     <p><strong>Acknowledgment Required:</strong> YES</p>
 
-                    @if($acknowledgementRecord && $acknowledgementRecord->acknowledged_at)
-                        <p><strong>Acknowledged By:</strong> {{ $acknowledgementRecord->recipient_name ?: ($pdfViewer->name ?? '—') }}</p>
-                        <p><strong>Position:</strong> {{ $acknowledgementRecord->recipient_position ?: '—' }}</p>
-                        <p><strong>Department:</strong> {{ $acknowledgementRecord->recipient_department ?: '—' }}</p>
-                        <p><strong>Date and Time Acknowledged:</strong> {{ \Carbon\Carbon::parse($acknowledgementRecord->acknowledged_at)->format('F d, Y h:i A') }}</p>
-                        <p><strong>IP Address:</strong> {{ $acknowledgementRecord->ip_address ?: '—' }}</p>
-                        <p><strong>User Account ID:</strong> {{ $acknowledgementRecord->user_account_id ?: $acknowledgementRecord->user_id }}</p>
+                    @if($acknowledgedRecords->count() > 0)
+                        @foreach($acknowledgedRecords as $acknowledgementRecord)
+                            <div style="margin-top: 3mm; padding-top: 3mm; border-top: 1px solid #cccccc;">
+                                <p><strong>Acknowledged By:</strong> {{ $acknowledgementRecord->recipient_name ?: optional($acknowledgementRecord->user)->name ?: '—' }}</p>
+                                <p><strong>Position:</strong> {{ $acknowledgementRecord->recipient_position ?: '—' }}</p>
+                                <p><strong>Department:</strong> {{ $acknowledgementRecord->recipient_department ?: '—' }}</p>
+                                <p><strong>Date and Time Acknowledged:</strong> {{ \Carbon\Carbon::parse($acknowledgementRecord->acknowledged_at)->format('F d, Y h:i A') }}</p>
+                                <p><strong>IP Address:</strong> {{ $acknowledgementRecord->ip_address ?: '—' }}</p>
+                                <p><strong>User Account ID:</strong> {{ $acknowledgementRecord->user_account_id ?: $acknowledgementRecord->user_id }}</p>
+                            </div>
+                        @endforeach
                     @else
                         <p><strong>Status:</strong> Pending acknowledgment</p>
                     @endif
