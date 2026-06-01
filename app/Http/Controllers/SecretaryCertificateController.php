@@ -5,12 +5,16 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Concerns\GeneratesCorporateDocumentNumbers;
 use App\Http\Controllers\Concerns\GeneratesPdfPreview;
 use App\Http\Controllers\Concerns\HandlesUploads;
+use App\Models\DirectorOfficer;
+use App\Models\GisRecord;
 use App\Models\Minute;
 use App\Models\Notice;
 use App\Models\Resolution;
 use App\Models\SecretaryCertificate;
+use App\Models\Stockholder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 
 class SecretaryCertificateController extends Controller
 {
@@ -64,15 +68,18 @@ class SecretaryCertificateController extends Controller
 
     public function show(SecretaryCertificate $secretaryCertificate)
     {
-        $secretaryCertificate->load(['notice', 'resolution.notice', 'minute.notice']);
+        $secretaryCertificate->load(['notice.attendees', 'resolution.notice.attendees', 'resolution.minute.notice.attendees', 'minute.notice.attendees']);
+        $corporateContext = $this->corporateContextForCertificate($secretaryCertificate);
+
         $generatedDraftPath = $this->generatePdfPreview(
             'corporate.secretary-certificates.pdf',
-            ['certificate' => $secretaryCertificate],
+            ['certificate' => $secretaryCertificate, 'corporateContext' => $corporateContext],
             'generated-previews/secretary-certificates/' . ($secretaryCertificate->certificate_no ?: $secretaryCertificate->id) . '-draft.pdf'
         );
 
         return view('corporate.secretary-certificates.preview', [
             'certificate' => $secretaryCertificate,
+            'corporateContext' => $corporateContext,
             'generatedDraftUrl' => $generatedDraftPath ? route('uploads.show', ['path' => $generatedDraftPath]) : null,
             'backRoute' => route('secretary-certificates'),
             'editRoute' => route('secretary-certificates.edit', $secretaryCertificate),
@@ -133,6 +140,9 @@ class SecretaryCertificateController extends Controller
             ['name' => 'date_of_meeting', 'label' => 'Date of Meeting', 'type' => 'date'],
             ['name' => 'location', 'label' => 'Location', 'type' => 'text'],
             ['name' => 'secretary', 'label' => 'Secretary', 'type' => 'text'],
+            ['name' => 'secretary_address', 'label' => 'Secretary Address', 'type' => 'text'],
+            ['name' => 'secretary_tin', 'label' => 'Secretary TIN', 'type' => 'text'],
+            ['name' => 'notarial_place', 'label' => 'Notarial Place', 'type' => 'text'],
             ['name' => 'notary_doc_no', 'label' => 'Notary Doc No.', 'type' => 'text'],
             ['name' => 'notary_page_no', 'label' => 'Notary Page No.', 'type' => 'text'],
             ['name' => 'notary_book_no', 'label' => 'Notary Book No.', 'type' => 'text'],
@@ -163,6 +173,9 @@ class SecretaryCertificateController extends Controller
             'date_of_meeting' => ['nullable', 'date'],
             'location' => ['nullable', 'string', 'max:255'],
             'secretary' => ['nullable', 'string', 'max:255'],
+            'secretary_address' => ['nullable', 'string', 'max:500'],
+            'secretary_tin' => ['nullable', 'string', 'max:100'],
+            'notarial_place' => ['nullable', 'string', 'max:500'],
             'notary_doc_no' => ['nullable', 'string', 'max:255'],
             'notary_page_no' => ['nullable', 'string', 'max:255'],
             'notary_book_no' => ['nullable', 'string', 'max:255'],
@@ -185,14 +198,18 @@ class SecretaryCertificateController extends Controller
             $data['notice_id'] = $resolution->notice_id;
             $data['notice_ref'] = $resolution->notice_ref;
             $data['resolution_no'] = $resolution->resolution_no;
-            $data['resolution_body'] = $data['resolution_body'] ?: $resolution->resolution_body;
+            $data['resolution_body'] = ($data['resolution_body'] ?? null) ?: ($resolution->resolution_body ?: $resolution->board_resolution);
             $data['governing_body'] = $resolution->governing_body;
             $data['type_of_meeting'] = $resolution->type_of_meeting;
             $data['meeting_no'] = $resolution->meeting_no;
-            $data['purpose'] = $data['purpose'] ?: $resolution->board_resolution;
+            $data['purpose'] = ($data['purpose'] ?? null) ?: ($resolution->board_resolution ?: $resolution->resolution_no);
             $data['date_of_meeting'] = $resolution->date_of_meeting;
             $data['location'] = $resolution->location;
-            $data['secretary'] = $resolution->secretary;
+            $secretaryPerson = $this->corporateSecretaryPerson($this->gisForSources($resolution->notice, $resolution->minute, $resolution));
+            $data['secretary'] = $secretaryPerson?->officer_name ?: ($this->corporateSecretaryNameForSources($resolution->notice, $resolution->minute) ?: $resolution->secretary);
+            $data['secretary_address'] = $data['secretary_address'] ?? ($secretaryPerson?->address ?: null);
+            $data['secretary_tin'] = $data['secretary_tin'] ?? ($secretaryPerson?->tin ?: null);
+            $data['notarial_place'] = $data['notarial_place'] ?? ($resolution->notarized_at ?: $this->guessNotarialPlace($resolution->location));
             $data['notary_doc_no'] = $resolution->notary_doc_no;
             $data['notary_page_no'] = $resolution->notary_page_no;
             $data['notary_book_no'] = $resolution->notary_book_no;
@@ -220,13 +237,142 @@ class SecretaryCertificateController extends Controller
         $data['meeting_no'] = $minute->meeting_no ?: $notice?->meeting_no;
         $data['date_of_meeting'] = $minute->date_of_meeting ?: $notice?->date_of_meeting;
         $data['location'] = $minute->location ?: $notice?->location;
-        $data['secretary'] = $minute->secretary ?: $notice?->secretary;
+        $secretaryPerson = $this->corporateSecretaryPerson($this->gisForSources($notice, $minute, null));
+        $data['secretary'] = $secretaryPerson?->officer_name ?: ($this->corporateSecretaryNameForSources($notice, $minute) ?: ($minute->secretary ?: $notice?->secretary));
+        $data['secretary_address'] = $data['secretary_address'] ?? ($secretaryPerson?->address ?: null);
+        $data['secretary_tin'] = $data['secretary_tin'] ?? ($secretaryPerson?->tin ?: null);
+        $data['notarial_place'] = $data['notarial_place'] ?? $this->guessNotarialPlace($minute->location ?: $notice?->location);
         $data['resolution_id'] = null;
-        $data['resolution_no'] = $data['resolution_no'] ?: null;
-        $data['resolution_body'] = $data['resolution_body'] ?: ('Certified from Minutes Ref. ' . ($minute->minutes_ref ?: '') . '.');
-        $data['purpose'] = $data['purpose'] ?: ('Certified extract from Minutes Ref. ' . ($minute->minutes_ref ?: ''));
+        $data['resolution_no'] = ($data['resolution_no'] ?? null) ?: null;
+        $data['resolution_body'] = ($data['resolution_body'] ?? null) ?: ('Certified from Minutes Ref. ' . ($minute->minutes_ref ?: '') . '.');
+        $data['purpose'] = ($data['purpose'] ?? null) ?: ('Certified extract from Minutes Ref. ' . ($minute->minutes_ref ?: ''));
 
         return $data;
+    }
+
+
+
+    private function corporateContextForCertificate(SecretaryCertificate $certificate): array
+    {
+        $resolution = $certificate->resolution;
+        $minute = $certificate->minute ?: $resolution?->minute;
+        $notice = $certificate->notice ?: $resolution?->notice ?: $minute?->notice;
+        $gis = $this->gisForSources($notice, $minute, $resolution);
+        $secretaryPerson = $this->corporateSecretaryPerson($gis);
+
+        $companyName = $gis?->corporation_name ?: '________________';
+        $companyRegNo = $gis?->company_reg_no ?: '________________';
+        $companyAddress = $gis?->principal_address ?: ($gis?->business_address ?: '________________');
+        $secretaryName = $certificate->secretary ?: ($secretaryPerson?->officer_name ?: ($resolution?->secretary ?: ($minute?->secretary ?: 'Corporate Secretary')));
+        $secretaryTin = data_get($certificate, 'secretary_tin') ?: ($secretaryPerson?->tin ?: null);
+        $secretaryAddress = data_get($certificate, 'secretary_address') ?: ($secretaryPerson?->address ?: ($companyAddress ?: 'principal office of the Corporation'));
+        $notarialPlace = data_get($certificate, 'notarial_place') ?: $this->guessNotarialPlace($certificate->location ?: $resolution?->location ?: $minute?->location ?: $companyAddress);
+        $resolvedBody = data_get($certificate, 'resolution_body') ?: ($resolution?->resolution_body ?: ($resolution?->board_resolution ?: $certificate->purpose));
+        $resolvedPurpose = $certificate->purpose ?: ($resolution?->board_resolution ?: ($certificate->resolution_no ? 'Resolution ' . $certificate->resolution_no : 'Certified Resolution'));
+
+        return [
+            'gis' => $gis,
+            'company_name' => $companyName,
+            'company_reg_no' => $companyRegNo,
+            'company_address' => $companyAddress,
+            'secretary_name' => $secretaryName,
+            'secretary_tin' => $secretaryTin,
+            'secretary_address' => $secretaryAddress,
+            'notarial_place' => $notarialPlace,
+            'resolution_body' => $resolvedBody,
+            'purpose' => $resolvedPurpose,
+        ];
+    }
+
+    private function corporateSecretaryNameForSources(?Notice $notice = null, ?Minute $minute = null): ?string
+    {
+        $gis = $this->gisForSources($notice, $minute, null);
+        return $this->corporateSecretaryPerson($gis)?->officer_name;
+    }
+
+    private function corporateSecretaryPerson(?GisRecord $gis): ?DirectorOfficer
+    {
+        if (!$gis) {
+            return null;
+        }
+
+        return $gis->directors()
+            ->where(function ($query) {
+                $query->where('officer_type', 'like', '%Secretary%')
+                    ->orWhere('committee', 'like', '%Secretary%');
+            })
+            ->orderByDesc('id')
+            ->first();
+    }
+
+    private function gisForSources(?Notice $notice = null, ?Minute $minute = null, ?Resolution $resolution = null): ?GisRecord
+    {
+        $notice = $notice ?: $minute?->notice ?: $resolution?->notice;
+        $candidateIds = collect();
+
+        if ($notice && method_exists($notice, 'attendees')) {
+            $notice->loadMissing('attendees');
+            foreach ($notice->attendees as $attendee) {
+                if (isset($attendee->gis_id) && $attendee->gis_id) {
+                    $candidateIds->push($attendee->gis_id);
+                }
+
+                $sourceType = strtolower((string) ($attendee->source_type ?? $attendee->attendee_type ?? ''));
+                $sourceId = $attendee->source_id ?? null;
+
+                if ($sourceId && Str::contains($sourceType, ['director', 'officer'])) {
+                    $candidateIds->push(DirectorOfficer::whereKey($sourceId)->value('gis_id'));
+                }
+
+                if ($sourceId && Str::contains($sourceType, 'stockholder')) {
+                    $candidateIds->push(Stockholder::whereKey($sourceId)->value('gis_id'));
+                }
+            }
+        }
+
+        $candidateIds = $candidateIds->filter()->unique()->values();
+        if ($candidateIds->isNotEmpty()) {
+            $gis = GisRecord::whereIn('id', $candidateIds)
+                ->where(function ($query) {
+                    $query->where('approval_status', 'Approved')
+                        ->orWhere('workflow_status', 'Accepted');
+                })
+                ->latest('created_at')
+                ->first();
+
+            if ($gis) {
+                return $gis;
+            }
+        }
+
+        return GisRecord::where(function ($query) {
+                $query->where('approval_status', 'Approved')
+                    ->orWhere('workflow_status', 'Accepted');
+            })
+            ->latest('created_at')
+            ->first();
+    }
+
+
+    private function guessNotarialPlace(?string $source): string
+    {
+        $source = trim((string) $source);
+        if ($source === '' || $source === '________________') {
+            return 'Cebu City, Philippines';
+        }
+
+        $parts = collect(explode(',', $source))
+            ->map(fn ($part) => trim($part))
+            ->filter()
+            ->values();
+
+        $cityLike = $parts->first(fn ($part) => Str::contains(Str::lower($part), ['city', 'cebu', 'mandaue', 'municipality']));
+        if ($cityLike) {
+            return Str::contains(Str::lower($cityLike), 'philippines') ? $cityLike : $cityLike . ', Philippines';
+        }
+
+        $first = $parts->first();
+        return $first ? ($first . (Str::contains(Str::lower($first), 'philippines') ? '' : ', Philippines')) : 'Cebu City, Philippines';
     }
 
     private function governingBodyOptions(): array
