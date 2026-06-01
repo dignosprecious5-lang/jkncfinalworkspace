@@ -162,6 +162,26 @@
             font-weight: bold;
         }
 
+
+        .acknowledgement-section {
+            page-break-inside: avoid;
+            margin-top: 7mm;
+            padding: 4mm 5mm;
+            border: 1px solid #999;
+            font-size: 12.5px;
+            line-height: 1.35;
+        }
+
+        .acknowledgement-section-title {
+            font-weight: bold;
+            margin: 0 0 3mm 0;
+            text-transform: uppercase;
+        }
+
+        .acknowledgement-section p {
+            margin: 0 0 1.2mm 0;
+        }
+
         .footer-fixed {
             position: fixed;
             bottom: -18mm;
@@ -203,6 +223,38 @@
     </style>
 </head>
 <body>
+
+    @php
+        $pdfViewer = auth()->user();
+        $acknowledgementRecord = null;
+
+        if ($pdfViewer) {
+            $acknowledgementRecord = \App\Models\TownHallAcknowledgement::where('townhall_communication_id', $communication->id)
+                ->where('user_id', $pdfViewer->id)
+                ->first();
+        }
+
+        $acknowledgmentRequired = false;
+
+        $recipientType = $communication->recipient_type ?? 'all';
+
+        if (($communication->approval_status ?? null) === 'Approved' && !($communication->is_archived ?? false)) {
+            $acknowledgmentRequired = in_array($recipientType, [
+                'all',
+                'all_users',
+                'all_admins',
+                'employee',
+            ], true);
+
+            if (!empty($communication->recipient_user_id)
+                || !empty($communication->recipient_user_ids)
+                || !empty($communication->recipient_contact_ids)
+            ) {
+                $acknowledgmentRequired = true;
+            }
+        }
+    @endphp
+
 
     <div class="footer-fixed">
         <div class="footer-inner">
@@ -326,6 +378,28 @@
                     This is a computer-generated document. Signature is not required.
                 </p>
             </div>
+
+            @if($acknowledgmentRequired)
+                <div class="acknowledgement-section">
+                    <p class="acknowledgement-section-title">Acknowledgment Tracking</p>
+                    <p><strong>Acknowledgment Required:</strong> YES</p>
+
+                    @if($acknowledgementRecord && $acknowledgementRecord->acknowledged_at)
+                        <p><strong>Acknowledged By:</strong> {{ $acknowledgementRecord->recipient_name ?: ($pdfViewer->name ?? '—') }}</p>
+                        <p><strong>Position:</strong> {{ $acknowledgementRecord->recipient_position ?: '—' }}</p>
+                        <p><strong>Department:</strong> {{ $acknowledgementRecord->recipient_department ?: '—' }}</p>
+                        <p><strong>Date and Time Acknowledged:</strong> {{ \Carbon\Carbon::parse($acknowledgementRecord->acknowledged_at)->format('F d, Y h:i A') }}</p>
+                        <p><strong>IP Address:</strong> {{ $acknowledgementRecord->ip_address ?: '—' }}</p>
+                        <p><strong>User Account ID:</strong> {{ $acknowledgementRecord->user_account_id ?: $acknowledgementRecord->user_id }}</p>
+                    @else
+                        <p><strong>Status:</strong> Pending acknowledgment</p>
+                    @endif
+
+                    <p style="margin-top: 3mm; font-weight: bold;">
+                        This is a computer-generated document. Signature is not required.
+                    </p>
+                </div>
+            @endif
         </div>
     </div>
 
