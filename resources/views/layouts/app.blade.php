@@ -420,37 +420,90 @@
                 <div class="flex-1 overflow-y-auto p-3">
                     <div class="space-y-1 text-sm">
 
+                        {{-- ADMIN CONTROLS --}}
                         @if(Auth::user()->hasPermission('manage_users'))
                             <a href="{{ route('admin.users') }}"
                                class="block px-3 py-2 rounded-lg transition
                                {{ request()->routeIs('admin.users') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
                                 Users
                             </a>
-                        @endif
 
-                        @if(Auth::user()->hasPermission('manage_users'))
                             <a href="{{ route('admin.role-permissions') }}"
                                class="block px-3 py-2 rounded-lg transition
                                {{ request()->routeIs('admin.role-permissions') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
                                 Role Permissions
                             </a>
-                        @endif
 
-                        @if(Auth::user()->hasPermission('manage_users'))
                             <a href="{{ route('admin.user-permissions') }}"
                                class="block px-3 py-2 rounded-lg transition
                                {{ request()->routeIs('admin.user-permissions') || request()->routeIs('admin.user-permissions.edit') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
                                 User Permissions
                             </a>
+
+                            <div class="my-3 border-t border-gray-100"></div>
                         @endif
 
+                        {{-- ENTERPRISE MODULE ORDER --}}
                         @if(Auth::user()->hasPermission('access_admin_dashboard') || Auth::user()->hasPermission('approve_townhall'))
                             <a href="{{ route('admin.dashboard') }}"
                                class="block px-3 py-2 rounded-lg transition
                                {{ request()->routeIs('admin.dashboard') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
                                 Town Hall
                             </a>
+                        @endif
 
+                        @if(Auth::user()->hasPermission('approve_corporate'))
+                            <a href="{{ route('admin.corporate.dashboard') }}"
+                               class="block px-3 py-2 rounded-lg transition
+                               {{ request()->routeIs('admin.corporate.dashboard') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
+                                Corporate
+                            </a>
+                        @endif
+
+                        <a href="{{ route('admin.policies.index') }}"
+                           class="block px-3 py-2 rounded-lg transition
+                           {{ request()->routeIs('admin.policies.*') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
+                            Policies
+                        </a>
+
+                        @if(Auth::user()->isSuperAdmin() || Auth::user()->isAdmin() || Auth::user()->hasPermission('manage_users'))
+                            <a href="{{ route('admin.finance.dashboard') }}"
+                               class="block px-3 py-2 rounded-lg transition
+                               {{ request()->routeIs('admin.finance.dashboard') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
+                                Finance
+                            </a>
+                        @endif
+
+                        @if(Auth::user()->isAdmin() || Auth::user()->isSuperAdmin() || Auth::user()->hasPermission('access_admin_dashboard'))
+                            <a href="{{ route('admin.human-capital.dashboard') }}"
+                               class="block px-3 py-2 rounded-lg transition
+                               {{ request()->routeIs('admin.human-capital.dashboard') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
+                                Human Capital
+                            </a>
+                        @endif
+
+                        @if(Auth::user()->hasPermission('access_admin_dashboard') || Auth::user()->hasPermission('approve_townhall'))
+                            {{-- Marketing --}}
+                            <a href="{{ route('admin.dashboard.section', ['section' => 'products']) }}"
+                               class="block px-3 py-2 rounded-lg transition
+                               {{ request()->routeIs('admin.dashboard.section') && request()->route('section') === 'products' ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
+                                Products
+                            </a>
+
+                            <a href="{{ route('admin.dashboard.section', ['section' => 'services']) }}"
+                               class="block px-3 py-2 rounded-lg transition
+                               {{ request()->routeIs('admin.dashboard.section') && request()->route('section') === 'services' ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
+                                Services
+                            </a>
+
+                            {{-- Sales --}}
+                            <a href="{{ route('admin.dashboard.section', ['section' => 'deals']) }}"
+                               class="block px-3 py-2 rounded-lg transition
+                               {{ request()->routeIs('admin.dashboard.section') && request()->route('section') === 'deals' ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
+                                Deals
+                            </a>
+
+                            {{-- Accounts --}}
                             <a href="{{ route('admin.dashboard.section', ['section' => 'contacts']) }}"
                                class="block px-3 py-2 rounded-lg transition
                                {{ request()->routeIs('admin.dashboard.section') && request()->route('section') === 'contacts' ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
@@ -463,10 +516,11 @@
                                 Company
                             </a>
 
-                            <a href="{{ route('admin.dashboard.section', ['section' => 'deals']) }}"
+                            {{-- Operations --}}
+                            <a href="{{ route('admin.dashboard.section', ['section' => 'regular']) }}"
                                class="block px-3 py-2 rounded-lg transition
-                               {{ request()->routeIs('admin.dashboard.section') && request()->route('section') === 'deals' ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
-                                Deals
+                               {{ request()->routeIs('admin.dashboard.section') && request()->route('section') === 'regular' ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
+                                Regular
                             </a>
 
                             <a href="{{ route('admin.dashboard.section', ['section' => 'project']) }}"
@@ -474,56 +528,7 @@
                                {{ request()->routeIs('admin.dashboard.section') && request()->route('section') === 'project' ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
                                 Project
                             </a>
-
-                            <a href="{{ route('admin.dashboard.section', ['section' => 'regular']) }}"
-                               class="block px-3 py-2 rounded-lg transition
-                               {{ request()->routeIs('admin.dashboard.section') && request()->route('section') === 'regular' ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
-                                Regular
-                            </a>
-
-                            <a href="{{ route('admin.dashboard.section', ['section' => 'services']) }}"
-                               class="block px-3 py-2 rounded-lg transition
-                               {{ request()->routeIs('admin.dashboard.section') && request()->route('section') === 'services' ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
-                                Services
-                            </a>
-
-                            <a href="{{ route('admin.dashboard.section', ['section' => 'products']) }}"
-                               class="block px-3 py-2 rounded-lg transition
-                               {{ request()->routeIs('admin.dashboard.section') && request()->route('section') === 'products' ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
-                                Products
-                            </a>
                         @endif
-
-                        @if(Auth::user()->hasPermission('approve_corporate'))
-                            <a href="{{ route('admin.corporate.dashboard') }}"
-                               class="block px-3 py-2 rounded-lg transition
-                               {{ request()->routeIs('admin.corporate.dashboard') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
-                                Corporate
-                            </a>
-                        @endif
-
-
-                        @if(Auth::user()->isAdmin() || Auth::user()->isSuperAdmin() || Auth::user()->hasPermission('access_admin_dashboard'))
-                            <a href="{{ route('admin.human-capital.dashboard') }}"
-                               class="block px-3 py-2 rounded-lg transition
-                               {{ request()->routeIs('admin.human-capital.dashboard') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
-                                Human Capital
-                            </a>
-                        @endif
-
-                        @if(Auth::user()->isSuperAdmin() || Auth::user()->isAdmin() || Auth::user()->hasPermission('manage_users'))
-                            <a href="{{ route('admin.finance.dashboard') }}"
-                               class="block px-3 py-2 rounded-lg transition
-                               {{ request()->routeIs('admin.finance.dashboard') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
-                                Finance
-                            </a>
-                        @endif
-
-                        <a href="{{ route('admin.policies.index') }}"
-                           class="flex items-center px-4 py-2 rounded-lg text-sm font-medium
-                           {{ request()->routeIs('admin.policies.*') ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:bg-gray-100' }}">
-                            Policies
-                        </a>
 
                     </div>
                 </div>
