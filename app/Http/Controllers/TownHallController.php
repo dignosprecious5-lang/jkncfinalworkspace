@@ -16,6 +16,7 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Schema;
 use App\Mail\TownHallPostedNotification;
 use App\Mail\TownHallApprovalRequestNotification;
+use App\Mail\TownHallAcknowledgedNotification;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\DB;
@@ -61,16 +62,16 @@ class TownHallController extends Controller
             ->get();
 
         $usersForRecipients = User::whereIn('role', [
-            'Employee',
-            'employee',
-            'Admin',
-            'admin',
-            'SuperAdmin',
-            'superadmin',
-            'super admin',
-            'System Super Admin',
-            'system super admin',
-        ])
+                'Employee',
+                'employee',
+                'Admin',
+                'admin',
+                'SuperAdmin',
+                'superadmin',
+                'super admin',
+                'System Super Admin',
+                'system super admin',
+            ])
             ->orderBy('name')
             ->get();
 
@@ -254,10 +255,8 @@ class TownHallController extends Controller
             abort(403, 'You can only edit your own communication.');
         }
 
-        if (
-            !in_array($communication->approval_status, ['Draft', 'Needs Revision'], true)
-            && !in_array((string) ($communication->workflow_status ?? ''), ['Draft', 'Needs Revision'], true)
-        ) {
+        if (!in_array($communication->approval_status, ['Draft', 'Needs Revision'], true)
+            && !in_array((string) ($communication->workflow_status ?? ''), ['Draft', 'Needs Revision'], true)) {
             abort(403, 'Only draft communications or communications returned for revision can be edited.');
         }
 
@@ -266,16 +265,16 @@ class TownHallController extends Controller
             ->get();
 
         $usersForRecipients = User::whereIn('role', [
-            'Employee',
-            'employee',
-            'Admin',
-            'admin',
-            'SuperAdmin',
-            'superadmin',
-            'super admin',
-            'System Super Admin',
-            'system super admin',
-        ])
+                'Employee',
+                'employee',
+                'Admin',
+                'admin',
+                'SuperAdmin',
+                'superadmin',
+                'super admin',
+                'System Super Admin',
+                'system super admin',
+            ])
             ->orderBy('name')
             ->get();
 
@@ -307,10 +306,8 @@ class TownHallController extends Controller
             abort(403, 'You can only update your own communication.');
         }
 
-        if (
-            !in_array($communication->approval_status, ['Draft', 'Needs Revision'], true)
-            && !in_array((string) ($communication->workflow_status ?? ''), ['Draft', 'Needs Revision'], true)
-        ) {
+        if (!in_array($communication->approval_status, ['Draft', 'Needs Revision'], true)
+            && !in_array((string) ($communication->workflow_status ?? ''), ['Draft', 'Needs Revision'], true)) {
             abort(403, 'Only draft communications or communications returned for revision can be updated.');
         }
 
@@ -450,8 +447,7 @@ class TownHallController extends Controller
             && $isIntendedRecipient
             && !$hasAcknowledged;
 
-        if (
-            $communication->approval_status === 'Approved'
+        if ($communication->approval_status === 'Approved'
             && !$communication->is_archived
             && $isIntendedRecipient
         ) {
@@ -914,7 +910,7 @@ class TownHallController extends Controller
 
         $isIntendedRecipient = $intendedUsers
             ->pluck('id')
-            ->map(fn($id) => (int) $id)
+            ->map(fn ($id) => (int) $id)
             ->contains((int) Auth::id());
 
         if (!$isIntendedRecipient) {
@@ -969,8 +965,97 @@ class TownHallController extends Controller
             'Recipient acknowledged the communication from IP ' . $request->ip()
         );
 
+        $this->notifyAcknowledgementStakeholders($communication, $acknowledgement);
+
         return redirect()->back()->with('success', 'Communication acknowledged successfully.');
     }
+
+
+    private function notifyAcknowledgementStakeholders(
+        TownHallCommunication $communication,
+        TownHallAcknowledgement $acknowledgement
+    ): void {
+        $recipients = $this->getAcknowledgementNotificationRecipients($communication);
+
+        if ($recipients->isEmpty()) {
+            return;
+        }
+
+        $summary = $this->buildAcknowledgementNotificationSummary($communication);
+
+        try {
+            foreach ($recipients as $recipient) {
+                Mail::to($recipient->email)->send(
+                    new TownHallAcknowledgedNotification($communication, $acknowledgement, $summary)
+                );
+            }
+        } catch (\Throwable $e) {
+            Log::error('TownHall acknowledgement notification failed.', [
+                'communication_id' => $communication->id,
+                'ref_no' => $communication->ref_no,
+                'acknowledgement_id' => $acknowledgement->id,
+                'message' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    private function getAcknowledgementNotificationRecipients(TownHallCommunication $communication)
+    {
+        $userIds = collect();
+
+        if ($communication->created_by) {
+            $userIds->push((int) $communication->created_by);
+        }
+
+        $managementApprover = $this->resolveApprovalNotificationUser($communication, 'management');
+        if ($managementApprover) {
+            $userIds->push((int) $managementApprover->id);
+        }
+
+        $executiveApprover = $this->resolveApprovalNotificationUser($communication, 'executive');
+        if ($executiveApprover) {
+            $userIds->push((int) $executiveApprover->id);
+        }
+
+        if ($communication->approved_by) {
+            $userIds->push((int) $communication->approved_by);
+        }
+
+        return User::whereIn('id', $userIds->filter()->unique()->values())
+            ->whereNotNull('email')
+            ->get()
+            ->filter(fn ($user) => !empty($user->email))
+            ->unique('email')
+            ->values();
+    }
+
+    private function buildAcknowledgementNotificationSummary(TownHallCommunication $communication): array
+    {
+        $intendedUsers = $this->getAcknowledgementUsers($communication);
+        $intendedUserIds = $intendedUsers
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->values();
+
+        $requiredCount = $intendedUserIds->count();
+
+        $acknowledgedCount = TownHallAcknowledgement::where('townhall_communication_id', $communication->id)
+            ->whereIn('user_id', $intendedUserIds)
+            ->whereNotNull('acknowledged_at')
+            ->count();
+
+        $pendingCount = max($requiredCount - $acknowledgedCount, 0);
+
+        return [
+            'required_count' => $requiredCount,
+            'acknowledged_count' => $acknowledgedCount,
+            'pending_count' => $pendingCount,
+            'percentage' => $requiredCount > 0
+                ? round(($acknowledgedCount / $requiredCount) * 100)
+                : 0,
+        ];
+    }
+
 
     public function downloadPdf($id)
     {
@@ -1080,7 +1165,7 @@ class TownHallController extends Controller
             ->map(function ($employee) {
                 return $this->formatEmployeeApprover($employee);
             })
-            ->filter(fn($employee) => !empty($employee['name']))
+            ->filter(fn ($employee) => !empty($employee['name']))
             ->values();
     }
 
@@ -1301,14 +1386,14 @@ class TownHallController extends Controller
                 }
 
                 $q->orWhere(function ($legacy) use ($user) {
-                    $legacy->whereNull('recipient_type')
-                        ->where(function ($old) use ($user) {
-                            $old->where('to_for', 'like', '%' . $user->name . '%')
-                                ->orWhere('to_for', 'like', '%All%')
-                                ->orWhere('to_for', 'like', '%Everyone%')
-                                ->orWhere('to_for', 'like', '%All Employees%');
-                        });
-                });
+                        $legacy->whereNull('recipient_type')
+                            ->where(function ($old) use ($user) {
+                                $old->where('to_for', 'like', '%' . $user->name . '%')
+                                    ->orWhere('to_for', 'like', '%All%')
+                                    ->orWhere('to_for', 'like', '%Everyone%')
+                                    ->orWhere('to_for', 'like', '%All Employees%');
+                            });
+                    });
             });
 
             return;
@@ -1605,9 +1690,9 @@ class TownHallController extends Controller
 
         $summary = [
             'total' => $rows->count(),
-            'viewed' => $rows->filter(fn($row) => !is_null($row->viewed_at))->count(),
-            'acknowledged' => $rows->filter(fn($row) => !is_null($row->acknowledged_at))->count(),
-            'not_viewed' => $rows->filter(fn($row) => is_null($row->viewed_at))->count(),
+            'viewed' => $rows->filter(fn ($row) => !is_null($row->viewed_at))->count(),
+            'acknowledged' => $rows->filter(fn ($row) => !is_null($row->acknowledged_at))->count(),
+            'not_viewed' => $rows->filter(fn ($row) => is_null($row->viewed_at))->count(),
         ];
 
         $perPage = 15;
@@ -1917,7 +2002,7 @@ class TownHallController extends Controller
     private function getNotificationRecipients(TownHallCommunication $communication)
     {
         return $this->getAcknowledgementUsers($communication)
-            ->filter(fn($user) => !empty($user->email))
+            ->filter(fn ($user) => !empty($user->email))
             ->unique('email')
             ->values();
     }
