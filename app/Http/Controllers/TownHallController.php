@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Http\Request;
 use App\Models\Attendance;
 use App\Models\TownHallCommunication;
+use App\Models\TownHallApprovalAudit;
 use Illuminate\Support\Facades\Storage;
 use App\Models\TownHallAcknowledgement;
 use App\Models\Contact;
@@ -150,6 +151,15 @@ class TownHallController extends Controller
         $communication->ref_no = 'MEMO-' . str_pad((string) $communication->id, 5, '0', STR_PAD_LEFT);
         $communication->save();
         $communication->refresh();
+
+        $this->recordTownHallAudit(
+            $communication,
+            'Submitted',
+            'Level 1 - From Management',
+            Auth::id(),
+            'Pending Approval',
+            'Communication submitted and routed to Level 1 Management approver.'
+        );
 
         $this->notifyPendingApprover($communication, 'management');
 
@@ -358,6 +368,15 @@ class TownHallController extends Controller
         $communication->update($validated);
         $communication->refresh();
 
+        $this->recordTownHallAudit(
+            $communication,
+            'Resubmitted',
+            'Level 1 - From Management',
+            Auth::id(),
+            'Pending Approval',
+            'Communication revised and resubmitted for approval.'
+        );
+
         $this->notifyPendingApprover($communication, 'management');
 
         return redirect()
@@ -472,6 +491,16 @@ class TownHallController extends Controller
                 ]);
 
                 $communication->refresh();
+
+                $this->recordTownHallAudit(
+                    $communication,
+                    'Approved',
+                    'Level 1 - From Management',
+                    Auth::id(),
+                    'Level 1 Approved',
+                    $notes
+                );
+
                 $this->notifyPendingApprover($communication, 'executive');
 
                 return redirect()->back()->with('success', 'Level 1 Management approval completed. The Executive Management approver was notified by email.');
@@ -495,6 +524,15 @@ class TownHallController extends Controller
 
                 $communication->refresh();
 
+                $this->recordTownHallAudit(
+                    $communication,
+                    'Approved and Posted',
+                    'Level 2 - From Executive Management',
+                    Auth::id(),
+                    'Posted',
+                    $notes
+                );
+
                 $this->notifyRecipientsAfterPosting($communication);
 
                 return redirect()->back()->with('success', 'Executive Management approval completed. Communication is now posted and recipients were notified.');
@@ -515,6 +553,15 @@ class TownHallController extends Controller
         ]);
 
         $communication->refresh();
+
+        $this->recordTownHallAudit(
+            $communication,
+            'Approved and Posted',
+            'Approval',
+            Auth::id(),
+            'Posted',
+            $notes
+        );
 
         $this->notifyRecipientsAfterPosting($communication);
 
@@ -560,6 +607,16 @@ class TownHallController extends Controller
             ]);
 
             $communication->refresh();
+
+            $this->recordTownHallAudit(
+                $communication,
+                'Approved',
+                'Level 1 - From Management',
+                $approverUserId,
+                'Level 1 Approved',
+                'Approved through email notification.'
+            );
+
             $this->notifyPendingApprover($communication, 'executive');
 
             return redirect()->route('townhall.show', $communication->id)
@@ -592,6 +649,16 @@ class TownHallController extends Controller
             ]);
 
             $communication->refresh();
+
+            $this->recordTownHallAudit(
+                $communication,
+                'Approved and Posted',
+                'Level 2 - From Executive Management',
+                $approverUserId,
+                'Posted',
+                'Approved through email notification.'
+            );
+
             $this->notifyRecipientsAfterPosting($communication);
 
             return redirect()->route('townhall.show', $communication->id)
@@ -628,6 +695,17 @@ class TownHallController extends Controller
             'archived_at' => null,
         ]);
 
+        $communication->refresh();
+
+        $this->recordTownHallAudit(
+            $communication,
+            'Rejected',
+            $level === 'executive' ? 'Level 2 - From Executive Management' : 'Level 1 - From Management',
+            $approverUserId,
+            'Rejected',
+            'Rejected through email notification.'
+        );
+
         return redirect()->route('townhall.show', $communication->id)
             ->with('success', 'Communication rejected through email.');
     }
@@ -640,6 +718,8 @@ class TownHallController extends Controller
 
         $communication = TownHallCommunication::findOrFail($id);
 
+        $remarks = $request->input('approval_notes') ?: 'Rejected by approver.';
+
         $communication->update([
             'approval_status' => 'Rejected',
             'workflow_status' => 'Rejected',
@@ -648,10 +728,21 @@ class TownHallController extends Controller
             'executive_approval_status' => 'Pending',
             'approved_by' => Auth::id(),
             'approved_at' => Carbon::now(),
-            'approval_notes' => $request->input('approval_notes') ?: 'Rejected by approver.',
+            'approval_notes' => $remarks,
             'is_archived' => false,
             'archived_at' => null,
         ]);
+
+        $communication->refresh();
+
+        $this->recordTownHallAudit(
+            $communication,
+            'Rejected',
+            'Approval',
+            Auth::id(),
+            'Rejected',
+            $remarks
+        );
 
         return redirect()->back()->with('success', 'Communication rejected successfully. It will not appear in Town Hall.');
     }
@@ -664,6 +755,8 @@ class TownHallController extends Controller
 
         $communication = TownHallCommunication::findOrFail($id);
 
+        $remarks = $request->input('approval_notes') ?: 'Needs revision.';
+
         $communication->update([
             'approval_status' => 'Needs Revision',
             'workflow_status' => 'Needs Revision',
@@ -674,10 +767,21 @@ class TownHallController extends Controller
             'executive_approved_at' => null,
             'approved_by' => Auth::id(),
             'approved_at' => Carbon::now(),
-            'approval_notes' => $request->input('approval_notes') ?: 'Needs revision.',
+            'approval_notes' => $remarks,
             'is_archived' => false,
             'archived_at' => null,
         ]);
+
+        $communication->refresh();
+
+        $this->recordTownHallAudit(
+            $communication,
+            'Returned for Revision',
+            'Approval',
+            Auth::id(),
+            'Needs Revision',
+            $remarks
+        );
 
         return redirect()->back()->with('success', 'Communication returned for revision.');
     }
@@ -696,6 +800,17 @@ class TownHallController extends Controller
             'archived_at' => Carbon::now(),
         ]);
 
+        $communication->refresh();
+
+        $this->recordTownHallAudit(
+            $communication,
+            'Archived',
+            'Records Management',
+            Auth::id(),
+            'Archived',
+            'Communication archived.'
+        );
+
         return redirect()->back()->with('success', 'Communication archived successfully.');
     }
 
@@ -711,6 +826,17 @@ class TownHallController extends Controller
             'is_archived' => false,
             'archived_at' => null,
         ]);
+
+        $communication->refresh();
+
+        $this->recordTownHallAudit(
+            $communication,
+            'Unarchived',
+            'Records Management',
+            Auth::id(),
+            'Unarchived',
+            'Communication unarchived.'
+        );
 
         return redirect()->back()->with('success', 'Communication unarchived successfully.');
     }
@@ -1299,6 +1425,172 @@ class TownHallController extends Controller
             ->values();
     }
 
+
+
+
+    public function auditTrail(Request $request)
+    {
+        if (!Auth::user()->hasPermission('approve_townhall')) {
+            abort(403, 'Unauthorized');
+        }
+
+        $query = TownHallApprovalAudit::with(['communication', 'approver'])
+            ->latest('acted_at')
+            ->latest();
+
+        if ($request->filled('search')) {
+            $search = trim((string) $request->search);
+
+            $query->where(function ($q) use ($search) {
+                $q->where('communication_ref_no', 'like', "%{$search}%")
+                    ->orWhere('communication_subject', 'like', "%{$search}%")
+                    ->orWhere('requestor_name', 'like', "%{$search}%")
+                    ->orWhere('approver_name', 'like', "%{$search}%")
+                    ->orWhere('approver_position', 'like', "%{$search}%")
+                    ->orWhere('approver_department', 'like', "%{$search}%")
+                    ->orWhere('action', 'like', "%{$search}%")
+                    ->orWhere('approval_status', 'like', "%{$search}%")
+                    ->orWhere('remarks', 'like', "%{$search}%");
+            });
+        }
+
+        if ($request->filled('action')) {
+            $query->where('action', $request->action);
+        }
+
+        if ($request->filled('approval_level')) {
+            $query->where('approval_level', $request->approval_level);
+        }
+
+        if ($request->filled('approval_status')) {
+            $query->where('approval_status', $request->approval_status);
+        }
+
+        if ($request->filled('date_from')) {
+            $query->whereDate('acted_at', '>=', $request->date_from);
+        }
+
+        if ($request->filled('date_to')) {
+            $query->whereDate('acted_at', '<=', $request->date_to);
+        }
+
+        $audits = $query->paginate(15)->withQueryString();
+
+        $summary = [
+            'total' => TownHallApprovalAudit::count(),
+            'approved' => TownHallApprovalAudit::whereIn('action', ['Approved', 'Approved and Posted'])->count(),
+            'rejected' => TownHallApprovalAudit::where('action', 'Rejected')->count(),
+            'revision' => TownHallApprovalAudit::where('action', 'Returned for Revision')->count(),
+            'posted' => TownHallApprovalAudit::where('approval_status', 'Posted')->count(),
+        ];
+
+        $actionOptions = TownHallApprovalAudit::select('action')
+            ->whereNotNull('action')
+            ->distinct()
+            ->orderBy('action')
+            ->pluck('action');
+
+        $levelOptions = TownHallApprovalAudit::select('approval_level')
+            ->whereNotNull('approval_level')
+            ->distinct()
+            ->orderBy('approval_level')
+            ->pluck('approval_level');
+
+        $statusOptions = TownHallApprovalAudit::select('approval_status')
+            ->whereNotNull('approval_status')
+            ->distinct()
+            ->orderBy('approval_status')
+            ->pluck('approval_status');
+
+        return view('admin.townhall-audit-trail', compact(
+            'audits',
+            'summary',
+            'actionOptions',
+            'levelOptions',
+            'statusOptions'
+        ));
+    }
+
+    private function recordTownHallAudit(
+        TownHallCommunication $communication,
+        string $action,
+        ?string $approvalLevel,
+        ?int $approverUserId,
+        ?string $approvalStatus,
+        ?string $remarks = null
+    ): void {
+        if (!class_exists(TownHallApprovalAudit::class)) {
+            return;
+        }
+
+        try {
+            $identity = $this->resolveAuditApproverIdentity($communication, $approvalLevel, $approverUserId);
+
+            TownHallApprovalAudit::create([
+                'townhall_communication_id' => $communication->id,
+                'communication_ref_no' => $communication->ref_no,
+                'communication_subject' => $communication->subject,
+                'requestor_user_id' => $communication->created_by,
+                'requestor_name' => $communication->from_name ?: ($communication->uploader?->name),
+                'action' => $action,
+                'approval_level' => $approvalLevel,
+                'approver_user_id' => $approverUserId,
+                'approver_name' => $identity['name'],
+                'approver_position' => $identity['position'],
+                'approver_department' => $identity['department'],
+                'approval_status' => $approvalStatus,
+                'remarks' => $remarks,
+                'acted_at' => Carbon::now(),
+                'ip_address' => request()?->ip(),
+                'user_agent' => substr((string) request()?->userAgent(), 0, 1000),
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('TownHall audit trail write failed.', [
+                'communication_id' => $communication->id,
+                'action' => $action,
+                'message' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    private function resolveAuditApproverIdentity(
+        TownHallCommunication $communication,
+        ?string $approvalLevel,
+        ?int $approverUserId
+    ): array {
+        $user = $approverUserId ? User::find($approverUserId) : Auth::user();
+        $employee = null;
+
+        if ($user && class_exists(Employee::class)) {
+            $employee = Employee::where('user_id', $user->id)->first();
+        }
+
+        $name = $user?->name;
+        $position = $employee?->position;
+        $department = $this->resolveDepartmentName($employee?->department_id ?? null);
+
+        if (!$name || $department === '—' || !$position) {
+            if (str_contains((string) $approvalLevel, 'Executive')) {
+                $name = $name ?: ($communication->executive_approver_name ?: 'John Kelly D. Abalde');
+                $position = $position ?: ($communication->executive_approver_position ?: 'President and CEO');
+                $department = $department !== '—'
+                    ? $department
+                    : ($communication->executive_approver_department ?: 'Executive Management');
+            } elseif (str_contains((string) $approvalLevel, 'Management')) {
+                $name = $name ?: ($communication->management_approver_name ?: '—');
+                $position = $position ?: ($communication->management_approver_position ?: '—');
+                $department = $department !== '—'
+                    ? $department
+                    : ($communication->management_approver_department ?: '—');
+            }
+        }
+
+        return [
+            'name' => $name ?: 'System',
+            'position' => $position ?: '—',
+            'department' => $department ?: '—',
+        ];
+    }
 
 
     private function notifyPendingApprover(TownHallCommunication $communication, string $level): void

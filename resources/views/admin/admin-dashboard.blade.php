@@ -17,6 +17,14 @@
                 <h1 class="text-[30px] font-semibold text-gray-800 leading-none">{{ $pageTitle ?? 'Admin Dashboard' }}</h1>
                 <p class="text-sm text-gray-500 mt-1">{{ $pageDescription ?? 'Review module submissions and route approvals through admin.' }}</p>
             </div>
+
+            @if(($currentSection ?? null) === 'town-hall' || str_contains(strtolower($pageTitle ?? ''), 'town hall'))
+                <a href="{{ route('admin.townhall.audit-trail') }}"
+                   class="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 transition">
+                    <i class="fas fa-chart-line text-xs"></i>
+                    Reporting
+                </a>
+            @endif
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4 px-5 pt-5">
@@ -266,26 +274,8 @@
                                         @if($item->revise_route)
                                             <form action="{{ $item->revise_route }}" method="POST">
                                                 @csrf
-                                                <button class="px-3 py-1.5 text-xs font-medium rounded-lg bg-yellow-500 text-white hover:bg-yellow-600 transition">
+                                                <button class="px-3 py-1.5 text-xs font-medium rounded-lg bg-gray-800 text-white hover:bg-black transition">
                                                     Revise
-                                                </button>
-                                            </form>
-                                        @endif
-
-                                        @if(!empty($item->archive_route))
-                                            <form action="{{ $item->archive_route }}" method="POST">
-                                                @csrf
-                                                <button class="px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 transition">
-                                                    Archive
-                                                </button>
-                                            </form>
-                                        @endif
-
-                                        @if(!empty($item->unarchive_route))
-                                            <form action="{{ $item->unarchive_route }}" method="POST">
-                                                @csrf
-                                                <button class="px-3 py-1.5 text-xs font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition">
-                                                    Unarchive
                                                 </button>
                                             </form>
                                         @endif

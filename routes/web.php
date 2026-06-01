@@ -355,6 +355,9 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
         ->name('townhall.email.reject')
         ->middleware('signed');
 
+    Route::get('/admin/town-hall/audit-trail', [TownHallController::class, 'auditTrail'])
+        ->name('admin.townhall.audit-trail');
+
     /*
     |--------------------------------------------------------------------------
     | HUMAN CAPITAL MEMOS
