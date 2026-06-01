@@ -193,35 +193,6 @@
                     </div>
                 </div>
             </div>
-
-            {{-- ATTACHMENT PREVIEW --}}
-            @if($communication->attachment)
-            <div class="bg-white border rounded-xl shadow p-5 mb-6">
-                <h3 class="font-semibold mb-3">Attachment Preview</h3>
-
-                <div class="h-[500px] overflow-auto border rounded-lg">
-                    @php
-                        $ext = strtolower(pathinfo($communication->attachment, PATHINFO_EXTENSION));
-                    @endphp
-
-                    @if(in_array($ext, ['jpg','jpeg','png','gif','webp']))
-                        <img src="{{ asset('storage/'.$communication->attachment) }}" class="w-full">
-                    @elseif($ext === 'pdf')
-                        <iframe src="{{ asset('storage/'.$communication->attachment) }}"
-                                class="w-full h-[500px]"></iframe>
-                    @else
-                        <div class="p-4 text-center">
-                            <a href="{{ asset('storage/'.$communication->attachment) }}"
-                               target="_blank"
-                               class="text-blue-600 underline">
-                                Download Attachment
-                            </a>
-                        </div>
-                    @endif
-                </div>
-            </div>
-            @endif
-
             {{-- ACKNOWLEDGEMENT --}}
             @if($communication->approval_status === 'Approved')
             <div class="bg-white border rounded-xl shadow p-5">
@@ -338,6 +309,26 @@
                     <div>
                         <p class="text-gray-500 text-xs">Additional</p>
                         <p>{{ $communication->additional ?: '—' }}</p>
+                    </div>
+
+                    <div>
+                        <p class="text-gray-500 text-xs">Attachment</p>
+
+                        @if($communication->attachment)
+                            <a href="{{ asset('storage/' . $communication->attachment) }}"
+                               target="_blank"
+                               rel="noopener"
+                               class="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-100">
+                                <i class="fas fa-paperclip text-xs"></i>
+                                View Attachment
+                            </a>
+
+                            <p class="mt-2 text-[11px] leading-4 text-gray-400">
+                                Opens in a separate tab so the file keeps its actual size and format.
+                            </p>
+                        @else
+                            <p>—</p>
+                        @endif
                     </div>
 
                     @if($communication->approval_notes)
