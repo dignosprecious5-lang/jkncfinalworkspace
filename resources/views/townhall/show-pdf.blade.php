@@ -273,7 +273,13 @@
 
 <div class="footer-fixed">
         <div class="footer-inner">
-            <div class="footer-meta">&nbsp;</div>
+            <div class="footer-meta">
+                Page {PAGE_NUM} of {PAGE_COUNT}
+                &nbsp; | &nbsp;
+                Document Reference Number: {{ $communication->ref_no }}
+                &nbsp; | &nbsp;
+                Date Generated: {{ now()->format('F d, Y h:i A') }}
+            </div>
 
             <div class="footer-note">
                 This Memorandum is an official corporate record of JK&amp;C INC. Unauthorized reproduction,

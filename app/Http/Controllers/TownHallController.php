@@ -1073,29 +1073,67 @@ class TownHallController extends Controller
                 'defaultFont' => 'DejaVu Sans',
             ]);
 
-        $pdf->render();
-
-        /*
-        |--------------------------------------------------------------------------
-        | DomPDF page count fix
-        |--------------------------------------------------------------------------
-        | CSS counter(pages) may output 0. DomPDF canvas page_text correctly
-        | replaces {PAGE_NUM} and {PAGE_COUNT} after rendering.
-        */
-        $canvas = $pdf->getDomPDF()->getCanvas();
-        $fontMetrics = $pdf->getDomPDF()->getFontMetrics();
-        $font = $fontMetrics->get_font('DejaVu Sans', 'normal');
-
-        $footerText = 'Page {PAGE_NUM} of {PAGE_COUNT}   |   Document Reference Number: '
-            . ($communication->ref_no ?: 'N/A')
-            . '   |   Date Generated: '
-            . now()->format('F d, Y h:i A');
-
-        $canvas->page_text(68, 755, $footerText, $font, 8, [51, 51, 51]);
-
         return $pdf;
     }
 
+    private function townHallPdfOutput(TownHallCommunication $communication): string
+    {
+        $pdf = $this->buildTownHallPdf($communication);
+        $domPdf = $pdf->getDomPDF();
+
+        $domPdf->render();
+
+        $canvas = $domPdf->getCanvas();
+        $pageCount = method_exists($canvas, 'get_page_count')
+            ? (int) $canvas->get_page_count()
+            : 1;
+
+        $output = $domPdf->output();
+
+        return str_replace(
+            ['{PAGE_COUNT}', '{PAGE_NUM}'],
+            [(string) $pageCount, ''],
+            $output
+        );
+    }
+
+    private function townHallPdfDownload(TownHallCommunication $communication)
+    {
+        $pdf = $this->buildTownHallPdf($communication);
+        $domPdf = $pdf->getDomPDF();
+
+        $domPdf->render();
+
+        $canvas = $domPdf->getCanvas();
+        $pageCount = method_exists($canvas, 'get_page_count')
+            ? (int) $canvas->get_page_count()
+            : 1;
+
+        $fontMetrics = $domPdf->getFontMetrics();
+        $font = $fontMetrics->get_font('DejaVu Sans', 'normal');
+
+        $footerDate = now()->format('F d, Y h:i A');
+        $refNo = $communication->ref_no ?: 'N/A';
+
+        /*
+        |--------------------------------------------------------------------------
+        | Keep the visible footer line and fix total page count
+        |--------------------------------------------------------------------------
+        | The Blade footer still contains the exact footer layout. This canvas text
+        | overlays only the page number line so DomPDF can correctly render:
+        | Page X of Y
+        */
+        $canvas->page_text(
+            82,
+            772,
+            'Page {PAGE_NUM} of ' . $pageCount . '   |   Document Reference Number: ' . $refNo . '   |   Date Generated: ' . $footerDate,
+            $font,
+            8,
+            [51, 51, 51]
+        );
+
+        return $pdf->download($refNo . '.pdf');
+    }
 
     public function downloadPdf($id)
     {
@@ -1105,9 +1143,7 @@ class TownHallController extends Controller
             abort(403, 'Only active approved communications can be downloaded.');
         }
 
-        $pdf = $this->buildTownHallPdf($communication);
-
-        return $pdf->download($communication->ref_no . '.pdf');
+        return $this->townHallPdfDownload($communication);
     }
 
 
@@ -1936,7 +1972,7 @@ class TownHallController extends Controller
         }
 
         try {
-            $pdfBinary = $this->buildTownHallPdf($communication)->output();
+            $pdfBinary = $this->townHallPdfOutput($communication);
 
             $filename = ($communication->ref_no ?: 'townhall-approval-request') . '.pdf';
 
@@ -2008,7 +2044,7 @@ class TownHallController extends Controller
         }
 
         try {
-            $pdfBinary = $this->buildTownHallPdf($communication)->output();
+            $pdfBinary = $this->townHallPdfOutput($communication);
 
             $filename = ($communication->ref_no ?: 'townhall-communication') . '.pdf';
 
