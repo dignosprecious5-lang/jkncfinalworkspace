@@ -14,6 +14,7 @@ use App\Models\User;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Schema;
 use App\Mail\TownHallPostedNotification;
+use App\Mail\TownHallApprovalRequestNotification;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\DB;
@@ -58,16 +59,16 @@ class TownHallController extends Controller
             ->get();
 
         $usersForRecipients = User::whereIn('role', [
-                'Employee',
-                'employee',
-                'Admin',
-                'admin',
-                'SuperAdmin',
-                'superadmin',
-                'super admin',
-                'System Super Admin',
-                'system super admin',
-            ])
+            'Employee',
+            'employee',
+            'Admin',
+            'admin',
+            'SuperAdmin',
+            'superadmin',
+            'super admin',
+            'System Super Admin',
+            'system super admin',
+        ])
             ->orderBy('name')
             ->get();
 
@@ -148,10 +149,13 @@ class TownHallController extends Controller
 
         $communication->ref_no = 'MEMO-' . str_pad((string) $communication->id, 5, '0', STR_PAD_LEFT);
         $communication->save();
+        $communication->refresh();
+
+        $this->notifyPendingApprover($communication, 'management');
 
         return redirect()
             ->route('townhall')
-            ->with('success', 'Communication submitted for approval workflow.');
+            ->with('success', 'Communication submitted for approval workflow. The Level 1 approver was notified by email.');
     }
 
     public function department(Request $request)
@@ -239,8 +243,10 @@ class TownHallController extends Controller
             abort(403, 'You can only edit your own communication.');
         }
 
-        if (!in_array($communication->approval_status, ['Draft', 'Needs Revision'], true)
-            && !in_array((string) ($communication->workflow_status ?? ''), ['Draft', 'Needs Revision'], true)) {
+        if (
+            !in_array($communication->approval_status, ['Draft', 'Needs Revision'], true)
+            && !in_array((string) ($communication->workflow_status ?? ''), ['Draft', 'Needs Revision'], true)
+        ) {
             abort(403, 'Only draft communications or communications returned for revision can be edited.');
         }
 
@@ -249,16 +255,16 @@ class TownHallController extends Controller
             ->get();
 
         $usersForRecipients = User::whereIn('role', [
-                'Employee',
-                'employee',
-                'Admin',
-                'admin',
-                'SuperAdmin',
-                'superadmin',
-                'super admin',
-                'System Super Admin',
-                'system super admin',
-            ])
+            'Employee',
+            'employee',
+            'Admin',
+            'admin',
+            'SuperAdmin',
+            'superadmin',
+            'super admin',
+            'System Super Admin',
+            'system super admin',
+        ])
             ->orderBy('name')
             ->get();
 
@@ -290,8 +296,10 @@ class TownHallController extends Controller
             abort(403, 'You can only update your own communication.');
         }
 
-        if (!in_array($communication->approval_status, ['Draft', 'Needs Revision'], true)
-            && !in_array((string) ($communication->workflow_status ?? ''), ['Draft', 'Needs Revision'], true)) {
+        if (
+            !in_array($communication->approval_status, ['Draft', 'Needs Revision'], true)
+            && !in_array((string) ($communication->workflow_status ?? ''), ['Draft', 'Needs Revision'], true)
+        ) {
             abort(403, 'Only draft communications or communications returned for revision can be updated.');
         }
 
@@ -348,10 +356,13 @@ class TownHallController extends Controller
         $validated['archived_at'] = null;
 
         $communication->update($validated);
+        $communication->refresh();
+
+        $this->notifyPendingApprover($communication, 'management');
 
         return redirect()
             ->route('townhall')
-            ->with('success', 'Communication updated and resubmitted for approval.');
+            ->with('success', 'Communication updated and resubmitted for approval. The Level 1 approver was notified by email.');
     }
 
     public function show($id)
@@ -460,7 +471,10 @@ class TownHallController extends Controller
                     'approval_notes' => $notes,
                 ]);
 
-                return redirect()->back()->with('success', 'Level 1 Management approval completed. Waiting for Executive Management approval.');
+                $communication->refresh();
+                $this->notifyPendingApprover($communication, 'executive');
+
+                return redirect()->back()->with('success', 'Level 1 Management approval completed. The Executive Management approver was notified by email.');
             }
 
             if (($communication->executive_approval_status ?? 'Pending') !== 'Approved') {
@@ -505,6 +519,117 @@ class TownHallController extends Controller
         $this->notifyRecipientsAfterPosting($communication);
 
         return redirect()->back()->with('success', 'Communication approved, posted, and recipients were notified.');
+    }
+
+
+    public function approveFromEmail(Request $request, $id)
+    {
+        if (!$request->hasValidSignature()) {
+            abort(403, 'Invalid or expired approval link.');
+        }
+
+        $communication = TownHallCommunication::findOrFail($id);
+        $level = (string) $request->query('level', 'management');
+        $approverUserId = (int) $request->query('approver', 0);
+
+        if (!$this->isExpectedApprovalEmailApprover($communication, $level, $approverUserId)) {
+            abort(403, 'This approval link is not assigned to this approver.');
+        }
+
+        if ($communication->is_archived) {
+            abort(403, 'Archived communications cannot be approved.');
+        }
+
+        $now = Carbon::now();
+
+        if ($level === 'management') {
+            if (($communication->management_approval_status ?? 'Pending') === 'Approved') {
+                return redirect()->route('townhall.show', $communication->id)
+                    ->with('success', 'This communication already completed Level 1 approval.');
+            }
+
+            $communication->update([
+                'management_approval_status' => 'Approved',
+                'management_approved_at' => $now,
+                'approval_status' => 'Level 1 Approved',
+                'workflow_status' => 'Pending Executive Approval',
+                'status' => 'Pending Executive Approval',
+                'approved_by' => $approverUserId ?: null,
+                'approved_at' => $now,
+                'approval_notes' => 'Approved through email notification.',
+            ]);
+
+            $communication->refresh();
+            $this->notifyPendingApprover($communication, 'executive');
+
+            return redirect()->route('townhall.show', $communication->id)
+                ->with('success', 'Level 1 approval completed through email. Executive Management was notified.');
+        }
+
+        if ($level === 'executive') {
+            if (($communication->management_approval_status ?? 'Pending') !== 'Approved') {
+                abort(403, 'Level 1 Management approval must be completed before Executive approval.');
+            }
+
+            if (($communication->executive_approval_status ?? 'Pending') === 'Approved') {
+                return redirect()->route('townhall.show', $communication->id)
+                    ->with('success', 'This communication is already posted.');
+            }
+
+            $communication->update([
+                'executive_approval_status' => 'Approved',
+                'executive_approved_at' => $now,
+                'approval_status' => 'Approved',
+                'workflow_status' => 'Posted',
+                'status' => 'Posted',
+                'posted_at' => $now,
+                'posted_by' => $approverUserId ?: null,
+                'approved_by' => $approverUserId ?: null,
+                'approved_at' => $now,
+                'approval_notes' => 'Approved through email notification.',
+                'is_archived' => false,
+                'archived_at' => null,
+            ]);
+
+            $communication->refresh();
+            $this->notifyRecipientsAfterPosting($communication);
+
+            return redirect()->route('townhall.show', $communication->id)
+                ->with('success', 'Executive approval completed through email. Communication is now posted.');
+        }
+
+        abort(403, 'Invalid approval level.');
+    }
+
+    public function rejectFromEmail(Request $request, $id)
+    {
+        if (!$request->hasValidSignature()) {
+            abort(403, 'Invalid or expired rejection link.');
+        }
+
+        $communication = TownHallCommunication::findOrFail($id);
+        $level = (string) $request->query('level', 'management');
+        $approverUserId = (int) $request->query('approver', 0);
+
+        if (!$this->isExpectedApprovalEmailApprover($communication, $level, $approverUserId)) {
+            abort(403, 'This rejection link is not assigned to this approver.');
+        }
+
+        $communication->update([
+            'approval_status' => 'Rejected',
+            'workflow_status' => 'Rejected',
+            'status' => 'Rejected',
+            'management_approval_status' => $level === 'management' ? 'Rejected' : ($communication->management_approval_status ?? 'Approved'),
+            'executive_approval_status' => $level === 'executive' ? 'Rejected' : 'Pending',
+            'approved_by' => $approverUserId ?: null,
+            'approved_at' => Carbon::now(),
+            'approval_notes' => 'Rejected through email notification.',
+            'is_archived' => false,
+            'archived_at' => null,
+        ]);
+
+        return redirect()->route('townhall.show', $communication->id)
+            ->with('success', 'Communication rejected through email.');
     }
 
     public function reject(Request $request, $id)
@@ -629,7 +754,7 @@ class TownHallController extends Controller
 
         $isIntendedRecipient = $intendedUsers
             ->pluck('id')
-            ->map(fn ($id) => (int) $id)
+            ->map(fn($id) => (int) $id)
             ->contains((int) Auth::id());
 
         if (!$isIntendedRecipient) {
@@ -757,7 +882,7 @@ class TownHallController extends Controller
             ->map(function ($employee) {
                 return $this->formatEmployeeApprover($employee);
             })
-            ->filter(fn ($employee) => !empty($employee['name']))
+            ->filter(fn($employee) => !empty($employee['name']))
             ->values();
     }
 
@@ -978,14 +1103,14 @@ class TownHallController extends Controller
                 }
 
                 $q->orWhere(function ($legacy) use ($user) {
-                        $legacy->whereNull('recipient_type')
-                            ->where(function ($old) use ($user) {
-                                $old->where('to_for', 'like', '%' . $user->name . '%')
-                                    ->orWhere('to_for', 'like', '%All%')
-                                    ->orWhere('to_for', 'like', '%Everyone%')
-                                    ->orWhere('to_for', 'like', '%All Employees%');
-                            });
-                    });
+                    $legacy->whereNull('recipient_type')
+                        ->where(function ($old) use ($user) {
+                            $old->where('to_for', 'like', '%' . $user->name . '%')
+                                ->orWhere('to_for', 'like', '%All%')
+                                ->orWhere('to_for', 'like', '%Everyone%')
+                                ->orWhere('to_for', 'like', '%All Employees%');
+                        });
+                });
             });
 
             return;
@@ -1175,6 +1300,75 @@ class TownHallController extends Controller
     }
 
 
+
+    private function notifyPendingApprover(TownHallCommunication $communication, string $level): void
+    {
+        $approver = $this->resolveApprovalNotificationUser($communication, $level);
+
+        if (!$approver || empty($approver->email)) {
+            Log::warning('TownHall approval notification skipped because no approver email was found.', [
+                'communication_id' => $communication->id,
+                'ref_no' => $communication->ref_no,
+                'level' => $level,
+            ]);
+
+            return;
+        }
+
+        try {
+            $pdfBinary = Pdf::loadView('townhall.show-pdf', compact('communication'))
+                ->setPaper('a4', 'portrait')
+                ->output();
+
+            $filename = ($communication->ref_no ?: 'townhall-approval-request') . '.pdf';
+
+            Mail::to($approver->email)->send(
+                new TownHallApprovalRequestNotification($communication, $pdfBinary, $filename, $level, (int) $approver->id)
+            );
+        } catch (\Throwable $e) {
+            Log::error('TownHall approval notification failed.', [
+                'communication_id' => $communication->id,
+                'ref_no' => $communication->ref_no,
+                'level' => $level,
+                'message' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    private function resolveApprovalNotificationUser(TownHallCommunication $communication, string $level): ?User
+    {
+        $userId = null;
+
+        if ($level === 'management') {
+            $userId = $communication->management_approver_user_id;
+
+            if (!$userId && $communication->management_approver_id && class_exists(Employee::class)) {
+                $userId = Employee::whereKey($communication->management_approver_id)->value('user_id');
+            }
+        }
+
+        if ($level === 'executive') {
+            $userId = $communication->executive_approver_user_id;
+
+            if (!$userId && $communication->executive_approver_id && class_exists(Employee::class)) {
+                $userId = Employee::whereKey($communication->executive_approver_id)->value('user_id');
+            }
+        }
+
+        return $userId ? User::find($userId) : null;
+    }
+
+    private function isExpectedApprovalEmailApprover(TownHallCommunication $communication, string $level, int $approverUserId): bool
+    {
+        if ($approverUserId <= 0) {
+            return false;
+        }
+
+        $expectedApprover = $this->resolveApprovalNotificationUser($communication, $level);
+
+        return $expectedApprover && (int) $expectedApprover->id === $approverUserId;
+    }
+
     private function notifyRecipientsAfterPosting(TownHallCommunication $communication): void
     {
         if (!Schema::hasColumn('townhall_communications', 'recipient_notified_at')) {
@@ -1223,7 +1417,7 @@ class TownHallController extends Controller
     private function getNotificationRecipients(TownHallCommunication $communication)
     {
         return $this->getAcknowledgementUsers($communication)
-            ->filter(fn ($user) => !empty($user->email))
+            ->filter(fn($user) => !empty($user->email))
             ->unique('email')
             ->values();
     }
