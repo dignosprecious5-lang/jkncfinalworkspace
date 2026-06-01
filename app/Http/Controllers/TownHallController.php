@@ -95,6 +95,14 @@ class TownHallController extends Controller
 
         $managementApprovers = $this->activeEmployeeApprovers();
         $executiveApprover = $this->resolveExecutiveApprover();
+
+        $creatorEmployee = class_exists(Employee::class)
+            ? Employee::where('user_id', Auth::id())->first()
+            : null;
+
+        $creatorPosition = $creatorEmployee?->position ?: 'Position';
+        $creatorDepartment = $this->resolveDepartmentName($creatorEmployee?->department_id ?? null);
+
         return view('townhall.townhall', compact(
             'communications',
             'departments',
@@ -103,7 +111,9 @@ class TownHallController extends Controller
             'usersForRecipients',
             'contactsForRecipients',
             'managementApprovers',
-            'executiveApprover'
+            'executiveApprover',
+            'creatorPosition',
+            'creatorDepartment'
         ));
     }
 
