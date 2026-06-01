@@ -85,6 +85,20 @@
         $humanCapitalLandingRoute = $canManageHumanCapital
             ? route('human-capital.organizational')
             : route('human-capital.attendance');
+
+
+        $activeSidebarGroup = match (true) {
+            request()->routeIs('products*'), request()->routeIs('services*') => 'marketing',
+            request()->routeIs('deals*'), request()->routeIs('sales-marketing*') => 'sales',
+            request()->routeIs('contacts*'), request()->routeIs('company*') => 'accounts',
+            request()->routeIs('regular*'), request()->routeIs('project*'), request()->routeIs('transmittal*') => 'operations',
+            default => '',
+        };
+
+        $isMarketingActive = $activeSidebarGroup === 'marketing';
+        $isSalesActive = $activeSidebarGroup === 'sales';
+        $isAccountsActive = $activeSidebarGroup === 'accounts';
+        $isOperationsActive = $activeSidebarGroup === 'operations';
     @endphp
 
     <!-- HEADER -->
@@ -161,153 +175,205 @@
 
     <div class="flex h-[calc(100vh-4rem)]">
 
-        <!-- MINI SIDEBAR -->
-        <aside class="w-16 bg-white border-r border-gray-200 flex flex-col items-center py-3 gap-2">
+        <!-- ENTERPRISE SIDEBAR -->
+        <aside
+            x-data="{
+                sidebarCollapsed: localStorage.getItem('enterpriseSidebarCollapsed') === 'true',
+                sidebarHover: false,
+                activeGroup: @js($activeSidebarGroup),
+                openGroup: @js($activeSidebarGroup) || localStorage.getItem('enterpriseSidebarOpenGroup') || '',
+                get expanded() {
+                    return !this.sidebarCollapsed || this.sidebarHover;
+                },
+                toggleSidebar() {
+                    this.sidebarCollapsed = !this.sidebarCollapsed;
+                    this.sidebarHover = false;
+                    localStorage.setItem('enterpriseSidebarCollapsed', this.sidebarCollapsed ? 'true' : 'false');
+                },
+                toggleGroup(group) {
+                    if (!this.expanded) return;
+                    this.openGroup = this.openGroup === group ? '' : group;
+                    localStorage.setItem('enterpriseSidebarOpenGroup', this.openGroup);
+                },
+                isOpen(group) {
+                    return this.expanded && this.openGroup === group;
+                }
+            }"
+            @mouseenter="if (sidebarCollapsed) sidebarHover = true"
+            @mouseleave="if (sidebarCollapsed) sidebarHover = false"
+            :class="expanded ? 'w-72' : 'w-20'"
+            class="bg-white border-r border-gray-200 flex flex-col transition-all duration-300 ease-in-out overflow-hidden"
+        >
+            <div class="px-3 py-4 border-b border-gray-100">
+                <div class="flex items-center gap-3">
+                    <button
+                        type="button"
+                        @click="toggleSidebar()"
+                        class="h-10 w-10 shrink-0 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center border border-blue-100 hover:bg-blue-100 transition"
+                        title="Collapse / expand menu"
+                    >
+                        <i class="fas fa-layer-group text-sm"></i>
+                    </button>
 
-            @if($canSeeAdminIcon && $adminLandingRoute)
-                <a href="{{ $adminLandingRoute }}"
-                   class="w-12 h-12 rounded-xl flex flex-col items-center justify-center gap-1 text-[10px] transition
-                   {{ request()->routeIs('admin.*') ? 'bg-blue-50 text-blue-700 border border-blue-100' : 'text-gray-600 hover:bg-gray-100' }}">
-                    <i class="fas fa-user-shield text-base"></i>
-                    <span>Admin</span>
-                </a>
-            @endif
+                    <div x-show="expanded" x-transition.opacity.duration.200ms class="min-w-0 flex-1">
+                        <p class="text-sm font-bold text-gray-900 whitespace-nowrap">Enterprise Menu</p>
+                        <p class="text-xs text-gray-400 whitespace-nowrap">Navigation</p>
+                    </div>
 
-            @if(Auth::user()->hasPermission('access_townhall'))
-                <a href="{{ route('townhall') }}"
-                   class="w-12 h-12 rounded-xl flex flex-col items-center justify-center gap-1 text-[10px] transition
-                  {{ request()->routeIs('townhall*') ? 'bg-blue-50 text-blue-700 border border-blue-100' : 'text-gray-600 hover:bg-gray-100' }}">
-                    <i class="fas fa-bullhorn text-base"></i>
-                    <span>Town Hall</span>
-                </a>
-            @endif
+                    <button
+                        x-show="expanded"
+                        x-transition.opacity.duration.200ms
+                        type="button"
+                        @click="toggleSidebar()"
+                        class="h-8 w-8 shrink-0 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition"
+                        title="Collapse sidebar"
+                    >
+                        <i class="fas fa-angles-left text-xs" :class="sidebarCollapsed ? 'rotate-180' : ''"></i>
+                    </button>
+                </div>
+            </div>
 
-            @if(Auth::user()->hasPermission('access_corporate'))
-                <a href="{{ route('finance') }}"
-                   class="w-12 h-12 rounded-xl flex flex-col items-center justify-center gap-1 text-[10px] transition
-                   {{ request()->routeIs('finance*') ? 'bg-blue-50 text-blue-700 border border-blue-100' : 'text-gray-600 hover:bg-gray-100' }}">
-                    <i class="fas fa-coins text-base"></i>
-                    <span>Finance</span>
-                </a>
-            @endif
+            <nav class="flex-1 overflow-y-auto p-3 no-scrollbar">
+                <div class="space-y-1 text-sm">
+                    @if($canSeeAdminIcon && $adminLandingRoute)
+                        <a href="{{ $adminLandingRoute }}"
+                           title="Admin"
+                           :class="expanded ? 'justify-start px-3' : 'justify-center px-0'"
+                           class="flex items-center gap-3 py-2.5 rounded-xl transition border {{ request()->routeIs('admin.*') ? 'bg-blue-50 text-blue-700 border-blue-100 font-semibold' : 'border-transparent text-gray-700 hover:bg-gray-50 hover:text-gray-900' }}">
+                            <span class="h-8 w-8 shrink-0 rounded-lg flex items-center justify-center {{ request()->routeIs('admin.*') ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500' }}"><i class="fas fa-user-shield text-xs"></i></span>
+                            <span x-show="expanded" x-transition.opacity.duration.200ms class="flex-1 whitespace-nowrap">Admin</span>
+                        </a>
+                    @endif
 
-            @if(Auth::user()->hasPermission('access_corporate'))
-                <a href="{{ route('corporate') }}"
-                   class="w-12 h-12 rounded-xl flex flex-col items-center justify-center gap-1 text-[10px] transition
-                   {{ request()->routeIs('corporate') || request()->routeIs('corporate.formation') || request()->routeIs('corporate.sec_aoi') || request()->routeIs('corporate.bylaws') ? 'bg-blue-50 text-blue-700 border border-blue-100' : 'text-gray-600 hover:bg-gray-100' }}">
-                    <i class="fas fa-building text-base"></i>
-                    <span>Corporate</span>
-                </a>
-            @endif
+                    @if(Auth::user()->hasPermission('access_townhall'))
+                        <a href="{{ route('townhall') }}"
+                           title="Town Hall"
+                           :class="expanded ? 'justify-start px-3' : 'justify-center px-0'"
+                           class="flex items-center gap-3 py-2.5 rounded-xl transition border {{ request()->routeIs('townhall*') ? 'bg-blue-50 text-blue-700 border-blue-100 font-semibold' : 'border-transparent text-gray-700 hover:bg-gray-50 hover:text-gray-900' }}">
+                            <span class="h-8 w-8 shrink-0 rounded-lg flex items-center justify-center {{ request()->routeIs('townhall*') ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500' }}"><i class="fas fa-bullhorn text-xs"></i></span>
+                            <span x-show="expanded" x-transition.opacity.duration.200ms class="flex-1 whitespace-nowrap">Town Hall</span>
+                        </a>
+                    @endif
 
-            @if($canSeeHumanCapital)
-                <a href="{{ $humanCapitalLandingRoute }}"
-                   class="w-12 h-12 rounded-xl flex flex-col items-center justify-center gap-1 text-[10px] transition
-                   {{ $isHumanCapitalSection ? 'bg-blue-50 text-blue-700 border border-blue-100' : 'text-gray-600 hover:bg-gray-100' }}">
-                    <i class="fas fa-user-tie text-base"></i>
-                    <span class="w-full text-center leading-tight">Human Capital</span>
-                </a>
-            @endif
+                    @if(Auth::user()->hasPermission('access_corporate'))
+                        <a href="{{ route('corporate') }}"
+                           title="Corporate"
+                           :class="expanded ? 'justify-start px-3' : 'justify-center px-0'"
+                           class="flex items-center gap-3 py-2.5 rounded-xl transition border {{ request()->routeIs('corporate*') || request()->routeIs('stock-transfer-book*') || request()->routeIs('bir-tax*') || request()->routeIs('natgov*') || request()->routeIs('notices*') || request()->routeIs('minutes*') || request()->routeIs('resolutions*') || request()->routeIs('secretary-certificates*') ? 'bg-blue-50 text-blue-700 border-blue-100 font-semibold' : 'border-transparent text-gray-700 hover:bg-gray-50 hover:text-gray-900' }}">
+                            <span class="h-8 w-8 shrink-0 rounded-lg flex items-center justify-center {{ request()->routeIs('corporate*') || request()->routeIs('stock-transfer-book*') || request()->routeIs('bir-tax*') || request()->routeIs('natgov*') || request()->routeIs('notices*') || request()->routeIs('minutes*') || request()->routeIs('resolutions*') || request()->routeIs('secretary-certificates*') ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500' }}"><i class="fas fa-building text-xs"></i></span>
+                            <span x-show="expanded" x-transition.opacity.duration.200ms class="flex-1 whitespace-nowrap">Corporate</span>
+                        </a>
+                    @endif
 
-            @if(Auth::user()->hasPermission('access_activities'))
-                <a href="{{ route('activities') }}"
-                   class="w-12 h-12 rounded-xl flex flex-col items-center justify-center gap-1 text-[10px] transition
-                   {{ request()->routeIs('activities*') ? 'bg-blue-50 text-blue-700 border border-blue-100' : 'text-gray-600 hover:bg-gray-100' }}">
-                    <i class="fas fa-list-check text-base"></i>
-                    <span>Activities</span>
-                </a>
-            @endif
+                    @if($canSeeCrmModules && Auth::user()->hasPermission('access_policies'))
+                        <a href="{{ route('policies.index') }}"
+                           title="Policies"
+                           :class="expanded ? 'justify-start px-3' : 'justify-center px-0'"
+                           class="flex items-center gap-3 py-2.5 rounded-xl transition border {{ request()->routeIs('policies*') ? 'bg-blue-50 text-blue-700 border-blue-100 font-semibold' : 'border-transparent text-gray-700 hover:bg-gray-50 hover:text-gray-900' }}">
+                            <span class="h-8 w-8 shrink-0 rounded-lg flex items-center justify-center {{ request()->routeIs('policies*') ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500' }}"><i class="fas fa-file-contract text-xs"></i></span>
+                            <span x-show="expanded" x-transition.opacity.duration.200ms class="flex-1 whitespace-nowrap">Policies</span>
+                        </a>
+                    @endif
 
-            @if($canSeeCrmModules && Auth::user()->hasPermission('access_contacts'))
-                <a href="{{ route('contacts.index') }}"
-                   class="w-12 h-12 rounded-xl flex flex-col items-center justify-center gap-1 text-[10px] transition
-                   {{ request()->routeIs('contacts*') ? 'bg-blue-50 text-blue-700 border border-blue-100' : 'text-gray-600 hover:bg-gray-100' }}">
-                    <i class="fas fa-users text-base"></i>
-                    <span>Contacts</span>
-                </a>
-            @endif
+                    @if(Auth::user()->hasPermission('access_corporate'))
+                        <a href="{{ route('finance') }}"
+                           title="Finance"
+                           :class="expanded ? 'justify-start px-3' : 'justify-center px-0'"
+                           class="flex items-center gap-3 py-2.5 rounded-xl transition border {{ request()->routeIs('finance*') ? 'bg-blue-50 text-blue-700 border-blue-100 font-semibold' : 'border-transparent text-gray-700 hover:bg-gray-50 hover:text-gray-900' }}">
+                            <span class="h-8 w-8 shrink-0 rounded-lg flex items-center justify-center {{ request()->routeIs('finance*') ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500' }}"><i class="fas fa-coins text-xs"></i></span>
+                            <span x-show="expanded" x-transition.opacity.duration.200ms class="flex-1 whitespace-nowrap">Finance</span>
+                        </a>
+                    @endif
 
-            @if($canSeeCrmModules && Auth::user()->hasPermission('access_company'))
-                <a href="{{ route('company.index') }}"
-                   class="w-12 h-12 rounded-xl flex flex-col items-center justify-center gap-1 text-[10px] transition
-                   {{ request()->routeIs('company*') ? 'bg-blue-50 text-blue-700 border border-blue-100' : 'text-gray-600 hover:bg-gray-100' }}">
-                    <i class="fas fa-city text-base"></i>
-                    <span>Company</span>
-                </a>
-            @endif
+                    @if($canSeeHumanCapital)
+                        <a href="{{ $humanCapitalLandingRoute }}"
+                           title="Human Capital"
+                           :class="expanded ? 'justify-start px-3' : 'justify-center px-0'"
+                           class="flex items-center gap-3 py-2.5 rounded-xl transition border {{ $isHumanCapitalSection ? 'bg-blue-50 text-blue-700 border-blue-100 font-semibold' : 'border-transparent text-gray-700 hover:bg-gray-50 hover:text-gray-900' }}">
+                            <span class="h-8 w-8 shrink-0 rounded-lg flex items-center justify-center {{ $isHumanCapitalSection ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500' }}"><i class="fas fa-user-tie text-xs"></i></span>
+                            <span x-show="expanded" x-transition.opacity.duration.200ms class="flex-1 whitespace-nowrap">Human Capital</span>
+                        </a>
+                    @endif
 
-            @if(Auth::user()->hasPermission('access_transmittal'))
-                <a href="{{ route('transmittal.index') }}"
-                   class="w-12 h-12 rounded-xl flex flex-col items-center justify-center gap-1 text-[10px] transition
-                   {{ request()->routeIs('transmittal*') ? 'bg-blue-50 text-blue-700 border border-blue-100' : 'text-gray-600 hover:bg-gray-100' }}">
-                    <i class="fas fa-file-signature text-base"></i>
-                    <span>Transmittal</span>
-                </a>
-            @endif
+                    @if($canSeeCrmModules && (Auth::user()->hasPermission('access_product') || Auth::user()->hasPermission('access_services')))
+                        <div class="space-y-1">
+                            <button type="button" @click="toggleGroup('marketing')" title="Marketing"
+                                :class="expanded ? 'justify-start px-3' : 'justify-center px-0'"
+                                class="w-full flex items-center gap-3 py-2.5 rounded-xl transition border {{ $isMarketingActive ? 'bg-blue-50 text-blue-700 border-blue-100 font-semibold' : 'border-transparent text-gray-700 hover:bg-gray-50 hover:text-gray-900' }}">
+                                <span class="h-8 w-8 shrink-0 rounded-lg flex items-center justify-center {{ $isMarketingActive ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500' }}"><i class="fas fa-bullseye text-xs"></i></span>
+                                <span x-show="expanded" x-transition.opacity.duration.200ms class="flex-1 text-left whitespace-nowrap">Marketing</span>
+                                <i x-show="expanded" class="fas fa-chevron-right text-[11px] transition-transform duration-200" :class="isOpen('marketing') ? 'rotate-90' : ''"></i>
+                            </button>
+                            <div x-cloak x-show="isOpen('marketing')" x-collapse.duration.200ms class="ml-11 space-y-1 border-l border-gray-100 pl-3">
+                                @if(Auth::user()->hasPermission('access_product'))
+                                    <a href="{{ route('products.index') }}" class="block rounded-lg px-3 py-2 transition {{ request()->routeIs('products*') ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900' }}">Product</a>
+                                @endif
+                                @if(Auth::user()->hasPermission('access_services'))
+                                    <a href="{{ route('services.index') }}" class="block rounded-lg px-3 py-2 transition {{ request()->routeIs('services*') ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900' }}">Services</a>
+                                @endif
+                            </div>
+                        </div>
+                    @endif
 
-            @if($canSeeCrmModules && Auth::user()->hasPermission('access_deals'))
-                <a href="{{ route('deals.index') }}"
-                   class="w-12 h-12 rounded-xl flex flex-col items-center justify-center gap-1 text-[10px] transition
-                   {{ request()->routeIs('deals*') ? 'bg-blue-50 text-blue-700 border border-blue-100' : 'text-gray-600 hover:bg-gray-100' }}">
-                    <i class="fas fa-handshake text-base"></i>
-                    <span>Deals</span>
-                </a>
-            @endif
+                    @if($canSeeCrmModules && Auth::user()->hasPermission('access_deals'))
+                        <div class="space-y-1">
+                            <button type="button" @click="toggleGroup('sales')" title="Sales"
+                                :class="expanded ? 'justify-start px-3' : 'justify-center px-0'"
+                                class="w-full flex items-center gap-3 py-2.5 rounded-xl transition border {{ $isSalesActive ? 'bg-blue-50 text-blue-700 border-blue-100 font-semibold' : 'border-transparent text-gray-700 hover:bg-gray-50 hover:text-gray-900' }}">
+                                <span class="h-8 w-8 shrink-0 rounded-lg flex items-center justify-center {{ $isSalesActive ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500' }}"><i class="fas fa-chart-line text-xs"></i></span>
+                                <span x-show="expanded" x-transition.opacity.duration.200ms class="flex-1 text-left whitespace-nowrap">Sales</span>
+                                <i x-show="expanded" class="fas fa-chevron-right text-[11px] transition-transform duration-200" :class="isOpen('sales') ? 'rotate-90' : ''"></i>
+                            </button>
+                            <div x-cloak x-show="isOpen('sales')" x-collapse.duration.200ms class="ml-11 space-y-1 border-l border-gray-100 pl-3">
+                                <a href="{{ route('deals.index') }}" class="block rounded-lg px-3 py-2 transition {{ request()->routeIs('deals*') ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900' }}">Deals</a>
+                            </div>
+                        </div>
+                    @endif
 
-            @if($canSeeCrmModules && Auth::user()->hasPermission('access_services'))
-                <a href="{{ route('services.index') }}"
-                   class="w-12 h-12 rounded-xl flex flex-col items-center justify-center gap-1 text-[10px] transition
-                   {{ request()->routeIs('services*') ? 'bg-blue-50 text-blue-700 border border-blue-100' : 'text-gray-600 hover:bg-gray-100' }}">
-                    <i class="fas fa-briefcase text-base"></i>
-                    <span>Services</span>
-                </a>
-            @endif
+                    @if($canSeeCrmModules && (Auth::user()->hasPermission('access_contacts') || Auth::user()->hasPermission('access_company')))
+                        <div class="space-y-1">
+                            <button type="button" @click="toggleGroup('accounts')" title="Accounts"
+                                :class="expanded ? 'justify-start px-3' : 'justify-center px-0'"
+                                class="w-full flex items-center gap-3 py-2.5 rounded-xl transition border {{ $isAccountsActive ? 'bg-blue-50 text-blue-700 border-blue-100 font-semibold' : 'border-transparent text-gray-700 hover:bg-gray-50 hover:text-gray-900' }}">
+                                <span class="h-8 w-8 shrink-0 rounded-lg flex items-center justify-center {{ $isAccountsActive ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500' }}"><i class="fas fa-address-book text-xs"></i></span>
+                                <span x-show="expanded" x-transition.opacity.duration.200ms class="flex-1 text-left whitespace-nowrap">Accounts</span>
+                                <i x-show="expanded" class="fas fa-chevron-right text-[11px] transition-transform duration-200" :class="isOpen('accounts') ? 'rotate-90' : ''"></i>
+                            </button>
+                            <div x-cloak x-show="isOpen('accounts')" x-collapse.duration.200ms class="ml-11 space-y-1 border-l border-gray-100 pl-3">
+                                @if(Auth::user()->hasPermission('access_contacts'))
+                                    <a href="{{ route('contacts.index') }}" class="block rounded-lg px-3 py-2 transition {{ request()->routeIs('contacts*') ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900' }}">Contact</a>
+                                @endif
+                                @if(Auth::user()->hasPermission('access_company'))
+                                    <a href="{{ route('company.index') }}" class="block rounded-lg px-3 py-2 transition {{ request()->routeIs('company*') ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900' }}">Company</a>
+                                @endif
+                            </div>
+                        </div>
+                    @endif
 
-            @if($canSeeCrmModules && Auth::user()->hasPermission('access_project'))
-                <a href="{{ route('project.index') }}"
-                   class="w-12 h-12 rounded-xl flex flex-col items-center justify-center gap-1 text-[10px] transition
-                   {{ request()->routeIs('project*') ? 'bg-blue-50 text-blue-700 border border-blue-100' : 'text-gray-600 hover:bg-gray-100' }}">
-                    <i class="fas fa-diagram-project text-base"></i>
-                    <span>Project</span>
-                </a>
-            @endif
-
-            @if($canSeeCrmModules && Auth::user()->hasPermission('access_regular'))
-                <a href="{{ route('regular.index') }}"
-                   class="w-12 h-12 rounded-xl flex flex-col items-center justify-center gap-1 text-[10px] transition
-                   {{ request()->routeIs('regular*') ? 'bg-blue-50 text-blue-700 border border-blue-100' : 'text-gray-600 hover:bg-gray-100' }}">
-                    <i class="fas fa-arrows-rotate text-base"></i>
-                    <span>Regular</span>
-                </a>
-            @endif
-
-            @if($canSeeCrmModules && Auth::user()->hasPermission('access_product'))
-                <a href="{{ route('products.index') }}"
-                   class="w-12 h-12 rounded-xl flex flex-col items-center justify-center gap-1 text-[10px] transition
-                   {{ request()->routeIs('products*') ? 'bg-blue-50 text-blue-700 border border-blue-100' : 'text-gray-600 hover:bg-gray-100' }}">
-                    <i class="fas fa-box-open text-base"></i>
-                    <span>Product</span>
-                </a>
-            @endif
-
-            @if($canSeeCrmModules && Auth::user()->hasPermission('access_sales_marketing'))
-                <a href="{{ route('sales-marketing.index') }}"
-                   class="w-12 h-12 rounded-xl flex flex-col items-center justify-center gap-1 text-[10px] transition
-                   {{ request()->routeIs('sales-marketing*') ? 'bg-blue-50 text-blue-700 border border-blue-100' : 'text-gray-600 hover:bg-gray-100' }}">
-                    <i class="fas fa-chart-line text-base"></i>
-                    <span>Sales</span>
-                </a>
-            @endif
-
-            @if($canSeeCrmModules && Auth::user()->hasPermission('access_policies'))
-                <a href="{{ route('policies.index') }}"
-                   class="w-12 h-12 rounded-xl flex flex-col items-center justify-center gap-1 text-[10px] transition
-                   {{ request()->routeIs('policies*') ? 'bg-blue-50 text-blue-700 border border-blue-100' : 'text-gray-600 hover:bg-gray-100' }}">
-                    <i class="fas fa-file-contract text-base"></i>
-                    <span>Policies</span>
-                </a>
-            @endif
-
+                    @if($canSeeCrmModules && (Auth::user()->hasPermission('access_regular') || Auth::user()->hasPermission('access_project') || Auth::user()->hasPermission('access_transmittal')))
+                        <div class="space-y-1">
+                            <button type="button" @click="toggleGroup('operations')" title="Operations"
+                                :class="expanded ? 'justify-start px-3' : 'justify-center px-0'"
+                                class="w-full flex items-center gap-3 py-2.5 rounded-xl transition border {{ $isOperationsActive ? 'bg-blue-50 text-blue-700 border-blue-100 font-semibold' : 'border-transparent text-gray-700 hover:bg-gray-50 hover:text-gray-900' }}">
+                                <span class="h-8 w-8 shrink-0 rounded-lg flex items-center justify-center {{ $isOperationsActive ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500' }}"><i class="fas fa-diagram-project text-xs"></i></span>
+                                <span x-show="expanded" x-transition.opacity.duration.200ms class="flex-1 text-left whitespace-nowrap">Operations</span>
+                                <i x-show="expanded" class="fas fa-chevron-right text-[11px] transition-transform duration-200" :class="isOpen('operations') ? 'rotate-90' : ''"></i>
+                            </button>
+                            <div x-cloak x-show="isOpen('operations')" x-collapse.duration.200ms class="ml-11 space-y-1 border-l border-gray-100 pl-3">
+                                @if(Auth::user()->hasPermission('access_regular'))
+                                    <a href="{{ route('regular.index') }}" class="block rounded-lg px-3 py-2 transition {{ request()->routeIs('regular*') ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900' }}">Regular</a>
+                                @endif
+                                @if(Auth::user()->hasPermission('access_project'))
+                                    <a href="{{ route('project.index') }}" class="block rounded-lg px-3 py-2 transition {{ request()->routeIs('project*') ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900' }}">Project</a>
+                                @endif
+                                @if(Auth::user()->hasPermission('access_transmittal'))
+                                    <a href="{{ route('transmittal.index') }}" class="block rounded-lg px-3 py-2 transition {{ request()->routeIs('transmittal*') ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900' }}">Transmittal</a>
+                                @endif
+                            </div>
+                        </div>
+                    @endif
+                </div>
+            </nav>
         </aside>
 
         <!-- SECOND SIDEBAR -->
@@ -1054,6 +1120,7 @@
 
     </div>
 
+    <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.x.x/dist/cdn.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <script src="https://cdn.quilljs.com/1.3.6/quill.min.js"></script>
     @stack('scripts')
