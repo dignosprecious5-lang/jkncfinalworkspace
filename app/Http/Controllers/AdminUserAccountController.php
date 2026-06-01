@@ -1,0 +1,73 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\User;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
+
+class AdminUserAccountController extends Controller
+{
+    public function update(Request $request, $id)
+    {
+        $authUser = Auth::user();
+
+        if (!$authUser || !$authUser->isSuperAdmin()) {
+            abort(403, 'Only SuperAdmin can edit user accounts.');
+        }
+
+        $user = User::findOrFail($id);
+
+        if ($user->isSuperAdmin() && (int) $user->id !== (int) $authUser->id) {
+            abort(403, 'You cannot edit another SuperAdmin account from this screen.');
+        }
+
+        $validator = Validator::make($request->all(), [
+            'name' => ['required', 'string', 'max:255'],
+            'email' => [
+                'required',
+                'email',
+                'max:255',
+                Rule::unique('users', 'email')->ignore($user->id),
+            ],
+            'role' => ['required', Rule::in(['Admin', 'Employee', 'Client'])],
+            'password' => ['nullable', 'confirmed', 'min:8'],
+        ]);
+
+        if ($validator->fails()) {
+            return redirect()
+                ->back()
+                ->withErrors($validator, 'editAccount')
+                ->withInput()
+                ->with('edit_account_user_id', $user->id);
+        }
+
+        $validated = $validator->validated();
+
+        $payload = [
+            'name' => $validated['name'],
+            'email' => $validated['email'],
+            'role' => $validated['role'],
+            'can_edit_user_roles' => $request->boolean('can_edit_user_roles'),
+            'can_delete_users' => $request->boolean('can_delete_users'),
+        ];
+
+        if ($user->email !== $validated['email']) {
+            $payload['email_verified_at'] = null;
+        }
+
+        if (!empty($validated['password'])) {
+            $payload['password'] = Hash::make($validated['password']);
+        }
+
+        $user->forceFill($payload)->save();
+
+        return redirect()
+            ->back()
+            ->with('success', 'Account updated successfully for ' . $user->name . '.')
+            ->with('edit_account_success_user_id', $user->id);
+    }
+}
