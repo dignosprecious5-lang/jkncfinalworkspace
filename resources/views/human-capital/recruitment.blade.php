@@ -656,13 +656,6 @@
                             </div>
                         </div>
 
-                        <datalist id="active-employee-options">
-                            <template x-for="employee in approvalUsers" :key="employee.id">
-                                <option :value="employee.name" :label="[employee.position, employee.department].filter(Boolean).join(' - ')"></option>
-                            </template>
-                            <option value="Others"></option>
-                        </datalist>
-
                         <div>
                             <label class="block text-xs font-semibold text-gray-600 mb-1">MRF Reference Number</label>
                             <input type="text" x-model="form.requestId" placeholder="Auto-generated, e.g. MRF-2026-001"
@@ -709,8 +702,27 @@
                         <div class="grid grid-cols-2 gap-3">
                             <div>
                                 <label class="block text-xs font-semibold text-gray-600 mb-1">Immediate Supervisor</label>
-                                <input type="text" x-model="form.immediateSupervisor" list="active-employee-options" placeholder="Select active employee or choose Others"
-                                    class="w-full text-sm px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none">
+                                <select x-model="form.immediateSupervisor"
+                                    class="w-full text-sm bg-white border border-gray-200 rounded px-2 py-2 focus:ring-2 focus:ring-blue-100 outline-none">
+                                    <option value="">Select supervisor...</option>
+                                    <template x-for="employee in approvalUsers" :key="'mrf-supervisor-' + employee.id">
+                                        <option
+                                            :value="employee.name"
+                                            x-text="`${employee.name} - ${employee.role}${employee.position ? ' / ' + employee.position : ''}`"
+                                        ></option>
+                                    </template>
+                                    <option value="Others">Others</option>
+                                </select>
+                                <div x-show="mrfSelectedPerson('immediateSupervisor')" class="grid grid-cols-2 gap-2 text-[11px] mt-2">
+                                    <div class="bg-white border border-gray-200 rounded-lg px-2 py-2">
+                                        <p class="text-[9px] uppercase font-bold text-gray-400">Position</p>
+                                        <p class="font-bold" x-text="mrfSelectedPerson('immediateSupervisor')?.position || '—'"></p>
+                                    </div>
+                                    <div class="bg-white border border-gray-200 rounded-lg px-2 py-2">
+                                        <p class="text-[9px] uppercase font-bold text-gray-400">Department</p>
+                                        <p class="font-bold" x-text="mrfSelectedPerson('immediateSupervisor')?.department || '—'"></p>
+                                    </div>
+                                </div>
                                 <input x-show="form.immediateSupervisor === 'Others'" x-model="form.immediateSupervisorOther" type="text"
                                     :required="form.immediateSupervisor === 'Others'"
                                     placeholder="Specify immediate supervisor"
@@ -951,8 +963,27 @@
                                 ]" :key="endorsement.key">
                                     <div>
                                         <label class="block text-xs font-semibold text-gray-600 mb-1" x-text="endorsement.label"></label>
-                                        <input type="text" x-model="form[endorsement.key]" list="active-employee-options" placeholder="Select active employee or choose Others"
-                                            class="w-full text-sm px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none">
+                                        <select x-model="form[endorsement.key]"
+                                            class="w-full text-sm bg-white border border-gray-200 rounded px-2 py-2 focus:ring-2 focus:ring-blue-100 outline-none">
+                                            <option value="">Select approver...</option>
+                                            <template x-for="employee in approvalUsers" :key="endorsement.key + '-' + employee.id">
+                                                <option
+                                                    :value="employee.name"
+                                                    x-text="`${employee.name} - ${employee.role}${employee.position ? ' / ' + employee.position : ''}`"
+                                                ></option>
+                                            </template>
+                                            <option value="Others">Others</option>
+                                        </select>
+                                        <div x-show="mrfSelectedPerson(endorsement.key)" class="grid grid-cols-2 gap-2 text-[11px] mt-2">
+                                            <div class="bg-white border border-gray-200 rounded-lg px-2 py-2">
+                                                <p class="text-[9px] uppercase font-bold text-gray-400">Position</p>
+                                                <p class="font-bold" x-text="mrfSelectedPerson(endorsement.key)?.position || '—'"></p>
+                                            </div>
+                                            <div class="bg-white border border-gray-200 rounded-lg px-2 py-2">
+                                                <p class="text-[9px] uppercase font-bold text-gray-400">Department</p>
+                                                <p class="font-bold" x-text="mrfSelectedPerson(endorsement.key)?.department || '—'"></p>
+                                            </div>
+                                        </div>
                                         <input x-show="form[endorsement.key] === 'Others'" x-model="form[endorsement.other]" type="text"
                                             :required="form[endorsement.key] === 'Others'"
                                             placeholder="Specify approver / endorsement"
@@ -4369,6 +4400,17 @@ approvalDisplayDate(approval) {
     return (approval && (approval.date || approval.approved_at)) ? (approval.date || approval.approved_at) : '—';
 },
 
+approvalUserNames() {
+    return (this.approvalUsers || []).map(user => user.name).filter(Boolean);
+},
+
+mrfSelectedPerson(fieldKey) {
+    const selectedName = this.form ? this.form[fieldKey] : '';
+    if (!selectedName || selectedName === 'Others') return null;
+
+    return (this.approvalUsers || []).find(user => String(user.name) === String(selectedName)) || null;
+},
+
 canActOnApproval(approval) {
     if (!approval) return false;
 
@@ -6150,7 +6192,8 @@ onJpfPayrollLevelChange() {
             this.isEditing = true;
             this.editingId = row.id || row.request_id;
             const employmentType = this.splitOtherValue(row.employment_type, this.employmentTypeOptions);
-            const immediateSupervisor = this.splitOtherValue(row.immediate_supervisor);
+            const approvalUserNames = this.approvalUserNames();
+            const immediateSupervisor = this.splitOtherValue(row.immediate_supervisor, approvalUserNames);
             const jobLevelRank = this.splitOtherValue(row.job_level_rank, this.jobLevelRankOptions);
             const workClassification = this.splitOtherValue(row.work_classification, this.workClassificationOptions);
             const workArrangement = this.splitOtherValue(row.work_arrangement, this.workArrangementOptions);
@@ -6158,10 +6201,10 @@ onJpfPayrollLevelChange() {
             const contractDuration = this.splitOtherValue(row.contract_duration, this.contractDurationOptions);
             const urgencyLevel = this.splitOtherValue(row.urgency_level, this.urgencyLevelOptions);
             const endorsements = row.endorsements || {};
-            const immediateSupervisorEndorsement = this.splitOtherValue(endorsements.immediate_supervisor);
-            const departmentHeadEndorsement = this.splitOtherValue(endorsements.department_head);
-            const hcHeadValidation = this.splitOtherValue(endorsements.hc_head);
-            const financeHeadClearance = this.splitOtherValue(endorsements.finance_head);
+            const immediateSupervisorEndorsement = this.splitOtherValue(endorsements.immediate_supervisor, approvalUserNames);
+            const departmentHeadEndorsement = this.splitOtherValue(endorsements.department_head, approvalUserNames);
+            const hcHeadValidation = this.splitOtherValue(endorsements.hc_head, approvalUserNames);
+            const financeHeadClearance = this.splitOtherValue(endorsements.finance_head, approvalUserNames);
             this.form = {
                 orgAddressId: row.address_id || '',
                 orgBranchId: row.branch_id || '',
