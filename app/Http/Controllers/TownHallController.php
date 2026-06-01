@@ -62,16 +62,16 @@ class TownHallController extends Controller
             ->get();
 
         $usersForRecipients = User::whereIn('role', [
-                'Employee',
-                'employee',
-                'Admin',
-                'admin',
-                'SuperAdmin',
-                'superadmin',
-                'super admin',
-                'System Super Admin',
-                'system super admin',
-            ])
+            'Employee',
+            'employee',
+            'Admin',
+            'admin',
+            'SuperAdmin',
+            'superadmin',
+            'super admin',
+            'System Super Admin',
+            'system super admin',
+        ])
             ->orderBy('name')
             ->get();
 
@@ -255,8 +255,10 @@ class TownHallController extends Controller
             abort(403, 'You can only edit your own communication.');
         }
 
-        if (!in_array($communication->approval_status, ['Draft', 'Needs Revision'], true)
-            && !in_array((string) ($communication->workflow_status ?? ''), ['Draft', 'Needs Revision'], true)) {
+        if (
+            !in_array($communication->approval_status, ['Draft', 'Needs Revision'], true)
+            && !in_array((string) ($communication->workflow_status ?? ''), ['Draft', 'Needs Revision'], true)
+        ) {
             abort(403, 'Only draft communications or communications returned for revision can be edited.');
         }
 
@@ -265,16 +267,16 @@ class TownHallController extends Controller
             ->get();
 
         $usersForRecipients = User::whereIn('role', [
-                'Employee',
-                'employee',
-                'Admin',
-                'admin',
-                'SuperAdmin',
-                'superadmin',
-                'super admin',
-                'System Super Admin',
-                'system super admin',
-            ])
+            'Employee',
+            'employee',
+            'Admin',
+            'admin',
+            'SuperAdmin',
+            'superadmin',
+            'super admin',
+            'System Super Admin',
+            'system super admin',
+        ])
             ->orderBy('name')
             ->get();
 
@@ -306,8 +308,10 @@ class TownHallController extends Controller
             abort(403, 'You can only update your own communication.');
         }
 
-        if (!in_array($communication->approval_status, ['Draft', 'Needs Revision'], true)
-            && !in_array((string) ($communication->workflow_status ?? ''), ['Draft', 'Needs Revision'], true)) {
+        if (
+            !in_array($communication->approval_status, ['Draft', 'Needs Revision'], true)
+            && !in_array((string) ($communication->workflow_status ?? ''), ['Draft', 'Needs Revision'], true)
+        ) {
             abort(403, 'Only draft communications or communications returned for revision can be updated.');
         }
 
@@ -447,7 +451,8 @@ class TownHallController extends Controller
             && $isIntendedRecipient
             && !$hasAcknowledged;
 
-        if ($communication->approval_status === 'Approved'
+        if (
+            $communication->approval_status === 'Approved'
             && !$communication->is_archived
             && $isIntendedRecipient
         ) {
@@ -910,7 +915,7 @@ class TownHallController extends Controller
 
         $isIntendedRecipient = $intendedUsers
             ->pluck('id')
-            ->map(fn ($id) => (int) $id)
+            ->map(fn($id) => (int) $id)
             ->contains((int) Auth::id());
 
         if (!$isIntendedRecipient) {
@@ -1024,7 +1029,7 @@ class TownHallController extends Controller
         return User::whereIn('id', $userIds->filter()->unique()->values())
             ->whereNotNull('email')
             ->get()
-            ->filter(fn ($user) => !empty($user->email))
+            ->filter(fn($user) => !empty($user->email))
             ->unique('email')
             ->values();
     }
@@ -1034,7 +1039,7 @@ class TownHallController extends Controller
         $intendedUsers = $this->getAcknowledgementUsers($communication);
         $intendedUserIds = $intendedUsers
             ->pluck('id')
-            ->map(fn ($id) => (int) $id)
+            ->map(fn($id) => (int) $id)
             ->values();
 
         $requiredCount = $intendedUserIds->count();
@@ -1057,6 +1062,41 @@ class TownHallController extends Controller
     }
 
 
+
+    private function buildTownHallPdf(TownHallCommunication $communication)
+    {
+        $pdf = Pdf::loadView('townhall.show-pdf', compact('communication'))
+            ->setPaper('a4', 'portrait')
+            ->setOptions([
+                'isHtml5ParserEnabled' => true,
+                'isRemoteEnabled' => true,
+                'defaultFont' => 'DejaVu Sans',
+            ]);
+
+        $pdf->render();
+
+        /*
+        |--------------------------------------------------------------------------
+        | DomPDF page count fix
+        |--------------------------------------------------------------------------
+        | CSS counter(pages) may output 0. DomPDF canvas page_text correctly
+        | replaces {PAGE_NUM} and {PAGE_COUNT} after rendering.
+        */
+        $canvas = $pdf->getDomPDF()->getCanvas();
+        $fontMetrics = $pdf->getDomPDF()->getFontMetrics();
+        $font = $fontMetrics->get_font('DejaVu Sans', 'normal');
+
+        $footerText = 'Page {PAGE_NUM} of {PAGE_COUNT}   |   Document Reference Number: '
+            . ($communication->ref_no ?: 'N/A')
+            . '   |   Date Generated: '
+            . now()->format('F d, Y h:i A');
+
+        $canvas->page_text(68, 755, $footerText, $font, 8, [51, 51, 51]);
+
+        return $pdf;
+    }
+
+
     public function downloadPdf($id)
     {
         $communication = TownHallCommunication::findOrFail($id);
@@ -1065,12 +1105,7 @@ class TownHallController extends Controller
             abort(403, 'Only active approved communications can be downloaded.');
         }
 
-        $pdf = Pdf::loadView('townhall.show-pdf', compact('communication'))
-            ->setPaper('a4', 'portrait')
-            ->setOptions([
-                'isHtml5ParserEnabled' => true,
-                'isRemoteEnabled' => true,
-            ]);
+        $pdf = $this->buildTownHallPdf($communication);
 
         return $pdf->download($communication->ref_no . '.pdf');
     }
@@ -1165,7 +1200,7 @@ class TownHallController extends Controller
             ->map(function ($employee) {
                 return $this->formatEmployeeApprover($employee);
             })
-            ->filter(fn ($employee) => !empty($employee['name']))
+            ->filter(fn($employee) => !empty($employee['name']))
             ->values();
     }
 
@@ -1386,14 +1421,14 @@ class TownHallController extends Controller
                 }
 
                 $q->orWhere(function ($legacy) use ($user) {
-                        $legacy->whereNull('recipient_type')
-                            ->where(function ($old) use ($user) {
-                                $old->where('to_for', 'like', '%' . $user->name . '%')
-                                    ->orWhere('to_for', 'like', '%All%')
-                                    ->orWhere('to_for', 'like', '%Everyone%')
-                                    ->orWhere('to_for', 'like', '%All Employees%');
-                            });
-                    });
+                    $legacy->whereNull('recipient_type')
+                        ->where(function ($old) use ($user) {
+                            $old->where('to_for', 'like', '%' . $user->name . '%')
+                                ->orWhere('to_for', 'like', '%All%')
+                                ->orWhere('to_for', 'like', '%Everyone%')
+                                ->orWhere('to_for', 'like', '%All Employees%');
+                        });
+                });
             });
 
             return;
@@ -1690,9 +1725,9 @@ class TownHallController extends Controller
 
         $summary = [
             'total' => $rows->count(),
-            'viewed' => $rows->filter(fn ($row) => !is_null($row->viewed_at))->count(),
-            'acknowledged' => $rows->filter(fn ($row) => !is_null($row->acknowledged_at))->count(),
-            'not_viewed' => $rows->filter(fn ($row) => is_null($row->viewed_at))->count(),
+            'viewed' => $rows->filter(fn($row) => !is_null($row->viewed_at))->count(),
+            'acknowledged' => $rows->filter(fn($row) => !is_null($row->acknowledged_at))->count(),
+            'not_viewed' => $rows->filter(fn($row) => is_null($row->viewed_at))->count(),
         ];
 
         $perPage = 15;
@@ -1901,9 +1936,7 @@ class TownHallController extends Controller
         }
 
         try {
-            $pdfBinary = Pdf::loadView('townhall.show-pdf', compact('communication'))
-                ->setPaper('a4', 'portrait')
-                ->output();
+            $pdfBinary = $this->buildTownHallPdf($communication)->output();
 
             $filename = ($communication->ref_no ?: 'townhall-approval-request') . '.pdf';
 
@@ -1975,9 +2008,7 @@ class TownHallController extends Controller
         }
 
         try {
-            $pdfBinary = Pdf::loadView('townhall.show-pdf', compact('communication'))
-                ->setPaper('a4', 'portrait')
-                ->output();
+            $pdfBinary = $this->buildTownHallPdf($communication)->output();
 
             $filename = ($communication->ref_no ?: 'townhall-communication') . '.pdf';
 
@@ -2002,7 +2033,7 @@ class TownHallController extends Controller
     private function getNotificationRecipients(TownHallCommunication $communication)
     {
         return $this->getAcknowledgementUsers($communication)
-            ->filter(fn ($user) => !empty($user->email))
+            ->filter(fn($user) => !empty($user->email))
             ->unique('email')
             ->values();
     }
