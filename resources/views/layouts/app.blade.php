@@ -91,7 +91,7 @@
             request()->routeIs('products*'), request()->routeIs('services*') => 'marketing',
             request()->routeIs('deals*'), request()->routeIs('sales-marketing*') => 'sales',
             request()->routeIs('contacts*'), request()->routeIs('company*') => 'accounts',
-            request()->routeIs('regular*'), request()->routeIs('project*'), request()->routeIs('transmittal*') => 'operations',
+            request()->routeIs('activities*'), request()->routeIs('regular*'), request()->routeIs('project*'), request()->routeIs('transmittal*') => 'operations',
             default => '',
         };
 
@@ -350,7 +350,7 @@
                         </div>
                     @endif
 
-                    @if($canSeeCrmModules && (Auth::user()->hasPermission('access_regular') || Auth::user()->hasPermission('access_project') || Auth::user()->hasPermission('access_transmittal')))
+                    @if($canSeeCrmModules && (Auth::user()->hasPermission('access_activities') || Auth::user()->hasPermission('access_regular') || Auth::user()->hasPermission('access_project') || Auth::user()->hasPermission('access_transmittal')))
                         <div class="space-y-1">
                             <button type="button" @click="toggleGroup('operations')" title="Operations"
                                 :class="expanded ? 'justify-start px-3' : 'justify-center px-0'"
@@ -360,6 +360,14 @@
                                 <i x-show="expanded" class="fas fa-chevron-right text-[11px] transition-transform duration-200" :class="isOpen('operations') ? 'rotate-90' : ''"></i>
                             </button>
                             <div x-cloak x-show="isOpen('operations')" x-collapse.duration.200ms class="ml-11 space-y-1 border-l border-gray-100 pl-3">
+                                @if(Auth::user()->hasPermission('access_activities'))
+                                    @if(\Illuminate\Support\Facades\Route::has('activities.index'))
+                                        <a href="{{ route('activities.index') }}" class="block rounded-lg px-3 py-2 transition {{ request()->routeIs('activities*') ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900' }}">Activities</a>
+                                    @elseif(\Illuminate\Support\Facades\Route::has('activities'))
+                                        <a href="{{ route('activities') }}" class="block rounded-lg px-3 py-2 transition {{ request()->routeIs('activities*') ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900' }}">Activities</a>
+                                    @endif
+                                @endif
+
                                 @if(Auth::user()->hasPermission('access_regular'))
                                     <a href="{{ route('regular.index') }}" class="block rounded-lg px-3 py-2 transition {{ request()->routeIs('regular*') ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900' }}">Regular</a>
                                 @endif
@@ -517,6 +525,12 @@
                             </a>
 
                             {{-- Operations --}}
+                            <a href="{{ route('admin.dashboard.section', ['section' => 'activities']) }}"
+                               class="block px-3 py-2 rounded-lg transition
+                               {{ request()->routeIs('admin.dashboard.section') && request()->route('section') === 'activities' ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
+                                Activities
+                            </a>
+
                             <a href="{{ route('admin.dashboard.section', ['section' => 'regular']) }}"
                                class="block px-3 py-2 rounded-lg transition
                                {{ request()->routeIs('admin.dashboard.section') && request()->route('section') === 'regular' ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
