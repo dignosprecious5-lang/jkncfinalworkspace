@@ -58,8 +58,22 @@
     }
     $presentHeading = $attendanceBaseLabel . ' Present';
     $absentHeading = $attendanceBaseLabel . ' Absent';
-    $jkCompanyName = 'JOHN KELLY & COMPANY';
-    $jkCompanyAddress = '3F, Cebu Holdings Center, Cebu Business Park, Cebu City, Philippines 6000';
+    $jkCompanyName = strtoupper((data_get($corporateContext ?? [], 'company_name') ?: data_get($corporateContext ?? [], 'companyName')) ?: 'JOHN KELLY & COMPANY');
+    $jkCompanyAddress = (data_get($corporateContext ?? [], 'company_address') ?: data_get($corporateContext ?? [], 'companyAddress')) ?: '3F, Cebu Holdings Center, Cebu Business Park, Cebu City, Philippines 6000';
+
+    $gisLogoPath = (data_get($corporateContext ?? [], 'logo_path') ?: data_get($corporateContext ?? [], 'logoPath'));
+    $gisLogoUrl = null;
+    $gisLogoDataUri = null;
+    if ($gisLogoPath) {
+        $normalizedLogoPath = preg_replace('#^/?storage/#', '', (string) $gisLogoPath);
+        try { $gisLogoUrl = route('uploads.show', ['path' => $normalizedLogoPath]); } catch (\Throwable $e) { $gisLogoUrl = asset('storage/' . $normalizedLogoPath); }
+        $absoluteLogoPath = storage_path('app/public/' . $normalizedLogoPath);
+        if (is_file($absoluteLogoPath)) {
+            $mime = function_exists('mime_content_type') ? (mime_content_type($absoluteLogoPath) ?: 'image/png') : 'image/png';
+            $gisLogoDataUri = 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($absoluteLogoPath));
+        }
+    }
+
     $meetingTitleLine = trim(($minute->type_of_meeting ?: 'Regular') . ' ' . ($minute->governing_body ?: 'Board of Directors') . ' Meeting');
     $meetingDateLine = optional($minute->date_of_meeting)->format('F d, Y') ?: '________________';
     $meetingTimeLine = $minute->time_started ? \Carbon\Carbon::parse($minute->time_started)->format('g:i A') : '________________';
@@ -77,6 +91,7 @@
     };
 
     $minutesProperHtml = $compactMinutesHtml($minute->recording_notes ?? '');
+    $pdfFooterLeft = trim(($minute->minutes_ref ?: 'MINUTES') . ' - ' . $jkCompanyName);
 @endphp
 
 <!DOCTYPE html>
@@ -87,7 +102,7 @@
     <style>
         @page {
             size: A4 portrait;
-            margin: 14mm 16mm 14mm 16mm;
+            margin: 14mm 16mm 22mm 16mm;
         }
 
         * {
@@ -109,6 +124,8 @@
         .center {
             text-align: center;
         }
+
+        .gis-logo { max-height: 60px; max-width: 220px; object-fit: contain; margin: 0 auto 7px; display: block; }
 
         .brand-main {
             font-size: 31pt;
@@ -203,13 +220,47 @@
         .avoid-break {
             page-break-inside: avoid;
         }
+
+        .pdf-fixed-footer {
+            position: fixed;
+            left: 0;
+            right: 0;
+            bottom: -12mm;
+            height: 10mm;
+            border-top: 0.6px solid #111;
+            font-size: 8pt;
+            line-height: 1.2;
+            color: #111;
+        }
+        .pdf-fixed-footer .pdf-footer-left {
+            position: absolute;
+            left: 0;
+            top: 2mm;
+            width: 70%;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .pdf-fixed-footer .pdf-footer-right {
+            position: absolute;
+            right: 0;
+            top: 2mm;
+            text-align: right;
+            font-weight: 700;
+        }
+        .pdf-page-counter:after {
+            content: "Page " counter(page) " of " counter(pages);
+        }
     </style>
 </head>
 <body>
     <div class="page">
         <div class="center">
-            <div class="brand-main">John Kelly</div>
-            <div class="brand-main"><span class="brand-amp">&amp;</span> Company</div>
+            @if($gisLogoDataUri)
+                <img src="{{ $gisLogoDataUri }}" class="gis-logo" alt="Company Logo">
+            @else
+                <div class="brand-main">{{ $jkCompanyName }}</div>
+            @endif
             <div class="meta-line">{{ $jkCompanyAddress }}</div>
 
             <div class="title">MINUTES OF THE</div>
@@ -339,5 +390,26 @@
             <div style="font-weight:700;">Chairman of the Meeting</div>
         </div>
     </div>
+
+
+@php
+    $dompdfFooterLeft = trim('MINUTES ' . ($minute->minutes_ref ?: '') . ' - ' . $jkCompanyName);
+    $dompdfFooterLeft = preg_replace('/\s+/', ' ', (string) $dompdfFooterLeft);
+    if (mb_strlen($dompdfFooterLeft) > 90) {
+        $dompdfFooterLeft = mb_substr($dompdfFooterLeft, 0, 87) . '...';
+    }
+@endphp
+<script type="text/php">
+    if (isset($pdf)) {
+        $font = $fontMetrics->get_font("Times-Roman", "normal");
+        $boldFont = $fontMetrics->get_font("Times-Roman", "bold");
+        $footerLeft = @json($dompdfFooterLeft);
+
+        $pdf->line(40, 800, 555, 800, [0, 0, 0], 0.4);
+        $pdf->page_text(40, 808, $footerLeft, $font, 8, [0, 0, 0]);
+        $pdf->page_text(500, 808, "Page {PAGE_NUM} of {PAGE_COUNT}", $boldFont, 8, [0, 0, 0]);
+    }
+</script>
+
 </body>
 </html>

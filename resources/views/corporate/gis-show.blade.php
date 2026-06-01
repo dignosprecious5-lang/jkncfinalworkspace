@@ -983,7 +983,7 @@
                 <button class="bg-blue-600 text-white px-4 py-2 rounded">Save</button>
             </form>
 
-            <form x-show="panel=='completegis'" action="{{ route('gis.company.update', $gis->id) }}" method="POST" class="space-y-4">
+            <form x-show="panel=='completegis'" action="{{ route('gis.company.update', $gis->id) }}" method="POST" enctype="multipart/form-data" class="space-y-4">
                 @csrf
                 @method('PUT')
 
@@ -997,6 +997,15 @@
                 <input type="email" name="email" placeholder="Email" class="border w-full p-2 rounded" value="{{ $gis->email }}">
                 <input name="principal_address" placeholder="Principal Address" class="border w-full p-2 rounded" value="{{ $gis->principal_address }}">
                 <input name="business_address" placeholder="Business Address" class="border w-full p-2 rounded" value="{{ $gis->business_address }}">
+
+                <div class="border rounded p-3 bg-gray-50">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Corporation Logo</label>
+                    @if($gis->logo_path)
+                        <img src="{{ route('uploads.show', ['path' => $gis->logo_path]) }}" alt="Corporation Logo" class="h-16 w-auto object-contain mb-2">
+                    @endif
+                    <input type="file" name="logo_upload" accept="image/*" class="border w-full p-2 rounded bg-white">
+                    <p class="mt-1 text-xs text-gray-500">This logo will be used in Notices, Minutes, Resolutions, and Secretary Certificates.</p>
+                </div>
                 <input name="official_mobile" placeholder="Official Mobile" class="border w-full p-2 rounded" value="{{ $gis->official_mobile }}">
                 <input name="alternate_mobile" placeholder="Alternate Mobile" class="border w-full p-2 rounded" value="{{ $gis->alternate_mobile }}">
                 <input name="auditor" placeholder="Auditor" class="border w-full p-2 rounded" value="{{ $gis->auditor }}">
@@ -1235,6 +1244,17 @@
             <h3 class="text-sm font-semibold text-gray-800 uppercase">
                 Completed GIS Details
             </h3>
+
+            <div class="flex justify-between items-center gap-3">
+                <span class="text-gray-500">Corporation Logo</span>
+                <span>
+                    @if($gis->logo_path)
+                        <img src="{{ route('uploads.show', ['path' => $gis->logo_path]) }}" alt="Corporation Logo" class="h-12 w-auto object-contain">
+                    @else
+                        —
+                    @endif
+                </span>
+            </div>
 
             <div class="flex justify-between">
                 <span class="text-gray-500">Date Registered</span>

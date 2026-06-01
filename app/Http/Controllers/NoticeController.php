@@ -31,6 +31,7 @@ class NoticeController extends Controller
         return view('corporate.notices.index', [
             'notices' => $notices,
             'nextNoticeNumber' => $this->nextGlobalNoticeNumber(),
+            'corporateContext' => $this->corporateContextForNotice(new Notice()),
         ]);
     }
 
@@ -67,6 +68,7 @@ class NoticeController extends Controller
         $notice = Notice::create($data);
         $this->syncGeneratedNoticePdf($notice, $bodyHtml, $hasUploadedDocument);
         $this->syncNoticeAttendeesFromLatestGis($notice);
+        $this->syncManualNoticeGuests($notice->fresh(), $request->input('guests', []));
 
         return redirect()->route('notices')->with('success', 'Notice created.');
     }
@@ -80,6 +82,7 @@ class NoticeController extends Controller
 
         return view('corporate.notices.preview', [
             'notice' => $notice,
+            'corporateContext' => $this->corporateContextForNotice($notice),
         ]);
     }
 
@@ -113,6 +116,7 @@ class NoticeController extends Controller
         $notice->update($data);
         $this->syncGeneratedNoticePdf($notice->fresh(), $bodyHtml, $hasUploadedDocument);
         $this->syncNoticeAttendeesFromLatestGis($notice->fresh());
+        $this->syncManualNoticeGuests($notice->fresh(), $request->input('guests', []));
 
         return redirect()->route('notices')->with('success', 'Notice updated.');
     }
@@ -227,6 +231,10 @@ class NoticeController extends Controller
             'body_html' => ['nullable', 'string'],
             'body_mode' => ['nullable', 'string', 'max:50'],
             'document_path' => ['nullable', 'file', 'mimes:pdf', 'max:5120'],
+            'guests' => ['nullable', 'array'],
+            'guests.*.name' => ['nullable', 'string', 'max:255'],
+            'guests.*.email' => ['nullable', 'email', 'max:255'],
+            'guests.*.position' => ['nullable', 'string', 'max:255'],
         ]);
     }
 
@@ -323,6 +331,7 @@ class NoticeController extends Controller
         $html = view('corporate.notices.pdf', [
             'notice' => $notice,
             'bodyHtml' => $bodyHtml,
+            'corporateContext' => $this->corporateContextForNotice($notice),
         ])->render();
 
         $tempDirectory = storage_path('app/temp');
@@ -572,9 +581,81 @@ class NoticeController extends Controller
         return $baseQuery->latest('id')->first();
     }
 
+
+    private function latestAcceptedGis(): ?GisRecord
+    {
+        $acceptedQuery = GisRecord::query()
+            ->where(function ($query) {
+                $query->where('workflow_status', 'Accepted')
+                    ->orWhere('approval_status', 'Accepted')
+                    ->orWhere('approval_status', 'Approved')
+                    ->orWhere('submission_status', 'Accepted');
+            });
+
+        // Prefer the latest accepted GIS with an uploaded logo, because this is the
+        // corporate header source requested for Notices and Minutes.
+        $withLogo = (clone $acceptedQuery)
+            ->whereNotNull('logo_path')
+            ->where('logo_path', '<>', '')
+            ->latest('updated_at')
+            ->latest('id')
+            ->first();
+
+        if ($withLogo) {
+            return $withLogo;
+        }
+
+        return $acceptedQuery
+            ->latest('updated_at')
+            ->latest('id')
+            ->first();
+    }
+
+    private function corporateContextForNotice(?Notice $notice = null): array
+    {
+        $gis = $this->latestAcceptedGis();
+
+        $companyName = $gis?->corporation_name ?: 'John Kelly & Company';
+        $companyRegNo = $gis?->company_reg_no;
+        $companyAddress = $gis?->principal_address
+            ?: $gis?->business_address
+            ?: $notice?->office_address
+            ?: $notice?->location
+            ?: null;
+
+        $logoPath = $gis?->logo_path;
+        $logoUrl = null;
+
+        if ($logoPath) {
+            $logoUrl = Str::startsWith($logoPath, ['http://', 'https://'])
+                ? $logoPath
+                : Storage::disk('public')->url($logoPath);
+        }
+
+        return [
+            'gis' => $gis,
+            'companyName' => $companyName,
+            'companyRegNo' => $companyRegNo,
+            'companyAddress' => $companyAddress,
+            'logoPath' => $logoPath,
+            'logoUrl' => $logoUrl,
+
+            // Snake-case aliases used by existing Blade templates.
+            'company_name' => $companyName,
+            'company_reg_no' => $companyRegNo,
+            'company_address' => $companyAddress,
+            'logo_path' => $logoPath,
+            'logo_url' => $logoUrl,
+        ];
+    }
+
     private function noticePdfBinary(Notice $notice): string
     {
         $notice->loadMissing('attendees');
-        return Pdf::loadView('corporate.notices.pdf', ['notice'=>$notice,'bodyHtml'=>$notice->body_html])->setPaper('a4')->output();
+        return Pdf::loadView('corporate.notices.pdf', [
+            'notice' => $notice,
+            'bodyHtml' => $notice->body_html,
+            'corporateContext' => $this->corporateContextForNotice($notice),
+        ])->setPaper('a4')->setOptions(['isPhpEnabled' => true])->output();
     }
 }

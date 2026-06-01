@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use App\Models\User;
 use App\Models\GisRecord;
 
@@ -180,10 +181,12 @@ class GisController extends Controller
             'meeting_type'        => 'nullable|string|max:255',
             'draft_file_upload'   => 'nullable|file|mimes:pdf,doc,docx,jpg,jpeg,png|max:10240',
             'notary_file_upload'  => 'nullable|file|mimes:pdf,doc,docx,jpg,jpeg,png|max:10240',
+            'logo_upload'         => 'nullable|image|mimes:jpg,jpeg,png,webp|max:4096',
         ]);
 
         $draftPath = null;
         $notaryPath = null;
+        $logoPath = null;
 
         if ($request->hasFile('draft_file_upload')) {
             $file = $request->file('draft_file_upload');
@@ -199,6 +202,13 @@ class GisController extends Controller
             $notaryPath = 'gis_files/' . $fileName;
         }
 
+        if ($request->hasFile('logo_upload')) {
+            $file = $request->file('logo_upload');
+            $fileName = time() . '_logo_' . preg_replace('/[^A-Za-z0-9._-]/', '_', $file->getClientOriginalName());
+            $file->storeAs('gis_logos', $fileName, 'public');
+            $logoPath = 'gis_logos/' . $fileName;
+        }
+
         $isApprover = $this->canApproveCorporate();
 
         $payload = [
@@ -212,6 +222,7 @@ class GisController extends Controller
             'meeting_type'      => $request->meeting_type,
             'file'              => $draftPath,
             'notary_file_path'  => $notaryPath,
+            'logo_path'         => $logoPath,
             'approval_status'   => $isApprover ? 'Approved' : 'Pending',
             'workflow_status'   => $isApprover ? 'Accepted' : 'Uploaded',
             'submitted_by'      => Auth::id(),
@@ -285,6 +296,7 @@ class GisController extends Controller
             'subsidiary_name'         => 'nullable|string|max:255',
             'subsidiary_sec_no'       => 'nullable|string|max:255',
             'subsidiary_address'      => 'nullable|string|max:255',
+            'logo_upload'             => 'nullable|image|mimes:jpg,jpeg,png,webp|max:4096',
         ]);
 
         $gis = GisRecord::findOrFail($id);
@@ -293,7 +305,7 @@ class GisController extends Controller
             abort(403, 'This record can no longer be edited.');
         }
 
-        $gis->update([
+        $payload = [
             'date_registered'         => $request->date_registered,
             'trade_name'              => $request->trade_name,
             'fiscal_year_end'         => $request->fiscal_year_end,
@@ -313,7 +325,20 @@ class GisController extends Controller
             'subsidiary_name'         => $request->subsidiary_name,
             'subsidiary_sec_no'       => $request->subsidiary_sec_no,
             'subsidiary_address'      => $request->subsidiary_address,
-        ]);
+        ];
+
+        if ($request->hasFile('logo_upload')) {
+            if ($gis->logo_path) {
+                Storage::disk('public')->delete($gis->logo_path);
+            }
+
+            $file = $request->file('logo_upload');
+            $fileName = time() . '_logo_' . preg_replace('/[^A-Za-z0-9._-]/', '_', $file->getClientOriginalName());
+            $file->storeAs('gis_logos', $fileName, 'public');
+            $payload['logo_path'] = 'gis_logos/' . $fileName;
+        }
+
+        $gis->update($payload);
 
         return redirect()->route('gis.show', $gis->id)
             ->with('success', 'GIS Company Information completed successfully.');

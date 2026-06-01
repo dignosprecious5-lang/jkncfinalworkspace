@@ -99,6 +99,7 @@ class ResolutionController extends Controller
                 'document' => $this->resolutionDocumentData($resolution),
             ])
             ->setPaper('a4')
+            ->setOptions(['isPhpEnabled' => true])
             ->download($filename);
     }
 
@@ -255,6 +256,9 @@ class ResolutionController extends Controller
             'location' => $resolution->location,
             'secretary' => $resolution->secretary,
             'purpose' => $resolution->board_resolution,
+            // Secretary Certificates must certify the complete system-built
+            // resolution text: user-typed WHEREAS/details + standard clauses.
+            'resolution_body' => $this->completeResolutionBody($resolution),
             'notary_doc_no' => $resolution->notary_doc_no,
             'notary_page_no' => $resolution->notary_page_no,
             'notary_book_no' => $resolution->notary_book_no,
@@ -265,6 +269,47 @@ class ResolutionController extends Controller
         $resolution->secretaryCertificates()->get()->each(function ($certificate) use ($shared) {
             $certificate->update($shared);
         });
+    }
+
+
+    private function completeResolutionBody(Resolution $resolution): string
+    {
+        $customBody = trim((string) $resolution->resolution_body);
+        $standardClauses = trim($this->standardResolutionClauses($resolution));
+
+        if ($customBody === '') {
+            return $standardClauses;
+        }
+
+        $normalizedCustom = Str::lower(strip_tags($customBody));
+
+        // If the user already typed/pasted the full standard clauses, do not
+        // duplicate them. Otherwise append the required corporate clauses.
+        if (Str::contains($normalizedCustom, 'whereas finally resolved')
+            || Str::contains($normalizedCustom, 'be it further resolved')
+            || Str::contains($normalizedCustom, 'all prior inconsistent resolutions')) {
+            return $customBody;
+        }
+
+        return $customBody . "
+
+" . $standardClauses;
+    }
+
+    private function standardResolutionClauses(Resolution $resolution): string
+    {
+        $meetingDate = optional($resolution->date_of_meeting)->format('jS \d\a\y \o\f F Y') ?: '_____ day of ____________';
+        $location = trim((string) ($resolution->location ?: '_____________________'));
+
+        return trim(implode("
+
+", [
+            'WHEREAS RESOLVED; that the foregoing resolutions are hereby approved and adopted.',
+            'WHEREAS FINALLY RESOLVED, that the foregoing resolution is valid and existing until withdrawn, revoked, or modified by the Corporation.',
+            "BE IT FURTHER RESOLVED, that the Corporate Secretary is hereby authorized and directed to include this Resolution in the Company's Minute Book and to notify all concerned parties of the adoption of this Resolution.",
+            'FINALLY BE IT FURTHER RESOLVED that we, the undersigned, hereby accept and agree to the foregoing resolutions. We have affixed our signatures on this ' . $meetingDate . ' at ' . $location . '.',
+            'All prior inconsistent resolutions or actions of the Board of Directors are hereby revoked and superseded. This resolution shall be effective immediately.',
+        ]));
     }
 
     private function governingBodyOptions(): array
@@ -286,7 +331,13 @@ class ResolutionController extends Controller
 
     private function syncGeneratedResolutionPdf(Resolution $resolution, bool $hasUploadedDraft): void
     {
-        if ($hasUploadedDraft || $resolution->draft_file_path) {
+        if ($hasUploadedDraft) {
+            return;
+        }
+
+        // Regenerate system-built draft PDFs when the live template changes.
+        // Only preserve a manually uploaded draft that is not in our generated folder.
+        if ($resolution->draft_file_path && ! str_starts_with((string) $resolution->draft_file_path, 'uploads/resolutions/')) {
             return;
         }
 
@@ -305,7 +356,7 @@ class ResolutionController extends Controller
         $pdf = Pdf::loadView('corporate.resolutions.pdf', [
             'resolution' => $resolution,
             'document' => $this->resolutionDocumentData($resolution),
-        ])->setPaper('a4');
+        ])->setPaper('a4')->setOptions(['isPhpEnabled' => true]);
 
         Storage::disk('public')->delete($targetPath);
         Storage::disk('public')->put($targetPath, $pdf->output());
@@ -351,10 +402,15 @@ class ResolutionController extends Controller
             'company_name' => $gis?->corporation_name ?: 'JK&C INC.',
             'company_reg_no' => $gis?->company_reg_no ?: '2025120230900-02',
             'company_address' => $gis?->principal_address ?: $gis?->business_address ?: '3RD FLOOR, UNIT 305 CEBU HOLDINGS CENTER CARDINAL ROSALES AVE., CEBU BUSINESS PARK HIPPODROMO, CEBU CITY, 6000',
+            'logo_path' => $gis?->logo_path,
             'approval_rows' => $approvalRows,
             'chairman' => $chairman,
             'resolution_label' => $this->resolutionNumberLabel($governingBody),
             'certifying_body' => $this->certifyingBodyLabel($governingBody),
+            // For display/PDF only. The DB field resolution_body remains the
+            // user-entered custom body so the builder stays simple.
+            'standard_resolution_clauses' => $this->standardResolutionClauses($resolution),
+            'full_resolution_body' => $this->completeResolutionBody($resolution),
         ];
     }
 

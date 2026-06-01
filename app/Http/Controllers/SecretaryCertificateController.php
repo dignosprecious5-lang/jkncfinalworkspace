@@ -12,8 +12,10 @@ use App\Models\Notice;
 use App\Models\Resolution;
 use App\Models\SecretaryCertificate;
 use App\Models\Stockholder;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class SecretaryCertificateController extends Controller
@@ -25,7 +27,11 @@ class SecretaryCertificateController extends Controller
     public function index()
     {
         $certificates = SecretaryCertificate::with(['notice', 'resolution', 'minute'])->latest()->get();
-        $resolutions = Resolution::with(['notice', 'minute'])->orderBy('date_of_meeting')->get();
+        $resolutions = Resolution::with(['notice', 'minute'])->orderBy('date_of_meeting')->get()
+            ->map(function (Resolution $resolution) {
+                $resolution->full_resolution_body = $this->completeResolutionBodyForCertificate($resolution);
+                return $resolution;
+            });
         $minutes = Minute::with('notice')->orderBy('date_of_meeting')->get();
 
         return view('corporate.secretary-certificates.index', [
@@ -119,6 +125,19 @@ class SecretaryCertificateController extends Controller
         return redirect()->route('secretary-certificates')->with('success', 'Secretary certificate deleted.');
     }
 
+
+    private function generatePdfPreview(string $view, array $data, string $targetPath): ?string
+    {
+        $pdf = Pdf::loadView($view, $data)
+            ->setPaper('a4')
+            ->setOptions(['isPhpEnabled' => true]);
+
+        Storage::disk('public')->delete($targetPath);
+        Storage::disk('public')->put($targetPath, $pdf->output());
+
+        return $targetPath;
+    }
+
     private function fields(): array
     {
         return [
@@ -198,11 +217,11 @@ class SecretaryCertificateController extends Controller
             $data['notice_id'] = $resolution->notice_id;
             $data['notice_ref'] = $resolution->notice_ref;
             $data['resolution_no'] = $resolution->resolution_no;
-            $data['resolution_body'] = ($data['resolution_body'] ?? null) ?: ($resolution->resolution_body ?: $resolution->board_resolution);
+            $data['resolution_body'] = $this->completeResolutionBodyForCertificate($resolution);
             $data['governing_body'] = $resolution->governing_body;
             $data['type_of_meeting'] = $resolution->type_of_meeting;
             $data['meeting_no'] = $resolution->meeting_no;
-            $data['purpose'] = ($data['purpose'] ?? null) ?: ($resolution->board_resolution ?: $resolution->resolution_no);
+            $data['purpose'] = $resolution->board_resolution ?: $resolution->resolution_no;
             $data['date_of_meeting'] = $resolution->date_of_meeting;
             $data['location'] = $resolution->location;
             $secretaryPerson = $this->corporateSecretaryPerson($this->gisForSources($resolution->notice, $resolution->minute, $resolution));
@@ -252,6 +271,45 @@ class SecretaryCertificateController extends Controller
 
 
 
+
+    private function completeResolutionBodyForCertificate(Resolution $resolution): string
+    {
+        $customBody = trim((string) $resolution->resolution_body);
+        $standardClauses = trim($this->standardResolutionClausesForCertificate($resolution));
+
+        if ($customBody === '') {
+            return $standardClauses;
+        }
+
+        $normalizedCustom = Str::lower(strip_tags($customBody));
+
+        if (Str::contains($normalizedCustom, 'whereas finally resolved')
+            || Str::contains($normalizedCustom, 'be it further resolved')
+            || Str::contains($normalizedCustom, 'all prior inconsistent resolutions')) {
+            return $customBody;
+        }
+
+        return $customBody . "
+
+" . $standardClauses;
+    }
+
+    private function standardResolutionClausesForCertificate(Resolution $resolution): string
+    {
+        $meetingDate = optional($resolution->date_of_meeting)->format('jS \d\a\y \o\f F Y') ?: '_____ day of ____________';
+        $location = trim((string) ($resolution->location ?: '_____________________'));
+
+        return trim(implode("
+
+", [
+            'WHEREAS RESOLVED; that the foregoing resolutions are hereby approved and adopted.',
+            'WHEREAS FINALLY RESOLVED, that the foregoing resolution is valid and existing until withdrawn, revoked, or modified by the Corporation.',
+            "BE IT FURTHER RESOLVED, that the Corporate Secretary is hereby authorized and directed to include this Resolution in the Company's Minute Book and to notify all concerned parties of the adoption of this Resolution.",
+            'FINALLY BE IT FURTHER RESOLVED that we, the undersigned, hereby accept and agree to the foregoing resolutions. We have affixed our signatures on this ' . $meetingDate . ' at ' . $location . '.',
+            'All prior inconsistent resolutions or actions of the Board of Directors are hereby revoked and superseded. This resolution shall be effective immediately.',
+        ]));
+    }
+
     private function corporateContextForCertificate(SecretaryCertificate $certificate): array
     {
         $resolution = $certificate->resolution;
@@ -267,7 +325,7 @@ class SecretaryCertificateController extends Controller
         $secretaryTin = data_get($certificate, 'secretary_tin') ?: ($secretaryPerson?->tin ?: null);
         $secretaryAddress = data_get($certificate, 'secretary_address') ?: ($secretaryPerson?->address ?: ($companyAddress ?: 'principal office of the Corporation'));
         $notarialPlace = data_get($certificate, 'notarial_place') ?: $this->guessNotarialPlace($certificate->location ?: $resolution?->location ?: $minute?->location ?: $companyAddress);
-        $resolvedBody = data_get($certificate, 'resolution_body') ?: ($resolution?->resolution_body ?: ($resolution?->board_resolution ?: $certificate->purpose));
+        $resolvedBody = $resolution ? $this->completeResolutionBodyForCertificate($resolution) : (data_get($certificate, 'resolution_body') ?: $certificate->purpose);
         $resolvedPurpose = $certificate->purpose ?: ($resolution?->board_resolution ?: ($certificate->resolution_no ? 'Resolution ' . $certificate->resolution_no : 'Certified Resolution'));
 
         return [
@@ -281,6 +339,7 @@ class SecretaryCertificateController extends Controller
             'notarial_place' => $notarialPlace,
             'resolution_body' => $resolvedBody,
             'purpose' => $resolvedPurpose,
+            'logo_path' => $gis?->logo_path,
         ];
     }
 

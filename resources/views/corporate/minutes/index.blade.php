@@ -18,12 +18,23 @@
         'meeting_mode' => $notice->meeting_mode,
         'meeting_platform' => $notice->meeting_platform,
         'meeting_link_details' => $notice->meeting_link_details,
-        'attendees' => $notice->relationLoaded('attendees') ? $notice->attendees->map(fn ($attendee) => [
-            'name' => $attendee->name,
-            'position' => $attendee->position,
-            'email' => $attendee->email,
-            'is_selected' => (bool) $attendee->is_selected,
-        ])->values() : [],
+        'attendees' => $notice->relationLoaded('attendees') ? $notice->attendees
+            ->filter(fn ($attendee) => strtolower((string) $attendee->source_type) !== 'guest')
+            ->map(fn ($attendee) => [
+                'name' => $attendee->name,
+                'position' => $attendee->position,
+                'email' => $attendee->email,
+                'source_type' => $attendee->source_type,
+                'is_selected' => (bool) $attendee->is_selected,
+            ])->values() : [],
+        'guests' => $notice->relationLoaded('attendees') ? $notice->attendees
+            ->filter(fn ($attendee) => strtolower((string) $attendee->source_type) === 'guest')
+            ->map(fn ($attendee) => [
+                'name' => $attendee->name,
+                'position' => $attendee->position ?: 'Guest',
+                'email' => $attendee->email,
+                'is_selected' => (bool) $attendee->is_selected,
+            ])->values() : [],
         'date_of_meeting' => optional($notice->date_of_meeting)->toDateString(),
         'time_started' => $notice->time_started,
         'location' => $notice->location,
@@ -572,12 +583,21 @@
             },
             expectedAttendeeRows(selected) {
                 return (Array.isArray(selected?.attendees) ? selected.attendees : [])
-                    .filter((attendee) => attendee && attendee.is_selected !== false)
+                    .filter((attendee) => attendee && attendee.is_selected !== false && String(attendee.source_type || '').toLowerCase() !== 'guest')
                     .map((attendee) => ({
                         name: String(attendee.name || '').trim(),
                         position: String(attendee.position || attendee.role || 'Attendee').trim(),
                     }))
                     .filter((attendee) => attendee.name !== '');
+            },
+            guestRows(selected) {
+                return (Array.isArray(selected?.guests) ? selected.guests : [])
+                    .filter((guest) => guest && guest.is_selected !== false)
+                    .map((guest) => ({
+                        name: String(guest.name || '').trim(),
+                        position: String(guest.position || guest.role || 'Guest').trim(),
+                    }))
+                    .filter((guest) => guest.name !== '');
             },
             applyNotice() {
                 const selected = this.notices.find((notice) => String(notice.id) === String(this.selectedNoticeId));
@@ -622,7 +642,8 @@
                 this.attendees.secretariat = selected.secretary
                     ? [{ name: selected.secretary, position: 'Corporate Secretary' }]
                     : [this.emptyAttendeeRow()];
-                this.attendees.guests = [this.emptyAttendeeRow()];
+                const guestRows = this.guestRows(selected);
+                this.attendees.guests = guestRows.length ? guestRows : [this.emptyAttendeeRow()];
                 this.$nextTick(() => this.syncAttendees());
             },
         };

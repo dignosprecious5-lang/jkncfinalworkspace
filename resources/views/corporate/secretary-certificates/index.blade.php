@@ -19,7 +19,7 @@
         'date_of_meeting' => optional($resolution->date_of_meeting)->toDateString(),
         'location' => $resolution->location,
         'board_resolution' => $resolution->board_resolution,
-        'resolution_body' => $resolution->resolution_body,
+        'resolution_body' => $resolution->full_resolution_body ?? $resolution->resolution_body,
         'secretary' => $resolution->secretary,
         'notary_public' => $resolution->notary_public,
         'notarial_place' => $resolution->notarized_at ?: $resolution->location,

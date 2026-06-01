@@ -25,6 +25,78 @@
         'Joint Stockholders and Board of Directors' => 'JOINT BOARD AND STOCKHOLDERS RESOLUTION NO. ',
         default => 'BOARD RESOLUTION NO. ',
     };
+
+    $formatResolutionBodyForDisplay = function ($body) {
+        $text = html_entity_decode((string) $body, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+
+        // Preserve paragraph breaks from saved rich-editor HTML before stripping tags.
+        $text = preg_replace('#</(p|div|li|h[1-6])>\s*<(?=(p|div|li|h[1-6])\b)#i', "\n\n<", $text);
+        $text = preg_replace('#<br\s*/?>#i', "\n", $text);
+        $text = strip_tags($text);
+        $text = str_replace(["\r\n", "\r"], "\n", $text);
+        $text = preg_replace('/[ \t]+/', ' ', $text);
+        $text = trim($text);
+
+        if ($text === '') {
+            return '';
+        }
+
+        // Force the standard resolution clauses into separate corporate-style paragraphs.
+        $clauseBreaks = [
+            '/\s*(WHEREAS\s+RESOLVED[;,]\s+)/iu',
+            '/\s*(WHEREAS\s+FINALLY\s+RESOLVED[;,]\s+)/iu',
+            '/\s*(BE\s+IT\s+FURTHER\s+RESOLVED[;,]\s+)/iu',
+            '/\s*(FINALLY\s+BE\s+IT\s+FURTHER\s+RESOLVED\s+)/iu',
+            '/\s*(All\s+prior\s+inconsistent\s+resolutions\s+or\s+actions\s+of\s+the\s+Board\s+of\s+Directors\s+)/iu',
+        ];
+
+        foreach ($clauseBreaks as $pattern) {
+            $text = preg_replace($pattern, "\n\n$1", $text);
+        }
+
+        $text = preg_replace('/\n{3,}/', "\n\n", trim($text));
+        $paragraphs = preg_split('/\n\s*\n+/', $text);
+        $html = [];
+
+        foreach ($paragraphs as $paragraph) {
+            $paragraph = trim(preg_replace('/[ \t]+/', ' ', $paragraph));
+            if ($paragraph === '') {
+                continue;
+            }
+
+            $escaped = e($paragraph);
+
+            // Bold only the clause heading, not the whole sentence.
+            $patterns = [
+                '/^(WHEREAS\s+RESOLVED[;,]?)(\s*)/iu',
+                '/^(WHEREAS\s+FINALLY\s+RESOLVED[;,]?)(\s*)/iu',
+                '/^(BE\s+IT\s+FURTHER\s+RESOLVED[;,]?)(\s*)/iu',
+                '/^(FINALLY\s+BE\s+IT\s+FURTHER\s+RESOLVED)(\s*)/iu',
+                '/^(Whereas[;,]?)(\s*)/iu',
+            ];
+
+            foreach ($patterns as $pattern) {
+                $new = preg_replace($pattern, '<strong>$1</strong> ', $escaped, 1);
+                if ($new !== $escaped) {
+                    $escaped = $new;
+                    break;
+                }
+            }
+
+            // Emphasize the auto-filled signing date and place in the final clause.
+            $escaped = preg_replace(
+                '/(We have affixed our signatures on this\s+)(.*?)(\s+at\s+)(.*?)(\.)$/iu',
+                '$1<strong><u>$2</u></strong>$3<strong><u>$4</u></strong>$5',
+                $escaped,
+                1
+            );
+
+            $html[] = '<p>' . $escaped . '</p>';
+        }
+
+        return implode("\n", $html);
+    };
+
 @endphp
 
 <div class="w-full px-4 sm:px-6 lg:px-8 mt-4">
@@ -49,6 +121,25 @@
     .certificate-workspace-card {
         min-height: calc(100vh - 15rem);
     }
+
+    .corporate-resolution-body,
+    .corporate-resolution-body * {
+        max-width: 100%;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+        white-space: normal;
+    }
+
+    .corporate-resolution-body p {
+        margin: 0 0 18px 0;
+        text-align: justify;
+        line-height: 1.75;
+    }
+
+    .corporate-resolution-body strong {
+        font-weight: 700;
+    }
+
 </style>
 
 <div class="w-full px-4 sm:px-6 lg:px-8 mt-4" x-data="{ activeVersion: 'draft', activeDraftPane: 'live' }">
@@ -87,7 +178,7 @@
                             <div x-show="activeDraftPane === 'live'">
                                 <div class="mx-auto max-w-[860px] rounded-sm bg-white px-14 py-12 shadow-[0_18px_50px_rgba(15,23,42,0.08)] text-[13px] leading-7 text-gray-900 min-h-[920px]" style="font-family: Georgia, 'Times New Roman', serif;">
                                     <div>Republic of the Philippines)</div>
-                                    <div><span data-preview="certificate-notarial-place">{{ $notarialPlace }}</span>) S.S.</div>
+                                    <div>______________________) S.S.</div>
 
                                     <div class="mt-8 text-center text-[20px] font-bold">SECRETARY'S CERTIFICATE</div>
 
@@ -99,7 +190,7 @@
 
                                         <div class="my-6 text-center font-bold uppercase" data-preview="certificate-resolution-title">{{ $certificate->resolution_no ? $resolutionLabel . $certificate->resolution_no : 'CERTIFIED MINUTES EXTRACT' }}</div>
                                         <p><strong data-preview="certificate-purpose">{{ $certificatePurpose }}</strong></p>
-                                        <div data-preview="certificate-body" class="min-h-[180px] whitespace-pre-wrap">{!! $certificateBody !!}</div>
+                                        <div data-preview="certificate-body" class="min-h-[180px] corporate-resolution-body">{!! $formatResolutionBodyForDisplay($certificateBody) !!}</div>
 
                                         <p>That, the foregoing resolution shall be in full force and effect unless revoked by the Board of Directors. Moreover, the foregoing resolution is in accordance and does not in any way contravene any provision of the Articles of Incorporation or By-Laws of the Corporation.</p>
                                         <p>WITNESS MY HAND this ________ day of ___________, <span data-preview="certificate-issued-year">{{ optional($certificate->date_issued)->format('Y') ?: now()->year }}</span> at <span data-preview="certificate-notarial-place">{{ $notarialPlace }}</span>.</p>
@@ -220,7 +311,7 @@
                                     <button type="button" class="px-2 py-1 border border-gray-300 rounded-lg text-xs" data-secretary-rich-cmd="justifyRight">Right</button>
                                     <button type="button" class="px-2 py-1 border border-gray-300 rounded-lg text-xs" data-secretary-rich-cmd="removeFormat">Clear</button>
                                 </div>
-                                <div id="certificate-body-editor" contenteditable="true" data-placeholder="Auto-filled from the linked Resolution. Add details only if needed..." class="secretary-rich-editor min-h-[360px] p-4 text-sm leading-7 text-gray-900 outline-none">{!! $certificateBody !!}</div>
+                                <div id="certificate-body-editor" contenteditable="true" data-placeholder="Auto-filled from the linked Resolution. Add details only if needed..." class="secretary-rich-editor min-h-[360px] p-4 text-sm leading-7 text-gray-900 outline-none break-words [overflow-wrap:anywhere]">{!! $certificateBody !!}</div>
                                 <input type="hidden" name="resolution_body" id="certificate-body-input" value="{{ $certificateBody }}" data-live-target="certificate-body" data-live-format="multiline" data-live-empty="Certified from corporate minutes.">
                             </div>
                         </div>
@@ -304,6 +395,65 @@
             return parsed.toLocaleDateString('en-US', { month: 'long', day: '2-digit', year: 'numeric' });
         };
 
+
+        const formatCertificateResolutionBody = (html) => {
+            const source = String(html || '');
+            if (!source.trim()) return 'Certified from corporate minutes.';
+
+            const holder = document.createElement('div');
+            holder.innerHTML = source
+                .replace(/<\/(p|div|li|h[1-6])>\s*<(?=(p|div|li|h[1-6])\b)/gi, '</$1>\n\n<')
+                .replace(/<br\s*\/?>/gi, '\n');
+
+            let text = holder.textContent || holder.innerText || '';
+            text = text.replace(/\r\n|\r/g, '\n').replace(/[ \t]+/g, ' ').trim();
+            if (!text) return 'Certified from corporate minutes.';
+
+            const breaks = [
+                /\s*(WHEREAS\s+RESOLVED[;,]\s+)/giu,
+                /\s*(WHEREAS\s+FINALLY\s+RESOLVED[;,]\s+)/giu,
+                /\s*(BE\s+IT\s+FURTHER\s+RESOLVED[;,]\s+)/giu,
+                /\s*(FINALLY\s+BE\s+IT\s+FURTHER\s+RESOLVED\s+)/giu,
+                /\s*(All\s+prior\s+inconsistent\s+resolutions\s+or\s+actions\s+of\s+the\s+Board\s+of\s+Directors\s+)/giu,
+            ];
+            breaks.forEach((pattern) => { text = text.replace(pattern, '\n\n$1'); });
+            text = text.replace(/\n{3,}/g, '\n\n').trim();
+
+            const escapeHtml = (value) => value
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+
+            return text.split(/\n\s*\n+/)
+                .map((paragraph) => paragraph.replace(/[ \t]+/g, ' ').trim())
+                .filter(Boolean)
+                .map((paragraph) => {
+                    let escaped = escapeHtml(paragraph);
+                    const headings = [
+                        /^(WHEREAS\s+RESOLVED[;,]?)(\s*)/iu,
+                        /^(WHEREAS\s+FINALLY\s+RESOLVED[;,]?)(\s*)/iu,
+                        /^(BE\s+IT\s+FURTHER\s+RESOLVED[;,]?)(\s*)/iu,
+                        /^(FINALLY\s+BE\s+IT\s+FURTHER\s+RESOLVED)(\s*)/iu,
+                        /^(Whereas[;,]?)(\s*)/iu,
+                    ];
+                    for (const pattern of headings) {
+                        const next = escaped.replace(pattern, '<strong>$1</strong> ');
+                        if (next !== escaped) {
+                            escaped = next;
+                            break;
+                        }
+                    }
+                    escaped = escaped.replace(
+                        /(We have affixed our signatures on this\s+)(.*?)(\s+at\s+)(.*?)(\.)$/iu,
+                        '$1<strong><u>$2</u></strong>$3<strong><u>$4</u></strong>$5'
+                    );
+                    return `<p>${escaped}</p>`;
+                })
+                .join('');
+        };
+
         const applyValue = (input) => {
             const targetName = input.dataset.liveTarget;
             if (!targetName) return;
@@ -328,7 +478,8 @@
                 return;
             }
             if (input.dataset.liveFormat === 'multiline') {
-                targets.forEach((target) => { target.innerHTML = value || 'Certified from corporate minutes.'; });
+                const formatted = formatCertificateResolutionBody(value);
+                targets.forEach((target) => { target.innerHTML = formatted; });
                 return;
             }
             if (targetName === 'certificate-series-no' && !value) value = String(new Date().getFullYear());
@@ -355,7 +506,7 @@
                 certificateBodyInput.value = html;
                 applyValue(certificateBodyInput);
                 if (certificateBodyPreview) {
-                    certificateBodyPreview.innerHTML = html || fallbackHtml;
+                    certificateBodyPreview.innerHTML = formatCertificateResolutionBody(html || fallbackHtml);
                 }
             };
 

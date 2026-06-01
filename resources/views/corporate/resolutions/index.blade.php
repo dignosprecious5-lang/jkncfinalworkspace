@@ -199,7 +199,7 @@
                         <input type="text" name="board_resolution" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm" placeholder="Authority to transact with government agencies">
                     </div>
                     <div class="md:col-span-2">
-                        <label class="text-xs text-gray-600">Resolution Body</label>
+                        <label class="text-xs text-gray-600">Custom WHEREAS / Resolution Details</label>
                         <div class="mt-1 rounded-xl border border-gray-300 overflow-hidden">
                             <div class="flex flex-wrap items-center gap-2 border-b border-gray-200 bg-gray-50 px-3 py-3">
                                 <select class="rounded-lg border border-gray-300 px-2 py-1 text-xs" @change="applyResolutionFormat('fontName', $event.target.value)">
@@ -229,7 +229,7 @@
                             <div
                                 x-ref="resolutionEditor"
                                 contenteditable="true"
-                                data-placeholder="Write only the resolution body/details here. The closing, certification, approval/signatories, and notarial page are generated automatically."
+                                data-placeholder="Type only the custom WHEREAS / resolution details here. The standard RESOLVED clauses are automatically added below."
                                 class="resolution-rich-editor min-h-[260px] bg-white p-4 text-sm leading-7 outline-none"
                                 @input="syncResolutionBody()"
                             ></div>

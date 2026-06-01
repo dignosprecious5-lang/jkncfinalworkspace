@@ -1,6 +1,9 @@
 <?php
 
 use App\Http\Controllers\ActivityController;
+use App\Http\Controllers\AdminUserPasswordController;
+use App\Http\Controllers\AdminUserStatusController;
+use App\Http\Controllers\AdminUserAccountController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\ChangePasswordController;
 use App\Http\Controllers\BylawController;
@@ -287,7 +290,15 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::get('/admin/users', [AdminUserController::class, 'index'])->name('admin.users');
     Route::post('/admin/users', [AdminUserController::class, 'store'])->name('admin.users.store');
     Route::post('/admin/users/{id}', [AdminUserController::class, 'update'])->name('admin.users.update');
+    Route::post('/admin/users/{id}/reset-password', [AdminUserPasswordController::class, 'update'])
+        ->name('admin.users.reset-password');
+    Route::post('/admin/users/{id}/account', [AdminUserAccountController::class, 'update'])
+        ->name('admin.users.account.update');
     Route::delete('/admin/users/{id}', [AdminUserController::class, 'destroy'])->name('admin.users.destroy');
+    Route::post('/admin/users/{id}/disable', [AdminUserStatusController::class, 'disable'])
+        ->name('admin.users.disable');
+    Route::post('/admin/users/{id}/enable', [AdminUserStatusController::class, 'enable'])
+        ->name('admin.users.enable');
 
     Route::get('/admin/role-permissions', [RolePermissionController::class, 'index'])->name('admin.role-permissions');
     Route::post('/admin/role-permissions/{id}', [RolePermissionController::class, 'update'])->name('admin.role-permissions.update');

@@ -11,9 +11,11 @@
     $noticeStoreUrl = $noticeStoreUrl ?? route('notices.store');
 
     // President requested company name
-    $companyName = $companyName ?? 'JK&C INC.';
-    $companyRegNo = $companyRegNo ?? '2025120230900-02';
-    $companyAddress = $companyAddress ?? '3RD FLOOR, UNIT 305 CEBU HOLDINGS CENTER CARDINAL ROSALES AVE., CEBU BUSINESS PARK HIPPODROMO, CEBU CITY, 6000';
+    $companyName = $companyName ?? ((data_get($corporateContext ?? [], 'company_name') ?: data_get($corporateContext ?? [], 'companyName')) ?: 'JK&C INC.');
+    $companyRegNo = $companyRegNo ?? ((data_get($corporateContext ?? [], 'company_reg_no') ?: data_get($corporateContext ?? [], 'companyRegNo')) ?: '2025120230900-02');
+    $gisLogoPath = (data_get($corporateContext ?? [], 'logo_path') ?: data_get($corporateContext ?? [], 'logoPath'));
+    $gisLogoUrl = $gisLogoPath ? route('uploads.show', ['path' => preg_replace('#^/?storage/#', '', (string) $gisLogoPath)]) : null;
+    $companyAddress = $companyAddress ?? ((data_get($corporateContext ?? [], 'company_address') ?: data_get($corporateContext ?? [], 'companyAddress')) ?: '3RD FLOOR, UNIT 305 CEBU HOLDINGS CENTER CARDINAL ROSALES AVE., CEBU BUSINESS PARK HIPPODROMO, CEBU CITY, 6000');
 @endphp
 
 <div class="w-full px-4 sm:px-6 lg:px-8 mt-4">
@@ -247,6 +249,9 @@
                         <div class="min-h-0 flex-1 overflow-auto p-6">
                             <div class="mx-auto bg-white px-12 py-12 text-[14px] leading-7 text-slate-900 shadow-[0_18px_50px_rgba(15,23,42,0.08)]" style="width:min(100%, 794px); min-height:1123px; display:flex; flex-direction:column; overflow:visible;">
                                 <div class="text-center leading-6">
+                                    @if($gisLogoUrl)
+                                        <img src="{{ $gisLogoUrl }}" alt="Company Logo" class="mx-auto mb-2 h-14 w-auto object-contain">
+                                    @endif
                                     <div class="text-[17px] font-bold uppercase tracking-[0.04em]">{{ $companyName }}</div>
                                     <div class="text-[14px] font-bold">COMPANY REG. NO.: {{ $companyRegNo }}</div>
                                     <div class="mt-1 text-[14px]">{{ $companyAddress }}</div>
@@ -529,6 +534,36 @@
                                         <div class="mt-1 rounded-md border border-dashed border-gray-300 bg-white px-3 py-2 text-sm text-gray-700" x-text="locationPreview || 'Location will be generated from the fields above.'"></div>
                                     </div>
                                 </div>
+
+                                <div class="rounded-xl border border-purple-200 bg-purple-50 p-4 space-y-4">
+                                    <div class="flex items-start justify-between gap-3">
+                                        <div>
+                                            <div class="text-sm font-semibold text-purple-900">Guest Invitees</div>
+                                            <p class="mt-1 text-xs text-purple-700">Optional. Guests will receive a guest invitation email and will auto-fill in Minutes as editable guests.</p>
+                                        </div>
+                                        <button type="button" @click="addGuest()" class="rounded-lg bg-purple-600 px-3 py-2 text-xs font-semibold text-white hover:bg-purple-700">+ Add Guest</button>
+                                    </div>
+
+                                    <template x-for="(guest, index) in noticeGuests" :key="`notice-guest-${index}`">
+                                        <div class="grid grid-cols-1 md:grid-cols-12 gap-3 rounded-lg border border-purple-100 bg-white p-3">
+                                            <div class="md:col-span-4">
+                                                <label class="text-xs text-gray-600">Guest Name</label>
+                                                <input type="text" x-model="guest.name" :name="`guests[${index}][name]`" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm" placeholder="Guest full name">
+                                            </div>
+                                            <div class="md:col-span-4">
+                                                <label class="text-xs text-gray-600">Guest Email</label>
+                                                <input type="email" x-model="guest.email" :name="`guests[${index}][email]`" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm" placeholder="guest@email.com">
+                                            </div>
+                                            <div class="md:col-span-3">
+                                                <label class="text-xs text-gray-600">Role / Note</label>
+                                                <input type="text" x-model="guest.position" :name="`guests[${index}][position]`" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm" placeholder="Guest">
+                                            </div>
+                                            <div class="md:col-span-1 flex items-end">
+                                                <button type="button" @click="removeGuest(index)" class="w-full rounded-md border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50" x-show="noticeGuests.length > 1">Remove</button>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -586,6 +621,7 @@
             },
             locationPreview: '',
             defaultBodyText: @js($defaultNoticeBodyText),
+            noticeGuests: [{ name: '', email: '', position: 'Guest' }],
 
             openPanel() {
                 this.showAddPanel = true;
@@ -596,6 +632,7 @@
 
                     this.bodyMode = 'builder';
                     this.bodyHtml = '';
+                    this.noticeGuests = [{ name: '', email: '', position: 'Guest' }];
 
                     if (this.$refs.editor) {
                         this.$refs.editor.innerHTML = '<p><br></p>';
@@ -657,7 +694,22 @@
             },
 
             prepareSubmit() {
+                this.noticeGuests = this.noticeGuests.filter((guest) => String(guest.name || '').trim() !== '' || String(guest.email || '').trim() !== '');
+                if (!this.noticeGuests.length) {
+                    this.noticeGuests = [{ name: '', email: '', position: 'Guest' }];
+                }
                 this.syncBody();
+            },
+
+            addGuest() {
+                this.noticeGuests.push({ name: '', email: '', position: 'Guest' });
+            },
+
+            removeGuest(index) {
+                this.noticeGuests.splice(index, 1);
+                if (!this.noticeGuests.length) {
+                    this.noticeGuests.push({ name: '', email: '', position: 'Guest' });
+                }
             },
 
             applyFormat(command, value = null) {
