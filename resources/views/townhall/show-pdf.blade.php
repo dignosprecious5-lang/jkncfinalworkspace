@@ -6,7 +6,7 @@
     <style>
         @page {
             size: A4 portrait;
-            margin: 18mm 12mm 30mm 12mm;
+            margin: 18mm 12mm 46mm 12mm;
         }
 
         body {
@@ -54,7 +54,7 @@
 
         .partners {
             font-size: 11px;
-            line-height: 1.35;
+            line-height: 1.22;
             color: #0447a7;
             padding-top: 0;
         }
@@ -85,7 +85,7 @@
 
         .body-content {
             font-size: 13px;
-            line-height: 1.25;
+            line-height: 1.18;
             text-align: justify;
             padding-bottom: 4mm;
         }
@@ -141,7 +141,7 @@
         .approval-section {
             page-break-inside: avoid;
             font-size: 12.5px;
-            line-height: 1.25;
+            line-height: 1.18;
         }
 
         .approval-block {
@@ -164,12 +164,12 @@
 
 
         .acknowledgement-section {
-            page-break-inside: avoid;
+            page-break-inside: auto;
             margin-top: 7mm;
             padding: 4mm 5mm;
             border: 1px solid #999;
             font-size: 12.5px;
-            line-height: 1.35;
+            line-height: 1.22;
         }
 
         .acknowledgement-section-title {
@@ -182,13 +182,20 @@
             margin: 0 0 1.2mm 0;
         }
 
+        .acknowledgement-entry {
+            page-break-inside: avoid;
+            margin-top: 3mm;
+            padding-top: 3mm;
+            border-top: 1px solid #cccccc;
+        }
+
         .footer-fixed {
             position: fixed;
-            bottom: -18mm;
+            bottom: -39mm;
             left: 0;
             right: 0;
-            font-size: 9px;
-            line-height: 1.25;
+            font-size: 8px;
+            line-height: 1.18;
             color: #333;
             box-sizing: border-box;
         }
@@ -200,21 +207,21 @@
 
         .footer-meta {
             border-top: 1px solid #999;
-            padding-top: 2mm;
-            margin-bottom: 2mm;
+            padding-top: 1.2mm;
+            margin-bottom: 1.2mm;
             text-align: center;
-            font-size: 9px;
+            font-size: 8px;
         }
 .footer-note {
             margin: 0 0 3mm 0;
             text-align: justify;
-            line-height: 1.35;
+            line-height: 1.22;
         }
 
         .footer-address {
             margin: 0;
             text-align: left;
-            line-height: 1.35;
+            line-height: 1.22;
         }
     </style>
 </head>
@@ -273,13 +280,7 @@
 
 <div class="footer-fixed">
         <div class="footer-inner">
-            <div class="footer-meta">
-                Page {PAGE_NUM} of {PAGE_COUNT}
-                &nbsp; | &nbsp;
-                Document Reference Number: {{ $communication->ref_no }}
-                &nbsp; | &nbsp;
-                Date Generated: {{ now()->format('F d, Y h:i A') }}
-            </div>
+            <div class="footer-meta">&nbsp;</div>
 
             <div class="footer-note">
                 This Memorandum is an official corporate record of JK&amp;C INC. Unauthorized reproduction,
@@ -405,7 +406,7 @@
 
                     @if($acknowledgedRecords->count() > 0)
                         @foreach($acknowledgedRecords as $acknowledgementRecord)
-                            <div style="margin-top: 3mm; padding-top: 3mm; border-top: 1px solid #cccccc;">
+                            <div class="acknowledgement-entry">
                                 <p><strong>Acknowledged By:</strong> {{ $acknowledgementRecord->recipient_name ?: optional($acknowledgementRecord->user)->name ?: '—' }}</p>
                                 <p><strong>Position:</strong> {{ $acknowledgementRecord->recipient_position ?: '—' }}</p>
                                 <p><strong>Department:</strong> {{ $acknowledgementRecord->recipient_department ?: '—' }}</p>
