@@ -3787,6 +3787,26 @@
             grid-column: 2;
         }
 
+        .job-offer-a4-stack {
+            width: 794px;
+            max-width: 100%;
+        }
+
+        .job-offer-a4-page {
+            width: 794px;
+            min-height: 1123px;
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 20px 45px rgba(15, 23, 42, 0.16);
+            padding: 2rem;
+            color: #0f172a;
+            font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            font-size: 12px;
+            line-height: 1.625;
+            break-after: page;
+            page-break-after: always;
+        }
+
         @media (max-width: 1024px) {
             .job-offer-draft-grid {
                 display: flex;
@@ -3984,7 +4004,8 @@
                         </div>
                     </div>
                     <div class="overflow-x-auto rounded-xl bg-slate-100 p-5">
-                        <div class="mx-auto bg-white text-slate-900 shadow-xl border border-slate-200 p-8 font-sans w-[794px] min-h-[1123px] text-[12px] leading-relaxed">
+                        <div class="mx-auto job-offer-a4-stack space-y-6">
+                        <div class="job-offer-a4-page">
                             <div class="flex items-center justify-between border-b-2 border-blue-900 pb-4">
                                 <img src="{{ asset('images/FINAL_LOGO.jpg') }}" onerror="this.src='{{ asset('images/imaglogo.png') }}'" alt="John Kelly & Company" class="h-16 w-auto object-contain">
                                 <div class="text-right">
@@ -4016,9 +4037,17 @@
                                 </tbody>
                             </table>
 
-                            <h2 class="mt-7 text-[13px] font-black uppercase tracking-widest text-blue-900">Terms and Conditions</h2>
+                        </div>
+
+                        <template x-for="(page, pageIndex) in jobOfferContentPages()" :key="'draft-content-page-' + pageIndex">
+                        <div class="job-offer-a4-page">
+                            <div class="flex items-center justify-between border-b border-slate-200 pb-3">
+                                <p class="text-[10px] font-black uppercase tracking-[0.25em] text-blue-900">Job Offer</p>
+                                <p class="text-[10px] font-bold text-slate-400" x-text="'Page ' + (pageIndex + 2)"></p>
+                            </div>
+                            <h2 class="mt-6 text-[13px] font-black uppercase tracking-widest text-blue-900">Terms and Conditions</h2>
                             <div class="mt-3 space-y-3 text-[11px]">
-                                <template x-for="term in jobOfferTerms()" :key="term.title">
+                                <template x-for="term in page.terms" :key="term.title">
                                     <div>
                                         <p class="font-black" x-text="term.title"></p>
                                         <p class="mt-1 whitespace-pre-line" x-text="term.body"></p>
@@ -4026,29 +4055,35 @@
                                 </template>
                             </div>
 
-                            <h2 class="mt-7 text-[13px] font-black uppercase tracking-widest text-blue-900">Acceptance of Job Offer</h2>
-                            <p class="mt-2 text-[11px]">By signing below, the Applicant acknowledges that this Job Offer has been read, understood, and accepted.</p>
-                            <p class="mt-2 text-[11px]">Acceptance of this Job Offer also confirms agreement to comply with all Company policies, procedures, memoranda, notices, resolutions, directives, and lawful instructions.</p>
-                            <p class="mt-2 text-[11px]">This Job Offer shall automatically expire if not accepted on or before <strong x-text="jobOfferDocumentDetails().offerExpiryDate"></strong>, unless extended by the Company in writing.</p>
+                            <template x-if="page.includeAcceptance">
+                                <div>
+                                    <h2 class="mt-8 text-[13px] font-black uppercase tracking-widest text-blue-900">Acceptance of Job Offer</h2>
+                                    <p class="mt-2 text-[11px]">By signing below, the Applicant acknowledges that this Job Offer has been read, understood, and accepted.</p>
+                                    <p class="mt-2 text-[11px]">Acceptance of this Job Offer also confirms agreement to comply with all Company policies, procedures, memoranda, notices, resolutions, directives, and lawful instructions.</p>
+                                    <p class="mt-2 text-[11px]">This Job Offer shall automatically expire if not accepted on or before <strong x-text="jobOfferDocumentDetails().offerExpiryDate"></strong>, unless extended by the Company in writing.</p>
 
-                            <div class="mt-12 grid grid-cols-2 gap-10 text-[11px]">
-                                <div>
-                                    <p class="font-black uppercase tracking-widest text-center">For the Company</p>
-                                    <div class="mt-12 border-t border-slate-500 pt-2 text-center">
-                                        <p class="font-bold">Authorized Representative</p>
-                                        <p>President / Human Capital</p>
+                                    <div class="mt-12 grid grid-cols-2 gap-10 text-[11px]">
+                                        <div>
+                                            <p class="font-black uppercase tracking-widest text-center">For the Company</p>
+                                            <div class="mt-12 border-t border-slate-500 pt-2 text-center">
+                                                <p class="font-bold">Authorized Representative</p>
+                                                <p>President / Human Capital</p>
+                                            </div>
+                                            <p class="mt-6">Date: ______________________</p>
+                                        </div>
+                                        <div>
+                                            <p class="font-black uppercase tracking-widest text-center">Accepted By</p>
+                                            <div class="mt-12 border-t border-slate-500 pt-2 text-center">
+                                                <p class="font-bold">Applicant Signature</p>
+                                                <p x-text="jobOfferDocumentDetails().applicantName"></p>
+                                            </div>
+                                            <p class="mt-6">Date: ______________________</p>
+                                        </div>
                                     </div>
-                                    <p class="mt-6">Date: ______________________</p>
                                 </div>
-                                <div>
-                                    <p class="font-black uppercase tracking-widest text-center">Accepted By</p>
-                                    <div class="mt-12 border-t border-slate-500 pt-2 text-center">
-                                        <p class="font-bold">Applicant Signature</p>
-                                        <p x-text="jobOfferDocumentDetails().applicantName"></p>
-                                    </div>
-                                    <p class="mt-6">Date: ______________________</p>
-                                </div>
-                            </div>
+                            </template>
+                        </div>
+                        </template>
                         </div>
                     </div>
                 </div>
@@ -4103,7 +4138,8 @@
                             <div class="space-y-3 job-offer-view-preview">
                                 <p class="text-[10px] font-black text-blue-700 uppercase tracking-[0.25em]">A4 Job Offer Document</p>
                                 <div class="overflow-x-auto rounded-xl bg-slate-100 p-5">
-                                    <div class="mx-auto bg-white text-slate-900 shadow-xl border border-slate-200 p-8 font-sans w-[794px] min-h-[1123px] text-[12px] leading-relaxed">
+                                    <div class="mx-auto job-offer-a4-stack space-y-6">
+                                    <div class="job-offer-a4-page">
                                         <div class="flex items-center justify-between border-b-2 border-blue-900 pb-4">
                                             <img src="{{ asset('images/FINAL_LOGO.jpg') }}" onerror="this.src='{{ asset('images/imaglogo.png') }}'" alt="John Kelly & Company" class="h-16 w-auto object-contain">
                                             <div class="text-right">
@@ -4135,9 +4171,17 @@
                                             </tbody>
                                         </table>
 
-                                        <h2 class="mt-7 text-[13px] font-black uppercase tracking-widest text-blue-900">Terms and Conditions</h2>
+                                    </div>
+
+                                    <template x-for="(page, pageIndex) in jobOfferContentPages()" :key="'view-content-page-' + pageIndex">
+                                    <div class="job-offer-a4-page">
+                                        <div class="flex items-center justify-between border-b border-slate-200 pb-3">
+                                            <p class="text-[10px] font-black uppercase tracking-[0.25em] text-blue-900">Job Offer</p>
+                                            <p class="text-[10px] font-bold text-slate-400" x-text="'Page ' + (pageIndex + 2)"></p>
+                                        </div>
+                                        <h2 class="mt-6 text-[13px] font-black uppercase tracking-widest text-blue-900">Terms and Conditions</h2>
                                         <div class="mt-3 space-y-3 text-[11px]">
-                                            <template x-for="term in jobOfferTerms()" :key="term.title">
+                                            <template x-for="term in page.terms" :key="term.title">
                                                 <div>
                                                     <p class="font-black" x-text="term.title"></p>
                                                     <p class="mt-1 whitespace-pre-line" x-text="term.body"></p>
@@ -4145,29 +4189,35 @@
                                             </template>
                                         </div>
 
-                                        <h2 class="mt-7 text-[13px] font-black uppercase tracking-widest text-blue-900">Acceptance of Job Offer</h2>
-                                        <p class="mt-2 text-[11px]">By signing below, the Applicant acknowledges that this Job Offer has been read, understood, and accepted.</p>
-                                        <p class="mt-2 text-[11px]">Acceptance of this Job Offer also confirms agreement to comply with all Company policies, procedures, memoranda, notices, resolutions, directives, and lawful instructions.</p>
-                                        <p class="mt-2 text-[11px]">This Job Offer shall automatically expire if not accepted on or before <strong x-text="jobOfferDocumentDetails(viewJobOfferData).offerExpiryDate"></strong>, unless extended by the Company in writing.</p>
+                                        <template x-if="page.includeAcceptance">
+                                            <div>
+                                                <h2 class="mt-8 text-[13px] font-black uppercase tracking-widest text-blue-900">Acceptance of Job Offer</h2>
+                                                <p class="mt-2 text-[11px]">By signing below, the Applicant acknowledges that this Job Offer has been read, understood, and accepted.</p>
+                                                <p class="mt-2 text-[11px]">Acceptance of this Job Offer also confirms agreement to comply with all Company policies, procedures, memoranda, notices, resolutions, directives, and lawful instructions.</p>
+                                                <p class="mt-2 text-[11px]">This Job Offer shall automatically expire if not accepted on or before <strong x-text="jobOfferDocumentDetails(viewJobOfferData).offerExpiryDate"></strong>, unless extended by the Company in writing.</p>
 
-                                        <div class="mt-12 grid grid-cols-2 gap-10 text-[11px]">
-                                            <div>
-                                                <p class="font-black uppercase tracking-widest text-center">For the Company</p>
-                                                <div class="mt-12 border-t border-slate-500 pt-2 text-center">
-                                                    <p class="font-bold">Authorized Representative</p>
-                                                    <p>President / Human Capital</p>
+                                                <div class="mt-12 grid grid-cols-2 gap-10 text-[11px]">
+                                                    <div>
+                                                        <p class="font-black uppercase tracking-widest text-center">For the Company</p>
+                                                        <div class="mt-12 border-t border-slate-500 pt-2 text-center">
+                                                            <p class="font-bold">Authorized Representative</p>
+                                                            <p>President / Human Capital</p>
+                                                        </div>
+                                                        <p class="mt-6">Date: ______________________</p>
+                                                    </div>
+                                                    <div>
+                                                        <p class="font-black uppercase tracking-widest text-center">Accepted By</p>
+                                                        <div class="mt-12 border-t border-slate-500 pt-2 text-center">
+                                                            <p class="font-bold">Applicant Signature</p>
+                                                            <p x-text="jobOfferDocumentDetails(viewJobOfferData).applicantName"></p>
+                                                        </div>
+                                                        <p class="mt-6">Date: ______________________</p>
+                                                    </div>
                                                 </div>
-                                                <p class="mt-6">Date: ______________________</p>
                                             </div>
-                                            <div>
-                                                <p class="font-black uppercase tracking-widest text-center">Accepted By</p>
-                                                <div class="mt-12 border-t border-slate-500 pt-2 text-center">
-                                                    <p class="font-bold">Applicant Signature</p>
-                                                    <p x-text="jobOfferDocumentDetails(viewJobOfferData).applicantName"></p>
-                                                </div>
-                                                <p class="mt-6">Date: ______________________</p>
-                                            </div>
-                                        </div>
+                                        </template>
+                                    </div>
+                                    </template>
                                     </div>
                                 </div>
                             </div>
@@ -5790,6 +5840,42 @@ onJpfPayrollLevelChange() {
                 { title: '9. Separation and Termination', body: 'Employment may be suspended, separated, terminated, or otherwise ended only in accordance with Company policy, due process, and applicable law.\nNothing in this Job Offer shall be interpreted as a guarantee of continued employment for any specific duration.' },
                 { title: '10. Superseding Clause', body: 'This Job Offer constitutes only the initial offer of employment.\nUpon execution of a formal Employment Contract, Employment Agreement, Probationary Employment Agreement, Regular Employment Agreement, or similar employment document, such document shall automatically supersede, replace, and govern over this Job Offer.\nIn case of conflict or inconsistency, the subsequently executed employment document shall prevail.' },
             ];
+        },
+
+        jobOfferTermPages() {
+            const terms = this.jobOfferTerms();
+            const maxUnits = 128;
+            const acceptanceUnits = 28;
+            const pages = [];
+            let current = { terms: [], units: 14, includeAcceptance: false };
+
+            terms.forEach(term => {
+                const body = String(term.body || '');
+                const bodyLines = body.split('\n').length - 1;
+                const units = 5 + Math.ceil(String(term.title || '').length / 70) + Math.ceil(body.length / 90) + bodyLines;
+
+                if (current.terms.length && current.units + units > maxUnits) {
+                    pages.push(current);
+                    current = { terms: [], units: 14, includeAcceptance: false };
+                }
+
+                current.terms.push(term);
+                current.units += units;
+            });
+
+            if (current.units + acceptanceUnits <= maxUnits) {
+                current.includeAcceptance = true;
+                pages.push(current);
+            } else {
+                pages.push(current);
+                pages.push({ terms: [], units: acceptanceUnits, includeAcceptance: true });
+            }
+
+            return pages;
+        },
+
+        jobOfferContentPages() {
+            return this.jobOfferTermPages();
         },
 
         formatDisplayDateTime(value) {
