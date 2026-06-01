@@ -377,7 +377,7 @@
 
 
 @php
-    $dompdfFooterLeft = trim(strtoupper($resolutionNumberLabel) . ' ' . $resolutionNumber . ' · ' . strtoupper($companyName));
+    $dompdfFooterLeft = trim(strtoupper($resolutionNumberLabel) . ' ' . $resolutionNumber . ' - ' . strtoupper($companyName));
     $dompdfFooterLeft = preg_replace('/\s+/', ' ', (string) $dompdfFooterLeft);
     if (mb_strlen($dompdfFooterLeft) > 90) {
         $dompdfFooterLeft = mb_substr($dompdfFooterLeft, 0, 87) . '...';

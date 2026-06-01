@@ -91,7 +91,7 @@
     };
 
     $minutesProperHtml = $compactMinutesHtml($minute->recording_notes ?? '');
-    $pdfFooterLeft = trim(($minute->minutes_ref ?: 'MINUTES') . ' · ' . $jkCompanyName);
+    $pdfFooterLeft = trim(($minute->minutes_ref ?: 'MINUTES') . ' - ' . $jkCompanyName);
 @endphp
 
 <!DOCTYPE html>
@@ -393,7 +393,7 @@
 
 
 @php
-    $dompdfFooterLeft = trim('MINUTES ' . ($minute->minutes_ref ?: '') . ' · ' . $jkCompanyName);
+    $dompdfFooterLeft = trim('MINUTES ' . ($minute->minutes_ref ?: '') . ' - ' . $jkCompanyName);
     $dompdfFooterLeft = preg_replace('/\s+/', ' ', (string) $dompdfFooterLeft);
     if (mb_strlen($dompdfFooterLeft) > 90) {
         $dompdfFooterLeft = mb_substr($dompdfFooterLeft, 0, 87) . '...';

@@ -12,8 +12,10 @@ use App\Models\Notice;
 use App\Models\Resolution;
 use App\Models\SecretaryCertificate;
 use App\Models\Stockholder;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class SecretaryCertificateController extends Controller
@@ -121,6 +123,19 @@ class SecretaryCertificateController extends Controller
         $secretaryCertificate->delete();
 
         return redirect()->route('secretary-certificates')->with('success', 'Secretary certificate deleted.');
+    }
+
+
+    private function generatePdfPreview(string $view, array $data, string $targetPath): ?string
+    {
+        $pdf = Pdf::loadView($view, $data)
+            ->setPaper('a4')
+            ->setOptions(['isPhpEnabled' => true]);
+
+        Storage::disk('public')->delete($targetPath);
+        Storage::disk('public')->put($targetPath, $pdf->output());
+
+        return $targetPath;
     }
 
     private function fields(): array

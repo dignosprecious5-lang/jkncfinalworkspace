@@ -99,6 +99,7 @@ class ResolutionController extends Controller
                 'document' => $this->resolutionDocumentData($resolution),
             ])
             ->setPaper('a4')
+            ->setOptions(['isPhpEnabled' => true])
             ->download($filename);
     }
 
@@ -355,7 +356,7 @@ class ResolutionController extends Controller
         $pdf = Pdf::loadView('corporate.resolutions.pdf', [
             'resolution' => $resolution,
             'document' => $this->resolutionDocumentData($resolution),
-        ])->setPaper('a4');
+        ])->setPaper('a4')->setOptions(['isPhpEnabled' => true]);
 
         Storage::disk('public')->delete($targetPath);
         Storage::disk('public')->put($targetPath, $pdf->output());

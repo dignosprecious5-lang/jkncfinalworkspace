@@ -8,6 +8,7 @@ use App\Http\Controllers\Concerns\HandlesUploads;
 use App\Models\Minute;
 use App\Models\Notice;
 use App\Models\GisRecord;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
@@ -508,6 +509,19 @@ class MinuteController extends Controller
             'logo_path' => $logoPath,
             'logo_url' => $logoUrl,
         ];
+    }
+
+
+    private function generatePdfPreview(string $view, array $data, string $targetPath): ?string
+    {
+        $pdf = Pdf::loadView($view, $data)
+            ->setPaper('a4')
+            ->setOptions(['isPhpEnabled' => true]);
+
+        Storage::disk('public')->delete($targetPath);
+        Storage::disk('public')->put($targetPath, $pdf->output());
+
+        return $targetPath;
     }
 
     private function generateTemplatePreviewPdf(Minute $minute): ?string

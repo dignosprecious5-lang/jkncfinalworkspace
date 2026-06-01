@@ -227,7 +227,7 @@
 
 
 @php
-    $dompdfFooterLeft = trim('NOTICE ' . ($selected->notice_number ?: '') . ' · ' . $companyName);
+    $dompdfFooterLeft = trim('NOTICE ' . ($selected->notice_number ?: '') . ' - ' . $companyName);
     $dompdfFooterLeft = preg_replace('/\s+/', ' ', (string) $dompdfFooterLeft);
     if (mb_strlen($dompdfFooterLeft) > 90) {
         $dompdfFooterLeft = mb_substr($dompdfFooterLeft, 0, 87) . '...';

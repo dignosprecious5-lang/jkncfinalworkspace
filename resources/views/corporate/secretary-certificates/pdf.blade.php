@@ -158,7 +158,7 @@
 
 
 @php
-    $dompdfFooterLeft = trim('SECRETARY CERTIFICATE ' . ($certificate->certificate_no ?: '') . ' · ' . strtoupper($companyName));
+    $dompdfFooterLeft = trim('SECRETARY CERTIFICATE ' . ($certificate->certificate_no ?: '') . ' - ' . strtoupper($companyName));
     $dompdfFooterLeft = preg_replace('/\s+/', ' ', (string) $dompdfFooterLeft);
     if (mb_strlen($dompdfFooterLeft) > 90) {
         $dompdfFooterLeft = mb_substr($dompdfFooterLeft, 0, 87) . '...';
