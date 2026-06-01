@@ -10,44 +10,69 @@
     <style>
         body { font-family: 'Inter', sans-serif; }
         [x-cloak] { display: none !important; }
+        .jkc-field {
+            border-color: #cbd5e1;
+            background: #fff;
+            transition: border-color .15s ease, box-shadow .15s ease;
+        }
+        .jkc-field:focus {
+            border-color: #1d4ed8;
+            box-shadow: 0 0 0 3px rgba(29, 78, 216, .12);
+        }
+        form input:not([type="checkbox"]),
+        form select,
+        form textarea {
+            border-color: #cbd5e1 !important;
+            border-radius: .5rem !important;
+        }
+        form input:not([type="checkbox"]):focus,
+        form select:focus,
+        form textarea:focus {
+            border-color: #1d4ed8 !important;
+            box-shadow: 0 0 0 3px rgba(29, 78, 216, .12) !important;
+        }
     </style>
 </head>
-<body class="bg-gray-50 text-gray-900">
-    <div class="min-h-screen py-12 px-4 sm:px-6 lg:px-8" x-data="publicPDS()">
-        <div class="max-w-4xl mx-auto">
+<body class="bg-slate-100 text-slate-950">
+    <div class="min-h-screen px-4 py-8 sm:px-6 lg:px-8" x-data="publicPDS()">
+        <div class="mx-auto max-w-5xl">
             {{-- Header --}}
-            <div class="text-center mb-12">
-                <img src="{{ asset('images/imaglogo.png') }}" onerror="this.src='{{ asset('images/imag1logo.jpg') }}'" alt="Logo" class="h-20 w-auto mx-auto mb-6 object-contain">
-                <h1 class="text-3xl font-black text-gray-900 tracking-tight uppercase">Personal Data Sheet</h1>
-                <p class="mt-2 text-gray-600 font-medium">Please accurately fill out the form below for onboarding.</p>
+            <div class="mb-8 overflow-hidden rounded-2xl border border-blue-100 bg-white shadow-sm">
+                <div class="flex flex-col gap-6 border-b border-slate-200 px-6 py-6 sm:flex-row sm:items-center sm:justify-between">
+                    <div class="flex items-center gap-4">
+                        <img src="{{ asset('images/FINAL_LOGO.jpg') }}" onerror="this.src='{{ asset('images/imaglogo.png') }}'" alt="John Kelly & Company" class="h-16 w-auto object-contain">
+                        <div>
+                            <p class="text-[10px] font-black uppercase tracking-[0.28em] text-blue-700">John Kelly & Company</p>
+                            <h1 class="mt-1 text-3xl font-black uppercase tracking-tight text-slate-950">Personal Data Sheet</h1>
+                        </div>
+                    </div>
+                    <div class="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-950">
+                        Review the pre-filled details, update anything needed, then submit.
+                    </div>
+                </div>
                 @if(!empty($jobOffer))
-                    <div class="mt-6 max-w-2xl mx-auto bg-blue-50 border border-blue-200 rounded-2xl p-4 text-left">
-                        <p class="text-xs font-black text-blue-600 uppercase tracking-widest mb-2">Accepted Job Offer Details</p>
+                    <div class="bg-slate-50 px-6 py-5">
+                        <p class="mb-3 text-xs font-black uppercase tracking-widest text-blue-700">Accepted Job Offer Details</p>
                         <div class="grid sm:grid-cols-3 gap-3 text-sm">
                             <div>
-                                <p class="text-gray-500 text-xs font-bold uppercase">Name</p>
-                                <p class="font-bold text-gray-900">{{ $jobOffer->name }}</p>
+                                <p class="text-slate-500 text-xs font-bold uppercase">Name</p>
+                                <p class="font-bold text-slate-950">{{ $jobOffer->name }}</p>
                             </div>
                             <div>
-                                <p class="text-gray-500 text-xs font-bold uppercase">Position</p>
-                                <p class="font-bold text-gray-900">{{ $jobOffer->position }}</p>
+                                <p class="text-slate-500 text-xs font-bold uppercase">Position</p>
+                                <p class="font-bold text-slate-950">{{ $jobOffer->position }}</p>
                             </div>
                             <div>
-                                <p class="text-gray-500 text-xs font-bold uppercase">Email</p>
-                                <p class="font-bold text-gray-900">{{ $jobOffer->candidate_email }}</p>
+                                <p class="text-slate-500 text-xs font-bold uppercase">Email</p>
+                                <p class="font-bold text-slate-950">{{ $jobOffer->candidate_email }}</p>
                             </div>
-                        </div>
-                        <div class="mt-3 bg-white/70 border border-blue-100 rounded-xl p-3">
-                            <p class="text-[11px] text-blue-900 font-semibold">
-                                Please manually enter your legal Surname, First Name, and Middle Name below. The job offer name is shown only for reference to avoid incorrect name splitting.
-                            </p>
                         </div>
                     </div>
                 @endif
 
             </div>
 
-            <div class="bg-white rounded-3xl shadow-xl border border-gray-100 mb-12">
+            <div class="bg-white rounded-2xl shadow-xl border border-slate-200 mb-12">
                 <div class="p-8 sm:p-12">
                     <form @submit.prevent="submitPds()" class="flex-1 overflow-y-auto px-5 py-4 space-y-5">
 
@@ -241,44 +266,64 @@
 
     <script>
     function publicPDS() {
+        const prefill = @json($pdsPrefill ?? []);
+        const defaultChildren = [ {name: '', gender: '', dob: ''}, {name: '', gender: '', dob: ''}, {name: '', gender: '', dob: ''} ];
+        const defaultLnd = [ {title: '', conductedBy: '', date: '', cert: ''}, {title: '', conductedBy: '', date: '', cert: ''}, {title: '', conductedBy: '', date: '', cert: ''} ];
+        const defaults = {
+            jobOfferToken: @json($token ?? null),
+            fullName: @json(optional($jobOffer ?? null)->name ?? ''),
+            position: @json(optional($jobOffer ?? null)->position ?? ''),
+            email: @json(optional($jobOffer ?? null)->candidate_email ?? ''),
+            phone: '',
+            surname: '',
+            firstName: '',
+            middleName: '', nameExt: '',
+            dob: '', pob: '', citizenship: '',
+            sex: '', civilStatus: '', height: '', weight: '', bloodType: '',
+            sss: '', philhealth: '', pagibig: '', tin: '',
+            resHouse: '', resStreet: '', resSubdiv: '', resBrgy: '', resCity: '', resProv: '', resZip: '',
+            permSameAsRes: false,
+            permHouse: '', permStreet: '', permSubdiv: '', permBrgy: '', permCity: '', permProv: '', permZip: '',
+            telNo: '', mobileNo: '',
+            spouseSurname: '', spouseFirstName: '', spouseMiddleName: '', spouseNameExt: '',
+            spouseOccupation: '', spouseEmployer: '', spouseBusinessAddress: '', spouseTelNo: '',
+            children: defaultChildren,
+            fatherSurname: '', fatherFirstName: '', fatherMiddleName: '', fatherNameExt: '',
+            motherMaidenSurname: '', motherFirstName: '', motherMiddleName: '',
+            educElemSchool: '', educElemDegree: '', educElemFrom: '', educElemTo: '',
+            educSecSchool: '', educSecDegree: '', educSecFrom: '', educSecTo: '',
+            educCollSchool: '', educCollDegree: '', educCollFrom: '', educCollTo: '',
+            educMastSchool: '', educMastDegree: '', educMastFrom: '', educMastTo: '',
+            educDoctSchool: '', educDoctDegree: '', educDoctFrom: '', educDoctTo: '',
+            lnd: defaultLnd,
+            consent: false,
+            signaturePreview: '', signatureName: '', submittedDate: ''
+        };
+
         return {
             pdsForm: {
-                jobOfferToken: @json($token ?? null),
-                fullName: @json(optional($jobOffer ?? null)->name ?? ''),
-                position: @json(optional($jobOffer ?? null)->position ?? ''),
-                email: @json(optional($jobOffer ?? null)->candidate_email ?? ''),
-                phone: '',
-                surname: '',
-                firstName: '',
-                middleName: '', nameExt: '',
-                dob: '', pob: '', citizenship: '',
-                sex: '', civilStatus: '', height: '', weight: '', bloodType: '',
-                sss: '', philhealth: '', pagibig: '', tin: '',
-                resHouse: '', resStreet: '', resSubdiv: '', resBrgy: '', resCity: '', resProv: '', resZip: '',
-                permSameAsRes: false,
-                permHouse: '', permStreet: '', permSubdiv: '', permBrgy: '', permCity: '', permProv: '', permZip: '',
-                telNo: '', mobileNo: '',
-                spouseSurname: '', spouseFirstName: '', spouseMiddleName: '', spouseNameExt: '',
-                spouseOccupation: '', spouseEmployer: '', spouseBusinessAddress: '', spouseTelNo: '',
-                children: [ {name: '', gender: '', dob: ''}, {name: '', gender: '', dob: ''}, {name: '', gender: '', dob: ''} ],
-                fatherSurname: '', fatherFirstName: '', fatherMiddleName: '', fatherNameExt: '',
-                motherMaidenSurname: '', motherFirstName: '', motherMiddleName: '',
-                educElemSchool: '', educElemDegree: '', educElemFrom: '', educElemTo: '',
-                educSecSchool: '', educSecDegree: '', educSecFrom: '', educSecTo: '',
-                educCollSchool: '', educCollDegree: '', educCollFrom: '', educCollTo: '',
-                educMastSchool: '', educMastDegree: '', educMastFrom: '', educMastTo: '',
-                educDoctSchool: '', educDoctDegree: '', educDoctFrom: '', educDoctTo: '',
-                lnd: [ {title: '', conductedBy: '', date: '', cert: ''}, {title: '', conductedBy: '', date: '', cert: ''}, {title: '', conductedBy: '', date: '', cert: ''} ],
-                consent: false,
-                signaturePreview: '', signatureName: '', submittedDate: ''
+                ...defaults,
+                ...prefill,
+                children: Array.isArray(prefill.children) && prefill.children.length ? prefill.children : defaultChildren,
+                lnd: Array.isArray(prefill.lnd) && prefill.lnd.length ? prefill.lnd : defaultLnd,
             },
             isSubmitting: false,
             isSuccess: false,
-            acceptedName: @json(optional($jobOffer ?? null)->name ?? ''),
+            acceptedName: prefill.fullName || @json(optional($jobOffer ?? null)->name ?? ''),
 
             init() {
-                // Do not auto-split the job offer name into surname/first/middle name.
-                // The applicant must manually enter their legal name to avoid wrong middle-name parsing.
+                if (this.pdsForm.permSameAsRes && !this.pdsForm.permHouse) {
+                    this.copyResidentialToPermanent();
+                }
+            },
+            copyResidentialToPermanent() {
+                this.pdsForm.permHouse = this.pdsForm.resHouse;
+                this.pdsForm.permStreet = this.pdsForm.resStreet;
+                this.pdsForm.permSubdiv = this.pdsForm.resSubdiv;
+                this.pdsForm.permBrgy = this.pdsForm.resBrgy;
+                this.pdsForm.permCity = this.pdsForm.resCity;
+                this.pdsForm.permProv = this.pdsForm.resProv;
+                this.pdsForm.permZip = this.pdsForm.resZip;
             },
             submitPds() {
                 const first = String(this.pdsForm.firstName || '').trim();

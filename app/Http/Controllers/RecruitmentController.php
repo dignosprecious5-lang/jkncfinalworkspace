@@ -298,6 +298,7 @@ class RecruitmentController extends Controller
     public function showPublicPDSForm($token = null)
     {
         $jobOffer = null;
+        $pdsPrefill = [];
 
         if ($token) {
             $jobOffer = JobOffer::where('accept_token', $token)->firstOrFail();
@@ -305,11 +306,14 @@ class RecruitmentController extends Controller
             if ($jobOffer->status !== 'Accepted') {
                 abort(403, 'This PDS link is only available after accepting the job offer.');
             }
+
+            $pdsPrefill = $this->buildPdsPrefill($jobOffer);
         }
 
         return view('careers.pds', [
             'jobOffer' => $jobOffer,
             'token' => $token,
+            'pdsPrefill' => $pdsPrefill,
         ]);
     }
 
@@ -411,6 +415,195 @@ class RecruitmentController extends Controller
                 'message' => $e->getMessage(),
             ], 500);
         }
+    }
+
+
+    private function buildPdsPrefill(JobOffer $jobOffer): array
+    {
+        $prefill = [
+            'jobOfferToken' => $jobOffer->accept_token,
+            'fullName' => $jobOffer->name ?? '',
+            'position' => $jobOffer->position ?? '',
+            'email' => $jobOffer->candidate_email ?? '',
+            'phone' => '',
+        ];
+
+        $caf = $this->findCandidateApplicationForJobOffer($jobOffer);
+        $application = is_array($caf?->application_data) ? $caf->application_data : [];
+
+        if ($caf) {
+            $prefill = array_merge($prefill, [
+                'fullName' => $caf->name ?: ($prefill['fullName'] ?? ''),
+                'position' => $caf->position ?: ($prefill['position'] ?? ''),
+                'email' => $caf->email ?: ($prefill['email'] ?? ''),
+                'phone' => $caf->phone ?: ($prefill['phone'] ?? ''),
+                'surname' => $application['lastName'] ?? '',
+                'firstName' => $application['firstName'] ?? '',
+                'middleName' => $application['middleName'] ?? '',
+                'dob' => $application['dateOfBirth'] ?? '',
+                'citizenship' => $application['nationality'] ?? '',
+                'sex' => in_array(($application['gender'] ?? ''), ['Male', 'Female'], true) ? $application['gender'] : '',
+                'civilStatus' => $this->normalizePdsCivilStatus($application['civilStatus'] ?? ''),
+                'resHouse' => $application['currentAddress'] ?? '',
+                'permHouse' => $application['permanentAddress'] ?? '',
+                'permSameAsRes' => $this->truthyRecruitmentValue($application['sameAddress'] ?? false),
+                'mobileNo' => $caf->phone ?: ($application['phone'] ?? ''),
+                'email' => $caf->email ?: ($application['email'] ?? ($prefill['email'] ?? '')),
+            ]);
+
+            $prefill = array_merge($prefill, $this->mapPdsEducation($this->decodeRecruitmentArray($application['education'] ?? [])));
+            $prefill['lnd'] = $this->mapPdsLearningDevelopment($this->decodeRecruitmentArray($application['certifications'] ?? []));
+        }
+
+        $existingPds = \App\Models\PersonalDataSheet::where('job_offer_id', $jobOffer->id)
+            ->orWhere(function ($query) use ($jobOffer) {
+                $query->where('email', $jobOffer->candidate_email)
+                    ->whereNotNull('email');
+            })
+            ->latest()
+            ->first();
+
+        if ($existingPds && is_array($existingPds->data)) {
+            $prefill = array_merge($prefill, array_filter(
+                $existingPds->data,
+                fn ($value) => $value !== null && $value !== ''
+            ));
+        }
+
+        if (empty($prefill['phone']) && !empty($prefill['mobileNo'])) {
+            $prefill['phone'] = $prefill['mobileNo'];
+        }
+
+        return $prefill;
+    }
+
+    private function findCandidateApplicationForJobOffer(JobOffer $jobOffer): ?CandidateApplication
+    {
+        $email = strtolower((string) $jobOffer->candidate_email);
+        $name = strtolower((string) $jobOffer->name);
+
+        if ($email === '' && $name === '') {
+            return null;
+        }
+
+        return CandidateApplication::query()
+            ->when($jobOffer->job_posting_id, fn ($query) => $query->where('job_posting_id', $jobOffer->job_posting_id))
+            ->where(function ($query) use ($email, $name) {
+                if ($email !== '') {
+                    $query->orWhereRaw('LOWER(email) = ?', [$email]);
+                }
+
+                if ($name !== '') {
+                    $query->orWhereRaw('LOWER(name) = ?', [$name]);
+                }
+            })
+            ->latest()
+            ->first()
+            ?: CandidateApplication::query()
+                ->where(function ($query) use ($email, $name) {
+                    if ($email !== '') {
+                        $query->orWhereRaw('LOWER(email) = ?', [$email]);
+                    }
+
+                    if ($name !== '') {
+                        $query->orWhereRaw('LOWER(name) = ?', [$name]);
+                    }
+                })
+                ->latest()
+                ->first();
+    }
+
+    private function normalizePdsCivilStatus(?string $status): string
+    {
+        return match (strtolower(trim((string) $status))) {
+            'single' => 'Single',
+            'married' => 'Married',
+            'widowed' => 'Widowed',
+            'separated', 'legally separated' => 'Legally Separated',
+            default => '',
+        };
+    }
+
+    private function mapPdsEducation($education): array
+    {
+        $mapped = [];
+
+        foreach ((array) $education as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $level = strtolower((string) ($row['level'] ?? ''));
+            $target = null;
+
+            if (str_contains($level, 'elementary')) {
+                $target = 'Elem';
+            } elseif (str_contains($level, 'high school') || str_contains($level, 'secondary')) {
+                $target = 'Sec';
+            } elseif (str_contains($level, 'college') || str_contains($level, 'bachelor')) {
+                $target = 'Coll';
+            } elseif (str_contains($level, 'master')) {
+                $target = 'Mast';
+            } elseif (str_contains($level, 'doctor')) {
+                $target = 'Doct';
+            }
+
+            if (!$target) {
+                continue;
+            }
+
+            $mapped["educ{$target}School"] = $row['school'] ?? '';
+            $mapped["educ{$target}Degree"] = trim(implode(' - ', array_filter([
+                $row['degree'] ?? '',
+                $row['course'] ?? '',
+            ])));
+            $mapped["educ{$target}To"] = $row['year'] ?? '';
+        }
+
+        return $mapped;
+    }
+
+    private function decodeRecruitmentArray($value): array
+    {
+        if (is_array($value)) {
+            return $value;
+        }
+
+        if (is_string($value)) {
+            $decoded = json_decode($value, true);
+            return is_array($decoded) ? $decoded : [];
+        }
+
+        return [];
+    }
+
+    private function truthyRecruitmentValue($value): bool
+    {
+        if (is_bool($value)) {
+            return $value;
+        }
+
+        return in_array(strtolower((string) $value), ['1', 'true', 'yes', 'on'], true);
+    }
+
+    private function mapPdsLearningDevelopment($certifications): array
+    {
+        $rows = collect((array) $certifications)
+            ->filter(fn ($row) => is_array($row) && !empty($row['name']))
+            ->map(fn ($row) => [
+                'title' => $row['name'] ?? '',
+                'conductedBy' => $row['provider'] ?? '',
+                'date' => $row['dateTaken'] ?? ($row['datePlanned'] ?? ''),
+                'cert' => !empty($row['code']) ? 'Yes' : '',
+            ])
+            ->values()
+            ->all();
+
+        while (count($rows) < 3) {
+            $rows[] = ['title' => '', 'conductedBy' => '', 'date' => '', 'cert' => ''];
+        }
+
+        return $rows;
     }
 
 
