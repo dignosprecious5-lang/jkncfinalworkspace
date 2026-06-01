@@ -534,6 +534,36 @@
                                         <div class="mt-1 rounded-md border border-dashed border-gray-300 bg-white px-3 py-2 text-sm text-gray-700" x-text="locationPreview || 'Location will be generated from the fields above.'"></div>
                                     </div>
                                 </div>
+
+                                <div class="rounded-xl border border-purple-200 bg-purple-50 p-4 space-y-4">
+                                    <div class="flex items-start justify-between gap-3">
+                                        <div>
+                                            <div class="text-sm font-semibold text-purple-900">Guest Invitees</div>
+                                            <p class="mt-1 text-xs text-purple-700">Optional. Guests will receive a guest invitation email and will auto-fill in Minutes as editable guests.</p>
+                                        </div>
+                                        <button type="button" @click="addGuest()" class="rounded-lg bg-purple-600 px-3 py-2 text-xs font-semibold text-white hover:bg-purple-700">+ Add Guest</button>
+                                    </div>
+
+                                    <template x-for="(guest, index) in noticeGuests" :key="`notice-guest-${index}`">
+                                        <div class="grid grid-cols-1 md:grid-cols-12 gap-3 rounded-lg border border-purple-100 bg-white p-3">
+                                            <div class="md:col-span-4">
+                                                <label class="text-xs text-gray-600">Guest Name</label>
+                                                <input type="text" x-model="guest.name" :name="`guests[${index}][name]`" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm" placeholder="Guest full name">
+                                            </div>
+                                            <div class="md:col-span-4">
+                                                <label class="text-xs text-gray-600">Guest Email</label>
+                                                <input type="email" x-model="guest.email" :name="`guests[${index}][email]`" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm" placeholder="guest@email.com">
+                                            </div>
+                                            <div class="md:col-span-3">
+                                                <label class="text-xs text-gray-600">Role / Note</label>
+                                                <input type="text" x-model="guest.position" :name="`guests[${index}][position]`" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm" placeholder="Guest">
+                                            </div>
+                                            <div class="md:col-span-1 flex items-end">
+                                                <button type="button" @click="removeGuest(index)" class="w-full rounded-md border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50" x-show="noticeGuests.length > 1">Remove</button>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -591,6 +621,7 @@
             },
             locationPreview: '',
             defaultBodyText: @js($defaultNoticeBodyText),
+            noticeGuests: [{ name: '', email: '', position: 'Guest' }],
 
             openPanel() {
                 this.showAddPanel = true;
@@ -601,6 +632,7 @@
 
                     this.bodyMode = 'builder';
                     this.bodyHtml = '';
+                    this.noticeGuests = [{ name: '', email: '', position: 'Guest' }];
 
                     if (this.$refs.editor) {
                         this.$refs.editor.innerHTML = '<p><br></p>';
@@ -662,7 +694,22 @@
             },
 
             prepareSubmit() {
+                this.noticeGuests = this.noticeGuests.filter((guest) => String(guest.name || '').trim() !== '' || String(guest.email || '').trim() !== '');
+                if (!this.noticeGuests.length) {
+                    this.noticeGuests = [{ name: '', email: '', position: 'Guest' }];
+                }
                 this.syncBody();
+            },
+
+            addGuest() {
+                this.noticeGuests.push({ name: '', email: '', position: 'Guest' });
+            },
+
+            removeGuest(index) {
+                this.noticeGuests.splice(index, 1);
+                if (!this.noticeGuests.length) {
+                    this.noticeGuests.push({ name: '', email: '', position: 'Guest' });
+                }
             },
 
             applyFormat(command, value = null) {

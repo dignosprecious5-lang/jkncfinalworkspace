@@ -336,6 +336,7 @@ class MinuteController extends Controller
         if (empty($data['directors_present'])) {
             $expectedRows = $notice->attendees
                 ->filter(fn ($attendee) => (bool) ($attendee->is_selected ?? true))
+                ->filter(fn ($attendee) => strtolower((string) ($attendee->source_type ?? '')) !== 'guest')
                 ->map(fn ($attendee) => [
                     'name' => trim((string) $attendee->name),
                     'position' => trim((string) ($attendee->position ?: 'Attendee')),
@@ -346,6 +347,23 @@ class MinuteController extends Controller
 
             if (!empty($expectedRows)) {
                 $data['directors_present'] = json_encode($expectedRows);
+            }
+        }
+
+        if (empty($data['guests'])) {
+            $guestRows = $notice->attendees
+                ->filter(fn ($attendee) => (bool) ($attendee->is_selected ?? true))
+                ->filter(fn ($attendee) => strtolower((string) ($attendee->source_type ?? '')) === 'guest')
+                ->map(fn ($attendee) => [
+                    'name' => trim((string) $attendee->name),
+                    'position' => trim((string) ($attendee->position ?: 'Guest')),
+                ])
+                ->filter(fn ($row) => $row['name'] !== '')
+                ->values()
+                ->all();
+
+            if (!empty($guestRows)) {
+                $data['guests'] = json_encode($guestRows);
             }
         }
 

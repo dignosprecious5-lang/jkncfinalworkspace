@@ -5,9 +5,18 @@
     <title>Notice of Meeting</title>
 </head>
 <body style="font-family: Arial, sans-serif; color: #111827; line-height: 1.6;">
-    <p>Dear {{ $attendee->name ?: 'Attendee' }},</p>
+    @php
+        $isGuest = strtolower((string) ($attendee->source_type ?? '')) === 'guest'
+            || strtolower((string) ($attendee->position ?? '')) === 'guest';
+    @endphp
 
-    <p>Please see the attached Notice of Meeting for your reference.</p>
+    <p>Dear {{ $attendee->name ?: ($isGuest ? 'Guest' : 'Attendee') }},</p>
+
+    @if ($isGuest)
+        <p>You are invited as a guest to attend the meeting stated in this notice. Your attendance is requested for reference, participation, or observation purposes as may be applicable.</p>
+    @else
+        <p>Please see the attached Notice of Meeting for your reference.</p>
+    @endif
 
     <p>
         <strong>Notice No.:</strong> {{ $notice->notice_number ?: '-' }}<br>

@@ -56,7 +56,7 @@
     <style>
         @page {
             size: A4;
-            margin: 12mm 12mm 18mm;
+            margin: 12mm 12mm 22mm;
         }
         body {
             margin: 0;
@@ -118,9 +118,6 @@
             break-inside: avoid;
             page-break-inside: avoid;
         }
-        .page-number:after {
-            content: counter(page);
-        }
 
         .procedure-text {
             margin-top: 18px;
@@ -147,6 +144,37 @@
         .signature .name {
             margin-top: 36px;
             font-weight: 700;
+        }
+
+        .pdf-fixed-footer {
+            position: fixed;
+            left: 0;
+            right: 0;
+            bottom: -12mm;
+            height: 10mm;
+            border-top: 0.6px solid #111;
+            font-size: 8pt;
+            line-height: 1.2;
+            color: #111;
+        }
+        .pdf-fixed-footer .pdf-footer-left {
+            position: absolute;
+            left: 0;
+            top: 2mm;
+            width: 70%;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .pdf-fixed-footer .pdf-footer-right {
+            position: absolute;
+            right: 0;
+            top: 2mm;
+            text-align: right;
+            font-weight: 700;
+        }
+        .pdf-page-counter:after {
+            content: "Page " counter(page) " of " counter(pages);
         }
     </style>
 </head>
@@ -194,8 +222,28 @@
                 <div>Company Reg. No.: {{ $companyRegNo }}</div>
                 <div>{{ $companyAddress }}</div>
             </div>
-            <div style="font-weight:700;">Page <span class="page-number"></span></div>
         </div>
     </div>
+
+
+@php
+    $dompdfFooterLeft = trim('NOTICE ' . ($selected->notice_number ?: '') . ' · ' . $companyName);
+    $dompdfFooterLeft = preg_replace('/\s+/', ' ', (string) $dompdfFooterLeft);
+    if (mb_strlen($dompdfFooterLeft) > 90) {
+        $dompdfFooterLeft = mb_substr($dompdfFooterLeft, 0, 87) . '...';
+    }
+@endphp
+<script type="text/php">
+    if (isset($pdf)) {
+        $font = $fontMetrics->get_font("Times-Roman", "normal");
+        $boldFont = $fontMetrics->get_font("Times-Roman", "bold");
+        $footerLeft = @json($dompdfFooterLeft);
+
+        $pdf->line(40, 800, 555, 800, [0, 0, 0], 0.4);
+        $pdf->page_text(40, 808, $footerLeft, $font, 8, [0, 0, 0]);
+        $pdf->page_text(500, 808, "Page {PAGE_NUM} of {PAGE_COUNT}", $boldFont, 8, [0, 0, 0]);
+    }
+</script>
+
 </body>
 </html>

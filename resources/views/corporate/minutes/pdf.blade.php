@@ -91,6 +91,7 @@
     };
 
     $minutesProperHtml = $compactMinutesHtml($minute->recording_notes ?? '');
+    $pdfFooterLeft = trim(($minute->minutes_ref ?: 'MINUTES') . ' · ' . $jkCompanyName);
 @endphp
 
 <!DOCTYPE html>
@@ -101,7 +102,7 @@
     <style>
         @page {
             size: A4 portrait;
-            margin: 14mm 16mm 14mm 16mm;
+            margin: 14mm 16mm 22mm 16mm;
         }
 
         * {
@@ -218,6 +219,37 @@
 
         .avoid-break {
             page-break-inside: avoid;
+        }
+
+        .pdf-fixed-footer {
+            position: fixed;
+            left: 0;
+            right: 0;
+            bottom: -12mm;
+            height: 10mm;
+            border-top: 0.6px solid #111;
+            font-size: 8pt;
+            line-height: 1.2;
+            color: #111;
+        }
+        .pdf-fixed-footer .pdf-footer-left {
+            position: absolute;
+            left: 0;
+            top: 2mm;
+            width: 70%;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .pdf-fixed-footer .pdf-footer-right {
+            position: absolute;
+            right: 0;
+            top: 2mm;
+            text-align: right;
+            font-weight: 700;
+        }
+        .pdf-page-counter:after {
+            content: "Page " counter(page) " of " counter(pages);
         }
     </style>
 </head>
@@ -358,5 +390,26 @@
             <div style="font-weight:700;">Chairman of the Meeting</div>
         </div>
     </div>
+
+
+@php
+    $dompdfFooterLeft = trim('MINUTES ' . ($minute->minutes_ref ?: '') . ' · ' . $jkCompanyName);
+    $dompdfFooterLeft = preg_replace('/\s+/', ' ', (string) $dompdfFooterLeft);
+    if (mb_strlen($dompdfFooterLeft) > 90) {
+        $dompdfFooterLeft = mb_substr($dompdfFooterLeft, 0, 87) . '...';
+    }
+@endphp
+<script type="text/php">
+    if (isset($pdf)) {
+        $font = $fontMetrics->get_font("Times-Roman", "normal");
+        $boldFont = $fontMetrics->get_font("Times-Roman", "bold");
+        $footerLeft = @json($dompdfFooterLeft);
+
+        $pdf->line(40, 800, 555, 800, [0, 0, 0], 0.4);
+        $pdf->page_text(40, 808, $footerLeft, $font, 8, [0, 0, 0]);
+        $pdf->page_text(500, 808, "Page {PAGE_NUM} of {PAGE_COUNT}", $boldFont, 8, [0, 0, 0]);
+    }
+</script>
+
 </body>
 </html>

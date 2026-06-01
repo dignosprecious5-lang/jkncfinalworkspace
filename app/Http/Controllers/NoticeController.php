@@ -68,6 +68,7 @@ class NoticeController extends Controller
         $notice = Notice::create($data);
         $this->syncGeneratedNoticePdf($notice, $bodyHtml, $hasUploadedDocument);
         $this->syncNoticeAttendeesFromLatestGis($notice);
+        $this->syncManualNoticeGuests($notice->fresh(), $request->input('guests', []));
 
         return redirect()->route('notices')->with('success', 'Notice created.');
     }
@@ -115,6 +116,7 @@ class NoticeController extends Controller
         $notice->update($data);
         $this->syncGeneratedNoticePdf($notice->fresh(), $bodyHtml, $hasUploadedDocument);
         $this->syncNoticeAttendeesFromLatestGis($notice->fresh());
+        $this->syncManualNoticeGuests($notice->fresh(), $request->input('guests', []));
 
         return redirect()->route('notices')->with('success', 'Notice updated.');
     }
@@ -229,6 +231,10 @@ class NoticeController extends Controller
             'body_html' => ['nullable', 'string'],
             'body_mode' => ['nullable', 'string', 'max:50'],
             'document_path' => ['nullable', 'file', 'mimes:pdf', 'max:5120'],
+            'guests' => ['nullable', 'array'],
+            'guests.*.name' => ['nullable', 'string', 'max:255'],
+            'guests.*.email' => ['nullable', 'email', 'max:255'],
+            'guests.*.position' => ['nullable', 'string', 'max:255'],
         ]);
     }
 
@@ -650,6 +656,6 @@ class NoticeController extends Controller
             'notice' => $notice,
             'bodyHtml' => $notice->body_html,
             'corporateContext' => $this->corporateContextForNotice($notice),
-        ])->setPaper('a4')->output();
+        ])->setPaper('a4')->setOptions(['isPhpEnabled' => true])->output();
     }
 }

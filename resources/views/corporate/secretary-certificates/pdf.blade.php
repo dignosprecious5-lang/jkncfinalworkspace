@@ -155,5 +155,26 @@
             <div>Series of {{ $certificate->notary_series_no ?: now()->year }}.</div>
         </div>
     </div>
+
+
+@php
+    $dompdfFooterLeft = trim('SECRETARY CERTIFICATE ' . ($certificate->certificate_no ?: '') . ' · ' . strtoupper($companyName));
+    $dompdfFooterLeft = preg_replace('/\s+/', ' ', (string) $dompdfFooterLeft);
+    if (mb_strlen($dompdfFooterLeft) > 90) {
+        $dompdfFooterLeft = mb_substr($dompdfFooterLeft, 0, 87) . '...';
+    }
+@endphp
+<script type="text/php">
+    if (isset($pdf)) {
+        $font = $fontMetrics->get_font("Times-Roman", "normal");
+        $boldFont = $fontMetrics->get_font("Times-Roman", "bold");
+        $footerLeft = @json($dompdfFooterLeft);
+
+        $pdf->line(40, 800, 555, 800, [0, 0, 0], 0.4);
+        $pdf->page_text(40, 808, $footerLeft, $font, 8, [0, 0, 0]);
+        $pdf->page_text(500, 808, "Page {PAGE_NUM} of {PAGE_COUNT}", $boldFont, 8, [0, 0, 0]);
+    }
+</script>
+
 </body>
 </html>

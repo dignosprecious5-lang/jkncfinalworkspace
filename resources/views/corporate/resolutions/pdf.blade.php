@@ -126,21 +126,6 @@
             line-height: 1.35;
         }
 
-        .footer {
-            position: fixed;
-            bottom: -10mm;
-            left: 0;
-            right: 0;
-            font-size: 9px;
-            color: #111;
-            border-top: 0.5px solid #999;
-            padding-top: 4px;
-        }
-
-        .page-number:after {
-            content: "";
-        }
-
         .header {
             text-align: center;
             line-height: 1.15;
@@ -287,11 +272,6 @@
     </style>
 </head>
 <body>
-    <div class="footer">
-        <span>{{ strtoupper($resolutionNumberLabel) }} {{ $resolutionNumber }} · {{ strtoupper($companyName) }}</span>
-        <span style="float:right;" class="page-number"></span>
-    </div>
-
     <div class="header">
         @if($gisLogoDataUri)
             <img src="{{ $gisLogoDataUri }}" class="gis-logo" alt="Company Logo">
@@ -394,11 +374,26 @@
         </div>
     </div>
     </div>
+
+
+@php
+    $dompdfFooterLeft = trim(strtoupper($resolutionNumberLabel) . ' ' . $resolutionNumber . ' · ' . strtoupper($companyName));
+    $dompdfFooterLeft = preg_replace('/\s+/', ' ', (string) $dompdfFooterLeft);
+    if (mb_strlen($dompdfFooterLeft) > 90) {
+        $dompdfFooterLeft = mb_substr($dompdfFooterLeft, 0, 87) . '...';
+    }
+@endphp
 <script type="text/php">
     if (isset($pdf)) {
-        $font = $fontMetrics->get_font('Georgia', 'normal');
-        $pdf->page_text(500, 808, 'Page {PAGE_NUM} of {PAGE_COUNT}', $font, 8, [0, 0, 0]);
+        $font = $fontMetrics->get_font("Times-Roman", "normal");
+        $boldFont = $fontMetrics->get_font("Times-Roman", "bold");
+        $footerLeft = @json($dompdfFooterLeft);
+
+        $pdf->line(40, 800, 555, 800, [0, 0, 0], 0.4);
+        $pdf->page_text(40, 808, $footerLeft, $font, 8, [0, 0, 0]);
+        $pdf->page_text(500, 808, "Page {PAGE_NUM} of {PAGE_COUNT}", $boldFont, 8, [0, 0, 0]);
     }
 </script>
+
 </body>
 </html>
