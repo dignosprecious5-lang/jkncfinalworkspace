@@ -46,7 +46,7 @@
 <div
     class="w-full min-h-screen bg-slate-50 px-6 py-5"
     x-data="usersPage({
-        showCreateUser: {{ $errors->any() ? 'true' : 'false' }},
+        showCreateUser: {{ $errors->getBag('default')->any() ? 'true' : 'false' }},
         accountSource: @js(old('account_source', 'manual')),
         selectedEmployeeId: @js((string) old('employee_id', '')),
         selectedContactId: @js((string) old('contact_id', '')),
@@ -421,28 +421,139 @@
                                 </td>
 
                                 <td class="px-5 py-4 text-right">
-                                    @if($authUser->canDeleteUsers() && $authUser->id !== $user->id && !$user->isSuperAdmin())
-                                        <form
-                                            action="{{ route('admin.users.destroy', $user->id) }}"
-                                            method="POST"
-                                            onsubmit="return confirm('Delete this user?')"
-                                        >
-                                            @csrf
-                                            @method('DELETE')
+                                    <div class="flex flex-col items-end gap-2">
+                                        @if($authUser->isSuperAdmin() && !$user->isSuperAdmin())
+                                            <div x-data="{ resetOpen: @js((int) session('reset_password_user_id') === (int) $user->id || (int) session('reset_password_success_user_id') === (int) $user->id), showPassword: false }" class="w-full">
+                                                <button
+                                                    type="button"
+                                                    @click="resetOpen = !resetOpen"
+                                                    class="inline-flex items-center gap-2 rounded-lg bg-amber-500 px-3 py-2 text-xs font-semibold text-white transition hover:bg-amber-600"
+                                                >
+                                                    <i class="fas fa-key text-[10px]"></i>
+                                                    Reset Password
+                                                </button>
 
-                                            <button
-                                                type="submit"
-                                                class="inline-flex items-center gap-2 rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold text-white hover:bg-red-700 transition"
+                                                <div
+                                                    x-cloak
+                                                    x-show="resetOpen"
+                                                    x-transition
+                                                    class="mt-3 w-[320px] rounded-2xl border border-amber-200 bg-amber-50 p-4 text-left shadow-sm"
+                                                >
+                                                    <div class="mb-3">
+                                                        <p class="text-sm font-bold text-slate-900">Reset Password</p>
+                                                        <p class="mt-1 text-xs text-slate-600">
+                                                            Set a new password for <span class="font-semibold">{{ $user->name }}</span>.
+                                                        </p>
+                                                    </div>
+
+                                                    @if((int) session('reset_password_user_id') === (int) $user->id && $errors->resetPassword->any())
+                                                        <div class="mb-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                                                            <ul class="list-disc pl-4">
+                                                                @foreach($errors->resetPassword->all() as $error)
+                                                                    <li>{{ $error }}</li>
+                                                                @endforeach
+                                                            </ul>
+                                                        </div>
+                                                    @endif
+
+                                                    @if((int) session('reset_password_success_user_id') === (int) $user->id)
+                                                        <div class="mb-3 rounded-xl border border-green-200 bg-green-50 px-3 py-2 text-xs font-medium text-green-700">
+                                                            <i class="fas fa-circle-check mr-1"></i>
+                                                            Password reset successfully for {{ $user->name }}.
+                                                        </div>
+                                                    @endif
+
+                                                    <form
+                                                        action="{{ route('admin.users.reset-password', $user->id) }}"
+                                                        method="POST"
+                                                        class="space-y-3"
+                                                        onsubmit="return confirm('Reset password for {{ addslashes($user->name) }}?')"
+                                                    >
+                                                        @csrf
+
+                                                        <div>
+                                                            <label class="mb-1 block text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                                                                New Password
+                                                            </label>
+                                                            <div class="relative">
+                                                                <input
+                                                                    :type="showPassword ? 'text' : 'password'"
+                                                                    name="password"
+                                                                    required
+                                                                    minlength="8"
+                                                                    autocomplete="new-password"
+                                                                    placeholder="Enter new password"
+                                                                    class="w-full rounded-xl border border-amber-200 bg-white py-2 pl-3 pr-10 text-sm outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-100"
+                                                                >
+                                                                <button
+                                                                    type="button"
+                                                                    @click="showPassword = !showPassword"
+                                                                    class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                                                                >
+                                                                    <i class="fas" :class="showPassword ? 'fa-eye-slash' : 'fa-eye'"></i>
+                                                                </button>
+                                                            </div>
+                                                        </div>
+
+                                                        <div>
+                                                            <label class="mb-1 block text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                                                                Confirm Password
+                                                            </label>
+                                                            <input
+                                                                :type="showPassword ? 'text' : 'password'"
+                                                                name="password_confirmation"
+                                                                required
+                                                                minlength="8"
+                                                                autocomplete="new-password"
+                                                                placeholder="Confirm new password"
+                                                                class="w-full rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-100"
+                                                            >
+                                                        </div>
+
+                                                        <div class="flex items-center justify-end gap-2 pt-1">
+                                                            <button
+                                                                type="button"
+                                                                @click="resetOpen = false"
+                                                                class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                                                            >
+                                                                Cancel
+                                                            </button>
+
+                                                            <button
+                                                                type="submit"
+                                                                class="rounded-lg bg-amber-600 px-3 py-2 text-xs font-semibold text-white hover:bg-amber-700"
+                                                            >
+                                                                Save Password
+                                                            </button>
+                                                        </div>
+                                                    </form>
+                                                </div>
+                                            </div>
+                                        @endif
+
+                                        @if($authUser->canDeleteUsers() && $authUser->id !== $user->id && !$user->isSuperAdmin())
+                                            <form
+                                                action="{{ route('admin.users.destroy', $user->id) }}"
+                                                method="POST"
+                                                onsubmit="return confirm('Delete this user?')"
                                             >
-                                                <i class="fas fa-trash text-[10px]"></i>
-                                                Delete
-                                            </button>
-                                        </form>
-                                    @else
-                                        <span class="text-xs text-slate-400">
-                                            {{ $authUser->id === $user->id ? 'Current user' : 'No action' }}
-                                        </span>
-                                    @endif
+                                                @csrf
+                                                @method('DELETE')
+
+                                                <button
+                                                    type="submit"
+                                                    class="inline-flex items-center gap-2 rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold text-white hover:bg-red-700 transition"
+                                                >
+                                                    <i class="fas fa-trash text-[10px]"></i>
+                                                    Delete
+                                                </button>
+                                            </form>
+                                        @elseif(!($authUser->isSuperAdmin() && !$user->isSuperAdmin()))
+                                            <span class="text-xs text-slate-400">
+                                                {{ $authUser->id === $user->id ? 'Current user' : 'No action' }}
+                                            </span>
+                                        @endif
+                                    </div>
                                 </td>
                             </tr>
                         @empty
