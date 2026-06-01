@@ -69,40 +69,6 @@
 
         .outline-btn:hover { background: var(--brand-soft); }
 
-        .subnav {
-            border-bottom: 1px solid #e5e7eb;
-            background: #fff;
-        }
-
-        .subnav-inner {
-            width: min(1120px, calc(100% - 32px));
-            margin: 0 auto;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 14px;
-            padding: 12px 0;
-            color: #334155;
-            font-size: 13px;
-            font-weight: 800;
-            overflow-x: auto;
-        }
-
-        .subnav-links {
-            display: flex;
-            align-items: center;
-            gap: 22px;
-            white-space: nowrap;
-        }
-
-        .subnav-links .active {
-            color: var(--brand);
-            border-bottom: 2px solid var(--brand);
-            padding-bottom: 4px;
-        }
-
-        .search-jobs { color: var(--brand); white-space: nowrap; }
-
         .page {
             width: min(1180px, calc(100% - 32px));
             margin: 0 auto;
@@ -159,8 +125,8 @@
         }
 
         .job-company-logo {
-            width: 86px;
-            height: 56px;
+            width: 176px;
+            height: 116px;
             object-fit: contain;
             object-position: left center;
         }
@@ -397,9 +363,8 @@
             .brand-text { display: none; }
             .nav { min-height: 64px; }
             .nav-actions a:first-child { display: none; }
-            .subnav-links { gap: 14px; }
             .page { width: calc(100% - 24px); }
-            .job-company-logo { width: 92px; height: 62px; }
+            .job-company-logo { width: 140px; height: 92px; }
             .job-brand-row { align-items: flex-start; }
             .job-summary-grid { grid-template-columns: 1fr; }
             .info-grid { grid-template-columns: 1fr; }
@@ -418,7 +383,7 @@
         }
 
         @media print {
-            nav, .subnav, .side-panel, .mobile-apply, .footer, .back-btn { display: none !important; }
+            nav, .side-panel, .mobile-apply, .footer, .back-btn { display: none !important; }
             .page { width: 100%; padding: 0; }
             .job-layout { display: block; }
             body { background: white; }
@@ -476,17 +441,6 @@
         </div>
     </div>
 </nav>
-
-<div class="subnav">
-    <div class="subnav-inner">
-        <div class="subnav-links">
-            <span class="active">Job Details</span>
-            <span>{{ $job->employment_type ?: 'Open Role' }}</span>
-            <span>{{ $department }}</span>
-        </div>
-        <a href="{{ route('homepage.public') }}#careers" class="search-jobs">Search Jobs</a>
-    </div>
-</div>
 
 <main class="page">
     <a href="{{ route('homepage.public') }}#careers" class="back-btn">Back</a>
@@ -698,5 +652,3 @@
 </div>
 </body>
 </html>
-
-
