@@ -2,7 +2,7 @@
 @section('title', 'Town Hall')
 
 @section('content')
-<div id="townhall-page" class="w-full h-full px-6 py-5" x-data="townhallContactSuggest()" x-init="syncRecipientFields()">
+<div id="townhall-page" class="w-full h-full px-6 py-5" x-data="townhallContactSuggest()" x-init="syncRecipientFields(); syncManagementApprover()">
 
     @if(session('success'))
         <div class="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
@@ -464,6 +464,40 @@
                         </div>
                     </div>
 
+                    <div class="rounded-xl border border-blue-100 bg-blue-50/60 p-4 space-y-3">
+                        <div>
+                            <label class="block text-xs font-semibold text-blue-700 mb-1">Level 1 Approver - From Management</label>
+                            <select
+                                name="management_approver_id"
+                                x-model="previewManagementApproverId"
+                                @change="syncManagementApprover()"
+                                required
+                                class="w-full border border-blue-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500"
+                            >
+                                <option value="">Select active employee approver</option>
+                                @foreach($managementApprovers as $approver)
+                                    <option value="{{ $approver['id'] }}">
+                                        {{ $approver['name'] }} — {{ $approver['position'] }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+
+                        <div class="rounded-lg bg-white border border-blue-100 p-3 text-sm">
+                            <p class="text-xs font-bold uppercase text-blue-700 mb-2">From Management</p>
+                            <p><span class="font-semibold">Name:</span> <span x-text="previewManagementName || '—'"></span></p>
+                            <p><span class="font-semibold">Position:</span> <span x-text="previewManagementPosition || '—'"></span></p>
+                            <p><span class="font-semibold">Department:</span> <span x-text="previewManagementDepartment || '—'"></span></p>
+                        </div>
+
+                        <div class="rounded-lg bg-white border border-blue-100 p-3 text-sm">
+                            <p class="text-xs font-bold uppercase text-blue-700 mb-2">From Executive Management</p>
+                            <p><span class="font-semibold">Name:</span> <span x-text="previewExecutiveName || 'John Kelly D. Abalde'"></span></p>
+                            <p><span class="font-semibold">Position:</span> <span x-text="previewExecutivePosition || 'President and CEO'"></span></p>
+                            <p><span class="font-semibold">Department:</span> <span x-text="previewExecutiveDepartment || 'Executive Management'"></span></p>
+                        </div>
+                    </div>
+
                     <div>
                         <label class="block text-xs font-semibold text-gray-500 mb-1">Attachment</label>
                         <input
@@ -504,7 +538,7 @@
                             type="submit"
                             class="flex-1 bg-blue-600 text-white rounded-lg py-2.5 text-sm font-medium hover:bg-blue-700 transition"
                         >
-                            Save
+                            Submit
                         </button>
                     </div>
                 </form>
@@ -1029,6 +1063,42 @@
     .memo-body-block * {
         font-family: "Times New Roman", Georgia, serif !important;
     }
+
+    .memo-effectivity {
+        margin-top: 22px;
+        font-size: 14px;
+        line-height: 1.45;
+        text-align: justify;
+        font-family: "Times New Roman", Georgia, serif;
+    }
+
+    .approval-routing {
+        margin-top: 26px;
+        font-family: "Times New Roman", Georgia, serif;
+        font-size: 13px;
+        line-height: 1.25;
+        color: #111827;
+    }
+
+    .approval-block {
+        margin-bottom: 18px;
+    }
+
+    .approval-block p {
+        margin: 0 0 2px 0;
+    }
+
+    .approval-title {
+        font-weight: 700;
+        margin-bottom: 8px !important;
+    }
+
+    .computer-generated {
+        margin-top: 4px;
+        font-weight: 700;
+        font-size: 12px;
+    }
+
 </style>
 @endpush
 
@@ -1058,7 +1128,7 @@ function buildMemoHeader(data, pageNumber) {
                 </div>
 
                 <div style="flex:1 1 auto;padding-top:4px;">
-                    <p style="font-size:12px;line-height:1.35;color:#4b5563;font-family:'Times New Roman', Georgia, serif;margin:0;">
+                    <p style="font-size:12px;line-height:1.35;color:#0447a7;font-family:'Times New Roman', Georgia, serif;margin:0;">
                         Atty. Jose B. Ogang, CPA, MMPSM · Jose Tamayo Rio,<br>
                         MM-BM, CPA · Lyndon Earl P. Rio, RN, CB · John Kelly Abalde,<br>
                         CLSSBB, CPM
@@ -1094,21 +1164,42 @@ function buildMemoFooter(data, isLastPage) {
             ${
                 isLastPage
                     ? `
-                    <div style="font-size:14px;line-height:1.7;">
-                        <p style="margin:0 0 32px 0;">
-                            Issued this <strong>${escapeHtml(data.date)}</strong> in Cebu City, Philippines.
-                        </p>
+                    <div class="memo-effectivity">
+                        This Memorandum shall take effect immediately and shall remain in force until amended,
+                        superseded, or revoked by a subsequent issuance.
+                    </div>
 
-                        <div style="margin-top:20px;">
-                            <p style="margin:0 0 8px 0;">Prepared by:</p>
-                            <p style="margin:0;font-weight:600;line-height:1.2;">${escapeHtml(data.from)}</p>
+                    <div class="issued-block">
+                        Issued this <strong>${escapeHtml(data.issuedDay)}</strong> day of
+                        <strong>${escapeHtml(data.issuedMonth)}</strong> in Cebu City, Philippines.
+                    </div>
+
+                    <div class="approval-routing">
+                        <div class="approval-block">
+                            <p class="approval-title">Prepared By:</p>
+                            <p>${escapeHtml(data.preparedName)}</p>
+                            <p>${escapeHtml(data.preparedPosition)}</p>
+                            <p>${escapeHtml(data.preparedDepartment)}</p>
+                            <p>Prepared on: ${escapeHtml(data.preparedOn)}</p>
                         </div>
 
-                        <div style="margin-top:34px;">
-                            <p style="margin:0 0 8px 0;">Approved by:</p>
-                            <p style="margin:0;font-weight:600;line-height:1.2;">John Kelly D. Abalde</p>
-                            <p style="margin:0;line-height:1.2;">President and CEO</p>
+                        <div class="approval-block">
+                            <p class="approval-title">From Management</p>
+                            <p>${escapeHtml(data.managementName)}</p>
+                            <p>${escapeHtml(data.managementPosition)}</p>
+                            <p>${escapeHtml(data.managementDepartment)}</p>
+                            <p>Approved on: Date and Time</p>
                         </div>
+
+                        <div class="approval-block">
+                            <p class="approval-title">From Executive Management</p>
+                            <p>${escapeHtml(data.executiveName)}</p>
+                            <p>${escapeHtml(data.executivePosition)}</p>
+                            <p>${escapeHtml(data.executiveDepartment)}</p>
+                            <p>Approved on: Date and Time</p>
+                        </div>
+
+                        <p class="computer-generated">This is a computer-generated document. Signature is not required.</p>
                     </div>
                     `
                     : ''
@@ -1139,6 +1230,7 @@ function createMemoPageShell(data, pageNumber, isLastPage = false) {
         </div>
     `;
 }
+
 
 function paginateMemoPreview(data) {
     const container = document.getElementById('memo-preview-pages');
@@ -1259,6 +1351,14 @@ function townhallContactSuggest() {
                 'role' => 'Client',
             ];
         })->values()),
+        managementApprovers: @js($managementApprovers ?? []),
+        previewManagementApproverId: @js(old('management_approver_id', '')),
+        previewManagementName: '',
+        previewManagementPosition: '',
+        previewManagementDepartment: '',
+        previewExecutiveName: @js(($executiveApprover['name'] ?? 'John Kelly D. Abalde')),
+        previewExecutivePosition: @js(($executiveApprover['position'] ?? 'President and CEO')),
+        previewExecutiveDepartment: @js(($executiveApprover['department'] ?? 'Executive Management')),
         previewTo: @js(old('to_for', 'All Employees')),
         previewPriority: @js(old('priority', 'Low')),
         previewSubject: @js(old('subject', '')),
@@ -1266,6 +1366,13 @@ function townhallContactSuggest() {
         previewCc: @js(old('cc', '')),
         previewAdditional: @js(old('additional', '')),
         previewExpiry: @js(old('expires_at', '')),
+
+        syncManagementApprover() {
+            const approver = this.managementApprovers.find(item => String(item.id) === String(this.previewManagementApproverId));
+            this.previewManagementName = approver ? approver.name : '';
+            this.previewManagementPosition = approver ? approver.position : '';
+            this.previewManagementDepartment = approver ? approver.department : '';
+        },
 
         syncRecipientFields() {
             const selectedUserIds = Array.isArray(this.previewRecipientUserIds)
@@ -1487,15 +1594,66 @@ document.addEventListener('DOMContentLoaded', function () {
     function renderPages(alpineData) {
         if (!alpineData) return;
 
+        const rawDate = alpineData.previewDate || '';
+        const dateObj = rawDate ? new Date(rawDate + 'T00:00:00') : null;
+        const formattedDate = dateObj && !Number.isNaN(dateObj.getTime())
+            ? dateObj.toLocaleDateString('en-US', { month: 'long', day: '2-digit', year: 'numeric' })
+            : '______________';
+
+        function ordinalDay(day) {
+            const number = Number(day);
+
+            if (!Number.isFinite(number)) {
+                return '______________';
+            }
+
+            const mod100 = number % 100;
+
+            if (mod100 >= 11 && mod100 <= 13) {
+                return number + 'th';
+            }
+
+            switch (number % 10) {
+                case 1:
+                    return number + 'st';
+                case 2:
+                    return number + 'nd';
+                case 3:
+                    return number + 'rd';
+                default:
+                    return number + 'th';
+            }
+        }
+
+        const issuedDay = dateObj && !Number.isNaN(dateObj.getTime())
+            ? ordinalDay(dateObj.getDate())
+            : '______________';
+
+        const issuedMonth = dateObj && !Number.isNaN(dateObj.getTime())
+            ? dateObj.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+            : '______________';
+
         paginateMemoPreview({
             logoUrl: `{{ asset('images/jk-logo.png') }}`,
             ref: alpineData.previewRef || 'AUTO-INCREMENT',
-            date: alpineData.previewDate || '______________',
+            date: formattedDate,
             recipientLabel: alpineData.previewRecipientLabel || 'To',
             to: alpineData.previewTo || '______________________________',
             from: alpineData.previewFrom || '______________________________',
             subject: alpineData.previewSubject || '______________________________',
-            body: alpineData.previewBody || defaultHtml
+            body: alpineData.previewBody || defaultHtml,
+            issuedDay: issuedDay,
+            issuedMonth: issuedMonth,
+            preparedName: alpineData.previewFrom || 'Name',
+            preparedPosition: 'Position',
+            preparedDepartment: alpineData.previewDepartment || 'Department',
+            preparedOn: 'Date and Time',
+            managementName: alpineData.previewManagementName || 'Name',
+            managementPosition: alpineData.previewManagementPosition || 'Position',
+            managementDepartment: alpineData.previewManagementDepartment || 'Department',
+            executiveName: alpineData.previewExecutiveName || 'John Kelly D. Abalde',
+            executivePosition: alpineData.previewExecutivePosition || 'President and CEO',
+            executiveDepartment: alpineData.previewExecutiveDepartment || 'Executive Management'
         });
     }
 

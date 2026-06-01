@@ -341,10 +341,21 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::post('/townhall/{id}/approve', [TownHallController::class, 'approve'])->name('townhall.approve');
     Route::post('/townhall/{id}/reject', [TownHallController::class, 'reject'])->name('townhall.reject');
     Route::post('/townhall/{id}/revise', [TownHallController::class, 'revise'])->name('townhall.revise');
+    Route::post('/townhall/{id}/archive', [TownHallController::class, 'archive'])->name('townhall.archive');
+    Route::post('/townhall/{id}/unarchive', [TownHallController::class, 'unarchive'])->name('townhall.unarchive');
     Route::post('/townhall/{id}/acknowledge', [TownHallController::class, 'acknowledge'])->name('townhall.acknowledge');
     Route::get('/townhall/recipients/search', [TownHallController::class, 'searchRecipients'])
         ->name('townhall.recipients.search');
-
+    Route::get('/townhall/{id}/email-approve', [TownHallController::class, 'approveFromEmail'])
+        ->name('townhall.email.approve')
+        ->middleware('signed');
+    Route::get('/townhall/{id}/email-reject', [TownHallController::class, 'rejectFromEmail'])
+        ->name('townhall.email.reject')
+        ->middleware('signed');
+    Route::get('/admin/town-hall/audit-trail', [TownHallController::class, 'auditTrail'])
+        ->name('admin.townhall.audit-trail');
+    Route::get('/admin/town-hall/acknowledgement-report', [TownHallController::class, 'acknowledgementReport'])
+        ->name('admin.townhall.acknowledgement-report');
 
     /*
     |--------------------------------------------------------------------------
@@ -660,7 +671,7 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::post('/company/{company}/corporate-formation/gis', [CompanyCorporateFormationController::class, 'storeGis'])->name('company.corporate-formation.gis.store');
     Route::match(['put', 'patch'], '/company/{company}/corporate-formation/gis/{record}', [CompanyCorporateFormationController::class, 'updateGis'])->name('company.corporate-formation.gis.update');
 
-    // Company corporate-formation — show / upload-draft / upload-notary / submit (all 4 document types)
+    // Company corporate-formation â€” show / upload-draft / upload-notary / submit (all 4 document types)
     Route::get('/company/{company}/corporate-formation/sec-coi/{record}', [CompanyCorporateFormationController::class, 'showSecCoi'])->name('company.corporate-formation.sec-coi.show');
     Route::post('/company/{company}/corporate-formation/sec-coi/{record}/upload-draft', [CompanyCorporateFormationController::class, 'uploadDraftSecCoi'])->name('company.corporate-formation.sec-coi.upload-draft');
     Route::post('/company/{company}/corporate-formation/sec-coi/{record}/upload-notary', [CompanyCorporateFormationController::class, 'uploadNotarySecCoi'])->name('company.corporate-formation.sec-coi.upload-notary');
@@ -705,23 +716,23 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::post('/gis/stockholder/store', [StockholderController::class, 'store'])->name('stockholder.store');
     Route::post('/gis/ubo/store', [UltimateBeneficialOwnerController::class, 'store'])->name('ubo.store');
 
-Route::put('/gis/authorized/{record}', [CapitalStructureController::class, 'updateAuthorized'])->name('authorized.update');
-Route::delete('/gis/authorized/{record}', [CapitalStructureController::class, 'destroyAuthorized'])->name('authorized.destroy');
+    Route::put('/gis/authorized/{record}', [CapitalStructureController::class, 'updateAuthorized'])->name('authorized.update');
+    Route::delete('/gis/authorized/{record}', [CapitalStructureController::class, 'destroyAuthorized'])->name('authorized.destroy');
 
-Route::put('/gis/subscribed/{record}', [CapitalStructureController::class, 'updateSubscribed'])->name('subscribed.update');
-Route::delete('/gis/subscribed/{record}', [CapitalStructureController::class, 'destroySubscribed'])->name('subscribed.destroy');
+    Route::put('/gis/subscribed/{record}', [CapitalStructureController::class, 'updateSubscribed'])->name('subscribed.update');
+    Route::delete('/gis/subscribed/{record}', [CapitalStructureController::class, 'destroySubscribed'])->name('subscribed.destroy');
 
-Route::put('/gis/paidup/{record}', [CapitalStructureController::class, 'updatePaidup'])->name('paidup.update');
-Route::delete('/gis/paidup/{record}', [CapitalStructureController::class, 'destroyPaidup'])->name('paidup.destroy');
+    Route::put('/gis/paidup/{record}', [CapitalStructureController::class, 'updatePaidup'])->name('paidup.update');
+    Route::delete('/gis/paidup/{record}', [CapitalStructureController::class, 'destroyPaidup'])->name('paidup.destroy');
 
-Route::put('/gis/director/{record}', [DirectorOfficerController::class, 'update'])->name('director.update');
-Route::delete('/gis/director/{record}', [DirectorOfficerController::class, 'destroy'])->name('director.destroy');
+    Route::put('/gis/director/{record}', [DirectorOfficerController::class, 'update'])->name('director.update');
+    Route::delete('/gis/director/{record}', [DirectorOfficerController::class, 'destroy'])->name('director.destroy');
 
-Route::put('/gis/stockholder/{record}', [StockholderController::class, 'update'])->name('stockholder.update');
-Route::delete('/gis/stockholder/{record}', [StockholderController::class, 'destroy'])->name('stockholder.destroy');
+    Route::put('/gis/stockholder/{record}', [StockholderController::class, 'update'])->name('stockholder.update');
+    Route::delete('/gis/stockholder/{record}', [StockholderController::class, 'destroy'])->name('stockholder.destroy');
 
-Route::put('/gis/ubo/{record}', [UltimateBeneficialOwnerController::class, 'update'])->name('ubo.update');
-Route::delete('/gis/ubo/{record}', [UltimateBeneficialOwnerController::class, 'destroy'])->name('ubo.destroy');
+    Route::put('/gis/ubo/{record}', [UltimateBeneficialOwnerController::class, 'update'])->name('ubo.update');
+    Route::delete('/gis/ubo/{record}', [UltimateBeneficialOwnerController::class, 'destroy'])->name('ubo.destroy');
 
 
     Route::post('/corporate/gis/{id}/upload-draft-file', [GisController::class, 'uploadDraftFile'])->name('corporate.gis.upload.draft');
@@ -879,6 +890,7 @@ Route::delete('/gis/ubo/{record}', [UltimateBeneficialOwnerController::class, 'd
     Route::get('/corporate/resolutions', [ResolutionController::class, 'index'])->name('resolutions');
     Route::get('/corporate/resolutions/create', [ResolutionController::class, 'create'])->name('resolutions.create');
     Route::post('/corporate/resolutions', [ResolutionController::class, 'store'])->name('resolutions.store');
+    Route::get('/corporate/resolutions/{resolution}/download', [ResolutionController::class, 'downloadPdf'])->name('resolutions.download');
     Route::get('/corporate/resolutions/{resolution}', [ResolutionController::class, 'show'])->name('resolutions.preview');
     Route::get('/corporate/resolutions/{resolution}/edit', [ResolutionController::class, 'edit'])->name('resolutions.edit');
     Route::put('/corporate/resolutions/{resolution}', [ResolutionController::class, 'update'])->name('resolutions.update');

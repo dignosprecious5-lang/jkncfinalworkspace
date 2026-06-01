@@ -6,6 +6,7 @@ use App\Models\CatalogChangeRequest;
 use App\Models\CompanyBif;
 use App\Models\Contact;
 use App\Models\Deal;
+use App\Models\Employee;
 use App\Models\Product;
 use App\Models\ProjectStart;
 use App\Models\Service;
@@ -56,7 +57,7 @@ class AdminDashboardController extends Controller
         $filteredItems = $this->applyFilters($items, $filters)->values();
 
         $counts = [
-            'pending' => $filteredItems->where('status', 'Pending Approval')->count(),
+            'pending' => $filteredItems->filter(fn ($item) => in_array($item->status, ['Pending Approval', 'Pending Management Approval', 'Pending Executive Approval'], true))->count(),
             'approved' => $filteredItems->where('status', 'Approved')->count(),
             'rejected' => $filteredItems->where('status', 'Rejected')->count(),
             'revision' => $filteredItems->where('status', 'Needs Revision')->count(),
@@ -86,7 +87,7 @@ class AdminDashboardController extends Controller
             'filters' => $filters,
             'moduleOptions' => $items->pluck('module')->filter()->unique()->sort()->values(),
             'departmentOptions' => $items->pluck('department')->filter()->unique()->sort()->values(),
-            'statusOptions' => collect(['Pending Approval', 'Approved', 'Rejected', 'Needs Revision', 'Expired']),
+            'statusOptions' => collect(['Pending Approval', 'Pending Management Approval', 'Pending Executive Approval', 'Approved', 'Rejected', 'Needs Revision', 'Expired']),
             'dashboardRoute' => $section === self::SECTION_TOWN_HALL
                 ? route('admin.dashboard')
                 : route('admin.dashboard.section', ['section' => $section]),
@@ -166,9 +167,14 @@ class AdminDashboardController extends Controller
             ->map(function (TownHallCommunication $communication): object {
                 $status = $communication->is_archived
                     ? 'Expired'
-                    : $this->normalizeStatus((string) ($communication->approval_status ?? 'Pending'));
+                    : $this->resolveTownHallApprovalStatus($communication);
 
-                $canStillAct = ! $communication->is_archived;
+                $levelInfo = $this->resolveTownHallApprovalLevel($communication);
+                $canApprove = ! $communication->is_archived
+                    && ! in_array($status, ['Approved', 'Rejected', 'Expired', 'Needs Revision'], true);
+                $canReviewAction = ! $communication->is_archived;
+                $canArchive = ! $communication->is_archived;
+                $canUnarchive = $communication->is_archived;
 
                 return (object) [
                     'ref_no' => $communication->ref_no ?: 'MEMO-' . $communication->id,
@@ -177,26 +183,124 @@ class AdminDashboardController extends Controller
                     'department' => $communication->department_stakeholder ?: 'Town Hall',
                     'uploaded_by' => $communication->from_name ?: ($communication->uploader->name ?? 'Unknown'),
                     'date_uploaded' => $this->displayDate($communication->communication_date ?: $communication->created_at),
-                    'approver' => $communication->approver?->name ?: '-',
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Two-level approval display fields
+                    |--------------------------------------------------------------------------
+                    */
+                    'approval_level' => $levelInfo['approval_level'],
+                    'current_approver' => $levelInfo['current_approver'],
+                    'current_approver_position' => $levelInfo['current_approver_position'],
+                    'current_approver_department' => $levelInfo['current_approver_department'],
+                    'approver' => $levelInfo['current_approver'] ?: '-',
+
                     'priority' => $communication->priority ?? ($status === 'Pending Approval' ? 'High' : 'Low'),
                     'status' => $status,
                     'show_route' => route('townhall.show', $communication->id),
 
                     /*
                     |--------------------------------------------------------------------------
-                    | Keep Town Hall admin actions available after approval/rejection/revision
+                    | Stage-based action labels
                     |--------------------------------------------------------------------------
-                    | This lets admin/superadmin correct accidental actions. For example,
-                    | if a memo was accidentally approved, Reject or Revise can still be
-                    | pressed afterward. Archived/expired memos remain locked.
+                    | The same townhall.approve route is reused:
+                    | - first click approves Level 1 Management
+                    | - second click approves Level 2 Executive Management
                     */
-                    'approve_route' => $canStillAct ? route('townhall.approve', $communication->id) : null,
-                    'reject_route' => $canStillAct ? route('townhall.reject', $communication->id) : null,
-                    'revise_route' => $canStillAct ? route('townhall.revise', $communication->id) : null,
+                    'approve_label' => $levelInfo['approve_label'],
+                    'approve_route' => $canApprove ? route('townhall.approve', $communication->id) : null,
+                    'reject_route' => $canReviewAction ? route('townhall.reject', $communication->id) : null,
+                    'revise_route' => $canReviewAction ? route('townhall.revise', $communication->id) : null,
+                    'archive_route' => $canArchive ? route('townhall.archive', $communication->id) : null,
+                    'unarchive_route' => $canUnarchive ? route('townhall.unarchive', $communication->id) : null,
 
                     'date_sort' => $this->sortTimestamp($communication->communication_date ?: $communication->created_at),
                 ];
             });
+    }
+
+    private function resolveTownHallApprovalStatus(TownHallCommunication $communication): string
+    {
+        $approvalStatus = (string) ($communication->approval_status ?? 'Pending');
+
+        if (in_array($approvalStatus, ['Approved', 'Rejected', 'Needs Revision'], true)) {
+            return $approvalStatus;
+        }
+
+        $managementStatus = (string) ($communication->management_approval_status ?? 'Pending');
+        $executiveStatus = (string) ($communication->executive_approval_status ?? 'Pending');
+
+        if ($managementStatus !== 'Approved') {
+            return 'Pending Management Approval';
+        }
+
+        if ($executiveStatus !== 'Approved') {
+            return 'Pending Executive Approval';
+        }
+
+        return $this->normalizeStatus($approvalStatus);
+    }
+
+    private function resolveTownHallApprovalLevel(TownHallCommunication $communication): array
+    {
+        $managementStatus = (string) ($communication->management_approval_status ?? 'Pending');
+        $executiveStatus = (string) ($communication->executive_approval_status ?? 'Pending');
+
+        if ($communication->is_archived) {
+            return [
+                'approval_level' => 'Archived',
+                'current_approver' => '-',
+                'current_approver_position' => null,
+                'current_approver_department' => null,
+                'approve_label' => 'Approve',
+            ];
+        }
+
+        if (($communication->approval_status ?? null) === 'Approved') {
+            return [
+                'approval_level' => 'Completed',
+                'current_approver' => $communication->executive_approver_name
+                    ?: $communication->management_approver_name
+                    ?: ($communication->approver?->name ?? '-'),
+                'current_approver_position' => $communication->executive_approver_position
+                    ?: $communication->management_approver_position,
+                'current_approver_department' => $communication->executive_approver_department
+                    ?: $communication->management_approver_department,
+                'approve_label' => 'Approve',
+            ];
+        }
+
+        if ($managementStatus !== 'Approved') {
+            return [
+                'approval_level' => 'Level 1 - From Management',
+                'current_approver' => $communication->management_approver_name ?: '-',
+                'current_approver_position' => $communication->management_approver_position,
+                'current_approver_department' => $communication->management_approver_department,
+                'approve_label' => 'Approve Level 1',
+            ];
+        }
+
+        if ($executiveStatus !== 'Approved') {
+            return [
+                'approval_level' => 'Level 2 - From Executive Management',
+                'current_approver' => $communication->executive_approver_name ?: 'John Kelly D. Abalde',
+                'current_approver_position' => $communication->executive_approver_position ?: 'President and CEO',
+                'current_approver_department' => $communication->executive_approver_department ?: 'Executive Management',
+                'approve_label' => 'Approve Final',
+            ];
+        }
+
+        return [
+            'approval_level' => 'Completed',
+            'current_approver' => $communication->executive_approver_name
+                ?: $communication->management_approver_name
+                ?: '-',
+            'current_approver_position' => $communication->executive_approver_position
+                ?: $communication->management_approver_position,
+            'current_approver_department' => $communication->executive_approver_department
+                ?: $communication->management_approver_department,
+            'approve_label' => 'Approve',
+        ];
     }
 
     private function contactApprovalItems(): Collection
@@ -558,6 +662,10 @@ class AdminDashboardController extends Controller
                         $item->department,
                         $item->uploaded_by,
                         $item->approver,
+                        $item->approval_level ?? '',
+                        $item->current_approver ?? '',
+                        $item->current_approver_position ?? '',
+                        $item->current_approver_department ?? '',
                         $item->status,
                     ]));
 
@@ -576,6 +684,8 @@ class AdminDashboardController extends Controller
 
         return match ($normalized) {
             'pending', 'pending approval', 'pending_approval' => 'Pending Approval',
+            'pending management approval' => 'Pending Management Approval',
+            'pending executive approval' => 'Pending Executive Approval',
             'approved', 'active' => 'Approved',
             'rejected' => 'Rejected',
             'needs revision', 'needs_revision' => 'Needs Revision',
@@ -589,6 +699,8 @@ class AdminDashboardController extends Controller
         return match (strtolower(trim($status))) {
             'draft' => 'Needs Revision',
             'pending', 'pending approval', 'pending_approval' => 'Pending Approval',
+            'pending management approval' => 'Pending Management Approval',
+            'pending executive approval' => 'Pending Executive Approval',
             'approved' => 'Approved',
             'rejected' => 'Rejected',
             default => 'Pending Approval',
