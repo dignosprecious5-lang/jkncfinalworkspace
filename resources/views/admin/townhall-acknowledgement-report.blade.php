@@ -124,13 +124,21 @@
         </div>
 
         <div class="overflow-x-auto">
-            <table class="min-w-[1250px] w-full border-collapse text-sm text-slate-700">
+            <table class="min-w-[1900px] w-full border-collapse text-sm text-slate-700">
                 <thead>
                     <tr class="border-b border-slate-200 bg-slate-50">
                         <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Ref No.</th>
                         <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Subject</th>
                         <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Recipient Name</th>
                         <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Email</th>
+                        <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Position</th>
+                        <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Department</th>
+                        <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">User Account ID</th>
+                        <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">IP Address</th>
+                        <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Device</th>
+                        <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Browser</th>
+                        <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">OS</th>
+                        <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Session ID</th>
                         <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Date Viewed</th>
                         <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Time Viewed</th>
                         <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Date Acknowledged</th>
@@ -157,6 +165,14 @@
                             </td>
                             <td class="px-4 py-3 font-medium text-slate-900">{{ $row->recipient_name }}</td>
                             <td class="px-4 py-3">{{ $row->recipient_email ?: '-' }}</td>
+                            <td class="px-4 py-3">{{ $row->record?->recipient_position ?: '-' }}</td>
+                            <td class="px-4 py-3">{{ $row->record?->recipient_department ?: '-' }}</td>
+                            <td class="px-4 py-3">{{ $row->record?->user_account_id ?: $row->recipient->id }}</td>
+                            <td class="px-4 py-3">{{ $row->record?->ip_address ?: '-' }}</td>
+                            <td class="px-4 py-3">{{ $row->record?->device_information ?: '-' }}</td>
+                            <td class="px-4 py-3">{{ $row->record?->browser_information ?: '-' }}</td>
+                            <td class="px-4 py-3">{{ $row->record?->operating_system ?: '-' }}</td>
+                            <td class="px-4 py-3 max-w-[160px]"><div class="truncate" title="{{ $row->record?->session_id }}">{{ $row->record?->session_id ?: '-' }}</div></td>
                             <td class="px-4 py-3">{{ $row->viewed_at ? \Carbon\Carbon::parse($row->viewed_at)->format('M d, Y') : '-' }}</td>
                             <td class="px-4 py-3">{{ $row->viewed_at ? \Carbon\Carbon::parse($row->viewed_at)->format('h:i A') : '-' }}</td>
                             <td class="px-4 py-3">{{ $row->acknowledged_at ? \Carbon\Carbon::parse($row->acknowledged_at)->format('M d, Y') : '-' }}</td>
@@ -175,7 +191,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="10" class="px-6 py-12 text-center text-slate-500">
+                            <td colspan="19" class="px-6 py-12 text-center text-slate-500">
                                 No acknowledgment tracking records found.
                             </td>
                         </tr>

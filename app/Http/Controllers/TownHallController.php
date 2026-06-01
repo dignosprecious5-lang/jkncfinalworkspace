@@ -894,7 +894,7 @@ class TownHallController extends Controller
             ->with('success', 'Communication deleted successfully.');
     }
 
-    public function acknowledge($id)
+    public function acknowledge(Request $request, $id)
     {
         if (!Auth::user()->hasPermission('access_townhall')) {
             abort(403, 'Unauthorized');
@@ -926,25 +926,48 @@ class TownHallController extends Controller
             'user_id' => Auth::id(),
         ]);
 
-        $alreadyAcknowledged = !is_null($acknowledgement->acknowledged_at);
+        if (!is_null($acknowledgement->acknowledged_at)) {
+            return redirect()->back()->with('success', 'You already acknowledged this communication.');
+        }
+
+        $employee = class_exists(Employee::class)
+            ? Employee::where('user_id', Auth::id())->first()
+            : null;
+
+        $userAgent = (string) $request->userAgent();
+        $browserInfo = $this->detectBrowser($userAgent);
+        $operatingSystem = $this->detectOperatingSystem($userAgent);
+        $deviceInformation = $this->detectDeviceInformation($userAgent);
 
         if (is_null($acknowledgement->viewed_at)) {
             $acknowledgement->viewed_at = now();
         }
 
-        $acknowledgement->acknowledged_at = now();
+        $acknowledgement->fill([
+            'recipient_name' => Auth::user()->name,
+            'recipient_position' => $employee?->position,
+            'recipient_department' => $this->resolveDepartmentName($employee?->department_id ?? null),
+            'user_account_id' => Auth::id(),
+            'ip_address' => $request->ip(),
+            'device_information' => $deviceInformation,
+            'browser_information' => $browserInfo,
+            'operating_system' => $operatingSystem,
+            'communication_ref_no' => $communication->ref_no,
+            'session_id' => $request->session()?->getId(),
+            'acknowledgement_status' => 'Acknowledged',
+            'acknowledged_at' => now(),
+        ]);
+
         $acknowledgement->save();
 
-        if (!$alreadyAcknowledged) {
-            $this->recordTownHallAudit(
-                $communication,
-                'Acknowledged',
-                'Recipient Tracking',
-                Auth::id(),
-                'Acknowledged',
-                'Recipient acknowledged the communication.'
-            );
-        }
+        $this->recordTownHallAudit(
+            $communication,
+            'Acknowledged',
+            'Recipient Tracking',
+            Auth::id(),
+            'Acknowledged',
+            'Recipient acknowledged the communication from IP ' . $request->ip()
+        );
 
         return redirect()->back()->with('success', 'Communication acknowledged successfully.');
     }
@@ -1478,6 +1501,42 @@ class TownHallController extends Controller
 
 
 
+
+    private function detectBrowser(string $userAgent): string
+    {
+        return match (true) {
+            str_contains($userAgent, 'Edg/') => 'Microsoft Edge',
+            str_contains($userAgent, 'OPR/') || str_contains($userAgent, 'Opera') => 'Opera',
+            str_contains($userAgent, 'Chrome/') && !str_contains($userAgent, 'Edg/') => 'Google Chrome',
+            str_contains($userAgent, 'Firefox/') => 'Mozilla Firefox',
+            str_contains($userAgent, 'Safari/') && !str_contains($userAgent, 'Chrome/') => 'Safari',
+            default => 'Unknown Browser',
+        };
+    }
+
+    private function detectOperatingSystem(string $userAgent): string
+    {
+        return match (true) {
+            str_contains($userAgent, 'Windows NT 10.0') => 'Windows 10/11',
+            str_contains($userAgent, 'Windows') => 'Windows',
+            str_contains($userAgent, 'Mac OS X') => 'macOS',
+            str_contains($userAgent, 'Android') => 'Android',
+            str_contains($userAgent, 'iPhone') || str_contains($userAgent, 'iPad') => 'iOS',
+            str_contains($userAgent, 'Linux') => 'Linux',
+            default => 'Unknown OS',
+        };
+    }
+
+    private function detectDeviceInformation(string $userAgent): string
+    {
+        return match (true) {
+            str_contains($userAgent, 'Mobile') || str_contains($userAgent, 'Android') || str_contains($userAgent, 'iPhone') => 'Mobile Device',
+            str_contains($userAgent, 'iPad') || str_contains($userAgent, 'Tablet') => 'Tablet',
+            default => 'Desktop / Laptop',
+        };
+    }
+
+
     public function acknowledgementReport(Request $request)
     {
         if (!Auth::user()->hasPermission('approve_townhall')) {
@@ -1521,6 +1580,7 @@ class TownHallController extends Controller
                     'recipient' => $recipient,
                     'recipient_name' => $recipient->name,
                     'recipient_email' => $recipient->email,
+                    'record' => $record,
                     'viewed_at' => $record?->viewed_at,
                     'acknowledged_at' => $record?->acknowledged_at,
                     'status' => $record?->acknowledged_at

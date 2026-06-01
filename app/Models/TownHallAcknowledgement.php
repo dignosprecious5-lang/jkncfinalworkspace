@@ -13,6 +13,17 @@ class TownHallAcknowledgement extends Model
         'user_id',
         'viewed_at',
         'acknowledged_at',
+        'recipient_name',
+        'recipient_position',
+        'recipient_department',
+        'user_account_id',
+        'ip_address',
+        'device_information',
+        'browser_information',
+        'operating_system',
+        'communication_ref_no',
+        'session_id',
+        'acknowledgement_status',
     ];
 
     protected $casts = [
