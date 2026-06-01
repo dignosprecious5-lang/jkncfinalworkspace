@@ -3073,7 +3073,7 @@
                             <div class="flex-1 bg-white rounded-2xl shadow-inner border border-gray-300 flex flex-col overflow-hidden relative">
                                 {{-- SUMMARY TAB --}}
                                 <div x-show="docTab === 'summary'" class="flex-1 overflow-y-auto p-12 bg-gray-100/50 flex flex-col items-center">
-                                    <div class="w-full max-w-5xl bg-white shadow-2xl border border-slate-200 p-12 font-sans space-y-10 min-h-[1200px]">
+                                    <div class="w-full max-w-5xl font-sans flex flex-col gap-10">
                                         <div class="flex justify-between items-start border-b-2 border-blue-800 pb-8">
                                             <div class="w-32 h-32 border-2 border-gray-100 rounded-2xl overflow-hidden bg-gray-50 shrink-0">
                                                 <template x-if="viewCafData.photo_path">
@@ -3114,7 +3114,7 @@
                                         </div>
 
                                         <template x-for="section in cafApplicationSections()" :key="section.title">
-                                            <div class="space-y-4">
+                                            <section class="space-y-4">
                                                 <h3 class="text-sm font-black text-blue-900 uppercase tracking-widest border-b border-blue-100 pb-2" x-text="section.title"></h3>
                                                 <div class="grid grid-cols-2 gap-3">
                                                     <template x-for="field in section.fields" :key="field.label">
@@ -3124,7 +3124,7 @@
                                                         </div>
                                                     </template>
                                                 </div>
-                                            </div>
+                                            </section>
                                         </template>
 
                                         <div class="space-y-4" x-show="cafEducationRows().length">
