@@ -2,179 +2,165 @@
 @section('title', 'Role Permissions')
 
 @section('content')
-<div class="w-full h-full px-6 py-5">
+@php
+    $permissionGroups = [
+        'Administration' => [
+            ['name' => 'manage_users', 'label' => 'Manage Users', 'description' => 'Create and manage user accounts.'],
+            ['name' => 'access_admin_dashboard', 'label' => 'Access Admin Dashboard', 'description' => 'View approval and admin dashboards.'],
+        ],
+        'Town Hall' => [
+            ['name' => 'access_townhall', 'label' => 'Access Town Hall', 'description' => 'View Town Hall communications.'],
+            ['name' => 'create_townhall', 'label' => 'Create Town Hall', 'description' => 'Create and submit communications.'],
+            ['name' => 'approve_townhall', 'label' => 'Approve Town Hall', 'description' => 'Review and approve communications.'],
+        ],
+        'Corporate' => [
+            ['name' => 'access_corporate', 'label' => 'Access Corporate', 'description' => 'Open corporate module records.'],
+            ['name' => 'create_corporate', 'label' => 'Create Corporate', 'description' => 'Create corporate documents.'],
+            ['name' => 'approve_corporate', 'label' => 'Approve Corporate', 'description' => 'Approve corporate submissions.'],
+        ],
+        'Policies' => [
+            ['name' => 'access_policies', 'label' => 'Access Policies', 'description' => 'View policy library.'],
+            ['name' => 'approve_policies', 'label' => 'Approve Policies', 'description' => 'Review and approve policy submissions.'],
+        ],
+        'Human Capital' => [
+            ['name' => 'access_human_capital', 'label' => 'Access Human Capital', 'description' => 'Open HR and employee modules.'],
+        ],
+        'CRM / Operations' => [
+            ['name' => 'access_activities', 'label' => 'Access Activities', 'description' => 'View activity records.'],
+            ['name' => 'access_contacts', 'label' => 'Access Contacts', 'description' => 'View contact records.'],
+            ['name' => 'access_company', 'label' => 'Access Company', 'description' => 'View company records.'],
+            ['name' => 'access_transmittal', 'label' => 'Access Transmittal', 'description' => 'View transmittal records.'],
+            ['name' => 'access_deals', 'label' => 'Access Deals', 'description' => 'View sales deals.'],
+            ['name' => 'access_services', 'label' => 'Access Services', 'description' => 'View service records.'],
+            ['name' => 'access_project', 'label' => 'Access Project', 'description' => 'View project records.'],
+            ['name' => 'access_regular', 'label' => 'Access Regular', 'description' => 'View regular client records.'],
+            ['name' => 'access_product', 'label' => 'Access Product', 'description' => 'View product records.'],
+        ],
+        'Sales & Marketing' => [
+            ['name' => 'access_sales_marketing', 'label' => 'Access Sales & Marketing', 'description' => 'Open sales and marketing module.'],
+            ['name' => 'create_sales_marketing', 'label' => 'Create Sales & Marketing', 'description' => 'Create sales and marketing records.'],
+            ['name' => 'approve_sales_marketing', 'label' => 'Approve Sales & Marketing', 'description' => 'Approve sales and marketing requests.'],
+        ],
+    ];
+@endphp
+
+<div class="w-full min-h-screen bg-slate-50 px-6 py-5">
 
     @if(session('success'))
-        <div class="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
-            {{ session('success') }}
+        <div class="mb-4 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-700">
+            <i class="fas fa-circle-check mr-2"></i>{{ session('success') }}
         </div>
     @endif
 
-    <div class="bg-white border border-gray-200 rounded-xl min-h-[calc(100vh-7rem)] flex flex-col">
-        <div class="px-5 py-4 border-b border-gray-200">
-            <h1 class="text-[30px] font-semibold text-gray-800 leading-none">Role Permissions</h1>
-            <p class="text-sm text-gray-500 mt-1">Manage access rights per role</p>
+    <div class="space-y-5">
+        <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div class="relative px-6 py-6">
+                <div class="absolute inset-0 bg-gradient-to-r from-blue-50 via-white to-purple-50"></div>
+
+                <div class="relative">
+                    <div class="inline-flex items-center gap-2 rounded-full border border-purple-100 bg-purple-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-purple-700">
+                        <i class="fas fa-shield-halved text-[10px]"></i>
+                        Role Access Matrix
+                    </div>
+
+                    <h1 class="mt-3 text-3xl font-bold tracking-tight text-slate-900">Role Permissions</h1>
+                    <p class="mt-1 text-sm text-slate-500">Manage default access rights assigned to each system role.</p>
+                </div>
+            </div>
         </div>
 
-        <div class="p-5 space-y-5">
+        <div class="space-y-5">
             @foreach($permissions as $permission)
                 @php
                     $isProtected = $permission->role === 'SuperAdmin';
+                    $enabledCount = $isProtected
+                        ? collect($permissionGroups)->flatten(1)->count()
+                        : collect($permissionGroups)
+                            ->flatten(1)
+                            ->filter(fn ($item) => (bool) ($permission->{$item['name']} ?? false))
+                            ->count();
+                    $totalCount = collect($permissionGroups)->flatten(1)->count();
                 @endphp
 
-                <form action="{{ route('admin.role-permissions.update', $permission->id) }}" method="POST" class="border border-gray-200 rounded-xl p-5">
+                <form action="{{ route('admin.role-permissions.update', $permission->id) }}" method="POST" class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
                     @csrf
 
-                    <div class="flex items-center justify-between mb-4">
-                        <div>
-                            <h2 class="text-lg font-semibold text-gray-800 flex items-center gap-2">
-                                {{ $permission->role }}
+                    <div class="border-b border-slate-200 px-5 py-4">
+                        <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                            <div class="flex items-center gap-3">
+                                <div class="flex h-12 w-12 items-center justify-center rounded-2xl {{ $isProtected ? 'bg-purple-50 text-purple-700' : 'bg-blue-50 text-blue-700' }}">
+                                    <i class="fas {{ $isProtected ? 'fa-crown' : 'fa-user-shield' }}"></i>
+                                </div>
 
-                                @if($isProtected)
-                                    <span class="px-2 py-1 text-[10px] rounded-full bg-gray-100 text-gray-600 font-medium">
-                                        Protected
-                                    </span>
-                                @endif
-                            </h2>
+                                <div>
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        <h2 class="text-xl font-bold text-slate-900">{{ $permission->role }}</h2>
+
+                                        @if($isProtected)
+                                            <span class="rounded-full bg-purple-50 px-3 py-1 text-xs font-semibold text-purple-700 ring-1 ring-purple-100">
+                                                Protected
+                                            </span>
+                                        @endif
+                                    </div>
+
+                                    <p class="mt-1 text-sm text-slate-500">
+                                        {{ $enabledCount }} of {{ $totalCount }} permissions enabled
+                                        @if($isProtected)
+                                            • SuperAdmin has full access and cannot be modified.
+                                        @endif
+                                    </p>
+                                </div>
+                            </div>
 
                             @if($isProtected)
-                                <p class="text-xs text-gray-500 mt-1">
-                                    SuperAdmin has full access and cannot be modified.
-                                </p>
+                                <button
+                                    type="button"
+                                    disabled
+                                    class="rounded-xl bg-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-500 cursor-not-allowed"
+                                >
+                                    Protected
+                                </button>
+                            @else
+                                <button
+                                    type="submit"
+                                    class="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
+                                >
+                                    <i class="fas fa-save text-xs"></i>
+                                    Save Changes
+                                </button>
                             @endif
                         </div>
-
-                        @if($isProtected)
-                            <button
-                                type="button"
-                                disabled
-                                class="px-4 py-2 text-sm font-medium bg-gray-200 text-gray-500 rounded-lg cursor-not-allowed"
-                            >
-                                Protected
-                            </button>
-                        @else
-                            <button
-                                type="submit"
-                                class="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-                            >
-                                Save Changes
-                            </button>
-                        @endif
                     </div>
 
-                    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 text-sm">
-                        <label class="flex items-center gap-3 border rounded-lg p-3 {{ $isProtected ? 'bg-gray-50' : '' }}">
-                            <input type="checkbox" name="manage_users" {{ $permission->manage_users ? 'checked' : '' }} {{ $isProtected ? 'disabled' : '' }}>
-                            <span>Manage Users</span>
-                        </label>
+                    <div class="p-5 space-y-5">
+                        @foreach($permissionGroups as $groupName => $items)
+                            <div class="rounded-2xl border border-slate-200 bg-slate-50/50 p-4">
+                                <div class="mb-4 flex items-center justify-between">
+                                    <h3 class="text-sm font-bold uppercase tracking-wide text-slate-600">{{ $groupName }}</h3>
+                                    <span class="text-xs text-slate-400">
+                                        {{ $isProtected ? count($items) : collect($items)->filter(fn ($item) => (bool) ($permission->{$item['name']} ?? false))->count() }} / {{ count($items) }}
+                                    </span>
+                                </div>
 
-                        <label class="flex items-center gap-3 border rounded-lg p-3 {{ $isProtected ? 'bg-gray-50' : '' }}">
-                            <input type="checkbox" name="access_admin_dashboard" {{ $permission->access_admin_dashboard ? 'checked' : '' }} {{ $isProtected ? 'disabled' : '' }}>
-                            <span>Access Admin Dashboard</span>
-                        </label>
-
-                        <label class="flex items-center gap-3 border rounded-lg p-3 {{ $isProtected ? 'bg-gray-50' : '' }}">
-                            <input type="checkbox" name="approve_townhall" {{ $permission->approve_townhall ? 'checked' : '' }} {{ $isProtected ? 'disabled' : '' }}>
-                            <span>Approve Town Hall</span>
-                        </label>
-
-                        <label class="flex items-center gap-3 border rounded-lg p-3 {{ $isProtected ? 'bg-gray-50' : '' }}">
-                            <input type="checkbox" name="create_townhall" {{ $permission->create_townhall ? 'checked' : '' }} {{ $isProtected ? 'disabled' : '' }}>
-                            <span>Create Town Hall</span>
-                        </label>
-
-                        <label class="flex items-center gap-3 border rounded-lg p-3 {{ $isProtected ? 'bg-gray-50' : '' }}">
-                            <input type="checkbox" name="create_corporate" {{ $permission->create_corporate ? 'checked' : '' }} {{ $isProtected ? 'disabled' : '' }}>
-                            <span>Create Corporate</span>
-                        </label>
-
-                        <label class="flex items-center gap-3 border rounded-lg p-3 {{ $isProtected ? 'bg-gray-50' : '' }}">
-                            <input type="checkbox" name="approve_corporate" {{ $permission->approve_corporate ? 'checked' : '' }} {{ $isProtected ? 'disabled' : '' }}>
-                            <span>Approve Corporate</span>
-                        </label>
-
-                        <label class="flex items-center gap-3 border rounded-lg p-3 {{ $isProtected ? 'bg-gray-50' : '' }}">
-                            <input type="checkbox" name="access_townhall" {{ $permission->access_townhall ? 'checked' : '' }} {{ $isProtected ? 'disabled' : '' }}>
-                            <span>Access Town Hall</span>
-                        </label>
-
-                        <label class="flex items-center gap-3 border rounded-lg p-3 {{ $isProtected ? 'bg-gray-50' : '' }}">
-                            <input type="checkbox" name="access_corporate" {{ $permission->access_corporate ? 'checked' : '' }} {{ $isProtected ? 'disabled' : '' }}>
-                            <span>Access Corporate</span>
-                        </label>
-
-                        <label class="flex items-center gap-3 border rounded-lg p-3 {{ $isProtected ? 'bg-gray-50' : '' }}">
-                            <input type="checkbox" name="access_activities" {{ $permission->access_activities ? 'checked' : '' }} {{ $isProtected ? 'disabled' : '' }}>
-                            <span>Access Activities</span>
-                        </label>
-
-                        <label class="flex items-center gap-3 border rounded-lg p-3 {{ $isProtected ? 'bg-gray-50' : '' }}">
-                            <input type="checkbox" name="access_contacts" {{ $permission->access_contacts ? 'checked' : '' }} {{ $isProtected ? 'disabled' : '' }}>
-                            <span>Access Contacts</span>
-                        </label>
-
-                        <label class="flex items-center gap-3 border rounded-lg p-3 {{ $isProtected ? 'bg-gray-50' : '' }}">
-                            <input type="checkbox" name="access_company" {{ $permission->access_company ? 'checked' : '' }} {{ $isProtected ? 'disabled' : '' }}>
-                            <span>Access Company</span>
-                        </label>
-
-                        <label class="flex items-center gap-3 border rounded-lg p-3 {{ $isProtected ? 'bg-gray-50' : '' }}">
-                            <input type="checkbox" name="access_transmittal" {{ $permission->access_transmittal ? 'checked' : '' }} {{ $isProtected ? 'disabled' : '' }}>
-                            <span>Access Transmittal</span>
-                        </label>
-
-                        <label class="flex items-center gap-3 border rounded-lg p-3 {{ $isProtected ? 'bg-gray-50' : '' }}">
-                            <input type="checkbox" name="access_deals" {{ $permission->access_deals ? 'checked' : '' }} {{ $isProtected ? 'disabled' : '' }}>
-                            <span>Access Deals</span>
-                        </label>
-
-                        <label class="flex items-center gap-3 border rounded-lg p-3 {{ $isProtected ? 'bg-gray-50' : '' }}">
-                            <input type="checkbox" name="access_services" {{ $permission->access_services ? 'checked' : '' }} {{ $isProtected ? 'disabled' : '' }}>
-                            <span>Access Services</span>
-                        </label>
-
-                        <label class="flex items-center gap-3 border rounded-lg p-3 {{ $isProtected ? 'bg-gray-50' : '' }}">
-                            <input type="checkbox" name="access_project" {{ $permission->access_project ? 'checked' : '' }} {{ $isProtected ? 'disabled' : '' }}>
-                            <span>Access Project</span>
-                        </label>
-
-                        <label class="flex items-center gap-3 border rounded-lg p-3 {{ $isProtected ? 'bg-gray-50' : '' }}">
-                            <input type="checkbox" name="access_regular" {{ $permission->access_regular ? 'checked' : '' }} {{ $isProtected ? 'disabled' : '' }}>
-                            <span>Access Regular</span>
-                        </label>
-
-                        <label class="flex items-center gap-3 border rounded-lg p-3 {{ $isProtected ? 'bg-gray-50' : '' }}">
-                            <input type="checkbox" name="access_product" {{ $permission->access_product ? 'checked' : '' }} {{ $isProtected ? 'disabled' : '' }}>
-                            <span>Access Product</span>
-                        </label>
-
-                        <label class="flex items-center gap-3 border rounded-lg p-3 {{ $isProtected ? 'bg-gray-50' : '' }}">
-                            <input type="checkbox" name="access_policies" {{ $permission->access_policies ? 'checked' : '' }} {{ $isProtected ? 'disabled' : '' }}>
-                            <span>Access Policies</span>
-                        </label>
-
-                        <label class="flex items-center gap-3 border rounded-lg p-3 {{ $isProtected ? 'bg-gray-50' : '' }}">
-                            <input type="checkbox" name="create_sales_marketing" {{ $permission->create_sales_marketing ? 'checked' : '' }} {{ $isProtected ? 'disabled' : '' }}>
-                            <span>Create Sales & Marketing</span>
-                        </label>
-
-                        <label class="flex items-center gap-3 border rounded-lg p-3 {{ $isProtected ? 'bg-gray-50' : '' }}">
-                            <input type="checkbox" name="approve_sales_marketing" {{ $permission->approve_sales_marketing ? 'checked' : '' }} {{ $isProtected ? 'disabled' : '' }}>
-                            <span>Approve Sales & Marketing</span>
-                        </label>
-
-                        <label class="flex items-center gap-3 border rounded-lg p-3 {{ $isProtected ? 'bg-gray-50' : '' }}">
-                            <input type="checkbox" name="access_sales_marketing" {{ $permission->access_sales_marketing ? 'checked' : '' }} {{ $isProtected ? 'disabled' : '' }}>
-                            <span>Access Sales & Marketing</span>
-                        </label>
-                        <label class="flex items-center gap-3 border rounded-lg p-3 {{ $isProtected ? 'bg-gray-50' : '' }}">
-                            <input type="checkbox" name="approve_policies" {{ $permission->approve_policies ? 'checked' : '' }} {{ $isProtected ? 'disabled' : '' }}>
-                            <span>Approve Policies</span>
-                        </label>
-                        <label class="flex items-center gap-3 border rounded-lg p-3 {{ $isProtected ? 'bg-gray-50' : '' }}">
-                            <input type="checkbox" name="access_human_capital" {{ $permission->access_human_capital ? 'checked' : '' }} {{ $isProtected ? 'disabled' : '' }}>
-                            <span>Access Human Capital</span>
-                        </label>
+                                <div class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                                    @foreach($items as $item)
+                                        <label class="group flex cursor-pointer items-start gap-3 rounded-xl border bg-white p-4 transition {{ $isProtected ? 'border-slate-200 opacity-75' : 'border-slate-200 hover:border-blue-200 hover:shadow-sm' }}">
+                                            <input
+                                                type="checkbox"
+                                                name="{{ $item['name'] }}"
+                                                class="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                                {{ $isProtected || ($permission->{$item['name']} ?? false) ? 'checked' : '' }}
+                                                {{ $isProtected ? 'disabled' : '' }}
+                                            >
+                                            <span>
+                                                <span class="block text-sm font-semibold text-slate-800">{{ $item['label'] }}</span>
+                                                <span class="mt-1 block text-xs leading-5 text-slate-500">{{ $item['description'] }}</span>
+                                            </span>
+                                        </label>
+                                    @endforeach
+                                </div>
+                            </div>
+                        @endforeach
                     </div>
                 </form>
             @endforeach
