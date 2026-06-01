@@ -11,9 +11,11 @@
     $noticeStoreUrl = $noticeStoreUrl ?? route('notices.store');
 
     // President requested company name
-    $companyName = $companyName ?? 'JK&C INC.';
-    $companyRegNo = $companyRegNo ?? '2025120230900-02';
-    $companyAddress = $companyAddress ?? '3RD FLOOR, UNIT 305 CEBU HOLDINGS CENTER CARDINAL ROSALES AVE., CEBU BUSINESS PARK HIPPODROMO, CEBU CITY, 6000';
+    $companyName = $companyName ?? ((data_get($corporateContext ?? [], 'company_name') ?: data_get($corporateContext ?? [], 'companyName')) ?: 'JK&C INC.');
+    $companyRegNo = $companyRegNo ?? ((data_get($corporateContext ?? [], 'company_reg_no') ?: data_get($corporateContext ?? [], 'companyRegNo')) ?: '2025120230900-02');
+    $gisLogoPath = (data_get($corporateContext ?? [], 'logo_path') ?: data_get($corporateContext ?? [], 'logoPath'));
+    $gisLogoUrl = $gisLogoPath ? route('uploads.show', ['path' => preg_replace('#^/?storage/#', '', (string) $gisLogoPath)]) : null;
+    $companyAddress = $companyAddress ?? ((data_get($corporateContext ?? [], 'company_address') ?: data_get($corporateContext ?? [], 'companyAddress')) ?: '3RD FLOOR, UNIT 305 CEBU HOLDINGS CENTER CARDINAL ROSALES AVE., CEBU BUSINESS PARK HIPPODROMO, CEBU CITY, 6000');
 @endphp
 
 <div class="w-full px-4 sm:px-6 lg:px-8 mt-4">
@@ -247,6 +249,9 @@
                         <div class="min-h-0 flex-1 overflow-auto p-6">
                             <div class="mx-auto bg-white px-12 py-12 text-[14px] leading-7 text-slate-900 shadow-[0_18px_50px_rgba(15,23,42,0.08)]" style="width:min(100%, 794px); min-height:1123px; display:flex; flex-direction:column; overflow:visible;">
                                 <div class="text-center leading-6">
+                                    @if($gisLogoUrl)
+                                        <img src="{{ $gisLogoUrl }}" alt="Company Logo" class="mx-auto mb-2 h-14 w-auto object-contain">
+                                    @endif
                                     <div class="text-[17px] font-bold uppercase tracking-[0.04em]">{{ $companyName }}</div>
                                     <div class="text-[14px] font-bold">COMPANY REG. NO.: {{ $companyRegNo }}</div>
                                     <div class="mt-1 text-[14px]">{{ $companyAddress }}</div>

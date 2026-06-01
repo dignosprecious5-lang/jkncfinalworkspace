@@ -7,6 +7,7 @@ use App\Http\Controllers\Concerns\GeneratesCorporateDocumentNumbers;
 use App\Http\Controllers\Concerns\HandlesUploads;
 use App\Models\Minute;
 use App\Models\Notice;
+use App\Models\GisRecord;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
@@ -33,6 +34,7 @@ class MinuteController extends Controller
             'minutes' => $minutes,
             'notices' => $notices,
             'nextMinutesRef' => $this->nextMinutesRef(),
+            'corporateContext' => $this->corporateContextForMinute(new Minute()),
         ]);
     }
 
@@ -82,6 +84,7 @@ class MinuteController extends Controller
             'deleteRoute' => route('minutes.destroy', $minute),
             'templatePreviewUrl' => $templatePreviewPath ? route('uploads.show', ['path' => $templatePreviewPath]) : null,
             'templatePreviewDownloadUrl' => $templatePreviewPath ? route('uploads.show', ['path' => $templatePreviewPath, 'download' => 1]) : null,
+            'corporateContext' => $this->corporateContextForMinute($minute),
         ]);
     }
 
@@ -422,6 +425,73 @@ class MinuteController extends Controller
         ];
     }
 
+
+    private function latestAcceptedGis(): ?GisRecord
+    {
+        $acceptedQuery = GisRecord::query()
+            ->where(function ($query) {
+                $query->where('workflow_status', 'Accepted')
+                    ->orWhere('approval_status', 'Accepted')
+                    ->orWhere('approval_status', 'Approved')
+                    ->orWhere('submission_status', 'Accepted');
+            });
+
+        // Prefer the latest accepted GIS with an uploaded logo, because this is the
+        // corporate header source requested for Notices and Minutes.
+        $withLogo = (clone $acceptedQuery)
+            ->whereNotNull('logo_path')
+            ->where('logo_path', '<>', '')
+            ->latest('updated_at')
+            ->latest('id')
+            ->first();
+
+        if ($withLogo) {
+            return $withLogo;
+        }
+
+        return $acceptedQuery
+            ->latest('updated_at')
+            ->latest('id')
+            ->first();
+    }
+
+    private function corporateContextForMinute(?Minute $minute = null): array
+    {
+        $gis = $this->latestAcceptedGis();
+
+        $companyName = $gis?->corporation_name ?: 'John Kelly & Company';
+        $companyRegNo = $gis?->company_reg_no;
+        $companyAddress = $gis?->principal_address
+            ?: $gis?->business_address
+            ?: $minute?->location
+            ?: null;
+
+        $logoPath = $gis?->logo_path;
+        $logoUrl = null;
+
+        if ($logoPath) {
+            $logoUrl = str_starts_with($logoPath, 'http://') || str_starts_with($logoPath, 'https://')
+                ? $logoPath
+                : Storage::disk('public')->url($logoPath);
+        }
+
+        return [
+            'gis' => $gis,
+            'companyName' => $companyName,
+            'companyRegNo' => $companyRegNo,
+            'companyAddress' => $companyAddress,
+            'logoPath' => $logoPath,
+            'logoUrl' => $logoUrl,
+
+            // Snake-case aliases used by existing Blade templates.
+            'company_name' => $companyName,
+            'company_reg_no' => $companyRegNo,
+            'company_address' => $companyAddress,
+            'logo_path' => $logoPath,
+            'logo_url' => $logoUrl,
+        ];
+    }
+
     private function generateTemplatePreviewPdf(Minute $minute): ?string
     {
         $targetPath = 'uploads/minutes/template-preview-' . $minute->id . '.pdf';
@@ -429,6 +499,7 @@ class MinuteController extends Controller
         return $this->generatePdfPreview('corporate.minutes.pdf', [
             'minute' => $minute,
             'minutesDocumentTitle' => strtoupper(trim('Minutes of the ' . ($minute->type_of_meeting ?: 'Special') . ' ' . ($minute->governing_body ?: 'Meeting'))),
+            'corporateContext' => $this->corporateContextForMinute($minute),
         ], $targetPath);
     }
 
