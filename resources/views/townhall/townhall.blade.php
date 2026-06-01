@@ -193,6 +193,9 @@
                                 placeholder="Enter department or stakeholder"
                                 class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500"
                             >
+                            <p class="mt-1 text-xs text-gray-400">
+                                This is for the memo audience/category only. It will not change the Prepared By department.
+                            </p>
                         </div>
                     </div>
 
@@ -1340,6 +1343,8 @@ function townhallContactSuggest() {
         previewDate: @js(old('communication_date', now()->format('Y-m-d'))),
         previewFrom: @js(Auth::user()->name),
         previewDepartment: @js(old('department_stakeholder', '')),
+        previewPreparedPosition: @js($creatorPosition ?? 'Position'),
+        previewPreparedDepartment: @js($creatorDepartment ?? 'Department'),
         previewRecipientLabel: @js(old('recipient_label', 'To')),
         previewRecipientType: @js(old('recipient_type', 'all')),
         previewRecipientUserIds: @js(old('recipient_user_ids', [])),
@@ -1657,8 +1662,8 @@ document.addEventListener('DOMContentLoaded', function () {
             issuedDay: issuedDay,
             issuedMonth: issuedMonth,
             preparedName: alpineData.previewFrom || 'Name',
-            preparedPosition: 'Position',
-            preparedDepartment: alpineData.previewDepartment || 'Department',
+            preparedPosition: alpineData.previewPreparedPosition || 'Position',
+            preparedDepartment: alpineData.previewPreparedDepartment || 'Department',
             preparedOn: 'Date and Time',
             managementName: alpineData.previewManagementName || 'Name',
             managementPosition: alpineData.previewManagementPosition || 'Position',
