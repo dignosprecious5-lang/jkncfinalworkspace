@@ -48,11 +48,11 @@
         }
         .btn {
             background-color: #2563eb;
-            color: white;
+            color: #ffffff;
             padding: 18px 35px;
             text-decoration: none;
             border-radius: 30px;
-            font-weight: font-black;
+            font-weight: 900;
             text-transform: uppercase;
             letter-spacing: 1px;
             font-size: 14px;
@@ -112,10 +112,10 @@
             <p>Please click the button below to start your assessment. Ensure you have a stable internet connection and a quiet environment before beginning.</p>
             
             <div class="btn-container">
-                <a href="{{ $testUrl }}" class="btn">Start Assessment Test</a>
+                <a href="{{ $testUrl }}" class="btn" style="color: #ffffff !important;">Start Assessment Test</a>
             </div>
             
-            <p>The link will remain active for the next 48 hours. If you encounter any technical difficulties, please reply to this email or contact our support team.</p>
+            <p>The link will remain active for the next 48 hours.</p>
             
             <p>Good luck!</p>
             

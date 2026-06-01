@@ -3744,6 +3744,73 @@
         </div>
     </div>
 
+    <style>
+        .job-offer-draft-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 420px;
+            gap: 1.25rem;
+            align-items: start;
+        }
+
+        .job-offer-draft-grid > :not(.job-offer-preview):not(.job-offer-actions) {
+            grid-column: 2;
+        }
+
+        .job-offer-preview {
+            grid-column: 1;
+            grid-row: 1 / span 30;
+            position: sticky;
+            top: 1rem;
+            max-height: calc(100vh - 8rem);
+            overflow: auto;
+            min-width: 0;
+        }
+
+        .job-offer-actions {
+            grid-column: 1 / -1;
+        }
+
+        .job-offer-view-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 360px;
+            gap: 1.25rem;
+            align-items: start;
+        }
+
+        .job-offer-view-preview {
+            grid-column: 1;
+            grid-row: 1 / span 20;
+            min-width: 0;
+        }
+
+        .job-offer-view-side {
+            grid-column: 2;
+        }
+
+        @media (max-width: 1024px) {
+            .job-offer-draft-grid {
+                display: flex;
+                flex-direction: column;
+            }
+
+            .job-offer-preview {
+                position: static;
+                max-height: none;
+                width: 100%;
+            }
+
+            .job-offer-view-grid {
+                display: flex;
+                flex-direction: column;
+            }
+
+            .job-offer-view-preview,
+            .job-offer-view-side {
+                width: 100%;
+            }
+        }
+    </style>
+
     {{-- ===================== ADD NEW JOB OFFER MODAL ===================== --}}
     <div
         x-show="showJobOfferModal"
@@ -3753,25 +3820,31 @@
         x-transition:leave="transition ease-in duration-200"
         x-transition:leave-start="opacity-100"
         x-transition:leave-end="opacity-0"
-        class="fixed inset-0 z-[70] flex justify-center items-center bg-black/50 backdrop-blur-sm"
+        class="fixed inset-0 z-[9999] overflow-hidden bg-black/40 backdrop-blur-sm"
         style="display:none;"
         @click.self="showJobOfferModal = false"
     >
         <div 
-            class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden transform transition-all"
+            class="fixed inset-y-0 right-0 bg-white shadow-2xl w-[90vw] max-w-none overflow-hidden transform transition-all flex flex-col"
             x-show="showJobOfferModal"
-            x-transition:enter="ease-out duration-300"
-            x-transition:enter-start="opacity-0 translate-y-4 scale-95"
-            x-transition:enter-end="opacity-100 translate-y-0 scale-100"
+            x-transition:enter="transform transition ease-in-out duration-500"
+            x-transition:enter-start="translate-x-full"
+            x-transition:enter-end="translate-x-0"
+            x-transition:leave="transform transition ease-in-out duration-300"
+            x-transition:leave-start="translate-x-0"
+            x-transition:leave-end="translate-x-full"
         >
             <div class="px-6 py-4 border-b flex items-center justify-between bg-white text-gray-800">
-                <h3 class="font-bold text-lg tracking-tight">Add New Job Offer</h3>
+                <div>
+                    <p class="text-[10px] font-black uppercase tracking-[0.25em] text-blue-700">Recruitment Document</p>
+                    <h3 class="font-bold text-lg tracking-tight">Job Offer Draft</h3>
+                </div>
                 <button @click="showJobOfferModal = false" class="text-gray-400 hover:text-gray-600 transition">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12"/></svg>
                 </button>
             </div>
 
-            <form @submit.prevent="submitJobOffer()" class="p-6 space-y-5 bg-white">
+            <form @submit.prevent="submitJobOffer()" class="flex-1 overflow-y-auto p-6 bg-slate-50 job-offer-draft-grid">
                 <div>
                     <label class="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Link to Completed / Passed Interview <span class="text-red-500">*</span></label>
                     <select x-model="jobOfferForm.interviewId" @change="onJobOfferInterviewChange()" required
@@ -3884,13 +3957,103 @@
                     </div>
                 </div>
 
+                <div class="grid grid-cols-2 gap-5">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Offer Expiry Date</label>
+                        <input type="date" x-model="jobOfferForm.offerExpiryDate" required
+                            class="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 text-gray-700 text-sm bg-gray-50/50 transition-all">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Applicant Address</label>
+                        <input type="text" x-model="jobOfferForm.applicantAddress" readonly
+                            class="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-gray-700 text-sm bg-gray-100 transition-all">
+                    </div>
+                </div>
+
                 <div>
                     <label class="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Benefits</label>
                     <textarea x-model="jobOfferForm.benefits" rows="4" placeholder="Health insurance, 401k, etc..."
                         class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 text-gray-700 text-sm bg-gray-50/50 resize-none"></textarea>
                 </div>
 
-                <div class="sticky bottom-0 -mx-8 -mb-8 mt-6 px-8 py-6 border-t border-slate-200 bg-white flex justify-end gap-3">
+                <div class="rounded-2xl border border-slate-200 bg-white p-4 job-offer-preview">
+                    <div class="mb-4 flex items-center justify-between">
+                        <div>
+                            <p class="text-[10px] font-black uppercase tracking-[0.25em] text-blue-700">Live A4 Preview</p>
+                            <p class="text-xs text-slate-500">Auto-filled from MRF, JPF, CAF, Assessment, and Interview records.</p>
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto rounded-xl bg-slate-100 p-5">
+                        <div class="mx-auto bg-white text-slate-900 shadow-xl border border-slate-200 p-8 font-sans w-[794px] min-h-[1123px] text-[12px] leading-relaxed">
+                            <div class="flex items-center justify-between border-b-2 border-blue-900 pb-4">
+                                <img src="{{ asset('images/FINAL_LOGO.jpg') }}" onerror="this.src='{{ asset('images/imaglogo.png') }}'" alt="John Kelly & Company" class="h-16 w-auto object-contain">
+                                <div class="text-right">
+                                    <h1 class="text-2xl font-black tracking-widest text-blue-900">JOB OFFER</h1>
+                                    <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">John Kelly & Company (JK&C Inc.)</p>
+                                </div>
+                            </div>
+
+                            <div class="mt-6 space-y-1">
+                                <p><strong>Date:</strong> <span x-text="jobOfferDocumentDetails().offerDate"></span></p>
+                                <p><strong>Applicant Name:</strong> <span x-text="jobOfferDocumentDetails().applicantName"></span></p>
+                                <p><strong>Applicant ID:</strong> <span x-text="jobOfferDocumentDetails().applicantId"></span></p>
+                                <p><strong>Address:</strong> <span x-text="jobOfferDocumentDetails().applicantAddress"></span></p>
+                            </div>
+
+                            <p class="mt-6">Dear <span x-text="jobOfferDocumentDetails().applicantName"></span>,</p>
+                            <p class="mt-4">John Kelly & Company (JK&C INC.) is pleased to offer employment under the terms and conditions stated in this Job Offer.</p>
+                            <p class="mt-3">This Job Offer is confidential and subject to Company policies, procedures, memoranda, notices, resolutions, directives, lawful instructions, management prerogative, and applicable laws.</p>
+
+                            <h2 class="mt-7 bg-blue-900 px-3 py-2 text-white text-[12px] font-black uppercase tracking-widest">Position Information</h2>
+                            <table class="w-full border-collapse text-[11px]">
+                                <tbody>
+                                    <template x-for="row in jobOfferPositionRows()" :key="row.label">
+                                        <tr>
+                                            <td class="w-48 border border-slate-300 bg-slate-50 px-3 py-2 font-bold" x-text="row.label"></td>
+                                            <td class="border border-slate-300 px-3 py-2" x-text="row.value || '—'"></td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+
+                            <h2 class="mt-7 text-[13px] font-black uppercase tracking-widest text-blue-900">Terms and Conditions</h2>
+                            <div class="mt-3 space-y-3 text-[11px]">
+                                <template x-for="term in jobOfferTerms()" :key="term.title">
+                                    <div>
+                                        <p class="font-black" x-text="term.title"></p>
+                                        <p class="mt-1 whitespace-pre-line" x-text="term.body"></p>
+                                    </div>
+                                </template>
+                            </div>
+
+                            <h2 class="mt-7 text-[13px] font-black uppercase tracking-widest text-blue-900">Acceptance of Job Offer</h2>
+                            <p class="mt-2 text-[11px]">By signing below, the Applicant acknowledges that this Job Offer has been read, understood, and accepted.</p>
+                            <p class="mt-2 text-[11px]">Acceptance of this Job Offer also confirms agreement to comply with all Company policies, procedures, memoranda, notices, resolutions, directives, and lawful instructions.</p>
+                            <p class="mt-2 text-[11px]">This Job Offer shall automatically expire if not accepted on or before <strong x-text="jobOfferDocumentDetails().offerExpiryDate"></strong>, unless extended by the Company in writing.</p>
+
+                            <div class="mt-12 grid grid-cols-2 gap-10 text-[11px]">
+                                <div>
+                                    <p class="font-black uppercase tracking-widest text-center">For the Company</p>
+                                    <div class="mt-12 border-t border-slate-500 pt-2 text-center">
+                                        <p class="font-bold">Authorized Representative</p>
+                                        <p>President / Human Capital</p>
+                                    </div>
+                                    <p class="mt-6">Date: ______________________</p>
+                                </div>
+                                <div>
+                                    <p class="font-black uppercase tracking-widest text-center">Accepted By</p>
+                                    <div class="mt-12 border-t border-slate-500 pt-2 text-center">
+                                        <p class="font-bold">Applicant Signature</p>
+                                        <p x-text="jobOfferDocumentDetails().applicantName"></p>
+                                    </div>
+                                    <p class="mt-6">Date: ______________________</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="sticky bottom-0 -mx-6 -mb-6 mt-6 px-6 py-5 border-t border-slate-200 bg-white flex justify-end gap-3 job-offer-actions">
                     <button type="button" @click="showJobOfferModal = false"
                         class="px-6 py-2.5 border border-gray-200 text-gray-600 rounded-xl text-sm font-bold hover:bg-gray-50 transition">
                         Cancel
@@ -3909,7 +4072,7 @@
         <div @click="showJobOfferViewModal = false" class="absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity"
             x-show="showJobOfferViewModal" x-transition:enter="ease-out duration-300" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
             x-transition:leave="ease-in duration-200" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"></div>
-        <div class="fixed inset-y-0 right-0 max-w-xl w-full flex pointer-events-none">
+        <div class="fixed inset-y-0 right-0 w-[90vw] max-w-none flex pointer-events-none">
             <div x-show="showJobOfferViewModal" 
                 x-transition:enter="transform transition ease-in-out duration-500"
                 x-transition:enter-start="translate-x-full"
@@ -3936,57 +4099,130 @@
                             </button>
                         </div>
 
-                        <div class="flex-1 overflow-y-auto px-8 pt-8 pb-8 space-y-8 bg-white">
-                            <div class="grid grid-cols-2 gap-8">
+                        <div class="flex-1 overflow-y-auto px-8 pt-8 pb-8 bg-slate-50 job-offer-view-grid">
+                            <div class="space-y-3 job-offer-view-preview">
+                                <p class="text-[10px] font-black text-blue-700 uppercase tracking-[0.25em]">A4 Job Offer Document</p>
+                                <div class="overflow-x-auto rounded-xl bg-slate-100 p-5">
+                                    <div class="mx-auto bg-white text-slate-900 shadow-xl border border-slate-200 p-8 font-sans w-[794px] min-h-[1123px] text-[12px] leading-relaxed">
+                                        <div class="flex items-center justify-between border-b-2 border-blue-900 pb-4">
+                                            <img src="{{ asset('images/FINAL_LOGO.jpg') }}" onerror="this.src='{{ asset('images/imaglogo.png') }}'" alt="John Kelly & Company" class="h-16 w-auto object-contain">
+                                            <div class="text-right">
+                                                <h1 class="text-2xl font-black tracking-widest text-blue-900">JOB OFFER</h1>
+                                                <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">John Kelly & Company (JK&C Inc.)</p>
+                                            </div>
+                                        </div>
+
+                                        <div class="mt-6 space-y-1">
+                                            <p><strong>Date:</strong> <span x-text="jobOfferDocumentDetails(viewJobOfferData).offerDate"></span></p>
+                                            <p><strong>Applicant Name:</strong> <span x-text="jobOfferDocumentDetails(viewJobOfferData).applicantName"></span></p>
+                                            <p><strong>Applicant ID:</strong> <span x-text="jobOfferDocumentDetails(viewJobOfferData).applicantId"></span></p>
+                                            <p><strong>Address:</strong> <span x-text="jobOfferDocumentDetails(viewJobOfferData).applicantAddress"></span></p>
+                                        </div>
+
+                                        <p class="mt-6">Dear <span x-text="jobOfferDocumentDetails(viewJobOfferData).applicantName"></span>,</p>
+                                        <p class="mt-4">John Kelly & Company (JK&C INC.) is pleased to offer employment under the terms and conditions stated in this Job Offer.</p>
+                                        <p class="mt-3">This Job Offer is confidential and subject to Company policies, procedures, memoranda, notices, resolutions, directives, lawful instructions, management prerogative, and applicable laws.</p>
+
+                                        <h2 class="mt-7 bg-blue-900 px-3 py-2 text-white text-[12px] font-black uppercase tracking-widest">Position Information</h2>
+                                        <table class="w-full border-collapse text-[11px]">
+                                            <tbody>
+                                                <template x-for="row in jobOfferPositionRows(viewJobOfferData)" :key="row.label">
+                                                    <tr>
+                                                        <td class="w-48 border border-slate-300 bg-slate-50 px-3 py-2 font-bold" x-text="row.label"></td>
+                                                        <td class="border border-slate-300 px-3 py-2" x-text="row.value || '—'"></td>
+                                                    </tr>
+                                                </template>
+                                            </tbody>
+                                        </table>
+
+                                        <h2 class="mt-7 text-[13px] font-black uppercase tracking-widest text-blue-900">Terms and Conditions</h2>
+                                        <div class="mt-3 space-y-3 text-[11px]">
+                                            <template x-for="term in jobOfferTerms()" :key="term.title">
+                                                <div>
+                                                    <p class="font-black" x-text="term.title"></p>
+                                                    <p class="mt-1 whitespace-pre-line" x-text="term.body"></p>
+                                                </div>
+                                            </template>
+                                        </div>
+
+                                        <h2 class="mt-7 text-[13px] font-black uppercase tracking-widest text-blue-900">Acceptance of Job Offer</h2>
+                                        <p class="mt-2 text-[11px]">By signing below, the Applicant acknowledges that this Job Offer has been read, understood, and accepted.</p>
+                                        <p class="mt-2 text-[11px]">Acceptance of this Job Offer also confirms agreement to comply with all Company policies, procedures, memoranda, notices, resolutions, directives, and lawful instructions.</p>
+                                        <p class="mt-2 text-[11px]">This Job Offer shall automatically expire if not accepted on or before <strong x-text="jobOfferDocumentDetails(viewJobOfferData).offerExpiryDate"></strong>, unless extended by the Company in writing.</p>
+
+                                        <div class="mt-12 grid grid-cols-2 gap-10 text-[11px]">
+                                            <div>
+                                                <p class="font-black uppercase tracking-widest text-center">For the Company</p>
+                                                <div class="mt-12 border-t border-slate-500 pt-2 text-center">
+                                                    <p class="font-bold">Authorized Representative</p>
+                                                    <p>President / Human Capital</p>
+                                                </div>
+                                                <p class="mt-6">Date: ______________________</p>
+                                            </div>
+                                            <div>
+                                                <p class="font-black uppercase tracking-widest text-center">Accepted By</p>
+                                                <div class="mt-12 border-t border-slate-500 pt-2 text-center">
+                                                    <p class="font-bold">Applicant Signature</p>
+                                                    <p x-text="jobOfferDocumentDetails(viewJobOfferData).applicantName"></p>
+                                                </div>
+                                                <p class="mt-6">Date: ______________________</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="space-y-8 bg-white rounded-2xl border border-slate-200 p-6 shadow-sm job-offer-view-side">
                                 <div class="space-y-1">
                                     <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Candidate Name</p>
                                     <p class="text-gray-900 font-bold text-lg" x-text="viewJobOfferData.name"></p>
                                 </div>
+
                                 <div class="space-y-1">
                                     <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Position</p>
                                     <p class="text-blue-600 font-bold text-lg" x-text="viewJobOfferData.position"></p>
                                 </div>
-                            </div>
 
-                            <div class="grid grid-cols-2 gap-8 pt-6 border-t border-gray-50 text-sm">
-                                <div class="space-y-1">
-                                    <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Salary</p>
-                                    <p class="text-gray-700 font-medium" x-text="viewJobOfferData.salary"></p>
+                                <div class="grid grid-cols-2 gap-5 pt-6 border-t border-gray-100 text-sm">
+                                    <div class="space-y-1">
+                                        <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Salary</p>
+                                        <p class="text-gray-700 font-medium" x-text="viewJobOfferData.salary"></p>
+                                    </div>
+                                    <div class="space-y-1">
+                                        <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Start Date</p>
+                                        <p class="text-gray-700 font-medium" x-text="viewJobOfferData.startDate || viewJobOfferData.start_date"></p>
+                                    </div>
                                 </div>
-                                <div class="space-y-1">
-                                    <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Start Date</p>
-                                    <p class="text-gray-700 font-medium" x-text="viewJobOfferData.startDate || viewJobOfferData.start_date"></p>
+
+                                <div class="grid grid-cols-2 gap-5 pt-6 border-t border-gray-100 text-sm">
+                                    <div class="space-y-1">
+                                        <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Employment Type</p>
+                                        <span class="px-2.5 py-1 bg-blue-50 text-blue-700 rounded-lg font-bold text-[11px] uppercase tracking-wider border border-blue-100 w-fit" x-text="viewJobOfferData.employment_type || viewJobOfferData.employmentType"></span>
+                                    </div>
+                                    <div class="space-y-1">
+                                        <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Department</p>
+                                        <p class="text-gray-700 font-medium" x-text="viewJobOfferData.department || 'N/A'"></p>
+                                    </div>
+                                </div>
+
+                                <div class="space-y-2 pt-6 border-t border-gray-100">
+                                    <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Benefits</p>
+                                    <div class="bg-gray-50/50 p-4 rounded-2xl border border-gray-100">
+                                        <p class="text-gray-600 text-[13px] leading-relaxed italic" x-text="viewJobOfferData.benefits || 'No benefits listed.'"></p>
+                                    </div>
+                                </div>
+
+                                <div class="pt-6 border-t border-gray-100 flex gap-3">
+                                    <button @click="showJobOfferViewModal = false" class="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl transition uppercase tracking-widest text-[11px]">
+                                        Close
+                                    </button>
+                                    <button type="button"
+                                        @click="resendJobOfferEmail(viewJobOfferData)"
+                                        class="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition shadow-lg shadow-blue-200 uppercase tracking-widest text-[11px]">
+                                        Send Job Offer
+                                    </button>
                                 </div>
                             </div>
-
-                            <div class="grid grid-cols-2 gap-8 pt-6 border-t border-gray-50 text-sm">
-                                <div class="space-y-1">
-                                    <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Employment Type</p>
-                                    <span class="px-2.5 py-1 bg-blue-50 text-blue-700 rounded-lg font-bold text-[11px] uppercase tracking-wider border border-blue-100 w-fit" x-text="viewJobOfferData.employment_type || viewJobOfferData.employmentType"></span>
-                                </div>
-                                <div class="space-y-1">
-                                    <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Department</p>
-                                    <p class="text-gray-700 font-medium" x-text="viewJobOfferData.department || 'N/A'"></p>
-                                </div>
-                            </div>
-
-                            <div class="space-y-2 pt-6 border-t border-gray-50">
-                                <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Benefits</p>
-                                <div class="bg-gray-50/50 p-4 rounded-2xl border border-gray-100">
-                                    <p class="text-gray-600 text-[13px] leading-relaxed italic" x-text="viewJobOfferData.benefits || 'No benefits listed.'"></p>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="px-8 py-6 border-t border-gray-100 flex gap-4 shrink-0">
-                            <button @click="showJobOfferViewModal = false" class="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl transition uppercase tracking-widest text-[11px]">
-                                Close
-                            </button>
-                            <button type="button"
-                                @click="resendJobOfferEmail(viewJobOfferData)"
-                                class="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition shadow-lg shadow-blue-200 uppercase tracking-widest text-[11px]">
-                                Send Job Offer
-                            </button>
                         </div>
                     </div>
                 </template>
@@ -4785,7 +5021,10 @@ refreshJobOffers() {
             jobPostingId: '',
             orgAddressId: '', orgBranchId: '', orgOfficeId: '', orgDepartmentId: '', orgDivisionId: '', orgUnitId: '', orgPositionId: '', salaryGradeId: '',
             name: '', position: '', salary: '', startDate: '',
-            employmentType: 'Probationary', department: '', companyAddress: '', benefits: ''
+            employmentType: 'Probationary', department: '', companyAddress: '', benefits: '',
+            applicantId: '', applicantAddress: '', jobId: '', division: '', unit: '',
+            jobLevelRank: '', workArrangement: '', workSchedule: '', salaryGrade: '',
+            branchOffice: '', immediateSupervisor: '', reportingTo: '', offerExpiryDate: ''
         },
 
         draggedItem: null,
@@ -5283,6 +5522,8 @@ onJpfPayrollLevelChange() {
             if (!interview) {
                 this.jobOfferForm.name = '';
                 this.jobOfferForm.position = '';
+                this.jobOfferForm.applicantId = '';
+                this.jobOfferForm.applicantAddress = '';
                 return;
             }
 
@@ -5296,6 +5537,7 @@ onJpfPayrollLevelChange() {
 
             this.jobOfferForm.name = interview.name || '';
             this.jobOfferForm.position = interview.position || this.jobOfferForm.position || '';
+            this.prefillJobOfferApplicantFromInterview(interview);
 
             const matchedPosition = this.positions.find(position =>
                 String(position.position_name || '').toLowerCase() === String(this.jobOfferForm.position || '').toLowerCase()
@@ -5303,6 +5545,14 @@ onJpfPayrollLevelChange() {
 
             if (matchedPosition && !this.jobOfferForm.orgPositionId) {
                 this.jobOfferForm.orgPositionId = String(matchedPosition.id);
+            }
+
+            const matchedJpf = this.validJobOfferJPFs.find(jpf =>
+                String(jpf.position || '').toLowerCase() === String(this.jobOfferForm.position || '').toLowerCase()
+            );
+            if (matchedJpf && !this.jobOfferForm.jobPostingId) {
+                this.jobOfferForm.jobPostingId = String(matchedJpf.id);
+                this.onJobOfferJpfChange();
             }
         },
 
@@ -5325,6 +5575,22 @@ onJpfPayrollLevelChange() {
             return this.departments.find(d => String(d.id) === String(this.jobOfferForm.orgDepartmentId)) || null;
         },
 
+        get selectedJobOfferBranch() {
+            return this.branches.find(b => String(b.id) === String(this.jobOfferForm.orgBranchId)) || null;
+        },
+
+        get selectedJobOfferOffice() {
+            return this.offices.find(o => String(o.id) === String(this.jobOfferForm.orgOfficeId)) || null;
+        },
+
+        get selectedJobOfferDivision() {
+            return this.divisions.find(d => String(d.id) === String(this.jobOfferForm.orgDivisionId)) || null;
+        },
+
+        get selectedJobOfferUnit() {
+            return this.units.find(u => String(u.id) === String(this.jobOfferForm.orgUnitId)) || null;
+        },
+
         get selectedJobOfferPosition() {
             return this.positions.find(p => String(p.id) === String(this.jobOfferForm.orgPositionId)) || null;
         },
@@ -5342,8 +5608,8 @@ onJpfPayrollLevelChange() {
 
             const status = String(jpf.status || '').toLowerCase();
 
-            if (!['posted', 'open'].includes(status)) {
-                alert('Only JPF records with status Posted/Open can be used for Job Offer.');
+            if (!['posted', 'screening', 'interviewing', 'offer stage'].includes(status)) {
+                alert('Only fully approved active JPF records can be used for Job Offer.');
                 this.jobOfferForm.jobPostingId = '';
                 return;
             }
@@ -5359,10 +5625,17 @@ onJpfPayrollLevelChange() {
             this.jobOfferForm.orgPositionId = toValue(jpf.position_id);
             this.jobOfferForm.salaryGradeId = toValue(jpf.salary_grade_id);
 
+            this.jobOfferForm.jobId = jpf.job_id || '';
             this.jobOfferForm.position = jpf.position || '';
             this.jobOfferForm.department = jpf.department_unit || jpf.departmentUnit || '';
             this.jobOfferForm.employmentType = jpf.employment_type || jpf.employmentType || this.jobOfferForm.employmentType;
             this.jobOfferForm.companyAddress = jpf.office_branch_site || jpf.officeBranchSite || jpf.location || jpf.workLocation || '';
+            this.jobOfferForm.jobLevelRank = jpf.position_level || jpf.positionLevel || '';
+            this.jobOfferForm.workArrangement = jpf.work_arrangement || jpf.workArrangement || '';
+            this.jobOfferForm.workSchedule = Array.isArray(jpf.work_schedule) ? jpf.work_schedule.join(', ') : (jpf.work_schedule || jpf.workSchedule || '');
+            this.jobOfferForm.immediateSupervisor = jpf.hiring_manager || jpf.hiringManager || jpf.reports_to || jpf.reportsTo || '';
+            this.jobOfferForm.reportingTo = jpf.reports_to || jpf.reportsTo || jpf.department_superior || jpf.departmentSuperior || '';
+            this.jobOfferForm.salaryGrade = jpf.salary_grade || jpf.salaryGrade || '';
 
             const minSalary = jpf.min_salary_offer || jpf.minSalary || '';
             const maxSalary = jpf.max_salary_offer || jpf.maxSalary || '';
@@ -5384,12 +5657,24 @@ onJpfPayrollLevelChange() {
                 this.jobOfferForm.department = department.department_name || '';
             }
 
+            const branch = this.selectedJobOfferBranch;
+            const office = this.selectedJobOfferOffice;
+            this.jobOfferForm.branchOffice = [branch?.branch_name, office?.office_name].filter(Boolean).join(' / ');
+
+            const division = this.selectedJobOfferDivision;
+            const unit = this.selectedJobOfferUnit;
+            this.jobOfferForm.division = division ? (division.division_name || '') : '';
+            this.jobOfferForm.unit = unit ? (unit.unit_name || '') : '';
+
             const position = this.selectedJobOfferPosition;
             if (position && !this.jobOfferForm.position) {
                 this.jobOfferForm.position = position.position_name || '';
             }
 
             const salaryGrade = this.selectedJobOfferSalaryGrade;
+            if (salaryGrade) {
+                this.jobOfferForm.salaryGrade = [salaryGrade.code, salaryGrade.name].filter(Boolean).join(' - ');
+            }
             if (salaryGrade && !this.jobOfferForm.salary) {
                 const monthly = Number(salaryGrade.monthly_basic_pay || 0);
                 this.jobOfferForm.salary = monthly > 0
@@ -5416,10 +5701,101 @@ onJpfPayrollLevelChange() {
         onJobOfferSalaryGradeChange() {
             const grade = this.selectedJobOfferSalaryGrade;
             if (!grade) return;
+            this.jobOfferForm.salaryGrade = [grade.code, grade.name].filter(Boolean).join(' - ');
             const monthly = Number(grade.monthly_basic_pay || 0);
             this.jobOfferForm.salary = monthly > 0
                 ? `₱ ${monthly.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                 : [grade.code, grade.name].filter(Boolean).join(' - ');
+        },
+
+        prefillJobOfferApplicantFromInterview(interview) {
+            const caf = this.data['CAF'].find(item =>
+                String(item.email || '').toLowerCase() === String(interview?.email || '').toLowerCase()
+                || (
+                    String(item.name || '').toLowerCase() === String(interview?.name || '').toLowerCase()
+                    && String(item.position || '').toLowerCase() === String(interview?.position || '').toLowerCase()
+                )
+            );
+
+            this.jobOfferForm.applicantId = caf?.applicant_id || '';
+            this.jobOfferForm.applicantAddress = this.parseCafPayload(caf?.application_data, {})?.currentAddress || '';
+        },
+
+        jobOfferDocumentDetails(source = null) {
+            const form = source || this.jobOfferForm || {};
+            const details = form.offer_details || {};
+
+            return {
+                offerDate: details.offerDate || this.formatDisplayDateTime(new Date()),
+                applicantName: form.name || details.applicantName || '',
+                applicantId: form.applicantId || details.applicantId || '',
+                applicantAddress: form.applicantAddress || details.applicantAddress || '',
+                position: form.position || details.position || '',
+                department: form.department || details.department || '',
+                division: form.division || details.division || '',
+                unit: form.unit || details.unit || '',
+                jobId: form.jobId || details.jobId || '',
+                employmentType: form.employmentType || form.employment_type || details.employmentType || '',
+                jobLevelRank: form.jobLevelRank || details.jobLevelRank || '',
+                workArrangement: form.workArrangement || details.workArrangement || '',
+                workSchedule: form.workSchedule || details.workSchedule || '',
+                startDate: form.startDate || form.start_date || details.startDate || '',
+                salaryGrade: form.salaryGrade || details.salaryGrade || '',
+                salary: form.salary || details.salary || '',
+                benefits: form.benefits || details.benefits || 'As required by law and/or Company policy',
+                companyAddress: form.companyAddress || form.company_address || details.companyAddress || '',
+                branchOffice: form.branchOffice || details.branchOffice || '',
+                immediateSupervisor: form.immediateSupervisor || details.immediateSupervisor || '',
+                reportingTo: form.reportingTo || details.reportingTo || '',
+                offerExpiryDate: form.offerExpiryDate || details.offerExpiryDate || '',
+            };
+        },
+
+        jobOfferPositionRows(source = null) {
+            const d = this.jobOfferDocumentDetails(source);
+            return [
+                ['Applicant Name', d.applicantName],
+                ['Applicant ID', d.applicantId],
+                ['Position / Title', d.position],
+                ['Department', d.department],
+                ['Division', d.division],
+                ['Unit', d.unit],
+                ['Job ID', d.jobId],
+                ['Employment Type', d.employmentType],
+                ['Job Level / Rank', d.jobLevelRank],
+                ['Work Arrangement', d.workArrangement],
+                ['Work Schedule', d.workSchedule],
+                ['Start Date', d.startDate],
+                ['Salary Grade', d.salaryGrade],
+                ['Salary', d.salary],
+                ['Benefits', d.benefits],
+                ['Company Address', d.companyAddress],
+                ['Branch / Office', d.branchOffice],
+                ['Immediate Supervisor', d.immediateSupervisor],
+                ['Reporting To', d.reportingTo],
+                ['Offer Expiry Date', d.offerExpiryDate],
+            ].map(([label, value]) => ({ label, value }));
+        },
+
+        jobOfferTerms() {
+            return [
+                { title: '1. Employment Particulars', body: 'The Employee’s position, employment type, start date, compensation, benefits, work arrangement, schedule, work location, reporting line, and other employment particulars shall be as stated in the Position Information above.\nAll employment particulars shall remain subject to Company policy, operational requirements, lawful management prerogative, and applicable law.' },
+                { title: '2. Duties and Assignment', body: 'The Employee shall perform the duties, functions, responsibilities, tasks, projects, and assignments required by the position and such other related duties as may be assigned by the Company.\nThe Company reserves the right to modify, expand, reduce, transfer, reassign, or restructure the Employee’s duties, responsibilities, reporting relationships, department, unit, branch, work location, schedule, or assignment based on operational requirements, business needs, client requirements, project requirements, emergencies, deadlines, or other legitimate business considerations.' },
+                { title: '3. Employment Status', body: 'The Employee’s employment status shall be as stated in the Position Information above.\nWhere applicable, regularization shall be subject to Company standards, performance requirements, Company policy, and applicable law. Nothing in this Job Offer shall be construed as a guarantee of regular employment or continued employment for any specific period.' },
+                { title: '4. Compensation and Benefits', body: 'The Employee shall receive only the compensation and benefits stated in the Position Information above, subject to lawful deductions, withholding taxes, government-mandated contributions, Company policy, and applicable law.\nBonuses, incentives, allowances, commissions, salary adjustments, profit sharing, and other additional compensation or benefits shall not be guaranteed unless expressly approved in writing by the Company.' },
+                { title: '5. Compliance with Company Issuances', body: 'The Employee shall comply with all Company policies, manuals, handbooks, memoranda, notices, resolutions, circulars, directives, codes of conduct, operating procedures, security requirements, compliance requirements, and lawful instructions issued by the Company, whether existing or later issued, amended, or implemented.\nViolation of Company policies or lawful instructions may result in disciplinary action in accordance with Company policy, due process, and applicable law.' },
+                { title: '6. Confidentiality, Intellectual Property, and Company Property', body: 'The Employee shall keep all Company, client, supplier, employee, contractor, financial, commercial, operational, legal, technical, and business information strictly confidential.\nAll work products, documents, reports, databases, systems, software, templates, manuals, presentations, designs, content, records, inventions, developments, concepts, processes, methodologies, intellectual property, and other outputs created, developed, prepared, accessed, received, or handled by the Employee in connection with employment shall belong exclusively to the Company to the fullest extent permitted by law.\nAll Company records, files, documents, equipment, devices, credentials, access rights, systems, materials, and property issued to or accessed by the Employee shall remain the property of the Company and shall be returned immediately upon demand or upon separation from employment.\nThe Employee shall not disclose, copy, use, transfer, retain, reproduce, publish, or distribute Company or client information except when authorized for official duties. These obligations shall continue after employment ends.' },
+                { title: '7. Privacy and Data Protection', body: 'The Employee shall comply with all Company privacy, data protection, information security, records management, cybersecurity, and confidentiality requirements.\nEmployee, client, Company, and third-party information shall be handled only for authorized business purposes and in accordance with applicable law and Company policy.' },
+                { title: '8. Management Prerogative', body: 'Nothing in this Job Offer shall limit the Company’s lawful management prerogative to manage, direct, organize, control, assign, transfer, supervise, discipline, evaluate, restructure, suspend, investigate, or otherwise administer its business operations and workforce consistent with applicable law.' },
+                { title: '9. Separation and Termination', body: 'Employment may be suspended, separated, terminated, or otherwise ended only in accordance with Company policy, due process, and applicable law.\nNothing in this Job Offer shall be interpreted as a guarantee of continued employment for any specific duration.' },
+                { title: '10. Superseding Clause', body: 'This Job Offer constitutes only the initial offer of employment.\nUpon execution of a formal Employment Contract, Employment Agreement, Probationary Employment Agreement, Regular Employment Agreement, or similar employment document, such document shall automatically supersede, replace, and govern over this Job Offer.\nIn case of conflict or inconsistency, the subsequently executed employment document shall prevail.' },
+            ];
+        },
+
+        formatDisplayDateTime(value) {
+            const date = value instanceof Date ? value : new Date(value);
+            if (isNaN(date.getTime())) return '';
+            return date.toLocaleString(undefined, { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' });
         },
 
         viewAssessment(item) {
@@ -6038,7 +6414,7 @@ onJpfPayrollLevelChange() {
     }
 
     if (!this.jobOfferForm.jobPostingId) {
-        alert('Please select a JPF with status Posted/Open before creating a Job Offer.');
+        alert('Please select a fully approved active JPF before creating a Job Offer.');
         return;
     }
 
@@ -6049,15 +6425,21 @@ onJpfPayrollLevelChange() {
 
     const status = String(this.selectedJobOfferJpf.status || '').toLowerCase();
 
-    if (!['posted', 'open'].includes(status)) {
-        alert('Only JPF records with status Posted/Open can be used for Job Offer.');
+    if (!['posted', 'screening', 'interviewing', 'offer stage'].includes(status)) {
+        alert('Only fully approved active JPF records can be used for Job Offer.');
         return;
     }
 
-    axios.post('{{ route("human-capital.recruitment.store_job_offer") }}', this.jobOfferForm)
+    const payload = {
+        ...this.jobOfferForm,
+        offerDetails: this.jobOfferDocumentDetails()
+    };
+
+    axios.post('{{ route("human-capital.recruitment.store_job_offer") }}', payload)
     .then(res => {
         this.data['Job Offer'].unshift(res.data.data);
         this.showJobOfferModal = false;
+        this.activeTab = 'Job Offer';
 
         if (res.data.warning) {
             alert(res.data.warning);
@@ -6091,11 +6473,13 @@ onJpfPayrollLevelChange() {
             }
 
             if (this.validJobOfferJPFs.length === 0) {
-                alert('No JPF with status Posted/Open is available. Please set a JPF status to Posted/Open first.');
+                alert('No fully approved active JPF is available. Complete JPF approvals and move it into the hiring flow first.');
                 return;
             }
 
             const selectedInterview = interviewData || this.validJobOfferInterviews[0] || null;
+            const expiry = new Date();
+            expiry.setDate(expiry.getDate() + 5);
 
             this.jobOfferForm = {
                 interviewId: selectedInterview ? (selectedInterview.id || '') : '',
@@ -6115,9 +6499,28 @@ onJpfPayrollLevelChange() {
                 employmentType: 'Probationary',
                 department: '',
                 companyAddress: '',
-                benefits: ''
+                benefits: 'As required by law and/or Company policy',
+                applicantId: '',
+                applicantAddress: '',
+                jobId: '',
+                division: '',
+                unit: '',
+                jobLevelRank: '',
+                workArrangement: '',
+                workSchedule: '',
+                salaryGrade: '',
+                branchOffice: '',
+                immediateSupervisor: '',
+                reportingTo: '',
+                offerExpiryDate: expiry.toISOString().slice(0, 10)
             };
 
+            if (selectedInterview) {
+                this.prefillJobOfferApplicantFromInterview(selectedInterview);
+                this.onJobOfferInterviewChange();
+            }
+
+            this.showInterviewViewModal = false;
             this.showJobOfferModal = true;
         },
 

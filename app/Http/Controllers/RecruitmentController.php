@@ -1520,6 +1520,7 @@ class RecruitmentController extends Controller
                 'department'       => $request->department ?: ($jpf->department_unit ?? $jpf->department ?? null),
                 'company_address'  => $request->companyAddress ?: $jpf->location,
                 'benefits'         => $request->benefits,
+                'offer_details'    => $request->input('offerDetails', []),
                 'accept_token'     => $this->generateJobOfferToken(),
                 'status'           => $request->status ?: 'Draft',
             ]);

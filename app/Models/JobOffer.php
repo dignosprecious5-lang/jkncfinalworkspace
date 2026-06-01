@@ -31,6 +31,7 @@ class JobOffer extends Model
         'department',
         'company_address',
         'benefits',
+        'offer_details',
         'status',
         'accepted_at',
         'declined_at',
@@ -39,6 +40,7 @@ class JobOffer extends Model
 
     protected $casts = [
         'start_date' => 'date',
+        'offer_details' => 'array',
         'accepted_at' => 'datetime',
         'declined_at' => 'datetime',
         'pds_sent_at' => 'datetime',
