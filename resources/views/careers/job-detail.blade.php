@@ -48,10 +48,25 @@
             height: 80px;
         }
 
+        .nav-brand {
+            display: inline-flex;
+            align-items: center;
+            gap: 16px;
+        }
+
         .logo img {
             height: 50px;
             width: auto;
             object-fit: contain;
+        }
+
+        .nav-title {
+            color: var(--brand);
+            font-size: 12px;
+            font-weight: 900;
+            letter-spacing: .16em;
+            text-transform: uppercase;
+            white-space: nowrap;
         }
 
         .outline-btn {
@@ -115,35 +130,6 @@
             border-bottom: 1px solid #e5e7eb;
             padding-bottom: 28px;
             margin-bottom: 30px;
-        }
-
-        .job-brand-row {
-            display: flex;
-            align-items: center;
-            gap: 16px;
-            margin-bottom: 18px;
-        }
-
-        .job-company-logo {
-            width: 176px;
-            height: 116px;
-            object-fit: contain;
-            object-position: left center;
-        }
-
-        .eyebrow {
-            color: var(--brand);
-            font-size: 11px;
-            font-weight: 900;
-            letter-spacing: .16em;
-            text-transform: uppercase;
-        }
-
-        .company-name {
-            margin-top: 3px;
-            color: #334155;
-            font-size: 14px;
-            font-weight: 800;
         }
 
         .job-title {
@@ -362,10 +348,12 @@
         @media (max-width: 640px) {
             .brand-text { display: none; }
             .nav { min-height: 64px; }
+            .nav-container { padding: 0 1rem; height: 68px; }
+            .nav-brand { gap: 10px; }
+            .nav-title { font-size: 10px; letter-spacing: .12em; }
+            .logo img { height: 42px; }
             .nav-actions a:first-child { display: none; }
             .page { width: calc(100% - 24px); }
-            .job-company-logo { width: 140px; height: 92px; }
-            .job-brand-row { align-items: flex-start; }
             .job-summary-grid { grid-template-columns: 1fr; }
             .info-grid { grid-template-columns: 1fr; }
             .info-row { grid-template-columns: 105px minmax(0, 1fr); }
@@ -434,10 +422,13 @@
 <!-- Navigation Bar -->
 <nav>
     <div class="nav-container">
-        <div class="logo">
-            <a href="{{ route('homepage.public') }}">
-                <img src="{{ asset('images/FINAL_LOGO.jpg') }}" onerror="this.src='{{ asset('images/imaglogo.png') }}'" alt="John Kelly &amp; Company Logo">
-            </a>
+        <div class="nav-brand">
+            <div class="logo">
+                <a href="{{ route('homepage.public') }}">
+                    <img src="{{ asset('images/FINAL_LOGO.jpg') }}" onerror="this.src='{{ asset('images/imaglogo.png') }}'" alt="John Kelly &amp; Company Logo">
+                </a>
+            </div>
+            <div class="nav-title">Career Opportunity</div>
         </div>
     </div>
 </nav>
@@ -455,14 +446,6 @@
         <section class="main-content">
 
             <div class="job-hero">
-                <div class="job-brand-row">
-                    <img src="{{ asset('images/FINAL_LOGO.jpg') }}" onerror="this.src='{{ asset('images/imaglogo.png') }}'" alt="John Kelly &amp; Company" class="job-company-logo">
-                    <div>
-                        <div class="eyebrow">Career Opportunity</div>
-                        <div class="company-name">John Kelly &amp; Company</div>
-                    </div>
-                </div>
-
                 <h1 class="job-title">{{ $title }}</h1>
 
                 <div class="badges">
