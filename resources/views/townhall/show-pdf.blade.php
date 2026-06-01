@@ -46,7 +46,7 @@
         }
 
         .logo {
-            width: 36mm;
+            width: 34mm;
             height: auto;
             display: block;
             margin-top: 1mm;
@@ -79,7 +79,7 @@
 
         .divider {
             border-bottom: 1px solid #666;
-            margin-top: 3mm;
+            margin-top: 2mm;
             margin-bottom: 5mm;
         }
 
@@ -165,8 +165,8 @@
 
         .acknowledgement-section {
             page-break-inside: auto;
-            margin-top: 7mm;
-            padding: 4mm 5mm;
+            margin-top: 5mm;
+            padding: 3mm 5mm;
             border: 1px solid #999;
             font-size: 12.5px;
             line-height: 1.22;
@@ -184,8 +184,8 @@
 
         .acknowledgement-entry {
             page-break-inside: avoid;
-            margin-top: 3mm;
-            padding-top: 3mm;
+            margin-top: 2mm;
+            padding-top: 2mm;
             border-top: 1px solid #cccccc;
         }
 
@@ -231,15 +231,39 @@
             public_path('images/jk-logo.png'),
             public_path('images/jk-logo.jpg'),
             public_path('images/jk-logo.jpeg'),
+            public_path('images/jk-logo.webp'),
+            public_path('images/jk_logo.png'),
+            public_path('images/jk_logo.jpg'),
+            public_path('images/jk-logo-final.png'),
+            public_path('images/john-kelly-logo.png'),
+            public_path('images/john-kelly-logo.jpg'),
             public_path('images/logo.png'),
             public_path('images/logo.jpg'),
+            public_path('images/logo.jpeg'),
             public_path('storage/images/jk-logo.png'),
+            public_path('storage/images/logo.png'),
         ];
+
+        foreach ([
+            public_path('images'),
+            public_path('storage/images'),
+            storage_path('app/public/images'),
+        ] as $logoDirectory) {
+            if (is_dir($logoDirectory)) {
+                foreach (glob($logoDirectory . '/*.{png,jpg,jpeg,webp}', GLOB_BRACE) ?: [] as $logoFile) {
+                    $name = strtolower(basename($logoFile));
+
+                    if (str_contains($name, 'logo') || str_contains($name, 'john') || str_contains($name, 'kelly') || str_contains($name, 'jk')) {
+                        $logoCandidates[] = $logoFile;
+                    }
+                }
+            }
+        }
 
         $logoDataUri = null;
 
-        foreach ($logoCandidates as $candidate) {
-            if ($candidate && file_exists($candidate)) {
+        foreach (array_unique($logoCandidates) as $candidate) {
+            if ($candidate && file_exists($candidate) && is_readable($candidate)) {
                 $extension = strtolower(pathinfo($candidate, PATHINFO_EXTENSION));
                 $mime = match ($extension) {
                     'jpg', 'jpeg' => 'image/jpeg',
@@ -305,7 +329,7 @@
                         @if($logoDataUri)
                             <img src="{{ $logoDataUri }}" alt="" class="logo">
                         @else
-                            <div style="width:36mm;height:18mm;border:1px solid #ddd;text-align:center;font-size:10px;line-height:18mm;color:#888;">JK&amp;C</div>
+                            <div style="width:34mm;height:16mm;text-align:center;font-size:12px;line-height:16mm;color:#111;font-weight:bold;">John Kelly &amp; Company</div>
                         @endif
                     </td>
                     <td class="partners">
@@ -418,11 +442,7 @@
                     @else
                         <p><strong>Status:</strong> Pending acknowledgment</p>
                     @endif
-
-                    <p style="margin-top: 3mm; font-weight: bold;">
-                        This is a computer-generated document. Signature is not required.
-                    </p>
-                </div>
+</div>
             @endif
         </div>
     </div>
