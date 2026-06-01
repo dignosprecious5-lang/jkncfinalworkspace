@@ -1125,7 +1125,7 @@ class TownHallController extends Controller
         */
         $canvas->page_text(
             82,
-            772,
+            762,
             'Page {PAGE_NUM} of ' . $pageCount . '   |   Document Reference Number: ' . $refNo . '   |   Date Generated: ' . $footerDate,
             $font,
             8,
