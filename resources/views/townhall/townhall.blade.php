@@ -589,7 +589,7 @@
                 <div>
                     <h2 class="text-base font-semibold text-slate-900">Announcements & Memorandums</h2>
                     <p class="mt-1 text-sm text-slate-500">
-                        Browse official company communications intended for you and your group.
+                        Browse posted official company communications intended for you and your group.
                     </p>
                 </div>
 
@@ -685,10 +685,22 @@
 
                                     <div class="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
                                         <div class="rounded-lg bg-slate-50 px-3 py-2">
-                                            <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Date</p>
+                                            <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Posted Date</p>
                                             <p class="mt-1 text-sm font-medium text-slate-800">
-                                                {{ $censored ? '***' : ($communication->communication_date ? \Carbon\Carbon::parse($communication->communication_date)->format('M d, Y') : '—') }}
+                                                @if($censored)
+                                                    ***
+                                                @elseif($communication->posted_at)
+                                                    {{ \Carbon\Carbon::parse($communication->posted_at)->format('M d, Y') }}
+                                                @else
+                                                    —
+                                                @endif
                                             </p>
+
+                                            @if(!$censored && $communication->posted_at)
+                                                <p class="mt-0.5 text-xs text-slate-400">
+                                                    {{ \Carbon\Carbon::parse($communication->posted_at)->format('h:i A') }}
+                                                </p>
+                                            @endif
                                         </div>
 
                                         <div class="rounded-lg bg-slate-50 px-3 py-2">

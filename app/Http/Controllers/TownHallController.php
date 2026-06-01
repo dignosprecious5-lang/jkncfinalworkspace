@@ -34,11 +34,19 @@ class TownHallController extends Controller
         $query = TownHallCommunication::with('recipientUser')
             ->where('approval_status', 'Approved');
 
+        if (Schema::hasColumn('townhall_communications', 'workflow_status')) {
+            $query->where('workflow_status', 'Posted');
+        }
+
+        if (Schema::hasColumn('townhall_communications', 'posted_at')) {
+            $query->whereNotNull('posted_at');
+        }
+
         if (Schema::hasColumn('townhall_communications', 'is_archived')) {
             $query->where('is_archived', false);
         }
 
-        // All approved active memos appear in the Town Hall list.
+        // Only posted active memos appear in the Town Hall list.
         // Memos not intended for the current user are censored in the Blade table.
         // Direct opening is still protected in show() through canUserViewCommunication().
 
@@ -46,7 +54,13 @@ class TownHallController extends Controller
             $query->where('department_stakeholder', $request->department);
         }
 
-        $communications = $query->latest()->paginate(10);
+        if (Schema::hasColumn('townhall_communications', 'posted_at')) {
+            $query->orderByDesc('posted_at');
+        } else {
+            $query->latest();
+        }
+
+        $communications = $query->paginate(10);
         $todayAttendance = app(AttendanceController::class)->currentClockAttendance(Auth::user());
 
         $departmentQuery = TownHallCommunication::query();
