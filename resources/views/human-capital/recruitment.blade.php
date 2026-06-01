@@ -1219,6 +1219,42 @@
                                 <p class="mt-1 whitespace-pre-wrap min-h-[2.5rem]" x-text="form.qualifications || ''"></p>
                             </div>
 
+                            {{-- Expanded Recruitment Details --}}
+                            <div class="bg-gray-100 text-center font-bold py-1 text-[11px] uppercase tracking-widest border-b border-gray-400">
+                                Recruitment Details
+                            </div>
+                            <div class="grid grid-cols-3 border-b border-gray-400 divide-x divide-gray-400">
+                                <div class="p-2"><span class="text-gray-500">MRF Reference No.:</span><p class="font-semibold mt-0.5 min-h-[1rem]" x-text="form.requestId || 'Auto-generated'"></p></div>
+                                <div class="p-2"><span class="text-gray-500">Immediate Supervisor:</span><p class="font-semibold mt-0.5 min-h-[1rem]" x-text="valueWithOther(form.immediateSupervisor, form.immediateSupervisorOther) || ''"></p></div>
+                                <div class="p-2"><span class="text-gray-500">Target Start Date:</span><p class="font-semibold mt-0.5 min-h-[1rem]" x-text="form.targetStartDate || ''"></p></div>
+                                <div class="p-2 border-t border-gray-400"><span class="text-gray-500">Job Level / Rank:</span><p class="font-semibold mt-0.5 min-h-[1rem]" x-text="valueWithOther(form.jobLevelRank, form.jobLevelRankOther) || ''"></p></div>
+                                <div class="p-2 border-t border-gray-400"><span class="text-gray-500">Work Classification:</span><p class="font-semibold mt-0.5 min-h-[1rem]" x-text="valueWithOther(form.workClassification, form.workClassificationOther) || ''"></p></div>
+                                <div class="p-2 border-t border-gray-400"><span class="text-gray-500">Work Arrangement:</span><p class="font-semibold mt-0.5 min-h-[1rem]" x-text="valueWithOther(form.workArrangement, form.workArrangementOther) || ''"></p></div>
+                            </div>
+                            <div class="grid grid-cols-3 border-b border-gray-400 divide-x divide-gray-400">
+                                <div class="p-2"><span class="text-gray-500">Work Schedule:</span><p class="font-semibold mt-0.5 min-h-[1rem]" x-text="form.workSchedule === 'Custom Schedule' ? ('Custom Schedule: ' + (form.workScheduleOther || '')) : (valueWithOther(form.workSchedule, form.workScheduleOther) || '')"></p></div>
+                                <div class="p-2"><span class="text-gray-500">Contract Duration:</span><p class="font-semibold mt-0.5 min-h-[1rem]" x-text="valueWithOther(form.contractDuration, form.contractDurationOther) || ''"></p></div>
+                                <div class="p-2"><span class="text-gray-500">Urgency Level:</span><p class="font-semibold mt-0.5 min-h-[1rem]" x-text="valueWithOther(form.urgencyLevel, form.urgencyLevelOther) || ''"></p></div>
+                            </div>
+                            <div class="grid grid-cols-2 border-b border-gray-400 divide-x divide-gray-400">
+                                <div class="p-2"><span class="text-gray-500">Compensation / Salary Budget Range:</span><p class="font-semibold mt-0.5 min-h-[1rem]" x-text="[form.salaryMin, form.salaryMax].filter(Boolean).join(' - ')"></p></div>
+                                <div class="p-2"><span class="text-gray-500">Attachments:</span><p class="font-semibold mt-0.5 min-h-[1rem]" x-text="[(form.candidateProfileAttached ? 'Candidate Profile Attached' : ''), (form.jobDescriptionAttached ? 'Job Description Attached' : '')].filter(Boolean).join(' / ')"></p></div>
+                            </div>
+                            <div class="grid grid-cols-2 border-b border-gray-400 divide-x divide-gray-400">
+                                <div class="p-2"><span class="text-gray-500">Required Skills / Competencies:</span><p class="mt-1 whitespace-pre-wrap min-h-[2.5rem]" x-text="normalizeBulletText(form.requiredSkills) || ''"></p></div>
+                                <div class="p-2"><span class="text-gray-500">Required Licenses / Certifications:</span><p class="mt-1 whitespace-pre-wrap min-h-[2.5rem]" x-text="normalizeBulletText(form.requiredLicenses) || ''"></p></div>
+                            </div>
+                            <div class="grid grid-cols-2 border-b border-gray-400 divide-x divide-gray-400">
+                                <div class="p-2"><span class="text-gray-500">Benefits Checklist:</span><p class="mt-1 whitespace-pre-wrap min-h-[2.5rem]" x-text="mrfArrayDisplay(selectionWithOther(form.benefitsChecklist, form.benefitsChecklistOther))"></p></div>
+                                <div class="p-2"><span class="text-gray-500">Required Applicant Documents:</span><p class="mt-1 whitespace-pre-wrap min-h-[2.5rem]" x-text="mrfArrayDisplay(selectionWithOther(form.requiredDocuments, form.requiredDocumentsOther))"></p></div>
+                            </div>
+                            <div class="grid grid-cols-4 border-b border-gray-400 divide-x divide-gray-400">
+                                <div class="p-2"><span class="text-gray-500">Immediate Supervisor Endorsement:</span><p class="font-semibold mt-0.5 min-h-[1rem]" x-text="valueWithOther(form.immediateSupervisorEndorsement, form.immediateSupervisorEndorsementOther) || ''"></p></div>
+                                <div class="p-2"><span class="text-gray-500">Department Head Endorsement:</span><p class="font-semibold mt-0.5 min-h-[1rem]" x-text="valueWithOther(form.departmentHeadEndorsement, form.departmentHeadEndorsementOther) || ''"></p></div>
+                                <div class="p-2"><span class="text-gray-500">HC Head Validation:</span><p class="font-semibold mt-0.5 min-h-[1rem]" x-text="valueWithOther(form.hcHeadValidation, form.hcHeadValidationOther) || ''"></p></div>
+                                <div class="p-2"><span class="text-gray-500">Finance Head Clearance:</span><p class="font-semibold mt-0.5 min-h-[1rem]" x-text="valueWithOther(form.financeHeadClearance, form.financeHeadClearanceOther) || ''"></p></div>
+                            </div>
+
                             {{-- APPROVALS header --}}
                             <div class="bg-blue-700 text-white text-center font-bold py-1.5 text-xs tracking-widest uppercase border-b border-gray-400">
                                 Approvals
@@ -1372,6 +1408,54 @@
                     <div class="border-b border-gray-300 p-3">
                         <span class="text-xs text-gray-500">Preferred Qualifications / Experience:</span>
                         <p class="mt-1 whitespace-pre-wrap" x-text="viewData.qualifications || '—'"></p>
+                    </div>
+                    <div class="bg-gray-100 text-center text-xs font-bold py-1.5 tracking-widest uppercase text-gray-700 border-b border-gray-300">Recruitment Details</div>
+                    <div class="grid grid-cols-3 border-b border-gray-300 divide-x divide-gray-300">
+                        <div class="p-3"><span class="text-xs text-gray-500">MRF Reference No.:</span><p class="font-medium mt-1" x-text="mrfDisplay(viewData, 'request_id')"></p></div>
+                        <div class="p-3"><span class="text-xs text-gray-500">Immediate Supervisor:</span><p class="font-medium mt-1" x-text="mrfDisplay(viewData, 'immediate_supervisor')"></p></div>
+                        <div class="p-3"><span class="text-xs text-gray-500">Target Start Date:</span><p class="font-medium mt-1" x-text="mrfDisplay(viewData, 'target_start_date')"></p></div>
+                        <div class="p-3 border-t border-gray-300"><span class="text-xs text-gray-500">Job Level / Rank:</span><p class="font-medium mt-1" x-text="mrfDisplay(viewData, 'job_level_rank')"></p></div>
+                        <div class="p-3 border-t border-gray-300"><span class="text-xs text-gray-500">Work Classification:</span><p class="font-medium mt-1" x-text="mrfDisplay(viewData, 'work_classification')"></p></div>
+                        <div class="p-3 border-t border-gray-300"><span class="text-xs text-gray-500">Work Arrangement:</span><p class="font-medium mt-1" x-text="mrfDisplay(viewData, 'work_arrangement')"></p></div>
+                    </div>
+                    <div class="grid grid-cols-3 border-b border-gray-300 divide-x divide-gray-300">
+                        <div class="p-3"><span class="text-xs text-gray-500">Work Schedule:</span><p class="font-medium mt-1" x-text="mrfDisplay(viewData, 'work_schedule')"></p></div>
+                        <div class="p-3"><span class="text-xs text-gray-500">Contract Duration:</span><p class="font-medium mt-1" x-text="mrfDisplay(viewData, 'contract_duration')"></p></div>
+                        <div class="p-3"><span class="text-xs text-gray-500">Urgency Level:</span><p class="font-medium mt-1" x-text="mrfDisplay(viewData, 'urgency_level')"></p></div>
+                    </div>
+                    <div class="grid grid-cols-2 border-b border-gray-300 divide-x divide-gray-300">
+                        <div class="p-3"><span class="text-xs text-gray-500">Compensation / Salary Budget Range:</span><p class="font-medium mt-1" x-text="[viewData.salary_min, viewData.salary_max].filter(Boolean).join(' - ') || '-'"></p></div>
+                        <div class="p-3"><span class="text-xs text-gray-500">Attachments:</span><p class="font-medium mt-1" x-text="[(viewData.candidate_profile_attached ? 'Candidate Profile Attached' : ''), (viewData.job_description_attached ? 'Job Description Attached' : '')].filter(Boolean).join(' / ') || '-'"></p></div>
+                    </div>
+                    <div class="grid grid-cols-2 border-b border-gray-300 divide-x divide-gray-300">
+                        <div class="p-3"><span class="text-xs text-gray-500">Required Skills / Competencies:</span><p class="mt-1 whitespace-pre-wrap" x-text="mrfDisplay(viewData, 'required_skills')"></p></div>
+                        <div class="p-3"><span class="text-xs text-gray-500">Required Licenses / Certifications:</span><p class="mt-1 whitespace-pre-wrap" x-text="mrfDisplay(viewData, 'required_licenses')"></p></div>
+                    </div>
+                    <div class="grid grid-cols-2 border-b border-gray-300 divide-x divide-gray-300">
+                        <div class="p-3"><span class="text-xs text-gray-500">Benefits Checklist:</span><p class="mt-1 whitespace-pre-wrap" x-text="mrfArrayDisplay(viewData.benefits_checklist)"></p></div>
+                        <div class="p-3"><span class="text-xs text-gray-500">Required Applicant Documents:</span><p class="mt-1 whitespace-pre-wrap" x-text="mrfArrayDisplay(viewData.required_documents)"></p></div>
+                    </div>
+                    <div class="grid grid-cols-4 border-b border-gray-300 divide-x divide-gray-300">
+                        <div class="p-3"><span class="text-xs text-gray-500">Immediate Supervisor Endorsement:</span><p class="font-medium mt-1" x-text="mrfEndorsement(viewData, 'immediate_supervisor')"></p></div>
+                        <div class="p-3"><span class="text-xs text-gray-500">Department Head Endorsement:</span><p class="font-medium mt-1" x-text="mrfEndorsement(viewData, 'department_head')"></p></div>
+                        <div class="p-3"><span class="text-xs text-gray-500">HC Head Validation:</span><p class="font-medium mt-1" x-text="mrfEndorsement(viewData, 'hc_head')"></p></div>
+                        <div class="p-3"><span class="text-xs text-gray-500">Finance Head Clearance:</span><p class="font-medium mt-1" x-text="mrfEndorsement(viewData, 'finance_head')"></p></div>
+                    </div>
+                    <div class="grid grid-cols-2 border-b border-gray-300 divide-x divide-gray-300">
+                        <div class="p-3">
+                            <span class="text-xs text-gray-500">Candidate Profile File:</span>
+                            <template x-if="mrfAttachmentUrl(viewData, 'candidate_profile_path')">
+                                <a :href="mrfAttachmentUrl(viewData, 'candidate_profile_path')" target="_blank" class="block mt-1 text-blue-600 font-semibold">Open attached file</a>
+                            </template>
+                            <p x-show="!mrfAttachmentUrl(viewData, 'candidate_profile_path')" class="font-medium mt-1">-</p>
+                        </div>
+                        <div class="p-3">
+                            <span class="text-xs text-gray-500">Job Description File:</span>
+                            <template x-if="mrfAttachmentUrl(viewData, 'job_description_path')">
+                                <a :href="mrfAttachmentUrl(viewData, 'job_description_path')" target="_blank" class="block mt-1 text-blue-600 font-semibold">Open attached file</a>
+                            </template>
+                            <p x-show="!mrfAttachmentUrl(viewData, 'job_description_path')" class="font-medium mt-1">-</p>
+                        </div>
                     </div>
                     <div class="bg-blue-700 text-white text-center text-xs font-bold py-1.5 tracking-widest uppercase">Approvals</div>
                     <div class="grid grid-cols-2 border-b border-gray-300 divide-x divide-gray-300">
@@ -1604,6 +1688,32 @@
                                 <div class="col-span-2">
                                     <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Work Location</label>
                                     <input type="text" x-model="jpfForm.workLocation" class="w-full text-sm px-3 py-2 border border-gray-300 rounded-lg outline-none">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div x-show="selectedJpfMrf" class="space-y-4 border border-blue-100 bg-blue-50/40 rounded-xl p-4">
+                            <h3 class="text-xs font-black text-blue-700 uppercase tracking-[0.2em] border-b border-blue-100 pb-2">Linked MRF Recruitment Details</h3>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Work Classification</label>
+                                    <input type="text" :value="selectedJpfMrf?.work_classification || ''" readonly class="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg bg-white text-gray-700 outline-none">
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Work Arrangement</label>
+                                    <input type="text" :value="selectedJpfMrf?.work_arrangement || ''" readonly class="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg bg-white text-gray-700 outline-none">
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Contract Duration</label>
+                                    <input type="text" :value="selectedJpfMrf?.contract_duration || ''" readonly class="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg bg-white text-gray-700 outline-none">
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Urgency Level</label>
+                                    <input type="text" :value="selectedJpfMrf?.urgency_level || ''" readonly class="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg bg-white text-gray-700 outline-none">
+                                </div>
+                                <div class="col-span-2">
+                                    <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Required Applicant Documents</label>
+                                    <textarea :value="mrfArrayDisplay(selectedJpfMrf?.required_documents)" readonly rows="4" class="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg bg-white text-gray-700 outline-none resize-none"></textarea>
                                 </div>
                             </div>
                         </div>
@@ -6003,6 +6113,37 @@ onJpfPayrollLevelChange() {
             const list = this[collection] || [];
             const item = list.find(record => String(record.id) === String(id));
             return item && item[field] ? item[field] : fallback;
+        },
+
+        mrfDisplay(row, key, fallback = '-') {
+            if (!row) return fallback;
+            const value = row[key];
+            return value === null || value === undefined || value === '' ? fallback : value;
+        },
+
+        mrfArrayDisplay(value) {
+            if (!value) return '-';
+            let items = value;
+            if (typeof items === 'string') {
+                try {
+                    items = JSON.parse(items);
+                } catch (e) {
+                    items = items.split(/\r?\n/);
+                }
+            }
+            if (!Array.isArray(items)) return String(items);
+            const cleaned = items.map(item => String(item || '').trim()).filter(Boolean);
+            return cleaned.length ? cleaned.map(item => `• ${item}`).join('\n') : '-';
+        },
+
+        mrfEndorsement(row, key) {
+            const endorsements = row?.endorsements || {};
+            return endorsements[key] || '-';
+        },
+
+        mrfAttachmentUrl(row, key) {
+            const path = row?.[key] || '';
+            return path ? `/storage/${path}` : '';
         },
 
         editMRF(row) {

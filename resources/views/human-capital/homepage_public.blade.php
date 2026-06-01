@@ -534,7 +534,7 @@
     <section id="why-join">
         <div class="container">
             <div class="section-header">
-                <h2 class="section-title">Why Join JKNC?</h2>
+                <h2 class="section-title">Why Join John Kelly & Company?</h2>
                 <div class="divider"></div>
             </div>
 
@@ -613,7 +613,7 @@
 
             <div class="footer-divider">
                 <div class="footer-bottom">
-                    <p>&copy; {{ date('Y') }} John Kelly & Company (JKNC). All rights reserved. | Careers Portal</p>
+                    <p>&copy; {{ date('Y') }} John Kelly & Company (JK&C). All rights reserved. | Careers Portal</p>
                 </div>
             </div>
         </div>
