@@ -90,8 +90,22 @@
     }
     $presentHeading = $attendanceBaseLabel . ' Present';
     $absentHeading = $attendanceBaseLabel . ' Absent';
-    $jkCompanyName = 'JOHN KELLY & COMPANY';
-    $jkCompanyAddress = '3F, Cebu Holdings Center, Cebu Business Park, Cebu City, Philippines 6000';
+    $jkCompanyName = strtoupper((data_get($corporateContext ?? [], 'company_name') ?: data_get($corporateContext ?? [], 'companyName')) ?: 'JOHN KELLY & COMPANY');
+    $jkCompanyAddress = (data_get($corporateContext ?? [], 'company_address') ?: data_get($corporateContext ?? [], 'companyAddress')) ?: '3F, Cebu Holdings Center, Cebu Business Park, Cebu City, Philippines 6000';
+
+    $gisLogoPath = (data_get($corporateContext ?? [], 'logo_path') ?: data_get($corporateContext ?? [], 'logoPath'));
+    $gisLogoUrl = null;
+    $gisLogoDataUri = null;
+    if ($gisLogoPath) {
+        $normalizedLogoPath = preg_replace('#^/?storage/#', '', (string) $gisLogoPath);
+        try { $gisLogoUrl = route('uploads.show', ['path' => $normalizedLogoPath]); } catch (\Throwable $e) { $gisLogoUrl = asset('storage/' . $normalizedLogoPath); }
+        $absoluteLogoPath = storage_path('app/public/' . $normalizedLogoPath);
+        if (is_file($absoluteLogoPath)) {
+            $mime = function_exists('mime_content_type') ? (mime_content_type($absoluteLogoPath) ?: 'image/png') : 'image/png';
+            $gisLogoDataUri = 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($absoluteLogoPath));
+        }
+    }
+
     $meetingTitleLine = trim(($minute->type_of_meeting ?: 'Regular') . ' ' . ($minute->governing_body ?: 'Board of Directors') . ' Meeting');
     $meetingDateLine = optional($minute->date_of_meeting)->format('F d, Y') ?: '________________';
     $meetingTimeLine = $minute->time_started ? \Carbon\Carbon::parse($minute->time_started)->format('g:i A') : '________________';
@@ -388,8 +402,11 @@
                                     style="font-family: Georgia, 'Times New Roman', serif; padding: 56px 64px;"
                                 >
                                     <div class="text-center">
-                                        <div class="text-[44px] leading-none font-semibold" style="font-family: Georgia, 'Times New Roman', serif;">John Kelly</div>
-                                        <div class="text-[40px] leading-none font-semibold" style="font-family: Georgia, 'Times New Roman', serif;"><span style="color:#2563eb;">&amp;</span> Company</div>
+                                        @if($gisLogoUrl)
+                                            <img src="{{ $gisLogoUrl }}" alt="Company Logo" class="mx-auto mb-2 h-16 w-auto object-contain">
+                                        @else
+                                            <div class="text-[32px] leading-tight font-semibold uppercase" style="font-family: Georgia, 'Times New Roman', serif;">{{ $jkCompanyName }}</div>
+                                        @endif
                                         <div class="mt-4 text-[15px]">{{ $jkCompanyAddress }}</div>
 
                                         <div class="mt-8 text-[18px] font-bold uppercase">MINUTES OF THE</div>
@@ -527,8 +544,13 @@
                         {{-- RIGHT SIDE: BODY BUILDER --}}
                         <div class="minutes-builder-sticky min-w-0 rounded-2xl border border-gray-200 bg-white overflow-hidden self-start">
                             <div class="px-4 py-3 border-b border-gray-100 bg-gray-50">
-                                <div class="text-sm font-semibold text-gray-900">Minutes Body Builder</div>
-                                <div class="mt-1 text-xs text-gray-500">Write the minutes here with formatting tools. The template and final preview use this exact content.</div>
+                                <div class="flex items-start justify-between gap-3">
+                                    <div>
+                                        <div class="text-sm font-semibold text-gray-900">Minutes Body Builder</div>
+                                        <div class="mt-1 text-xs text-gray-500">Write the minutes here with formatting tools. The template and final preview use this exact content.</div>
+                                    </div>
+                                    <button id="minutes-save-body" type="button" class="shrink-0 rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700">Save Changes</button>
+                                </div>
                             </div>
 
                             <div class="flex flex-wrap items-center gap-2 border-b border-gray-100 px-4 py-3 bg-white">
@@ -898,6 +920,7 @@
         const saveScriptButton = document.getElementById('minutes-save-script');
         const removeScriptButton = document.getElementById('minutes-remove-script');
         const finalSaveButton = document.getElementById('minutes-final-save');
+        const bodySaveButton = document.getElementById('minutes-save-body');
         const finalVideoPlayer = document.getElementById('final-video-player');
         const finalVideoEmpty = document.getElementById('final-video-empty');
         const finalVideoBadge = document.getElementById('final-video-badge');
@@ -1929,6 +1952,25 @@
 
         if (editor) {
             editor.addEventListener('input', queueDraftSave);
+        }
+
+        if (templateEditor) {
+            templateEditor.addEventListener('input', queueDraftSave);
+        }
+
+        if (bodySaveButton) {
+            bodySaveButton.addEventListener('click', async () => {
+                try {
+                    syncFinalNotes(activeMinutesEditor === templateEditor ? 'template' : 'builder');
+                    setSaveStatus('Saving minutes body to server...', 'blue');
+                    const payload = await persistWorkspaceFiles({ includeNotes: true, includeScriptText: true });
+                    applyWorkspaceResponse(payload);
+                    await saveTentativeDraft('manual');
+                    setSaveStatus('Minutes body saved. Download PDF is now updated.', 'emerald');
+                } catch (error) {
+                    setSaveStatus(error?.message || 'Could not save minutes body', 'red');
+                }
+            });
         }
 
         if (scriptEditor) {

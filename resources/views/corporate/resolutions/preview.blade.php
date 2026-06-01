@@ -27,6 +27,8 @@
     $approvalRows = collect($document['approval_rows'] ?? []);
     $documentChairman = $document['chairman'] ?? null;
     $clauseText = trim((string) $resolution->resolution_body);
+    $standardResolutionClauses = trim((string) ($document['standard_resolution_clauses'] ?? ''));
+    $fullResolutionBody = trim((string) ($document['full_resolution_body'] ?? $resolution->resolution_body));
     $companyName = $document['company_name'] ?? config('app.name', 'JK&C INC.');
     $companyRegNo = $document['company_reg_no'] ?? '2025120230900-02';
     $companyAddress = $document['company_address'] ?? '3RD FLOOR, UNIT 305 CEBU HOLDINGS CENTER CARDINAL ROSALES AVE., CEBU BUSINESS PARK HIPPODROMO, CEBU CITY, 6000';
@@ -39,6 +41,89 @@
     $certifyingBody = $document['certifying_body'] ?? ($resolution->governing_body ?: 'Board of Directors');
     $resolutionNumberLabel = $document['resolution_label'] ?? 'Board Resolution No.';
     $meetingTypeText = $resolution->type_of_meeting ?: 'Regular';
+
+    $gisLogoPath = data_get($document ?? [], 'logo_path');
+    $gisLogoUrl = null;
+    $gisLogoDataUri = null;
+    if ($gisLogoPath) {
+        $normalizedLogoPath = preg_replace('#^/?storage/#', '', (string) $gisLogoPath);
+        try { $gisLogoUrl = route('uploads.show', ['path' => $normalizedLogoPath]); } catch (\Throwable $e) { $gisLogoUrl = asset('storage/' . $normalizedLogoPath); }
+        $absoluteLogoPath = storage_path('app/public/' . $normalizedLogoPath);
+        if (is_file($absoluteLogoPath)) {
+            $mime = function_exists('mime_content_type') ? (mime_content_type($absoluteLogoPath) ?: 'image/png') : 'image/png';
+            $gisLogoDataUri = 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($absoluteLogoPath));
+        }
+    }
+
+    $formatResolutionBodyForDisplay = function ($body) {
+        $text = html_entity_decode((string) $body, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $text = preg_replace('#<br\s*/?>#i', "\n", $text);
+        $text = strip_tags($text);
+        $text = str_replace(["\r\n", "\r"], "\n", $text);
+        $text = preg_replace('/[ \t]+/', ' ', $text);
+        $text = trim($text);
+
+        if ($text === '') {
+            return '';
+        }
+
+        // Some saved certificate bodies came from a textarea and became one long
+        // paragraph. Force the standard resolution clauses back into separate
+        // paragraphs so the Secretary Certificate matches the Resolution format.
+        $clauseBreaks = [
+            '/\s+(WHEREAS\s+RESOLVED[;,]\s+)/iu',
+            '/\s+(WHEREAS\s+FINALLY\s+RESOLVED[;,]\s+)/iu',
+            '/\s+(BE\s+IT\s+FURTHER\s+RESOLVED[;,]\s+)/iu',
+            '/\s+(FINALLY\s+BE\s+IT\s+FURTHER\s+RESOLVED\s+)/iu',
+            '/\s+(All\s+prior\s+inconsistent\s+resolutions\s+or\s+actions\s+of\s+the\s+Board\s+of\s+Directors\s+)/iu',
+        ];
+
+        foreach ($clauseBreaks as $pattern) {
+            $text = preg_replace($pattern, "\n\n$1", $text);
+        }
+
+        $paragraphs = preg_split('/\n\s*\n+/', $text);
+        $html = [];
+
+        foreach ($paragraphs as $paragraph) {
+            $paragraph = trim(preg_replace('/[ \t]+/', ' ', $paragraph));
+            if ($paragraph === '') {
+                continue;
+            }
+
+            $escaped = e($paragraph);
+
+            // Bold only the required clause heading, not the full sentence.
+            $patterns = [
+                '/^(WHEREAS\s+RESOLVED[;,]?)(\s*)/iu',
+                '/^(WHEREAS\s+FINALLY\s+RESOLVED[;,]?)(\s*)/iu',
+                '/^(BE\s+IT\s+FURTHER\s+RESOLVED[;,]?)(\s*)/iu',
+                '/^(FINALLY\s+BE\s+IT\s+FURTHER\s+RESOLVED)(\s*)/iu',
+                '/^(Whereas[;,]?)(\s*)/iu',
+            ];
+
+            foreach ($patterns as $pattern) {
+                $new = preg_replace($pattern, '<strong>$1</strong> ', $escaped, 1);
+                if ($new !== $escaped) {
+                    $escaped = $new;
+                    break;
+                }
+            }
+
+            // Emphasize the auto-filled signing date and place in the FINAL clause.
+            $escaped = preg_replace(
+                '/(We have affixed our signatures on this\s+)(.*?)(\s+at\s+)(.*?)(\.)$/iu',
+                '$1<strong><u>$2</u></strong>$3<strong><u>$4</u></strong>$5',
+                $escaped,
+                1
+            );
+
+            $html[] = '<p>' . $escaped . '</p>';
+        }
+
+        return implode("\n", $html);
+    };
+
 @endphp
 
 <div class="w-full px-4 sm:px-6 lg:px-8 mt-4">
@@ -112,6 +197,20 @@
         text-transform: uppercase;
         text-decoration: underline;
     }
+
+    .corporate-resolution-body,
+    .corporate-resolution-body * {
+        max-width: 100%;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+        white-space: normal;
+    }
+
+    .corporate-resolution-body p {
+        margin: 0 0 16px 0;
+        text-align: justify;
+    }
+
 </style>
 
 <div class="w-full px-4 sm:px-6 lg:px-8 mt-4" x-data="{ activeVersion: 'draft', activeDraftPane: 'live' }">
@@ -172,13 +271,17 @@
                             <div x-show="activeDraftPane === 'live'">
                                 <div id="resolution-print" class="mx-auto max-w-[820px] rounded-sm bg-white px-12 py-10 shadow-[0_18px_50px_rgba(15,23,42,0.08)] text-[13px] leading-6 text-gray-900" style="font-family: Georgia, 'Times New Roman', serif;">
                                     <div class="text-center text-black leading-tight">
-                                        <div class="leading-none tracking-tight">
-                                            <div class="text-[4rem] font-normal">John Kelly</div>
-                                            <div class="flex items-end justify-center gap-3">
-                                                <span class="text-[3.1rem] leading-none font-semibold text-blue-600">&amp;</span>
-                                                <span class="text-[4rem] leading-none font-normal">Company</span>
+                                        @if($gisLogoUrl)
+                                            <img src="{{ $gisLogoUrl }}" alt="Company Logo" class="mx-auto mb-2 h-20 w-auto object-contain">
+                                        @else
+                                            <div class="leading-none tracking-tight">
+                                                <div class="text-[4rem] font-normal">John Kelly</div>
+                                                <div class="flex items-end justify-center gap-3">
+                                                    <span class="text-[3.1rem] leading-none font-semibold text-blue-600">&amp;</span>
+                                                    <span class="text-[4rem] leading-none font-normal">Company</span>
+                                                </div>
                                             </div>
-                                        </div>
+                                        @endif
                                         <div class="mt-2 text-[1.8rem] font-medium tracking-tight">{{ strtoupper($companyName) }}</div>
                                         <div class="mt-2 text-sm font-semibold">COMPANY REG. NO.: {{ $companyRegNo }}</div>
                                         <div class="mx-auto mt-1 max-w-[680px] text-sm uppercase">{{ $companyAddress }}</div>
@@ -191,20 +294,11 @@
                                         <div class="text-base font-bold uppercase" data-preview="board-resolution">{{ $resolutionTitle }}</div>
                                     </div>
 
-                                    <div class="mt-8 space-y-4 text-justify">
-                                        <p><strong>Whereas;</strong></p>
-
-                                        <div data-preview="resolution-body" id="resolution-body-preview-editor" class="min-h-[90px] whitespace-pre-wrap">{!! $resolution->resolution_body ?: 'Type the resolution body here.' !!}</div>
-
-                                        <p><strong>WHEREAS RESOLVED;</strong> that the foregoing resolutions are hereby approved and adopted.</p>
-
-                                        <p><strong>WHEREAS FINALLY RESOLVED,</strong> that the foregoing resolution is valid and existing until withdrawn, revoked, or modified by the Corporation.</p>
-
-                                        <p><strong>BE IT FURTHER RESOLVED,</strong> that the Corporate Secretary is hereby authorized and directed to include this Resolution in the Company's Minute Book and to notify all concerned parties of the adoption of this Resolution.</p>
-
-                                        <p><strong>FINALLY BE IT FURTHER RESOLVED</strong> that we, the undersigned, hereby accept and agree to the foregoing resolutions.</p>
-
-                                        <p>All prior inconsistent resolutions or actions of the Board of Directors are hereby revoked and superseded. This Resolution shall take effect immediately unless otherwise stated herein.</p>
+                                    <div class="mt-8 corporate-resolution-body text-justify" data-preview-wrapper="resolution-body">
+                                        <div data-preview="resolution-body" id="resolution-body-preview-editor" class="min-h-[70px] corporate-resolution-body">{!! $formatResolutionBodyForDisplay($resolution->resolution_body ?: '') !!}</div>
+                                        @if($standardResolutionClauses !== '')
+                                            <div class="corporate-resolution-body">{!! $formatResolutionBodyForDisplay($standardResolutionClauses) !!}</div>
+                                        @endif
                                     </div>
 
                                     <div class="mt-8 text-center font-bold uppercase">CERTIFICATION</div>
@@ -371,10 +465,10 @@
                                 <div
                                     id="resolution-body-editor"
                                     contenteditable="true"
-                                    data-placeholder="Write the full resolved clauses here."
+                                    data-placeholder="Type only the custom WHEREAS / resolution details here. The standard RESOLVED clauses are automatically added below."
                                     class="resolution-rich-editor min-h-[360px] p-4 text-sm leading-7 text-gray-900 outline-none"
                                 >{!! $resolution->resolution_body ?: '' !!}</div>
-                                <input type="hidden" name="resolution_body" id="resolution-body-input" value="{{ $resolution->resolution_body }}" data-live-target="resolution-body" data-live-format="multiline" data-live-empty="No board resolution text has been encoded yet.">
+                                <input type="hidden" name="resolution_body" id="resolution-body-input" value="{{ $resolution->resolution_body }}" data-live-target="resolution-body" data-live-format="multiline" data-live-empty="">
                             </div>
                         </div>
                         <div>
@@ -392,7 +486,7 @@
                     </div>
                     <div class="rounded-xl border border-gray-200 bg-gray-50 p-4 space-y-4">
                         <div class="text-sm font-semibold text-gray-900">Template Notes</div>
-                        <div class="text-xs text-gray-500">This builder mirrors the resolution template arrangement: company heading, board resolution title, whereas clause, resolution body, and sign-off sections.</div>
+                        <div class="text-xs text-gray-500">Type only the custom WHEREAS / resolution details. The system automatically adds the standard RESOLVED clauses, certification, approval, and notarial sections.</div>
                     </div>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
@@ -605,7 +699,7 @@
             }
 
             if (input.dataset.liveFormat === 'multiline') {
-                const finalHtml = value || 'No board resolution text has been encoded yet.';
+                const finalHtml = value || '';
 
                 targets.forEach((target) => {
                     target.innerHTML = finalHtml;
@@ -640,7 +734,7 @@
         if (resolutionBodyEditor && resolutionBodyInput) {
             const syncResolutionBody = () => {
                 const html = String(resolutionBodyEditor.innerHTML || '').trim();
-                const fallbackHtml = 'No board resolution text has been encoded yet.';
+                const fallbackHtml = '';
 
                 resolutionBodyInput.value = html;
                 applyValue(resolutionBodyInput);

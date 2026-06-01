@@ -6,9 +6,23 @@
     $selected = $notice;
     $sectionRibbonPartial = $sectionRibbonPartial ?? 'corporate.partials.section-ribbon';
     $backRoute = $backRoute ?? route('notices');
-    $companyName = $companyName ?? strtoupper($selected->corporation_name ?: 'JOHN KELLY & COMPANY');
-    $companyRegNo = $companyRegNo ?? ($selected->company_reg_no ?: '2025120230900-02');
-    $companyAddress = $companyAddress ?? ($selected->company_address ?: '3RD FLOOR, UNIT 305 CEBU HOLDINGS CENTER CARDINAL ROSALES AVE., CEBU BUSINESS PARK HIPPODROMO, CEBU CITY, 6000');
+    $companyName = $companyName ?? strtoupper((data_get($corporateContext ?? [], 'company_name') ?: data_get($corporateContext ?? [], 'companyName')) ?: ($selected->corporation_name ?: 'JOHN KELLY & COMPANY'));
+    $companyRegNo = $companyRegNo ?? ((data_get($corporateContext ?? [], 'company_reg_no') ?: data_get($corporateContext ?? [], 'companyRegNo')) ?: ($selected->company_reg_no ?: '2025120230900-02'));
+    $companyAddress = $companyAddress ?? ((data_get($corporateContext ?? [], 'company_address') ?: data_get($corporateContext ?? [], 'companyAddress')) ?: ($selected->company_address ?: '3RD FLOOR, UNIT 305 CEBU HOLDINGS CENTER CARDINAL ROSALES AVE., CEBU BUSINESS PARK HIPPODROMO, CEBU CITY, 6000'));
+
+    $gisLogoPath = (data_get($corporateContext ?? [], 'logo_path') ?: data_get($corporateContext ?? [], 'logoPath')) ?: data_get($document ?? [], 'logo_path') ?: data_get($corporateContext['gis'] ?? null, 'logo_path');
+    $gisLogoUrl = null;
+    $gisLogoDataUri = null;
+    if ($gisLogoPath) {
+        $normalizedLogoPath = preg_replace('#^/?storage/#', '', (string) $gisLogoPath);
+        try { $gisLogoUrl = route('uploads.show', ['path' => $normalizedLogoPath]); } catch (\Throwable $e) { $gisLogoUrl = asset('storage/' . $normalizedLogoPath); }
+        $absoluteLogoPath = storage_path('app/public/' . $normalizedLogoPath);
+        if (is_file($absoluteLogoPath)) {
+            $mime = function_exists('mime_content_type') ? (mime_content_type($absoluteLogoPath) ?: 'image/png') : 'image/png';
+            $gisLogoDataUri = 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($absoluteLogoPath));
+        }
+    }
+
     $documentPathCandidates = collect([
         $selected->document_path,
         preg_replace('#^/?storage/#', '', (string) $selected->document_path),
@@ -26,7 +40,7 @@
         : null;
 
     $livePdfUrl = route('notices.download', $selected);
-    $previewPdfUrl = $documentUrl ?: $livePdfUrl;
+    $previewPdfUrl = (($selected->body_mode ?? 'builder') === 'upload' && $documentUrl) ? $documentUrl : $livePdfUrl;
 
     $meetingTitle = strtoupper(trim(($selected->type_of_meeting ?: 'Special') . ' ' . ($selected->governing_body ?: 'Board of Directors') . ' Meeting'));
     $noticeDate = optional($selected->date_of_notice)->format('F d, Y')
@@ -64,6 +78,8 @@
     $authorityCalling = $selected->authority_calling_meeting ?: '________________';
 
     // President-requested cleanup: do not show internal meeting officer/contact/deadline block in the notice output.
+
+    $gisLogoHtml = $gisLogoUrl ? '<img src="' . e($gisLogoUrl) . '" style="max-height:58px;max-width:210px;object-fit:contain;margin:0 auto 6px;display:block;" alt="Company Logo">' : '';
 
 
     $generatedNoticePane = <<<HTML
@@ -248,6 +264,7 @@
 <body>
     <div class="page">
         <div class="center">
+            {$gisLogoHtml}
             <div style="font-size:1.1rem;font-weight:700;text-transform:uppercase;">{$companyName}</div>
             <div style="font-size:0.95rem;font-weight:700;">COMPANY REG. NO.: {$companyRegNo}</div>
             <div style="margin-top:4px;font-size:0.95rem;">{$companyAddress}</div>
@@ -365,8 +382,8 @@ HTML;
         <div class="grid grid-cols-1 lg:grid-cols-5 gap-6 p-6">
             <div class="lg:col-span-3 space-y-4">
                 <iframe
-                    src="{{ $previewPdfUrl }}"
-                    class="w-full h-[700px] border rounded bg-white">
+                    src="{{ $previewPdfUrl }}#view=FitH&zoom=page-fit"
+                    class="w-full h-[calc(100vh-16rem)] min-h-[780px] border rounded bg-white">
                 </iframe>
             </div>
 

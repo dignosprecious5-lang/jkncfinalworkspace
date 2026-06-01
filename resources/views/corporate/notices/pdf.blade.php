@@ -9,9 +9,23 @@
         'Joint Stockholders and Board of Directors' => 'ALL STOCKHOLDERS AND DIRECTORS',
         default => 'ALL DIRECTORS',
     };
-    $companyName = strtoupper($selected->corporation_name ?: 'JOHN KELLY & COMPANY');
-    $companyRegNo = $selected->company_reg_no ?: '2025120230900-02';
-    $companyAddress = $selected->company_address ?: '3RD FLOOR, UNIT 305 CEBU HOLDINGS CENTER CARDINAL ROSALES AVE., CEBU BUSINESS PARK HIPPODROMO, CEBU CITY, 6000';
+    $companyName = strtoupper((data_get($corporateContext ?? [], 'company_name') ?: data_get($corporateContext ?? [], 'companyName')) ?: ($selected->corporation_name ?: 'JOHN KELLY & COMPANY'));
+    $companyRegNo = (data_get($corporateContext ?? [], 'company_reg_no') ?: data_get($corporateContext ?? [], 'companyRegNo')) ?: ($selected->company_reg_no ?: '2025120230900-02');
+    $companyAddress = (data_get($corporateContext ?? [], 'company_address') ?: data_get($corporateContext ?? [], 'companyAddress')) ?: ($selected->company_address ?: '3RD FLOOR, UNIT 305 CEBU HOLDINGS CENTER CARDINAL ROSALES AVE., CEBU BUSINESS PARK HIPPODROMO, CEBU CITY, 6000');
+
+    $gisLogoPath = (data_get($corporateContext ?? [], 'logo_path') ?: data_get($corporateContext ?? [], 'logoPath')) ?: data_get($document ?? [], 'logo_path') ?: data_get($corporateContext['gis'] ?? null, 'logo_path');
+    $gisLogoUrl = null;
+    $gisLogoDataUri = null;
+    if ($gisLogoPath) {
+        $normalizedLogoPath = preg_replace('#^/?storage/#', '', (string) $gisLogoPath);
+        try { $gisLogoUrl = route('uploads.show', ['path' => $normalizedLogoPath]); } catch (\Throwable $e) { $gisLogoUrl = asset('storage/' . $normalizedLogoPath); }
+        $absoluteLogoPath = storage_path('app/public/' . $normalizedLogoPath);
+        if (is_file($absoluteLogoPath)) {
+            $mime = function_exists('mime_content_type') ? (mime_content_type($absoluteLogoPath) ?: 'image/png') : 'image/png';
+            $gisLogoDataUri = 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($absoluteLogoPath));
+        }
+    }
+
     $meetingTypeLabel = $selected->type_of_meeting ?: 'Special';
     $governingBodyLabel = $selected->governing_body ?: 'Board of Directors';
     $meetingLocation = $selected->location ?: '________________';
@@ -61,6 +75,7 @@
             text-align: center;
             line-height: 1.4;
         }
+        .gis-logo { max-height: 58px; max-width: 210px; object-fit: contain; margin: 0 auto 6px; display: block; }
         .title {
             margin-top: 28px;
             text-align: center;
@@ -138,6 +153,9 @@
 <body>
     <div class="page">
         <div class="center">
+            @if($gisLogoDataUri)
+                <img src="{{ $gisLogoDataUri }}" class="gis-logo" alt="Company Logo">
+            @endif
             <div style="font-size:1.1rem;font-weight:700;text-transform:uppercase;">{{ $companyName }}</div>
             <div style="font-size:0.95rem;font-weight:700;">COMPANY REG. NO.: {{ $companyRegNo }}</div>
             <div style="margin-top:4px;font-size:0.95rem;">{{ $companyAddress }}</div>
