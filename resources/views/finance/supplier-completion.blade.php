@@ -90,7 +90,7 @@
                         </div>
                         <div>
                             <label class="mb-1 block text-sm font-medium">Registered Business Name <span class="text-red-500">*</span></label>
-                            <input type="text" name="record_title" value="{{ old('record_title', $record['record_title'] ?? '') }}" class="{{ $fieldClass }}" required>
+                            <input type="text" name="record_title" value="{{ old('record_title', ($record['record_title'] ?? '') === 'Registered Business Name' ? '' : ($record['record_title'] ?? '')) }}" class="{{ $fieldClass }}" required>
                             @if($errors->first('record_title')) <p class="mt-1 text-xs text-red-600">{{ $errors->first('record_title') }}</p> @endif
                         </div>
                         <div>

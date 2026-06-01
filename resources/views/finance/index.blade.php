@@ -64,11 +64,11 @@
 
         <div id="previewSection" class="hidden p-4">
             <div class="flex gap-4 items-start">
-                <div class="flex-1 min-w-0 bg-white border border-gray-200 rounded-xl">
+                <div class="relative z-0 flex-1 min-w-0 overflow-hidden bg-white border border-gray-200 rounded-xl">
                     <div class="p-6" id="previewDocument"></div>
                 </div>
 
-                <div class="w-[380px] shrink-0 flex flex-col gap-4">
+                <div class="relative z-10 w-[380px] shrink-0 flex flex-col gap-4 pointer-events-auto">
                     <div class="bg-white border border-gray-200 rounded-xl px-5 py-4 flex items-center justify-between">
                         <h2 class="text-[20px] font-semibold text-gray-900">Record Preview</h2>
                         <button type="button" onclick="window.closePreview()" class="text-sm text-gray-500 hover:text-gray-700">Close</button>
@@ -175,11 +175,13 @@
                                     name="attachment_category"
                                     class="mb-2 w-full border border-blue-200 rounded-md p-2 bg-white text-sm"
                                 >
-                                    <option value="Supporting Document">Supporting Document</option>
-                                    <option value="Invoice">Invoice</option>
-                                    <option value="OR">OR</option>
-                                    <option value="DR">DR</option>
-                                    <option value="Contract">Contract</option>
+                                    @forelse(collect($financeAttachmentTypes)->filter(fn ($type) => data_get($type, 'active', true) && !data_get($type, 'hidden', false)) as $attachmentType)
+                                        <option value="{{ $attachmentType['value'] ?? $attachmentType['label'] ?? 'Supporting Document' }}">
+                                            {{ $attachmentType['label'] ?? $attachmentType['value'] ?? 'Supporting Document' }}
+                                        </option>
+                                    @empty
+                                        <option value="Supporting Document">Supporting Document</option>
+                                    @endforelse
                                 </select>
                                 <input
                                     id="attachmentsInput"
@@ -272,6 +274,7 @@
         'canApproveFinance' => $canApproveFinance,
         'canManageFinanceSettings' => $canManageFinanceSettings,
         'financeDropdownOptions' => $financeDropdownOptions,
+        'financeAttachmentTypes' => $financeAttachmentTypes,
         'officialApproverOptions' => $officialApproverOptions,
         'defaultApprovalSteps' => $defaultApprovalSteps,
         'requestTypeModules' => $requestTypeModules,

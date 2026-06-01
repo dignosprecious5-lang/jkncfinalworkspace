@@ -124,7 +124,14 @@
                                             </form>
                                             <form method="POST" action="{{ route('finance.revert', $record) }}">
                                                 @csrf
-                                                <input type="hidden" name="review_note" value="Returned from finance dashboard.">
+                                                <input
+                                                    type="text"
+                                                    name="reason"
+                                                    required
+                                                    maxlength="1000"
+                                                    placeholder="Reason for revision"
+                                                    class="w-52 rounded-lg border border-gray-300 px-3 py-1.5 text-xs text-gray-700 placeholder-gray-400 focus:border-yellow-500 focus:outline-none focus:ring-2 focus:ring-yellow-100"
+                                                >
                                                 <button class="px-3 py-1.5 text-xs font-medium rounded-lg bg-yellow-600 text-white hover:bg-yellow-700 transition">Revise</button>
                                             </form>
                                         @endif

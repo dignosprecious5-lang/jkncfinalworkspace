@@ -615,8 +615,14 @@
 
     <div class="page">
         @php
-            $noteAuthor = $record->approved_by ?: $record->submitted_by ?: $record->user ?: 'Finance Team';
-            $noteDate = $record->approved_at ?: $record->submitted_at ?: $record->updated_at;
+            $noteAuthor = data_get($record, 'approval_actor_names.0')
+                ?: data_get($record, 'approved_by_name')
+                ?: data_get($record, 'submitted_by_name')
+                ?: data_get($record, 'user')
+                ?: 'Finance Team';
+            $noteDate = data_get($record, 'approved_at')
+                ?: data_get($record, 'submitted_at')
+                ?: data_get($record, 'updated_at');
         @endphp
         <div class="header">
             <div class="brand">
@@ -1033,6 +1039,9 @@
                         <a href="{{ data_get($attachment, 'url') ?: data_get($attachment, 'path') }}" target="_blank">
                             <strong>{{ data_get($attachment, 'name') ?: data_get($attachment, 'path') ?: 'Attachment' }}</strong>
                             <span>{{ data_get($attachment, 'category') ?: 'Supporting Document' }}</span>
+                            @if(data_get($attachment, 'uploaded_by') || data_get($attachment, 'uploaded_at'))
+                                <small>{{ collect([data_get($attachment, 'uploaded_by'), data_get($attachment, 'uploaded_at')])->filter()->implode(' • ') }}</small>
+                            @endif
                             <small>{{ data_get($attachment, 'path') }}</small>
                         </a>
                     @endforeach

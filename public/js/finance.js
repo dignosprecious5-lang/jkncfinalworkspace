@@ -1061,7 +1061,7 @@
             label: 'Purchase Request',
             addLabel: 'Add PR',
             recordNumberLabel: 'PR Number',
-            recordTitleLabel: 'Request Title',
+            recordTitleLabel: 'Title',
             recordDateLabel: 'Date',
             summaryKeys: ['requestor', 'for_client', 'needed_date', 'grand_total'],
             fields: [
@@ -1384,20 +1384,20 @@
             fields: [
                 selectField('source_document_type', 'Linked Source Document Type', {
                     options: [
-                        { value: 'po', label: 'PO' },
                         { value: 'ca', label: 'CA' },
                         { value: 'err', label: 'ERR' },
                         { value: 'pda', label: 'PDA' },
                         { value: 'ibtf', label: 'IBTF' },
+                        { value: 'po', label: 'PO' },
                     ],
                 }),
                 selectField('source_document_id', 'Linked Source Document', {
                     sourceMap: {
-                        po: 'po',
                         ca: 'ca',
                         err: 'err',
                         pda: 'pda',
                         ibtf: 'ibtf',
+                        po: 'po',
                     },
                     sourceKey: 'source_document_type',
                 }),
@@ -1595,6 +1595,7 @@
     let financeSourceRecords = Array.isArray(bootstrap.sourceRecords) ? bootstrap.sourceRecords.slice() : [];
     let financeLookupOptions = bootstrap.lookupOptions || {};
     let financeDropdownOptions = normalizeDropdownSettings(bootstrap.financeDropdownOptions || {});
+    let financeAttachmentTypes = normalizeAttachmentTypeSettings(bootstrap.financeAttachmentTypes || []);
     const officialApproverOptions = Array.isArray(bootstrap.officialApproverOptions) ? bootstrap.officialApproverOptions.slice() : [];
     const defaultApprovalSteps = Array.isArray(bootstrap.defaultApprovalSteps) ? bootstrap.defaultApprovalSteps.slice() : [];
     const requestTypeModules = new Set(Array.isArray(bootstrap.requestTypeModules) ? bootstrap.requestTypeModules : []);
@@ -1603,6 +1604,8 @@
     let currentPreviewRecord = null;
     let currentPreviewTab = 'details';
     let currentPreviewAttachmentUrl = '';
+    let currentPreviewAttachmentToken = 0;
+    let currentPreviewAttachmentObjectUrl = '';
     let currentPreviewPdfObjectUrl = '';
     let currentPreviewPdfGeneration = 0;
     let currentPreviewRefreshTimer = null;
@@ -1611,6 +1614,7 @@
     let activeBankAccountLookupQuery = '';
     let financeDraftContext = null;
     let activeDropdownSettingsModuleKey = currentModuleKey;
+    const attachmentSettingsModuleKey = '__attachment_types__';
 
     const $ = (id) => document.getElementById(id);
 
@@ -1628,6 +1632,28 @@
         const num = Number(value);
         if (Number.isNaN(num)) return String(value);
         return num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function formatBytes(value) {
+        const bytes = Number(value);
+        if (!Number.isFinite(bytes) || bytes <= 0) {
+            return '0 B';
+        }
+
+        if (bytes < 1024) {
+            return `${Math.round(bytes)} B`;
+        }
+
+        const units = ['KB', 'MB', 'GB', 'TB'];
+        let size = bytes / 1024;
+        let unitIndex = 0;
+
+        while (size >= 1024 && unitIndex < units.length - 1) {
+            size /= 1024;
+            unitIndex += 1;
+        }
+
+        return `${size.toFixed(size >= 10 ? 0 : 1)} ${units[unitIndex]}`;
     }
 
     function blank(value) {
@@ -2177,6 +2203,37 @@
         };
     }
 
+    function normalizeAttachmentType(option) {
+        const label = String(option?.label ?? option?.value ?? option ?? '').trim();
+        const value = String(option?.value ?? option?.label ?? option ?? '').trim();
+
+        if (!label && !value) {
+            return null;
+        }
+
+        const status = String(option?.status ?? '').trim().toLowerCase();
+        const visibility = String(option?.visibility ?? '').trim().toLowerCase();
+        const active = Object.prototype.hasOwnProperty.call(option || {}, 'active')
+            ? Boolean(option?.active)
+            : !['inactive', 'disabled', 'off'].includes(status);
+        const hidden = Object.prototype.hasOwnProperty.call(option || {}, 'hidden')
+            ? Boolean(option?.hidden)
+            : ['hidden', 'hide', 'off'].includes(visibility);
+
+        return {
+            label: label || value,
+            value: value || label,
+            active,
+            hidden,
+        };
+    }
+
+    function normalizeAttachmentTypeSettings(settings = []) {
+        return Array.isArray(settings)
+            ? settings.map(normalizeAttachmentType).filter(Boolean)
+            : [];
+    }
+
     function normalizeDropdownSettings(settings = {}) {
         const normalized = {};
 
@@ -2194,6 +2251,10 @@
         });
 
         return normalized;
+    }
+
+    function isAttachmentSettingsModule(moduleKey) {
+        return moduleKey === attachmentSettingsModuleKey;
     }
 
     function isEditableDropdownField(field) {
@@ -2237,6 +2298,24 @@
             .join('\n');
     }
 
+    function formatAttachmentTypesForTextarea() {
+        return financeAttachmentTypes
+            .map((option) => {
+                const parts = [option.label || option.value || ''];
+                if ((option.value || '') !== (option.label || '')) {
+                    parts.push(option.value || option.label || '');
+                }
+                if (option.active === false) {
+                    parts.push('inactive');
+                }
+                if (option.hidden) {
+                    parts.push('hidden');
+                }
+                return parts.filter(Boolean).join(' | ');
+            })
+            .join('\n');
+    }
+
     function parseDropdownTextareaOptions(value) {
         const options = [];
         const seen = new Set();
@@ -2259,6 +2338,38 @@
         return options;
     }
 
+    function parseAttachmentTypesTextarea(value) {
+        const options = [];
+        const seen = new Set();
+
+        String(value || '').split(/\r?\n/).forEach((line) => {
+            const trimmed = line.trim();
+            if (!trimmed) return;
+
+            const parts = trimmed.split('|').map((part) => part.trim()).filter(Boolean);
+            const label = parts[0] || '';
+            const optionValue = parts[1] || parts[0] || '';
+            const status = String(parts[2] || '').trim().toLowerCase();
+            const visibility = String(parts[3] || '').trim().toLowerCase();
+            const normalized = normalizeAttachmentType({
+                label,
+                value: optionValue,
+                active: !['inactive', 'disabled', 'off'].includes(status),
+                hidden: ['hidden', 'hide', 'off'].includes(visibility),
+            });
+
+            if (!normalized) return;
+
+            const dedupeKey = normalized.value.toLowerCase();
+            if (seen.has(dedupeKey)) return;
+
+            seen.add(dedupeKey);
+            options.push(normalized);
+        });
+
+        return options;
+    }
+
     function renderDropdownSettingsModal() {
         const modal = $('financeDropdownSettingsModal');
         const moduleList = $('financeDropdownSettingsModules');
@@ -2267,11 +2378,20 @@
 
         if (!modal || !moduleList || !title || !fieldsHost) return;
 
-        if (!financeModules[activeDropdownSettingsModuleKey]) {
+        if (!financeModules[activeDropdownSettingsModuleKey] && !isAttachmentSettingsModule(activeDropdownSettingsModuleKey)) {
             activeDropdownSettingsModuleKey = currentModuleKey;
         }
 
-        moduleList.innerHTML = moduleKeys.map((moduleKey) => {
+        moduleList.innerHTML = `
+            <button
+                type="button"
+                onclick="window.financeModule.changeDropdownSettingsModule('${escapeHtml(attachmentSettingsModuleKey)}')"
+                class="mb-2 w-full rounded-lg px-3 py-2 text-left text-sm transition ${isAttachmentSettingsModule(activeDropdownSettingsModuleKey) ? 'bg-white text-blue-700 shadow-sm border border-blue-100 font-semibold' : 'text-gray-600 hover:bg-white'}"
+            >
+                <span class="block truncate">Attachment Types</span>
+                <span class="mt-0.5 block text-[11px] text-gray-400">${financeAttachmentTypes.length} configured type${financeAttachmentTypes.length === 1 ? '' : 's'}</span>
+            </button>
+            ${moduleKeys.map((moduleKey) => {
             const active = moduleKey === activeDropdownSettingsModuleKey;
             const fieldsCount = getEditableDropdownFields(moduleKey).length;
 
@@ -2285,7 +2405,30 @@
                     <span class="mt-0.5 block text-[11px] text-gray-400">${fieldsCount} editable dropdown${fieldsCount === 1 ? '' : 's'}</span>
                 </button>
             `;
-        }).join('');
+        }).join('')}
+        `;
+
+        if (isAttachmentSettingsModule(activeDropdownSettingsModuleKey)) {
+            title.textContent = 'Attachment Types';
+            fieldsHost.innerHTML = `
+                <div class="rounded-xl border border-gray-200 bg-white p-4">
+                    <div class="flex items-start justify-between gap-3">
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-900" for="financeAttachmentTypesTextarea">Attachment Types</label>
+                            <p class="mt-1 text-xs text-gray-500">One type per line. Use <span class="font-mono">Label | value | inactive | hidden</span>. Leave the last flags out to keep the type active and visible.</p>
+                        </div>
+                        <button type="button" onclick="window.financeModule.resetAttachmentTypesSettings()" class="shrink-0 rounded-md border border-gray-200 px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-50">Reset</button>
+                    </div>
+                    <textarea
+                        id="financeAttachmentTypesTextarea"
+                        data-finance-attachment-setting
+                        rows="8"
+                        class="mt-3 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm font-mono leading-6 outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
+                    >${escapeHtml(formatAttachmentTypesForTextarea())}</textarea>
+                </div>
+            `;
+            return;
+        }
 
         const fields = getEditableDropdownFields(activeDropdownSettingsModuleKey);
         title.textContent = `${getModuleConfig(activeDropdownSettingsModuleKey).label} Dropdowns`;
@@ -2336,9 +2479,21 @@
     }
 
     function changeDropdownSettingsModule(moduleKey) {
-        if (!financeModules[moduleKey]) return;
+        if (!financeModules[moduleKey] && !isAttachmentSettingsModule(moduleKey)) return;
 
         activeDropdownSettingsModuleKey = moduleKey;
+        renderDropdownSettingsModal();
+    }
+
+    function resetAttachmentTypesSettings() {
+        financeAttachmentTypes = normalizeAttachmentTypeSettings([
+            { label: 'Supporting Document', value: 'Supporting Document', active: true, hidden: false },
+            { label: 'Invoice', value: 'Invoice', active: true, hidden: false },
+            { label: 'OR', value: 'OR', active: true, hidden: false },
+            { label: 'DR', value: 'DR', active: true, hidden: false },
+            { label: 'Contract', value: 'Contract', active: true, hidden: false },
+        ]);
+
         renderDropdownSettingsModal();
     }
 
@@ -2370,6 +2525,8 @@
         });
 
         payload[activeDropdownSettingsModuleKey] = activeModuleOptions;
+        const attachmentTextarea = document.querySelector('[data-finance-attachment-setting]');
+        const attachmentTypes = attachmentTextarea ? parseAttachmentTypesTextarea(attachmentTextarea.value) : financeAttachmentTypes;
 
         const res = await csrfFetch('/finance/dropdown-settings', {
             method: 'POST',
@@ -2377,7 +2534,7 @@
                 'Accept': 'application/json',
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ options: payload }),
+            body: JSON.stringify({ options: payload, attachment_types: attachmentTypes }),
         });
 
         const data = await res.json().catch(() => ({}));
@@ -2388,6 +2545,7 @@
         }
 
         financeDropdownOptions = normalizeDropdownSettings(data.options || payload);
+        financeAttachmentTypes = normalizeAttachmentTypeSettings(data.attachment_types || attachmentTypes);
         renderDropdownSettingsModal();
         refreshFinanceView();
         showFinanceToast(data.message || 'Finance dropdown settings saved.', 'success');
@@ -3052,7 +3210,6 @@
 
     function getDvSourceDocumentFields(sourceType) {
         const fieldsByModule = {
-            pr: ['record_number', 'record_title', 'record_date', 'requesting_department', 'requestor', 'supplier_id', 'amount', 'purpose', 'remarks'],
             po: ['record_number', 'record_title', 'record_date', 'linked_pr_id', 'supplier_id', 'amount', 'expected_delivery_date', 'purpose', 'remarks'],
             ca: ['record_number', 'record_title', 'record_date', 'requestor', 'department', 'amount_requested', 'mode_of_release', 'purpose', 'remarks'],
             lr: ['record_number', 'record_title', 'record_date', 'linked_ca_id', 'total_cash_advance', 'actual_expenses', 'variance', 'variance_indicator', 'purpose', 'remarks'],
@@ -5195,6 +5352,208 @@
         return getFormDisplayValue(field, rawValue, record.data || {});
     }
 
+    function financePreviewHasValue(value) {
+        if (value === null || value === undefined) {
+            return false;
+        }
+
+        if (Array.isArray(value)) {
+            return value.some((item) => financePreviewHasValue(item));
+        }
+
+        if (typeof value === 'object') {
+            return Object.values(value).some((item) => financePreviewHasValue(item));
+        }
+
+        return String(value).trim() !== '' && String(value).trim() !== 'N/A';
+    }
+
+    function getFinancePreviewSummaryRows(record) {
+        const moduleConfig = getModuleConfig(record.module_key);
+        const data = record.data || {};
+        if (record.module_key === 'pr') {
+            return [
+                ['Request Number', record.record_number || ''],
+                ['Requestor', data.requestor || data.employee_name || ''],
+                ['Priority', data.priority || ''],
+                ['Date Needed', data.needed_date || ''],
+                ['Amount', record.amount ? formatCurrency(record.amount) : ''],
+                ['Record Date', record.record_date || ''],
+                ['Workflow', record.workflow_status || ''],
+                ['Approval', previewApprovalLabel(record) || ''],
+                ['Submitted By', record.user || ''],
+                ['Submitted At', record.submitted_at || ''],
+                ['Approved At', record.approved_at || ''],
+            ];
+        }
+
+        const rows = [
+            ['Record Number', record.record_number || ''],
+            [moduleConfig.recordTitleLabel || 'Name', record.record_title || ''],
+            ['Record Date', record.record_date || ''],
+            ['Status', record.status || ''],
+            ['Created By', record.user || ''],
+            ['Submitted At', record.submitted_at || ''],
+            ['Approved At', record.approved_at || ''],
+        ];
+
+        if (shouldShowGenericAmount(record)) {
+            rows.splice(3, 0, ['Amount', record.amount ? formatCurrency(record.amount) : '']);
+        }
+
+        const moduleSpecificRows = {
+            supplier: [
+                ['Workflow', record.workflow_status || ''],
+                ['Approval', previewApprovalLabel(record) || ''],
+                ['Completion Mode', data.completion_mode === 'send_to_supplier' ? 'Send to Supplier' : 'Complete Internally'],
+                ['Supplier Completion', record.supplier_completed_at ? formatDate(record.supplier_completed_at) : 'Pending'],
+            ],
+            service: [
+                ['Workflow', record.workflow_status || ''],
+                ['Approval', previewApprovalLabel(record) || ''],
+                ['Service Description', data.service_description || ''],
+                ['Supplier', getLookupLabel('supplier', data.supplier_id) || ''],
+                ['Chart of Account', getLookupLabel('chart_account', data.coa_id) || ''],
+                ['Category', data.category || ''],
+                ['Unit of Measure', data.unit_of_measure || ''],
+                ['Default Cost', data.default_cost ? formatCurrency(data.default_cost) : ''],
+                ['Status', data.service_status || ''],
+            ],
+            product: [
+                ['Workflow', record.workflow_status || ''],
+                ['Approval', previewApprovalLabel(record) || ''],
+                ['Product Description', data.product_description || ''],
+                ['Supplier', getLookupLabel('supplier', data.supplier_id) || ''],
+                ['Chart of Account', getLookupLabel('chart_account', data.coa_id) || ''],
+                ['Category', data.category || ''],
+                ['Unit of Measure', data.unit_of_measure || ''],
+                ['Default Cost', data.default_cost ? formatCurrency(data.default_cost) : ''],
+                ['Status', data.product_status || ''],
+            ],
+            chart_account: [
+                ['Workflow', record.workflow_status || ''],
+                ['Approval', previewApprovalLabel(record) || ''],
+                ['Account Description', data.account_description || ''],
+                ['Main Account', data.is_sub_account ? getLookupLabel('chart_account', data.parent_account_id) || '' : ''],
+                ['Account Type', data.account_type || ''],
+                ['Account Group', data.account_group || ''],
+                ['Normal Balance', data.normal_balance || ''],
+                ['Account Status', data.account_status || ''],
+            ],
+            bank_account: [
+                ['Workflow', record.workflow_status || ''],
+                ['Approval', previewApprovalLabel(record) || ''],
+                ['Bank Name', data.bank_name || ''],
+                ['Branch', data.branch || ''],
+                ['Currency', data.currency || ''],
+                ['Account Type', data.account_type || ''],
+                ['Linked Chart of Account', getLookupLabel('chart_account', data.linked_coa_id) || ''],
+                ['Bank Status', data.bank_status || ''],
+            ],
+            pr: [
+                ['Workflow', record.workflow_status || ''],
+                ['Approval', previewApprovalLabel(record) || ''],
+                ['Priority', data.priority || ''],
+                ['Needed Date', data.needed_date || ''],
+                ['Requester Option', data.requester_mode || ''],
+                ['For Client', data.for_client || ''],
+                ['Purpose', data.purpose || ''],
+            ],
+            po: [
+                ['Workflow', record.workflow_status || ''],
+                ['Approval', previewApprovalLabel(record) || ''],
+                ['Linked PR', getLookupLabel('pr', data.linked_pr_id) || ''],
+                ['Supplier', getLookupLabel('supplier', data.supplier_id) || ''],
+                ['Expected Delivery Date', data.expected_delivery_date || ''],
+                ['Delivery Address', data.delivery_address || ''],
+                ['Terms and Conditions', data.terms_and_conditions || ''],
+            ],
+            ca: [
+                ['Workflow', record.workflow_status || ''],
+                ['Approval', previewApprovalLabel(record) || ''],
+                ['Requester Option', data.requester_mode || ''],
+                ['Requested By', data.requestor || getLookupLabel('employee', data.requester_employee_id) || ''],
+                ['Department', data.department || ''],
+                ['Purpose', data.purpose || ''],
+                ['Amount Requested', data.amount_requested ? formatCurrency(data.amount_requested) : ''],
+                ['Release Schedule', data.release_schedule || ''],
+                ['Number of Releases', data.release_count || ''],
+                ['Amount per Release', data.amount_per_release ? formatCurrency(data.amount_per_release) : ''],
+                ['Paid Through', getLookupLabel('bank_account', data.paid_through) || data.paid_through || ''],
+            ],
+            lr: [
+                ['Workflow', record.workflow_status || ''],
+                ['Approval', previewApprovalLabel(record) || ''],
+                ['Requester Option', data.requester_mode || ''],
+                ['Linked CA', getLookupLabel('ca', data.linked_ca_id) || ''],
+                ['Total Cash Advance', data.total_cash_advance ? formatCurrency(data.total_cash_advance) : ''],
+                ['Purpose', data.purpose || ''],
+            ],
+            err: [
+                ['Workflow', record.workflow_status || ''],
+                ['Approval', previewApprovalLabel(record) || ''],
+                ['Requester Option', data.requester_mode || ''],
+                ['Requested By', data.requestor || getLookupLabel('employee', data.requester_employee_id) || ''],
+                ['Linked LR', getLookupLabel('lr', data.linked_lr_id) || ''],
+                ['Amount', data.amount ? formatCurrency(data.amount) : ''],
+                ['Reimbursement Mode', data.reimbursement_mode || ''],
+            ],
+            dv: [
+                ['Workflow', record.workflow_status || ''],
+                ['Approval', previewApprovalLabel(record) || ''],
+                ['Source Document Type', data.source_document_type || ''],
+                ['Source Document', getLookupLabel(data.source_document_type || '', data.source_document_id) || ''],
+                ['Supplier', getLookupLabel('supplier', data.supplier_id) || ''],
+                ['Amount', data.amount ? formatCurrency(data.amount) : ''],
+                ['Payment Type', data.payment_type || ''],
+                ['Disbursement Type', data.disbursement_type || ''],
+            ],
+            pda: [
+                ['Workflow', record.workflow_status || ''],
+                ['Approval', previewApprovalLabel(record) || ''],
+                ['Payroll Period', getLookupLabel('payroll_period', data.payroll_period_id) || ''],
+                ['Pay Date', data.pay_date || ''],
+                ['Employee Count', data.employee_count || ''],
+                ['Total Payroll Amount', data.total_payroll_amount ? formatCurrency(data.total_payroll_amount) : ''],
+            ],
+            crf: [
+                ['Workflow', record.workflow_status || ''],
+                ['Approval', previewApprovalLabel(record) || ''],
+                ['Requester Option', data.requester_mode || ''],
+                ['Requested By', data.requestor || getLookupLabel('employee', data.requester_employee_id) || ''],
+                ['Linked LR', getLookupLabel('lr', data.linked_lr_id) || ''],
+                ['Amount Returned', data.amount_returned ? formatCurrency(data.amount_returned) : ''],
+                ['Mode of Return', data.mode_of_return || ''],
+            ],
+            ibtf: [
+                ['Workflow', record.workflow_status || ''],
+                ['Approval', previewApprovalLabel(record) || ''],
+                ['Source Bank Account', getLookupLabel('bank_account', data.source_bank_account_id) || ''],
+                ['Destination Bank Account', getLookupLabel('bank_account', data.destination_bank_account_id) || ''],
+                ['Amount', data.amount ? formatCurrency(data.amount) : ''],
+                ['Reason', data.reason || ''],
+            ],
+            arf: [
+                ['Workflow', record.workflow_status || ''],
+                ['Approval', previewApprovalLabel(record) || ''],
+                ['Linked PO', getLookupLabel('po', data.linked_po_id) || ''],
+                ['Linked DV', getLookupLabel('dv', data.linked_dv_id) || ''],
+                ['Supplier', getLookupLabel('supplier', data.supplier_id) || ''],
+                ['Asset Code', data.asset_code || ''],
+                ['Asset Description', data.asset_description || ''],
+                ['Serial Number', data.serial_number || ''],
+                ['Location', data.location || ''],
+            ],
+        };
+
+        rows.push(...(moduleSpecificRows[record.module_key] || [
+            ['Workflow', record.workflow_status || ''],
+            ['Approval', previewApprovalLabel(record) || ''],
+        ]));
+
+        return rows.filter(([, value]) => financePreviewHasValue(value));
+    }
+
     function renderPreviewSectionTable(record, moduleConfig, title, fieldNames) {
         const entries = fieldNames.map((fieldName) => {
             const field = (moduleConfig.fields || []).find((item) => item.name === fieldName);
@@ -5202,31 +5561,107 @@
                 return null;
             }
 
+            const value = getPreviewFieldValue(record, fieldName, moduleConfig);
+            if (!financePreviewHasValue(value)) {
+                return null;
+            }
+
             return {
                 label: field.label,
-                value: getPreviewFieldValue(record, fieldName, moduleConfig) || 'N/A',
+                value,
             };
         }).filter(Boolean);
 
+        if (!entries.length) {
+            return '';
+        }
+
         return `
-            <div class="finance-preview-box">
-                <div class="finance-preview-inner">
-                    <table class="finance-preview-details">
+            <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+                ${title ? `
+                    <div class="border-b border-gray-100 bg-slate-50 px-4 py-3">
+                        <h4 class="text-[15px] font-semibold text-gray-900">${escapeHtml(title)}</h4>
+                    </div>
+                ` : ''}
+                <div class="p-4">
+                    <table class="w-full border-collapse">
                         ${chunkArray(entries, 2).map((row) => `
-                            <tr>
+                            <tr class="align-top">
                                 ${row.map((entry) => `
-                                    <td>
-                                        <p class="finance-preview-label">${escapeHtml(entry.label)}</p>
-                                        <p class="finance-preview-value">${escapeHtml(entry.value)}</p>
+                                    <td class="w-1/2 border-b border-gray-100 pb-3 ${row.length === 1 ? 'pr-0' : 'pr-3'}">
+                                        <p class="text-[11px] uppercase tracking-[0.18em] text-gray-500">${escapeHtml(entry.label)}</p>
+                                        <p class="mt-1 text-[14px] font-semibold text-gray-900 break-words">${escapeHtml(entry.value)}</p>
                                     </td>
                                 `).join('')}
-                                ${Array.from({ length: 2 - row.length }).map(() => '<td></td>').join('')}
+                                ${Array.from({ length: 2 - row.length }).map(() => '<td class="w-1/2 border-b border-gray-100 pb-3"></td>').join('')}
                             </tr>
                         `).join('')}
                     </table>
                 </div>
             </div>
         `;
+    }
+
+    function renderPreviewRowsCard(title, rows, options = {}) {
+        const filteredRows = (rows || [])
+            .filter((row) => Array.isArray(row) && row.length >= 2)
+            .filter(([, value]) => financePreviewHasValue(value));
+
+        if (!filteredRows.length) {
+            return '';
+        }
+
+        const wrapperClass = options.wrapperClass || 'overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm';
+        const titleClass = options.titleClass || 'text-[15px] font-semibold text-gray-900';
+        const bodyClass = options.bodyClass || 'p-4 space-y-4';
+        const dividerClass = options.dividerClass || 'border-b border-gray-100';
+
+        return `
+            <div class="${wrapperClass}">
+                ${title ? `
+                    <div class="border-b border-gray-100 bg-slate-50 px-4 py-3">
+                        <h4 class="${titleClass}">${escapeHtml(title)}</h4>
+                    </div>
+                ` : ''}
+                <div class="${bodyClass}">
+                    ${filteredRows.map(([label, value]) => `
+                        <div class="space-y-1 ${dividerClass} pb-3 last:border-b-0 last:pb-0">
+                            <p class="text-[11px] uppercase tracking-[0.18em] text-gray-500">${escapeHtml(label)}</p>
+                            <p class="text-[14px] font-semibold text-gray-900 break-words">${escapeHtml(value)}</p>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    }
+
+    function renderPreviewSectionCard(record, moduleConfig, section) {
+        if (!section) {
+            return '';
+        }
+
+        if (typeof section.renderer === 'function') {
+            return section.renderer();
+        }
+
+        if (section.type === 'asset_tag') {
+            return `
+                <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+                    <div class="border-b border-gray-100 bg-slate-50 px-4 py-3">
+                        <h4 class="text-[15px] font-semibold text-gray-900">${escapeHtml(section.title || 'Asset Tag')}</h4>
+                    </div>
+                    <div class="p-4">
+                        ${renderArfAssetTagCard(section.assetCode, section.location, section.serialNumber, section.barcodeSvg, { withPrintButton: true })}
+                    </div>
+                </div>
+            `;
+        }
+
+        if (section.type === 'notes') {
+            return '';
+        }
+
+        return renderPreviewSectionTable(record, moduleConfig, section.title, section.fieldNames || []);
     }
 
     function renderFinanceReviewNotesSection(record) {
@@ -5420,6 +5855,22 @@
                     { type: 'notes', renderer: () => renderFinanceReviewNotesSection(record) },
                 ];
         }
+    }
+
+    function getTemplatePreviewSections(record) {
+        const data = record.data || {};
+
+        if (record.module_key === 'supplier') {
+            return [
+                { title: 'Supplier Profile', fieldNames: ['completion_mode', 'date_accomplished', 'trade_name', 'entity_type', 'corporation_type', 'registration_number', 'tin', 'bir_tin'] },
+                { title: 'Business Details', fieldNames: ['vat_status', 'business_permit_number', 'permit_expiry_date', 'nature_of_business', 'products_services_offered', 'supplier_category', 'years_in_operation'] },
+                { title: 'Address & Contact', fieldNames: ['registered_address', 'office_address', 'warehouse_address', 'telephone_number', 'mobile_number', 'email_address', 'website_social_media'] },
+                { title: 'Authorized Representative', fieldNames: ['representative_full_name', 'designation', 'phone_number', 'representative_email_address'] },
+                { title: 'Billing & Payment', fieldNames: ['billing_address', 'accounting_contact_person', 'accounting_contact_number', 'accounting_email_address', 'payment_terms', 'preferred_payment_method', 'bank_name', 'bank_branch', 'bank_account_name', 'bank_account_number', 'swift_code'] },
+            ];
+        }
+
+        return getModulePreviewSections(record).filter((section) => section && section.type !== 'notes');
     }
 
     function resolvePrItemId(value) {
@@ -6463,14 +6914,21 @@
         }
 
         target.innerHTML = attachments.map((attachment, index) => `
-            <div class="flex items-center justify-between gap-3 border rounded-md px-3 py-2 text-sm">
-                <div class="min-w-0">
-                    <p class="font-medium text-gray-900 break-all">${escapeHtml(attachment.name || `Attachment ${index + 1}`)}</p>
-                    <p class="text-xs text-gray-500 break-all">${escapeHtml(attachment.category || 'Supporting Document')} - ${escapeHtml(attachment.path || '')}</p>
+            <div class="rounded-md border border-gray-200 bg-white px-3 py-2 text-sm">
+                <div class="flex items-center justify-between gap-3">
+                    <div class="min-w-0">
+                        <p class="font-medium text-gray-900 break-all">${escapeHtml(attachment.name || `Attachment ${index + 1}`)}</p>
+                        <p class="text-xs text-gray-500 break-all">${escapeHtml(attachment.category || 'Supporting Document')}${attachment.path ? ` - ${escapeHtml(attachment.path)}` : ''}</p>
+                    </div>
+                    <div class="flex shrink-0 items-center gap-2">
+                        <span class="rounded-full bg-green-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-green-700">${escapeHtml(attachment.status || 'uploaded')}</span>
+                        <a href="${escapeHtml(attachment.url || normalizeAttachmentUrl(attachment.path || ''))}" target="_blank" class="text-blue-600 hover:underline">Open</a>
+                    </div>
                 </div>
-                <div class="flex shrink-0 items-center gap-2">
-                    <span class="rounded-full bg-green-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-green-700">${escapeHtml(attachment.status || 'uploaded')}</span>
-                    <a href="${escapeHtml(attachment.url || normalizeAttachmentUrl(attachment.path || ''))}" target="_blank" class="text-blue-600 hover:underline">Open</a>
+                <div class="mt-2 flex flex-wrap gap-2 text-[11px] text-gray-500">
+                    ${attachment.uploaded_by ? `<span>Uploaded by ${escapeHtml(attachment.uploaded_by)}</span>` : ''}
+                    ${attachment.uploaded_at ? `<span>${escapeHtml(attachment.uploaded_at)}</span>` : ''}
+                    ${attachment.size ? `<span>${escapeHtml(formatBytes(attachment.size))}</span>` : ''}
                 </div>
             </div>
         `).join('');
@@ -6500,6 +6958,7 @@
     }
 
     function defaultAttachmentControlsHtml() {
+        const attachmentOptions = financeAttachmentTypes.filter((option) => option.active !== false && !option.hidden);
         return `
             <label class="block text-sm font-medium mb-1 text-blue-700">Attachments</label>
             <select
@@ -6507,11 +6966,9 @@
                 name="attachment_category"
                 class="mb-2 w-full border border-blue-200 rounded-md p-2 bg-white text-sm"
             >
-                <option value="Supporting Document">Supporting Document</option>
-                <option value="Invoice">Invoice</option>
-                <option value="OR">OR</option>
-                <option value="DR">DR</option>
-                <option value="Contract">Contract</option>
+                ${attachmentOptions.length ? attachmentOptions.map((option) => `
+                    <option value="${escapeHtml(option.value)}">${escapeHtml(option.label || option.value)}</option>
+                `).join('') : '<option value="Supporting Document">Supporting Document</option>'}
             </select>
             <input
                 id="attachmentsInput"
@@ -6920,7 +7377,9 @@
         }
         const recordTitleInput = $('recordTitleInput');
         if (recordTitleInput) {
-            recordTitleInput.placeholder = moduleConfig.recordTitleLabel || `${moduleConfig.label} Name`;
+            recordTitleInput.placeholder = ['supplier', 'pr'].includes(currentModuleKey)
+                ? ''
+                : (moduleConfig.recordTitleLabel || `${moduleConfig.label} Name`);
             recordTitleInput.required = isFinanceRecordTitleRequired(currentModuleKey);
         }
         $('recordNumberInput').value = recordNumberValue;
@@ -8727,6 +9186,13 @@
         }
     }
 
+    function revokeCurrentPreviewAttachmentObjectUrl() {
+        if (currentPreviewAttachmentObjectUrl) {
+            URL.revokeObjectURL(currentPreviewAttachmentObjectUrl);
+            currentPreviewAttachmentObjectUrl = '';
+        }
+    }
+
     function clearPreviewRefreshTimer() {
         if (currentPreviewRefreshTimer) {
             clearInterval(currentPreviewRefreshTimer);
@@ -8737,6 +9203,9 @@
     function syncPreviewFromRecord(record) {
         currentPreviewRecord = record;
         $('previewModuleTitle').textContent = record.module_label;
+        if (currentPreviewTab !== 'attachments' || !currentPreviewAttachmentUrl) {
+            revokeCurrentPreviewAttachmentObjectUrl();
+        }
         renderPreviewDocument(record);
         renderPreviewTabContent(record);
         renderPreviewActions(record);
@@ -8764,7 +9233,7 @@
 
             if (currentPreviewRecord && String(currentPreviewRecord.id) === String(data.id)) {
                 syncPreviewFromRecord(data);
-                if (!isPendingSupplierCompletion(data)) {
+                if (!isPendingSupplierCompletion(data) || (currentPreviewTab === 'attachments' && currentPreviewAttachmentUrl)) {
                     clearPreviewRefreshTimer();
                 }
             }
@@ -8970,20 +9439,35 @@
         const companyLegalName = 'JK&C INC.';
         const companyLogo = '/images/imaglogo.png';
         const data = record.data || {};
-        const summaryItems = [
-            ['Module', moduleConfig.label],
-            ['Record Number', record.record_number || 'N/A'],
-            [moduleConfig.recordTitleLabel || 'Name', record.record_title || 'N/A'],
-            ['Record Date', record.record_date || 'N/A'],
-            ['Record Time', data.transaction_time || 'N/A'],
-            ...(shouldShowGenericAmount(record) ? [['Amount', record.amount ? formatCurrency(record.amount) : 'N/A']] : []),
-            ['Status', record.status || 'N/A'],
-            ['Workflow', record.workflow_status || 'N/A'],
-            ['Approval', previewApprovalLabel(record)],
-            ['Created By', record.user || 'N/A'],
-            ['Submitted At', record.submitted_at || 'N/A'],
-            ['Approved At', record.approved_at || 'N/A'],
-        ];
+        const summaryItems = record.module_key === 'pr'
+            ? [
+                ['Module', moduleConfig.label],
+                ['Request Number', record.record_number || 'N/A'],
+                ['Requestor', data.requestor || data.employee_name || 'N/A'],
+                ['Priority', data.priority || 'N/A'],
+                ['Date Needed', data.needed_date || 'N/A'],
+                ['Amount', record.amount ? formatCurrency(record.amount) : 'N/A'],
+                ['Record Date', record.record_date || 'N/A'],
+                ['Workflow', record.workflow_status || 'N/A'],
+                ['Approval', previewApprovalLabel(record)],
+                ['Created By', record.user || 'N/A'],
+                ['Submitted At', record.submitted_at || 'N/A'],
+                ['Approved At', record.approved_at || 'N/A'],
+            ]
+            : [
+                ['Module', moduleConfig.label],
+                ['Record Number', record.record_number || 'N/A'],
+                [moduleConfig.recordTitleLabel || 'Name', record.record_title || 'N/A'],
+                ['Record Date', record.record_date || 'N/A'],
+                ['Record Time', data.transaction_time || 'N/A'],
+                ...(shouldShowGenericAmount(record) ? [['Amount', record.amount ? formatCurrency(record.amount) : 'N/A']] : []),
+                ['Status', record.status || 'N/A'],
+                ['Workflow', record.workflow_status || 'N/A'],
+                ['Approval', previewApprovalLabel(record)],
+                ['Created By', record.user || 'N/A'],
+                ['Submitted At', record.submitted_at || 'N/A'],
+                ['Approved At', record.approved_at || 'N/A'],
+            ];
 
         const previewSections = getModulePreviewSections(record);
         const modulePreviewHtml = previewSections.map((section) => {
@@ -9283,21 +9767,24 @@
     }
 
     function renderPreviewDocument(record) {
-        const templateMode = currentPreviewTab === 'template' && record.module_key === 'supplier';
+        const templateMode = currentPreviewTab === 'template';
         const attachmentMode = Boolean(currentPreviewAttachmentUrl);
         const attachmentName = templateMode
-            ? 'Supplier PDF Template'
+            ? 'Template PDF'
             : (currentPreviewAttachmentUrl
             ? (record.attachments || []).find((attachment) => (attachment.url || normalizeAttachmentUrl(attachment.path || '')) === currentPreviewAttachmentUrl)?.name || 'Attached PDF'
             : 'Finance Preview PDF');
         const holderLabel = templateMode ? 'Template PDF' : (attachmentMode ? 'Attachment PDF' : 'Finance PDF');
         const previewCacheKey = encodeURIComponent(record.supplier_completed_at || record.submitted_at || record.approved_at || Date.now());
+        const attachmentPreviewUrl = currentPreviewAttachmentObjectUrl || currentPreviewAttachmentUrl;
         const previewUrl = templateMode
             ? `/finance/${record.id}/preview-pdf?template=1&t=${previewCacheKey}`
-            : (currentPreviewAttachmentUrl || `/finance/${record.id}/preview-pdf?t=${previewCacheKey}`);
+            : (attachmentPreviewUrl
+                ? `${attachmentPreviewUrl}${attachmentPreviewUrl.startsWith('blob:') ? '' : `${attachmentPreviewUrl.includes('?') ? '&' : '?'}preview=${encodeURIComponent(String(currentPreviewAttachmentToken || Date.now()))}`}`
+                : `/finance/${record.id}/preview-pdf?t=${previewCacheKey}`);
 
         $('previewDocument').innerHTML = `
-            <div class="max-w-5xl mx-auto">
+            <div class="mx-auto w-full max-w-[100%] overflow-hidden">
                 <div class="rounded-[24px] border border-gray-200 bg-slate-100 p-4">
                     <div class="mb-3 flex items-center justify-between gap-3 rounded-full border border-gray-200 bg-white px-4 py-2 text-xs font-medium text-gray-500 shadow-sm">
                         <span>${escapeHtml(holderLabel)}</span>
@@ -9309,7 +9796,7 @@
                             src="${escapeHtml(previewUrl)}"
                             title="Finance preview"
                             class="block w-full"
-                            style="height: 980px; border: 0; background: #ffffff;"
+                            style="height: 980px; width: 100%; max-width: 100%; border: 0; background: #ffffff;"
                         ></iframe>
                     </div>
                     <div class="mt-3 flex flex-wrap gap-2">
@@ -9356,79 +9843,13 @@
     function renderPreviewTabContent(record) {
         const moduleConfig = getModuleConfig(record.module_key);
         const attachments = Array.isArray(record.attachments) ? record.attachments : [];
-        const moduleDetailCards = getModulePreviewSections(record)
-            .filter((section) => section && section.type !== 'notes' && Array.isArray(section.fieldNames) && section.fieldNames.length)
-            .map((section) => {
-                const rows = section.fieldNames.map((fieldName) => {
-                    const field = (moduleConfig.fields || []).find((item) => item.name === fieldName);
-                    if (!field) return null;
-
-                    return {
-                        label: field.label,
-                        value: getPreviewFieldValue(record, fieldName, moduleConfig) || 'N/A',
-                    };
-                }).filter(Boolean);
-
-                if (!rows.length) return '';
-
-                return `
-                    <div class="rounded-2xl border border-gray-200 bg-white p-4">
-                        <h4 class="text-[15px] font-semibold text-gray-900">${escapeHtml(section.title || 'Details')}</h4>
-                        <div class="mt-4 space-y-3">
-                            ${rows.map((row) => `
-                                <div class="space-y-1 border-b border-gray-100 pb-3 last:border-b-0 last:pb-0">
-                                    <p class="text-[11px] uppercase tracking-[0.18em] text-gray-500">${escapeHtml(row.label)}</p>
-                                    <p class="text-[14px] font-semibold text-gray-900 break-words">${escapeHtml(row.value)}</p>
-                                </div>
-                            `).join('')}
-                        </div>
-                    </div>
-                `;
-            }).join('');
-        const detailAttachmentsHtml = attachments.length ? `
-            <div class="rounded-2xl border border-emerald-100 bg-emerald-50/50 p-4">
-                <h4 class="text-[15px] font-semibold text-gray-900">Attachments</h4>
-                <div class="mt-4 space-y-3">
-                    ${attachments.map((attachment, index) => `
-                        <a href="${escapeHtml(attachment.url || normalizeAttachmentUrl(attachment.path || ''))}" target="_blank" class="block rounded-xl border border-emerald-100 bg-white px-4 py-3 hover:bg-emerald-50 transition">
-                            <p class="font-semibold text-gray-900 break-all">${escapeHtml(attachment.name || `Attachment ${index + 1}`)}</p>
-                            <p class="mt-1 text-xs font-semibold text-emerald-700">${escapeHtml(attachment.category || 'Supporting Document')}</p>
-                            <p class="mt-1 text-xs text-gray-500 break-all">${escapeHtml(attachment.path || '')}</p>
-                        </a>
-                    `).join('')}
-                </div>
-            </div>
-        ` : '';
-        const approvalSteps = Array.isArray(record.data?.approval_steps) ? record.data.approval_steps : [];
-        const approvalSummaryRows = approvalSteps.map((step, index) => [
-            `Approver ${index + 1}`,
-            step.official_name || step.user_name || step.role || 'N/A',
-        ]);
-        const detailItems = `
-            <div class="rounded-2xl border border-blue-100 bg-blue-50/60 p-4">
-                <h4 class="text-[15px] font-semibold text-gray-900">${escapeHtml(record.module_label || 'Finance Record')} Details</h4>
-                <div class="mt-4 space-y-4">
-                    ${[
-                        ['Record Number', record.record_number || 'N/A'],
-                        [moduleConfig.recordTitleLabel || 'Name', record.record_title || 'N/A'],
-                        ['Record Date', record.record_date || 'N/A'],
-                        ...(shouldShowGenericAmount(record) ? [['Amount', record.amount ? formatCurrency(record.amount) : 'N/A']] : []),
-                        ['Workflow', record.workflow_status || 'N/A'],
-                        ['Approval', previewApprovalLabel(record)],
-                        ['Relationship Status', record.data?.relationship_status || 'N/A'],
-                        ['Next Action', record.data?.next_action || 'N/A'],
-                        ['Status', record.status || 'N/A'],
-                        ['Created By', record.user || 'N/A'],
-                        ...approvalSummaryRows,
-                    ].map(([label, value]) => `
-                        <div class="space-y-1 border-b border-gray-100 pb-3 last:border-b-0 last:pb-0">
-                            <p class="text-[11px] uppercase tracking-[0.18em] text-gray-500">${escapeHtml(label)}</p>
-                            <p class="text-[14px] font-semibold text-gray-900 break-words">${escapeHtml(value)}</p>
-                        </div>
-                    `).join('')}
-                </div>
-            </div>
-        `;
+        const templateSections = getTemplatePreviewSections(record);
+        const templateSectionCards = templateSections
+            .map((section) => renderPreviewSectionCard(record, moduleConfig, section))
+            .filter(Boolean)
+            .join('');
+        const summaryRows = getFinancePreviewSummaryRows(record);
+        const detailItems = '';
 
         const notesHtml = `
             <div class="rounded-2xl border border-amber-100 bg-amber-50/70 p-4">
@@ -9472,6 +9893,7 @@
                                         <div class="min-w-0">
                                             <p class="font-semibold text-gray-900 break-all">${escapeHtml(attachment.name || `Attachment ${index + 1}`)}</p>
                                             <p class="mt-1 text-xs text-gray-500 break-all">${escapeHtml(attachment.path || '')}</p>
+                                            <p class="mt-1 text-[11px] text-gray-500">${escapeHtml(attachment.category || 'Supporting Document')}${attachment.uploaded_by ? ` • ${escapeHtml(attachment.uploaded_by)}` : ''}${attachment.uploaded_at ? ` • ${escapeHtml(attachment.uploaded_at)}` : ''}</p>
                                         </div>
                                         <span class="rounded-full border border-gray-200 px-3 py-1 text-[11px] font-medium text-gray-600">View</span>
                                     </div>
@@ -9488,30 +9910,35 @@
                             <a href="${escapeHtml(attachment.url || normalizeAttachmentUrl(attachment.path || ''))}" target="_blank" class="block rounded-xl border border-gray-200 bg-white px-4 py-3 hover:bg-gray-50 transition">
                                 <p class="font-medium text-gray-900 break-all">${escapeHtml(attachment.name || `Attachment ${index + 1}`)}</p>
                                 <p class="mt-1 text-xs text-gray-500 break-all">${escapeHtml(attachment.path || '')}</p>
+                                <p class="mt-1 text-[11px] text-gray-500">${escapeHtml(attachment.category || 'Supporting Document')}${attachment.uploaded_by ? ` • ${escapeHtml(attachment.uploaded_by)}` : ''}${attachment.uploaded_at ? ` • ${escapeHtml(attachment.uploaded_at)}` : ''}</p>
                             </a>
                         `).join('') : '<p class="text-sm text-gray-400 italic">No other attachments uploaded.</p>'}
                     </div>
                 </div>
             </div>
         `;
-        const templateHtml = record.module_key === 'supplier' ? `
+        const templateHtml = `
             <div class="space-y-4">
                 <div class="rounded-2xl border border-sky-100 bg-sky-50/60 p-4">
-                    <h4 class="text-[15px] font-semibold text-gray-900">Supplier PDF Template</h4>
-                    <p class="mt-2 text-sm text-gray-600">The preview pane is showing the in-system PDF template for the supplier record.</p>
+                    <h4 class="text-[15px] font-semibold text-gray-900">
+                        ${escapeHtml(record.module_key === 'supplier' ? 'Supplier Template' : `${record.module_label || 'Finance Record'} Template`)}
+                    </h4>
+                    <p class="mt-2 text-sm text-gray-600">
+                        ${escapeHtml(record.module_key === 'supplier'
+                            ? 'The template tab shows the supplier-specific sections used to build the completion preview.'
+                            : 'The template tab shows the module-specific sections used to build the printable preview.')}
+                    </p>
                     <div class="mt-4 rounded-xl border border-sky-100 bg-white px-4 py-3">
                         <p class="text-[11px] uppercase tracking-[0.18em] text-gray-500">PDF Source</p>
-                        <p class="mt-2 break-all text-sm font-semibold text-gray-900">${escapeHtml(`/finance/${record.id}/preview-pdf?template=1`)}</p>
+                        <a href="${escapeHtml(`/finance/${record.id}/preview-pdf?template=1`)}" target="_blank" class="mt-2 block break-all text-sm font-semibold text-sky-700 hover:text-sky-800">
+                            Open ${escapeHtml(record.module_key === 'supplier' ? 'Supplier' : record.module_label || 'Finance')} Template PDF
+                        </a>
                     </div>
-                    <a href="${escapeHtml(`/finance/${record.id}/preview-pdf?template=1`)}" target="_blank" class="mt-4 inline-flex rounded-full border border-sky-200 bg-white px-4 py-2 text-xs font-medium text-sky-700 hover:bg-sky-50">
-                        Open Template PDF
-                    </a>
                 </div>
-            </div>
-        ` : `
-            <div class="rounded-2xl border border-gray-200 bg-white p-4">
-                <h4 class="text-[15px] font-semibold text-gray-900">Template</h4>
-                <p class="mt-3 text-sm text-gray-500">No supplier template link is available for this record.</p>
+                ${record.module_key === 'supplier'
+                    ? renderPreviewRowsCard('Supplier Details', summaryRows)
+                    : ''}
+                ${templateSectionCards}
             </div>
         `;
 
@@ -9520,12 +9947,11 @@
             : '';
         const progressHtml = renderFinanceProgressTracker(record);
         const historyHtml = renderFinanceHistoryCards(record);
-
         $('previewTabContent').innerHTML = currentPreviewTab === 'attachments'
             ? attachmentsHtml
             : (currentPreviewTab === 'template'
                 ? templateHtml
-                : `${moduleTrackingHtml}${detailItems}${progressHtml}${moduleDetailCards}${detailAttachmentsHtml}${notesHtml}${historyHtml}`);
+                : `${moduleTrackingHtml}${progressHtml}${notesHtml}${historyHtml}`);
     }
 
     function updatePreviewTabButtons() {
@@ -9534,18 +9960,12 @@
         const templateButton = $('previewTabTemplate');
         if (!detailsButton || !attachmentsButton || !templateButton) return;
 
-        const hasTemplate = currentPreviewRecord?.module_key === 'supplier';
-        templateButton.classList.toggle('hidden', !hasTemplate);
-        if (!hasTemplate && currentPreviewTab === 'template') {
-            currentPreviewTab = 'details';
-        }
-
         const isDetails = currentPreviewTab === 'details';
         const isAttachments = currentPreviewTab === 'attachments';
         const isTemplate = currentPreviewTab === 'template';
         detailsButton.className = `rounded-full px-4 py-2 text-sm font-medium transition ${isDetails ? 'bg-white text-blue-700 shadow-sm border border-gray-200' : 'text-gray-600 hover:text-gray-900'}`;
         attachmentsButton.className = `rounded-full px-4 py-2 text-sm font-medium transition ${isAttachments ? 'bg-white text-blue-700 shadow-sm border border-gray-200' : 'text-gray-600 hover:text-gray-900'}`;
-        templateButton.className = `${hasTemplate ? '' : 'hidden '}rounded-full px-4 py-2 text-sm font-medium transition ${isTemplate ? 'bg-white text-blue-700 shadow-sm border border-gray-200' : 'text-gray-600 hover:text-gray-900'}`;
+        templateButton.className = `rounded-full px-4 py-2 text-sm font-medium transition ${isTemplate ? 'bg-white text-blue-700 shadow-sm border border-gray-200' : 'text-gray-600 hover:text-gray-900'}`;
     }
 
     function changePreviewTab(tab) {
@@ -9626,6 +10046,8 @@
         currentPreviewRecord = record;
         currentPreviewTab = 'details';
         currentPreviewAttachmentUrl = '';
+        currentPreviewAttachmentToken = 0;
+        revokeCurrentPreviewAttachmentObjectUrl();
         currentPreviewPdfGeneration = 0;
         revokeCurrentPreviewPdfObjectUrl();
         $('previewModuleTitle').textContent = record.module_label;
@@ -9642,12 +10064,54 @@
         if (!currentPreviewRecord || !url) return;
 
         currentPreviewAttachmentUrl = url;
+        currentPreviewAttachmentToken = Date.now();
         currentPreviewTab = 'attachments';
         revokeCurrentPreviewPdfObjectUrl();
+        revokeCurrentPreviewAttachmentObjectUrl();
+
+        const requestToken = currentPreviewAttachmentToken;
+        const loadPreviewAttachment = async () => {
+            try {
+                const res = await fetch(url, { credentials: 'same-origin', cache: 'no-store' });
+                if (!res.ok) {
+                    throw new Error(`Attachment fetch failed with ${res.status}`);
+                }
+
+                const blob = await res.blob();
+                const objectUrl = URL.createObjectURL(blob);
+
+                if (!currentPreviewRecord || currentPreviewAttachmentToken !== requestToken) {
+                    URL.revokeObjectURL(objectUrl);
+                    return;
+                }
+
+                revokeCurrentPreviewAttachmentObjectUrl();
+                currentPreviewAttachmentObjectUrl = objectUrl;
+                renderPreviewDocument(currentPreviewRecord);
+            } catch (error) {
+                if (currentPreviewRecord && currentPreviewAttachmentToken === requestToken) {
+                    renderPreviewDocument(currentPreviewRecord);
+                }
+                console.error('Unable to load attachment preview:', error);
+            } finally {
+                if (currentPreviewRecord && currentPreviewAttachmentToken === requestToken) {
+                    renderPreviewTabContent(currentPreviewRecord);
+                    renderPreviewActions(currentPreviewRecord);
+                    updatePreviewTabButtons();
+                    const frame = $('financePreviewPdfFrame');
+                    if (frame && currentPreviewAttachmentObjectUrl) {
+                        frame.src = currentPreviewAttachmentObjectUrl;
+                    }
+                    const openLink = $('financePreviewOpenLink');
+                    if (openLink && currentPreviewAttachmentObjectUrl) {
+                        openLink.href = currentPreviewAttachmentObjectUrl;
+                    }
+                }
+            }
+        };
+
         renderPreviewDocument(currentPreviewRecord);
-        renderPreviewTabContent(currentPreviewRecord);
-        renderPreviewActions(currentPreviewRecord);
-        updatePreviewTabButtons();
+        loadPreviewAttachment();
     }
 
     function upsertFinanceRecord(record) {
@@ -9868,11 +10332,12 @@
     }
 
     async function revertFinanceRecord(id) {
-        const note = prompt('Enter a review note for reverting this record:');
-        if (!note) return;
+        const reason = prompt('Enter the reason for reverting this record:');
+        if (!reason) return;
 
         const formData = new FormData();
-        formData.append('review_note', note);
+        formData.append('reason', reason);
+        formData.append('review_note', reason);
 
         const res = await csrfFetch(`/finance/${id}/revert`, {
             method: 'POST',
@@ -10167,6 +10632,7 @@
         closeDropdownSettings,
         changeDropdownSettingsModule,
         resetDropdownSettingsField,
+        resetAttachmentTypesSettings,
         saveDropdownSettings,
         fetchLiquidationSource,
         openPendingLiquidationBranch,

@@ -1293,6 +1293,10 @@
                                 <td>
                                     <div class="detail-label">{{ data_get($attachment, 'category') ?: 'Supporting Document' }}</div>
                                     <div class="detail-value">{{ data_get($attachment, 'path') ?: 'N/A' }}</div>
+                                    @if(data_get($attachment, 'uploaded_by') || data_get($attachment, 'uploaded_at'))
+                                        <div class="detail-label" style="margin-top:4px;">Uploaded</div>
+                                        <div class="detail-value" style="font-weight:500;">{{ collect([data_get($attachment, 'uploaded_by'), data_get($attachment, 'uploaded_at')])->filter()->implode(' • ') }}</div>
+                                    @endif
                                 </td>
                             </tr>
                         @endforeach
