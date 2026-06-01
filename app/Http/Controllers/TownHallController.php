@@ -1063,76 +1063,61 @@ class TownHallController extends Controller
 
 
 
-    private function buildTownHallPdf(TownHallCommunication $communication)
-    {
-        $pdf = Pdf::loadView('townhall.show-pdf', compact('communication'))
+    private function buildTownHallPdf(
+        TownHallCommunication $communication,
+        ?int $totalPages = null,
+        ?string $dateGenerated = null
+    ) {
+        $dateGenerated = $dateGenerated ?: now()->format('F d, Y h:i A');
+
+        return Pdf::loadView('townhall.show-pdf', compact('communication', 'totalPages', 'dateGenerated'))
             ->setPaper('a4', 'portrait')
             ->setOptions([
                 'isHtml5ParserEnabled' => true,
                 'isRemoteEnabled' => true,
                 'defaultFont' => 'DejaVu Sans',
             ]);
+    }
 
-        return $pdf;
+    private function resolveTownHallPdfPageCount(
+        TownHallCommunication $communication,
+        string $dateGenerated
+    ): int {
+        /*
+        |--------------------------------------------------------------------------
+        | Two-pass total page count
+        |--------------------------------------------------------------------------
+        | CSS counter(page) works for the current page. CSS counter(pages) caused
+        | "0". Inline PHP caused blank PDF in your DomPDF setup. So we first render
+        | once to get DomPDF's real page count, then render the final PDF with that
+        | number passed into the Blade as $totalPages.
+        */
+        $previewPdf = $this->buildTownHallPdf($communication, null, $dateGenerated);
+        $previewDomPdf = $previewPdf->getDomPDF();
+        $previewDomPdf->render();
+
+        $canvas = $previewDomPdf->getCanvas();
+
+        return method_exists($canvas, 'get_page_count')
+            ? max((int) $canvas->get_page_count(), 1)
+            : 1;
     }
 
     private function townHallPdfOutput(TownHallCommunication $communication): string
     {
-        $pdf = $this->buildTownHallPdf($communication);
-        $domPdf = $pdf->getDomPDF();
+        $dateGenerated = now()->format('F d, Y h:i A');
+        $totalPages = $this->resolveTownHallPdfPageCount($communication, $dateGenerated);
 
-        $domPdf->render();
-
-        $canvas = $domPdf->getCanvas();
-        $pageCount = method_exists($canvas, 'get_page_count')
-            ? (int) $canvas->get_page_count()
-            : 1;
-
-        $output = $domPdf->output();
-
-        return str_replace(
-            ['{PAGE_COUNT}', '{PAGE_NUM}'],
-            [(string) $pageCount, ''],
-            $output
-        );
+        return $this->buildTownHallPdf($communication, $totalPages, $dateGenerated)->output();
     }
 
     private function townHallPdfDownload(TownHallCommunication $communication)
     {
-        $pdf = $this->buildTownHallPdf($communication);
-        $domPdf = $pdf->getDomPDF();
+        $dateGenerated = now()->format('F d, Y h:i A');
+        $totalPages = $this->resolveTownHallPdfPageCount($communication, $dateGenerated);
 
-        $domPdf->render();
-
-        $canvas = $domPdf->getCanvas();
-        $pageCount = method_exists($canvas, 'get_page_count')
-            ? (int) $canvas->get_page_count()
-            : 1;
-
-        $fontMetrics = $domPdf->getFontMetrics();
-        $font = $fontMetrics->get_font('DejaVu Sans', 'normal');
-
-        $footerDate = now()->format('F d, Y h:i A');
-        $refNo = $communication->ref_no ?: 'N/A';
-
-        /*
-        |--------------------------------------------------------------------------
-        | Keep the visible footer line and fix total page count
-        |--------------------------------------------------------------------------
-        | The Blade footer still contains the exact footer layout. This canvas text
-        | overlays only the page number line so DomPDF can correctly render:
-        | Page X of Y
-        */
-        $canvas->page_text(
-            82,
-            762,
-            'Page {PAGE_NUM} of ' . $pageCount . '   |   Document Reference Number: ' . $refNo . '   |   Date Generated: ' . $footerDate,
-            $font,
-            8,
-            [51, 51, 51]
-        );
-
-        return $pdf->download($refNo . '.pdf');
+        return $this->buildTownHallPdf($communication, $totalPages, $dateGenerated)
+            ->download(($communication->ref_no ?: 'townhall-communication') . '.pdf');
     }
 
     public function downloadPdf($id)
@@ -1145,7 +1130,6 @@ class TownHallController extends Controller
 
         return $this->townHallPdfDownload($communication);
     }
-
 
     public function humanCapitalMemos(Request $request)
     {

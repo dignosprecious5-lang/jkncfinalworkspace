@@ -208,9 +208,14 @@
         .footer-meta {
             border-top: 1px solid #999;
             padding-top: 1.2mm;
-            margin-bottom: 1.2mm;
+            margin-bottom: 2.2mm;
             text-align: center;
-            font-size: 8px;
+            font-size: 9px;
+            min-height: 16px;
+        }
+
+        .page-number:before {
+            content: counter(page);
         }
 .footer-note {
             margin: 0 0 3mm 0;
@@ -304,7 +309,13 @@
 
 <div class="footer-fixed">
         <div class="footer-inner">
-            <div class="footer-meta">&nbsp;</div>
+            <div class="footer-meta">
+                Page <span class="page-number"></span> of {{ $totalPages ?? 1 }}
+                &nbsp; | &nbsp;
+                Document Reference Number: {{ $communication->ref_no }}
+                &nbsp; | &nbsp;
+                Date Generated: {{ $dateGenerated ?? now()->format('F d, Y h:i A') }}
+            </div>
 
             <div class="footer-note">
                 This Memorandum is an official corporate record of JK&amp;C INC. Unauthorized reproduction,
@@ -446,6 +457,5 @@
             @endif
         </div>
     </div>
-
 </body>
 </html>
