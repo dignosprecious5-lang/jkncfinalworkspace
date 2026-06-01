@@ -235,8 +235,17 @@ Route::get('/assessment/start/{uuid}', [RecruitmentController::class, 'startAsse
 Route::post('/assessment/start/{uuid}/submit', [RecruitmentController::class, 'submitAssessmentTest'])
     ->name('recruitment.assessment.submit');
 
+Route::get('/job-offer/{token}', [RecruitmentController::class, 'showJobOfferReview'])
+    ->name('job-offer.review');
+
+Route::get('/job-offer/{token}/download', [RecruitmentController::class, 'downloadJobOffer'])
+    ->name('job-offer.download');
+
 Route::get('/job-offer/{token}/accept', [RecruitmentController::class, 'acceptJobOffer'])
     ->name('job-offer.accept');
+
+Route::post('/job-offer/{token}/accept', [RecruitmentController::class, 'acceptJobOffer'])
+    ->name('job-offer.accept.submit');
 
 Route::get('/job-offer/{token}/decline', [RecruitmentController::class, 'declineJobOffer'])
     ->name('job-offer.decline');

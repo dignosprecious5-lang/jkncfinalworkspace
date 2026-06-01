@@ -35,6 +35,8 @@ class JobOffer extends Model
         'status',
         'accepted_at',
         'declined_at',
+        'signed_offer_path',
+        'signed_offer_uploaded_at',
         'pds_sent_at',
     ];
 
@@ -43,6 +45,7 @@ class JobOffer extends Model
         'offer_details' => 'array',
         'accepted_at' => 'datetime',
         'declined_at' => 'datetime',
+        'signed_offer_uploaded_at' => 'datetime',
         'pds_sent_at' => 'datetime',
     ];
 

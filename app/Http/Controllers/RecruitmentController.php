@@ -33,6 +33,7 @@ use App\Models\Training;
 use App\Models\User;
 use App\Models\AssessmentType;
 use App\Models\AssessmentQuestion;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class RecruitmentController extends Controller
 {
@@ -1601,7 +1602,26 @@ class RecruitmentController extends Controller
         ]);
     }
 
-    public function acceptJobOffer($token)
+    public function showJobOfferReview($token)
+    {
+        $jobOffer = JobOffer::where('accept_token', $token)->firstOrFail();
+
+        return view('careers.job-offer-review', [
+            'jobOffer' => $jobOffer,
+        ]);
+    }
+
+    public function downloadJobOffer($token)
+    {
+        $jobOffer = JobOffer::where('accept_token', $token)->firstOrFail();
+        $filename = 'job-offer-' . Str::slug($jobOffer->name ?: 'applicant') . '.pdf';
+
+        return Pdf::loadView('careers.job-offer-download', [
+            'jobOffer' => $jobOffer,
+        ])->setPaper('a4', 'portrait')->download($filename);
+    }
+
+    public function acceptJobOffer(Request $request, $token)
     {
         $jobOffer = JobOffer::where('accept_token', $token)->firstOrFail();
 
@@ -1625,10 +1645,30 @@ class RecruitmentController extends Controller
 
         $pdsMessage = 'Please check your email for the PDS form link.';
 
+        if (!$request->isMethod('post')) {
+            return redirect()->route('job-offer.review', $jobOffer->accept_token);
+        }
+
+        $signedOfferPath = $jobOffer->signed_offer_path;
+
+        $request->validate([
+            'signed_offer' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:10240'],
+        ]);
+
+        if ($request->hasFile('signed_offer')) {
+            if ($signedOfferPath) {
+                Storage::disk('public')->delete($signedOfferPath);
+            }
+
+            $signedOfferPath = $request->file('signed_offer')->store('job-offers/signed', 'public');
+        }
+
         $jobOffer->update([
             'status' => 'Accepted',
             'accepted_at' => now(),
             'declined_at' => null,
+            'signed_offer_path' => $signedOfferPath,
+            'signed_offer_uploaded_at' => $signedOfferPath ? now() : $jobOffer->signed_offer_uploaded_at,
         ]);
 
         $jobOffer->refresh();
