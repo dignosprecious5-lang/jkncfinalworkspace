@@ -346,17 +346,16 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::post('/townhall/{id}/acknowledge', [TownHallController::class, 'acknowledge'])->name('townhall.acknowledge');
     Route::get('/townhall/recipients/search', [TownHallController::class, 'searchRecipients'])
         ->name('townhall.recipients.search');
-
     Route::get('/townhall/{id}/email-approve', [TownHallController::class, 'approveFromEmail'])
         ->name('townhall.email.approve')
         ->middleware('signed');
-
     Route::get('/townhall/{id}/email-reject', [TownHallController::class, 'rejectFromEmail'])
         ->name('townhall.email.reject')
         ->middleware('signed');
-
     Route::get('/admin/town-hall/audit-trail', [TownHallController::class, 'auditTrail'])
         ->name('admin.townhall.audit-trail');
+    Route::get('/admin/town-hall/acknowledgement-report', [TownHallController::class, 'acknowledgementReport'])
+        ->name('admin.townhall.acknowledgement-report');
 
     /*
     |--------------------------------------------------------------------------

@@ -19,11 +19,19 @@
             </div>
 
             @if(($currentSection ?? null) === 'town-hall' || str_contains(strtolower($pageTitle ?? ''), 'town hall'))
-                <a href="{{ route('admin.townhall.audit-trail') }}"
-                   class="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 transition">
-                    <i class="fas fa-chart-line text-xs"></i>
-                    Reporting
-                </a>
+                <div class="flex flex-wrap gap-2">
+                    <a href="{{ route('admin.townhall.acknowledgement-report') }}"
+                       class="inline-flex items-center gap-2 rounded-xl bg-green-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-green-700 transition">
+                        <i class="fas fa-clipboard-check text-xs"></i>
+                        Acknowledgment Report
+                    </a>
+
+                    <a href="{{ route('admin.townhall.audit-trail') }}"
+                       class="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 transition">
+                        <i class="fas fa-chart-line text-xs"></i>
+                        Audit Trail
+                    </a>
+                </div>
             @endif
         </div>
 

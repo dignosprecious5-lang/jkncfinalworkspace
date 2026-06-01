@@ -19,6 +19,7 @@ use App\Mail\TownHallApprovalRequestNotification;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Pagination\LengthAwarePaginator;
 use App\Models\Employee;
 
 class TownHallController extends Controller
@@ -448,6 +449,39 @@ class TownHallController extends Controller
             && !$communication->is_archived
             && $isIntendedRecipient
             && !$hasAcknowledged;
+
+        if (
+            $communication->approval_status === 'Approved'
+            && !$communication->is_archived
+            && $isIntendedRecipient
+        ) {
+            $acknowledgement = TownHallAcknowledgement::firstOrCreate(
+                [
+                    'townhall_communication_id' => $communication->id,
+                    'user_id' => Auth::id(),
+                ],
+                [
+                    'viewed_at' => now(),
+                ]
+            );
+
+            if (is_null($acknowledgement->viewed_at)) {
+                $acknowledgement->update([
+                    'viewed_at' => now(),
+                ]);
+            }
+
+            if ($acknowledgement->wasRecentlyCreated || $acknowledgement->wasChanged('viewed_at')) {
+                $this->recordTownHallAudit(
+                    $communication,
+                    'Viewed',
+                    'Recipient Tracking',
+                    Auth::id(),
+                    'Viewed',
+                    'Recipient viewed the communication.'
+                );
+            }
+        }
 
         return view('townhall.show', compact(
             'communication',
@@ -887,15 +921,30 @@ class TownHallController extends Controller
             abort(403, 'Acknowledgment is only available for intended recipients.');
         }
 
-        TownHallAcknowledgement::updateOrCreate(
-            [
-                'townhall_communication_id' => $communication->id,
-                'user_id' => Auth::id(),
-            ],
-            [
-                'acknowledged_at' => now(),
-            ]
-        );
+        $acknowledgement = TownHallAcknowledgement::firstOrNew([
+            'townhall_communication_id' => $communication->id,
+            'user_id' => Auth::id(),
+        ]);
+
+        $alreadyAcknowledged = !is_null($acknowledgement->acknowledged_at);
+
+        if (is_null($acknowledgement->viewed_at)) {
+            $acknowledgement->viewed_at = now();
+        }
+
+        $acknowledgement->acknowledged_at = now();
+        $acknowledgement->save();
+
+        if (!$alreadyAcknowledged) {
+            $this->recordTownHallAudit(
+                $communication,
+                'Acknowledged',
+                'Recipient Tracking',
+                Auth::id(),
+                'Acknowledged',
+                'Recipient acknowledged the communication.'
+            );
+        }
 
         return redirect()->back()->with('success', 'Communication acknowledged successfully.');
     }
@@ -1426,6 +1475,105 @@ class TownHallController extends Controller
     }
 
 
+
+
+
+    public function acknowledgementReport(Request $request)
+    {
+        if (!Auth::user()->hasPermission('approve_townhall')) {
+            abort(403, 'Unauthorized');
+        }
+
+        $communicationsQuery = TownHallCommunication::query()
+            ->where('approval_status', 'Approved')
+            ->latest('posted_at')
+            ->latest();
+
+        if ($request->filled('communication_id')) {
+            $communicationsQuery->where('id', $request->communication_id);
+        }
+
+        if ($request->filled('search')) {
+            $search = trim((string) $request->search);
+
+            $communicationsQuery->where(function ($q) use ($search) {
+                $q->where('ref_no', 'like', "%{$search}%")
+                    ->orWhere('subject', 'like', "%{$search}%")
+                    ->orWhere('from_name', 'like', "%{$search}%");
+            });
+        }
+
+        $communications = $communicationsQuery->get();
+
+        $rows = collect();
+
+        foreach ($communications as $communication) {
+            $intendedUsers = $this->getAcknowledgementUsers($communication);
+            $records = TownHallAcknowledgement::where('townhall_communication_id', $communication->id)
+                ->get()
+                ->keyBy('user_id');
+
+            foreach ($intendedUsers as $recipient) {
+                $record = $records->get($recipient->id);
+
+                $rows->push((object) [
+                    'communication' => $communication,
+                    'recipient' => $recipient,
+                    'recipient_name' => $recipient->name,
+                    'recipient_email' => $recipient->email,
+                    'viewed_at' => $record?->viewed_at,
+                    'acknowledged_at' => $record?->acknowledged_at,
+                    'status' => $record?->acknowledged_at
+                        ? 'Acknowledged'
+                        : ($record?->viewed_at ? 'Viewed' : 'Not Viewed'),
+                ]);
+            }
+        }
+
+        if ($request->filled('recipient')) {
+            $recipientSearch = strtolower(trim((string) $request->recipient));
+
+            $rows = $rows->filter(function ($row) use ($recipientSearch) {
+                return str_contains(strtolower((string) $row->recipient_name), $recipientSearch)
+                    || str_contains(strtolower((string) $row->recipient_email), $recipientSearch);
+            })->values();
+        }
+
+        if ($request->filled('tracking_status')) {
+            $rows = $rows->where('status', $request->tracking_status)->values();
+        }
+
+        $summary = [
+            'total' => $rows->count(),
+            'viewed' => $rows->filter(fn($row) => !is_null($row->viewed_at))->count(),
+            'acknowledged' => $rows->filter(fn($row) => !is_null($row->acknowledged_at))->count(),
+            'not_viewed' => $rows->filter(fn($row) => is_null($row->viewed_at))->count(),
+        ];
+
+        $perPage = 15;
+        $currentPage = max((int) $request->query('page', 1), 1);
+
+        $reportRows = new LengthAwarePaginator(
+            $rows->forPage($currentPage, $perPage)->values(),
+            $rows->count(),
+            $perPage,
+            $currentPage,
+            [
+                'path' => $request->url(),
+                'query' => $request->query(),
+            ]
+        );
+
+        $communicationOptions = TownHallCommunication::where('approval_status', 'Approved')
+            ->latest('posted_at')
+            ->get(['id', 'ref_no', 'subject']);
+
+        return view('admin.townhall-acknowledgement-report', compact(
+            'reportRows',
+            'summary',
+            'communicationOptions'
+        ));
+    }
 
 
     public function auditTrail(Request $request)

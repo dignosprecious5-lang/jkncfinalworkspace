@@ -26,11 +26,19 @@
                     </p>
                 </div>
 
-                <a href="{{ route('admin.dashboard') }}"
-                   class="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
-                    <i class="fas fa-arrow-left text-xs"></i>
-                    Back to Admin Dashboard
-                </a>
+                <div class="flex flex-wrap gap-2">
+                    <a href="{{ route('admin.townhall.acknowledgement-report') }}"
+                       class="inline-flex items-center justify-center gap-2 rounded-xl bg-green-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-green-700">
+                        <i class="fas fa-clipboard-check text-xs"></i>
+                        Acknowledgment Report
+                    </a>
+
+                    <a href="{{ route('admin.dashboard') }}"
+                       class="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
+                        <i class="fas fa-arrow-left text-xs"></i>
+                        Back to Admin Dashboard
+                    </a>
+                </div>
             </div>
         </div>
     </div>
