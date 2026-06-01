@@ -313,6 +313,7 @@
                             <th class="px-5 py-4 text-left text-xs font-bold uppercase tracking-wide text-slate-500">User</th>
                             <th class="px-5 py-4 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Role</th>
                             <th class="px-5 py-4 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Linked Profile</th>
+                            <th class="px-5 py-4 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Account Status</th>
                             <th class="px-5 py-4 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Admin Controls</th>
                             <th class="px-5 py-4 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Created</th>
                             <th class="px-5 py-4 text-right text-xs font-bold uppercase tracking-wide text-slate-500">Actions</th>
@@ -403,6 +404,32 @@
                                     @else
                                         <span class="inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-500">Manual account</span>
                                     @endif
+                                </td>
+
+                                <td class="px-5 py-4">
+                                    @php
+                                        $isActiveAccount = !isset($user->is_active) || (bool) $user->is_active;
+                                    @endphp
+
+                                    <div class="space-y-2">
+                                        @if($isActiveAccount)
+                                            <span class="inline-flex items-center gap-2 rounded-full bg-green-50 px-3 py-1 text-xs font-semibold text-green-700 ring-1 ring-green-100">
+                                                <span class="h-1.5 w-1.5 rounded-full bg-green-500"></span>
+                                                Enabled
+                                            </span>
+                                        @else
+                                            <span class="inline-flex items-center gap-2 rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-red-700 ring-1 ring-red-100">
+                                                <span class="h-1.5 w-1.5 rounded-full bg-red-500"></span>
+                                                Disabled
+                                            </span>
+
+                                            @if(!empty($user->disabled_at))
+                                                <p class="text-[11px] text-slate-400">
+                                                    {{ \Carbon\Carbon::parse($user->disabled_at)->format('M d, Y h:i A') }}
+                                                </p>
+                                            @endif
+                                        @endif
+                                    </div>
                                 </td>
 
                                 <td class="px-5 py-4 text-xs">
@@ -531,6 +558,46 @@
                                             </div>
                                         @endif
 
+                                        @if(
+                                            ($authUser->isSuperAdmin() || $authUser->isAdmin() || $authUser->hasPermission('manage_users'))
+                                            && $authUser->id !== $user->id
+                                            && !$user->isSuperAdmin()
+                                        )
+                                            @if(!isset($user->is_active) || (bool) $user->is_active)
+                                                <form
+                                                    action="{{ route('admin.users.disable', $user->id) }}"
+                                                    method="POST"
+                                                    onsubmit="return confirm('Disable this account? The user will no longer be able to log in.')"
+                                                >
+                                                    @csrf
+
+                                                    <button
+                                                        type="submit"
+                                                        class="inline-flex items-center gap-2 rounded-lg bg-slate-700 px-3 py-2 text-xs font-semibold text-white transition hover:bg-slate-800"
+                                                    >
+                                                        <i class="fas fa-ban text-[10px]"></i>
+                                                        Disable
+                                                    </button>
+                                                </form>
+                                            @else
+                                                <form
+                                                    action="{{ route('admin.users.enable', $user->id) }}"
+                                                    method="POST"
+                                                    onsubmit="return confirm('Enable this account? The user will be allowed to log in again.')"
+                                                >
+                                                    @csrf
+
+                                                    <button
+                                                        type="submit"
+                                                        class="inline-flex items-center gap-2 rounded-lg bg-green-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-green-700"
+                                                    >
+                                                        <i class="fas fa-circle-check text-[10px]"></i>
+                                                        Enable
+                                                    </button>
+                                                </form>
+                                            @endif
+                                        @endif
+
                                         @if($authUser->canDeleteUsers() && $authUser->id !== $user->id && !$user->isSuperAdmin())
                                             <form
                                                 action="{{ route('admin.users.destroy', $user->id) }}"
@@ -558,7 +625,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="6" class="px-6 py-14 text-center text-slate-500">
+                                <td colspan="7" class="px-6 py-14 text-center text-slate-500">
                                     No users found.
                                 </td>
                             </tr>

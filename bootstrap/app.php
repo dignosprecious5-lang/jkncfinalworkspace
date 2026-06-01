@@ -8,7 +8,7 @@ use Illuminate\Http\Request;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
-        channels: __DIR__.'/../routes/channels.php',
+        channels: __DIR__ . '/../routes/channels.php',
         web: __DIR__ . '/../routes/web.php',
         commands: __DIR__ . '/../routes/console.php',
         health: '/up',
@@ -22,6 +22,18 @@ return Application::configure(basePath: dirname(__DIR__))
                 | Request::HEADER_X_FORWARDED_PROTO
                 | Request::HEADER_X_FORWARDED_AWS_ELB
         );
+
+        /*
+        |--------------------------------------------------------------------------
+        | Web Middleware
+        |--------------------------------------------------------------------------
+        | This checks authenticated users on web routes.
+        | If the account is disabled, the user will be logged out and redirected
+        | back to the login page.
+        */
+        $middleware->web(append: [
+            \App\Http\Middleware\EnsureUserAccountIsActive::class,
+        ]);
 
         $middleware->alias([
             'prevent-back-history' => \App\Http\Middleware\PreventBackHistory::class,
