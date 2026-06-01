@@ -922,6 +922,9 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
         Route::get('/accounting/{id}', [AccountingController::class, 'show'])->name('accounting.show');
         Route::put('/accounting/{id}/update', [AccountingController::class, 'update'])->name('accounting.update');
         Route::post('/accounting/{id}/submit', [AccountingController::class, 'submit'])->name('accounting.submit');
+        Route::post('/accounting/{id}/approve', [AccountingController::class, 'approve'])->name('accounting.approve');
+        Route::post('/accounting/{id}/revert', [AccountingController::class, 'revert'])->name('accounting.revert');
+        Route::post('/accounting/{id}/hold', [AccountingController::class, 'hold'])->name('accounting.hold');
     });
 
     Route::get('/finance', [FinanceController::class, 'index'])->name('finance');

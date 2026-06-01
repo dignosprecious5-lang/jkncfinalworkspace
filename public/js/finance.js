@@ -85,6 +85,8 @@
         'data.confidentiality_undertaking': 'Confidentiality undertaking',
         'data.company_policy_compliance': 'Company policy compliance',
         'data.false_information_penalty': 'Penalty for false information',
+        'data.first_approver_user_id': 'First approver',
+        'data.second_approver_user_id': 'Second approver',
     };
 
     function friendlyLabelForError(fieldKey) {
@@ -1593,6 +1595,9 @@
     let financeSourceRecords = Array.isArray(bootstrap.sourceRecords) ? bootstrap.sourceRecords.slice() : [];
     let financeLookupOptions = bootstrap.lookupOptions || {};
     let financeDropdownOptions = normalizeDropdownSettings(bootstrap.financeDropdownOptions || {});
+    const officialApproverOptions = Array.isArray(bootstrap.officialApproverOptions) ? bootstrap.officialApproverOptions.slice() : [];
+    const defaultApprovalSteps = Array.isArray(bootstrap.defaultApprovalSteps) ? bootstrap.defaultApprovalSteps.slice() : [];
+    const requestTypeModules = new Set(Array.isArray(bootstrap.requestTypeModules) ? bootstrap.requestTypeModules : []);
     let currentModuleKey = financeModules[bootstrap.currentModule] ? bootstrap.currentModule : 'supplier';
     let currentWorkflowFilter = workflowFilters.includes(bootstrap.currentWorkflowFilter) ? bootstrap.currentWorkflowFilter : 'all';
     let currentPreviewRecord = null;
@@ -4253,6 +4258,48 @@
 
     function isRequestOwnershipModule(moduleKey = currentModuleKey) {
         return Boolean(getRequestOwnershipConfig(moduleKey));
+    }
+
+    function moduleRequiresDualApproval(moduleKey = currentModuleKey) {
+        return requestTypeModules.has(moduleKey);
+    }
+
+    function defaultApprovalUserId(index) {
+        return String(defaultApprovalSteps[index]?.user_id || '');
+    }
+
+    function approverStepValue(record, fieldName, index) {
+        return getDraftValue(fieldName, record)
+            || record?.data?.approval_steps?.[index]?.user_id
+            || defaultApprovalUserId(index)
+            || '';
+    }
+
+    function renderApprovalSelectionPanel(record, values = {}) {
+        if (!moduleRequiresDualApproval()) return '';
+
+        const firstApproverValue = approverStepValue(record, 'first_approver_user_id', 0);
+        const secondApproverValue = approverStepValue(record, 'second_approver_user_id', 1);
+        const approverOptions = officialApproverOptions.map((option) => ({
+            value: String(option.user_id || ''),
+            label: option.label || option.user_name || option.official_name || 'Official Approver',
+        }));
+
+        values.first_approver_user_id = firstApproverValue;
+        values['data[first_approver_user_id]'] = firstApproverValue;
+        values.second_approver_user_id = secondApproverValue;
+        values['data[second_approver_user_id]'] = secondApproverValue;
+
+        return `
+            <div class="md:col-span-2 rounded-xl border border-violet-100 bg-violet-50/60 p-4">
+                <h4 class="text-sm font-semibold uppercase tracking-[0.24em] text-violet-700">Approval Routing</h4>
+                <p class="mt-2 text-xs text-gray-600">Request-type records require two approvers. Defaults come from the official company officer records.</p>
+                <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                    ${renderDynamicField(selectField('first_approver_user_id', 'First Approver', { required: true, options: approverOptions }), firstApproverValue, values)}
+                    ${renderDynamicField(selectField('second_approver_user_id', 'Second Approver', { required: true, options: approverOptions }), secondApproverValue, values)}
+                </div>
+            </div>
+        `;
     }
 
     function syncRequestOwnershipFields({ preserveExisting = false } = {}) {
@@ -7723,7 +7770,8 @@
             }).join('');
         })();
 
-        $('dynamicFields').innerHTML = fieldsHtml;
+        const approvalHtml = renderApprovalSelectionPanel(record, values);
+        $('dynamicFields').innerHTML = `${fieldsHtml}${approvalHtml}`;
         renderAttachmentControls(existingAttachments);
         wireDynamicFieldEvents();
         syncSupplierConditionalFields(existingAttachments);
@@ -9351,6 +9399,11 @@
                 </div>
             </div>
         ` : '';
+        const approvalSteps = Array.isArray(record.data?.approval_steps) ? record.data.approval_steps : [];
+        const approvalSummaryRows = approvalSteps.map((step, index) => [
+            `Approver ${index + 1}`,
+            step.official_name || step.user_name || step.role || 'N/A',
+        ]);
         const detailItems = `
             <div class="rounded-2xl border border-blue-100 bg-blue-50/60 p-4">
                 <h4 class="text-[15px] font-semibold text-gray-900">${escapeHtml(record.module_label || 'Finance Record')} Details</h4>
@@ -9366,6 +9419,7 @@
                         ['Next Action', record.data?.next_action || 'N/A'],
                         ['Status', record.status || 'N/A'],
                         ['Created By', record.user || 'N/A'],
+                        ...approvalSummaryRows,
                     ].map(([label, value]) => `
                         <div class="space-y-1 border-b border-gray-100 pb-3 last:border-b-0 last:pb-0">
                             <p class="text-[11px] uppercase tracking-[0.18em] text-gray-500">${escapeHtml(label)}</p>
@@ -9662,6 +9716,19 @@
         const moduleConfig = getModuleConfig(currentModuleKey);
         const currentRecord = currentEditRecordId ? getRecordById(currentEditRecordId) : null;
         const sendToSupplier = isSupplierDispatchLayout(currentRecord);
+
+        if (moduleRequiresDualApproval(currentModuleKey)) {
+            const firstApprover = String(formData.get('data[first_approver_user_id]') || '');
+            const secondApprover = String(formData.get('data[second_approver_user_id]') || '');
+            if (!firstApprover || !secondApprover) {
+                alert('Please select both approvers before saving this request.');
+                return;
+            }
+            if (firstApprover === secondApprover) {
+                alert('Please select two different approvers.');
+                return;
+            }
+        }
 
         if (token) {
             formData.set('_token', token);

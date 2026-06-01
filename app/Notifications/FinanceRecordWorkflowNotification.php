@@ -14,6 +14,7 @@ class FinanceRecordWorkflowNotification extends Notification
 
     public function __construct(
         public int $recordId,
+        public string $action,
         public string $title,
         public string $body,
         public string $buttonLabel,
@@ -42,21 +43,41 @@ class FinanceRecordWorkflowNotification extends Notification
     public function toMail(object $notifiable): MailMessage
     {
         $record = FinanceRecord::query()->find($this->recordId);
+        $action = strtolower($this->action);
+        [$accentColor, $accentSoftColor, $badgeLabel] = match ($action) {
+            'approved' => ['#15803d', '#dcfce7', 'Approved'],
+            'partially_approved',
+            'submitted',
+            'supplier_submitted',
+            'updated' => ['#1d4ed8', '#dbeafe', 'For Review'],
+            'held' => ['#b45309', '#fef3c7', 'On Hold'],
+            'reverted',
+            'delete_requested',
+            'delete_rejected' => ['#b91c1c', '#fee2e2', 'Needs Attention'],
+            'delete_approved',
+            'archived',
+            'unarchived' => ['#1f2937', '#e5e7eb', 'Finance Update'],
+            default => ['#1d4ed8', '#dbeafe', 'Finance Update'],
+        };
         $mail = (new MailMessage)
             ->from(config('mail.from.address'), config('mail.from.name'))
             ->subject($this->title)
-            ->greeting('Hi ' . ($notifiable->name ?: 'there') . ',')
-            ->line($this->body)
-            ->line('Record: ' . ($record?->record_number ?: 'N/A') . ' - ' . ($record?->record_title ?: $record?->module_key ?: 'Finance Record'))
-            ->line('Status: ' . ($record?->workflow_status ?: 'N/A') . ' / ' . ($record?->approval_status ?: 'N/A'));
-
-        if (filled($this->reviewNote)) {
-            $mail->line('Review note: ' . $this->reviewNote);
-        }
-
-        $mail
-            ->action($this->buttonLabel, $this->url)
-            ->line('For concerns, please contact the Finance Department of JK&C Inc.');
+            ->view('emails.finance-workflow-notification', [
+                'notifiableName' => $notifiable->name ?: 'there',
+                'title' => $this->title,
+                'body' => $this->body,
+                'buttonLabel' => $this->buttonLabel,
+                'url' => $this->url,
+                'reviewNote' => $this->reviewNote,
+                'recordNumber' => $record?->record_number ?: 'N/A',
+                'recordTitle' => $record?->record_title ?: $record?->module_key ?: 'Finance Record',
+                'workflowStatus' => $record?->workflow_status ?: 'N/A',
+                'approvalStatus' => $record?->approval_status ?: 'N/A',
+                'accentColor' => $accentColor,
+                'accentSoftColor' => $accentSoftColor,
+                'badgeLabel' => $badgeLabel,
+                'logoUrl' => 'https://assets.zyrosite.com/cdn-cgi/image/format=auto,w=375,fit=crop,q=95/mjEqWrZkyrh3rqK0/1-mv02o8k9OrfMW0oZ.png',
+            ]);
 
         if ($this->pdfData && $this->pdfFilename) {
             $mail->attachData($this->pdfData, $this->pdfFilename, [

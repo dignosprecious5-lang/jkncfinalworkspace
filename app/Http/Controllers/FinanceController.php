@@ -6,6 +6,7 @@ use App\Mail\SupplierCompletionMail;
 use App\Models\Company;
 use App\Models\CompanyBif;
 use App\Models\Contact;
+use App\Models\GisRecord;
 use App\Models\EmployeePayrollProfile;
 use App\Models\Employee;
 use App\Models\FinanceRecord;
@@ -67,38 +68,301 @@ class FinanceController extends Controller
         return $this->canAdministerFinance();
     }
 
-    private function financeApprovalThreshold(string $moduleKey): int
+    private function requestTypeModuleKeys(): array
     {
-        return in_array($moduleKey, $this->moduleKeys(), true) ? 2 : 1;
+        return ['pr', 'po', 'ca', 'lr', 'err', 'dv', 'pda', 'crf', 'ibtf', 'arf'];
     }
 
-    private function defaultFinanceApprovalSteps(array $data = []): array
+    private function moduleRequiresTwoPersonApproval(string $moduleKey): bool
     {
+        return in_array($moduleKey, $this->requestTypeModuleKeys(), true);
+    }
+
+    private function financeApprovalThreshold(string $moduleKey): int
+    {
+        return $this->moduleRequiresTwoPersonApproval($moduleKey) ? 2 : 1;
+    }
+
+    private function financeNormalizePersonName(?string $value): string
+    {
+        $normalized = Str::of((string) $value)
+            ->lower()
+            ->replaceMatches('/[^a-z0-9\s]/', ' ')
+            ->replaceMatches('/\s+/', ' ')
+            ->trim()
+            ->value();
+
+        return $normalized;
+    }
+
+    private function financeLatestApprovedGisRecord(): ?GisRecord
+    {
+        if (!Schema::hasTable('gis_records')) {
+            return null;
+        }
+
+        return GisRecord::query()
+            ->with('directors')
+            ->where(function ($query) {
+                $query->where('approval_status', 'Approved')
+                    ->orWhere('workflow_status', 'Accepted');
+            })
+            ->orderByDesc('period_date')
+            ->orderByDesc('created_at')
+            ->first();
+    }
+
+    private function financeLatestOfficialBif(): ?CompanyBif
+    {
+        if (!Schema::hasTable('company_bifs')) {
+            return null;
+        }
+
+        return CompanyBif::query()
+            ->orderByDesc('approved_at')
+            ->orderByDesc('submitted_at')
+            ->orderByDesc('created_at')
+            ->first();
+    }
+
+    private function financeResolveOfficialApproverUser(?string $officerName, string $role): ?User
+    {
+        static $users = null;
+
+        $users ??= User::query()
+            ->with(['employeeProfile', 'contactProfile'])
+            ->get();
+
+        $normalizedOfficerName = $this->financeNormalizePersonName($officerName);
+        $roleNeedle = Str::lower($role);
+
+        return $users
+            ->map(function (User $user) use ($normalizedOfficerName, $roleNeedle) {
+                $candidateNames = collect([
+                    $user->name,
+                    optional($user->employeeProfile)->full_name,
+                    optional($user->contactProfile)->first_name && optional($user->contactProfile)->last_name
+                        ? trim(optional($user->contactProfile)->first_name . ' ' . optional($user->contactProfile)->last_name)
+                        : null,
+                ])->filter()->unique()->values();
+
+                $score = 0;
+
+                foreach ($candidateNames as $candidateName) {
+                    $normalizedCandidate = $this->financeNormalizePersonName($candidateName);
+
+                    if ($normalizedOfficerName !== '' && $normalizedCandidate === $normalizedOfficerName) {
+                        $score = max($score, 300);
+                    } elseif (
+                        $normalizedOfficerName !== ''
+                        && (Str::contains($normalizedCandidate, $normalizedOfficerName) || Str::contains($normalizedOfficerName, $normalizedCandidate))
+                    ) {
+                        $score = max($score, 220);
+                    } elseif ($normalizedOfficerName !== '') {
+                        $tokens = collect(explode(' ', $normalizedOfficerName))->filter();
+                        if ($tokens->isNotEmpty() && $tokens->every(fn ($token) => Str::contains($normalizedCandidate, $token))) {
+                            $score = max($score, 180);
+                        }
+                    }
+                }
+
+                $positionHaystack = Str::lower(trim(implode(' ', array_filter([
+                    $user->position,
+                    optional($user->employeeProfile)->position,
+                    optional($user->contactProfile)->position,
+                    $user->name,
+                ]))));
+
+                if ($roleNeedle !== '' && Str::contains($positionHaystack, $roleNeedle)) {
+                    $score += 40;
+                }
+
+                return [
+                    'user' => $user,
+                    'score' => $score,
+                ];
+            })
+            ->filter(fn (array $candidate) => $candidate['score'] > 0)
+            ->sortByDesc('score')
+            ->pluck('user')
+            ->first();
+    }
+
+    private function financeOfficialApproverDirectory(): array
+    {
+        static $directory = null;
+
+        if ($directory !== null) {
+            return $directory;
+        }
+
+        $officialRows = collect();
+        $gisRecord = $this->financeLatestApprovedGisRecord();
+
+        if ($gisRecord) {
+            $officialRows = $officialRows->merge(
+                $gisRecord->directors
+                    ->filter(fn ($director) => filled($director->officer_name))
+                    ->map(function ($director) {
+                        return [
+                            'official_name' => trim((string) $director->officer_name),
+                            'role' => trim((string) $director->officer_type) ?: 'Officer',
+                            'source' => 'GIS',
+                        ];
+                    })
+            );
+        }
+
+        $bif = $this->financeLatestOfficialBif();
+        if ($bif) {
+            foreach ([
+                'President' => $bif->president_name,
+                'Treasurer' => $bif->treasurer_name,
+            ] as $role => $name) {
+                if (filled($name)) {
+                    $officialRows->push([
+                        'official_name' => trim((string) $name),
+                        'role' => $role,
+                        'source' => 'BIF',
+                    ]);
+                }
+            }
+        }
+
+        $officialRows = $officialRows
+            ->filter(fn (array $row) => filled($row['official_name']))
+            ->unique(fn (array $row) => $this->financeNormalizePersonName($row['official_name']) . '|' . Str::lower((string) $row['role']))
+            ->values();
+
+        $options = $officialRows
+            ->map(function (array $row) {
+                $user = $this->financeResolveOfficialApproverUser($row['official_name'], $row['role']);
+                if (!$user) {
+                    return null;
+                }
+
+                return [
+                    'user_id' => (int) $user->id,
+                    'user_name' => $user->name,
+                    'user_email' => $user->email,
+                    'official_name' => $row['official_name'],
+                    'role' => $row['role'],
+                    'source' => $row['source'],
+                    'label' => trim($row['official_name'] . ' (' . $row['role'] . ')'),
+                ];
+            })
+            ->filter()
+            ->unique('user_id')
+            ->values();
+
+        $defaults = collect(['Treasurer', 'President'])
+            ->map(function (string $role) use ($options) {
+                $match = $options->first(function (array $option) use ($role) {
+                    return Str::lower((string) $option['role']) === Str::lower($role);
+                });
+
+                return $match ? ['role' => $role, ...$match] : null;
+            })
+            ->filter()
+            ->values();
+
+        $directory = [
+            'options' => $options->all(),
+            'default_steps' => $defaults->map(fn (array $option, int $index) => [
+                'step' => $index + 1,
+                'role' => $option['role'],
+                'label' => $option['role'],
+                'required' => true,
+                'user_id' => $option['user_id'],
+                'user_name' => $option['user_name'],
+                'user_email' => $option['user_email'],
+                'official_name' => $option['official_name'],
+                'source' => $option['source'],
+            ])->all(),
+            'missing_default_roles' => collect(['Treasurer', 'President'])
+                ->reject(fn (string $role) => $defaults->contains(fn (array $option) => Str::lower((string) $option['role']) === Str::lower($role)))
+                ->values()
+                ->all(),
+        ];
+
+        return $directory;
+    }
+
+    private function financeOfficialApproverOptionByUserId(mixed $userId): ?array
+    {
+        $targetId = (int) $userId;
+
+        if ($targetId <= 0) {
+            return null;
+        }
+
+        return collect($this->financeOfficialApproverDirectory()['options'])
+            ->first(fn (array $option) => (int) ($option['user_id'] ?? 0) === $targetId);
+    }
+
+    private function financeSelectedApprovalUserIds(array $data): array
+    {
+        $userIds = [
+            data_get($data, 'first_approver_user_id'),
+            data_get($data, 'second_approver_user_id'),
+        ];
+
+        if (blank($userIds[0]) && blank($userIds[1])) {
+            $userIds = collect((array) data_get($data, 'approval_steps', []))
+                ->pluck('user_id')
+                ->all();
+        }
+
+        return collect($userIds)
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn (int $id) => $id > 0)
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function defaultFinanceApprovalSteps(array $data = [], ?string $moduleKey = null): array
+    {
+        $moduleKey ??= (string) data_get($data, 'module_key', '');
         $existing = array_values((array) data_get($data, 'approval_steps', []));
 
-        if (count($existing) >= 2) {
+        if (!$this->moduleRequiresTwoPersonApproval($moduleKey)) {
             return $existing;
         }
 
-        return [
-            [
-                'role' => 'Treasurer',
-                'label' => 'Treasurer',
+        $selectedUserIds = $this->financeSelectedApprovalUserIds($data);
+        $defaultSteps = $this->financeOfficialApproverDirectory()['default_steps'];
+        $steps = [];
+
+        foreach (($selectedUserIds ?: array_column($defaultSteps, 'user_id')) as $index => $userId) {
+            $option = $this->financeOfficialApproverOptionByUserId($userId);
+            if (!$option) {
+                continue;
+            }
+
+            $steps[] = [
+                'step' => $index + 1,
+                'role' => $option['role'],
+                'label' => $option['role'],
                 'required' => true,
-            ],
-            [
-                'role' => 'President',
-                'label' => 'President',
-                'required' => true,
-            ],
-        ];
+                'user_id' => $option['user_id'],
+                'user_name' => $option['user_name'],
+                'user_email' => $option['user_email'],
+                'official_name' => $option['official_name'],
+                'source' => $option['source'],
+            ];
+        }
+
+        return array_slice($steps, 0, 2);
     }
 
     private function initializeFinanceApprovalState(array $data, string $moduleKey): array
     {
-        $data['approval_steps'] = $this->defaultFinanceApprovalSteps($data);
+        $data['approval_steps'] = $this->defaultFinanceApprovalSteps($data, $moduleKey);
         $data['approval_required_count'] = $this->financeApprovalThreshold($moduleKey);
         $data['approval_actions'] = array_values((array) data_get($data, 'approval_actions', []));
+        $data['first_approver_user_id'] = data_get($data['approval_steps'], '0.user_id');
+        $data['second_approver_user_id'] = data_get($data['approval_steps'], '1.user_id');
 
         return $data;
     }
@@ -124,6 +388,37 @@ class FinanceController extends Controller
         }
 
         return $position ?: 'Finance Approver';
+    }
+
+    private function financeApprovalStepForUser(FinanceRecord $record, ?int $userId = null): ?array
+    {
+        $targetUserId = $userId ?: (int) Auth::id();
+
+        return collect((array) data_get($record->data ?? [], 'approval_steps', []))
+            ->first(fn (array $step) => (int) ($step['user_id'] ?? 0) === $targetUserId);
+    }
+
+    private function financeRecordApproverUserIds(FinanceRecord $record): array
+    {
+        return collect((array) data_get($record->data ?? [], 'approval_steps', []))
+            ->pluck('user_id')
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn (int $id) => $id > 0)
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function currentUserIsFinanceApprover(FinanceRecord $record): bool
+    {
+        return in_array((int) Auth::id(), $this->financeRecordApproverUserIds($record), true);
+    }
+
+    private function canViewFinanceRecord(FinanceRecord $record): bool
+    {
+        return $this->canApproveFinance()
+            || (int) $record->submitted_by === (int) Auth::id()
+            || $this->currentUserIsFinanceApprover($record);
     }
 
     private function currentUserHasApprovedFinanceRecord(FinanceRecord $record): bool
@@ -1793,7 +2088,20 @@ SVG;
         return route('finance.record.open', $record);
     }
 
-    private function financeApproverUsers()
+    private function financeApproverUsersForRecord(FinanceRecord $record)
+    {
+        $approverIds = $this->financeRecordApproverUserIds($record);
+
+        if (empty($approverIds)) {
+            return collect();
+        }
+
+        return User::query()
+            ->whereIn('id', $approverIds)
+            ->values();
+    }
+
+    private function financeAdminNotificationUsers()
     {
         return User::query()
             ->with('userPermission')
@@ -1808,22 +2116,34 @@ SVG;
     private function financeNotificationRecipients(FinanceRecord $record, string $action)
     {
         $owner = $record->submitted_by ? User::query()->find($record->submitted_by) : null;
-        $approvers = $this->financeApproverUsers();
+        $approvers = $this->financeApproverUsersForRecord($record);
+        $adminRecipients = $this->financeAdminNotificationUsers();
+        $pendingApprovers = $approvers->reject(fn (User $user) => collect($this->financeApprovalActions($record))
+            ->contains(fn (array $actionRow) => (int) data_get($actionRow, 'approved_by') === (int) $user->id));
 
         $recipients = match ($action) {
-            'submitted', 'supplier_submitted' => $approvers->merge($owner ? [$owner] : []),
+            'submitted', 'supplier_submitted' => $approvers,
             'updated' => in_array($record->workflow_status ?? 'Uploaded', ['Submitted', 'On Hold', 'Shared'], true)
                 ? $approvers->merge($owner ? [$owner] : [])
                 : collect($owner ? [$owner] : []),
-            'approved', 'partially_approved', 'reverted', 'held' => collect($owner ? [$owner] : []),
+            'partially_approved' => $pendingApprovers->merge($owner ? [$owner] : []),
+            'approved', 'reverted', 'held' => collect($owner ? [$owner] : []),
+            'delete_requested' => $adminRecipients->merge($owner ? [$owner] : []),
             default => collect($owner ? [$owner] : [])->merge($approvers),
         };
 
-        return $recipients
+        $recipients = $recipients
             ->filter()
             ->unique('id')
-            ->reject(fn (User $user) => Auth::check() && (int) $user->id === (int) Auth::id())
             ->values();
+
+        if ($action !== 'delete_requested') {
+            $recipients = $recipients
+                ->reject(fn (User $user) => Auth::check() && (int) $user->id === (int) Auth::id())
+                ->values();
+        }
+
+        return $recipients;
     }
 
     private function sendFinanceRecordWorkflowNotification(FinanceRecord $record, string $action, ?string $reviewNote = null): void
@@ -1876,6 +2196,31 @@ SVG;
                 'A finance record has been updated.',
                 'View Record',
             ],
+            'delete_requested' => [
+                'Finance Record Deletion Requested: ' . $recordLabel,
+                'A finance record deletion has been requested and is pending admin approval.',
+                'Review Request',
+            ],
+            'delete_approved' => [
+                'Finance Record Deletion Approved: ' . $recordLabel,
+                'A finance record has been approved for deletion.',
+                'View Record',
+            ],
+            'delete_rejected' => [
+                'Finance Record Deletion Rejected: ' . $recordLabel,
+                'A finance record deletion request has been rejected.',
+                'View Record',
+            ],
+            'archived' => [
+                'Finance Record Archived: ' . $recordLabel,
+                'A finance record has been archived.',
+                'View Record',
+            ],
+            'unarchived' => [
+                'Finance Record Unarchived: ' . $recordLabel,
+                'A finance record has been unarchived and is now active.',
+                'View Record',
+            ],
             default => [
                 'Finance Record Notification: ' . $recordLabel,
                 'A finance record requires attention.',
@@ -1886,6 +2231,7 @@ SVG;
         try {
             Notification::send($recipients, new FinanceRecordWorkflowNotification(
                 recordId: $freshRecord->id,
+                action: $action,
                 title: $title,
                 body: $body,
                 buttonLabel: $buttonLabel,
@@ -1913,6 +2259,22 @@ SVG;
         }
 
         return $query;
+    }
+
+    private function visibleAcceptedFinanceRecords(string $moduleKey, array $dataConstraints = [])
+    {
+        $records = $this->acceptedRecordQuery($moduleKey, $dataConstraints)
+            ->orderByDesc('record_date')
+            ->orderByDesc('created_at')
+            ->get();
+
+        if ($this->canApproveFinance()) {
+            return $records->values();
+        }
+
+        return $records
+            ->filter(fn (FinanceRecord $record) => $this->canViewFinanceRecord($record))
+            ->values();
     }
 
     private function canEditRecord(FinanceRecord $record): bool
@@ -1962,7 +2324,7 @@ SVG;
 
     private function canApproveSubmittedFinanceRecord(FinanceRecord $record): bool
     {
-        return $this->canApproveFinance()
+        return $this->currentUserIsFinanceApprover($record)
             && in_array($record->workflow_status ?? 'Uploaded', ['Submitted', 'On Hold'], true)
             && in_array($record->approval_status ?? 'Pending', ['Pending', 'Partially Approved', 'On Hold'], true)
             && ! $this->currentUserHasApprovedFinanceRecord($record);
@@ -1970,7 +2332,7 @@ SVG;
 
     private function canRevertSubmittedFinanceRecord(FinanceRecord $record): bool
     {
-        return $this->canApproveFinance()
+        return $this->currentUserIsFinanceApprover($record)
             && in_array($record->workflow_status ?? 'Uploaded', ['Submitted', 'On Hold'], true);
     }
 
@@ -2135,10 +2497,7 @@ SVG;
         $options = [];
 
         foreach (self::MODULES as $moduleKey => $label) {
-            $options[$moduleKey] = $this->acceptedRecordQuery($moduleKey)
-                ->orderByDesc('record_date')
-                ->orderByDesc('created_at')
-                ->get()
+            $options[$moduleKey] = $this->visibleAcceptedFinanceRecords($moduleKey)
                 ->map(function (FinanceRecord $record) {
                     $option = [
                         'id' => $record->id,
@@ -2181,10 +2540,7 @@ SVG;
                 ->values();
         }
 
-        $options['dv_ca'] = $this->acceptedRecordQuery('dv', ['source_document_type' => 'ca'])
-            ->orderByDesc('record_date')
-            ->orderByDesc('created_at')
-            ->get()
+        $options['dv_ca'] = $this->visibleAcceptedFinanceRecords('dv', ['source_document_type' => 'ca'])
             ->map(fn (FinanceRecord $record) => [
                 'id' => $record->id,
                 'label' => $this->optionLabel($record),
@@ -2193,10 +2549,7 @@ SVG;
             ])
             ->values();
 
-        $options['lr_overage'] = $this->acceptedRecordQuery('lr', ['variance_indicator' => 'Overage'])
-            ->orderByDesc('record_date')
-            ->orderByDesc('created_at')
-            ->get()
+        $options['lr_overage'] = $this->visibleAcceptedFinanceRecords('lr', ['variance_indicator' => 'Overage'])
             ->map(fn (FinanceRecord $record) => [
                 'id' => $record->id,
                 'label' => $this->optionLabel($record),
@@ -2205,10 +2558,7 @@ SVG;
             ])
             ->values();
 
-        $options['lr_shortage'] = $this->acceptedRecordQuery('lr', ['variance_indicator' => 'Shortage'])
-            ->orderByDesc('record_date')
-            ->orderByDesc('created_at')
-            ->get()
+        $options['lr_shortage'] = $this->visibleAcceptedFinanceRecords('lr', ['variance_indicator' => 'Shortage'])
             ->map(fn (FinanceRecord $record) => [
                 'id' => $record->id,
                 'label' => $this->optionLabel($record),
@@ -3567,6 +3917,33 @@ SVG;
             && data_get($request->input('data', []), 'completion_mode') === 'send_to_supplier';
         $rules = array_merge($this->commonValidationRules(), $this->moduleSpecificRules($moduleKey));
 
+        if ($this->moduleRequiresTwoPersonApproval($moduleKey)) {
+            $directory = $this->financeOfficialApproverDirectory();
+            $defaultStepUserIds = collect($directory['default_steps'] ?? [])->pluck('user_id')->filter()->values();
+
+            if (blank(data_get($request->input('data', []), 'first_approver_user_id')) && $defaultStepUserIds->get(0)) {
+                $data = (array) $request->input('data', []);
+                $data['first_approver_user_id'] = $defaultStepUserIds->get(0);
+                $request->merge(['data' => $data]);
+            }
+
+            if (blank(data_get($request->input('data', []), 'second_approver_user_id')) && $defaultStepUserIds->get(1)) {
+                $data = (array) $request->input('data', []);
+                $data['second_approver_user_id'] = $defaultStepUserIds->get(1);
+                $request->merge(['data' => $data]);
+            }
+
+            $allowedApproverIds = collect($directory['options'] ?? [])
+                ->pluck('user_id')
+                ->map(fn ($id) => (int) $id)
+                ->filter()
+                ->values()
+                ->all();
+
+            $rules['data.first_approver_user_id'] = ['required', 'integer', Rule::in($allowedApproverIds)];
+            $rules['data.second_approver_user_id'] = ['required', 'integer', Rule::in($allowedApproverIds), 'different:data.first_approver_user_id'];
+        }
+
         if (!$supplierSendMode && in_array($moduleKey, $this->recordTitleRequiredModules(), true)) {
             $rules['record_title'] = 'required|string|max:255';
         }
@@ -3604,6 +3981,15 @@ SVG;
         }
 
         $validated = $request->validate($rules);
+
+        if ($this->moduleRequiresTwoPersonApproval($moduleKey)) {
+            $missingDefaultRoles = $this->financeOfficialApproverDirectory()['missing_default_roles'] ?? [];
+            if (!empty($missingDefaultRoles)) {
+                throw ValidationException::withMessages([
+                    'data.first_approver_user_id' => 'Official approver records are incomplete. Please make sure the ' . implode(' and ', $missingDefaultRoles) . ' are linked to active user accounts.',
+                ]);
+            }
+        }
 
         if ($this->recordTitleLooksLikePlaceholder($moduleKey, data_get($validated, 'record_title'))) {
             throw ValidationException::withMessages([
@@ -4123,16 +4509,12 @@ SVG;
             $workflowFilter = 'all';
         }
 
-        $query = FinanceRecord::query();
-        $query->where('workflow_status', '!=', 'Deleted');
-
-        if (!$this->canApproveFinance()) {
-            $query->where('submitted_by', Auth::id());
-        }
-
-        $records = $query->orderByDesc('record_date')
+        $records = FinanceRecord::query()
+            ->where('workflow_status', '!=', 'Deleted')
+            ->orderByDesc('record_date')
             ->orderByDesc('created_at')
             ->get()
+            ->filter(fn (FinanceRecord $record) => $this->canViewFinanceRecord($record))
             ->map(fn (FinanceRecord $record) => $this->transformRecord($record))
             ->values();
 
@@ -4144,6 +4526,7 @@ SVG;
             ->orderByDesc('record_date')
             ->orderByDesc('created_at')
             ->get()
+            ->filter(fn (FinanceRecord $record) => $this->canViewFinanceRecord($record))
             ->map(fn (FinanceRecord $record) => $this->transformRecord($record))
             ->values();
 
@@ -4157,6 +4540,9 @@ SVG;
             'canApproveFinance' => $this->canApproveFinance(),
             'canManageFinanceSettings' => $this->canManageFinanceSettings(),
             'financeDropdownOptions' => $this->financeDropdownSettings(),
+            'officialApproverOptions' => $this->financeOfficialApproverDirectory()['options'],
+            'defaultApprovalSteps' => $this->financeOfficialApproverDirectory()['default_steps'],
+            'requestTypeModules' => $this->requestTypeModuleKeys(),
             'currentUserName' => Auth::user()->name ?? 'Unknown User',
             'currentUserEmail' => Auth::user()->email ?? '',
             'currentUserContact' => $this->resolveCurrentUserContactProfile(),
@@ -4175,10 +4561,12 @@ SVG;
             'status' => (string) $request->query('status', 'all'),
         ];
 
-        $records = FinanceRecord::query()
+        $allRecords = FinanceRecord::query()
             ->orderByDesc('updated_at')
             ->orderByDesc('created_at')
-            ->get()
+            ->get();
+
+        $records = $allRecords
             ->filter(function (FinanceRecord $record) use ($filters): bool {
                 if ($filters['module'] !== 'all' && $record->module_key !== $filters['module']) {
                     return false;
@@ -4208,10 +4596,10 @@ SVG;
             ->values();
 
         $counts = [
-            'submitted' => $records->where('workflow_status', 'Submitted')->count(),
-            'accepted' => $records->where('workflow_status', 'Accepted')->count(),
-            'delete_requested' => $records->where('workflow_status', 'Delete Requested')->count(),
-            'deleted' => $records->where('workflow_status', 'Deleted')->count(),
+            'submitted' => $allRecords->where('workflow_status', 'Submitted')->count(),
+            'accepted' => $allRecords->where('workflow_status', 'Accepted')->count(),
+            'delete_requested' => $allRecords->where('workflow_status', 'Delete Requested')->count(),
+            'deleted' => $allRecords->where('workflow_status', 'Deleted')->count(),
         ];
 
         return view('admin.finance-dashboard', [
@@ -4258,7 +4646,7 @@ SVG;
 
     public function show(FinanceRecord $financeRecord)
     {
-        if (!$this->canApproveFinance() && (int) $financeRecord->submitted_by !== (int) Auth::id()) {
+        if (!$this->canViewFinanceRecord($financeRecord)) {
             abort(403, 'Unauthorized');
         }
 
@@ -4284,7 +4672,7 @@ SVG;
 
     public function openRecord(FinanceRecord $financeRecord)
     {
-        if (!$this->canApproveFinance() && (int) $financeRecord->submitted_by !== (int) Auth::id()) {
+        if (!$this->canViewFinanceRecord($financeRecord)) {
             abort(403, 'Unauthorized');
         }
 
@@ -4515,10 +4903,11 @@ SVG;
         $oldData = $financeRecord->data ?? [];
         $data = $this->initializeFinanceApprovalState($oldData, $financeRecord->module_key);
         $actions = array_values((array) data_get($data, 'approval_actions', []));
+        $approvalStep = $this->financeApprovalStepForUser($financeRecord);
         $actions[] = [
             'approved_by' => Auth::id(),
             'approved_by_name' => Auth::user()?->name ?: 'Finance Approver',
-            'approver_role' => $this->financeUserApprovalRole(),
+            'approver_role' => $approvalStep['role'] ?? $this->financeUserApprovalRole(),
             'approved_at' => now()->format('Y-m-d H:i:s'),
         ];
 
@@ -4667,6 +5056,9 @@ SVG;
             'data' => $data,
         ]);
 
+        $financeRecord = $financeRecord->fresh();
+        $this->sendFinanceRecordWorkflowNotification($financeRecord, 'archived');
+
         return $this->financeActionResponse($request, 'Finance record archived successfully.', $financeRecord);
     }
 
@@ -4694,6 +5086,9 @@ SVG;
             'review_note' => null,
             'data' => $data,
         ]);
+
+        $financeRecord = $financeRecord->fresh();
+        $this->sendFinanceRecordWorkflowNotification($financeRecord, 'unarchived');
 
         return $this->financeActionResponse($request, 'Finance record unarchived successfully.', $financeRecord);
     }
@@ -4725,6 +5120,9 @@ SVG;
             'review_note' => $data['delete_request_note'] ?: 'Deletion requested for admin approval.',
             'data' => $data,
         ]);
+
+        $financeRecord = $financeRecord->fresh();
+        $this->sendFinanceRecordWorkflowNotification($financeRecord, 'delete_requested', $data['delete_request_note'] ?: null);
 
         return $this->financeActionResponse($request, 'Finance delete request submitted for admin approval.', $financeRecord);
     }
@@ -4758,6 +5156,9 @@ SVG;
             'data' => $data,
         ]);
 
+        $financeRecord = $financeRecord->fresh();
+        $this->sendFinanceRecordWorkflowNotification($financeRecord, 'delete_approved');
+
         return $this->financeActionResponse($request, 'Finance record deletion approved.', $financeRecord);
     }
 
@@ -4790,6 +5191,9 @@ SVG;
             'approved_at' => now(),
             'data' => $data,
         ]);
+
+        $financeRecord = $financeRecord->fresh();
+        $this->sendFinanceRecordWorkflowNotification($financeRecord, 'delete_rejected', $reviewNote);
 
         return $this->financeActionResponse($request, 'Finance record deletion request rejected.', $financeRecord);
     }
