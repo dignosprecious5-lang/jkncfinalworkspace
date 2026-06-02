@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Personal Data Sheet | John Kelly & Company</title>
+    <title>Personal Data Sheet | John Kelly &amp; Company (JK&amp;C Inc.)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -40,9 +40,9 @@
             <div class="mb-8 overflow-hidden rounded-2xl border border-blue-100 bg-white shadow-sm">
                 <div class="flex flex-col gap-6 border-b border-slate-200 px-6 py-6 sm:flex-row sm:items-center sm:justify-between">
                     <div class="flex items-center gap-4">
-                        <img src="{{ asset('images/FINAL_LOGO.jpg') }}" onerror="this.src='{{ asset('images/imaglogo.png') }}'" alt="John Kelly & Company" class="h-16 w-auto object-contain">
+                        <img src="{{ asset('images/FINAL_LOGO.jpg') }}" onerror="this.src='{{ asset('images/imaglogo.png') }}'" alt="John Kelly &amp; Company (JK&amp;C Inc.)" class="h-16 w-auto object-contain">
                         <div>
-                            <p class="text-[10px] font-black uppercase tracking-[0.28em] text-blue-700">John Kelly & Company</p>
+                            <p class="text-[10px] font-black uppercase tracking-[0.28em] text-blue-700">John Kelly &amp; Company (JK&amp;C Inc.)</p>
                             <h1 class="mt-1 text-3xl font-black uppercase tracking-tight text-slate-950">Personal Data Sheet</h1>
                         </div>
                     </div>
@@ -259,7 +259,7 @@
             
             {{-- Footer --}}
             <div class="text-center text-gray-300 text-[11px] font-black uppercase tracking-[0.4em]">
-                © {{ date('Y') }} John Kelly & Company
+                © {{ date('Y') }} John Kelly &amp; Company (JK&amp;C Inc.)
             </div>
         </div>
     </div>

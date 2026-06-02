@@ -757,7 +757,7 @@
             <div class="border border-gray-200 rounded-lg mb-4 text-[10px] pb-4 mt-4 bg-gray-50 px-4 pt-3">
                 <div class="text-blue-800 font-bold uppercase tracking-wider text-xs mb-2">IV. DECLARATION AND DATA PRIVACY CONSENT</div>
                 <p class="mb-2 text-gray-600">I certify that the information provided herein is true, complete, and accurate to the best of my knowledge.</p>
-                <p class="mb-3 text-gray-600">I understand and consent that pursuant to Republic Act No. 10173 (Data Privacy Act of 2012), the information provided in this Personal Data Sheet will be collected, processed, and retained by John Kelly & Company and its authorized representatives for lawful employment and compliance purposes.</p>
+                <p class="mb-3 text-gray-600">I understand and consent that pursuant to Republic Act No. 10173 (Data Privacy Act of 2012), the information provided in this Personal Data Sheet will be collected, processed, and retained by John Kelly &amp; Company (JK&amp;C Inc.) and its authorized representatives for lawful employment and compliance purposes.</p>
                 
                 <div class="flex items-center gap-2">
                     <div class="w-3 h-3 border border-gray-400 rounded-sm flex items-center justify-center bg-white">
