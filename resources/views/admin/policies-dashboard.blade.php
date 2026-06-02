@@ -114,27 +114,28 @@
             </form>
 
             <div class="border border-gray-200 rounded-xl overflow-hidden flex-1">
-                <table class="w-full text-sm text-left border-collapse">
+                <div class="w-full overflow-x-auto">
+                <table class="policy-dashboard-table w-full text-sm text-left border-collapse table-fixed">
                     <thead class="bg-gray-100 text-gray-700">
                         <tr>
-                            <th class="px-4 py-3 border-r border-gray-200 font-semibold">Ref#</th>
-                            <th class="px-4 py-3 border-r border-gray-200 font-semibold">Module</th>
-                            <th class="px-4 py-3 border-r border-gray-200 font-semibold">Policy Title</th>
-                            <th class="px-4 py-3 border-r border-gray-200 font-semibold">Version</th>
-                            <th class="px-4 py-3 border-r border-gray-200 font-semibold">Prepared By</th>
-                            <th class="px-4 py-3 border-r border-gray-200 font-semibold">Date Uploaded</th>
-                            <th class="px-4 py-3 border-r border-gray-200 font-semibold">Workflow Status</th>
-                            <th class="px-4 py-3 font-semibold text-center">Action</th>
+                            <th class="w-[16%] px-4 py-3 border-r border-gray-200 font-semibold">Ref#</th>
+                            <th class="w-[8%] px-4 py-3 border-r border-gray-200 font-semibold">Module</th>
+                            <th class="w-[24%] px-4 py-3 border-r border-gray-200 font-semibold">Policy Title</th>
+                            <th class="w-[7%] px-4 py-3 border-r border-gray-200 font-semibold">Version</th>
+                            <th class="w-[13%] px-4 py-3 border-r border-gray-200 font-semibold">Prepared By</th>
+                            <th class="w-[10%] px-4 py-3 border-r border-gray-200 font-semibold">Date Uploaded</th>
+                            <th class="w-[10%] px-4 py-3 border-r border-gray-200 font-semibold">Workflow Status</th>
+                            <th class="w-[12%] px-4 py-3 font-semibold text-center">Action</th>
                         </tr>
                     </thead>
 
                     <tbody class="bg-white text-gray-700">
                         @forelse($policies as $policy)
                             <tr
-                                class="border-t border-gray-200 hover:bg-gray-50 transition cursor-pointer"
+                                class="border-t border-gray-200 hover:bg-gray-50 transition cursor-pointer align-top"
                                 onclick="window.location='{{ route('admin.policies.show', $policy->id) }}'"
                             >
-                                <td class="px-4 py-3 border-r border-gray-200">{{ $policy->code ?? $policy->id }}</td>
+                                <td class="px-4 py-3 border-r border-gray-200 align-top"><span class="policy-break policy-clamp-2">{{ $policy->code ?? $policy->id }}</span></td>
 
                                 <td class="px-4 py-3 border-r border-gray-200">
                                     <span class="px-2 py-1 text-xs rounded-full bg-blue-50 text-blue-700 font-medium">
@@ -142,15 +143,15 @@
                                     </span>
                                 </td>
 
-                                <td class="px-4 py-3 border-r border-gray-200">
-                                    <div class="font-medium text-gray-800">{{ $policy->policy ?? '-' }}</div>
+                                <td class="px-4 py-3 border-r border-gray-200 align-top">
+                                    <div class="policy-break policy-clamp-2 font-medium text-gray-800">{{ $policy->policy ?? '-' }}</div>
                                     @if(!empty($policy->classification))
-                                        <div class="text-xs text-gray-400 mt-1">{{ $policy->classification }}</div>
+                                        <div class="policy-break policy-clamp-1 text-xs text-gray-400 mt-1">{{ $policy->classification }}</div>
                                     @endif
                                 </td>
 
-                                <td class="px-4 py-3 border-r border-gray-200">{{ $policy->version ?? '-' }}</td>
-                                <td class="px-4 py-3 border-r border-gray-200">{{ $policy->prepared_by ?? '-' }}</td>
+                                <td class="px-4 py-3 border-r border-gray-200 align-top"><span class="policy-break policy-clamp-1">{{ $policy->version ?? '-' }}</span></td>
+                                <td class="px-4 py-3 border-r border-gray-200 align-top"><span class="policy-break policy-clamp-2">{{ $policy->prepared_by ?? '-' }}</span></td>
 
                                 <td class="px-4 py-3 border-r border-gray-200">
                                     {{ optional($policy->created_at)->format('Y-m-d') ?? '-' }}
@@ -262,6 +263,7 @@
                         @endforelse
                     </tbody>
                 </table>
+                </div>
             </div>
 
             <div class="mt-3 flex flex-col gap-3 border-t border-gray-100 pt-3">
@@ -332,3 +334,51 @@
     </div>
 </div>
 @endsection
+
+
+@push('styles')
+<style>
+    .policy-dashboard-table {
+        table-layout: fixed !important;
+        width: 100% !important;
+    }
+
+    .policy-dashboard-table th,
+    .policy-dashboard-table td {
+        min-width: 0 !important;
+        max-width: 100% !important;
+        vertical-align: top !important;
+        overflow-wrap: anywhere !important;
+        word-break: break-word !important;
+        white-space: normal !important;
+    }
+
+    .policy-break {
+        display: block !important;
+        min-width: 0 !important;
+        max-width: 100% !important;
+        overflow-wrap: anywhere !important;
+        word-break: break-word !important;
+        white-space: normal !important;
+    }
+
+    .policy-clamp-1 {
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        white-space: nowrap !important;
+    }
+
+    .policy-clamp-2 {
+        display: -webkit-box !important;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden !important;
+    }
+
+    .policy-dashboard-table form,
+    .policy-dashboard-table a,
+    .policy-dashboard-table button {
+        max-width: 100% !important;
+    }
+</style>
+@endpush

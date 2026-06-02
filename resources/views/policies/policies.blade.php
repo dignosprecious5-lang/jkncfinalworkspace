@@ -5,6 +5,7 @@
 <div id="policy-page" class="w-full min-h-screen bg-slate-50" x-data="{
     showSlideOver: false,
     previewPolicy: '',
+    previewPolicySubtitle: '',
     previewCode: '',
     previewVersion: '1.0',
     previewDate: '',
@@ -37,6 +38,9 @@
     @endif
 
     <div class="w-full px-6 py-5 space-y-5">
+        @php
+            $policiesCount = method_exists($policies, 'count') ? $policies->count() : 0;
+        @endphp
 
         {{-- PAGE HEADER --}}
         <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -113,119 +117,133 @@
 
                 <div class="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
                     <span class="h-2 w-2 rounded-full bg-slate-400"></span>
-                    Showing {{ method_exists($policies, 'firstItem') ? ($policies->firstItem() ?? 0) : $policyCollection->count() }}
-                    to {{ method_exists($policies, 'lastItem') ? ($policies->lastItem() ?? $policyCollection->count()) : $policyCollection->count() }}
+                    Showing {{ method_exists($policies, 'firstItem') ? ($policies->firstItem() ?? 0) : $policiesCount }}
+                    to {{ method_exists($policies, 'lastItem') ? ($policies->lastItem() ?? $policiesCount) : $policiesCount }}
                 </div>
             </div>
 
-            <div class="overflow-x-auto no-scrollbar">
-                <table class="min-w-[1500px] w-full border-collapse text-sm text-slate-700">
-                    <thead>
-                        <tr class="border-b border-slate-200 bg-slate-50/80">
-                            <th class="px-5 py-4 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Status</th>
-                            <th class="px-5 py-4 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Code</th>
-                            <th class="px-5 py-4 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Policy Title</th>
-                            <th class="px-5 py-4 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Version</th>
-                            <th class="px-5 py-4 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Effectivity</th>
-                            <th class="px-5 py-4 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Prepared by</th>
-                            <th class="px-5 py-4 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Reviewed by</th>
-                            <th class="px-5 py-4 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Approved by</th>
-                            <th class="px-5 py-4 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Review Cycle</th>
-                            <th class="px-5 py-4 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Classification</th>
-                            <th class="px-5 py-4 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Attachment</th>
-                        </tr>
-                    </thead>
+            <div class="divide-y divide-slate-100">
+                @forelse(($policies ?? []) as $policy)
+                    @php
+                        $status = $policy->workflow_status ?? $policy->status ?? 'Draft';
+                        $statusKey = strtolower((string) $status);
 
-                    <tbody class="divide-y divide-slate-100">
-                        @forelse(($policies ?? []) as $policy)
-                            @php
-                                $status = $policy->workflow_status ?? $policy->status ?? 'Draft';
-                                $statusKey = strtolower((string) $status);
+                        $statusClasses = match(true) {
+                            in_array($statusKey, ['accepted', 'approved', 'active']) => 'bg-green-50 text-green-700 ring-green-100',
+                            str_contains($statusKey, 'reject') => 'bg-red-50 text-red-700 ring-red-100',
+                            str_contains($statusKey, 'revision') => 'bg-blue-50 text-blue-700 ring-blue-100',
+                            str_contains($statusKey, 'pending') => 'bg-yellow-50 text-yellow-700 ring-yellow-100',
+                            default => 'bg-slate-100 text-slate-700 ring-slate-200',
+                        };
 
-                                $statusClasses = match(true) {
-                                    in_array($statusKey, ['accepted', 'approved', 'active']) => 'bg-green-50 text-green-700 ring-green-100',
-                                    str_contains($statusKey, 'reject') => 'bg-red-50 text-red-700 ring-red-100',
-                                    str_contains($statusKey, 'revision') => 'bg-blue-50 text-blue-700 ring-blue-100',
-                                    str_contains($statusKey, 'pending') => 'bg-yellow-50 text-yellow-700 ring-yellow-100',
-                                    default => 'bg-slate-100 text-slate-700 ring-slate-200',
-                                };
+                        $classification = $policy->classification ?? '-';
+                        $classificationClasses = match(strtolower((string) $classification)) {
+                            'confidential' => 'bg-red-50 text-red-700 ring-red-100',
+                            'public' => 'bg-green-50 text-green-700 ring-green-100',
+                            default => 'bg-blue-50 text-blue-700 ring-blue-100',
+                        };
 
-                                $classification = $policy->classification ?? '-';
-                                $classificationClasses = match(strtolower((string) $classification)) {
-                                    'confidential' => 'bg-red-50 text-red-700 ring-red-100',
-                                    'public' => 'bg-green-50 text-green-700 ring-green-100',
-                                    default => 'bg-blue-50 text-blue-700 ring-blue-100',
-                                };
-                            @endphp
+                        $policyAttachments = $policy->attachments ?? collect();
+                        $hasAttachment = $policyAttachments->isNotEmpty() || !empty($policy->attachment);
+                    @endphp
 
-                            <tr class="cursor-pointer transition hover:bg-blue-50/30" onclick="window.location='{{ route('policies.show', $policy->id) }}'">
-                                <td class="px-5 py-4">
+                    <div
+                        class="policy-card cursor-pointer px-5 py-5 transition hover:bg-blue-50/30"
+                        onclick="window.location='{{ route('policies.show', $policy->id) }}'"
+                    >
+                        <div class="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                            <div class="min-w-0 flex-1">
+                                <div class="mb-3 flex flex-wrap items-center gap-2">
                                     <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ring-1 {{ $statusClasses }}">
                                         {{ $status }}
                                     </span>
-                                </td>
 
-                                <td class="px-5 py-4">
-                                    <span class="inline-flex rounded-full bg-slate-100 px-3 py-1 font-mono text-xs font-semibold text-slate-700">
-                                        {{ $policy->code ?? '-' }}
+                                    <span class="inline-flex max-w-full rounded-full bg-slate-100 px-3 py-1 font-mono text-xs font-semibold text-slate-700">
+                                        <span class="policy-one-line">{{ $policy->code ?? '-' }}</span>
                                     </span>
-                                </td>
 
-                                <td class="px-5 py-4">
-                                    <div class="max-w-[280px]">
-                                        <p class="font-semibold text-slate-900">{{ $policy->policy ?? '-' }}</p>
-                                        <p class="mt-1 truncate text-xs text-slate-400">
-                                            {{ strip_tags($policy->description ?? '') ?: 'No description provided.' }}
-                                        </p>
-                                    </div>
-                                </td>
-
-                                <td class="px-5 py-4 text-slate-700">{{ $policy->version ?? '-' }}</td>
-
-                                <td class="px-5 py-4 text-slate-700">
-                                    {{ $policy->effectivity_date ? \Carbon\Carbon::parse($policy->effectivity_date)->format('M d, Y') : '-' }}
-                                </td>
-
-                                <td class="px-5 py-4 text-slate-700">{{ $policy->prepared_by ?? '-' }}</td>
-                                <td class="px-5 py-4 text-slate-700">{{ $policy->reviewed_by ?? '-' }}</td>
-                                <td class="px-5 py-4 text-slate-700">{{ $policy->approved_by ?? '-' }}</td>
-                                <td class="px-5 py-4 text-slate-700">{{ $policy->review_cycle ?? '-' }}</td>
-
-                                <td class="px-5 py-4">
                                     <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ring-1 {{ $classificationClasses }}">
                                         {{ $classification }}
                                     </span>
-                                </td>
+                                </div>
 
-                                <td class="px-5 py-4">
-                                    @if(!empty($policy->attachment))
-                                        <a
-                                            href="{{ asset('storage/' . $policy->attachment) }}"
-                                            target="_blank"
-                                            onclick="event.stopPropagation()"
-                                            class="inline-flex items-center gap-2 rounded-lg bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700 ring-1 ring-blue-100 transition hover:bg-blue-100"
-                                        >
-                                            <i class="fas fa-paperclip text-[10px]"></i>
-                                            View File
-                                        </a>
-                                    @else
-                                        <span class="text-sm text-slate-400">No file</span>
-                                    @endif
-                                </td>
-                            </tr>
-                        @empty
-                            <tr>
-                                <td colspan="11" class="px-6 py-12 text-center">
-                                    <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
-                                        <i class="fas fa-folder-open text-lg"></i>
+                                <h3 class="policy-title-text text-base font-semibold text-slate-900">
+                                    {{ $policy->policy ?? '-' }}
+                                </h3>
+
+
+                                <div class="mt-4 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+                                    <div class="min-w-0 rounded-xl bg-slate-50 px-3 py-2">
+                                        <p class="text-[11px] font-bold uppercase tracking-wide text-slate-400">Version</p>
+                                        <p class="policy-value mt-1 text-slate-700">{{ $policy->version ?? '-' }}</p>
                                     </div>
-                                    <h3 class="mt-4 text-base font-semibold text-slate-800">No policies found</h3>
-                                    <p class="mt-1 text-sm text-slate-500">Create a policy to start building your policy library.</p>
-                                </td>
-                            </tr>
-                        @endforelse
-                    </tbody>
-                </table>
+
+                                    <div class="min-w-0 rounded-xl bg-slate-50 px-3 py-2">
+                                        <p class="text-[11px] font-bold uppercase tracking-wide text-slate-400">Effectivity</p>
+                                        <p class="policy-value mt-1 text-slate-700">
+                                            {{ $policy->effectivity_date ? \Carbon\Carbon::parse($policy->effectivity_date)->format('M d, Y') : '-' }}
+                                        </p>
+                                    </div>
+
+                                    <div class="min-w-0 rounded-xl bg-slate-50 px-3 py-2">
+                                        <p class="text-[11px] font-bold uppercase tracking-wide text-slate-400">Prepared by</p>
+                                        <p class="policy-value mt-1 text-slate-700">{{ $policy->prepared_by ?? '-' }}</p>
+                                    </div>
+
+                                    <div class="min-w-0 rounded-xl bg-slate-50 px-3 py-2">
+                                        <p class="text-[11px] font-bold uppercase tracking-wide text-slate-400">Review Cycle</p>
+                                        <p class="policy-value mt-1 text-slate-700">{{ $policy->review_cycle ?? '-' }}</p>
+                                    </div>
+                                </div>
+
+                                <div class="mt-3 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
+                                    <div class="min-w-0 rounded-xl bg-slate-50 px-3 py-2">
+                                        <p class="text-[11px] font-bold uppercase tracking-wide text-slate-400">Reviewed by</p>
+                                        <p class="policy-value mt-1 text-slate-700">{{ $policy->reviewed_by ?? '-' }}</p>
+                                    </div>
+
+                                    <div class="min-w-0 rounded-xl bg-slate-50 px-3 py-2">
+                                        <p class="text-[11px] font-bold uppercase tracking-wide text-slate-400">Approved by</p>
+                                        <p class="policy-value mt-1 text-slate-700">{{ $policy->approved_by ?? '-' }}</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="flex shrink-0 flex-col gap-2 xl:w-[150px]">
+                                @if($hasAttachment)
+                                    <button
+                                        type="button"
+                                        onclick="event.stopPropagation(); window.location='{{ route('policies.show', $policy->id) }}#attachments'"
+                                        class="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700 ring-1 ring-blue-100 transition hover:bg-blue-100"
+                                    >
+                                        <i class="fas fa-paperclip text-[10px]"></i>
+                                        View Files
+                                    </button>
+                                @else
+                                    <span class="inline-flex items-center justify-center rounded-lg bg-slate-50 px-3 py-2 text-xs font-medium text-slate-400 ring-1 ring-slate-100">
+                                        No file
+                                    </span>
+                                @endif
+
+                                <a
+                                    href="{{ route('policies.show', $policy->id) }}"
+                                    onclick="event.stopPropagation()"
+                                    class="inline-flex items-center justify-center rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white transition hover:bg-slate-800"
+                                >
+                                    Open
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                @empty
+                    <div class="px-6 py-12 text-center">
+                        <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
+                            <i class="fas fa-folder-open text-lg"></i>
+                        </div>
+                        <h3 class="mt-4 text-base font-semibold text-slate-800">No policies found</h3>
+                        <p class="mt-1 text-sm text-slate-500">Create a policy to start building your policy library.</p>
+                    </div>
+                @endforelse
             </div>
 
             @if(method_exists($policies, 'links'))
@@ -267,38 +285,70 @@
                 {{-- Scrollable Preview Area --}}
                 <div class="flex-1 overflow-y-auto p-6">
                     <div class="max-w-[850px] mx-auto">
-                    <div id="policy-preview-sheet" class="policy-preview bg-white border border-gray-300 shadow min-h-[1100px] px-[72px] py-[72px] overflow-hidden">
-
-                        <div class="policy-memo-header">
-                            <div class="policy-memo-logo">
-                                <img src="{{ asset('images/jk-logo.png') }}" alt="John Kelly & Company Logo">
+                    <div id="policy-preview-sheet" class="policy-preview bg-white border border-gray-300 shadow overflow-hidden">
+                        {{-- COVER PAGE --}}
+                        <section class="policy-cover-page">
+                            <div class="cover-logo" style="width:100%; display:flex; justify-content:center; align-items:center; text-align:center;">
+                                <img src="{{ $policyLogoUrl ?? asset('images/jk-logo.png') }}" alt="John Kelly & Company Logo" style="display:block; margin-left:auto; margin-right:auto; width:260px; max-height:120px; object-fit:contain;">
                             </div>
-                        </div>
 
-                        <div class="policy-memo-title">
+                            <div class="cover-company">
+                                <p class="cover-company-name">JOHN KELLY &amp; COMPANY (JK&amp;C INC)</p>
+                                <p>3F Cebu Holdings Center Cebu Business Park, Cebu City, Philippines, 6000</p>
+                            </div>
+
+                            <div class="cover-title">
+                                <h1 x-text="previewPolicy || 'POLICY TITLE'"></h1>
+                                <p x-text="previewPolicySubtitle"></p>
+                            </div>
+
+                            <div class="cover-details">
+                                <table>
+                                    <tr>
+                                        <td>Code</td>
+                                        <td x-text="previewCode || 'AUTO-GENERATED'"></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Version</td>
+                                        <td x-text="previewVersion || '1.0'"></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Effectivity Date</td>
+                                        <td x-text="previewDate || '______________________________'"></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Prepared by</td>
+                                        <td x-text="previewPrepared || '______________________________'"></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Reviewed by</td>
+                                        <td x-text="previewReviewed || '______________________________'"></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Approved by</td>
+                                        <td x-text="previewApproved || '______________________________'"></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Review Cycle</td>
+                                        <td x-text="previewReviewCycle || '______________________________'"></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Classification</td>
+                                        <td x-text="previewClassification || 'Internal Use Only'"></td>
+                                    </tr>
+                                </table>
+                            </div>
+                        </section>
+
+                        {{-- BODY PAGE --}}
+                        <section class="policy-body-page">
                             <h2 x-text="previewPolicy || 'POLICY TITLE'"></h2>
-                        </div>
 
-                        <div class="policy-memo-meta">
-                            <p><strong>Policy Title:</strong> <span x-text="previewPolicy || '______________________________'"></span></p>
-                            <p><strong>Code:</strong> <span x-text="previewCode || 'AUTO-GENERATED'"></span></p>
-                            <p><strong>Version:</strong> <span x-text="previewVersion || '1.0'"></span></p>
-                            <p><strong>Effectivity Date:</strong> <span x-text="previewDate || '______________________________'"></span></p>
-                            <p><strong>Prepared by:</strong> <span x-text="previewPrepared || '______________________________'"></span></p>
-                            <p><strong>Reviewed by:</strong> <span x-text="previewReviewed || '______________________________'"></span></p>
-                            <p><strong>Approved by:</strong> <span x-text="previewApproved || '______________________________'"></span></p>
-                            <p><strong>Review Cycle:</strong> <span x-text="previewReviewCycle || '______________________________'"></span></p>
-                            <p><strong>Classification:</strong> <span x-text="previewClassification || 'Internal Use Only'"></span></p>
-                        </div>
-
-                        <div class="policy-memo-divider"></div>
-
-                        <div class="text-[15px] leading-8 text-gray-900 min-h-[420px] max-w-full overflow-hidden">
                             <div
-                                class="policy-preview-body prose prose-sm max-w-none w-full overflow-x-auto break-words [overflow-wrap:anywhere] [&_p]:my-4 [&_p]:leading-8 [&_ul]:my-4 [&_ol]:my-4"
+                                class="policy-preview-body description-content"
                                 x-html="previewBody"
                             ></div>
-                        </div>
+                        </section>
                     </div>
                 </div>
                 </div>
@@ -323,7 +373,6 @@
 
                 <form id="policyFormSubmit" method="POST" action="{{ route('policies.store') }}" enctype="multipart/form-data" class="flex-1 overflow-y-auto px-6 py-6 space-y-5">
                     @csrf
-
                     <div>
                         <label class="text-[11px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Policy Title</label>
                         <input
@@ -334,6 +383,21 @@
                             class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition"
                             oninput="syncPreview()"
                         >
+                    </div>
+
+                    <div>
+                        <label class="text-[11px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Policy Subtitle</label>
+                        <input
+                            type="text"
+                            name="policy_subtitle"
+                            x-model="previewPolicySubtitle"
+                            placeholder="e.g. Corporate Meeting Documentation Policy"
+                            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition"
+                            oninput="syncPreview()"
+                        >
+                        <p class="mt-1 text-[11px] text-gray-400">
+                            This appears below the policy title on the cover page.
+                        </p>
                     </div>
 
                     <div>
@@ -380,6 +444,7 @@
                                 name="prepared_by"
                                 x-model="previewPrepared"
                                 class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-gray-50"
+                                oninput="syncPreview()"
                             >
                         </div>
 
@@ -456,7 +521,7 @@
                         <label class="text-[11px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Attachment</label>
                         <input
                             type="file"
-                            name="attachment"
+                            name="attachments[]" multiple
                             accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx"
                             class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm file:mr-4 file:rounded-md file:border-0 file:bg-blue-50 file:px-3 file:py-2 file:text-sm file:font-medium file:text-blue-700 hover:file:bg-blue-100"
                         >
@@ -626,6 +691,374 @@
     .quill-table-better-wrapper {
         z-index: 9999 !important;
     }
+
+    /* Add Policy live preview: JK&C approved A4 format */
+    #policy-preview-sheet.policy-preview {
+        width: 210mm !important;
+        min-height: 297mm !important;
+        padding: 0 !important;
+        overflow: visible !important;
+        font-family: Georgia, "Times New Roman", serif !important;
+        color: #000 !important;
+        font-size: 12pt !important;
+        line-height: 1.45 !important;
+        background: #fff !important;
+    }
+
+    #policy-preview-sheet .policy-cover-page {
+        min-height: 297mm;
+        padding: 72px;
+        position: relative;
+        text-align: center;
+        border-bottom: 1px solid #e5e7eb;
+    }
+
+    #policy-preview-sheet .cover-logo {
+        margin-top: 16px;
+        width: 100% !important;
+        display: flex !important;
+        justify-content: center !important;
+        align-items: center !important;
+        text-align: center !important;
+    }
+
+    #policy-preview-sheet .cover-logo img {
+        display: block !important;
+        margin-left: auto !important;
+        margin-right: auto !important;
+        float: none !important;
+        width: 260px !important;
+        max-height: 120px !important;
+        object-fit: contain !important;
+    }
+
+    #policy-preview-sheet .cover-company {
+        margin-top: 10px;
+        font-size: 11pt;
+        line-height: 1.2;
+        text-align: center;
+    }
+
+    #policy-preview-sheet .cover-company-name {
+        font-weight: bold;
+        margin: 0;
+    }
+
+    #policy-preview-sheet .cover-title {
+        margin-top: 145px;
+        line-height: 1.25;
+        text-align: center;
+    }
+
+    #policy-preview-sheet .cover-title h1 {
+        margin: 0;
+        font-size: 12pt;
+        font-weight: bold;
+        text-transform: uppercase;
+    }
+
+    #policy-preview-sheet .cover-title p {
+        margin: 2px 0 0;
+        font-size: 10pt;
+    }
+
+    #policy-preview-sheet .cover-details {
+        width: 485px;
+        margin: 150px auto 0;
+        text-align: left;
+        font-size: 11pt;
+    }
+
+    #policy-preview-sheet .cover-details table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    #policy-preview-sheet .cover-details td {
+        border: none !important;
+        padding: 5px 8px !important;
+        vertical-align: top;
+    }
+
+    #policy-preview-sheet .cover-details td:first-child {
+        width: 150px;
+        font-weight: normal;
+    }
+
+    #policy-preview-sheet .cover-details td:last-child {
+        font-weight: bold;
+    }
+
+    #policy-preview-sheet .policy-body-page {
+        min-height: 297mm;
+        padding: 72px;
+        page-break-before: always;
+    }
+
+    #policy-preview-sheet .policy-body-page h2 {
+        margin: 0 0 24px 0;
+        text-align: center;
+        font-size: 14pt;
+        font-weight: bold;
+        text-transform: uppercase;
+    }
+
+    #policy-preview-sheet .description-content {
+        width: 100%;
+        font-size: 12pt;
+        line-height: 1.45;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+    }
+
+    #policy-preview-sheet .description-content p,
+    #policy-preview-sheet .description-content li,
+    #policy-preview-sheet .description-content span,
+    #policy-preview-sheet .description-content div {
+        overflow-wrap: anywhere;
+        word-break: break-word;
+    }
+    /* Focused text wrapping for Policy Library cards */
+    .policy-card,
+    .policy-card * {
+        min-width: 0;
+    }
+
+    .policy-title-text,
+    .policy-value,
+    .policy-one-line {
+        max-width: 100%;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+    }
+
+    .policy-title-text {
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+
+    .policy-one-line {
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    /* Focused wrap fix for Add Policy A4 preview only */
+    #policy-preview-sheet,
+    #policy-preview-sheet * {
+        box-sizing: border-box !important;
+    }
+
+    #policy-preview-sheet .cover-title,
+    #policy-preview-sheet .cover-title h1,
+    #policy-preview-sheet .cover-title p,
+    #policy-preview-sheet .cover-details,
+    #policy-preview-sheet .cover-details table,
+    #policy-preview-sheet .cover-details td,
+    #policy-preview-sheet .policy-body-page,
+    #policy-preview-sheet .description-content,
+    #policy-preview-sheet .description-content * {
+        max-width: 100% !important;
+        overflow-wrap: anywhere !important;
+        word-break: break-word !important;
+        white-space: normal !important;
+    }
+
+    #policy-preview-sheet .cover-title {
+        width: 100% !important;
+        overflow: hidden !important;
+        padding-left: 16px !important;
+        padding-right: 16px !important;
+    }
+
+    #policy-preview-sheet .cover-details {
+        overflow: hidden !important;
+    }
+
+    #policy-preview-sheet .cover-details table {
+        table-layout: fixed !important;
+    }
+
+    #policy-preview-sheet .cover-details td:first-child {
+        width: 150px !important;
+        min-width: 150px !important;
+        max-width: 150px !important;
+    }
+
+    #policy-preview-sheet .cover-details td:last-child {
+        width: auto !important;
+        min-width: 0 !important;
+        max-width: 335px !important;
+        overflow: hidden !important;
+    }
+
+
+    /* Policy module default font */
+    .policy-paper,
+    .policy-paper *,
+    #policy-preview-sheet,
+    #policy-preview-sheet *,
+    .description-content,
+    .description-content *,
+    .policy-preview-body,
+    .policy-preview-body * {
+        font-family: Georgia, "Times New Roman", serif !important;
+    }
+
+    /* Quill editor Georgia font option */
+    .ql-font-georgia,
+    .ql-font-georgia * {
+        font-family: Georgia, "Times New Roman", serif !important;
+    }
+
+    .ql-picker.ql-font .ql-picker-label[data-value="georgia"]::before,
+    .ql-picker.ql-font .ql-picker-item[data-value="georgia"]::before {
+        content: "Georgia";
+        font-family: Georgia, "Times New Roman", serif;
+    }
+
+    .ql-picker.ql-font .ql-picker-label[data-value="serif"]::before,
+    .ql-picker.ql-font .ql-picker-item[data-value="serif"]::before {
+        content: "Serif";
+    }
+
+    .ql-picker.ql-font .ql-picker-label[data-value="sans-serif"]::before,
+    .ql-picker.ql-font .ql-picker-item[data-value="sans-serif"]::before {
+        content: "Sans Serif";
+    }
+
+    .ql-picker.ql-font .ql-picker-label[data-value="monospace"]::before,
+    .ql-picker.ql-font .ql-picker-item[data-value="monospace"]::before {
+        content: "Monospace";
+    }
+
+    #policy-editor .ql-editor {
+        font-family: Georgia, "Times New Roman", serif !important;
+    }
+
+
+    /* Quill alignment support for live preview, show pages, and PDF */
+    .ql-align-left {
+        text-align: left !important;
+    }
+
+    .ql-align-center {
+        text-align: center !important;
+    }
+
+    .ql-align-right {
+        text-align: right !important;
+    }
+
+    .ql-align-justify {
+        text-align: justify !important;
+        text-justify: inter-word;
+    }
+
+    .description-content .ql-align-left,
+    .policy-preview-body .ql-align-left,
+    #policy-preview-sheet .ql-align-left {
+        text-align: left !important;
+    }
+
+    .description-content .ql-align-center,
+    .policy-preview-body .ql-align-center,
+    #policy-preview-sheet .ql-align-center {
+        text-align: center !important;
+    }
+
+    .description-content .ql-align-right,
+    .policy-preview-body .ql-align-right,
+    #policy-preview-sheet .ql-align-right {
+        text-align: right !important;
+    }
+
+    .description-content .ql-align-justify,
+    .policy-preview-body .ql-align-justify,
+    #policy-preview-sheet .ql-align-justify {
+        text-align: justify !important;
+        text-justify: inter-word;
+    }
+
+
+    /* Quill indentation support for live preview, show pages, and PDF */
+    .ql-indent-1 { padding-left: 3em !important; }
+    .ql-indent-2 { padding-left: 6em !important; }
+    .ql-indent-3 { padding-left: 9em !important; }
+    .ql-indent-4 { padding-left: 12em !important; }
+    .ql-indent-5 { padding-left: 15em !important; }
+    .ql-indent-6 { padding-left: 18em !important; }
+    .ql-indent-7 { padding-left: 21em !important; }
+    .ql-indent-8 { padding-left: 24em !important; }
+
+    .description-content .ql-indent-1,
+    .policy-preview-body .ql-indent-1,
+    #policy-preview-sheet .ql-indent-1 { padding-left: 3em !important; }
+
+    .description-content .ql-indent-2,
+    .policy-preview-body .ql-indent-2,
+    #policy-preview-sheet .ql-indent-2 { padding-left: 6em !important; }
+
+    .description-content .ql-indent-3,
+    .policy-preview-body .ql-indent-3,
+    #policy-preview-sheet .ql-indent-3 { padding-left: 9em !important; }
+
+    .description-content .ql-indent-4,
+    .policy-preview-body .ql-indent-4,
+    #policy-preview-sheet .ql-indent-4 { padding-left: 12em !important; }
+
+    .description-content .ql-indent-5,
+    .policy-preview-body .ql-indent-5,
+    #policy-preview-sheet .ql-indent-5 { padding-left: 15em !important; }
+
+    .description-content .ql-indent-6,
+    .policy-preview-body .ql-indent-6,
+    #policy-preview-sheet .ql-indent-6 { padding-left: 18em !important; }
+
+    .description-content .ql-indent-7,
+    .policy-preview-body .ql-indent-7,
+    #policy-preview-sheet .ql-indent-7 { padding-left: 21em !important; }
+
+    .description-content .ql-indent-8,
+    .policy-preview-body .ql-indent-8,
+    #policy-preview-sheet .ql-indent-8 { padding-left: 24em !important; }
+
+
+    /* Real tab-space support for policy editor and preview */
+    #policy-editor .ql-editor,
+    .policy-preview-body,
+    .description-content {
+        tab-size: 4 !important;
+    }
+
+
+    /* Preserve manual spacing/tabs from the document editor */
+    .policy-preview-body,
+    .description-content {
+        white-space: normal !important;
+    }
+
+    .policy-preview-body p,
+    .policy-preview-body div,
+    .description-content p,
+    .description-content div {
+        white-space: pre-wrap !important;
+    }
+
+    .policy-preview-body span,
+    .description-content span {
+        white-space: pre-wrap !important;
+    }
+
+
+    /* Toolbar indent buttons now insert spaces at cursor, not whole-block indent */
+    #policy-editor .ql-editor {
+        tab-size: 4 !important;
+    }
+
 </style>
 @endpush
 
@@ -638,6 +1071,10 @@
 
     function initQuill() {
         if (policyQuill) return;
+
+        const Font = Quill.import('formats/font');
+        Font.whitelist = ['georgia', 'serif', 'sans-serif', 'monospace'];
+        Quill.register(Font, true);
 
         Quill.register({
             'modules/table-better': QuillTableBetter
@@ -652,30 +1089,93 @@
             theme: 'snow',
             placeholder: 'Define policy...',
             modules: {
-                toolbar: [
-                    [{ font: [] }, { size: ['small', false, 'large', 'huge'] }],
-                    [{ header: [1, 2, 3, false] }],
-                    ['bold', 'italic', 'underline', 'strike'],
-                    [{ script: 'sub' }, { script: 'super' }],
-                    [{ color: [] }, { background: [] }],
-                    [{ list: 'ordered' }, { list: 'bullet' }],
-                    [{ indent: '-1' }, { indent: '+1' }],
-                    [{ align: [] }],
-                    ['blockquote', 'link'],
-                    ['table-better'],
-                    ['clean']
-                ],
+                toolbar: {
+                    container: [
+                        [{ font: ['georgia', 'serif', 'sans-serif', 'monospace'] }, { size: ['small', false, 'large', 'huge'] }],
+                        [{ header: [1, 2, 3, false] }],
+                        ['bold', 'italic', 'underline', 'strike'],
+                        [{ script: 'sub' }, { script: 'super' }],
+                        [{ color: [] }, { background: [] }],
+                        [{ list: 'ordered' }, { list: 'bullet' }],
+                        [{ indent: '-1' }, { indent: '+1' }],
+                        [{ align: [] }],
+                        ['blockquote', 'link'],
+                        ['table-better'],
+                        ['clean']
+                    ],
+                    handlers: {
+                        indent: function(value) {
+                            const range = this.quill.getSelection(true);
+                            if (!range) return;
+
+                            const spaces = '\u00a0\u00a0\u00a0\u00a0';
+
+                            if (value === '+1') {
+                                this.quill.insertText(range.index, spaces, Quill.sources.USER);
+                                this.quill.setSelection(range.index + spaces.length, 0, Quill.sources.SILENT);
+                                return;
+                            }
+
+                            if (value === '-1') {
+                                const start = Math.max(0, range.index - 4);
+                                const before = this.quill.getText(start, 4);
+
+                                if (before === '\u00a0\u00a0\u00a0\u00a0' || before === '    ') {
+                                    this.quill.deleteText(start, 4, Quill.sources.USER);
+                                    this.quill.setSelection(start, 0, Quill.sources.SILENT);
+                                }
+                            }
+                        }
+                    }
+                },
                 table: false,
                 'table-better': {
                     language: 'en_US',
                     menus: ['column', 'row', 'merge', 'table', 'cell', 'wrap', 'copy', 'delete'],
                     toolbarTable: true
                 },
+
                 keyboard: {
-                    bindings: QuillTableBetter.keyboardBindings
+                    bindings: {
+                        ...QuillTableBetter.keyboardBindings,
+
+                        policyTabInsertSpaces: {
+                            key: 9,
+                            handler: function(range, context) {
+                                if (!range) return false;
+
+                                const spaces = '\u00a0\u00a0\u00a0\u00a0';
+
+                                this.quill.insertText(range.index, spaces, Quill.sources.USER);
+                                this.quill.setSelection(range.index + spaces.length, 0, Quill.sources.SILENT);
+
+                                return false;
+                            }
+                        },
+
+                        policyShiftTabRemoveSpaces: {
+                            key: 9,
+                            shiftKey: true,
+                            handler: function(range, context) {
+                                if (!range || range.index < 1) return false;
+
+                                const before = this.quill.getText(Math.max(0, range.index - 4), 4);
+
+                                if (before === '\u00a0\u00a0\u00a0\u00a0' || before === '    ') {
+                                    this.quill.deleteText(range.index - 4, 4, Quill.sources.USER);
+                                    this.quill.setSelection(range.index - 4, 0, Quill.sources.SILENT);
+                                }
+
+                                return false;
+                            }
+                        }
+                    }
                 }
             }
         });
+        policyQuill.root.style.fontFamily = 'Georgia, "Times New Roman", serif';
+        policyQuill.format('font', 'georgia');
+
 
         function updatePolicyPreviewBody() {
             const html = policyQuill.root.innerHTML;

@@ -537,11 +537,18 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::get('/policies/preview-pdf', [PolicyController::class, 'previewPdf'])->name('policies.preview');
     Route::get('/policies/{id}', [PolicyController::class, 'show'])->name('policies.show');
     Route::get('/policies/{id}/edit', [PolicyController::class, 'edit'])->name('policies.edit');
+    Route::get('/policies/{id}/edit', [PolicyController::class, 'edit'])
+        ->name('policies.edit');
+
+    Route::put('/policies/{id}', [PolicyController::class, 'update'])
+        ->name('policies.update');
 
     Route::get('/admin/policies', [PolicyController::class, 'submitted'])->name('admin.policies.index');
     Route::post('/admin/policies/{id}/approve', [PolicyController::class, 'approve'])->name('admin.policies.approve');
     Route::post('/admin/policies/{id}/reject', [PolicyController::class, 'reject'])->name('admin.policies.reject');
     Route::post('/admin/policies/{id}/revise', [PolicyController::class, 'revise'])->name('admin.policies.revise');
+    Route::post('/admin/policies/{id}/review', [PolicyController::class, 'review'])
+        ->name('admin.policies.review');
     Route::get('/admin/policies/{id}', [PolicyController::class, 'showAdmin'])->name('admin.policies.show');
     Route::post('/admin/policies/{id}/archive', [PolicyController::class, 'archive'])->name('admin.policies.archive');
     Route::post('/admin/policies/{id}/unarchive', [PolicyController::class, 'unarchive'])->name('admin.policies.unarchive');

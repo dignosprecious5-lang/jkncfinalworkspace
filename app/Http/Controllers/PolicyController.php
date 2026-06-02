@@ -3,13 +3,145 @@
 namespace App\Http\Controllers;
 
 use App\Models\Policy;
+use App\Models\PolicyAudit;
+use App\Models\GisRecord;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
 
 class PolicyController extends Controller
 {
+
+    private function latestGisWithLogo(): ?GisRecord
+    {
+        $approved = GisRecord::query()
+            ->whereNotNull('logo_path')
+            ->where('logo_path', '!=', '')
+            ->where(function ($query) {
+                $query->where('approval_status', 'Approved')
+                    ->orWhere('workflow_status', 'Approved')
+                    ->orWhere('workflow_status', 'Accepted');
+            })
+            ->orderByDesc('approved_at')
+            ->orderByDesc('id')
+            ->first();
+
+        if ($approved) {
+            return $approved;
+        }
+
+        return GisRecord::query()
+            ->whereNotNull('logo_path')
+            ->where('logo_path', '!=', '')
+            ->latest('id')
+            ->first();
+    }
+
+    private function gisLogoUrl(?GisRecord $gisRecord): string
+    {
+        $fallback = asset('images/jk-logo.png');
+
+        if (!$gisRecord || empty($gisRecord->logo_path)) {
+            return $fallback;
+        }
+
+        $path = ltrim($gisRecord->logo_path, '/');
+
+        if (str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) {
+            return $path;
+        }
+
+        if (str_starts_with($path, 'storage/')) {
+            return asset($path);
+        }
+
+        return asset('storage/' . $path);
+    }
+
+    private function gisLogoDataUri(?GisRecord $gisRecord): ?string
+    {
+        $candidates = [];
+
+        if ($gisRecord && !empty($gisRecord->logo_path)) {
+            $path = ltrim($gisRecord->logo_path, '/');
+
+            if (!str_starts_with($path, 'http://') && !str_starts_with($path, 'https://')) {
+                $normalizedPath = str_starts_with($path, 'storage/')
+                    ? substr($path, strlen('storage/'))
+                    : $path;
+
+                $candidates[] = storage_path('app/public/' . $normalizedPath);
+                $candidates[] = public_path($path);
+                $candidates[] = public_path('storage/' . $normalizedPath);
+            }
+        }
+
+        $candidates[] = public_path('images/jk-logo.png');
+        $candidates[] = public_path('images/logo.png');
+
+        foreach ($candidates as $candidate) {
+            if ($candidate && file_exists($candidate)) {
+                $extension = strtolower(pathinfo($candidate, PATHINFO_EXTENSION));
+
+                $mime = match ($extension) {
+                    'jpg', 'jpeg' => 'image/jpeg',
+                    'gif' => 'image/gif',
+                    'webp' => 'image/webp',
+                    'svg' => 'image/svg+xml',
+                    default => 'image/png',
+                };
+
+                return 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($candidate));
+            }
+        }
+
+        return null;
+    }
+
+
+
+    private function logPolicyAudit(
+        Policy $policy,
+        string $action,
+        ?string $description = null,
+        ?array $oldValues = null,
+        ?array $newValues = null
+    ): void {
+        PolicyAudit::create([
+            'policy_id' => $policy->id,
+            'user_id' => Auth::id(),
+            'action' => $action,
+            'description' => $description,
+            'old_values' => $oldValues,
+            'new_values' => $newValues,
+            'ip_address' => request()?->ip(),
+            'user_agent' => request()?->userAgent(),
+        ]);
+    }
+
+    private function policyAuditSnapshot(Policy $policy): array
+    {
+        return [
+            'code' => $policy->code,
+            'policy' => $policy->policy,
+            'policy_subtitle' => $policy->policy_subtitle,
+            'version' => $policy->version,
+            'effectivity_date' => optional($policy->effectivity_date)->format('Y-m-d'),
+            'prepared_by' => $policy->prepared_by,
+            'reviewed_by' => $policy->reviewed_by,
+            'approved_by' => $policy->approved_by,
+            'review_cycle' => $policy->review_cycle,
+            'classification' => $policy->classification,
+            'approval_status' => $policy->approval_status,
+            'workflow_status' => $policy->workflow_status,
+            'is_archived' => (bool) $policy->is_archived,
+            'review_note' => $policy->review_note,
+        ];
+    }
+
+
     public function index(Request $request)
     {
         $query = Policy::where('workflow_status', 'Accepted')
@@ -29,7 +161,10 @@ class PolicyController extends Controller
 
         $policies = $query->latest()->paginate(10)->withQueryString();
 
-        return view('policies.policies', compact('policies'));
+        $latestGisRecord = $this->latestGisWithLogo();
+        $policyLogoUrl = $this->gisLogoUrl($latestGisRecord);
+
+        return view('policies.policies', compact('policies', 'latestGisRecord', 'policyLogoUrl'));
     }
 
     public function store(Request $request)
@@ -37,6 +172,7 @@ class PolicyController extends Controller
         $validated = $request->validate([
             'code' => 'nullable|string|max:255',
             'policy' => 'nullable|string|max:255',
+            'policy_subtitle' => 'nullable|string|max:255',
             'version' => 'nullable|string|max:50',
             'effectivity_date' => 'nullable|date',
             'prepared_by' => 'nullable|string|max:255',
@@ -46,23 +182,14 @@ class PolicyController extends Controller
             'classification' => 'nullable|string|max:100',
             'description' => 'nullable|string',
             'attachment' => 'nullable|file|mimes:jpg,jpeg,png,gif,webp,pdf,doc,docx|max:5120',
+            'attachments' => 'nullable|array',
+            'attachments.*' => 'nullable|file|mimes:jpg,jpeg,png,gif,webp,pdf,doc,docx|max:5120',
         ]);
-
-        if ($request->hasFile('attachment')) {
-            $file = $request->file('attachment');
-
-            if (!$file->isValid()) {
-                return back()
-                    ->withErrors(['attachment' => 'The attachment failed to upload.'])
-                    ->withInput();
-            }
-
-            $validated['attachment'] = $file->store('policy_attachments', 'public');
-        }
 
         $policy = Policy::create([
             'code' => $validated['code'] ?? null,
             'policy' => $validated['policy'] ?? null,
+            'policy_subtitle' => $validated['policy_subtitle'] ?? null,
             'version' => $validated['version'] ?? '1.0',
             'effectivity_date' => $validated['effectivity_date'] ?? null,
             'prepared_by' => $validated['prepared_by'] ?? (Auth::user()->name ?? 'System Admin'),
@@ -71,7 +198,7 @@ class PolicyController extends Controller
             'review_cycle' => $validated['review_cycle'] ?? null,
             'classification' => $validated['classification'] ?? 'Internal Use',
             'description' => $validated['description'] ?? null,
-            'attachment' => $validated['attachment'] ?? null,
+            'attachment' => null,
             'approval_status' => 'Pending',
             'workflow_status' => 'Submitted',
             'is_archived' => false,
@@ -83,6 +210,17 @@ class PolicyController extends Controller
             $policy->code = 'POL-' . str_pad((string) $policy->id, 5, '0', STR_PAD_LEFT);
             $policy->save();
         }
+
+        $this->storePolicyAttachments($request, $policy);
+        $this->syncLegacyPolicyAttachment($policy);
+
+        $this->logPolicyAudit(
+            $policy,
+            'submitted',
+            'Policy created and submitted for admin review.',
+            null,
+            $this->policyAuditSnapshot($policy->fresh())
+        );
 
         return redirect()
             ->route('policies.index')
@@ -113,16 +251,41 @@ class PolicyController extends Controller
             $description
         );
 
+
+        $safePdfText = function ($value, int $chunk = 34): string {
+            $value = trim((string) ($value ?? ''));
+
+            if ($value === '') {
+                return '';
+            }
+
+            return preg_replace_callback('/[^\s]{' . $chunk . ',}/u', function ($matches) use ($chunk) {
+                return trim(chunk_split($matches[0], $chunk, ' '));
+            }, $value);
+        };
+
+        $description = preg_replace_callback('/>([^<]+)</u', function ($matches) {
+            $text = preg_replace_callback('/[^\s]{35,}/u', function ($longWord) {
+                return trim(chunk_split($longWord[0], 35, ' '));
+            }, $matches[1]);
+
+            return '>' . $text . '<';
+        }, $description);
+
+        $latestGisRecord = $this->latestGisWithLogo();
+
         $data = [
-            'code' => $request->input('code', 'AUTO-GENERATED'),
-            'policy' => $request->input('policy', ''),
-            'version' => $request->input('version', '1.0'),
+            'logo_src' => $this->gisLogoDataUri($latestGisRecord),
+            'code' => $safePdfText($request->input('code', 'AUTO-GENERATED'), 30),
+            'policy' => $safePdfText($request->input('policy', ''), 32),
+            'policy_subtitle' => $safePdfText($request->input('policy_subtitle', ''), 42),
+            'version' => $safePdfText($request->input('version', '1.0'), 30),
             'effectivity_date' => $request->input('effectivity_date', ''),
-            'prepared_by' => $request->input('prepared_by', auth()->user()->name ?? 'System Admin'),
-            'reviewed_by' => $request->input('reviewed_by', ''),
-            'approved_by' => $request->input('approved_by', ''),
-            'review_cycle' => $request->input('review_cycle', ''),
-            'classification' => $request->input('classification', 'Internal Use'),
+            'prepared_by' => $safePdfText($request->input('prepared_by', auth()->user()->name ?? 'System Admin'), 30),
+            'reviewed_by' => $safePdfText($request->input('reviewed_by', ''), 30),
+            'approved_by' => $safePdfText($request->input('approved_by', ''), 30),
+            'review_cycle' => $safePdfText($request->input('review_cycle', ''), 30),
+            'classification' => $safePdfText($request->input('classification', 'Internal Use'), 30),
             'description' => $description,
         ];
 
@@ -131,13 +294,61 @@ class PolicyController extends Controller
             ->setOptions([
                 'isHtml5ParserEnabled' => true,
                 'isRemoteEnabled' => true,
-                'defaultFont' => 'DejaVu Sans',
+                'defaultFont' => 'Georgia',
+                'isPhpEnabled' => true,
                 'debugLayout' => false,
             ]);
 
         $filename = ($request->input('code') ?: 'policy') . '.pdf';
 
-        return $pdf->download($filename);
+        /*
+         * Render first, then add page numbers on the final DomPDF canvas.
+         * This avoids Page 1 of 0 / Page 1 of 1 problems.
+         */
+        $dompdf = $pdf->getDomPDF();
+        $dompdf->render();
+
+        $canvas = $dompdf->getCanvas();
+        $fontMetrics = $dompdf->getFontMetrics();
+
+        $font = $fontMetrics->getFont('Georgia', 'normal')
+            ?: $fontMetrics->getFont('Times-Roman', 'normal');
+
+        $fontSize = 10;
+        $pageCount = method_exists($canvas, 'get_page_count')
+            ? $canvas->get_page_count()
+            : 1;
+
+        $pageWidth = method_exists($canvas, 'get_width')
+            ? $canvas->get_width()
+            : 595.28;
+
+        $pageHeight = method_exists($canvas, 'get_height')
+            ? $canvas->get_height()
+            : 841.89;
+
+        $sampleText = 'Page ' . $pageCount . ' of ' . $pageCount;
+
+        $textWidth = method_exists($fontMetrics, 'getTextWidth')
+            ? $fontMetrics->getTextWidth($sampleText, $font, $fontSize)
+            : $fontMetrics->get_text_width($sampleText, $font, $fontSize);
+
+        $x = ($pageWidth - $textWidth) / 2;
+        $y = $pageHeight - 42;
+
+        $canvas->page_text(
+            $x,
+            $y,
+            'Page {PAGE_NUM} of {PAGE_COUNT}',
+            $font,
+            $fontSize,
+            [0, 0, 0]
+        );
+
+        return response($dompdf->output(), 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+        ]);
     }
 
     public function submitted(Request $request)
@@ -146,7 +357,7 @@ class PolicyController extends Controller
             abort(403, 'Unauthorized');
         }
 
-        $query = Policy::query();
+        $query = Policy::with('attachments');
 
         if ($request->filled('search')) {
             $search = trim($request->search);
@@ -170,7 +381,10 @@ class PolicyController extends Controller
 
         $policies = $query->latest()->paginate(10)->withQueryString();
 
-        return view('admin.policies-dashboard', compact('policies'));
+        $latestGisRecord = $this->latestGisWithLogo();
+        $policyLogoUrl = $this->gisLogoUrl($latestGisRecord);
+
+        return view('admin.policies-dashboard', compact('policies', 'latestGisRecord', 'policyLogoUrl'));
     }
 
     public function review($id)
@@ -179,15 +393,27 @@ class PolicyController extends Controller
             abort(403, 'Unauthorized');
         }
 
-        $policy = Policy::findOrFail($id);
+        $policy = Policy::with('attachments')->findOrFail($id);
 
-        $policy->update([
-            'reviewed_by' => Auth::user()->name,
-        ]);
+        /*
+         * Do not overwrite reviewed_by here.
+         * reviewed_by is a manual document field entered during Add/Edit Policy.
+         * The logged-in reviewer is only the system user performing the action,
+         * not necessarily the person whose name should appear on the policy document.
+         */
+        $policy->touch();
+
+        $this->logPolicyAudit(
+            $policy,
+            'reviewed',
+            'Policy review action recorded by admin.',
+            null,
+            $this->policyAuditSnapshot($policy->fresh())
+        );
 
         return redirect()
             ->route('admin.policies.show', $policy->id)
-            ->with('success', 'Policy reviewed by ' . Auth::user()->name . '.');
+            ->with('success', 'Policy review action recorded. Reviewed By field was preserved.');
     }
 
     public function approve($id)
@@ -196,19 +422,31 @@ class PolicyController extends Controller
             abort(403, 'Unauthorized');
         }
 
-        $policy = Policy::findOrFail($id);
+        $policy = Policy::with('attachments')->findOrFail($id);
 
         $policy->update([
-            'reviewed_by' => $policy->reviewed_by ?: Auth::user()->name,
+            /*
+             * Do not overwrite reviewed_by / approved_by.
+             * These are document names manually typed in Add/Edit Policy.
+             * The actual system user who approved is still tracked through
+             * approved_by_user_id and approved_at for audit purposes.
+             */
             'approval_status' => 'Approved',
             'workflow_status' => 'Accepted',
             'approved_by_user_id' => Auth::id(),
-            'approved_by' => Auth::user()->name,
             'approved_at' => now(),
             'review_note' => null,
             'is_archived' => false,
             'archived_at' => null,
         ]);
+
+        $this->logPolicyAudit(
+            $policy,
+            'approved',
+            'Policy approved and accepted.',
+            null,
+            $this->policyAuditSnapshot($policy->fresh())
+        );
 
         return redirect()->back()->with('success', 'Policy approved successfully.');
     }
@@ -219,19 +457,30 @@ class PolicyController extends Controller
             abort(403, 'Unauthorized');
         }
 
-        $policy = Policy::findOrFail($id);
+        $policy = Policy::with('attachments')->findOrFail($id);
 
         $policy->update([
-            'reviewed_by' => $policy->reviewed_by ?: Auth::user()->name,
+            /*
+             * Preserve reviewed_by / approved_by document fields.
+             * The user who performed this action is tracked through
+             * approved_by_user_id and approved_at.
+             */
             'approval_status' => 'Rejected',
             'workflow_status' => 'Reverted',
             'approved_by_user_id' => Auth::id(),
-            'approved_by' => Auth::user()->name,
             'approved_at' => now(),
             'review_note' => $request->input('review_note'),
             'is_archived' => false,
             'archived_at' => null,
         ]);
+
+        $this->logPolicyAudit(
+            $policy,
+            'rejected',
+            'Policy rejected by admin.',
+            null,
+            $this->policyAuditSnapshot($policy->fresh())
+        );
 
         return redirect()->back()->with('success', 'Policy rejected successfully.');
     }
@@ -242,19 +491,30 @@ class PolicyController extends Controller
             abort(403, 'Unauthorized');
         }
 
-        $policy = Policy::findOrFail($id);
+        $policy = Policy::with('attachments')->findOrFail($id);
 
         $policy->update([
-            'reviewed_by' => $policy->reviewed_by ?: Auth::user()->name,
+            /*
+             * Preserve reviewed_by / approved_by document fields.
+             * The user who performed this action is tracked through
+             * approved_by_user_id and approved_at.
+             */
             'approval_status' => 'Needs Revision',
             'workflow_status' => 'Reverted',
             'approved_by_user_id' => Auth::id(),
-            'approved_by' => Auth::user()->name,
             'approved_at' => now(),
             'review_note' => $request->input('review_note'),
             'is_archived' => false,
             'archived_at' => null,
         ]);
+
+        $this->logPolicyAudit(
+            $policy,
+            'revision_requested',
+            'Policy marked as needing revision.',
+            null,
+            $this->policyAuditSnapshot($policy->fresh())
+        );
 
         return redirect()->back()->with('success', 'Policy marked for revision.');
     }
@@ -265,13 +525,21 @@ class PolicyController extends Controller
             abort(403, 'Unauthorized');
         }
 
-        $policy = Policy::findOrFail($id);
+        $policy = Policy::with('attachments')->findOrFail($id);
 
         $policy->update([
             'workflow_status' => 'Archived',
             'is_archived' => true,
             'archived_at' => Carbon::now(),
         ]);
+
+        $this->logPolicyAudit(
+            $policy,
+            'archived',
+            'Policy archived.',
+            null,
+            $this->policyAuditSnapshot($policy->fresh())
+        );
 
         return redirect()->back()->with('success', 'Policy archived successfully.');
     }
@@ -282,7 +550,7 @@ class PolicyController extends Controller
             abort(403, 'Unauthorized');
         }
 
-        $policy = Policy::findOrFail($id);
+        $policy = Policy::with('attachments')->findOrFail($id);
 
         $restoreStatus = $policy->approval_status === 'Approved' ? 'Accepted' : 'Reverted';
 
@@ -291,6 +559,14 @@ class PolicyController extends Controller
             'is_archived' => false,
             'archived_at' => null,
         ]);
+
+        $this->logPolicyAudit(
+            $policy,
+            'unarchived',
+            'Policy unarchived.',
+            null,
+            $this->policyAuditSnapshot($policy->fresh())
+        );
 
         return redirect()->back()->with('success', 'Policy unarchived successfully.');
     }
@@ -301,23 +577,182 @@ class PolicyController extends Controller
             abort(403, 'Unauthorized');
         }
 
-        $policy = Policy::findOrFail($id);
+        $policy = Policy::with('attachments')->findOrFail($id);
 
-        return view('admin.policy-show', compact('policy'));
+        $latestGisRecord = $this->latestGisWithLogo();
+        $policyLogoUrl = $this->gisLogoUrl($latestGisRecord);
+
+        $policyAudits = PolicyAudit::with('user')
+            ->where('policy_id', $policy->id)
+            ->latest()
+            ->get();
+
+        return view('admin.policy-show', compact('policy', 'latestGisRecord', 'policyLogoUrl', 'policyAudits'));
     }
 
     public function show(Request $request, $id)
     {
-        $policy = Policy::where('is_archived', false)->findOrFail($id);
+        $policy = Policy::with('attachments')->where('is_archived', false)->findOrFail($id);
         $search = trim($request->input('search', ''));
 
-        return view('policies.show', compact('policy', 'search'));
+        $latestGisRecord = $this->latestGisWithLogo();
+        $policyLogoUrl = $this->gisLogoUrl($latestGisRecord);
+
+        return view('policies.show', compact('policy', 'search', 'latestGisRecord', 'policyLogoUrl'));
     }
+
+
+    private function storePolicyAttachments(Request $request, Policy $policy): void
+    {
+        $files = [];
+
+        if ($request->hasFile('attachments')) {
+            $uploadedFiles = $request->file('attachments');
+
+            if (is_array($uploadedFiles)) {
+                $files = array_merge($files, $uploadedFiles);
+            }
+        }
+
+        // Backward compatibility for older single attachment input.
+        if ($request->hasFile('attachment')) {
+            $files[] = $request->file('attachment');
+        }
+
+        foreach ($files as $file) {
+            if (!$file || !$file->isValid()) {
+                continue;
+            }
+
+            $path = $file->store('policy_attachments', 'public');
+
+            $policy->attachments()->create([
+                'file_path' => $path,
+                'original_name' => $file->getClientOriginalName(),
+                'mime_type' => $file->getClientMimeType(),
+                'file_size' => $file->getSize(),
+                'uploaded_by' => Auth::id(),
+            ]);
+
+            // Keep old attachment column populated for backward compatibility.
+            if (empty($policy->attachment)) {
+                $policy->update(['attachment' => $path]);
+            }
+        }
+    }
+
+    private function removeSelectedPolicyAttachments(Request $request, Policy $policy): void
+    {
+        $attachmentIds = collect($request->input('remove_attachment_ids', []))
+            ->filter()
+            ->map(fn($id) => (int) $id)
+            ->values();
+
+        if ($attachmentIds->isEmpty()) {
+            return;
+        }
+
+        $attachments = $policy->attachments()
+            ->whereIn('id', $attachmentIds)
+            ->get();
+
+        foreach ($attachments as $attachment) {
+            Storage::disk('public')->delete($attachment->file_path);
+            $attachment->delete();
+        }
+
+        $firstRemaining = $policy->attachments()->oldest()->first();
+
+        $policy->update([
+            'attachment' => $firstRemaining?->file_path,
+        ]);
+    }
+
+    private function syncLegacyPolicyAttachment(Policy $policy): void
+    {
+        if (!$policy->attachment && $policy->attachments()->exists()) {
+            $policy->update([
+                'attachment' => $policy->attachments()->oldest()->value('file_path'),
+            ]);
+        }
+    }
+
 
     public function edit($id)
     {
-        $policy = Policy::findOrFail($id);
+        $policy = Policy::with('attachments')->findOrFail($id);
 
-        return view('policies.edit', compact('policy'));
+        $latestGisRecord = $this->latestGisWithLogo();
+        $policyLogoUrl = $this->gisLogoUrl($latestGisRecord);
+
+        return view('policies.edit', compact('policy', 'latestGisRecord', 'policyLogoUrl'));
+    }
+
+
+    public function update(Request $request, $id)
+    {
+        $policy = Policy::with('attachments')->findOrFail($id);
+
+        $oldSnapshot = $this->policyAuditSnapshot($policy);
+
+        $validated = $request->validate([
+            'code' => 'nullable|string|max:255',
+            'policy' => 'nullable|string|max:255',
+            'policy_subtitle' => 'nullable|string|max:255',
+            'version' => 'nullable|string|max:50',
+            'effectivity_date' => 'nullable|date',
+            'prepared_by' => 'nullable|string|max:255',
+            'reviewed_by' => 'nullable|string|max:255',
+            'approved_by' => 'nullable|string|max:255',
+            'review_cycle' => 'nullable|string|max:255',
+            'classification' => 'nullable|string|max:100',
+            'description' => 'nullable|string',
+            'attachment' => 'nullable|file|mimes:jpg,jpeg,png,gif,webp,pdf,doc,docx|max:5120',
+            'attachments' => 'nullable|array',
+            'attachments.*' => 'nullable|file|mimes:jpg,jpeg,png,gif,webp,pdf,doc,docx|max:5120',
+            'remove_attachment' => 'nullable|boolean',
+            'remove_attachment_ids' => 'nullable|array',
+            'remove_attachment_ids.*' => 'integer',
+            'redirect_to' => 'nullable|string|max:50',
+        ]);
+
+        $payload = [
+            'code' => $validated['code'] ?? null,
+            'policy' => $validated['policy'] ?? null,
+            'policy_subtitle' => $validated['policy_subtitle'] ?? null,
+            'version' => $validated['version'] ?? '1.0',
+            'effectivity_date' => $validated['effectivity_date'] ?? null,
+            'prepared_by' => $validated['prepared_by'] ?? (Auth::user()->name ?? 'System Admin'),
+            'reviewed_by' => $validated['reviewed_by'] ?? null,
+            'approved_by' => $validated['approved_by'] ?? null,
+            'review_cycle' => $validated['review_cycle'] ?? null,
+            'classification' => $validated['classification'] ?? 'Internal Use Only',
+            'description' => $validated['description'] ?? null,
+        ];
+
+        if ($request->boolean('remove_attachment') && $policy->attachment) {
+            Storage::disk('public')->delete($policy->attachment);
+            $payload['attachment'] = null;
+        }
+
+        $policy->update($payload);
+
+        $this->removeSelectedPolicyAttachments($request, $policy);
+        $this->storePolicyAttachments($request, $policy);
+        $this->syncLegacyPolicyAttachment($policy);
+
+        $this->logPolicyAudit(
+            $policy,
+            'updated',
+            'Policy details updated.',
+            $oldSnapshot,
+            $this->policyAuditSnapshot($policy->fresh())
+        );
+
+        $redirect = $request->input('redirect_to') === 'admin'
+            ? route('admin.policies.show', $policy->id)
+            : route('policies.show', $policy->id);
+
+        return redirect($redirect)->with('success', 'Policy updated successfully.');
     }
 }
