@@ -289,7 +289,7 @@
                         {{-- COVER PAGE --}}
                         <section class="policy-cover-page">
                             <div class="cover-logo" style="width:100%; display:flex; justify-content:center; align-items:center; text-align:center;">
-                                <img src="{{ asset('images/jk-logo.png') }}" alt="John Kelly & Company Logo" style="display:block; margin-left:auto; margin-right:auto; width:260px; max-height:120px; object-fit:contain;">
+                                <img src="{{ $policyLogoUrl ?? asset('images/jk-logo.png') }}" alt="John Kelly & Company Logo" style="display:block; margin-left:auto; margin-right:auto; width:260px; max-height:120px; object-fit:contain;">
                             </div>
 
                             <div class="cover-company">

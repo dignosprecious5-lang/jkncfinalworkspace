@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Policy;
+use App\Models\GisRecord;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
@@ -11,6 +12,94 @@ use Carbon\Carbon;
 
 class PolicyController extends Controller
 {
+
+    private function latestGisWithLogo(): ?GisRecord
+    {
+        $approved = GisRecord::query()
+            ->whereNotNull('logo_path')
+            ->where('logo_path', '!=', '')
+            ->where(function ($query) {
+                $query->where('approval_status', 'Approved')
+                    ->orWhere('workflow_status', 'Approved')
+                    ->orWhere('workflow_status', 'Accepted');
+            })
+            ->orderByDesc('approved_at')
+            ->orderByDesc('id')
+            ->first();
+
+        if ($approved) {
+            return $approved;
+        }
+
+        return GisRecord::query()
+            ->whereNotNull('logo_path')
+            ->where('logo_path', '!=', '')
+            ->latest('id')
+            ->first();
+    }
+
+    private function gisLogoUrl(?GisRecord $gisRecord): string
+    {
+        $fallback = asset('images/jk-logo.png');
+
+        if (!$gisRecord || empty($gisRecord->logo_path)) {
+            return $fallback;
+        }
+
+        $path = ltrim($gisRecord->logo_path, '/');
+
+        if (str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) {
+            return $path;
+        }
+
+        if (str_starts_with($path, 'storage/')) {
+            return asset($path);
+        }
+
+        return asset('storage/' . $path);
+    }
+
+    private function gisLogoDataUri(?GisRecord $gisRecord): ?string
+    {
+        $candidates = [];
+
+        if ($gisRecord && !empty($gisRecord->logo_path)) {
+            $path = ltrim($gisRecord->logo_path, '/');
+
+            if (!str_starts_with($path, 'http://') && !str_starts_with($path, 'https://')) {
+                $normalizedPath = str_starts_with($path, 'storage/')
+                    ? substr($path, strlen('storage/'))
+                    : $path;
+
+                $candidates[] = storage_path('app/public/' . $normalizedPath);
+                $candidates[] = public_path($path);
+                $candidates[] = public_path('storage/' . $normalizedPath);
+            }
+        }
+
+        $candidates[] = public_path('images/jk-logo.png');
+        $candidates[] = public_path('images/logo.png');
+
+        foreach ($candidates as $candidate) {
+            if ($candidate && file_exists($candidate)) {
+                $extension = strtolower(pathinfo($candidate, PATHINFO_EXTENSION));
+
+                $mime = match ($extension) {
+                    'jpg', 'jpeg' => 'image/jpeg',
+                    'gif' => 'image/gif',
+                    'webp' => 'image/webp',
+                    'svg' => 'image/svg+xml',
+                    default => 'image/png',
+                };
+
+                return 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($candidate));
+            }
+        }
+
+        return null;
+    }
+
+
     public function index(Request $request)
     {
         $query = Policy::where('workflow_status', 'Accepted')
@@ -30,7 +119,10 @@ class PolicyController extends Controller
 
         $policies = $query->latest()->paginate(10)->withQueryString();
 
-        return view('policies.policies', compact('policies'));
+        $latestGisRecord = $this->latestGisWithLogo();
+        $policyLogoUrl = $this->gisLogoUrl($latestGisRecord);
+
+        return view('policies.policies', compact('policies', 'latestGisRecord', 'policyLogoUrl'));
     }
 
     public function store(Request $request)
@@ -76,6 +168,9 @@ class PolicyController extends Controller
             $policy->code = 'POL-' . str_pad((string) $policy->id, 5, '0', STR_PAD_LEFT);
             $policy->save();
         }
+
+        $this->storePolicyAttachments($request, $policy);
+        $this->syncLegacyPolicyAttachment($policy);
 
         return redirect()
             ->route('policies.index')
@@ -127,7 +222,10 @@ class PolicyController extends Controller
             return '>' . $text . '<';
         }, $description);
 
+        $latestGisRecord = $this->latestGisWithLogo();
+
         $data = [
+            'logo_src' => $this->gisLogoDataUri($latestGisRecord),
             'code' => $safePdfText($request->input('code', 'AUTO-GENERATED'), 30),
             'policy' => $safePdfText($request->input('policy', ''), 32),
             'policy_subtitle' => $safePdfText($request->input('policy_subtitle', ''), 42),
@@ -233,7 +331,10 @@ class PolicyController extends Controller
 
         $policies = $query->latest()->paginate(10)->withQueryString();
 
-        return view('admin.policies-dashboard', compact('policies'));
+        $latestGisRecord = $this->latestGisWithLogo();
+        $policyLogoUrl = $this->gisLogoUrl($latestGisRecord);
+
+        return view('admin.policies-dashboard', compact('policies', 'latestGisRecord', 'policyLogoUrl'));
     }
 
     public function review($id)
@@ -366,7 +467,10 @@ class PolicyController extends Controller
 
         $policy = Policy::with('attachments')->findOrFail($id);
 
-        return view('admin.policy-show', compact('policy'));
+        $latestGisRecord = $this->latestGisWithLogo();
+        $policyLogoUrl = $this->gisLogoUrl($latestGisRecord);
+
+        return view('admin.policy-show', compact('policy', 'latestGisRecord', 'policyLogoUrl'));
     }
 
     public function show(Request $request, $id)
@@ -374,7 +478,10 @@ class PolicyController extends Controller
         $policy = Policy::with('attachments')->where('is_archived', false)->findOrFail($id);
         $search = trim($request->input('search', ''));
 
-        return view('policies.show', compact('policy', 'search'));
+        $latestGisRecord = $this->latestGisWithLogo();
+        $policyLogoUrl = $this->gisLogoUrl($latestGisRecord);
+
+        return view('policies.show', compact('policy', 'search', 'latestGisRecord', 'policyLogoUrl'));
     }
 
 
@@ -458,7 +565,10 @@ class PolicyController extends Controller
     {
         $policy = Policy::with('attachments')->findOrFail($id);
 
-        return view('policies.edit', compact('policy'));
+        $latestGisRecord = $this->latestGisWithLogo();
+        $policyLogoUrl = $this->gisLogoUrl($latestGisRecord);
+
+        return view('policies.edit', compact('policy', 'latestGisRecord', 'policyLogoUrl'));
     }
 
 

@@ -30,7 +30,7 @@
                     <div class="policy-paper bg-white border border-gray-300 shadow mb-6">
                         <section class="policy-cover-page">
                             <div class="cover-logo">
-                                <img src="{{ asset('images/jk-logo.png') }}" alt="John Kelly & Company Logo">
+                                <img src="{{ $policyLogoUrl ?? asset('images/jk-logo.png') }}" alt="John Kelly & Company Logo">
                             </div>
 
                             <div class="cover-company">

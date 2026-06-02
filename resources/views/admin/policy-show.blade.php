@@ -41,7 +41,7 @@
                         {{-- COVER PAGE --}}
                         <section class="policy-cover-page">
                             <div class="cover-logo">
-                                <img src="{{ asset('images/jk-logo.png') }}" alt="John Kelly & Company Logo">
+                                <img src="{{ $policyLogoUrl ?? asset('images/jk-logo.png') }}" alt="John Kelly & Company Logo">
                             </div>
 
                             <div class="cover-company">

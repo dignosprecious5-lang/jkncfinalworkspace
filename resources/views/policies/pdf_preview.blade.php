@@ -5,6 +5,8 @@
     <title>{{ $data['policy'] ?: 'Policy Preview' }}</title>
 
     @php
+        $logoSrc = $data['logo_src'] ?? null;
+
         $logoCandidates = [
             public_path('images/jk-logo.png'),
             public_path('images/jk-logo.jpg'),
@@ -16,9 +18,8 @@
             storage_path('app/public/images/logo.png'),
         ];
 
-        $logoSrc = null;
-
-        foreach ($logoCandidates as $logoPath) {
+        if (!$logoSrc) {
+            foreach ($logoCandidates as $logoPath) {
             if ($logoPath && file_exists($logoPath)) {
                 $extension = strtolower(pathinfo($logoPath, PATHINFO_EXTENSION));
                 $mime = match ($extension) {
@@ -31,6 +32,7 @@
                 $logoSrc = 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($logoPath));
                 break;
             }
+        }
         }
 
         $pdfSafeText = function ($value, int $chunk = 34) {
