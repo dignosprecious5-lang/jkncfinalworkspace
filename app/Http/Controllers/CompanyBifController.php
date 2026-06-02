@@ -185,8 +185,12 @@ class CompanyBifController extends Controller
             ? "Business Client Information Form updated for {$companyData['company_name']} and submitted for approval."
             : "Business Client Information Form draft updated for {$companyData['company_name']}.";
 
+        $redirectRoute = $request->boolean('return_to_kyc')
+            ? ['company.kyc', ['company' => $company, 'tab' => 'business-client-information']]
+            : ['company.bif.show', ['company' => $company, 'bif' => $bifRecord->id]];
+
         return redirect()
-            ->route('company.bif.show', ['company' => $company, 'bif' => $bifRecord->id])
+            ->route($redirectRoute[0], $redirectRoute[1])
             ->with('bif_success', $message);
     }
 
@@ -914,6 +918,10 @@ class CompanyBifController extends Controller
             $validated[$field] = $request->boolean($field);
         }
 
+        $validated['employee_total'] = (int) ($validated['employee_male'] ?? 0)
+            + (int) ($validated['employee_female'] ?? 0)
+            + (int) ($validated['employee_pwd'] ?? 0);
+
         if (($validated['business_organization'] ?? null) !== 'other') {
             $validated['business_organization_other'] = null;
         }
@@ -969,7 +977,7 @@ class CompanyBifController extends Controller
                 ['key' => 'sole_proof_of_billing_residential_document', 'label' => 'Proof of Billing (Residential)'],
                 ['key' => 'sole_proof_of_billing_business_document', 'label' => 'Proof of Billing (Business Address if different)'],
                 ['key' => 'sole_spa_document', 'label' => 'Special Power of Attorney (if representative)'],
-                ['key' => 'sole_representative_ids_document', 'label' => 'Representative\'s 2 Valid IDs (if applicable)'],
+                ['key' => 'sole_representative_ids_document', 'label' => 'Representative\'s 2 Valid IDs (if applicable)', 'multiple_slots' => 2],
             ],
             'juridical_entity' => [
                 ['key' => 'juridical_sec_cda_certificate_document', 'label' => 'SEC / CDA Certificate of Registration'],
@@ -993,31 +1001,79 @@ class CompanyBifController extends Controller
 
         foreach ($this->clientDocumentDefinitions() as $group) {
             foreach ($group as $document) {
-                $rules[$document['key']] = ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png,doc,docx', 'max:10240'];
+                if (($document['multiple_slots'] ?? 1) > 1) {
+                    $rules[$document['key'].'.*'] = ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png,doc,docx', 'max:10240'];
+                } else {
+                    $rules[$document['key']] = ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png,doc,docx', 'max:10240'];
+                }
             }
         }
 
-        $validated = $request->validate($rules);
+        $request->validate($rules);
         $stored = $bif->client_requirement_documents ?? [];
         $uploadedBy = trim((string) ($payload['authorized_contact_person_name'] ?? $bif->authorized_contact_person_name ?? ''));
         $uploadedBy = $uploadedBy !== '' ? $uploadedBy : 'Client';
         $issuedBy = strcasecmp($uploadedBy, 'Client') === 0 ? 'Client' : "Client - {$uploadedBy}";
 
-        foreach ($validated as $key => $file) {
-            if (! $file) {
-                continue;
+        foreach ($this->clientDocumentDefinitions() as $group) {
+            foreach ($group as $document) {
+                $key = $document['key'];
+                $uploads = $request->file($key);
+
+                if (! $uploads) {
+                    continue;
+                }
+
+                if (($document['multiple_slots'] ?? 1) > 1) {
+                    $slotCount = (int) $document['multiple_slots'];
+                    $existing = array_values(array_filter((array) ($stored[$key] ?? []), fn ($item) => is_array($item)));
+                    $existing = collect($existing)
+                        ->mapWithKeys(fn (array $item, int $index) => [(int) ($item['slot'] ?? $index) => $item])
+                        ->all();
+                    $existing = array_replace(
+                        array_fill(0, $slotCount, null),
+                        array_intersect_key($existing, array_flip(range(0, $slotCount - 1)))
+                    );
+
+                    foreach ((array) $uploads as $slot => $file) {
+                        if (! $file) {
+                            continue;
+                        }
+
+                        $path = $file->store("company-bifs/{$bif->id}/client-documents", 'public');
+                        $existing[(int) $slot] = [
+                            'slot' => (int) $slot,
+                            'original_name' => $file->getClientOriginalName(),
+                            'file_name' => $file->getClientOriginalName(),
+                            'path' => $path,
+                            'file_path' => $path,
+                            'mime_type' => $file->getMimeType(),
+                            'uploaded_at' => now()->toIso8601String(),
+                            'uploaded_by' => $uploadedBy,
+                            'uploaded_by_role' => 'Client',
+                            'issued_by' => $issuedBy,
+                        ];
+                    }
+
+                    $stored[$key] = array_values(array_filter(array_slice($existing, 0, $slotCount), fn ($item) => is_array($item)));
+                    continue;
+                }
+
+                $file = $uploads;
+                $path = $file->store("company-bifs/{$bif->id}/client-documents", 'public');
+
+                $stored[$key] = [
+                    'original_name' => $file->getClientOriginalName(),
+                    'file_name' => $file->getClientOriginalName(),
+                    'path' => $path,
+                    'file_path' => $path,
+                    'mime_type' => $file->getMimeType(),
+                    'uploaded_at' => now()->toIso8601String(),
+                    'uploaded_by' => $uploadedBy,
+                    'uploaded_by_role' => 'Client',
+                    'issued_by' => $issuedBy,
+                ];
             }
-
-            $path = $file->store("company-bifs/{$bif->id}/client-documents", 'public');
-
-            $stored[$key] = [
-                'original_name' => $file->getClientOriginalName(),
-                'path' => $path,
-                'uploaded_at' => now()->toIso8601String(),
-                'uploaded_by' => $uploadedBy,
-                'uploaded_by_role' => 'Client',
-                'issued_by' => $issuedBy,
-            ];
         }
 
         return $stored;

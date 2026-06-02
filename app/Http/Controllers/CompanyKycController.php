@@ -109,10 +109,12 @@ class CompanyKycController extends Controller
         $documentKey = $this->requirementDocumentKey($requirement);
         abort_unless($documentKey !== null, 404);
 
-        $path = $this->normalizeStoredPath((string) data_get($bif->client_requirement_documents, $documentKey.'.path', ''));
+        $fileIndex = max(0, (int) $request->query('file', 0));
+        $document = $this->requirementStoredDocument($bif->client_requirement_documents, $documentKey, $fileIndex);
+        $path = $this->normalizeStoredPath((string) ($document['path'] ?? $document['file_path'] ?? ''));
         abort_unless($path !== '', 404);
 
-        $originalName = (string) data_get($bif->client_requirement_documents, $documentKey.'.original_name', basename($path));
+        $originalName = (string) ($document['file_name'] ?? $document['original_name'] ?? basename($path));
         $disk = Storage::disk('public')->exists($path) ? 'public' : (Storage::disk('local')->exists($path) ? 'local' : null);
         abort_unless($disk !== null, 404);
 
@@ -473,28 +475,60 @@ class CompanyKycController extends Controller
         $documentKey = $this->requirementDocumentKey($requirement);
         abort_unless($documentKey !== null, 404);
 
-        $validated = $request->validate([
-            'document' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png,doc,docx', 'max:10240'],
-        ]);
+        $requiredCount = $this->requirementRequiredFileCount($requirement);
+        $validated = $request->validate($requiredCount > 1
+            ? ['document' => ['required', 'array', 'max:'.$requiredCount], 'document.*' => ['file', 'mimes:pdf,jpg,jpeg,png,doc,docx', 'max:10240']]
+            : ['document' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png,doc,docx', 'max:10240']]
+        );
 
         $documents = is_array($bif->client_requirement_documents) ? $bif->client_requirement_documents : [];
-        $existingPath = data_get($documents, $documentKey.'.path');
-        if (filled($existingPath) && Storage::disk('public')->exists((string) $existingPath)) {
-            Storage::disk('public')->delete((string) $existingPath);
+        foreach ($this->requirementStoredDocuments($documents, $documentKey) as $existingDocument) {
+            $existingPath = $existingDocument['path'] ?? $existingDocument['file_path'] ?? null;
+            if (filled($existingPath) && Storage::disk('public')->exists((string) $existingPath)) {
+                Storage::disk('public')->delete((string) $existingPath);
+            }
         }
 
-        $file = $validated['document'];
-        $path = $file->store("company-bifs/{$bif->id}/client-documents", 'public');
         $uploader = $this->requirementUploaderMeta($request->user());
 
-        $documents[$documentKey] = [
-            'original_name' => $file->getClientOriginalName(),
-            'path' => $path,
-            'uploaded_at' => now()->toIso8601String(),
-            'uploaded_by' => $uploader['name'],
-            'uploaded_by_role' => $uploader['role'],
-            'issued_by' => $uploader['label'],
-        ];
+        if ($requiredCount > 1) {
+            $documents[$documentKey] = collect($validated['document'])
+                ->filter()
+                ->take($requiredCount)
+                ->map(function ($file, int $slot) use ($bif, $uploader) {
+                    $path = $file->store("company-bifs/{$bif->id}/client-documents", 'public');
+
+                    return [
+                        'slot' => $slot,
+                        'original_name' => $file->getClientOriginalName(),
+                        'file_name' => $file->getClientOriginalName(),
+                        'path' => $path,
+                        'file_path' => $path,
+                        'mime_type' => $file->getMimeType(),
+                        'uploaded_at' => now()->toIso8601String(),
+                        'uploaded_by' => $uploader['name'],
+                        'uploaded_by_role' => $uploader['role'],
+                        'issued_by' => $uploader['label'],
+                    ];
+                })
+                ->values()
+                ->all();
+        } else {
+            $file = $validated['document'];
+            $path = $file->store("company-bifs/{$bif->id}/client-documents", 'public');
+
+            $documents[$documentKey] = [
+                'original_name' => $file->getClientOriginalName(),
+                'file_name' => $file->getClientOriginalName(),
+                'path' => $path,
+                'file_path' => $path,
+                'mime_type' => $file->getMimeType(),
+                'uploaded_at' => now()->toIso8601String(),
+                'uploaded_by' => $uploader['name'],
+                'uploaded_by_role' => $uploader['role'],
+                'issued_by' => $uploader['label'],
+            ];
+        }
 
         $bif->update([
             'client_requirement_documents' => $documents,
@@ -524,9 +558,11 @@ class CompanyKycController extends Controller
         abort_unless($documentKey !== null, 404);
 
         $documents = is_array($bif->client_requirement_documents) ? $bif->client_requirement_documents : [];
-        $existingPath = data_get($documents, $documentKey.'.path');
-        if (filled($existingPath) && Storage::disk('public')->exists((string) $existingPath)) {
-            Storage::disk('public')->delete((string) $existingPath);
+        foreach ($this->requirementStoredDocuments($documents, $documentKey) as $existingDocument) {
+            $existingPath = $existingDocument['path'] ?? $existingDocument['file_path'] ?? null;
+            if (filled($existingPath) && Storage::disk('public')->exists((string) $existingPath)) {
+                Storage::disk('public')->delete((string) $existingPath);
+            }
         }
         unset($documents[$documentKey]);
 
@@ -600,6 +636,9 @@ class CompanyKycController extends Controller
                                 'label' => $requirement['label'],
                                 'uploaded' => $uploaded,
                                 'file_name' => $documentMeta['file_name'],
+                                'files' => $documentMeta['files'],
+                                'uploaded_count' => $documentMeta['uploaded_count'],
+                                'required_count' => $documentMeta['required_count'],
                                 'mime_type' => $documentMeta['mime_type'],
                                 'uploaded_at' => $documentMeta['uploaded_at'],
                                 'issued_by' => $documentMeta['issued_by'],
@@ -624,8 +663,8 @@ class CompanyKycController extends Controller
                                         ? ($uploaded
                                             ? (($documentMeta['file_name'] ?: 'Signed UBO Declaration uploaded').' - Preview, edit, and export the declaration as PDF anytime.')
                                             : 'Preview and edit the UBO Declaration with autofilled company and beneficial owner details, then download it as PDF and upload the signed copy here.')
-                                    : ($uploaded
-                                        ? ($documentMeta['file_name'] ?: 'File uploaded')
+                                    : (($documentMeta['uploaded_count'] ?? 0) > 0
+                                        ? ($documentMeta['summary'] ?: ($documentMeta['file_name'] ?: 'File uploaded'))
                                         : 'No file uploaded yet'))),
                             ];
                         })
@@ -665,37 +704,88 @@ class CompanyKycController extends Controller
             return [
                 'uploaded' => false,
                 'file_name' => null,
+                'files' => [],
+                'uploaded_count' => 0,
+                'required_count' => $this->requirementRequiredFileCount($key),
                 'file_url' => null,
                 'mime_type' => null,
                 'uploaded_at' => null,
                 'issued_by' => null,
+                'summary' => null,
             ];
         }
 
-        $path = $this->normalizeStoredPath((string) data_get($bif?->client_requirement_documents, $documentKey.'.path', ''));
-        $fileName = data_get($bif?->client_requirement_documents, $documentKey.'.original_name');
-        $uploaded = $path !== '';
-        $mimeType = null;
-        if ($uploaded) {
+        $requiredCount = $this->requirementRequiredFileCount($key);
+        $documents = $this->requirementStoredDocuments($bif?->client_requirement_documents, $documentKey);
+        $files = [];
+
+        foreach ($documents as $index => $document) {
+            $path = $this->normalizeStoredPath((string) ($document['path'] ?? $document['file_path'] ?? ''));
+            if ($path === '') {
+                continue;
+            }
+
+            $fileName = $document['file_name'] ?? $document['original_name'] ?? basename($path);
+            $mimeType = $document['mime_type'] ?? null;
             if (Storage::disk('public')->exists($path)) {
                 $mimeType = Storage::disk('public')->mimeType($path) ?: null;
             } elseif (Storage::disk('local')->exists($path)) {
                 $mimeType = Storage::disk('local')->mimeType($path) ?: null;
             }
+
+            $files[] = [
+                'index' => (int) ($document['slot'] ?? $index),
+                'file_name' => $fileName,
+                'mime_type' => $mimeType,
+                'uploaded_at' => $document['uploaded_at'] ?? null,
+                'issued_by' => ($document['issued_by'] ?? null)
+                    ?: $this->formatRequirementIssuer($document['uploaded_by_role'] ?? null, $document['uploaded_by'] ?? null),
+            ];
         }
+
+        $uploadedCount = count($files);
+        $uploaded = $uploadedCount >= $requiredCount;
+        $firstFile = $files[0] ?? null;
 
         return [
             'uploaded' => $uploaded,
-            'file_name' => $uploaded ? ($fileName ?: basename($path)) : null,
+            'file_name' => $firstFile['file_name'] ?? null,
+            'files' => $files,
+            'uploaded_count' => $uploadedCount,
+            'required_count' => $requiredCount,
             'file_url' => null,
-            'mime_type' => $mimeType,
-            'uploaded_at' => data_get($bif?->client_requirement_documents, $documentKey.'.uploaded_at'),
-            'issued_by' => data_get($bif?->client_requirement_documents, $documentKey.'.issued_by')
-                ?: $this->formatRequirementIssuer(
-                    data_get($bif?->client_requirement_documents, $documentKey.'.uploaded_by_role'),
-                    data_get($bif?->client_requirement_documents, $documentKey.'.uploaded_by')
-                ),
+            'mime_type' => $firstFile['mime_type'] ?? null,
+            'uploaded_at' => $firstFile['uploaded_at'] ?? null,
+            'issued_by' => $firstFile['issued_by'] ?? null,
+            'summary' => $requiredCount > 1
+                ? "{$uploadedCount} of {$requiredCount} files uploaded"
+                : ($firstFile['file_name'] ?? null),
         ];
+    }
+
+    private function requirementRequiredFileCount(string $key): int
+    {
+        return $key === 'sole_representative_ids' ? 2 : 1;
+    }
+
+    private function requirementStoredDocument($documents, string $documentKey, int $index = 0): ?array
+    {
+        return $this->requirementStoredDocuments($documents, $documentKey)[$index] ?? null;
+    }
+
+    private function requirementStoredDocuments($documents, string $documentKey): array
+    {
+        $document = data_get($documents, $documentKey);
+
+        if (! is_array($document)) {
+            return [];
+        }
+
+        if (isset($document['path']) || isset($document['file_path'])) {
+            return [$document];
+        }
+
+        return array_values(array_filter($document, fn ($item) => is_array($item)));
     }
 
     private function requirementUploaderMeta(?User $user): array

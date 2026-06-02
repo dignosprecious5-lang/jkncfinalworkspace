@@ -627,7 +627,14 @@ class ProjectProvisioner
 
         $state = [];
         foreach ($keys as $key) {
-            $state[$key] = filled(data_get($documents, $key.'.path'));
+            $document = data_get($documents, $key);
+            if ($key === 'sole_representative_ids_document') {
+                $files = array_values(array_filter((array) $document, fn ($item) => is_array($item) && filled($item['path'] ?? $item['file_path'] ?? null)));
+                $state[$key] = count($files) >= 2;
+                continue;
+            }
+
+            $state[$key] = filled(data_get($document, 'path') ?? data_get($document, 'file_path'));
         }
 
         return $state;

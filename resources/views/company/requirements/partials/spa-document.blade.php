@@ -2,10 +2,10 @@
     @php
         $line = '______________________________';
         $lineShort = '________';
-        $filledOrBlank = static fn ($value, $blank = '______________________________') => filled(trim((string) $value)) ? trim((string) $value) : $blank;
-        $fieldLine = static function ($value, $width = '180px') {
+        $spanStyle = 'display:inline-block; border-bottom:1px solid #111; text-align:center; line-height:1.15; padding:0 4px 1px 4px; vertical-align:baseline;';
+        $fieldSpan = static function ($value, $field, $width = '180px') use ($spanStyle) {
             $text = trim((string) $value);
-            return '<span style="display:inline-block; min-width: '.$width.'; border-bottom:1px solid #111; text-align:center; line-height:1.15; padding:0 4px 1px 4px; vertical-align:baseline;">'.e($text).'</span>';
+            return '<span data-field="' . e($field) . '" style="min-width:' . $width . ';' . $spanStyle . '">' . e($text) . '</span>';
         };
     @endphp
     <div style="text-align: center; font-size: 24px; font-weight: 700; text-transform: uppercase; text-decoration: underline; letter-spacing: 0.03em;">SPECIAL POWER OF ATTORNEY</div>
@@ -14,18 +14,18 @@
 
     <div style="margin-top: 36px; text-align: justify;">
         <p style="margin: 0 0 18px;">
-            I,{!! str_replace('&lt;span', '<span data-field="principal_name"', $fieldLine($doc['principal_name'], '170px')) !!},
-            {!! str_replace('&lt;span', '<span data-field="principal_nationality"', $fieldLine($doc['principal_nationality'] ?: 'Filipino', '90px')) !!},
+            I,{!! $fieldSpan($doc['principal_name'], 'principal_name', '170px') !!},
+            {!! $fieldSpan($doc['principal_nationality'] ?: 'Filipino', 'principal_nationality', '90px') !!},
             of legal age,
-            {!! str_replace('&lt;span', '<span data-field="principal_civil_status"', $fieldLine($doc['principal_civil_status'] ?: 'Married/single', '110px')) !!}
+            {!! $fieldSpan($doc['principal_civil_status'] ?: 'Married/single', 'principal_civil_status', '110px') !!}
             and resident of
-            {!! str_replace('&lt;span', '<span data-field="principal_address"', $fieldLine($doc['principal_address'], '290px')) !!}
+            {!! $fieldSpan($doc['principal_address'], 'principal_address', '290px') !!}
             do hereby name, constitute and appoint
-            {!! str_replace('&lt;span', '<span data-field="attorney_name"', $fieldLine($doc['attorney_name'], '140px')) !!},
+            {!! $fieldSpan($doc['attorney_name'], 'attorney_name', '140px') !!},
             of legal age,
-            {!! str_replace('&lt;span', '<span data-field="attorney_nationality"', $fieldLine($doc['attorney_nationality'] ?: 'Filipino', '90px')) !!}
+            {!! $fieldSpan($doc['attorney_nationality'] ?: 'Filipino', 'attorney_nationality', '90px') !!}
             and resident of
-            {!! str_replace('&lt;span', '<span data-field="attorney_address"', $fieldLine($doc['attorney_address'], '250px')) !!}.
+            {!! $fieldSpan($doc['attorney_address'], 'attorney_address', '250px') !!}.
             (whose signature appears herein below and which signature I now hereby attest to be true, genuine and authentic).
             To be my true and lawful Attorney-in-fact for me and in my name, place and stead, to do and perform the following special powers, to wit:
         </p>
@@ -55,11 +55,11 @@
             all that my said Attorney-in-Fact shall lawfully do and cause to be done under and by virtue of these presents.
             <span style="font-weight: 700;">IN WITNESS WHEREOF,</span>
             I have hereunto set my hands at
-            {!! str_replace('&lt;span', '<span data-field="signed_place"', $fieldLine($doc['signed_place'], '170px')) !!}
+            {!! $fieldSpan($doc['signed_place'], 'signed_place', '170px') !!}
             Philippines on this
-            {!! str_replace('&lt;span', '<span data-field="signed_day"', $fieldLine($doc['signed_day'], '70px')) !!}
+            {!! $fieldSpan($doc['signed_day'], 'signed_day', '70px') !!}
             day of
-            {!! str_replace('&lt;span', '<span data-field="signed_month"', $fieldLine($doc['signed_month'], '90px')) !!}.
+            {!! $fieldSpan($doc['signed_month'], 'signed_month', '90px') !!}.
         </p>
     </div>
 
@@ -67,7 +67,7 @@
         <div style="width: 260px; margin: 0 auto; text-align: center;">
             <div style="text-align: center;">____________________________</div>
             <div style="text-align: center;">Guarantor</div>
-            <div style="text-align: center; font-weight: 700;">ID No.</div>
+            <div style="text-align: center; font-weight: 700;">ID No. {!! $fieldSpan($doc['principal_id_no'], 'principal_id_no', '120px') !!}</div>
         </div>
 
         <div style="height: 28px;"></div>
@@ -77,7 +77,7 @@
         <div style="width: 260px; margin: 0 auto; text-align: center;">
             <div style="text-align: center;">____________________</div>
             <div style="text-align: center;">Attorney-in-fact</div>
-            <div style="text-align: center; font-weight: 700;">ID No.</div>
+            <div style="text-align: center; font-weight: 700;">ID No. {!! $fieldSpan($doc['attorney_id_no'], 'attorney_id_no', '120px') !!}</div>
         </div>
 
         <div style="height: 28px;"></div>

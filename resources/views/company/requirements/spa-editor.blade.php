@@ -19,7 +19,7 @@
                 </div>
             </div>
 
-            <form method="GET" action="{{ route('company.kyc.requirements.template', ['company' => $company->id, 'requirement' => 'sole_spa']) }}" id="template-form" class="space-y-4 rounded-2xl border border-gray-200 bg-white p-4">
+            <div id="template-form" class="space-y-4 rounded-2xl border border-gray-200 bg-white p-4">
                 <div>
                     <div class="text-sm font-semibold text-gray-900">Editable Fields</div>
                     <div class="mt-1 text-xs text-gray-500">Adjust any blank or autofilled field here. The preview updates as you type.</div>
@@ -50,32 +50,47 @@
 
                 <div class="flex flex-wrap gap-2 pt-2">
                     <button type="button" id="spa-download-button" data-download-url="{{ $downloadUrl }}" class="inline-flex h-10 items-center rounded-lg bg-blue-600 px-4 text-sm font-medium text-white hover:bg-blue-700">Download PDF</button>
-                    <a href="{{ route('company.kyc.requirements.template', ['company' => $company->id, 'requirement' => 'sole_spa']) }}" class="inline-flex h-10 items-center rounded-lg border border-gray-200 px-4 text-sm font-medium text-gray-700 hover:bg-gray-50">Reset Autofill</a>
                 </div>
-            </form>
+            </div>
         </div>
     </div>
 </div>
 
 <script>
-document.querySelectorAll('#template-form [data-sync]').forEach(function (input) {
-    input.addEventListener('input', function () {
-        const value = input.value;
-        document.querySelectorAll('[data-field="' + input.dataset.sync + '"]').forEach(function (target) {
+(function () {
+    // Build current form values from the rendered inputs
+    var formValues = {};
+    document.querySelectorAll('#template-form [data-sync]').forEach(function (input) {
+        formValues[input.dataset.sync] = input.value;
+    });
+
+    // Sync a single field to all matching [data-field] targets in the document preview
+    function syncField(fieldName, value) {
+        document.querySelectorAll('[data-field="' + fieldName + '"]').forEach(function (target) {
             target.textContent = value;
         });
-    });
-});
+    }
 
-const spaDownloadButton = document.getElementById('spa-download-button');
-const templateForm = document.getElementById('template-form');
-
-if (spaDownloadButton && templateForm) {
-    spaDownloadButton.addEventListener('click', function () {
-        const params = new URLSearchParams(new FormData(templateForm));
-        params.set('autoprint', '1');
-        window.location.href = spaDownloadButton.dataset.downloadUrl + '?' + params.toString();
+    // Wire up live input listeners
+    document.querySelectorAll('#template-form [data-sync]').forEach(function (input) {
+        input.addEventListener('input', function () {
+            formValues[input.dataset.sync] = input.value;
+            syncField(input.dataset.sync, input.value);
+        });
     });
-}
+
+    // Download PDF: pass all current form values as query params
+    var spaDownloadButton = document.getElementById('spa-download-button');
+    if (spaDownloadButton) {
+        spaDownloadButton.addEventListener('click', function () {
+            var params = new URLSearchParams();
+            Object.keys(formValues).forEach(function (key) {
+                params.set(key, formValues[key]);
+            });
+            params.set('autoprint', '1');
+            window.location.href = spaDownloadButton.dataset.downloadUrl + '?' + params.toString();
+        });
+    }
+})();
 </script>
 @endsection

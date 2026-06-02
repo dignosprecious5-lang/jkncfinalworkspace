@@ -1873,7 +1873,20 @@ class ProjectController extends Controller
         $bifDocs = (array) ($company?->latestBif?->client_requirement_documents ?? []);
         $showForeignRows = $kycContext['show_foreign_rows'];
 
-        $hasBif = fn (string $key): bool => $bifApproved && filled(data_get($bifDocs, $key.'.path'));
+        $hasBif = function (string $key) use ($bifApproved, $bifDocs): bool {
+            if (! $bifApproved) {
+                return false;
+            }
+
+            $document = data_get($bifDocs, $key);
+            if ($key === 'sole_representative_ids_document') {
+                $files = array_values(array_filter((array) $document, fn ($item) => is_array($item) && filled($item['path'] ?? $item['file_path'] ?? null)));
+
+                return count($files) >= 2;
+            }
+
+            return filled(data_get($document, 'path') ?? data_get($document, 'file_path'));
+        };
         $status = fn (bool $complete): string => $complete ? 'provided' : 'pending';
 
         $sole = [

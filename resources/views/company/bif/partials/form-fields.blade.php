@@ -159,10 +159,10 @@
         <div class="bif-cell col-8">
             <label class="bif-label">Number of Employee/s</label>
             <div class="grid grid-cols-2 gap-x-4 gap-y-1 pt-2 text-[9px]">
-                <label>Male <input name="employee_male" type="number" min="0" value="{{ old('employee_male', $bif?->employee_male ?? '') }}" class="bif-line-input w-full"></label>
-                <label>Female <input name="employee_female" type="number" min="0" value="{{ old('employee_female', $bif?->employee_female ?? '') }}" class="bif-line-input w-full"></label>
-                <label>PWD <input name="employee_pwd" type="number" min="0" value="{{ old('employee_pwd', $bif?->employee_pwd ?? '') }}" class="bif-line-input w-full"></label>
-                <label>Total <input name="employee_total" type="number" min="0" value="{{ old('employee_total', $bif?->employee_total ?? '') }}" class="bif-line-input w-full"></label>
+                <label>Male <input name="employee_male" type="number" min="0" value="{{ old('employee_male', $bif?->employee_male ?? '') }}" class="bif-line-input w-full" data-employee-count-input></label>
+                <label>Female <input name="employee_female" type="number" min="0" value="{{ old('employee_female', $bif?->employee_female ?? '') }}" class="bif-line-input w-full" data-employee-count-input></label>
+                <label>PWD <input name="employee_pwd" type="number" min="0" value="{{ old('employee_pwd', $bif?->employee_pwd ?? '') }}" class="bif-line-input w-full" data-employee-count-input></label>
+                <label>Total <input name="employee_total" type="number" min="0" value="{{ old('employee_total', $bif?->employee_total ?? '') }}" class="bif-line-input w-full" readonly></label>
             </div>
         </div>
     </div>
@@ -375,6 +375,23 @@
                 if (!picker.contains(event.target)) hidePicker(picker);
             });
         });
+    })();
+
+    (() => {
+        const employeeCountInputs = Array.from(document.querySelectorAll('[data-employee-count-input]'));
+        const employeeTotalInput = document.querySelector('[name="employee_total"]');
+
+        if (!employeeTotalInput || employeeCountInputs.length === 0) {
+            return;
+        }
+
+        const numberValue = (field) => Number(field?.value) || 0;
+        const syncEmployeeTotal = () => {
+            employeeTotalInput.value = String(employeeCountInputs.reduce((total, field) => total + numberValue(field), 0));
+        };
+
+        employeeCountInputs.forEach((field) => field.addEventListener('input', syncEmployeeTotal));
+        syncEmployeeTotal();
     })();
 
     (() => {
