@@ -45,14 +45,6 @@
                 class="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400 bg-white">
         </div>
 
-        <select x-show="activeTab === 'CAF'" x-model="filterPosition" @change="currentPage = 1"
-            class="px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-200">
-            <option value="All">All Positions</option>
-            <template x-for="position in uniqueCafPositions" :key="position">
-                <option :value="position" x-text="position"></option>
-            </template>
-        </select>
-
         <div x-show="activeTab === 'JPF'" class="flex items-center gap-1 bg-white border border-gray-200 rounded-lg p-1 shadow-sm">
             <button
                 type="button"
@@ -79,14 +71,14 @@
                 class="flex items-center gap-2 px-4 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-700 transition"
                 :class="filterStatus !== 'All' ? 'border-blue-500 bg-blue-50' : ''">
                 <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 6h18M6 12h12M10 18h4"/></svg>
-                Filter <span x-show="filterStatus !== 'All'" class="ml-1 text-blue-600 font-bold" x-text="'('+filterStatus+')'"></span>
+                Status <span x-show="filterStatus !== 'All'" class="ml-1 text-blue-600 font-bold" x-text="'('+filterStatus+')'"></span>
             </button>
             
             <div x-show="showFilter" x-transition class="absolute left-0 mt-2 w-48 bg-white border border-gray-100 rounded-xl shadow-xl z-30 p-2">
                 <p class="px-2 py-1.5 text-[10px] uppercase font-bold text-gray-400 tracking-wider">Filter by Status</p>
                 <div class="space-y-1">
-                    <template x-for="st in ['All', 'Pending', 'Open', 'Filled', 'Hold', 'Cancelled', 'Disapproved']">
-                        <button @click="filterStatus = st; showFilter = false" 
+                    <template x-for="st in statusFilterOptions" :key="st">
+                        <button @click="filterStatus = st; currentPage = 1; showFilter = false" 
                             class="w-full text-left px-3 py-2 rounded-lg text-sm transition font-medium"
                             :class="filterStatus === st ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50'"
                             x-text="st"></button>
@@ -94,6 +86,35 @@
                 </div>
                 <div class="mt-2 pt-2 border-t border-gray-100">
                     <button @click="filterStatus = 'All'; showFilter = false" class="w-full text-center text-xs text-gray-400 hover:text-gray-600 font-medium">Clear all filters</button>
+                </div>
+            </div>
+        </div>
+        <div x-show="activeTab === 'CAF'" class="relative" @click.away="showPositionFilter = false">
+            <button type="button" @click="showPositionFilter = !showPositionFilter"
+                class="flex items-center gap-2 px-4 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-700 transition max-w-72"
+                :class="filterPosition !== 'All' ? 'border-blue-500 bg-blue-50' : ''">
+                <svg class="w-4 h-4 text-gray-500 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 7h16M4 12h10M4 17h7"/></svg>
+                <span>Position</span>
+                <span x-show="filterPosition !== 'All'" class="ml-1 text-blue-600 font-bold truncate" x-text="'('+filterPosition+')'"></span>
+            </button>
+
+            <div x-show="showPositionFilter" x-transition class="absolute left-0 mt-2 w-72 bg-white border border-gray-100 rounded-xl shadow-xl z-30 p-2">
+                <p class="px-2 py-1.5 text-[10px] uppercase font-bold text-gray-400 tracking-wider">Filter by Position</p>
+                <div class="space-y-1 max-h-72 overflow-y-auto">
+                    <button @click="filterPosition = 'All'; currentPage = 1; showPositionFilter = false"
+                        class="w-full text-left px-3 py-2 rounded-lg text-sm transition font-medium"
+                        :class="filterPosition === 'All' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50'">
+                        All Positions
+                    </button>
+                    <template x-for="position in uniqueCafPositions" :key="position">
+                        <button @click="filterPosition = position; currentPage = 1; showPositionFilter = false"
+                            class="w-full text-left px-3 py-2 rounded-lg text-sm transition font-medium"
+                            :class="filterPosition === position ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50'"
+                            x-text="position"></button>
+                    </template>
+                </div>
+                <div class="mt-2 pt-2 border-t border-gray-100">
+                    <button @click="filterPosition = 'All'; currentPage = 1; showPositionFilter = false" class="w-full text-center text-xs text-gray-400 hover:text-gray-600 font-medium">Clear position filter</button>
                 </div>
             </div>
         </div>
@@ -261,23 +282,22 @@
                 <thead class="bg-white text-gray-600 sticky top-0 z-10">
                     <tr class="border-b border-gray-200">
                         <th class="px-4 py-3 text-left font-semibold">Name</th>
-                        <th class="px-4 py-3 text-left font-semibold">Position</th>
                         <th class="px-4 py-3 text-left font-semibold">Email</th>
                         <th class="px-4 py-3 text-left font-semibold">Phone</th>
                         <th class="px-4 py-3 text-left font-semibold">Type</th>
                         <th class="px-4 py-3 text-left font-semibold">Status</th>
+                        <th class="px-4 py-3 text-left font-semibold">Position</th>
                         <th class="px-4 py-3 text-left font-semibold">Applied</th>
                         <th class="px-4 py-3 text-left font-semibold">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     <template x-if="filteredRows.length === 0">
-                        <tr><td colspan="7" class="px-4 py-16 text-center text-gray-400"><div class="flex flex-col items-center gap-2"><svg class="w-10 h-10 text-gray-300" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5.586a1 1 0 0 1 .707.293l5.414 5.414a1 1 0 0 1 .293.707V19a2 2 0 0 1-2 2z"/></svg><span class="text-sm" x-text="'No ' + activeTab + ' records found.'"></span></div></td></tr>
+                        <tr><td colspan="8" class="px-4 py-16 text-center text-gray-400"><div class="flex flex-col items-center gap-2"><svg class="w-10 h-10 text-gray-300" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5.586a1 1 0 0 1 .707.293l5.414 5.414a1 1 0 0 1 .293.707V19a2 2 0 0 1-2 2z"/></svg><span class="text-sm" x-text="'No ' + activeTab + ' records found.'"></span></div></td></tr>
                     </template>
                     <template x-for="(row, i) in paginatedRows" :key="i">
                         <tr class="border-t border-gray-100 hover:bg-gray-50 transition">
                             <td class="px-4 py-3 text-gray-800 font-medium" x-text="row.name"></td>
-                            <td class="px-4 py-3 text-gray-600" x-text="row.position"></td>
                             <td class="px-4 py-3 text-gray-600" x-text="row.email"></td>
                             <td class="px-4 py-3 text-gray-600" x-text="row.phone"></td>
                             <td class="px-4 py-3">
@@ -288,6 +308,7 @@
                                 ></span>
                             </td>
                             <td class="px-4 py-3"><span x-text="row.status" :class="statusClass(row.status)" class="px-2 py-0.5 rounded-full text-xs font-medium"></span></td>
+                            <td class="px-4 py-3 text-gray-600" x-text="row.position"></td>
                             <td class="px-4 py-3 text-gray-500" x-text="row.applied_date || row.applied"></td>
                             <td class="px-4 py-3">
                                 <button @click="viewCAF(row)" class="text-xs text-blue-600 hover:underline mr-2">View</button>
@@ -615,6 +636,7 @@
                                         </template>
                                     </select>
                                 </div>
+
                             </div>
 
 
@@ -633,13 +655,6 @@
                                 </p>
                             </div>
                         </div>
-
-                        <datalist id="active-employee-options">
-                            <template x-for="employee in approvalUsers" :key="employee.id">
-                                <option :value="employee.name" :label="[employee.position, employee.department].filter(Boolean).join(' - ')"></option>
-                            </template>
-                            <option value="Others"></option>
-                        </datalist>
 
                         <div>
                             <label class="block text-xs font-semibold text-gray-600 mb-1">MRF Reference Number</label>
@@ -687,8 +702,27 @@
                         <div class="grid grid-cols-2 gap-3">
                             <div>
                                 <label class="block text-xs font-semibold text-gray-600 mb-1">Immediate Supervisor</label>
-                                <input type="text" x-model="form.immediateSupervisor" list="active-employee-options" placeholder="Select active employee or choose Others"
-                                    class="w-full text-sm px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none">
+                                <select x-model="form.immediateSupervisor"
+                                    class="w-full text-sm bg-white border border-gray-200 rounded px-2 py-2 focus:ring-2 focus:ring-blue-100 outline-none">
+                                    <option value="">Select supervisor...</option>
+                                    <template x-for="employee in approvalUsers" :key="'mrf-supervisor-' + employee.id">
+                                        <option
+                                            :value="employee.name"
+                                            x-text="`${employee.name} - ${employee.role}${employee.position ? ' / ' + employee.position : ''}`"
+                                        ></option>
+                                    </template>
+                                    <option value="Others">Others</option>
+                                </select>
+                                <div x-show="mrfSelectedPerson('immediateSupervisor')" class="grid grid-cols-2 gap-2 text-[11px] mt-2">
+                                    <div class="bg-white border border-gray-200 rounded-lg px-2 py-2">
+                                        <p class="text-[9px] uppercase font-bold text-gray-400">Position</p>
+                                        <p class="font-bold" x-text="mrfSelectedPerson('immediateSupervisor')?.position || '—'"></p>
+                                    </div>
+                                    <div class="bg-white border border-gray-200 rounded-lg px-2 py-2">
+                                        <p class="text-[9px] uppercase font-bold text-gray-400">Department</p>
+                                        <p class="font-bold" x-text="mrfSelectedPerson('immediateSupervisor')?.department || '—'"></p>
+                                    </div>
+                                </div>
                                 <input x-show="form.immediateSupervisor === 'Others'" x-model="form.immediateSupervisorOther" type="text"
                                     :required="form.immediateSupervisor === 'Others'"
                                     placeholder="Specify immediate supervisor"
@@ -929,8 +963,27 @@
                                 ]" :key="endorsement.key">
                                     <div>
                                         <label class="block text-xs font-semibold text-gray-600 mb-1" x-text="endorsement.label"></label>
-                                        <input type="text" x-model="form[endorsement.key]" list="active-employee-options" placeholder="Select active employee or choose Others"
-                                            class="w-full text-sm px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none">
+                                        <select x-model="form[endorsement.key]"
+                                            class="w-full text-sm bg-white border border-gray-200 rounded px-2 py-2 focus:ring-2 focus:ring-blue-100 outline-none">
+                                            <option value="">Select approver...</option>
+                                            <template x-for="employee in approvalUsers" :key="endorsement.key + '-' + employee.id">
+                                                <option
+                                                    :value="employee.name"
+                                                    x-text="`${employee.name} - ${employee.role}${employee.position ? ' / ' + employee.position : ''}`"
+                                                ></option>
+                                            </template>
+                                            <option value="Others">Others</option>
+                                        </select>
+                                        <div x-show="mrfSelectedPerson(endorsement.key)" class="grid grid-cols-2 gap-2 text-[11px] mt-2">
+                                            <div class="bg-white border border-gray-200 rounded-lg px-2 py-2">
+                                                <p class="text-[9px] uppercase font-bold text-gray-400">Position</p>
+                                                <p class="font-bold" x-text="mrfSelectedPerson(endorsement.key)?.position || '—'"></p>
+                                            </div>
+                                            <div class="bg-white border border-gray-200 rounded-lg px-2 py-2">
+                                                <p class="text-[9px] uppercase font-bold text-gray-400">Department</p>
+                                                <p class="font-bold" x-text="mrfSelectedPerson(endorsement.key)?.department || '—'"></p>
+                                            </div>
+                                        </div>
                                         <input x-show="form[endorsement.key] === 'Others'" x-model="form[endorsement.other]" type="text"
                                             :required="form[endorsement.key] === 'Others'"
                                             placeholder="Specify approver / endorsement"
@@ -1197,6 +1250,42 @@
                                 <p class="mt-1 whitespace-pre-wrap min-h-[2.5rem]" x-text="form.qualifications || ''"></p>
                             </div>
 
+                            {{-- Expanded Recruitment Details --}}
+                            <div class="bg-gray-100 text-center font-bold py-1 text-[11px] uppercase tracking-widest border-b border-gray-400">
+                                Recruitment Details
+                            </div>
+                            <div class="grid grid-cols-3 border-b border-gray-400 divide-x divide-gray-400">
+                                <div class="p-2"><span class="text-gray-500">MRF Reference No.:</span><p class="font-semibold mt-0.5 min-h-[1rem]" x-text="form.requestId || 'Auto-generated'"></p></div>
+                                <div class="p-2"><span class="text-gray-500">Immediate Supervisor:</span><p class="font-semibold mt-0.5 min-h-[1rem]" x-text="valueWithOther(form.immediateSupervisor, form.immediateSupervisorOther) || ''"></p></div>
+                                <div class="p-2"><span class="text-gray-500">Target Start Date:</span><p class="font-semibold mt-0.5 min-h-[1rem]" x-text="form.targetStartDate || ''"></p></div>
+                                <div class="p-2 border-t border-gray-400"><span class="text-gray-500">Job Level / Rank:</span><p class="font-semibold mt-0.5 min-h-[1rem]" x-text="valueWithOther(form.jobLevelRank, form.jobLevelRankOther) || ''"></p></div>
+                                <div class="p-2 border-t border-gray-400"><span class="text-gray-500">Work Classification:</span><p class="font-semibold mt-0.5 min-h-[1rem]" x-text="valueWithOther(form.workClassification, form.workClassificationOther) || ''"></p></div>
+                                <div class="p-2 border-t border-gray-400"><span class="text-gray-500">Work Arrangement:</span><p class="font-semibold mt-0.5 min-h-[1rem]" x-text="valueWithOther(form.workArrangement, form.workArrangementOther) || ''"></p></div>
+                            </div>
+                            <div class="grid grid-cols-3 border-b border-gray-400 divide-x divide-gray-400">
+                                <div class="p-2"><span class="text-gray-500">Work Schedule:</span><p class="font-semibold mt-0.5 min-h-[1rem]" x-text="form.workSchedule === 'Custom Schedule' ? ('Custom Schedule: ' + (form.workScheduleOther || '')) : (valueWithOther(form.workSchedule, form.workScheduleOther) || '')"></p></div>
+                                <div class="p-2"><span class="text-gray-500">Contract Duration:</span><p class="font-semibold mt-0.5 min-h-[1rem]" x-text="valueWithOther(form.contractDuration, form.contractDurationOther) || ''"></p></div>
+                                <div class="p-2"><span class="text-gray-500">Urgency Level:</span><p class="font-semibold mt-0.5 min-h-[1rem]" x-text="valueWithOther(form.urgencyLevel, form.urgencyLevelOther) || ''"></p></div>
+                            </div>
+                            <div class="grid grid-cols-2 border-b border-gray-400 divide-x divide-gray-400">
+                                <div class="p-2"><span class="text-gray-500">Compensation / Salary Budget Range:</span><p class="font-semibold mt-0.5 min-h-[1rem]" x-text="[form.salaryMin, form.salaryMax].filter(Boolean).join(' - ')"></p></div>
+                                <div class="p-2"><span class="text-gray-500">Attachments:</span><p class="font-semibold mt-0.5 min-h-[1rem]" x-text="[(form.candidateProfileAttached ? 'Candidate Profile Attached' : ''), (form.jobDescriptionAttached ? 'Job Description Attached' : '')].filter(Boolean).join(' / ')"></p></div>
+                            </div>
+                            <div class="grid grid-cols-2 border-b border-gray-400 divide-x divide-gray-400">
+                                <div class="p-2"><span class="text-gray-500">Required Skills / Competencies:</span><p class="mt-1 whitespace-pre-wrap min-h-[2.5rem]" x-text="normalizeBulletText(form.requiredSkills) || ''"></p></div>
+                                <div class="p-2"><span class="text-gray-500">Required Licenses / Certifications:</span><p class="mt-1 whitespace-pre-wrap min-h-[2.5rem]" x-text="normalizeBulletText(form.requiredLicenses) || ''"></p></div>
+                            </div>
+                            <div class="grid grid-cols-2 border-b border-gray-400 divide-x divide-gray-400">
+                                <div class="p-2"><span class="text-gray-500">Benefits Checklist:</span><p class="mt-1 whitespace-pre-wrap min-h-[2.5rem]" x-text="mrfArrayDisplay(selectionWithOther(form.benefitsChecklist, form.benefitsChecklistOther))"></p></div>
+                                <div class="p-2"><span class="text-gray-500">Required Applicant Documents:</span><p class="mt-1 whitespace-pre-wrap min-h-[2.5rem]" x-text="mrfArrayDisplay(selectionWithOther(form.requiredDocuments, form.requiredDocumentsOther))"></p></div>
+                            </div>
+                            <div class="grid grid-cols-4 border-b border-gray-400 divide-x divide-gray-400">
+                                <div class="p-2"><span class="text-gray-500">Immediate Supervisor Endorsement:</span><p class="font-semibold mt-0.5 min-h-[1rem]" x-text="valueWithOther(form.immediateSupervisorEndorsement, form.immediateSupervisorEndorsementOther) || ''"></p></div>
+                                <div class="p-2"><span class="text-gray-500">Department Head Endorsement:</span><p class="font-semibold mt-0.5 min-h-[1rem]" x-text="valueWithOther(form.departmentHeadEndorsement, form.departmentHeadEndorsementOther) || ''"></p></div>
+                                <div class="p-2"><span class="text-gray-500">HC Head Validation:</span><p class="font-semibold mt-0.5 min-h-[1rem]" x-text="valueWithOther(form.hcHeadValidation, form.hcHeadValidationOther) || ''"></p></div>
+                                <div class="p-2"><span class="text-gray-500">Finance Head Clearance:</span><p class="font-semibold mt-0.5 min-h-[1rem]" x-text="valueWithOther(form.financeHeadClearance, form.financeHeadClearanceOther) || ''"></p></div>
+                            </div>
+
                             {{-- APPROVALS header --}}
                             <div class="bg-blue-700 text-white text-center font-bold py-1.5 text-xs tracking-widest uppercase border-b border-gray-400">
                                 Approvals
@@ -1350,6 +1439,54 @@
                     <div class="border-b border-gray-300 p-3">
                         <span class="text-xs text-gray-500">Preferred Qualifications / Experience:</span>
                         <p class="mt-1 whitespace-pre-wrap" x-text="viewData.qualifications || '—'"></p>
+                    </div>
+                    <div class="bg-gray-100 text-center text-xs font-bold py-1.5 tracking-widest uppercase text-gray-700 border-b border-gray-300">Recruitment Details</div>
+                    <div class="grid grid-cols-3 border-b border-gray-300 divide-x divide-gray-300">
+                        <div class="p-3"><span class="text-xs text-gray-500">MRF Reference No.:</span><p class="font-medium mt-1" x-text="mrfDisplay(viewData, 'request_id')"></p></div>
+                        <div class="p-3"><span class="text-xs text-gray-500">Immediate Supervisor:</span><p class="font-medium mt-1" x-text="mrfDisplay(viewData, 'immediate_supervisor')"></p></div>
+                        <div class="p-3"><span class="text-xs text-gray-500">Target Start Date:</span><p class="font-medium mt-1" x-text="mrfDisplay(viewData, 'target_start_date')"></p></div>
+                        <div class="p-3 border-t border-gray-300"><span class="text-xs text-gray-500">Job Level / Rank:</span><p class="font-medium mt-1" x-text="mrfDisplay(viewData, 'job_level_rank')"></p></div>
+                        <div class="p-3 border-t border-gray-300"><span class="text-xs text-gray-500">Work Classification:</span><p class="font-medium mt-1" x-text="mrfDisplay(viewData, 'work_classification')"></p></div>
+                        <div class="p-3 border-t border-gray-300"><span class="text-xs text-gray-500">Work Arrangement:</span><p class="font-medium mt-1" x-text="mrfDisplay(viewData, 'work_arrangement')"></p></div>
+                    </div>
+                    <div class="grid grid-cols-3 border-b border-gray-300 divide-x divide-gray-300">
+                        <div class="p-3"><span class="text-xs text-gray-500">Work Schedule:</span><p class="font-medium mt-1" x-text="mrfDisplay(viewData, 'work_schedule')"></p></div>
+                        <div class="p-3"><span class="text-xs text-gray-500">Contract Duration:</span><p class="font-medium mt-1" x-text="mrfDisplay(viewData, 'contract_duration')"></p></div>
+                        <div class="p-3"><span class="text-xs text-gray-500">Urgency Level:</span><p class="font-medium mt-1" x-text="mrfDisplay(viewData, 'urgency_level')"></p></div>
+                    </div>
+                    <div class="grid grid-cols-2 border-b border-gray-300 divide-x divide-gray-300">
+                        <div class="p-3"><span class="text-xs text-gray-500">Compensation / Salary Budget Range:</span><p class="font-medium mt-1" x-text="[viewData.salary_min, viewData.salary_max].filter(Boolean).join(' - ') || '-'"></p></div>
+                        <div class="p-3"><span class="text-xs text-gray-500">Attachments:</span><p class="font-medium mt-1" x-text="[(viewData.candidate_profile_attached ? 'Candidate Profile Attached' : ''), (viewData.job_description_attached ? 'Job Description Attached' : '')].filter(Boolean).join(' / ') || '-'"></p></div>
+                    </div>
+                    <div class="grid grid-cols-2 border-b border-gray-300 divide-x divide-gray-300">
+                        <div class="p-3"><span class="text-xs text-gray-500">Required Skills / Competencies:</span><p class="mt-1 whitespace-pre-wrap" x-text="mrfDisplay(viewData, 'required_skills')"></p></div>
+                        <div class="p-3"><span class="text-xs text-gray-500">Required Licenses / Certifications:</span><p class="mt-1 whitespace-pre-wrap" x-text="mrfDisplay(viewData, 'required_licenses')"></p></div>
+                    </div>
+                    <div class="grid grid-cols-2 border-b border-gray-300 divide-x divide-gray-300">
+                        <div class="p-3"><span class="text-xs text-gray-500">Benefits Checklist:</span><p class="mt-1 whitespace-pre-wrap" x-text="mrfArrayDisplay(viewData.benefits_checklist)"></p></div>
+                        <div class="p-3"><span class="text-xs text-gray-500">Required Applicant Documents:</span><p class="mt-1 whitespace-pre-wrap" x-text="mrfArrayDisplay(viewData.required_documents)"></p></div>
+                    </div>
+                    <div class="grid grid-cols-4 border-b border-gray-300 divide-x divide-gray-300">
+                        <div class="p-3"><span class="text-xs text-gray-500">Immediate Supervisor Endorsement:</span><p class="font-medium mt-1" x-text="mrfEndorsement(viewData, 'immediate_supervisor')"></p></div>
+                        <div class="p-3"><span class="text-xs text-gray-500">Department Head Endorsement:</span><p class="font-medium mt-1" x-text="mrfEndorsement(viewData, 'department_head')"></p></div>
+                        <div class="p-3"><span class="text-xs text-gray-500">HC Head Validation:</span><p class="font-medium mt-1" x-text="mrfEndorsement(viewData, 'hc_head')"></p></div>
+                        <div class="p-3"><span class="text-xs text-gray-500">Finance Head Clearance:</span><p class="font-medium mt-1" x-text="mrfEndorsement(viewData, 'finance_head')"></p></div>
+                    </div>
+                    <div class="grid grid-cols-2 border-b border-gray-300 divide-x divide-gray-300">
+                        <div class="p-3">
+                            <span class="text-xs text-gray-500">Candidate Profile File:</span>
+                            <template x-if="mrfAttachmentUrl(viewData, 'candidate_profile_path')">
+                                <a :href="mrfAttachmentUrl(viewData, 'candidate_profile_path')" target="_blank" class="block mt-1 text-blue-600 font-semibold">Open attached file</a>
+                            </template>
+                            <p x-show="!mrfAttachmentUrl(viewData, 'candidate_profile_path')" class="font-medium mt-1">-</p>
+                        </div>
+                        <div class="p-3">
+                            <span class="text-xs text-gray-500">Job Description File:</span>
+                            <template x-if="mrfAttachmentUrl(viewData, 'job_description_path')">
+                                <a :href="mrfAttachmentUrl(viewData, 'job_description_path')" target="_blank" class="block mt-1 text-blue-600 font-semibold">Open attached file</a>
+                            </template>
+                            <p x-show="!mrfAttachmentUrl(viewData, 'job_description_path')" class="font-medium mt-1">-</p>
+                        </div>
                     </div>
                     <div class="bg-blue-700 text-white text-center text-xs font-bold py-1.5 tracking-widest uppercase">Approvals</div>
                     <div class="grid grid-cols-2 border-b border-gray-300 divide-x divide-gray-300">
@@ -1582,6 +1719,32 @@
                                 <div class="col-span-2">
                                     <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Work Location</label>
                                     <input type="text" x-model="jpfForm.workLocation" class="w-full text-sm px-3 py-2 border border-gray-300 rounded-lg outline-none">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div x-show="selectedJpfMrf" class="space-y-4 border border-blue-100 bg-blue-50/40 rounded-xl p-4">
+                            <h3 class="text-xs font-black text-blue-700 uppercase tracking-[0.2em] border-b border-blue-100 pb-2">Linked MRF Recruitment Details</h3>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Work Classification</label>
+                                    <input type="text" :value="selectedJpfMrf?.work_classification || ''" readonly class="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg bg-white text-gray-700 outline-none">
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Work Arrangement</label>
+                                    <input type="text" :value="selectedJpfMrf?.work_arrangement || ''" readonly class="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg bg-white text-gray-700 outline-none">
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Contract Duration</label>
+                                    <input type="text" :value="selectedJpfMrf?.contract_duration || ''" readonly class="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg bg-white text-gray-700 outline-none">
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Urgency Level</label>
+                                    <input type="text" :value="selectedJpfMrf?.urgency_level || ''" readonly class="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg bg-white text-gray-700 outline-none">
+                                </div>
+                                <div class="col-span-2">
+                                    <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Required Applicant Documents</label>
+                                    <textarea :value="mrfArrayDisplay(selectedJpfMrf?.required_documents)" readonly rows="4" class="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg bg-white text-gray-700 outline-none resize-none"></textarea>
                                 </div>
                             </div>
                         </div>
@@ -2893,12 +3056,12 @@
                     <div class="flex h-full overflow-hidden">
                         
                         {{-- LEFT: DOCUMENT VIEW --}}
-                        <div class="flex-1 flex flex-col bg-gray-200 border-r border-gray-300 p-6 overflow-hidden" x-data="{ docTab: 'summary' }">
+                        <div class="flex-1 flex flex-col bg-slate-100 border-r border-slate-200 p-6 overflow-hidden" x-data="{ docTab: 'summary' }">
                             <div class="flex items-center justify-between mb-4 shrink-0">
                                 <div class="flex bg-white rounded-xl p-1 border border-gray-300 shadow-sm">
-                                    <button @click="docTab = 'summary'" :class="docTab === 'summary' ? 'bg-teal-600 text-white shadow-lg' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'" class="px-5 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all">Summary</button>
-                                    <button x-show="viewCafData.cv_path" @click="docTab = 'resume'" :class="docTab === 'resume' ? 'bg-teal-600 text-white shadow-lg' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'" class="px-5 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all">Resume / CV</button>
-                                    <button x-show="viewCafData.cover_letter_path" @click="docTab = 'coverletter'" :class="docTab === 'coverletter' ? 'bg-teal-600 text-white shadow-lg' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'" class="px-5 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all">Cover Letter File</button>
+                                    <button @click="docTab = 'summary'" :class="docTab === 'summary' ? 'bg-blue-700 text-white shadow-lg' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'" class="px-5 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all">Full Application</button>
+                                    <button x-show="viewCafData.cv_path" @click="docTab = 'resume'" :class="docTab === 'resume' ? 'bg-blue-700 text-white shadow-lg' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'" class="px-5 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all">Resume / CV</button>
+                                    <button x-show="viewCafData.cover_letter_path" @click="docTab = 'coverletter'" :class="docTab === 'coverletter' ? 'bg-blue-700 text-white shadow-lg' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'" class="px-5 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all">Cover Letter File</button>
                                 </div>
                                 <div class="flex gap-2">
                                     <template x-if="viewCafData.cv_path">
@@ -2910,8 +3073,8 @@
                             <div class="flex-1 bg-white rounded-2xl shadow-inner border border-gray-300 flex flex-col overflow-hidden relative">
                                 {{-- SUMMARY TAB --}}
                                 <div x-show="docTab === 'summary'" class="flex-1 overflow-y-auto p-12 bg-gray-100/50 flex flex-col items-center">
-                                    <div class="w-full max-w-4xl bg-white shadow-2xl border border-gray-200 p-16 font-sans space-y-12 min-h-[1200px]">
-                                        <div class="flex justify-between items-start border-b-2 border-gray-800 pb-8">
+                                    <div class="w-full max-w-5xl font-sans flex flex-col gap-10">
+                                        <div class="flex justify-between items-start border-b-2 border-blue-800 pb-8">
                                             <div class="w-32 h-32 border-2 border-gray-100 rounded-2xl overflow-hidden bg-gray-50 shrink-0">
                                                 <template x-if="viewCafData.photo_path">
                                                     <img :src="'/storage/' + viewCafData.photo_path" class="w-full h-full object-cover">
@@ -2923,18 +3086,89 @@
                                                 </template>
                                             </div>
                                             <div class="flex-1 ml-10">
+                                                <p class="text-[10px] font-black text-blue-700 uppercase tracking-[0.3em] mb-2">Candidate Application Form</p>
                                                 <h1 class="text-4xl font-black text-gray-900 tracking-tighter uppercase mb-2" x-text="viewCafData.name"></h1>
-                                                <p class="text-xl text-teal-600 font-bold uppercase tracking-widest" x-text="viewCafData.position"></p>
+                                                <p class="text-xl text-blue-700 font-bold uppercase tracking-widest" x-text="viewCafData.position"></p>
                                                 <div class="mt-4 space-y-1 text-xs font-bold text-gray-500">
+                                                    <p x-text="'Applicant ID: ' + (viewCafData.applicant_id || 'Pending')"></p>
                                                     <p x-text="viewCafData.email"></p>
                                                     <p x-text="viewCafData.phone"></p>
                                                 </div>
                                             </div>
-                                            <img src="{{ asset('images/imaglogo.png') }}" onerror="this.src='{{ asset('images/imag1logo.jpg') }}'" alt="Logo" class="h-16 w-auto object-contain">
+                                            <img src="{{ asset('images/FINAL_LOGO.jpg') }}" onerror="this.src='{{ asset('images/imaglogo.png') }}'" alt="Logo" class="h-16 w-auto object-contain">
+                                        </div>
+
+                                        <div class="grid grid-cols-3 gap-3">
+                                            <div class="rounded-xl border border-blue-100 bg-blue-50 p-4">
+                                                <p class="text-[10px] font-black text-blue-500 uppercase tracking-widest">Position Applied</p>
+                                                <p class="mt-1 text-sm font-black text-slate-900" x-text="viewCafData.position || '—'"></p>
+                                            </div>
+                                            <div class="rounded-xl border border-blue-100 bg-blue-50 p-4">
+                                                <p class="text-[10px] font-black text-blue-500 uppercase tracking-widest">Department</p>
+                                                <p class="mt-1 text-sm font-black text-slate-900" x-text="cafValue('departmentTeam') || cafValue('job.department_unit') || '—'"></p>
+                                            </div>
+                                            <div class="rounded-xl border border-blue-100 bg-blue-50 p-4">
+                                                <p class="text-[10px] font-black text-blue-500 uppercase tracking-widest">Employment Type</p>
+                                                <p class="mt-1 text-sm font-black text-slate-900" x-text="cafValue('employmentType') || cafValue('job.employment_type') || '—'"></p>
+                                            </div>
+                                        </div>
+
+                                        <template x-for="section in cafApplicationSections()" :key="section.title">
+                                            <section class="space-y-4">
+                                                <h3 class="text-sm font-black text-blue-900 uppercase tracking-widest border-b border-blue-100 pb-2" x-text="section.title"></h3>
+                                                <div class="grid grid-cols-2 gap-3">
+                                                    <template x-for="field in section.fields" :key="field.label">
+                                                        <div class="rounded-xl border border-slate-200 bg-slate-50 p-4" :class="field.full ? 'col-span-2' : ''">
+                                                            <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest" x-text="field.label"></p>
+                                                            <p class="mt-1 text-sm font-bold text-slate-800 whitespace-pre-wrap break-words" x-text="formatCafValue(field.value)"></p>
+                                                        </div>
+                                                    </template>
+                                                </div>
+                                            </section>
+                                        </template>
+
+                                        <div class="space-y-4" x-show="cafEducationRows().length">
+                                            <h3 class="text-sm font-black text-blue-900 uppercase tracking-widest border-b border-blue-100 pb-2">Educational Background</h3>
+                                            <div class="space-y-3">
+                                                <template x-for="edu in cafEducationRows()" :key="edu.level + edu.school + edu.year">
+                                                    <div class="rounded-xl border border-slate-200 p-4">
+                                                        <p class="text-sm font-black text-slate-900" x-text="edu.level"></p>
+                                                        <p class="mt-1 text-sm text-slate-700" x-text="[edu.school, edu.degree, edu.course, edu.year].filter(Boolean).join(' | ') || '—'"></p>
+                                                        <p class="mt-1 text-xs font-semibold text-slate-500" x-show="edu.honors" x-text="'Honors / Awards: ' + edu.honors"></p>
+                                                    </div>
+                                                </template>
+                                            </div>
+                                        </div>
+
+                                        <div class="space-y-4" x-show="cafEmploymentRows().length">
+                                            <h3 class="text-sm font-black text-blue-900 uppercase tracking-widest border-b border-blue-100 pb-2">Employment History</h3>
+                                            <div class="space-y-3">
+                                                <template x-for="job in cafEmploymentRows()" :key="job.company + job.position + job.inclusiveDates">
+                                                    <div class="rounded-xl border border-slate-200 p-4">
+                                                        <p class="text-sm font-black text-slate-900" x-text="[job.company, job.position].filter(Boolean).join(' - ') || 'Employment Record'"></p>
+                                                        <p class="mt-1 text-sm text-slate-700" x-text="[job.address, job.inclusiveDates].filter(Boolean).join(' | ')"></p>
+                                                        <p class="mt-1 text-xs text-slate-500" x-show="job.responsibilities" x-text="job.responsibilities"></p>
+                                                        <p class="mt-1 text-xs font-semibold text-slate-500" x-show="job.reasonForLeaving" x-text="'Reason for leaving: ' + job.reasonForLeaving"></p>
+                                                    </div>
+                                                </template>
+                                            </div>
+                                        </div>
+
+                                        <div class="space-y-4" x-show="cafCertificationRows().length">
+                                            <h3 class="text-sm font-black text-blue-900 uppercase tracking-widest border-b border-blue-100 pb-2">Certifications & Trainings</h3>
+                                            <div class="space-y-3">
+                                                <template x-for="cert in cafCertificationRows()" :key="cert.name + cert.provider + cert.code">
+                                                    <div class="rounded-xl border border-slate-200 p-4">
+                                                        <p class="text-sm font-black text-slate-900" x-text="cert.name || 'Certification / Training'"></p>
+                                                        <p class="mt-1 text-sm text-slate-700" x-text="[cert.provider, cert.status, cert.dateTaken || cert.datePlanned, cert.validity].filter(Boolean).join(' | ')"></p>
+                                                        <p class="mt-1 text-xs text-slate-500" x-show="cert.notes" x-text="cert.notes"></p>
+                                                    </div>
+                                                </template>
+                                            </div>
                                         </div>
 
                                         <div class="space-y-6">
-                                            <h3 class="text-sm font-black text-gray-900 uppercase tracking-widest border-b pb-2">Cover Letter / Statement</h3>
+                                            <h3 class="text-sm font-black text-blue-900 uppercase tracking-widest border-b border-blue-100 pb-2">Cover Letter / Statement</h3>
                                             <div class="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap" x-text="viewCafData.cover_letter && viewCafData.cover_letter !== 'null' ? viewCafData.cover_letter : (viewCafData.cover_letter_path ? 'See attached cover letter file.' : 'No cover letter text provided.')"></div>
                                         </div>
                                         
@@ -2958,13 +3192,13 @@
                         </div>
 
                         {{-- RIGHT: CANDIDATE INFO --}}
-                        <div class="w-[450px] bg-white border-l border-gray-200 flex flex-col shrink-0">
-                            <div class="h-44 bg-gradient-to-r from-teal-500 to-emerald-600 relative shrink-0">
+                        <div class="w-[450px] bg-white border-l border-slate-200 flex flex-col shrink-0">
+                            <div class="h-44 bg-gradient-to-r from-blue-900 to-blue-700 relative shrink-0">
                                 <button @click="showCafViewModal = false" class="absolute top-6 right-6 text-white/50 hover:text-white transition group bg-white/10 p-2 rounded-full backdrop-blur-md z-20">
                                     <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12"/></svg>
                                 </button>
                                 <div class="absolute -bottom-12 left-10 z-10 text-center">
-                                    <div class="w-32 h-32 bg-white rounded-3xl shadow-2xl flex items-center justify-center border-4 border-white text-teal-600 overflow-hidden mx-auto">
+                                    <div class="w-32 h-32 bg-white rounded-3xl shadow-2xl flex items-center justify-center border-4 border-white text-blue-700 overflow-hidden mx-auto">
                                         <template x-if="viewCafData.photo_path">
                                             <img :src="'/storage/' + viewCafData.photo_path" class="w-full h-full object-cover">
                                         </template>
@@ -2978,15 +3212,15 @@
                             <div class="flex-1 overflow-y-auto px-10 pt-16 pb-8 space-y-10">
                                 <div class="text-center">
                                     <h2 class="text-3xl font-black text-gray-900 tracking-tight capitalize" x-text="viewCafData.name"></h2>
-                                    <p class="text-teal-600 font-bold tracking-[0.2em] uppercase text-[11px] mt-1" x-text="viewCafData.position"></p>
-                                    <span class="inline-flex mt-3 px-3 py-1 rounded-full bg-indigo-50 text-indigo-700 text-[10px] font-black uppercase tracking-widest" x-text="viewCafData.applicant_type || 'New Applicant'"></span>
+                                    <p class="text-blue-700 font-bold tracking-[0.2em] uppercase text-[11px] mt-1" x-text="viewCafData.position"></p>
+                                    <span class="inline-flex mt-3 px-3 py-1 rounded-full bg-blue-50 text-blue-800 text-[10px] font-black uppercase tracking-widest" x-text="viewCafData.applicant_type || 'New Applicant'"></span>
                                 </div>
 
                                 <div class="grid grid-cols-1 gap-5">
                                     <div class="bg-gray-50/50 p-6 rounded-[2rem] border border-gray-100 font-medium shadow-sm transition hover:shadow-md">
                                         <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Email Address</p>
                                         <div class="flex items-center gap-3">
-                                            <div class="w-8 h-8 bg-white rounded-xl shadow-sm border border-gray-100 flex items-center justify-center text-teal-600 shrink-0">
+                                            <div class="w-8 h-8 bg-white rounded-xl shadow-sm border border-gray-100 flex items-center justify-center text-blue-700 shrink-0">
                                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
                                             </div>
                                             <p class="text-gray-800 break-all text-sm font-bold" x-text="viewCafData.email"></p>
@@ -2995,7 +3229,7 @@
                                     <div class="bg-gray-50/50 p-6 rounded-[2rem] border border-gray-100 font-medium shadow-sm transition hover:shadow-md">
                                         <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Phone Number</p>
                                         <div class="flex items-center gap-3">
-                                            <div class="w-8 h-8 bg-white rounded-xl shadow-sm border border-gray-100 flex items-center justify-center text-teal-600 shrink-0">
+                                            <div class="w-8 h-8 bg-white rounded-xl shadow-sm border border-gray-100 flex items-center justify-center text-blue-700 shrink-0">
                                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 5.25a.75.75 0 01.75-.75H9a.75.75 0 01.75.75v3.31A.75.75 0 019 9.31L7.15 10.63a.75.75 0 00-.2 1.05c.87 1.34 2.1 2.57 3.44 3.44a.75.75 0 001.05-.2l1.32-1.85a.75.75 0 011-.31h3.31a.75.75 0 01.75.75v5.25a.75.75 0 01-.75.75h-2.25c-7.46 0-13.5-6.04-13.5-13.5v-2.25z"/></svg>
                                             </div>
                                             <p class="text-gray-800 text-sm font-bold" x-text="viewCafData.phone"></p>
@@ -3003,18 +3237,37 @@
                                     </div>
                                 </div>
 
-                                <div class="bg-teal-50/30 p-6 rounded-[2rem] border border-teal-100 shadow-sm">
+                                <div class="bg-blue-50/50 p-6 rounded-[2rem] border border-blue-100 shadow-sm">
                                     <div class="flex items-center gap-2 mb-4">
-                                        <div class="w-2 h-2 bg-teal-500 rounded-full animate-pulse"></div>
-                                        <p class="text-[10px] font-black text-teal-700 uppercase tracking-widest">Application Status</p>
+                                        <div class="w-2 h-2 bg-blue-600 rounded-full animate-pulse"></div>
+                                        <p class="text-[10px] font-black text-blue-700 uppercase tracking-widest">Application Status</p>
                                     </div>
-                                    <p class="text-sm font-bold text-teal-900" x-text="'Applied on ' + (viewCafData.created_at ? new Date(viewCafData.created_at).toLocaleDateString() : '—')"></p>
+                                    <p class="text-sm font-bold text-blue-950" x-text="'Applied on ' + (viewCafData.created_at ? new Date(viewCafData.created_at).toLocaleDateString() : '-')"></p>
+                                </div>
+
+                                <div class="bg-slate-50 p-6 rounded-[2rem] border border-slate-200 shadow-sm">
+                                    <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Submitted Files</p>
+                                    <div class="space-y-2 text-sm font-bold">
+                                        <a x-show="viewCafData.cv_path" :href="'/storage/' + viewCafData.cv_path" target="_blank" class="flex items-center justify-between rounded-xl bg-white border border-slate-200 px-4 py-3 text-slate-700 hover:text-blue-700 hover:border-blue-200 transition">
+                                            <span>Resume / CV</span><span class="text-[10px] uppercase tracking-widest">Open</span>
+                                        </a>
+                                        <a x-show="viewCafData.cover_letter_path" :href="'/storage/' + viewCafData.cover_letter_path" target="_blank" class="flex items-center justify-between rounded-xl bg-white border border-slate-200 px-4 py-3 text-slate-700 hover:text-blue-700 hover:border-blue-200 transition">
+                                            <span>Cover Letter File</span><span class="text-[10px] uppercase tracking-widest">Open</span>
+                                        </a>
+                                        <a x-show="cafAttachmentPath('portfolio')" :href="'/storage/' + cafAttachmentPath('portfolio')" target="_blank" class="flex items-center justify-between rounded-xl bg-white border border-slate-200 px-4 py-3 text-slate-700 hover:text-blue-700 hover:border-blue-200 transition">
+                                            <span>Portfolio</span><span class="text-[10px] uppercase tracking-widest">Open</span>
+                                        </a>
+                                        <a x-show="cafAttachmentPath('government_id')" :href="'/storage/' + cafAttachmentPath('government_id')" target="_blank" class="flex items-center justify-between rounded-xl bg-white border border-slate-200 px-4 py-3 text-slate-700 hover:text-blue-700 hover:border-blue-200 transition">
+                                            <span>Government ID</span><span class="text-[10px] uppercase tracking-widest">Open</span>
+                                        </a>
+                                        <p x-show="!viewCafData.cv_path && !viewCafData.cover_letter_path && !cafAttachmentPath('portfolio') && !cafAttachmentPath('government_id')" class="text-sm font-semibold text-slate-400">No submitted files available.</p>
+                                    </div>
                                 </div>
                             </div>
 
                             <div class="px-10 py-8 border-t border-gray-100 bg-gray-50 flex flex-col gap-3 shrink-0">
                                 <button @click="openAssessmentFromCaf(viewCafData)" 
-                                    class="w-full py-4 bg-teal-600 hover:bg-teal-700 text-white font-black rounded-[2rem] transition-all shadow-xl shadow-teal-100 uppercase tracking-[0.25em] text-[11px] active:scale-95">
+                                    class="w-full py-4 bg-blue-700 hover:bg-blue-800 text-white font-black rounded-[2rem] transition-all shadow-xl shadow-blue-100 uppercase tracking-[0.25em] text-[11px] active:scale-95">
                                     Proceed to Assessment
                                 </button>
                                 <button @click="showCafViewModal = false" class="w-full py-3 text-gray-500 hover:text-gray-800 font-bold uppercase tracking-widest text-[10px] transition">
@@ -3266,7 +3519,7 @@
         <div @click="showInterviewViewModal = false" class="absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity"
             x-show="showInterviewViewModal" x-transition:enter="ease-out duration-300" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
             x-transition:leave="ease-in duration-200" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"></div>
-        <div class="fixed inset-y-0 right-0 max-w-xl w-full flex pointer-events-none">
+        <div class="fixed inset-y-0 right-0 max-w-6xl w-full flex pointer-events-none">
             <div x-show="showInterviewViewModal" 
                 x-transition:enter="transform transition ease-in-out duration-500"
                 x-transition:enter-start="translate-x-full"
@@ -3278,7 +3531,7 @@
                 <template x-if="viewInterviewData">
                     <div class="flex flex-col h-full">
                         {{-- Aesthetic Header --}}
-                        <div class="h-32 bg-gradient-to-br from-purple-600 to-indigo-700 flex items-center justify-center overflow-hidden shrink-0 relative">
+                        <div class="h-32 bg-gradient-to-r from-blue-900 to-blue-700 flex items-center justify-center overflow-hidden shrink-0 relative">
                             <div class="absolute inset-0 opacity-10">
                                 <svg class="w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none"><path d="M0 100 C 20 0 50 0 100 100 Z" fill="white"></path></svg>
                             </div>
@@ -3286,14 +3539,25 @@
                                 <div class="inline-flex p-3 bg-white/20 backdrop-blur-md rounded-2xl mb-2 border border-white/30">
                                     <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
                                 </div>
-                                <h3 class="text-white font-black text-xl tracking-tight uppercase">Interview Details</h3>
+                                <h3 class="text-white font-black text-xl tracking-tight uppercase">Candidate Interview</h3>
                             </div>
                             <button @click="showInterviewViewModal = false" class="absolute top-6 right-6 text-white/50 hover:text-white transition group bg-white/10 p-2 rounded-full backdrop-blur-md">
                                 <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12"/></svg>
                             </button>
                         </div>
 
-                        <div class="flex-1 overflow-y-auto p-8 space-y-8 bg-white">
+                        <div class="px-8 py-3 border-b border-slate-200 bg-white flex gap-2 overflow-x-auto shrink-0">
+                            <template x-for="tab in interviewViewTabs" :key="tab">
+                                <button type="button" @click="interviewViewTab = tab"
+                                    class="px-4 py-2 rounded-lg text-[11px] font-black uppercase tracking-widest whitespace-nowrap transition"
+                                    :class="interviewViewTab === tab ? 'bg-blue-700 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100'">
+                                    <span x-text="tab"></span>
+                                </button>
+                            </template>
+                        </div>
+
+                        <div class="flex-1 overflow-y-auto p-8 bg-slate-50">
+                            <div x-show="interviewViewTab === 'Candidate Information'" class="space-y-8">
                             <div class="grid grid-cols-2 gap-8">
                                 <div class="space-y-1">
                                     <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Candidate Name</p>
@@ -3301,7 +3565,7 @@
                                 </div>
                                 <div class="space-y-1">
                                     <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Position</p>
-                                    <p class="text-purple-600 font-bold text-lg" x-text="viewInterviewData.position"></p>
+                                    <p class="text-blue-700 font-bold text-lg" x-text="viewInterviewData.position"></p>
                                 </div>
                             </div>
 
@@ -3336,6 +3600,111 @@
                                 <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Meeting Link</p>
                                 <a :href="viewInterviewData.meeting_link" target="_blank" class="text-blue-600 hover:underline font-medium break-all text-sm block bg-blue-50/50 p-4 rounded-2xl border border-blue-100" x-text="viewInterviewData.meeting_link"></a>
                             </div>
+                            <template x-for="section in interviewApplicationSections()" :key="section.title">
+                                <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+                                    <h4 class="text-xs font-black text-blue-900 uppercase tracking-widest border-b border-blue-100 pb-2 mb-4" x-text="section.title"></h4>
+                                    <div class="grid grid-cols-2 gap-3">
+                                        <template x-for="field in section.fields" :key="field.label">
+                                            <div class="rounded-xl bg-slate-50 border border-slate-200 p-3" :class="field.full ? 'col-span-2' : ''">
+                                                <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest" x-text="field.label"></p>
+                                                <p class="mt-1 text-sm font-semibold text-slate-800 whitespace-pre-wrap break-words" x-text="formatCafValue(field.value)"></p>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </div>
+                            </template>
+                            <div class="grid grid-cols-1 gap-4">
+                                <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm" x-show="interviewEducationRows().length">
+                                    <h4 class="text-xs font-black text-blue-900 uppercase tracking-widest border-b border-blue-100 pb-2 mb-4">Educational Background</h4>
+                                    <template x-for="edu in interviewEducationRows()" :key="edu.level + edu.school + edu.year">
+                                        <div class="py-2 border-b border-slate-100 last:border-0">
+                                            <p class="text-sm font-black text-slate-900" x-text="edu.level"></p>
+                                            <p class="text-sm text-slate-700" x-text="[edu.school, edu.degree, edu.course, edu.year].filter(Boolean).join(' | ') || '-'"></p>
+                                        </div>
+                                    </template>
+                                </div>
+                                <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm" x-show="interviewEmploymentRows().length">
+                                    <h4 class="text-xs font-black text-blue-900 uppercase tracking-widest border-b border-blue-100 pb-2 mb-4">Employment History</h4>
+                                    <template x-for="job in interviewEmploymentRows()" :key="job.company + job.position + job.inclusiveDates">
+                                        <div class="py-2 border-b border-slate-100 last:border-0">
+                                            <p class="text-sm font-black text-slate-900" x-text="[job.company, job.position].filter(Boolean).join(' - ') || 'Employment Record'"></p>
+                                            <p class="text-sm text-slate-700" x-text="[job.address, job.inclusiveDates].filter(Boolean).join(' | ')"></p>
+                                            <p class="text-xs text-slate-500" x-show="job.responsibilities" x-text="job.responsibilities"></p>
+                                        </div>
+                                    </template>
+                                </div>
+                                <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm" x-show="interviewCertificationRows().length">
+                                    <h4 class="text-xs font-black text-blue-900 uppercase tracking-widest border-b border-blue-100 pb-2 mb-4">Certifications & Trainings</h4>
+                                    <template x-for="cert in interviewCertificationRows()" :key="cert.name + cert.provider + cert.code">
+                                        <div class="py-2 border-b border-slate-100 last:border-0">
+                                            <p class="text-sm font-black text-slate-900" x-text="cert.name || 'Certification / Training'"></p>
+                                            <p class="text-sm text-slate-700" x-text="[cert.provider, cert.status, cert.dateTaken || cert.datePlanned, cert.validity].filter(Boolean).join(' | ')"></p>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                            </div>
+
+                            <div x-show="interviewViewTab === 'Resume / CV'" class="h-full min-h-[640px] bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+                                <template x-if="interviewFilePath('resume_cv') || interviewFilePath('cv_path')">
+                                    <iframe :src="'/storage/' + (interviewFilePath('resume_cv') || interviewFilePath('cv_path'))" class="w-full h-[720px] border-0"></iframe>
+                                </template>
+                                <div x-show="!(interviewFilePath('resume_cv') || interviewFilePath('cv_path'))" class="h-80 flex items-center justify-center text-slate-400 font-semibold">No resume file available.</div>
+                            </div>
+
+                            <div x-show="interviewViewTab === 'Portfolio'" class="space-y-4">
+                                <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+                                    <h4 class="text-xs font-black text-blue-900 uppercase tracking-widest mb-4">Portfolio</h4>
+                                    <a x-show="interviewFilePath('portfolio')" :href="'/storage/' + interviewFilePath('portfolio')" target="_blank" class="inline-flex px-4 py-3 rounded-xl bg-blue-50 text-blue-700 font-bold border border-blue-100">Open Uploaded Portfolio</a>
+                                    <p x-show="!interviewFilePath('portfolio')" class="text-sm text-slate-500">No uploaded portfolio file available.</p>
+                                    <p class="mt-4 text-sm text-slate-700 whitespace-pre-wrap" x-show="interviewValue('attachmentNotes')" x-text="interviewValue('attachmentNotes')"></p>
+                                </div>
+                            </div>
+
+                            <div x-show="interviewViewTab === 'Attachments'" class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+                                <h4 class="text-xs font-black text-blue-900 uppercase tracking-widest mb-4">Supporting Documents</h4>
+                                <div class="grid grid-cols-2 gap-3">
+                                    <template x-for="file in interviewAttachmentLinks()" :key="file.label">
+                                        <a :href="'/storage/' + file.path" target="_blank" class="rounded-xl border border-slate-200 bg-slate-50 p-4 font-bold text-slate-700 hover:text-blue-700 hover:border-blue-200 transition">
+                                            <span x-text="file.label"></span>
+                                        </a>
+                                    </template>
+                                </div>
+                                <p x-show="!interviewAttachmentLinks().length" class="text-sm text-slate-500">No uploaded supporting documents available.</p>
+                            </div>
+
+                            <div x-show="interviewViewTab === 'Interview Questions'" class="space-y-5">
+                                <div class="flex flex-wrap gap-2">
+                                    <template x-for="stage in interviewQuestionStages" :key="stage">
+                                        <button type="button" @click="interviewQuestionStage = stage"
+                                            class="px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest"
+                                            :class="interviewQuestionStage === stage ? 'bg-blue-700 text-white' : 'bg-white border border-slate-200 text-slate-600'">
+                                            <span x-text="stage"></span>
+                                        </button>
+                                    </template>
+                                </div>
+                                <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
+                                    <template x-for="(question, index) in interviewQuestionsForStage(interviewQuestionStage)" :key="interviewQuestionStage + index">
+                                        <div class="rounded-xl border border-slate-200 p-4 space-y-3">
+                                            <input x-model="question.question" class="w-full text-sm font-bold text-slate-900 border-0 border-b border-slate-200 focus:ring-0" placeholder="Interview question">
+                                            <textarea x-model="question.answer" rows="2" class="w-full rounded-xl border-slate-200 text-sm" placeholder="Candidate answer"></textarea>
+                                            <div class="grid grid-cols-3 gap-3">
+                                                <input x-model="question.notes" class="rounded-xl border-slate-200 text-sm" placeholder="Notes">
+                                                <input x-model="question.score" type="number" min="0" max="100" class="rounded-xl border-slate-200 text-sm" placeholder="Score">
+                                                <input x-model="question.recommendation" class="rounded-xl border-slate-200 text-sm" placeholder="Recommendation">
+                                            </div>
+                                        </div>
+                                    </template>
+                                    <div class="grid grid-cols-2 gap-3">
+                                        <textarea x-model="interviewQuestionMeta().remarks" rows="3" class="rounded-xl border-slate-200 text-sm" placeholder="Overall remarks"></textarea>
+                                        <textarea x-model="interviewQuestionMeta().recommendation" rows="3" class="rounded-xl border-slate-200 text-sm" placeholder="Overall recommendation"></textarea>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <button type="button" @click="addInterviewQuestion(interviewQuestionStage)" class="px-4 py-2 rounded-xl border border-blue-200 text-blue-700 font-bold">Add Question</button>
+                                        <button type="button" @click="saveInterviewDetails()" class="px-5 py-2 rounded-xl bg-blue-700 text-white font-black">Save Interview Details</button>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
                         <div class="px-8 py-6 border-t border-gray-100 space-y-3 shrink-0">
@@ -3362,7 +3731,7 @@
                                 <button @click="openJobOfferModal(viewInterviewData)"
                                     :disabled="!interviewAllowsJobOffer(viewInterviewData)"
                                     :class="interviewAllowsJobOffer(viewInterviewData)
-                                        ? 'bg-purple-600 hover:bg-purple-700 text-white shadow-lg shadow-purple-200'
+                                        ? 'bg-blue-700 hover:bg-blue-800 text-white shadow-lg shadow-blue-200'
                                         : 'bg-gray-200 text-gray-400 cursor-not-allowed'"
                                     class="flex-1 py-3 font-bold rounded-xl transition uppercase tracking-widest text-[11px]"
                                     x-text="interviewAllowsJobOffer(viewInterviewData) ? 'Send a Job Offer' : 'Complete/Pass Interview First'">
@@ -3375,6 +3744,93 @@
         </div>
     </div>
 
+    <style>
+        .job-offer-draft-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 420px;
+            gap: 1.25rem;
+            align-items: start;
+        }
+
+        .job-offer-draft-grid > :not(.job-offer-preview):not(.job-offer-actions) {
+            grid-column: 2;
+        }
+
+        .job-offer-preview {
+            grid-column: 1;
+            grid-row: 1 / span 30;
+            position: sticky;
+            top: 1rem;
+            max-height: calc(100vh - 8rem);
+            overflow: auto;
+            min-width: 0;
+        }
+
+        .job-offer-actions {
+            grid-column: 1 / -1;
+        }
+
+        .job-offer-view-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 360px;
+            gap: 1.25rem;
+            align-items: start;
+        }
+
+        .job-offer-view-preview {
+            grid-column: 1;
+            grid-row: 1 / span 20;
+            min-width: 0;
+        }
+
+        .job-offer-view-side {
+            grid-column: 2;
+        }
+
+        .job-offer-a4-stack {
+            width: 794px;
+            max-width: 100%;
+        }
+
+        .job-offer-a4-page {
+            width: 794px;
+            min-height: 1123px;
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 20px 45px rgba(15, 23, 42, 0.16);
+            padding: 2rem;
+            color: #0f172a;
+            font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            font-size: 12px;
+            line-height: 1.625;
+            break-after: page;
+            page-break-after: always;
+        }
+
+        @media (max-width: 1024px) {
+            .job-offer-draft-grid {
+                display: flex;
+                flex-direction: column;
+            }
+
+            .job-offer-preview {
+                position: static;
+                max-height: none;
+                width: 100%;
+            }
+
+            .job-offer-view-grid {
+                display: flex;
+                flex-direction: column;
+            }
+
+            .job-offer-view-preview,
+            .job-offer-view-side {
+                width: 100%;
+            }
+        }
+    </style>
+
     {{-- ===================== ADD NEW JOB OFFER MODAL ===================== --}}
     <div
         x-show="showJobOfferModal"
@@ -3384,25 +3840,31 @@
         x-transition:leave="transition ease-in duration-200"
         x-transition:leave-start="opacity-100"
         x-transition:leave-end="opacity-0"
-        class="fixed inset-0 z-[70] flex justify-center items-center bg-black/50 backdrop-blur-sm"
+        class="fixed inset-0 z-[9999] overflow-hidden bg-black/40 backdrop-blur-sm"
         style="display:none;"
         @click.self="showJobOfferModal = false"
     >
         <div 
-            class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden transform transition-all"
+            class="fixed inset-y-0 right-0 bg-white shadow-2xl w-[90vw] max-w-none overflow-hidden transform transition-all flex flex-col"
             x-show="showJobOfferModal"
-            x-transition:enter="ease-out duration-300"
-            x-transition:enter-start="opacity-0 translate-y-4 scale-95"
-            x-transition:enter-end="opacity-100 translate-y-0 scale-100"
+            x-transition:enter="transform transition ease-in-out duration-500"
+            x-transition:enter-start="translate-x-full"
+            x-transition:enter-end="translate-x-0"
+            x-transition:leave="transform transition ease-in-out duration-300"
+            x-transition:leave-start="translate-x-0"
+            x-transition:leave-end="translate-x-full"
         >
             <div class="px-6 py-4 border-b flex items-center justify-between bg-white text-gray-800">
-                <h3 class="font-bold text-lg tracking-tight">Add New Job Offer</h3>
+                <div>
+                    <p class="text-[10px] font-black uppercase tracking-[0.25em] text-blue-700">Recruitment Document</p>
+                    <h3 class="font-bold text-lg tracking-tight">Job Offer Draft</h3>
+                </div>
                 <button @click="showJobOfferModal = false" class="text-gray-400 hover:text-gray-600 transition">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12"/></svg>
                 </button>
             </div>
 
-            <form @submit.prevent="submitJobOffer()" class="p-6 space-y-5 bg-white">
+            <form @submit.prevent="submitJobOffer()" class="flex-1 overflow-y-auto p-6 bg-slate-50 job-offer-draft-grid">
                 <div>
                     <label class="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Link to Completed / Passed Interview <span class="text-red-500">*</span></label>
                     <select x-model="jobOfferForm.interviewId" @change="onJobOfferInterviewChange()" required
@@ -3515,13 +3977,118 @@
                     </div>
                 </div>
 
+                <div class="grid grid-cols-2 gap-5">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Offer Expiry Date</label>
+                        <input type="date" x-model="jobOfferForm.offerExpiryDate" required
+                            class="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 text-gray-700 text-sm bg-gray-50/50 transition-all">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Applicant Address</label>
+                        <input type="text" x-model="jobOfferForm.applicantAddress" readonly
+                            class="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-gray-700 text-sm bg-gray-100 transition-all">
+                    </div>
+                </div>
+
                 <div>
                     <label class="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Benefits</label>
                     <textarea x-model="jobOfferForm.benefits" rows="4" placeholder="Health insurance, 401k, etc..."
                         class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 text-gray-700 text-sm bg-gray-50/50 resize-none"></textarea>
                 </div>
 
-                <div class="pt-4 border-t flex justify-end gap-3">
+                <div class="rounded-2xl border border-slate-200 bg-white p-4 job-offer-preview">
+                    <div class="mb-4 flex items-center justify-between">
+                        <div>
+                            <p class="text-[10px] font-black uppercase tracking-[0.25em] text-blue-700">Live A4 Preview</p>
+                            <p class="text-xs text-slate-500">Auto-filled from MRF, JPF, CAF, Assessment, and Interview records.</p>
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto rounded-xl bg-slate-100 p-5">
+                        <div class="mx-auto job-offer-a4-stack space-y-6">
+                        <div class="job-offer-a4-page">
+                            <div class="flex items-center justify-between border-b-2 border-blue-900 pb-4">
+                                <img src="{{ asset('images/FINAL_LOGO.jpg') }}" onerror="this.src='{{ asset('images/imaglogo.png') }}'" alt="John Kelly & Company" class="h-16 w-auto object-contain">
+                                <div class="text-right">
+                                    <h1 class="text-2xl font-black tracking-widest text-blue-900">JOB OFFER</h1>
+                                    <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">John Kelly & Company (JK&C Inc.)</p>
+                                </div>
+                            </div>
+
+                            <div class="mt-6 space-y-1">
+                                <p><strong>Date:</strong> <span x-text="jobOfferDocumentDetails().offerDate"></span></p>
+                                <p><strong>Applicant Name:</strong> <span x-text="jobOfferDocumentDetails().applicantName"></span></p>
+                                <p><strong>Applicant ID:</strong> <span x-text="jobOfferDocumentDetails().applicantId"></span></p>
+                                <p><strong>Address:</strong> <span x-text="jobOfferDocumentDetails().applicantAddress"></span></p>
+                            </div>
+
+                            <p class="mt-6">Dear <span x-text="jobOfferDocumentDetails().applicantName"></span>,</p>
+                            <p class="mt-4">John Kelly & Company (JK&C INC.) is pleased to offer employment under the terms and conditions stated in this Job Offer.</p>
+                            <p class="mt-3">This Job Offer is confidential and subject to Company policies, procedures, memoranda, notices, resolutions, directives, lawful instructions, management prerogative, and applicable laws.</p>
+
+                            <h2 class="mt-7 bg-blue-900 px-3 py-2 text-white text-[12px] font-black uppercase tracking-widest">Position Information</h2>
+                            <table class="w-full border-collapse text-[11px]">
+                                <tbody>
+                                    <template x-for="row in jobOfferPositionRows()" :key="row.label">
+                                        <tr>
+                                            <td class="w-48 border border-slate-300 bg-slate-50 px-3 py-2 font-bold" x-text="row.label"></td>
+                                            <td class="border border-slate-300 px-3 py-2" x-text="row.value || '—'"></td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+
+                        </div>
+
+                        <template x-for="(page, pageIndex) in jobOfferContentPages()" :key="'draft-content-page-' + pageIndex">
+                        <div class="job-offer-a4-page">
+                            <div class="flex items-center justify-between border-b border-slate-200 pb-3">
+                                <p class="text-[10px] font-black uppercase tracking-[0.25em] text-blue-900">Job Offer</p>
+                                <p class="text-[10px] font-bold text-slate-400" x-text="'Page ' + (pageIndex + 2)"></p>
+                            </div>
+                            <h2 class="mt-6 text-[13px] font-black uppercase tracking-widest text-blue-900">Terms and Conditions</h2>
+                            <div class="mt-3 space-y-3 text-[11px]">
+                                <template x-for="term in page.terms" :key="term.title">
+                                    <div>
+                                        <p class="font-black" x-text="term.title"></p>
+                                        <p class="mt-1 whitespace-pre-line" x-text="term.body"></p>
+                                    </div>
+                                </template>
+                            </div>
+
+                            <template x-if="page.includeAcceptance">
+                                <div>
+                                    <h2 class="mt-8 text-[13px] font-black uppercase tracking-widest text-blue-900">Acceptance of Job Offer</h2>
+                                    <p class="mt-2 text-[11px]">By signing below, the Applicant acknowledges that this Job Offer has been read, understood, and accepted.</p>
+                                    <p class="mt-2 text-[11px]">Acceptance of this Job Offer also confirms agreement to comply with all Company policies, procedures, memoranda, notices, resolutions, directives, and lawful instructions.</p>
+                                    <p class="mt-2 text-[11px]">This Job Offer shall automatically expire if not accepted on or before <strong x-text="jobOfferDocumentDetails().offerExpiryDate"></strong>, unless extended by the Company in writing.</p>
+
+                                    <div class="mt-12 grid grid-cols-2 gap-10 text-[11px]">
+                                        <div>
+                                            <p class="font-black uppercase tracking-widest text-center">For the Company</p>
+                                            <div class="mt-12 border-t border-slate-500 pt-2 text-center">
+                                                <p class="font-bold">Authorized Representative</p>
+                                                <p>President / Human Capital</p>
+                                            </div>
+                                            <p class="mt-6">Date: ______________________</p>
+                                        </div>
+                                        <div>
+                                            <p class="font-black uppercase tracking-widest text-center">Accepted By</p>
+                                            <div class="mt-12 border-t border-slate-500 pt-2 text-center">
+                                                <p class="font-bold">Applicant Signature</p>
+                                                <p x-text="jobOfferDocumentDetails().applicantName"></p>
+                                            </div>
+                                            <p class="mt-6">Date: ______________________</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                        </template>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="sticky bottom-0 -mx-6 -mb-6 mt-6 px-6 py-5 border-t border-slate-200 bg-white flex justify-end gap-3 job-offer-actions">
                     <button type="button" @click="showJobOfferModal = false"
                         class="px-6 py-2.5 border border-gray-200 text-gray-600 rounded-xl text-sm font-bold hover:bg-gray-50 transition">
                         Cancel
@@ -3540,7 +4107,7 @@
         <div @click="showJobOfferViewModal = false" class="absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity"
             x-show="showJobOfferViewModal" x-transition:enter="ease-out duration-300" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
             x-transition:leave="ease-in duration-200" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"></div>
-        <div class="fixed inset-y-0 right-0 max-w-xl w-full flex pointer-events-none">
+        <div class="fixed inset-y-0 right-0 w-[90vw] max-w-none flex pointer-events-none">
             <div x-show="showJobOfferViewModal" 
                 x-transition:enter="transform transition ease-in-out duration-500"
                 x-transition:enter-start="translate-x-full"
@@ -3567,57 +4134,145 @@
                             </button>
                         </div>
 
-                        <div class="flex-1 overflow-y-auto px-8 pt-8 pb-8 space-y-8 bg-white">
-                            <div class="grid grid-cols-2 gap-8">
+                        <div class="flex-1 overflow-y-auto px-8 pt-8 pb-8 bg-slate-50 job-offer-view-grid">
+                            <div class="space-y-3 job-offer-view-preview">
+                                <p class="text-[10px] font-black text-blue-700 uppercase tracking-[0.25em]">A4 Job Offer Document</p>
+                                <div class="overflow-x-auto rounded-xl bg-slate-100 p-5">
+                                    <div class="mx-auto job-offer-a4-stack space-y-6">
+                                    <div class="job-offer-a4-page">
+                                        <div class="flex items-center justify-between border-b-2 border-blue-900 pb-4">
+                                            <img src="{{ asset('images/FINAL_LOGO.jpg') }}" onerror="this.src='{{ asset('images/imaglogo.png') }}'" alt="John Kelly & Company" class="h-16 w-auto object-contain">
+                                            <div class="text-right">
+                                                <h1 class="text-2xl font-black tracking-widest text-blue-900">JOB OFFER</h1>
+                                                <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">John Kelly & Company (JK&C Inc.)</p>
+                                            </div>
+                                        </div>
+
+                                        <div class="mt-6 space-y-1">
+                                            <p><strong>Date:</strong> <span x-text="jobOfferDocumentDetails(viewJobOfferData).offerDate"></span></p>
+                                            <p><strong>Applicant Name:</strong> <span x-text="jobOfferDocumentDetails(viewJobOfferData).applicantName"></span></p>
+                                            <p><strong>Applicant ID:</strong> <span x-text="jobOfferDocumentDetails(viewJobOfferData).applicantId"></span></p>
+                                            <p><strong>Address:</strong> <span x-text="jobOfferDocumentDetails(viewJobOfferData).applicantAddress"></span></p>
+                                        </div>
+
+                                        <p class="mt-6">Dear <span x-text="jobOfferDocumentDetails(viewJobOfferData).applicantName"></span>,</p>
+                                        <p class="mt-4">John Kelly & Company (JK&C INC.) is pleased to offer employment under the terms and conditions stated in this Job Offer.</p>
+                                        <p class="mt-3">This Job Offer is confidential and subject to Company policies, procedures, memoranda, notices, resolutions, directives, lawful instructions, management prerogative, and applicable laws.</p>
+
+                                        <h2 class="mt-7 bg-blue-900 px-3 py-2 text-white text-[12px] font-black uppercase tracking-widest">Position Information</h2>
+                                        <table class="w-full border-collapse text-[11px]">
+                                            <tbody>
+                                                <template x-for="row in jobOfferPositionRows(viewJobOfferData)" :key="row.label">
+                                                    <tr>
+                                                        <td class="w-48 border border-slate-300 bg-slate-50 px-3 py-2 font-bold" x-text="row.label"></td>
+                                                        <td class="border border-slate-300 px-3 py-2" x-text="row.value || '—'"></td>
+                                                    </tr>
+                                                </template>
+                                            </tbody>
+                                        </table>
+
+                                    </div>
+
+                                    <template x-for="(page, pageIndex) in jobOfferContentPages()" :key="'view-content-page-' + pageIndex">
+                                    <div class="job-offer-a4-page">
+                                        <div class="flex items-center justify-between border-b border-slate-200 pb-3">
+                                            <p class="text-[10px] font-black uppercase tracking-[0.25em] text-blue-900">Job Offer</p>
+                                            <p class="text-[10px] font-bold text-slate-400" x-text="'Page ' + (pageIndex + 2)"></p>
+                                        </div>
+                                        <h2 class="mt-6 text-[13px] font-black uppercase tracking-widest text-blue-900">Terms and Conditions</h2>
+                                        <div class="mt-3 space-y-3 text-[11px]">
+                                            <template x-for="term in page.terms" :key="term.title">
+                                                <div>
+                                                    <p class="font-black" x-text="term.title"></p>
+                                                    <p class="mt-1 whitespace-pre-line" x-text="term.body"></p>
+                                                </div>
+                                            </template>
+                                        </div>
+
+                                        <template x-if="page.includeAcceptance">
+                                            <div>
+                                                <h2 class="mt-8 text-[13px] font-black uppercase tracking-widest text-blue-900">Acceptance of Job Offer</h2>
+                                                <p class="mt-2 text-[11px]">By signing below, the Applicant acknowledges that this Job Offer has been read, understood, and accepted.</p>
+                                                <p class="mt-2 text-[11px]">Acceptance of this Job Offer also confirms agreement to comply with all Company policies, procedures, memoranda, notices, resolutions, directives, and lawful instructions.</p>
+                                                <p class="mt-2 text-[11px]">This Job Offer shall automatically expire if not accepted on or before <strong x-text="jobOfferDocumentDetails(viewJobOfferData).offerExpiryDate"></strong>, unless extended by the Company in writing.</p>
+
+                                                <div class="mt-12 grid grid-cols-2 gap-10 text-[11px]">
+                                                    <div>
+                                                        <p class="font-black uppercase tracking-widest text-center">For the Company</p>
+                                                        <div class="mt-12 border-t border-slate-500 pt-2 text-center">
+                                                            <p class="font-bold">Authorized Representative</p>
+                                                            <p>President / Human Capital</p>
+                                                        </div>
+                                                        <p class="mt-6">Date: ______________________</p>
+                                                    </div>
+                                                    <div>
+                                                        <p class="font-black uppercase tracking-widest text-center">Accepted By</p>
+                                                        <div class="mt-12 border-t border-slate-500 pt-2 text-center">
+                                                            <p class="font-bold">Applicant Signature</p>
+                                                            <p x-text="jobOfferDocumentDetails(viewJobOfferData).applicantName"></p>
+                                                        </div>
+                                                        <p class="mt-6">Date: ______________________</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </template>
+                                    </div>
+                                    </template>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="space-y-8 bg-white rounded-2xl border border-slate-200 p-6 shadow-sm job-offer-view-side">
                                 <div class="space-y-1">
                                     <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Candidate Name</p>
                                     <p class="text-gray-900 font-bold text-lg" x-text="viewJobOfferData.name"></p>
                                 </div>
+
                                 <div class="space-y-1">
                                     <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Position</p>
                                     <p class="text-blue-600 font-bold text-lg" x-text="viewJobOfferData.position"></p>
                                 </div>
-                            </div>
 
-                            <div class="grid grid-cols-2 gap-8 pt-6 border-t border-gray-50 text-sm">
-                                <div class="space-y-1">
-                                    <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Salary</p>
-                                    <p class="text-gray-700 font-medium" x-text="viewJobOfferData.salary"></p>
+                                <div class="grid grid-cols-2 gap-5 pt-6 border-t border-gray-100 text-sm">
+                                    <div class="space-y-1">
+                                        <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Salary</p>
+                                        <p class="text-gray-700 font-medium" x-text="viewJobOfferData.salary"></p>
+                                    </div>
+                                    <div class="space-y-1">
+                                        <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Start Date</p>
+                                        <p class="text-gray-700 font-medium" x-text="viewJobOfferData.startDate || viewJobOfferData.start_date"></p>
+                                    </div>
                                 </div>
-                                <div class="space-y-1">
-                                    <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Start Date</p>
-                                    <p class="text-gray-700 font-medium" x-text="viewJobOfferData.startDate || viewJobOfferData.start_date"></p>
+
+                                <div class="grid grid-cols-2 gap-5 pt-6 border-t border-gray-100 text-sm">
+                                    <div class="space-y-1">
+                                        <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Employment Type</p>
+                                        <span class="px-2.5 py-1 bg-blue-50 text-blue-700 rounded-lg font-bold text-[11px] uppercase tracking-wider border border-blue-100 w-fit" x-text="viewJobOfferData.employment_type || viewJobOfferData.employmentType"></span>
+                                    </div>
+                                    <div class="space-y-1">
+                                        <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Department</p>
+                                        <p class="text-gray-700 font-medium" x-text="viewJobOfferData.department || 'N/A'"></p>
+                                    </div>
+                                </div>
+
+                                <div class="space-y-2 pt-6 border-t border-gray-100">
+                                    <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Benefits</p>
+                                    <div class="bg-gray-50/50 p-4 rounded-2xl border border-gray-100">
+                                        <p class="text-gray-600 text-[13px] leading-relaxed italic" x-text="viewJobOfferData.benefits || 'No benefits listed.'"></p>
+                                    </div>
+                                </div>
+
+                                <div class="pt-6 border-t border-gray-100 flex gap-3">
+                                    <button @click="showJobOfferViewModal = false" class="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl transition uppercase tracking-widest text-[11px]">
+                                        Close
+                                    </button>
+                                    <button type="button"
+                                        @click="resendJobOfferEmail(viewJobOfferData)"
+                                        class="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition shadow-lg shadow-blue-200 uppercase tracking-widest text-[11px]">
+                                        Send Job Offer
+                                    </button>
                                 </div>
                             </div>
-
-                            <div class="grid grid-cols-2 gap-8 pt-6 border-t border-gray-50 text-sm">
-                                <div class="space-y-1">
-                                    <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Employment Type</p>
-                                    <span class="px-2.5 py-1 bg-blue-50 text-blue-700 rounded-lg font-bold text-[11px] uppercase tracking-wider border border-blue-100 w-fit" x-text="viewJobOfferData.employment_type || viewJobOfferData.employmentType"></span>
-                                </div>
-                                <div class="space-y-1">
-                                    <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Department</p>
-                                    <p class="text-gray-700 font-medium" x-text="viewJobOfferData.department || 'N/A'"></p>
-                                </div>
-                            </div>
-
-                            <div class="space-y-2 pt-6 border-t border-gray-50">
-                                <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Benefits</p>
-                                <div class="bg-gray-50/50 p-4 rounded-2xl border border-gray-100">
-                                    <p class="text-gray-600 text-[13px] leading-relaxed italic" x-text="viewJobOfferData.benefits || 'No benefits listed.'"></p>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="px-8 py-6 border-t border-gray-100 flex gap-4 shrink-0">
-                            <button @click="showJobOfferViewModal = false" class="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl transition uppercase tracking-widest text-[11px]">
-                                Close
-                            </button>
-                            <button type="button"
-                                @click="resendJobOfferEmail(viewJobOfferData)"
-                                class="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition shadow-lg shadow-blue-200 uppercase tracking-widest text-[11px]">
-                                Send Job Offer
-                            </button>
                         </div>
                     </div>
                 </template>
@@ -3700,7 +4355,7 @@
                         class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 text-gray-700 text-sm bg-gray-50/50 resize-none"></textarea>
                 </div>
 
-                <div class="pt-4 border-t flex justify-end gap-3">
+                <div class="sticky bottom-0 -mx-8 -mb-8 mt-6 px-8 py-6 border-t border-slate-200 bg-white flex justify-end gap-3">
                     <button type="button" @click="showAssessmentModal = false"
                         class="px-6 py-2.5 border border-gray-200 text-gray-600 rounded-xl text-sm font-bold hover:bg-gray-50 transition">
                         Discard
@@ -3714,7 +4369,7 @@
         </div>
     </div>
 
-    {{-- ===================== ADD NEW INTERVIEW MODAL ===================== --}}
+    {{-- ===================== ADD NEW INTERVIEW SLIDE-OVER ===================== --}}
     <div
         x-show="showInterviewModal"
         x-transition:enter="transition ease-out duration-300"
@@ -3723,25 +4378,31 @@
         x-transition:leave="transition ease-in duration-200"
         x-transition:leave-start="opacity-100"
         x-transition:leave-end="opacity-0"
-        class="fixed inset-0 z-[70] flex justify-center items-center bg-black/50 backdrop-blur-sm"
+        class="fixed inset-0 z-[9999] overflow-hidden"
         style="display:none;"
-        @click.self="showInterviewModal = false"
     >
+        <div @click="showInterviewModal = false" class="absolute inset-0 bg-black/40 backdrop-blur-sm"></div>
         <div 
-            class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden transform transition-all"
+            class="fixed inset-y-0 right-0 bg-white shadow-2xl w-full max-w-3xl overflow-hidden transform transition-all flex flex-col"
             x-show="showInterviewModal"
-            x-transition:enter="ease-out duration-300"
-            x-transition:enter-start="opacity-0 translate-y-4 scale-95"
-            x-transition:enter-end="opacity-100 translate-y-0 scale-100"
+            x-transition:enter="transform transition ease-in-out duration-500"
+            x-transition:enter-start="translate-x-full"
+            x-transition:enter-end="translate-x-0"
+            x-transition:leave="transform transition ease-in-out duration-300"
+            x-transition:leave-start="translate-x-0"
+            x-transition:leave-end="translate-x-full"
         >
-            <div class="px-6 py-4 border-b flex items-center justify-between bg-white text-gray-800">
-                <h3 class="font-bold text-lg tracking-tight">Add New Interview</h3>
-                <button @click="showInterviewModal = false" class="text-gray-400 hover:text-gray-600 transition">
+            <div class="h-32 px-8 py-6 flex items-center justify-between bg-gradient-to-r from-blue-900 to-blue-700 text-white shrink-0">
+                <div>
+                    <p class="text-[10px] font-black text-blue-100 uppercase tracking-[0.3em]">Human Capital</p>
+                    <h3 class="font-black text-2xl tracking-tight uppercase">Schedule Interview</h3>
+                </div>
+                <button @click="showInterviewModal = false" class="text-white/60 hover:text-white transition bg-white/10 p-2 rounded-full">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12"/></svg>
                 </button>
             </div>
 
-            <form @submit.prevent="submitInterview()" class="p-6 space-y-5 bg-white">
+            <form @submit.prevent="submitInterview()" class="flex-1 overflow-y-auto p-8 space-y-6 bg-slate-50">
                 <div>
                     <label class="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Passed Assessment Candidate</label>
                     <select x-model="interviewForm.assessmentId" @change="onInterviewAssessmentChange()" required
@@ -3778,7 +4439,7 @@
                     <div>
                         <label class="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Type of Interview</label>
                         <select x-model="interviewForm.type" required
-                            @change="interviewForm.type === 'Online' ? generateMeetingLink() : interviewForm.meeting_link = ''"
+                            @change="if (interviewForm.type !== 'Online') interviewForm.meeting_link = ''"
                             class="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 text-gray-700 text-sm bg-gray-50/50 transition-all cursor-pointer appearance-none">
                             <option value="Online">Online</option>
                             <option value="In Person">In Person</option>
@@ -3807,18 +4468,13 @@
                 <div x-show="interviewForm.type === 'Online'">
                     <label class="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Meeting Link</label>
                     <div class="flex gap-2 items-center">
-                        <input type="url" x-model="interviewForm.meeting_link" placeholder="https://meet.jit.si/..."
-                            class="flex-1 px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 text-gray-700 text-sm bg-gray-50/50 font-mono text-xs" readonly>
-                        <button type="button" @click="generateMeetingLink()"
-                            class="flex items-center gap-2 px-4 py-3 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-xs font-bold rounded-xl transition shadow-sm shadow-blue-200 whitespace-nowrap">
-                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-                            Generate
-                        </button>
+                        <input type="url" x-model="interviewForm.meeting_link" placeholder="Paste Google Meet, Zoom, Teams, or any interview link"
+                            class="flex-1 px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 text-gray-700 text-sm bg-white font-mono text-xs">
                     </div>
-                    <p class="text-[10px] text-gray-400 mt-1.5">Mock link — replace with a real meeting URL before sending.</p>
+                    <p class="text-[10px] text-gray-400 mt-1.5">Paste the actual meeting link that will be sent to the selected candidate.</p>
                 </div>
 
-                <div class="pt-4 border-t flex justify-end gap-3">
+                <div class="sticky bottom-0 -mx-8 -mb-8 mt-6 px-8 py-6 border-t border-slate-200 bg-white flex justify-end gap-3">
                     <button type="button" @click="showInterviewModal = false"
                         class="px-6 py-2.5 border border-gray-200 text-gray-600 rounded-xl text-sm font-bold hover:bg-gray-50 transition">
                         Cancel
@@ -4030,6 +4686,17 @@ approvalDisplayDate(approval) {
     return (approval && (approval.date || approval.approved_at)) ? (approval.date || approval.approved_at) : '—';
 },
 
+approvalUserNames() {
+    return (this.approvalUsers || []).map(user => user.name).filter(Boolean);
+},
+
+mrfSelectedPerson(fieldKey) {
+    const selectedName = this.form ? this.form[fieldKey] : '';
+    if (!selectedName || selectedName === 'Others') return null;
+
+    return (this.approvalUsers || []).find(user => String(user.name) === String(selectedName)) || null;
+},
+
 canActOnApproval(approval) {
     if (!approval) return false;
 
@@ -4210,6 +4877,7 @@ refreshJobOffers() {
         perPage: 50,
         currentPage: 1,
         showFilter: false,
+        showPositionFilter: false,
         filterStatus: 'All',
         filterPosition: 'All',
         jpfListView: 'all',
@@ -4226,6 +4894,7 @@ refreshJobOffers() {
         showJobOfferModal: false,
         showJobOfferViewModal: false,
         linkCopied: false,
+        currentUserName: @js(Auth::user()->name ?? ''),
         isEditing: false,
         editingId: null,
         viewData: null,
@@ -4234,6 +4903,11 @@ refreshJobOffers() {
         viewAssessmentData: null,
         viewInterviewData: null,
         viewJobOfferData: null,
+        interviewViewTabs: ['Candidate Information', 'Resume / CV', 'Portfolio', 'Attachments', 'Interview Questions'],
+        interviewViewTab: 'Candidate Information',
+        interviewQuestionStages: ['First Interview', 'Second Interview', 'Third / Final Interview'],
+        interviewQuestionStage: 'First Interview',
+        interviewDetailsDraft: {},
 
         organizationalAddresses: initialOrganizationalAddresses,
         branches: initialBranches,
@@ -4397,7 +5071,10 @@ refreshJobOffers() {
             jobPostingId: '',
             orgAddressId: '', orgBranchId: '', orgOfficeId: '', orgDepartmentId: '', orgDivisionId: '', orgUnitId: '', orgPositionId: '', salaryGradeId: '',
             name: '', position: '', salary: '', startDate: '',
-            employmentType: 'Probationary', department: '', companyAddress: '', benefits: ''
+            employmentType: 'Probationary', department: '', companyAddress: '', benefits: '',
+            applicantId: '', applicantAddress: '', jobId: '', division: '', unit: '',
+            jobLevelRank: '', workArrangement: '', workSchedule: '', salaryGrade: '',
+            branchOffice: '', immediateSupervisor: '', reportingTo: '', offerExpiryDate: ''
         },
 
         draggedItem: null,
@@ -4499,6 +5176,22 @@ refreshJobOffers() {
                 return this.positions.filter(position => String(position.address_id) === String(this.form.orgAddressId));
             }
             return this.positions;
+        },
+
+        get statusFilterOptions() {
+            if (this.activeTab === 'CAF') {
+                const statuses = (this.data['CAF'] || [])
+                    .map(row => row.status)
+                    .filter(status => status && String(status).trim() !== '');
+                return ['All', ...new Set(statuses)]
+                    .sort((a, b) => a === 'All' ? -1 : b === 'All' ? 1 : String(a).localeCompare(String(b)));
+            }
+
+            if (this.activeTab === 'Assessment') {
+                return ['All', 'Pending Assessment', 'In Progress', 'Passed', 'Failed'];
+            }
+
+            return ['All', 'Pending', 'Open', 'Filled', 'Hold', 'Cancelled', 'Disapproved'];
         },
 
         onOrgAddressChange() {
@@ -4879,6 +5572,8 @@ onJpfPayrollLevelChange() {
             if (!interview) {
                 this.jobOfferForm.name = '';
                 this.jobOfferForm.position = '';
+                this.jobOfferForm.applicantId = '';
+                this.jobOfferForm.applicantAddress = '';
                 return;
             }
 
@@ -4892,6 +5587,7 @@ onJpfPayrollLevelChange() {
 
             this.jobOfferForm.name = interview.name || '';
             this.jobOfferForm.position = interview.position || this.jobOfferForm.position || '';
+            this.prefillJobOfferApplicantFromInterview(interview);
 
             const matchedPosition = this.positions.find(position =>
                 String(position.position_name || '').toLowerCase() === String(this.jobOfferForm.position || '').toLowerCase()
@@ -4899,6 +5595,14 @@ onJpfPayrollLevelChange() {
 
             if (matchedPosition && !this.jobOfferForm.orgPositionId) {
                 this.jobOfferForm.orgPositionId = String(matchedPosition.id);
+            }
+
+            const matchedJpf = this.validJobOfferJPFs.find(jpf =>
+                String(jpf.position || '').toLowerCase() === String(this.jobOfferForm.position || '').toLowerCase()
+            );
+            if (matchedJpf && !this.jobOfferForm.jobPostingId) {
+                this.jobOfferForm.jobPostingId = String(matchedJpf.id);
+                this.onJobOfferJpfChange();
             }
         },
 
@@ -4921,6 +5625,22 @@ onJpfPayrollLevelChange() {
             return this.departments.find(d => String(d.id) === String(this.jobOfferForm.orgDepartmentId)) || null;
         },
 
+        get selectedJobOfferBranch() {
+            return this.branches.find(b => String(b.id) === String(this.jobOfferForm.orgBranchId)) || null;
+        },
+
+        get selectedJobOfferOffice() {
+            return this.offices.find(o => String(o.id) === String(this.jobOfferForm.orgOfficeId)) || null;
+        },
+
+        get selectedJobOfferDivision() {
+            return this.divisions.find(d => String(d.id) === String(this.jobOfferForm.orgDivisionId)) || null;
+        },
+
+        get selectedJobOfferUnit() {
+            return this.units.find(u => String(u.id) === String(this.jobOfferForm.orgUnitId)) || null;
+        },
+
         get selectedJobOfferPosition() {
             return this.positions.find(p => String(p.id) === String(this.jobOfferForm.orgPositionId)) || null;
         },
@@ -4938,8 +5658,8 @@ onJpfPayrollLevelChange() {
 
             const status = String(jpf.status || '').toLowerCase();
 
-            if (!['posted', 'open'].includes(status)) {
-                alert('Only JPF records with status Posted/Open can be used for Job Offer.');
+            if (!['posted', 'screening', 'interviewing', 'offer stage'].includes(status)) {
+                alert('Only fully approved active JPF records can be used for Job Offer.');
                 this.jobOfferForm.jobPostingId = '';
                 return;
             }
@@ -4955,10 +5675,17 @@ onJpfPayrollLevelChange() {
             this.jobOfferForm.orgPositionId = toValue(jpf.position_id);
             this.jobOfferForm.salaryGradeId = toValue(jpf.salary_grade_id);
 
+            this.jobOfferForm.jobId = jpf.job_id || '';
             this.jobOfferForm.position = jpf.position || '';
             this.jobOfferForm.department = jpf.department_unit || jpf.departmentUnit || '';
             this.jobOfferForm.employmentType = jpf.employment_type || jpf.employmentType || this.jobOfferForm.employmentType;
             this.jobOfferForm.companyAddress = jpf.office_branch_site || jpf.officeBranchSite || jpf.location || jpf.workLocation || '';
+            this.jobOfferForm.jobLevelRank = jpf.position_level || jpf.positionLevel || '';
+            this.jobOfferForm.workArrangement = jpf.work_arrangement || jpf.workArrangement || '';
+            this.jobOfferForm.workSchedule = Array.isArray(jpf.work_schedule) ? jpf.work_schedule.join(', ') : (jpf.work_schedule || jpf.workSchedule || '');
+            this.jobOfferForm.immediateSupervisor = jpf.hiring_manager || jpf.hiringManager || jpf.reports_to || jpf.reportsTo || '';
+            this.jobOfferForm.reportingTo = jpf.reports_to || jpf.reportsTo || jpf.department_superior || jpf.departmentSuperior || '';
+            this.jobOfferForm.salaryGrade = jpf.salary_grade || jpf.salaryGrade || '';
 
             const minSalary = jpf.min_salary_offer || jpf.minSalary || '';
             const maxSalary = jpf.max_salary_offer || jpf.maxSalary || '';
@@ -4980,12 +5707,24 @@ onJpfPayrollLevelChange() {
                 this.jobOfferForm.department = department.department_name || '';
             }
 
+            const branch = this.selectedJobOfferBranch;
+            const office = this.selectedJobOfferOffice;
+            this.jobOfferForm.branchOffice = [branch?.branch_name, office?.office_name].filter(Boolean).join(' / ');
+
+            const division = this.selectedJobOfferDivision;
+            const unit = this.selectedJobOfferUnit;
+            this.jobOfferForm.division = division ? (division.division_name || '') : '';
+            this.jobOfferForm.unit = unit ? (unit.unit_name || '') : '';
+
             const position = this.selectedJobOfferPosition;
             if (position && !this.jobOfferForm.position) {
                 this.jobOfferForm.position = position.position_name || '';
             }
 
             const salaryGrade = this.selectedJobOfferSalaryGrade;
+            if (salaryGrade) {
+                this.jobOfferForm.salaryGrade = [salaryGrade.code, salaryGrade.name].filter(Boolean).join(' - ');
+            }
             if (salaryGrade && !this.jobOfferForm.salary) {
                 const monthly = Number(salaryGrade.monthly_basic_pay || 0);
                 this.jobOfferForm.salary = monthly > 0
@@ -5012,10 +5751,137 @@ onJpfPayrollLevelChange() {
         onJobOfferSalaryGradeChange() {
             const grade = this.selectedJobOfferSalaryGrade;
             if (!grade) return;
+            this.jobOfferForm.salaryGrade = [grade.code, grade.name].filter(Boolean).join(' - ');
             const monthly = Number(grade.monthly_basic_pay || 0);
             this.jobOfferForm.salary = monthly > 0
                 ? `₱ ${monthly.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                 : [grade.code, grade.name].filter(Boolean).join(' - ');
+        },
+
+        prefillJobOfferApplicantFromInterview(interview) {
+            const caf = this.data['CAF'].find(item =>
+                String(item.email || '').toLowerCase() === String(interview?.email || '').toLowerCase()
+                || (
+                    String(item.name || '').toLowerCase() === String(interview?.name || '').toLowerCase()
+                    && String(item.position || '').toLowerCase() === String(interview?.position || '').toLowerCase()
+                )
+            );
+
+            this.jobOfferForm.applicantId = caf?.applicant_id || '';
+            this.jobOfferForm.applicantAddress = this.parseCafPayload(caf?.application_data, {})?.currentAddress || '';
+        },
+
+        jobOfferDocumentDetails(source = null) {
+            const form = source || this.jobOfferForm || {};
+            const details = form.offer_details || {};
+
+            return {
+                offerDate: details.offerDate || this.formatDisplayDateTime(new Date()),
+                applicantName: form.name || details.applicantName || '',
+                applicantId: form.applicantId || details.applicantId || '',
+                applicantAddress: form.applicantAddress || details.applicantAddress || '',
+                position: form.position || details.position || '',
+                department: form.department || details.department || '',
+                division: form.division || details.division || '',
+                unit: form.unit || details.unit || '',
+                jobId: form.jobId || details.jobId || '',
+                employmentType: form.employmentType || form.employment_type || details.employmentType || '',
+                jobLevelRank: form.jobLevelRank || details.jobLevelRank || '',
+                workArrangement: form.workArrangement || details.workArrangement || '',
+                workSchedule: form.workSchedule || details.workSchedule || '',
+                startDate: form.startDate || form.start_date || details.startDate || '',
+                salaryGrade: form.salaryGrade || details.salaryGrade || '',
+                salary: form.salary || details.salary || '',
+                benefits: form.benefits || details.benefits || 'As required by law and/or Company policy',
+                companyAddress: form.companyAddress || form.company_address || details.companyAddress || '',
+                branchOffice: form.branchOffice || details.branchOffice || '',
+                immediateSupervisor: form.immediateSupervisor || details.immediateSupervisor || '',
+                reportingTo: form.reportingTo || details.reportingTo || '',
+                offerExpiryDate: form.offerExpiryDate || details.offerExpiryDate || '',
+            };
+        },
+
+        jobOfferPositionRows(source = null) {
+            const d = this.jobOfferDocumentDetails(source);
+            return [
+                ['Applicant Name', d.applicantName],
+                ['Applicant ID', d.applicantId],
+                ['Position / Title', d.position],
+                ['Department', d.department],
+                ['Division', d.division],
+                ['Unit', d.unit],
+                ['Job ID', d.jobId],
+                ['Employment Type', d.employmentType],
+                ['Job Level / Rank', d.jobLevelRank],
+                ['Work Arrangement', d.workArrangement],
+                ['Work Schedule', d.workSchedule],
+                ['Start Date', d.startDate],
+                ['Salary Grade', d.salaryGrade],
+                ['Salary', d.salary],
+                ['Benefits', d.benefits],
+                ['Company Address', d.companyAddress],
+                ['Branch / Office', d.branchOffice],
+                ['Immediate Supervisor', d.immediateSupervisor],
+                ['Reporting To', d.reportingTo],
+                ['Offer Expiry Date', d.offerExpiryDate],
+            ].map(([label, value]) => ({ label, value }));
+        },
+
+        jobOfferTerms() {
+            return [
+                { title: '1. Employment Particulars', body: 'The Employee’s position, employment type, start date, compensation, benefits, work arrangement, schedule, work location, reporting line, and other employment particulars shall be as stated in the Position Information above.\nAll employment particulars shall remain subject to Company policy, operational requirements, lawful management prerogative, and applicable law.' },
+                { title: '2. Duties and Assignment', body: 'The Employee shall perform the duties, functions, responsibilities, tasks, projects, and assignments required by the position and such other related duties as may be assigned by the Company.\nThe Company reserves the right to modify, expand, reduce, transfer, reassign, or restructure the Employee’s duties, responsibilities, reporting relationships, department, unit, branch, work location, schedule, or assignment based on operational requirements, business needs, client requirements, project requirements, emergencies, deadlines, or other legitimate business considerations.' },
+                { title: '3. Employment Status', body: 'The Employee’s employment status shall be as stated in the Position Information above.\nWhere applicable, regularization shall be subject to Company standards, performance requirements, Company policy, and applicable law. Nothing in this Job Offer shall be construed as a guarantee of regular employment or continued employment for any specific period.' },
+                { title: '4. Compensation and Benefits', body: 'The Employee shall receive only the compensation and benefits stated in the Position Information above, subject to lawful deductions, withholding taxes, government-mandated contributions, Company policy, and applicable law.\nBonuses, incentives, allowances, commissions, salary adjustments, profit sharing, and other additional compensation or benefits shall not be guaranteed unless expressly approved in writing by the Company.' },
+                { title: '5. Compliance with Company Issuances', body: 'The Employee shall comply with all Company policies, manuals, handbooks, memoranda, notices, resolutions, circulars, directives, codes of conduct, operating procedures, security requirements, compliance requirements, and lawful instructions issued by the Company, whether existing or later issued, amended, or implemented.\nViolation of Company policies or lawful instructions may result in disciplinary action in accordance with Company policy, due process, and applicable law.' },
+                { title: '6. Confidentiality, Intellectual Property, and Company Property', body: 'The Employee shall keep all Company, client, supplier, employee, contractor, financial, commercial, operational, legal, technical, and business information strictly confidential.\nAll work products, documents, reports, databases, systems, software, templates, manuals, presentations, designs, content, records, inventions, developments, concepts, processes, methodologies, intellectual property, and other outputs created, developed, prepared, accessed, received, or handled by the Employee in connection with employment shall belong exclusively to the Company to the fullest extent permitted by law.\nAll Company records, files, documents, equipment, devices, credentials, access rights, systems, materials, and property issued to or accessed by the Employee shall remain the property of the Company and shall be returned immediately upon demand or upon separation from employment.\nThe Employee shall not disclose, copy, use, transfer, retain, reproduce, publish, or distribute Company or client information except when authorized for official duties. These obligations shall continue after employment ends.' },
+                { title: '7. Privacy and Data Protection', body: 'The Employee shall comply with all Company privacy, data protection, information security, records management, cybersecurity, and confidentiality requirements.\nEmployee, client, Company, and third-party information shall be handled only for authorized business purposes and in accordance with applicable law and Company policy.' },
+                { title: '8. Management Prerogative', body: 'Nothing in this Job Offer shall limit the Company’s lawful management prerogative to manage, direct, organize, control, assign, transfer, supervise, discipline, evaluate, restructure, suspend, investigate, or otherwise administer its business operations and workforce consistent with applicable law.' },
+                { title: '9. Separation and Termination', body: 'Employment may be suspended, separated, terminated, or otherwise ended only in accordance with Company policy, due process, and applicable law.\nNothing in this Job Offer shall be interpreted as a guarantee of continued employment for any specific duration.' },
+                { title: '10. Superseding Clause', body: 'This Job Offer constitutes only the initial offer of employment.\nUpon execution of a formal Employment Contract, Employment Agreement, Probationary Employment Agreement, Regular Employment Agreement, or similar employment document, such document shall automatically supersede, replace, and govern over this Job Offer.\nIn case of conflict or inconsistency, the subsequently executed employment document shall prevail.' },
+            ];
+        },
+
+        jobOfferTermPages() {
+            const terms = this.jobOfferTerms();
+            const maxUnits = 128;
+            const acceptanceUnits = 28;
+            const pages = [];
+            let current = { terms: [], units: 14, includeAcceptance: false };
+
+            terms.forEach(term => {
+                const body = String(term.body || '');
+                const bodyLines = body.split('\n').length - 1;
+                const units = 5 + Math.ceil(String(term.title || '').length / 70) + Math.ceil(body.length / 90) + bodyLines;
+
+                if (current.terms.length && current.units + units > maxUnits) {
+                    pages.push(current);
+                    current = { terms: [], units: 14, includeAcceptance: false };
+                }
+
+                current.terms.push(term);
+                current.units += units;
+            });
+
+            if (current.units + acceptanceUnits <= maxUnits) {
+                current.includeAcceptance = true;
+                pages.push(current);
+            } else {
+                pages.push(current);
+                pages.push({ terms: [], units: acceptanceUnits, includeAcceptance: true });
+            }
+
+            return pages;
+        },
+
+        jobOfferContentPages() {
+            return this.jobOfferTermPages();
+        },
+
+        formatDisplayDateTime(value) {
+            const date = value instanceof Date ? value : new Date(value);
+            if (isNaN(date.getTime())) return '';
+            return date.toLocaleString(undefined, { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' });
         },
 
         viewAssessment(item) {
@@ -5105,6 +5971,363 @@ onJpfPayrollLevelChange() {
             });
         },
 
+        parseCafPayload(payload, fallback = {}) {
+            if (!payload) return fallback;
+            if (typeof payload === 'string') {
+                try {
+                    return JSON.parse(payload) || fallback;
+                } catch (e) {
+                    return fallback;
+                }
+            }
+            return payload;
+        },
+
+        cafApplicationData() {
+            return this.parseCafPayload(this.viewCafData?.application_data, {});
+        },
+
+        cafAttachmentData() {
+            return this.parseCafPayload(this.viewCafData?.attachment_paths, {});
+        },
+
+        cafAttachmentPath(key) {
+            return this.cafAttachmentData()?.[key] || '';
+        },
+
+        cafValue(path, fallback = '') {
+            const data = this.cafApplicationData();
+            const value = String(path).split('.').reduce((current, key) => {
+                if (current && Object.prototype.hasOwnProperty.call(current, key)) {
+                    return current[key];
+                }
+                return undefined;
+            }, data);
+
+            return this.parseCafMaybeJson(value ?? fallback);
+        },
+
+        parseCafMaybeJson(value) {
+            if (typeof value !== 'string') return value;
+            const trimmed = value.trim();
+            if (trimmed === 'true') return true;
+            if (trimmed === 'false') return false;
+            if (trimmed === 'null') return null;
+            if (!trimmed || !['[', '{'].includes(trimmed.charAt(0))) return value;
+            try {
+                return JSON.parse(trimmed);
+            } catch (e) {
+                return value;
+            }
+        },
+
+        formatCafValue(value) {
+            if (value === null || value === undefined || value === '') return '-';
+            if (Array.isArray(value)) {
+                const items = value.filter(item => item !== null && item !== undefined && String(item).trim() !== '');
+                return items.length ? items.map(item => `• ${this.formatCafValue(item)}`).join('\n') : '-';
+            }
+            if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+            if (typeof value === 'object') {
+                const parts = Object.values(value).filter(item => item !== null && item !== undefined && String(item).trim() !== '');
+                return parts.length ? parts.join(', ') : '-';
+            }
+            return String(value);
+        },
+
+        cafApplicationSections() {
+            return [
+                {
+                    title: 'Personal Information',
+                    fields: [
+                        { label: 'First Name', value: this.cafValue('firstName') },
+                        { label: 'Middle Name', value: this.cafValue('middleName') },
+                        { label: 'Last Name', value: this.cafValue('lastName') },
+                        { label: 'Suffix', value: this.cafValue('suffix') },
+                        { label: 'Nickname / Preferred Name', value: this.cafValue('nickname') },
+                        { label: 'Date of Birth', value: this.cafValue('dateOfBirth') },
+                        { label: 'Age', value: this.cafValue('age') },
+                        { label: 'Gender', value: this.cafValue('gender') },
+                        { label: 'Civil Status', value: this.cafValue('civilStatus') },
+                        { label: 'Nationality', value: this.cafValue('nationality') },
+                        { label: 'Religion', value: this.cafValue('religion') },
+                        { label: 'PWD', value: this.cafValue('pwd') },
+                        { label: 'Solo Parent', value: this.cafValue('soloParent') },
+                        { label: 'Senior Citizen', value: this.cafValue('seniorCitizen') },
+                        { label: 'Current Address', value: this.cafValue('currentAddress'), full: true },
+                        { label: 'Permanent Address', value: this.cafValue('permanentAddress'), full: true },
+                        { label: 'Mobile Number', value: this.viewCafData?.phone || this.cafValue('mobileNumber') },
+                        { label: 'Email Address', value: this.viewCafData?.email || this.cafValue('email') },
+                    ],
+                },
+                {
+                    title: 'Position Applied For',
+                    fields: [
+                        { label: 'Position Applied', value: this.viewCafData?.position || this.cafValue('positionApplied') },
+                        { label: 'Job ID', value: this.cafValue('jobId') },
+                        { label: 'Department / Team', value: this.cafValue('departmentTeam') || this.cafValue('job.department_unit') },
+                        { label: 'Employment Type', value: this.cafValue('employmentType') || this.cafValue('job.employment_type') },
+                        { label: 'Preferred Work Arrangement', value: this.cafValue('preferredWorkArrangement') || this.cafValue('job.work_arrangement') },
+                        { label: 'Date Available', value: this.cafValue('dateAvailable') },
+                        { label: 'Applicant Type', value: this.viewCafData?.applicant_type },
+                        { label: 'Application Status', value: this.viewCafData?.status },
+                    ],
+                },
+                {
+                    title: 'Skills & Qualifications',
+                    fields: [
+                        { label: 'Technical Skills', value: this.cafValue('technicalSkills'), full: true },
+                        { label: 'Software / Tools', value: this.cafValue('softwareTools'), full: true },
+                        { label: 'Certifications / Licenses', value: this.cafValue('certificationsLicenses'), full: true },
+                        { label: 'Languages Spoken', value: this.cafValue('languages'), full: true },
+                    ],
+                },
+                {
+                    title: 'Salary & Work Preferences',
+                    fields: [
+                        { label: 'Current Salary', value: this.cafValue('currentSalary') },
+                        { label: 'Expected Salary', value: this.cafValue('expectedSalary') },
+                        { label: 'Willing to Render Overtime', value: this.cafValue('willingOvertime') },
+                        { label: 'Willing to Work in Small Team', value: this.cafValue('willingSmallTeam') },
+                        { label: 'Willing to Work in Residential Office', value: this.cafValue('willingResidentialOffice') },
+                        { label: 'No Previous Employment', value: this.cafValue('noPreviousEmployment') },
+                    ],
+                },
+                {
+                    title: 'Legal, Compliance & Consent',
+                    fields: [
+                        { label: 'Authorized to Work', value: this.cafValue('authorizedToWork') },
+                        { label: 'Pending Obligations', value: this.cafValue('pendingObligations') },
+                        { label: 'Crime Conviction', value: this.cafValue('crimeConviction') },
+                        { label: 'Legal Explanation', value: this.cafValue('legalExplanation'), full: true },
+                        { label: 'Background Check Consent', value: this.cafValue('backgroundCheck') },
+                        { label: 'Data Privacy Consent', value: this.cafValue('consentAccepted') },
+                    ],
+                },
+                {
+                    title: 'Emergency Contact & Source',
+                    fields: [
+                        { label: 'Emergency Contact Name', value: this.cafValue('emergencyName') },
+                        { label: 'Relationship', value: this.cafValue('emergencyRelationship') },
+                        { label: 'Contact Number', value: this.cafValue('emergencyNumber') },
+                        { label: 'Emergency Address', value: this.cafValue('emergencyAddress'), full: true },
+                        { label: 'Application Source', value: this.cafValue('applicationSource') },
+                        { label: 'Application Source - Others', value: this.cafValue('applicationSourceOther') },
+                        { label: 'Attachment Notes', value: this.cafValue('attachmentNotes'), full: true },
+                    ],
+                },
+            ];
+        },
+
+        cafEducationRows() {
+            const rows = this.cafValue('education', []);
+            return Array.isArray(rows) ? rows : [];
+        },
+
+        cafEmploymentRows() {
+            if (this.cafValue('noPreviousEmployment')) return [];
+            const rows = this.cafValue('employmentHistory', []);
+            return Array.isArray(rows) ? rows : [];
+        },
+
+        cafCertificationRows() {
+            const rows = this.cafValue('certifications', []);
+            return Array.isArray(rows) ? rows : [];
+        },
+
+        interviewCafRecord() {
+            if (!this.viewInterviewData) return null;
+            const email = String(this.viewInterviewData.email || '').toLowerCase();
+            const position = String(this.viewInterviewData.position || '').toLowerCase();
+            return (this.data['CAF'] || []).find(caf => {
+                const cafEmail = String(caf.email || '').toLowerCase();
+                const cafPosition = String(caf.position || '').toLowerCase();
+                return cafEmail && cafEmail === email && (!position || cafPosition === position);
+            }) || (this.data['CAF'] || []).find(caf => String(caf.email || '').toLowerCase() === email) || null;
+        },
+
+        interviewApplicationData() {
+            return this.parseCafPayload(this.interviewCafRecord()?.application_data, {});
+        },
+
+        interviewAttachmentData() {
+            return this.parseCafPayload(this.interviewCafRecord()?.attachment_paths, {});
+        },
+
+        interviewValue(path, fallback = '') {
+            const data = this.interviewApplicationData();
+            const value = String(path).split('.').reduce((current, key) => {
+                if (current && Object.prototype.hasOwnProperty.call(current, key)) {
+                    return current[key];
+                }
+                return undefined;
+            }, data);
+
+            return this.parseCafMaybeJson(value ?? fallback);
+        },
+
+        interviewFilePath(key) {
+            const caf = this.interviewCafRecord() || {};
+            const attachments = this.interviewAttachmentData();
+            const aliases = {
+                resume_cv: caf.cv_path || attachments.resume_cv,
+                cv_path: caf.cv_path || attachments.resume_cv,
+                portfolio: attachments.portfolio,
+                government_id: attachments.government_id,
+                cover_letter: caf.cover_letter_path || attachments.cover_letter,
+                photo: caf.photo_path || attachments.photo,
+            };
+            return aliases[key] || attachments[key] || '';
+        },
+
+        interviewAttachmentLinks() {
+            const labels = {
+                photo: 'Photo',
+                resume_cv: 'Resume / CV',
+                cover_letter: 'Cover Letter',
+                portfolio: 'Portfolio',
+                government_id: 'Government ID',
+            };
+            return Object.entries(this.interviewAttachmentData())
+                .filter(([key, path]) => path && key !== 'photo')
+                .map(([key, path]) => ({ label: labels[key] || key.replaceAll('_', ' '), path }));
+        },
+
+        interviewApplicationSections() {
+            const caf = this.interviewCafRecord() || {};
+            return [
+                {
+                    title: 'Personal Information',
+                    fields: [
+                        { label: 'Applicant ID', value: caf.applicant_id },
+                        { label: 'Email', value: caf.email || this.viewInterviewData?.email },
+                        { label: 'Phone', value: caf.phone },
+                        { label: 'Date of Birth', value: this.interviewValue('dateOfBirth') },
+                        { label: 'Age', value: this.interviewValue('age') },
+                        { label: 'Gender', value: this.interviewValue('gender') },
+                        { label: 'Civil Status', value: this.interviewValue('civilStatus') },
+                        { label: 'Current Address', value: this.interviewValue('currentAddress'), full: true },
+                        { label: 'Permanent Address', value: this.interviewValue('permanentAddress'), full: true },
+                    ],
+                },
+                {
+                    title: 'Position Applied For',
+                    fields: [
+                        { label: 'Position Applied', value: caf.position || this.viewInterviewData?.position },
+                        { label: 'Job ID', value: this.interviewValue('jobId') || this.interviewValue('job.job_id') },
+                        { label: 'Department / Team', value: this.interviewValue('departmentTeam') || this.interviewValue('job.department_unit') },
+                        { label: 'Employment Type', value: this.interviewValue('employmentType') || this.interviewValue('job.employment_type') },
+                        { label: 'Work Arrangement', value: this.interviewValue('preferredWorkArrangement') || this.interviewValue('job.work_arrangement') },
+                        { label: 'Date Available', value: this.interviewValue('dateAvailable') },
+                    ],
+                },
+                {
+                    title: 'Skills, Certifications & Consent',
+                    fields: [
+                        { label: 'Technical Skills', value: this.interviewValue('technicalSkills'), full: true },
+                        { label: 'Software / Tools', value: this.interviewValue('softwareTools'), full: true },
+                        { label: 'Certifications / Licenses', value: this.interviewValue('certificationsLicenses'), full: true },
+                        { label: 'Languages', value: this.interviewValue('languages'), full: true },
+                        { label: 'Background Check Consent', value: this.interviewValue('backgroundCheck') },
+                        { label: 'Data Privacy Consent', value: this.interviewValue('consentAccepted') || (caf.consent_accepted_at ? 'Yes' : '') },
+                    ],
+                },
+            ];
+        },
+
+        interviewEducationRows() {
+            const rows = this.interviewValue('education', []);
+            return Array.isArray(rows) ? rows : [];
+        },
+
+        interviewEmploymentRows() {
+            const rows = this.interviewValue('employmentHistory', []);
+            return Array.isArray(rows) ? rows : [];
+        },
+
+        interviewCertificationRows() {
+            const rows = this.interviewValue('certifications', []);
+            return Array.isArray(rows) ? rows : [];
+        },
+
+        defaultInterviewQuestions(stage) {
+            const sets = {
+                'First Interview': [
+                    'Please walk us through your background and most relevant work experience.',
+                    'What interests you about this role and John Kelly & Company?',
+                    'Which skills make you a strong match for this position?',
+                    'Describe a professional challenge you handled well.',
+                    'What are your availability and salary expectations?',
+                ],
+                'Second Interview': [
+                    'How would you approach the key responsibilities of this role?',
+                    'Describe a project where you had to coordinate with multiple stakeholders.',
+                    'What tools, systems, or methods do you use to stay organized?',
+                    'How do you handle feedback and changing priorities?',
+                ],
+                'Third / Final Interview': [
+                    'Why should we select you for this role?',
+                    'How do your career goals align with this position?',
+                    'What support would help you perform well in your first 90 days?',
+                    'Do you have any final questions for management?',
+                ],
+            };
+            return (sets[stage] || []).map(question => ({ question, answer: '', notes: '', score: '', recommendation: '' }));
+        },
+
+        ensureInterviewDetailsDraft() {
+            const source = this.parseCafPayload(this.viewInterviewData?.application_details, {});
+            const draft = {
+                questions: source.questions || {},
+                meta: source.meta || {},
+            };
+            this.interviewQuestionStages.forEach(stage => {
+                if (!Array.isArray(draft.questions[stage]) || draft.questions[stage].length === 0) {
+                    draft.questions[stage] = this.defaultInterviewQuestions(stage);
+                }
+                if (!draft.meta[stage]) {
+                    draft.meta[stage] = { remarks: '', recommendation: '' };
+                }
+            });
+            this.interviewDetailsDraft = draft;
+        },
+
+        interviewQuestionsForStage(stage) {
+            if (!this.interviewDetailsDraft.questions) this.ensureInterviewDetailsDraft();
+            return this.interviewDetailsDraft.questions[stage] || [];
+        },
+
+        interviewQuestionMeta() {
+            if (!this.interviewDetailsDraft.meta) this.ensureInterviewDetailsDraft();
+            if (!this.interviewDetailsDraft.meta[this.interviewQuestionStage]) {
+                this.interviewDetailsDraft.meta[this.interviewQuestionStage] = { remarks: '', recommendation: '' };
+            }
+            return this.interviewDetailsDraft.meta[this.interviewQuestionStage];
+        },
+
+        addInterviewQuestion(stage) {
+            if (!this.interviewDetailsDraft.questions) this.ensureInterviewDetailsDraft();
+            this.interviewDetailsDraft.questions[stage].push({ question: '', answer: '', notes: '', score: '', recommendation: '' });
+        },
+
+        saveInterviewDetails() {
+            if (!this.viewInterviewData?.id) return;
+
+            axios.post(`/human-capital/recruitment/interview/${this.viewInterviewData.id}/details`, {
+                application_details: this.interviewDetailsDraft,
+            })
+            .then(res => {
+                const updated = res.data.data || {};
+                const idx = this.data['Interview'].findIndex(item => item.id === this.viewInterviewData.id);
+                if (idx !== -1) this.data['Interview'][idx] = { ...this.data['Interview'][idx], ...updated };
+                this.viewInterviewData = { ...this.viewInterviewData, ...updated };
+                alert('Interview details saved.');
+            })
+            .catch(err => {
+                alert('Failed to save interview details: ' + (err.response?.data?.message || err.message));
+            });
+        },
+
         viewCAF(row) {
             this.viewCafData = row;
             this.showCafViewModal = true;
@@ -5138,6 +6361,9 @@ onJpfPayrollLevelChange() {
 
         viewInterview(row) {
             this.viewInterviewData = row;
+            this.interviewViewTab = 'Candidate Information';
+            this.interviewQuestionStage = 'First Interview';
+            this.ensureInterviewDetailsDraft();
             this.showInterviewViewModal = true;
         },
 
@@ -5179,19 +6405,13 @@ onJpfPayrollLevelChange() {
                 email: item.email || '',
                 position: item.position || '',
                 type: 'Online',
-                interviewer: '', 
+                interviewer: this.currentUserName || '', 
                 interview_date: '',
                 duration: '60',
                 meeting_link: ''
             };
-            this.generateMeetingLink();
             this.activeTab = 'Interview';
             this.showInterviewModal = true;
-        },
-
-        generateMeetingLink() {
-            const seg = (len) => Array.from({length: len}, () => 'abcdefghijklmnopqrstuvwxyz'[Math.floor(Math.random() * 26)]).join('');
-            this.interviewForm.meeting_link = `https://meet.google.com/${seg(3)}-${seg(4)}-${seg(3)}`;
         },
 
         interviewAllowsJobOffer(interview) {
@@ -5280,7 +6500,7 @@ onJpfPayrollLevelChange() {
     }
 
     if (!this.jobOfferForm.jobPostingId) {
-        alert('Please select a JPF with status Posted/Open before creating a Job Offer.');
+        alert('Please select a fully approved active JPF before creating a Job Offer.');
         return;
     }
 
@@ -5291,15 +6511,21 @@ onJpfPayrollLevelChange() {
 
     const status = String(this.selectedJobOfferJpf.status || '').toLowerCase();
 
-    if (!['posted', 'open'].includes(status)) {
-        alert('Only JPF records with status Posted/Open can be used for Job Offer.');
+    if (!['posted', 'screening', 'interviewing', 'offer stage'].includes(status)) {
+        alert('Only fully approved active JPF records can be used for Job Offer.');
         return;
     }
 
-    axios.post('{{ route("human-capital.recruitment.store_job_offer") }}', this.jobOfferForm)
+    const payload = {
+        ...this.jobOfferForm,
+        offerDetails: this.jobOfferDocumentDetails()
+    };
+
+    axios.post('{{ route("human-capital.recruitment.store_job_offer") }}', payload)
     .then(res => {
         this.data['Job Offer'].unshift(res.data.data);
         this.showJobOfferModal = false;
+        this.activeTab = 'Job Offer';
 
         if (res.data.warning) {
             alert(res.data.warning);
@@ -5333,11 +6559,13 @@ onJpfPayrollLevelChange() {
             }
 
             if (this.validJobOfferJPFs.length === 0) {
-                alert('No JPF with status Posted/Open is available. Please set a JPF status to Posted/Open first.');
+                alert('No fully approved active JPF is available. Complete JPF approvals and move it into the hiring flow first.');
                 return;
             }
 
             const selectedInterview = interviewData || this.validJobOfferInterviews[0] || null;
+            const expiry = new Date();
+            expiry.setDate(expiry.getDate() + 5);
 
             this.jobOfferForm = {
                 interviewId: selectedInterview ? (selectedInterview.id || '') : '',
@@ -5357,9 +6585,28 @@ onJpfPayrollLevelChange() {
                 employmentType: 'Probationary',
                 department: '',
                 companyAddress: '',
-                benefits: ''
+                benefits: 'As required by law and/or Company policy',
+                applicantId: '',
+                applicantAddress: '',
+                jobId: '',
+                division: '',
+                unit: '',
+                jobLevelRank: '',
+                workArrangement: '',
+                workSchedule: '',
+                salaryGrade: '',
+                branchOffice: '',
+                immediateSupervisor: '',
+                reportingTo: '',
+                offerExpiryDate: expiry.toISOString().slice(0, 10)
             };
 
+            if (selectedInterview) {
+                this.prefillJobOfferApplicantFromInterview(selectedInterview);
+                this.onJobOfferInterviewChange();
+            }
+
+            this.showInterviewViewModal = false;
             this.showJobOfferModal = true;
         },
 
@@ -5399,11 +6646,43 @@ onJpfPayrollLevelChange() {
             return item && item[field] ? item[field] : fallback;
         },
 
+        mrfDisplay(row, key, fallback = '-') {
+            if (!row) return fallback;
+            const value = row[key];
+            return value === null || value === undefined || value === '' ? fallback : value;
+        },
+
+        mrfArrayDisplay(value) {
+            if (!value) return '-';
+            let items = value;
+            if (typeof items === 'string') {
+                try {
+                    items = JSON.parse(items);
+                } catch (e) {
+                    items = items.split(/\r?\n/);
+                }
+            }
+            if (!Array.isArray(items)) return String(items);
+            const cleaned = items.map(item => String(item || '').trim()).filter(Boolean);
+            return cleaned.length ? cleaned.map(item => `• ${item}`).join('\n') : '-';
+        },
+
+        mrfEndorsement(row, key) {
+            const endorsements = row?.endorsements || {};
+            return endorsements[key] || '-';
+        },
+
+        mrfAttachmentUrl(row, key) {
+            const path = row?.[key] || '';
+            return path ? `/storage/${path}` : '';
+        },
+
         editMRF(row) {
             this.isEditing = true;
             this.editingId = row.id || row.request_id;
             const employmentType = this.splitOtherValue(row.employment_type, this.employmentTypeOptions);
-            const immediateSupervisor = this.splitOtherValue(row.immediate_supervisor);
+            const approvalUserNames = this.approvalUserNames();
+            const immediateSupervisor = this.splitOtherValue(row.immediate_supervisor, approvalUserNames);
             const jobLevelRank = this.splitOtherValue(row.job_level_rank, this.jobLevelRankOptions);
             const workClassification = this.splitOtherValue(row.work_classification, this.workClassificationOptions);
             const workArrangement = this.splitOtherValue(row.work_arrangement, this.workArrangementOptions);
@@ -5411,10 +6690,10 @@ onJpfPayrollLevelChange() {
             const contractDuration = this.splitOtherValue(row.contract_duration, this.contractDurationOptions);
             const urgencyLevel = this.splitOtherValue(row.urgency_level, this.urgencyLevelOptions);
             const endorsements = row.endorsements || {};
-            const immediateSupervisorEndorsement = this.splitOtherValue(endorsements.immediate_supervisor);
-            const departmentHeadEndorsement = this.splitOtherValue(endorsements.department_head);
-            const hcHeadValidation = this.splitOtherValue(endorsements.hc_head);
-            const financeHeadClearance = this.splitOtherValue(endorsements.finance_head);
+            const immediateSupervisorEndorsement = this.splitOtherValue(endorsements.immediate_supervisor, approvalUserNames);
+            const departmentHeadEndorsement = this.splitOtherValue(endorsements.department_head, approvalUserNames);
+            const hcHeadValidation = this.splitOtherValue(endorsements.hc_head, approvalUserNames);
+            const financeHeadClearance = this.splitOtherValue(endorsements.finance_head, approvalUserNames);
             this.form = {
                 orgAddressId: row.address_id || '',
                 orgBranchId: row.branch_id || '',
@@ -5679,7 +6958,7 @@ onJpfPayrollLevelChange() {
                     name: '', email: '', position: '', type: 'Online', interviewer: '', 
                     interview_date: '', duration: '60', meeting_link: ''
                 };
-                this.generateMeetingLink();
+                this.interviewForm.interviewer = this.currentUserName || '';
                 this.showInterviewModal = true;
             } else if (this.activeTab === 'Assessment') {
                 this.assessmentForm = {
@@ -6214,6 +7493,9 @@ onJpfPayrollLevelChange() {
             this.interviewForm.name = selected.name || '';
             this.interviewForm.email = selected.email || '';
             this.interviewForm.position = selected.position || '';
+            if (!this.interviewForm.interviewer) {
+                this.interviewForm.interviewer = this.currentUserName || '';
+            }
         },
 
         viewMRF(row) {
@@ -6530,3 +7812,5 @@ onJpfPayrollLevelChange() {
 </script>
 @endpush
 @endsection
+
+
