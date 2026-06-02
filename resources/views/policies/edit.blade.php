@@ -4,7 +4,7 @@
 @section('content')
 <div id="policy-edit-page" class="w-full min-h-screen bg-slate-50" x-data="{
     previewPolicy: @js(old('policy', $policy->policy ?? '')),
-    previewPolicySubtitle: @js(old('policy_subtitle', $policy->policy_subtitle ?? 'Policy Document')),
+    previewPolicySubtitle: @js(old('policy_subtitle', $policy->policy_subtitle ?? '')),
     previewCode: @js(old('code', $policy->code ?? '')),
     previewVersion: @js(old('version', $policy->version ?? '1.0')),
     previewDate: @js(old('effectivity_date', optional($policy->effectivity_date)->format('Y-m-d'))),
@@ -76,7 +76,7 @@
 
                                 <div class="cover-title">
                                     <h1 x-text="previewPolicy || 'POLICY TITLE'"></h1>
-                                    <p x-text="previewPolicySubtitle || 'Policy Document'"></p>
+                                    <p x-text="previewPolicySubtitle"></p>
                                 </div>
 
                                 <div class="cover-details">
@@ -650,6 +650,94 @@
         max-width: 100% !important;
     }
 
+
+    /* Policy module default font */
+    .policy-paper,
+    .policy-paper *,
+    #policy-preview-sheet,
+    #policy-preview-sheet *,
+    .description-content,
+    .description-content *,
+    .policy-preview-body,
+    .policy-preview-body * {
+        font-family: Georgia, "Times New Roman", serif !important;
+    }
+
+    /* Quill editor Georgia font option */
+    .ql-font-georgia,
+    .ql-font-georgia * {
+        font-family: Georgia, "Times New Roman", serif !important;
+    }
+
+    .ql-picker.ql-font .ql-picker-label[data-value="georgia"]::before,
+    .ql-picker.ql-font .ql-picker-item[data-value="georgia"]::before {
+        content: "Georgia";
+        font-family: Georgia, "Times New Roman", serif;
+    }
+
+    .ql-picker.ql-font .ql-picker-label[data-value="serif"]::before,
+    .ql-picker.ql-font .ql-picker-item[data-value="serif"]::before {
+        content: "Serif";
+    }
+
+    .ql-picker.ql-font .ql-picker-label[data-value="sans-serif"]::before,
+    .ql-picker.ql-font .ql-picker-item[data-value="sans-serif"]::before {
+        content: "Sans Serif";
+    }
+
+    .ql-picker.ql-font .ql-picker-label[data-value="monospace"]::before,
+    .ql-picker.ql-font .ql-picker-item[data-value="monospace"]::before {
+        content: "Monospace";
+    }
+
+    #policy-editor .ql-editor {
+        font-family: Georgia, "Times New Roman", serif !important;
+    }
+
+
+    /* Quill alignment support for live preview, show pages, and PDF */
+    .ql-align-left {
+        text-align: left !important;
+    }
+
+    .ql-align-center {
+        text-align: center !important;
+    }
+
+    .ql-align-right {
+        text-align: right !important;
+    }
+
+    .ql-align-justify {
+        text-align: justify !important;
+        text-justify: inter-word;
+    }
+
+    .description-content .ql-align-left,
+    .policy-preview-body .ql-align-left,
+    #policy-preview-sheet .ql-align-left {
+        text-align: left !important;
+    }
+
+    .description-content .ql-align-center,
+    .policy-preview-body .ql-align-center,
+    #policy-preview-sheet .ql-align-center {
+        text-align: center !important;
+    }
+
+    .description-content .ql-align-right,
+    .policy-preview-body .ql-align-right,
+    #policy-preview-sheet .ql-align-right {
+        text-align: right !important;
+    }
+
+    .description-content .ql-align-justify,
+    .policy-preview-body .ql-align-justify,
+    #policy-preview-sheet .ql-align-justify {
+        text-align: justify !important;
+        text-justify: inter-word;
+    }
+
 </style>
 @endpush
 
@@ -662,6 +750,10 @@
 
     function initEditQuill() {
         if (policyEditQuill) return;
+
+        const Font = Quill.import('formats/font');
+        Font.whitelist = ['georgia', 'serif', 'sans-serif', 'monospace'];
+        Quill.register(Font, true);
 
         Quill.register({
             'modules/table-better': QuillTableBetter
@@ -679,7 +771,7 @@
             placeholder: 'Define policy...',
             modules: {
                 toolbar: [
-                    [{ font: [] }, { size: ['small', false, 'large', 'huge'] }],
+                    [{ font: ['georgia', 'serif', 'sans-serif', 'monospace'] }, { size: ['small', false, 'large', 'huge'] }],
                     [{ header: [1, 2, 3, false] }],
                     ['bold', 'italic', 'underline', 'strike'],
                     [{ script: 'sub' }, { script: 'super' }],
@@ -702,6 +794,9 @@
                 }
             }
         });
+        policyEditQuill.root.style.fontFamily = 'Georgia, "Times New Roman", serif';
+        policyEditQuill.format('font', 'georgia');
+
 
         policyEditQuill.clipboard.dangerouslyPasteHTML(initialHtml);
         hiddenInput.value = initialHtml;
