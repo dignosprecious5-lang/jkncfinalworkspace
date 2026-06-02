@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Employee;
+use App\Models\CandidateApplication;
 use App\Models\OnboardingChecklist;
 use App\Models\OnboardingEmployeeRegistration;
 use App\Models\PersonalDataSheet;
@@ -131,7 +132,7 @@ class OnboardingRecordController extends Controller
 
         return redirect()
             ->route('careers.checklist.show', $checklist->upload_token)
-            ->with('success', 'Your documents were submitted successfully. HR will review them.');
+            ->with('success', 'Your documents were submitted successfully. Human Capital will review them.');
     }
 
     public function storeChecklist(Request $request): JsonResponse
@@ -300,15 +301,20 @@ class OnboardingRecordController extends Controller
     $pds = $checklist->personalDataSheet;
     $jobOffer = $pds?->jobOffer;
     $pdsData = $pds && is_array($pds->data) ? $pds->data : [];
+    $offerDetails = is_array($jobOffer?->offer_details) ? $jobOffer->offer_details : [];
+    $candidateApplication = $this->findCandidateApplication($jobOffer, $pds);
+    $applicationData = is_array($candidateApplication?->application_data) ? $candidateApplication->application_data : [];
 
     $firstName = trim($pdsData['firstName'] ?? '');
     $lastName = trim($pdsData['surname'] ?? '');
+    $middleName = trim($pdsData['middleName'] ?? '');
 
     if (!$firstName || !$lastName) {
         [$firstName, $lastName] = $this->splitEmployeeName($validated['fullName']);
     }
 
     $address = $this->buildPdsAddress($pdsData);
+    $permanentAddress = $this->buildPdsAddress($pdsData, 'perm');
 
     // CAF/PDS email remains the applicant personal/contact email.
     $personalEmail = $checklist->employee_email
@@ -336,18 +342,48 @@ class OnboardingRecordController extends Controller
     $position = $jobOffer?->position ?: $validated['position'];
 
     $hourlyRate = $this->computeEmployeeHourlyRate($basicSalary, $payrollType);
+    $profilePhoto = $this->resolveEmployeeProfilePhoto($candidateApplication, $checklist);
+    $attachments = $this->buildEmployeeAttachments($checklist, $candidateApplication, $jobOffer);
 
     $employeeProfile = Employee::create([
         'employee_code' => $validated['employeeId'],
         'first_name' => $firstName,
+        'middle_name' => $middleName,
         'last_name' => $lastName,
+        'suffix' => $pdsData['nameExt'] ?? null,
+        'gender' => $pdsData['sex'] ?? null,
+        'civil_status' => $pdsData['civilStatus'] ?? null,
+        'nationality' => $pdsData['citizenship'] ?? ($applicationData['nationality'] ?? null),
+        'religion' => $applicationData['religion'] ?? null,
+        'date_of_birth' => $pdsData['dob'] ?? ($applicationData['dateOfBirth'] ?? null),
+        'place_of_birth' => $pdsData['pob'] ?? null,
+        'blood_type' => $pdsData['bloodType'] ?? null,
+        'height' => $pdsData['height'] ?? null,
+        'weight' => $pdsData['weight'] ?? null,
+        'is_pwd' => $this->yesNoBoolean($applicationData['pwd'] ?? null),
+        'is_solo_parent' => $this->yesNoBoolean($applicationData['soloParent'] ?? null),
+        'is_senior_citizen' => $this->yesNoBoolean($applicationData['seniorCitizen'] ?? null),
         'address' => $address ?: $jobOffer?->company_address,
+        'current_address' => $address ?: ($applicationData['currentAddress'] ?? null),
+        'permanent_address' => $permanentAddress ?: ($applicationData['permanentAddress'] ?? null),
         'phone_number' => $pds->phone ?? ($pdsData['mobileNo'] ?? $pdsData['phone'] ?? null),
+        'alternate_phone_number' => $pdsData['telNo'] ?? null,
+        'emergency_contact_name' => $applicationData['emergencyName'] ?? null,
+        'emergency_contact_relationship' => $applicationData['emergencyRelationship'] ?? null,
+        'emergency_contact_number' => $applicationData['emergencyNumber'] ?? null,
+        'emergency_contact_address' => $applicationData['emergencyAddress'] ?? null,
 
         // Keep legacy email as work email so old modules continue working.
         'email' => $workEmail,
         'personal_email' => $personalEmail,
         'work_email' => $workEmail,
+        'company_email' => $workEmail,
+        'profile_photo' => $profilePhoto,
+        'photo_metadata' => $profilePhoto ? [
+            'source' => 'Recruitment / Pre-employment',
+            'transferred_at' => now()->toDateTimeString(),
+            'candidate_application_id' => $candidateApplication?->id,
+        ] : [],
 
         // Organizational assignment from Job Offer
         'office_id' => $jobOffer?->office_id,
@@ -357,10 +393,48 @@ class OnboardingRecordController extends Controller
         'unit_id' => $jobOffer?->unit_id,
 
         // Position and payroll from Job Offer for new applicants, or HR manual input for existing employees.
+        'applicant_id' => $candidateApplication?->applicant_id ?: ($offerDetails['applicantId'] ?? null),
+        'job_id' => $offerDetails['jobId'] ?? null,
         'position' => $position,
+        'job_level_rank' => $offerDetails['jobLevelRank'] ?? null,
+        'employment_type' => $jobOffer?->employment_type ?: ($offerDetails['employmentType'] ?? null),
+        'employment_status' => 'Active',
+        'work_arrangement' => $offerDetails['workArrangement'] ?? ($applicationData['preferredWorkArrangement'] ?? null),
+        'work_location' => $jobOffer?->company_address ?: ($offerDetails['companyAddress'] ?? null),
+        'date_hired' => $validated['startDate'] ?? $jobOffer?->start_date,
+        'start_date' => $validated['startDate'] ?? $jobOffer?->start_date,
+        'immediate_supervisor' => $offerDetails['immediateSupervisor'] ?? null,
+        'reporting_to' => $validated['manager'] ?? ($offerDetails['reportingTo'] ?? null),
+        'recruitment_status' => 'Job Offer Accepted',
+        'onboarding_status' => 'Employee Registered',
         'payroll_type' => $payrollType,
+        'salary_grade' => $offerDetails['salaryGrade'] ?? null,
         'basic_salary' => $basicSalary,
         'hourly_rate' => $hourlyRate,
+        'benefits_checklist' => $this->linesFromText($jobOffer?->benefits ?: ($offerDetails['benefits'] ?? null)),
+        'tin_number' => $pdsData['tin'] ?? null,
+        'sss_number' => $pdsData['sss'] ?? null,
+        'philhealth_number' => $pdsData['philhealth'] ?? null,
+        'pagibig_number' => $pdsData['pagibig'] ?? null,
+        'educational_background' => $this->buildEmployeeEducation($pdsData, $applicationData),
+        'employment_history' => $this->decodeArray($applicationData['employmentHistory'] ?? []),
+        'certifications_trainings' => $this->buildEmployeeCertifications($pdsData, $applicationData),
+        'skills_competencies' => $this->buildEmployeeSkills($applicationData),
+        'employee_attachments' => $attachments,
+        'activity_audit' => [[
+            'timestamp' => now()->toDateTimeString(),
+            'field' => 'Employee Profile Created',
+            'previous_value' => null,
+            'new_value' => 'Created from recruitment and onboarding records',
+            'updated_by' => optional(Auth::user())->name,
+        ]],
+        'salary_employment_history' => [[
+            'timestamp' => now()->toDateTimeString(),
+            'field' => 'Initial Salary',
+            'previous_value' => null,
+            'new_value' => $basicSalary,
+            'updated_by' => optional(Auth::user())->name,
+        ]],
     ]);
 
     $employee = OnboardingEmployeeRegistration::create([
@@ -509,6 +583,12 @@ class OnboardingRecordController extends Controller
 {
     $pds = $item->personalDataSheet;
     $jobOffer = $pds?->jobOffer;
+    $offerDetails = is_array($jobOffer?->offer_details) ? $jobOffer->offer_details : [];
+    $reportingManager = $offerDetails['reportingTo']
+        ?? $offerDetails['immediateSupervisor']
+        ?? $jobOffer?->reporting_to
+        ?? $jobOffer?->immediate_supervisor
+        ?? null;
 
     return [
         'id' => $item->id,
@@ -522,6 +602,7 @@ class OnboardingRecordController extends Controller
         'jobOfferDepartment' => $jobOffer?->department,
         'jobOfferSalary' => $jobOffer?->salary,
         'jobOfferEmploymentType' => $jobOffer?->employment_type,
+        'jobOfferReportingManager' => $reportingManager,
         'jobOfferBranchId' => $jobOffer?->branch_id,
         'jobOfferOfficeId' => $jobOffer?->office_id,
         'jobOfferDepartmentId' => $jobOffer?->department_id,
@@ -577,19 +658,262 @@ private function splitEmployeeName(string $fullName): array
     return [$firstName, $lastName];
 }
 
-private function buildPdsAddress(array $data): ?string
+private function buildPdsAddress(array $data, string $prefix = 'res'): ?string
 {
+    $map = $prefix === 'perm'
+        ? ['permHouse', 'permStreet', 'permSubdiv', 'permBrgy', 'permCity', 'permProv', 'permZip']
+        : ['resHouse', 'resStreet', 'resSubdiv', 'resBrgy', 'resCity', 'resProv', 'resZip'];
+
     $parts = array_filter([
-        $data['resHouse'] ?? null,
-        $data['resStreet'] ?? null,
-        $data['resSubdiv'] ?? null,
-        $data['resBrgy'] ?? null,
-        $data['resCity'] ?? null,
-        $data['resProv'] ?? null,
-        $data['resZip'] ?? null,
+        $data[$map[0]] ?? null,
+        $data[$map[1]] ?? null,
+        $data[$map[2]] ?? null,
+        $data[$map[3]] ?? null,
+        $data[$map[4]] ?? null,
+        $data[$map[5]] ?? null,
+        $data[$map[6]] ?? null,
     ]);
 
     return $parts ? implode(', ', $parts) : null;
+}
+
+private function findCandidateApplication($jobOffer, ?PersonalDataSheet $pds): ?CandidateApplication
+{
+    $email = strtolower((string) ($jobOffer?->candidate_email ?: $pds?->email));
+    $name = strtolower((string) ($jobOffer?->name ?: $pds?->full_name));
+
+    if ($email === '' && $name === '') {
+        return null;
+    }
+
+    return CandidateApplication::query()
+        ->when($jobOffer?->job_posting_id, fn ($query) => $query->where('job_posting_id', $jobOffer->job_posting_id))
+        ->where(function ($query) use ($email, $name) {
+            if ($email !== '') {
+                $query->orWhereRaw('LOWER(email) = ?', [$email]);
+            }
+
+            if ($name !== '') {
+                $query->orWhereRaw('LOWER(name) = ?', [$name]);
+            }
+        })
+        ->latest()
+        ->first()
+        ?: CandidateApplication::query()
+            ->where(function ($query) use ($email, $name) {
+                if ($email !== '') {
+                    $query->orWhereRaw('LOWER(email) = ?', [$email]);
+                }
+
+                if ($name !== '') {
+                    $query->orWhereRaw('LOWER(name) = ?', [$name]);
+                }
+            })
+            ->latest()
+            ->first();
+}
+
+private function resolveEmployeeProfilePhoto(?CandidateApplication $candidateApplication, OnboardingChecklist $checklist): ?string
+{
+    if ($candidateApplication?->photo_path && Storage::disk('public')->exists($candidateApplication->photo_path)) {
+        return $candidateApplication->photo_path;
+    }
+
+    $twoByTwo = collect($checklist->checked_documents ?? [])->firstWhere('key', 'two_by_two_picture');
+    $path = $twoByTwo['file_path'] ?? null;
+
+    return $path && Storage::disk('public')->exists($path) ? $path : null;
+}
+
+private function buildEmployeeAttachments(OnboardingChecklist $checklist, ?CandidateApplication $candidateApplication, $jobOffer): array
+{
+    $attachments = [];
+
+    foreach (($checklist->checked_documents ?? []) as $document) {
+        if (empty($document['file_path'])) {
+            continue;
+        }
+
+        $attachments[] = $this->employeeAttachment(
+            $document['file_path'],
+            $document['original_name'] ?? $document['label'] ?? 'Pre-employment Document',
+            $document['label'] ?? 'Pre-employment Document',
+            'Pre-employment Checklist',
+            $document['uploaded_at'] ?? null
+        );
+    }
+
+    foreach (($candidateApplication?->attachment_paths ?? []) as $key => $path) {
+        if (!$path) {
+            continue;
+        }
+
+        $attachments[] = $this->employeeAttachment(
+            $path,
+            $this->attachmentLabel($key),
+            'Recruitment Attachment',
+            'Candidate Application',
+            optional($candidateApplication?->created_at)->toDateTimeString()
+        );
+    }
+
+    if ($jobOffer?->signed_offer_path) {
+        $attachments[] = $this->employeeAttachment(
+            $jobOffer->signed_offer_path,
+            'Signed Job Offer',
+            'Signed Job Offer',
+            'Job Offer Acceptance',
+            optional($jobOffer->signed_offer_uploaded_at)->toDateTimeString()
+        );
+    }
+
+    return collect($attachments)
+        ->filter(fn ($item) => !empty($item['path']))
+        ->unique('path')
+        ->values()
+        ->all();
+}
+
+private function employeeAttachment(?string $path, string $fileName, string $category, string $source, ?string $uploadedAt = null): array
+{
+    $exists = $path && Storage::disk('public')->exists($path);
+
+    return [
+        'path' => $path,
+        'file_name' => $fileName,
+        'category' => $category,
+        'source' => $source,
+        'file_type' => $path ? strtoupper(pathinfo($path, PATHINFO_EXTENSION)) : null,
+        'file_size' => $exists ? Storage::disk('public')->size($path) : null,
+        'uploaded_at' => $uploadedAt,
+    ];
+}
+
+private function attachmentLabel(string $key): string
+{
+    return match ($key) {
+        'photo' => 'Applicant Photo',
+        'resume_cv' => 'Resume / CV',
+        'cover_letter' => 'Cover Letter',
+        'portfolio' => 'Portfolio',
+        'government_id' => 'Valid Government ID',
+        default => Str::headline(str_replace('_', ' ', $key)),
+    };
+}
+
+private function decodeArray($value): array
+{
+    if (is_array($value)) {
+        return $value;
+    }
+
+    if (is_string($value)) {
+        $decoded = json_decode($value, true);
+        return is_array($decoded) ? $decoded : [];
+    }
+
+    return [];
+}
+
+private function buildEmployeeEducation(array $pdsData, array $applicationData): array
+{
+    $rows = [];
+
+    foreach ([
+        'Elem' => 'Elementary',
+        'Sec' => 'Secondary',
+        'Coll' => 'College',
+        'Mast' => 'Masters',
+        'Doct' => 'Doctorate',
+    ] as $key => $label) {
+        $school = $pdsData["educ{$key}School"] ?? null;
+        $degree = $pdsData["educ{$key}Degree"] ?? null;
+        $from = $pdsData["educ{$key}From"] ?? null;
+        $to = $pdsData["educ{$key}To"] ?? null;
+
+        if ($school || $degree || $from || $to) {
+            $rows[] = trim($label . ': ' . implode(' | ', array_filter([$school, $degree, trim(($from ?: '') . ' - ' . ($to ?: ''), ' -')])));
+        }
+    }
+
+    foreach ($this->decodeArray($applicationData['education'] ?? []) as $education) {
+        if (!is_array($education)) {
+            continue;
+        }
+
+        $rows[] = implode(' | ', array_filter([
+            $education['level'] ?? null,
+            $education['school'] ?? null,
+            $education['degree'] ?? null,
+            $education['course'] ?? null,
+            $education['year'] ?? null,
+            $education['honors'] ?? null,
+        ]));
+    }
+
+    return array_values(array_unique(array_filter($rows)));
+}
+
+private function buildEmployeeCertifications(array $pdsData, array $applicationData): array
+{
+    $rows = [];
+
+    foreach (($pdsData['lnd'] ?? []) as $training) {
+        if (!is_array($training) || empty($training['title'])) {
+            continue;
+        }
+
+        $rows[] = implode(' | ', array_filter([
+            $training['title'] ?? null,
+            $training['conductedBy'] ?? null,
+            $training['date'] ?? null,
+            isset($training['cert']) ? 'Certificate: ' . $training['cert'] : null,
+        ]));
+    }
+
+    foreach ($this->decodeArray($applicationData['certifications'] ?? []) as $certification) {
+        if (!is_array($certification) || empty($certification['name'])) {
+            continue;
+        }
+
+        $rows[] = implode(' | ', array_filter([
+            $certification['name'] ?? null,
+            $certification['provider'] ?? null,
+            $certification['status'] ?? null,
+            $certification['dateTaken'] ?? ($certification['datePlanned'] ?? null),
+            $certification['code'] ?? null,
+        ]));
+    }
+
+    return array_values(array_unique(array_filter($rows)));
+}
+
+private function buildEmployeeSkills(array $applicationData): array
+{
+    return array_values(array_filter([
+        $applicationData['technicalSkills'] ?? null,
+        $applicationData['softwareTools'] ?? null,
+        $applicationData['certificationsLicenses'] ?? null,
+        $applicationData['languages'] ?? null,
+    ]));
+}
+
+private function linesFromText($value): array
+{
+    if (is_array($value)) {
+        return array_values(array_filter($value));
+    }
+
+    return array_values(array_filter(preg_split('/\r?\n|,/', (string) $value)));
+}
+
+private function yesNoBoolean($value): ?bool
+{
+    if ($value === null || $value === '') {
+        return null;
+    }
+
+    return in_array(strtolower((string) $value), ['yes', '1', 'true', 'on'], true);
 }
 
 

@@ -30,6 +30,10 @@ class Employee extends Model
         'address',
         'current_address',
         'permanent_address',
+        'emergency_contact_name',
+        'emergency_contact_relationship',
+        'emergency_contact_number',
+        'emergency_contact_address',
         'phone_number',
         'alternate_phone_number',
         'email',
@@ -153,7 +157,7 @@ class Employee extends Model
         static::creating(function ($employee) {
             if (!$employee->employee_code) {
                 do {
-                    $code = (string) random_int(10000, 99999);
+                    $code = static::generateCompliantEmployeeCode();
                 } while (static::where('employee_code', $code)->exists());
 
                 $employee->employee_code = $code;
@@ -175,6 +179,22 @@ class Employee extends Model
                 $employee->digital_id_issued_at = now()->toDateString();
             }
         });
+    }
+
+    private static function generateCompliantEmployeeCode(): string
+    {
+        $firstDigits = ['1', '2', '3', '5', '7', '8', '9'];
+        $digits = ['0', '1', '2', '3', '5', '7', '8', '9'];
+
+        do {
+            $code = $firstDigits[array_rand($firstDigits)];
+
+            while (strlen($code) < 5) {
+                $code .= $digits[array_rand($digits)];
+            }
+        } while (str_contains($code, '13') || str_contains($code, '31'));
+
+        return $code;
     }
 
     public function user()

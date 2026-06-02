@@ -437,24 +437,99 @@
                         </div>
 
                         <div x-show="profileTab === 'digital-id'" class="space-y-5">
-                            <h3 class="section-heading">Digital Employee ID</h3>
-                            <div class="grid grid-cols-2 gap-4">
-                                <div class="id-card">
-                                    <div class="text-xs font-black uppercase tracking-widest text-blue-700">John Kelly & Company</div>
-                                    <div class="mt-4 flex items-center gap-4">
-                                        <template x-if="selectedEmployee.profile_photo_url"><img :src="selectedEmployee.profile_photo_url" class="h-20 w-20 rounded-xl object-cover border"></template>
-                                        <template x-if="!selectedEmployee.profile_photo_url"><div class="h-20 w-20 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center text-2xl font-black" x-text="initials(selectedEmployee)"></div></template>
-                                        <div><p class="text-lg font-black" x-text="selectedEmployee.full_name"></p><p class="text-sm font-bold text-gray-500" x-text="selectedEmployee.position || '-'"></p><p class="text-xs mt-1" x-text="'ID No. ' + (selectedEmployee.employee_code || '-')"></p></div>
-                                    </div>
+                            <div class="flex flex-wrap items-center justify-between gap-3">
+                                <div>
+                                    <h3 class="section-heading">Digital Employee ID</h3>
+                                    <p class="text-xs text-gray-500 mt-1">CR80 / PVC standard: 85.6mm x 54mm, landscape, front and back.</p>
                                 </div>
-                                <div class="id-card">
-                                    <div class="text-xs font-black uppercase tracking-widest text-gray-500">Verification</div>
-                                    <img :src="qrUrl(selectedEmployee.verification_url)" class="h-28 w-28 mt-3" alt="Verification QR">
-                                    <p class="text-xs text-gray-500 mt-2">Scan to verify limited employment details.</p>
-                                    <a :href="selectedEmployee.verification_url" target="_blank" class="text-xs font-bold text-blue-600 break-all" x-text="selectedEmployee.verification_url"></a>
+                                <div class="flex flex-wrap gap-2">
+                                    <button type="button" @click="digitalIdSide = 'front'" :class="digitalIdSide === 'front' ? 'bg-blue-700 text-white' : 'bg-white text-blue-700 border border-blue-200'" class="px-3 py-2 rounded-lg text-xs font-black uppercase tracking-widest">Front</button>
+                                    <button type="button" @click="digitalIdSide = 'back'" :class="digitalIdSide === 'back' ? 'bg-blue-700 text-white' : 'bg-white text-blue-700 border border-blue-200'" class="px-3 py-2 rounded-lg text-xs font-black uppercase tracking-widest">Back</button>
                                 </div>
                             </div>
-                            <button type="button" @click="window.print()" class="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg font-semibold">Print / Save PDF</button>
+
+                            <div class="rounded-2xl border border-blue-100 bg-slate-50 p-5">
+                                <div class="digital-id-stage">
+                                    <div id="digital-id-export" x-ref="digitalIdExport" class="digital-id-export">
+                                        <div class="digital-id-card digital-id-front" x-show="digitalIdSide === 'front'">
+                                            <div class="id-brand-row">
+                                                <img src="{{ asset('images/FINAL_LOGO.jpg') }}" onerror="this.src='{{ asset('images/imaglogo.png') }}'" alt="John Kelly & Company" class="id-logo">
+                                                <div class="id-company-block">
+                                                    <p class="id-company">John Kelly &amp; Company</p>
+                                                    <p class="id-subcompany">JK&amp;C Inc.</p>
+                                                </div>
+                                            </div>
+
+                                            <div class="id-front-body">
+                                                <div class="id-photo-frame">
+                                                    <template x-if="selectedEmployee.profile_photo_url">
+                                                        <img :src="selectedEmployee.profile_photo_url" class="id-photo" alt="Employee photo">
+                                                    </template>
+                                                    <template x-if="!selectedEmployee.profile_photo_url">
+                                                        <div class="id-photo-fallback" x-text="initials(selectedEmployee)"></div>
+                                                    </template>
+                                                </div>
+
+                                                <div class="id-person-block">
+                                                    <p class="id-name" x-text="selectedEmployee.full_name || '-'"></p>
+                                                    <p class="id-position" x-text="selectedEmployee.position || '-'"></p>
+                                                    <div class="id-chip-row">
+                                                        <span class="id-chip">Employee ID</span>
+                                                        <span class="id-code" x-text="selectedEmployee.employee_code || '-'"></span>
+                                                    </div>
+                                                    <p class="id-department" x-text="[selectedEmployee.department_name, selectedEmployee.employment_status || 'Active'].filter(Boolean).join(' | ')"></p>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="digital-id-card digital-id-back" x-show="digitalIdSide === 'back'">
+                                            <div class="id-back-grid">
+                                                <div>
+                                                    <p class="id-back-company">John Kelly &amp; Company</p>
+                                                    <p class="id-back-label">Employee ID Number</p>
+                                                    <p class="id-back-code" x-text="selectedEmployee.employee_code || '-'"></p>
+
+                                                    <div class="id-back-section">
+                                                        <p class="id-back-label">Emergency Contact Person</p>
+                                                        <p class="id-back-value" x-text="selectedEmployee.emergency_contact_name || 'Not provided'"></p>
+                                                        <p class="id-back-label mt-2">Emergency Contact Number</p>
+                                                        <p class="id-back-value" x-text="selectedEmployee.emergency_contact_number || 'Not provided'"></p>
+                                                    </div>
+                                                </div>
+
+                                                <div class="id-qr-panel">
+                                                    <img :src="qrUrl(selectedEmployee.verification_url)" class="id-qr" alt="Verification QR">
+                                                    <p class="id-qr-note">Scan to verify this employee ID.</p>
+                                                </div>
+                                            </div>
+
+                                            <div class="id-back-footer">
+                                                <div>
+                                                    <p class="id-back-label">Company Address</p>
+                                                    <p class="id-back-value" x-text="companyAddress(selectedEmployee)"></p>
+                                                    <p class="id-back-label mt-2">Company Contact Details</p>
+                                                    <p class="id-back-value" x-text="companyContactDetails(selectedEmployee)"></p>
+                                                    <p class="id-return-note">If found, please return this ID to John Kelly &amp; Company / JK&amp;C Inc. This ID remains the property of the Company.</p>
+                                                </div>
+                                                <div class="id-signature-box">
+                                                    <div class="id-signature-line"></div>
+                                                    <p>Authorized Signature</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="mt-5 flex flex-wrap items-center justify-between gap-3">
+                                    <a :href="selectedEmployee.verification_url" target="_blank" class="text-xs font-bold text-blue-700 break-all" x-text="selectedEmployee.verification_url"></a>
+                                    <div class="flex flex-wrap gap-2">
+                                        <button type="button" @click="showDigitalIdFullscreen = true" class="px-4 py-2 rounded-lg border border-slate-300 bg-white text-xs font-black uppercase tracking-widest text-slate-700">Fullscreen</button>
+                                        <button type="button" @click="previewDigitalIdPdf()" class="px-4 py-2 rounded-lg border border-blue-200 bg-white text-xs font-black uppercase tracking-widest text-blue-700">PDF Preview</button>
+                                        <button type="button" @click="downloadDigitalId()" class="px-4 py-2 rounded-lg bg-blue-700 text-white text-xs font-black uppercase tracking-widest">Download</button>
+                                        <button type="button" @click="printDigitalId()" class="px-4 py-2 rounded-lg bg-slate-900 text-white text-xs font-black uppercase tracking-widest">Print</button>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
                         <div x-show="profileTab === 'audit'" class="space-y-5">
@@ -484,6 +559,80 @@
                     </div>
                 </div>
             </template>
+        </div>
+    </div>
+
+    <div x-show="showDigitalIdFullscreen" x-transition.opacity class="fixed inset-0 z-[70] bg-slate-950/90 p-6" style="display:none;">
+        <div class="mx-auto flex h-full max-w-6xl flex-col">
+            <div class="mb-5 flex items-center justify-between text-white">
+                <div>
+                    <p class="text-[10px] font-black uppercase tracking-[0.3em] text-blue-200">Digital Employee ID</p>
+                    <h2 class="text-xl font-black" x-text="selectedEmployee?.full_name || 'Employee ID'"></h2>
+                </div>
+                <button type="button" @click="showDigitalIdFullscreen = false" class="rounded-full bg-white/10 px-4 py-2 text-sm font-bold hover:bg-white/20">Close</button>
+            </div>
+
+            <div class="flex-1 overflow-auto rounded-2xl bg-slate-100 p-8">
+                <div class="grid gap-8 xl:grid-cols-2">
+                    <div>
+                        <p class="mb-3 text-xs font-black uppercase tracking-widest text-slate-500">Front Side</p>
+                        <div class="digital-id-card digital-id-front">
+                            <div class="id-brand-row">
+                                <img src="{{ asset('images/FINAL_LOGO.jpg') }}" onerror="this.src='{{ asset('images/imaglogo.png') }}'" alt="John Kelly & Company" class="id-logo">
+                                <div class="id-company-block">
+                                    <p class="id-company">John Kelly &amp; Company</p>
+                                    <p class="id-subcompany">JK&amp;C Inc.</p>
+                                </div>
+                            </div>
+                            <div class="id-front-body">
+                                <div class="id-photo-frame">
+                                    <template x-if="selectedEmployee?.profile_photo_url"><img :src="selectedEmployee.profile_photo_url" class="id-photo" alt="Employee photo"></template>
+                                    <template x-if="!selectedEmployee?.profile_photo_url"><div class="id-photo-fallback" x-text="initials(selectedEmployee)"></div></template>
+                                </div>
+                                <div class="id-person-block">
+                                    <p class="id-name" x-text="selectedEmployee?.full_name || '-'"></p>
+                                    <p class="id-position" x-text="selectedEmployee?.position || '-'"></p>
+                                    <div class="id-chip-row"><span class="id-chip">Employee ID</span><span class="id-code" x-text="selectedEmployee?.employee_code || '-'"></span></div>
+                                    <p class="id-department" x-text="[selectedEmployee?.department_name, selectedEmployee?.employment_status || 'Active'].filter(Boolean).join(' | ')"></p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <p class="mb-3 text-xs font-black uppercase tracking-widest text-slate-500">Back Side</p>
+                        <div class="digital-id-card digital-id-back">
+                            <div class="id-back-grid">
+                                <div>
+                                    <p class="id-back-company">John Kelly &amp; Company</p>
+                                    <p class="id-back-label">Employee ID Number</p>
+                                    <p class="id-back-code" x-text="selectedEmployee?.employee_code || '-'"></p>
+                                    <div class="id-back-section">
+                                        <p class="id-back-label">Emergency Contact Person</p>
+                                        <p class="id-back-value" x-text="selectedEmployee?.emergency_contact_name || 'Not provided'"></p>
+                                        <p class="id-back-label mt-2">Emergency Contact Number</p>
+                                        <p class="id-back-value" x-text="selectedEmployee?.emergency_contact_number || 'Not provided'"></p>
+                                    </div>
+                                </div>
+                                <div class="id-qr-panel">
+                                    <img :src="qrUrl(selectedEmployee?.verification_url)" class="id-qr" alt="Verification QR">
+                                    <p class="id-qr-note">Scan to verify this employee ID.</p>
+                                </div>
+                            </div>
+                            <div class="id-back-footer">
+                                <div>
+                                    <p class="id-back-label">Company Address</p>
+                                    <p class="id-back-value" x-text="companyAddress(selectedEmployee)"></p>
+                                    <p class="id-back-label mt-2">Company Contact Details</p>
+                                    <p class="id-back-value" x-text="companyContactDetails(selectedEmployee)"></p>
+                                    <p class="id-return-note">If found, please return this ID to John Kelly &amp; Company / JK&amp;C Inc. This ID remains the property of the Company.</p>
+                                </div>
+                                <div class="id-signature-box"><div class="id-signature-line"></div><p>Authorized Signature</p></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -719,12 +868,52 @@
 .profile-value { margin-top: 0.35rem; font-size: 0.95rem; font-weight: 700; color: rgb(17 24 39); word-break: break-word; }
 .section-heading { font-size: 0.9rem; font-weight: 800; color: rgb(17 24 39); }
 .related-card { border: 1px solid rgb(229 231 235); background: white; border-radius: 0.75rem; padding: 1rem; }
-.id-card { border: 1px solid rgb(191 219 254); background: linear-gradient(135deg, #ffffff, #eff6ff); border-radius: 0.75rem; padding: 1rem; min-height: 190px; }
+.digital-id-stage { display: flex; justify-content: center; align-items: center; min-height: 340px; overflow-x: auto; }
+.digital-id-export { display: inline-block; }
+.digital-id-card { width: 85.6mm; height: 54mm; border-radius: 3mm; overflow: hidden; position: relative; background: #ffffff; color: #061533; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; box-shadow: 0 22px 48px rgba(15, 23, 42, 0.18); border: 1px solid #d7deea; }
+.digital-id-front { padding: 5mm; background: linear-gradient(135deg, #ffffff 0%, #f7faff 58%, #eaf1ff 100%); }
+.digital-id-front::after { content: ""; position: absolute; right: -18mm; bottom: -24mm; width: 58mm; height: 58mm; border-radius: 999px; background: rgba(30, 58, 138, 0.12); }
+.digital-id-back { padding: 4.5mm; background: #ffffff; }
+.id-brand-row { display: flex; align-items: center; gap: 3mm; position: relative; z-index: 1; }
+.id-logo { height: 10mm; width: auto; max-width: 28mm; object-fit: contain; }
+.id-company { color: #12398f; font-weight: 900; font-size: 3.6mm; line-height: 1.05; text-transform: uppercase; letter-spacing: .2mm; }
+.id-subcompany { margin-top: .6mm; color: #64748b; font-weight: 800; font-size: 2.2mm; text-transform: uppercase; letter-spacing: .55mm; }
+.id-front-body { display: grid; grid-template-columns: 23mm 1fr; gap: 4mm; align-items: center; margin-top: 5mm; position: relative; z-index: 1; }
+.id-photo-frame { width: 23mm; height: 27mm; border-radius: 2.5mm; border: 1px solid #cbd5e1; background: #f8fafc; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+.id-photo { width: 100%; height: 100%; object-fit: cover; }
+.id-photo-fallback { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: #dbeafe; color: #12398f; font-size: 8mm; font-weight: 900; }
+.id-person-block { min-width: 0; }
+.id-name { color: #061533; font-size: 5.3mm; font-weight: 900; line-height: 1.02; text-transform: uppercase; overflow-wrap: anywhere; }
+.id-position { margin-top: 1.4mm; color: #334155; font-size: 3mm; font-weight: 800; line-height: 1.15; }
+.id-chip-row { display: inline-flex; align-items: center; margin-top: 4mm; border: 1px solid #12398f; border-radius: 999px; overflow: hidden; background: #ffffff; }
+.id-chip { background: #12398f; color: #ffffff; font-size: 2.1mm; font-weight: 900; text-transform: uppercase; letter-spacing: .35mm; padding: 1.3mm 2.2mm; }
+.id-code { color: #12398f; font-size: 3.3mm; font-weight: 900; padding: 1.1mm 2.5mm; letter-spacing: .45mm; }
+.id-department { margin-top: 2.2mm; color: #64748b; font-size: 2.4mm; font-weight: 700; line-height: 1.2; }
+.id-back-grid { display: grid; grid-template-columns: 1fr 23mm; gap: 4mm; }
+.id-back-company { color: #12398f; font-size: 3.4mm; font-weight: 900; text-transform: uppercase; letter-spacing: .18mm; }
+.id-back-label { color: #64748b; font-size: 2mm; font-weight: 900; text-transform: uppercase; letter-spacing: .35mm; }
+.id-back-code { color: #061533; font-size: 4.4mm; font-weight: 900; letter-spacing: .7mm; margin: .8mm 0 3mm; }
+.id-back-section { border-top: 1px solid #d7deea; padding-top: 2.4mm; margin-top: 1mm; }
+.id-back-value { color: #061533; font-size: 2.7mm; font-weight: 800; line-height: 1.2; overflow-wrap: anywhere; }
+.id-qr-panel { text-align: center; border: 1px solid #d7deea; border-radius: 2mm; padding: 2mm; background: #f8fafc; }
+.id-qr { width: 18mm; height: 18mm; object-fit: contain; margin: 0 auto; }
+.id-qr-note { color: #334155; font-size: 1.9mm; font-weight: 800; line-height: 1.15; margin-top: 1mm; }
+.id-back-footer { display: grid; grid-template-columns: 1fr 25mm; gap: 4mm; align-items: end; border-top: 1px solid #d7deea; margin-top: 3.2mm; padding-top: 2.8mm; }
+.id-return-note { color: #334155; font-size: 2mm; line-height: 1.25; margin-top: 1.5mm; }
+.id-signature-box { text-align: center; color: #64748b; font-size: 1.9mm; font-weight: 800; text-transform: uppercase; }
+.id-signature-line { border-top: 1px solid #061533; margin-bottom: 1.5mm; }
 .form-label { display: block; font-size: 0.82rem; font-weight: 600; color: rgb(55 65 81); margin-bottom: 0.25rem; }
 .form-input { width: 100%; border: 1px solid rgb(209 213 219); border-radius: 0.5rem; padding: 0.5rem 0.75rem; font-size: 0.875rem; outline: none; }
 .form-input:focus { border-color: rgb(59 130 246); box-shadow: 0 0 0 2px rgb(191 219 254); }
+@media print {
+    body * { visibility: hidden !important; }
+    .digital-id-print-page, .digital-id-print-page * { visibility: visible !important; }
+    .digital-id-print-page { position: fixed; inset: 0; display: flex !important; align-items: center; justify-content: center; gap: 12mm; background: #ffffff; }
+    .digital-id-card { box-shadow: none; }
+}
 </style>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <script>
 function employeePage(config) {
     return {
@@ -753,6 +942,8 @@ function employeePage(config) {
         capturedPhoto: '',
         selectedEmployee: null,
         profileTab: 'overview',
+        digitalIdSide: 'front',
+        showDigitalIdFullscreen: false,
         isEdit: false,
         formAction: config.storeUrl,
 
@@ -879,13 +1070,16 @@ function employeePage(config) {
         openView(employee) {
             this.selectedEmployee = employee;
             this.profileTab = 'overview';
+            this.digitalIdSide = 'front';
             this.showDetails = true;
         },
 
         closeDetails() {
             this.showDetails = false;
+            this.showDigitalIdFullscreen = false;
             this.selectedEmployee = null;
             this.profileTab = 'overview';
+            this.digitalIdSide = 'front';
         },
 
         openAdd() {
@@ -1140,6 +1334,114 @@ function employeePage(config) {
 
         qrUrl(url) {
             return `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(url || '')}`;
+        },
+
+        companyAddress(employee) {
+            return employee?.company_address
+                || employee?.work_location
+                || employee?.office_name
+                || 'John Kelly & Company / JK&C Inc.';
+        },
+
+        companyContactDetails(employee) {
+            return employee?.office_contact
+                || employee?.branch_contact
+                || 'Human Capital Department';
+        },
+
+        cloneDigitalIdCard(side) {
+            const previousSide = this.digitalIdSide;
+            this.digitalIdSide = side;
+
+            return new Promise(resolve => {
+                this.$nextTick(() => {
+                    const source = this.$refs.digitalIdExport?.querySelector('.digital-id-card:not([style*="display: none"])');
+                    const clone = source ? source.cloneNode(true) : null;
+                    this.digitalIdSide = previousSide;
+                    this.$nextTick(() => resolve(clone));
+                });
+            });
+        },
+
+        async buildDigitalIdSheet() {
+            const sheet = document.createElement('div');
+            sheet.className = 'digital-id-print-page';
+            sheet.style.display = 'flex';
+            sheet.style.gap = '12mm';
+            sheet.style.alignItems = 'center';
+            sheet.style.justifyContent = 'center';
+            sheet.style.padding = '12mm';
+            sheet.style.background = '#ffffff';
+
+            const front = await this.cloneDigitalIdCard('front');
+            const back = await this.cloneDigitalIdCard('back');
+
+            if (front) sheet.appendChild(front);
+            if (back) sheet.appendChild(back);
+
+            return sheet;
+        },
+
+        async previewDigitalIdPdf() {
+            if (typeof html2pdf === 'undefined') {
+                alert('PDF generator is still loading. Please try again in a moment.');
+                return;
+            }
+
+            const sheet = await this.buildDigitalIdSheet();
+            sheet.style.position = 'fixed';
+            sheet.style.left = '0';
+            sheet.style.top = '0';
+            sheet.style.zIndex = '-1';
+            document.body.appendChild(sheet);
+
+            try {
+                const worker = html2pdf().set({
+                    margin: 0,
+                    image: { type: 'jpeg', quality: 0.98 },
+                    html2canvas: { scale: 3, useCORS: true, scrollY: 0 },
+                    jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
+                }).from(sheet);
+
+                const blob = await worker.outputPdf('blob');
+                window.open(URL.createObjectURL(blob), '_blank');
+            } finally {
+                sheet.remove();
+            }
+        },
+
+        async downloadDigitalId() {
+            if (typeof html2pdf === 'undefined') {
+                alert('PDF generator is still loading. Please try again in a moment.');
+                return;
+            }
+
+            const sheet = await this.buildDigitalIdSheet();
+            const code = this.selectedEmployee?.employee_code || 'employee';
+            sheet.style.position = 'fixed';
+            sheet.style.left = '0';
+            sheet.style.top = '0';
+            sheet.style.zIndex = '-1';
+            document.body.appendChild(sheet);
+
+            try {
+                await html2pdf().set({
+                    margin: 0,
+                    filename: `digital-employee-id-${code}.pdf`,
+                    image: { type: 'jpeg', quality: 0.98 },
+                    html2canvas: { scale: 3, useCORS: true, scrollY: 0 },
+                    jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
+                }).from(sheet).save();
+            } finally {
+                sheet.remove();
+            }
+        },
+
+        async printDigitalId() {
+            const sheet = await this.buildDigitalIdSheet();
+            document.body.appendChild(sheet);
+            window.print();
+            setTimeout(() => sheet.remove(), 500);
         },
 
         previewUpload(event) {
