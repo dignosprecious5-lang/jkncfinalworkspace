@@ -28,11 +28,32 @@
     $documentChairman = $document['chairman'] ?? null;
     $clauseText = trim((string) $resolution->resolution_body);
     $standardResolutionClauses = trim((string) ($document['standard_resolution_clauses'] ?? ''));
-    $fullResolutionBody = trim((string) ($document['full_resolution_body'] ?? $resolution->resolution_body));
     $companyName = $document['company_name'] ?? config('app.name', 'JK&C INC.');
     $companyRegNo = $document['company_reg_no'] ?? '2025120230900-02';
     $companyAddress = $document['company_address'] ?? '3RD FLOOR, UNIT 305 CEBU HOLDINGS CENTER CARDINAL ROSALES AVE., CEBU BUSINESS PARK HIPPODROMO, CEBU CITY, 6000';
     $meetingDate = optional($resolution->date_of_meeting)->format('F d, Y') ?: '________________';
+    $meetingLocation = trim((string) ($resolution->location ?: ($document['meeting_location'] ?? '________________')));
+    $meetingDay = optional($resolution->date_of_meeting)->day;
+    $meetingDaySuffix = $meetingDay ? ($meetingDay . (in_array(($meetingDay % 100), [11, 12, 13], true) ? 'th' : match ($meetingDay % 10) { 1 => 'st', 2 => 'nd', 3 => 'rd', default => 'th' })) : '____';
+    $meetingMonthYear = optional($resolution->date_of_meeting)->format('F Y') ?: '____________ 20__';
+    if ($standardResolutionClauses === '') {
+        $standardResolutionClauses = trim("WHEREAS RESOLVED; that the foregoing resolutions are hereby approved and adopted.
+
+"
+            . "WHEREAS FINALLY RESOLVED, that the foregoing resolution is valid and existing until withdrawn, revoked, or modified by the Corporation.
+
+"
+            . "BE IT FURTHER RESOLVED, that the Corporate Secretary is hereby authorized and directed to include this Resolution in the Company's Minute Book and to notify all concerned parties of the adoption of this Resolution.
+
+"
+            . "FINALLY BE IT FURTHER RESOLVED that we, the undersigned, hereby accept and agree to the foregoing resolutions. We have affixed our signatures on this {$meetingDaySuffix} day of {$meetingMonthYear} at {$meetingLocation}.
+
+"
+            . "All prior inconsistent resolutions or actions of the Board of Directors are hereby revoked and superseded. This resolution shall be effective immediately.");
+    }
+    $fullResolutionBody = trim((string) ($document['full_resolution_body'] ?? trim((string) $resolution->resolution_body . "
+
+" . $standardResolutionClauses)));
     $notaryYear = optional($resolution->notarized_on)->format('Y') ?: now()->year;
     $initialDraftPane = 'live';
     $secretaryName = $resolution->secretary ?: 'Corporate Secretary';
