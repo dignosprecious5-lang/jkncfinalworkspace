@@ -423,6 +423,68 @@
         text-justify: inter-word;
     }
 
+
+    /* Quill indentation support for live preview, show pages, and PDF */
+    .ql-indent-1 { padding-left: 3em !important; }
+    .ql-indent-2 { padding-left: 6em !important; }
+    .ql-indent-3 { padding-left: 9em !important; }
+    .ql-indent-4 { padding-left: 12em !important; }
+    .ql-indent-5 { padding-left: 15em !important; }
+    .ql-indent-6 { padding-left: 18em !important; }
+    .ql-indent-7 { padding-left: 21em !important; }
+    .ql-indent-8 { padding-left: 24em !important; }
+
+    .description-content .ql-indent-1,
+    .policy-preview-body .ql-indent-1,
+    #policy-preview-sheet .ql-indent-1 { padding-left: 3em !important; }
+
+    .description-content .ql-indent-2,
+    .policy-preview-body .ql-indent-2,
+    #policy-preview-sheet .ql-indent-2 { padding-left: 6em !important; }
+
+    .description-content .ql-indent-3,
+    .policy-preview-body .ql-indent-3,
+    #policy-preview-sheet .ql-indent-3 { padding-left: 9em !important; }
+
+    .description-content .ql-indent-4,
+    .policy-preview-body .ql-indent-4,
+    #policy-preview-sheet .ql-indent-4 { padding-left: 12em !important; }
+
+    .description-content .ql-indent-5,
+    .policy-preview-body .ql-indent-5,
+    #policy-preview-sheet .ql-indent-5 { padding-left: 15em !important; }
+
+    .description-content .ql-indent-6,
+    .policy-preview-body .ql-indent-6,
+    #policy-preview-sheet .ql-indent-6 { padding-left: 18em !important; }
+
+    .description-content .ql-indent-7,
+    .policy-preview-body .ql-indent-7,
+    #policy-preview-sheet .ql-indent-7 { padding-left: 21em !important; }
+
+    .description-content .ql-indent-8,
+    .policy-preview-body .ql-indent-8,
+    #policy-preview-sheet .ql-indent-8 { padding-left: 24em !important; }
+
+
+    /* Preserve manual spacing/tabs from the document editor */
+    .policy-preview-body,
+    .description-content {
+        white-space: normal !important;
+    }
+
+    .policy-preview-body p,
+    .policy-preview-body div,
+    .description-content p,
+    .description-content div {
+        white-space: pre-wrap !important;
+    }
+
+    .policy-preview-body span,
+    .description-content span {
+        white-space: pre-wrap !important;
+    }
+
 </style>
 </head>
 <body>

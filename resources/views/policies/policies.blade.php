@@ -983,6 +983,82 @@
         text-justify: inter-word;
     }
 
+
+    /* Quill indentation support for live preview, show pages, and PDF */
+    .ql-indent-1 { padding-left: 3em !important; }
+    .ql-indent-2 { padding-left: 6em !important; }
+    .ql-indent-3 { padding-left: 9em !important; }
+    .ql-indent-4 { padding-left: 12em !important; }
+    .ql-indent-5 { padding-left: 15em !important; }
+    .ql-indent-6 { padding-left: 18em !important; }
+    .ql-indent-7 { padding-left: 21em !important; }
+    .ql-indent-8 { padding-left: 24em !important; }
+
+    .description-content .ql-indent-1,
+    .policy-preview-body .ql-indent-1,
+    #policy-preview-sheet .ql-indent-1 { padding-left: 3em !important; }
+
+    .description-content .ql-indent-2,
+    .policy-preview-body .ql-indent-2,
+    #policy-preview-sheet .ql-indent-2 { padding-left: 6em !important; }
+
+    .description-content .ql-indent-3,
+    .policy-preview-body .ql-indent-3,
+    #policy-preview-sheet .ql-indent-3 { padding-left: 9em !important; }
+
+    .description-content .ql-indent-4,
+    .policy-preview-body .ql-indent-4,
+    #policy-preview-sheet .ql-indent-4 { padding-left: 12em !important; }
+
+    .description-content .ql-indent-5,
+    .policy-preview-body .ql-indent-5,
+    #policy-preview-sheet .ql-indent-5 { padding-left: 15em !important; }
+
+    .description-content .ql-indent-6,
+    .policy-preview-body .ql-indent-6,
+    #policy-preview-sheet .ql-indent-6 { padding-left: 18em !important; }
+
+    .description-content .ql-indent-7,
+    .policy-preview-body .ql-indent-7,
+    #policy-preview-sheet .ql-indent-7 { padding-left: 21em !important; }
+
+    .description-content .ql-indent-8,
+    .policy-preview-body .ql-indent-8,
+    #policy-preview-sheet .ql-indent-8 { padding-left: 24em !important; }
+
+
+    /* Real tab-space support for policy editor and preview */
+    #policy-editor .ql-editor,
+    .policy-preview-body,
+    .description-content {
+        tab-size: 4 !important;
+    }
+
+
+    /* Preserve manual spacing/tabs from the document editor */
+    .policy-preview-body,
+    .description-content {
+        white-space: normal !important;
+    }
+
+    .policy-preview-body p,
+    .policy-preview-body div,
+    .description-content p,
+    .description-content div {
+        white-space: pre-wrap !important;
+    }
+
+    .policy-preview-body span,
+    .description-content span {
+        white-space: pre-wrap !important;
+    }
+
+
+    /* Toolbar indent buttons now insert spaces at cursor, not whole-block indent */
+    #policy-editor .ql-editor {
+        tab-size: 4 !important;
+    }
+
 </style>
 @endpush
 
@@ -1013,27 +1089,87 @@
             theme: 'snow',
             placeholder: 'Define policy...',
             modules: {
-                toolbar: [
-                    [{ font: ['georgia', 'serif', 'sans-serif', 'monospace'] }, { size: ['small', false, 'large', 'huge'] }],
-                    [{ header: [1, 2, 3, false] }],
-                    ['bold', 'italic', 'underline', 'strike'],
-                    [{ script: 'sub' }, { script: 'super' }],
-                    [{ color: [] }, { background: [] }],
-                    [{ list: 'ordered' }, { list: 'bullet' }],
-                    [{ indent: '-1' }, { indent: '+1' }],
-                    [{ align: [] }],
-                    ['blockquote', 'link'],
-                    ['table-better'],
-                    ['clean']
-                ],
+                toolbar: {
+                    container: [
+                        [{ font: ['georgia', 'serif', 'sans-serif', 'monospace'] }, { size: ['small', false, 'large', 'huge'] }],
+                        [{ header: [1, 2, 3, false] }],
+                        ['bold', 'italic', 'underline', 'strike'],
+                        [{ script: 'sub' }, { script: 'super' }],
+                        [{ color: [] }, { background: [] }],
+                        [{ list: 'ordered' }, { list: 'bullet' }],
+                        [{ indent: '-1' }, { indent: '+1' }],
+                        [{ align: [] }],
+                        ['blockquote', 'link'],
+                        ['table-better'],
+                        ['clean']
+                    ],
+                    handlers: {
+                        indent: function(value) {
+                            const range = this.quill.getSelection(true);
+                            if (!range) return;
+
+                            const spaces = '\u00a0\u00a0\u00a0\u00a0';
+
+                            if (value === '+1') {
+                                this.quill.insertText(range.index, spaces, Quill.sources.USER);
+                                this.quill.setSelection(range.index + spaces.length, 0, Quill.sources.SILENT);
+                                return;
+                            }
+
+                            if (value === '-1') {
+                                const start = Math.max(0, range.index - 4);
+                                const before = this.quill.getText(start, 4);
+
+                                if (before === '\u00a0\u00a0\u00a0\u00a0' || before === '    ') {
+                                    this.quill.deleteText(start, 4, Quill.sources.USER);
+                                    this.quill.setSelection(start, 0, Quill.sources.SILENT);
+                                }
+                            }
+                        }
+                    }
+                },
                 table: false,
                 'table-better': {
                     language: 'en_US',
                     menus: ['column', 'row', 'merge', 'table', 'cell', 'wrap', 'copy', 'delete'],
                     toolbarTable: true
                 },
+
                 keyboard: {
-                    bindings: QuillTableBetter.keyboardBindings
+                    bindings: {
+                        ...QuillTableBetter.keyboardBindings,
+
+                        policyTabInsertSpaces: {
+                            key: 9,
+                            handler: function(range, context) {
+                                if (!range) return false;
+
+                                const spaces = '\u00a0\u00a0\u00a0\u00a0';
+
+                                this.quill.insertText(range.index, spaces, Quill.sources.USER);
+                                this.quill.setSelection(range.index + spaces.length, 0, Quill.sources.SILENT);
+
+                                return false;
+                            }
+                        },
+
+                        policyShiftTabRemoveSpaces: {
+                            key: 9,
+                            shiftKey: true,
+                            handler: function(range, context) {
+                                if (!range || range.index < 1) return false;
+
+                                const before = this.quill.getText(Math.max(0, range.index - 4), 4);
+
+                                if (before === '\u00a0\u00a0\u00a0\u00a0' || before === '    ') {
+                                    this.quill.deleteText(range.index - 4, 4, Quill.sources.USER);
+                                    this.quill.setSelection(range.index - 4, 0, Quill.sources.SILENT);
+                                }
+
+                                return false;
+                            }
+                        }
+                    }
                 }
             }
         });
