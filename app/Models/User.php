@@ -34,6 +34,19 @@ class User extends Authenticatable
         ];
     }
 
+    public function setRoleAttribute($value): void
+    {
+        $normalized = strtolower(trim((string) $value));
+
+        $this->attributes['role'] = match ($normalized) {
+            'superadmin' => 'SuperAdmin',
+            'admin' => 'Admin',
+            'employee' => 'Employee',
+            'client' => 'Client',
+            default => trim((string) $value),
+        };
+    }
+
     public function userPermission()
     {
         return $this->hasOne(\App\Models\UserPermission::class);

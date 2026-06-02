@@ -19,7 +19,9 @@ return new class extends Migration
                 $table->dropForeign(['company_id']);
             });
 
-            DB::statement('ALTER TABLE `services` MODIFY `company_id` BIGINT UNSIGNED NULL');
+            if (DB::getDriverName() !== 'sqlite') {
+                DB::statement('ALTER TABLE `services` MODIFY `company_id` BIGINT UNSIGNED NULL');
+            }
 
             Schema::table('services', function (Blueprint $table) {
                 $table->foreign('company_id')->references('id')->on('companies')->nullOnDelete();

@@ -212,9 +212,7 @@ class FinanceController extends Controller
 
     private function financeResolveOfficialApproverUser(?string $officerName, string $role): ?User
     {
-        static $users = null;
-
-        $users ??= User::query()
+        $users = User::query()
             ->with(['employeeProfile', 'contactProfile'])
             ->get();
 
@@ -275,12 +273,6 @@ class FinanceController extends Controller
 
     private function financeOfficialApproverDirectory(): array
     {
-        static $directory = null;
-
-        if ($directory !== null) {
-            return $directory;
-        }
-
         $officialRows = collect();
         $gisRecord = $this->financeLatestApprovedGisRecord();
 
@@ -335,7 +327,7 @@ class FinanceController extends Controller
             ->filter()
             ->values();
 
-        $directory = [
+        return [
             'options' => $options->all(),
             'default_steps' => $defaults->map(fn (array $option, int $index) => [
                 'step' => $index + 1,
@@ -353,8 +345,6 @@ class FinanceController extends Controller
                 ->values()
                 ->all(),
         ];
-
-        return $directory;
     }
 
     private function financeOfficialApproverOptionByUserId(mixed $userId): ?array
@@ -889,6 +879,49 @@ class FinanceController extends Controller
         return route('uploads.show', ['path' => $path]);
     }
 
+    private function financeAttachmentAbsolutePath(?array $attachment): ?string
+    {
+        $path = trim((string) data_get($attachment, 'path', ''));
+
+        if ($path === '') {
+            return null;
+        }
+
+        return public_path(ltrim($path, '/\\'));
+    }
+
+    private function financeAttachmentIsImage(?array $attachment): bool
+    {
+        $mime = Str::lower((string) data_get($attachment, 'mime', ''));
+        $name = Str::lower((string) data_get($attachment, 'name', data_get($attachment, 'path', '')));
+
+        return str_starts_with($mime, 'image/')
+            || Str::endsWith($name, ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg']);
+    }
+
+    private function financeAttachmentDataUri(?array $attachment): ?string
+    {
+        if (! $this->financeAttachmentIsImage($attachment)) {
+            return null;
+        }
+
+        $absolutePath = $this->financeAttachmentAbsolutePath($attachment);
+
+        if (! $absolutePath || ! is_file($absolutePath)) {
+            return null;
+        }
+
+        $contents = @file_get_contents($absolutePath);
+
+        if ($contents === false) {
+            return null;
+        }
+
+        $mime = mime_content_type($absolutePath) ?: (string) data_get($attachment, 'mime', 'image/jpeg');
+
+        return 'data:' . $mime . ';base64,' . base64_encode($contents);
+    }
+
     private function financePdfLookupLabel(array $lookupOptions, string $moduleKey, mixed $id): ?string
     {
         if (blank($id) || !array_key_exists($moduleKey, $lookupOptions)) {
@@ -902,6 +935,165 @@ class FinanceController extends Controller
         }
 
         return null;
+    }
+
+    private function financeAttachmentSummary(FinanceRecord $record): array
+    {
+        $attachments = collect((array) ($record->attachments ?? []))
+            ->filter(fn ($attachment) => is_array($attachment))
+            ->values();
+
+        $imageCount = $attachments->filter(fn (array $attachment) => $this->financeAttachmentIsImage($attachment))->count();
+        $typeSummary = $attachments
+            ->map(fn (array $attachment) => trim((string) data_get($attachment, 'category', 'Supporting Document')))
+            ->filter()
+            ->countBy()
+            ->sortDesc()
+            ->take(6)
+            ->map(fn (int $count, string $category) => $category . ' x ' . $count)
+            ->values()
+            ->all();
+
+        return [
+            'total_count' => $attachments->count(),
+            'image_count' => $imageCount,
+            'document_count' => max($attachments->count() - $imageCount, 0),
+            'type_summary' => $typeSummary,
+            'items' => $attachments
+                ->map(function (array $attachment): array {
+                    return [
+                        'name' => trim((string) data_get($attachment, 'name', data_get($attachment, 'path', 'Attachment'))),
+                        'category' => trim((string) data_get($attachment, 'category', 'Supporting Document')),
+                        'uploaded_by' => trim((string) data_get($attachment, 'uploaded_by', '')),
+                        'uploaded_at' => trim((string) data_get($attachment, 'uploaded_at', '')),
+                    ];
+                })
+                ->all(),
+        ];
+    }
+
+    private function financeApprovalTrailRows(FinanceRecord $record): array
+    {
+        $data = $record->data ?? [];
+        $steps = collect((array) data_get($data, 'approval_steps', []))
+            ->filter(fn ($step) => is_array($step))
+            ->values();
+        $actions = collect((array) data_get($data, 'approval_actions', []))
+            ->filter(fn ($action) => is_array($action))
+            ->values();
+
+        $rows = $steps->map(function (array $step) use ($actions): array {
+            $stepNumber = (int) data_get($step, 'step', 0);
+            $stepRole = trim((string) data_get($step, 'role', data_get($step, 'label', 'Approver')));
+            $normalizedStepRole = Str::lower($stepRole);
+            $userId = (int) data_get($step, 'user_id', 0);
+
+            $matchedAction = $actions->first(function (array $action) use ($stepNumber, $normalizedStepRole, $userId): bool {
+                $actionStep = (int) data_get($action, 'step', data_get($action, 'approval_step', 0));
+                $actionRole = Str::lower(trim((string) data_get($action, 'approver_role', data_get($action, 'role', data_get($action, 'label', '')))));
+                $actionUserId = (int) data_get($action, 'approved_by', 0);
+
+                if ($stepNumber > 0 && $actionStep > 0 && $actionStep === $stepNumber) {
+                    return true;
+                }
+
+                if ($normalizedStepRole !== '' && $actionRole !== '' && $actionRole === $normalizedStepRole) {
+                    return true;
+                }
+
+                return $userId > 0 && $actionUserId === $userId;
+            });
+
+            return [
+                'step' => $stepNumber ?: null,
+                'role' => $stepRole ?: 'Approver',
+                'approver' => trim((string) data_get($matchedAction, 'approved_by_name', data_get($step, 'user_name', data_get($step, 'official_name', 'Pending')))) ?: 'Pending',
+                'approved_at' => trim((string) data_get($matchedAction, 'approved_at', '')) ?: null,
+                'status' => $matchedAction ? 'Approved' : 'Pending',
+            ];
+        })->all();
+
+        if ($rows !== []) {
+            return $rows;
+        }
+
+        if (filled($record->approved_by) || filled($record->approved_at)) {
+            return [[
+                'step' => null,
+                'role' => 'Final Approval',
+                'approver' => $this->financeUserDisplayName($record->approved_by, 'Pending'),
+                'approved_at' => optional($record->approved_at)->format('Y-m-d H:i:s') ?: null,
+                'status' => $record->approved_at ? 'Approved' : 'Pending',
+            ]];
+        }
+
+        return [];
+    }
+
+    private function financeCompleteDataRows(FinanceRecord $record): array
+    {
+        $data = array_merge($record->data ?? [], $this->financeLifecycleSnapshot($record));
+        $excludedKeys = [
+            'history',
+            'approval_actions',
+            'approval_steps',
+            'approval_required_count',
+            'approval_completed_count',
+            'approval_remaining_count',
+            'transaction_progress',
+            'attachments',
+            'dv_payload',
+        ];
+        $rows = [];
+
+        $walk = function (array $items, string $prefix = '') use (&$rows, &$walk, $excludedKeys): void {
+            foreach ($items as $key => $value) {
+                if (in_array((string) $key, $excludedKeys, true)) {
+                    continue;
+                }
+
+                $field = $prefix === '' ? (string) $key : $prefix . '.' . $key;
+
+                if (is_array($value)) {
+                    if ($value === []) {
+                        continue;
+                    }
+
+                    $hasNested = collect($value)->contains(fn ($nested) => is_array($nested));
+                    $display = $hasNested
+                        ? json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)
+                        : implode(', ', array_map(function ($item) {
+                            if (is_bool($item)) {
+                                return $item ? 'Yes' : 'No';
+                            }
+
+                            return trim((string) $item);
+                        }, $value));
+
+                    if (trim((string) $display) !== '') {
+                        $rows[] = [
+                            'label' => Str::headline(str_replace(['.', '_'], ' ', $field)),
+                            'value' => $display,
+                        ];
+                    }
+
+                    continue;
+                }
+
+                if ($value === null || $value === '') {
+                    continue;
+                }
+
+                $rows[] = [
+                    'label' => Str::headline(str_replace(['.', '_'], ' ', $field)),
+                    'value' => $this->financePdfValue($value),
+                ];
+            }
+        };
+
+        $walk($data);
+
+        return array_values($rows);
     }
 
     private function financePdfValue(mixed $value): string
@@ -1056,6 +1248,131 @@ SVG;
         return FinanceRecord::query()
             ->where('module_key', $moduleKey)
             ->find((int) $recordId);
+    }
+
+    private function financeResolveSupplierRecord(mixed $recordId): ?FinanceRecord
+    {
+        return $this->financeResolveModuleRecord('supplier', $recordId);
+    }
+
+    private function financeSupplierDisplayName(?FinanceRecord $record): string
+    {
+        if (! $record) {
+            return '';
+        }
+
+        return trim((string) (
+            data_get($record->data ?? [], 'business_name')
+            ?: data_get($record->data ?? [], 'supplier_name')
+            ?: data_get($record->data ?? [], 'trade_name')
+            ?: data_get($record->data ?? [], 'representative_full_name')
+            ?: data_get($record->data ?? [], 'company_name')
+            ?: $record->record_title
+            ?: ''));
+    }
+
+    private function financeSupplierReferenceData(?FinanceRecord $record): array
+    {
+        if (! $record) {
+            return [];
+        }
+
+        $data = $record->data ?? [];
+        $supplierName = $this->financeSupplierDisplayName($record);
+        $tradeName = trim((string) (data_get($data, 'trade_name') ?: data_get($data, 'business_name') ?: $supplierName));
+
+        return array_filter([
+            'supplier_id' => $record->id,
+            'supplier_name' => $supplierName ?: $record->record_title,
+            'trade_name' => $tradeName !== '' ? $tradeName : null,
+            'supplier_email' => data_get($data, 'email_address'),
+            'supplier_phone' => data_get($data, 'phone_number'),
+            'supplier_contact_name' => data_get($data, 'representative_full_name'),
+            'company_name' => data_get($data, 'company_name') ?: data_get($data, 'business_name') ?: $supplierName,
+        ], fn ($value) => ! blank($value));
+    }
+
+    private function financeCompanyReferenceData(?Company $company): array
+    {
+        if (! $company) {
+            return [];
+        }
+
+        $latestBif = $company->latestBif;
+
+        return array_filter([
+            'company_id' => $company->id,
+            'company_name' => $company->company_name,
+            'company_email' => $company->email,
+            'company_phone' => $company->phone,
+            'company_website' => $company->website,
+            'company_address' => $company->address,
+            'company_owner_name' => $company->owner_name,
+            'company_primary_contact_id' => $company->primary_contact_id,
+            'company_bif_id' => $latestBif?->id,
+        ], fn ($value) => ! blank($value));
+    }
+
+    private function financeHydrateReferenceData(string $moduleKey, array $data): array
+    {
+        if ($moduleKey === 'supplier') {
+            $companyId = data_get($data, 'company_id');
+            if (filled($companyId) && Schema::hasTable('companies')) {
+                $company = Company::query()->with('latestBif')->find((int) $companyId);
+                if ($company) {
+                    $data = array_replace($data, $this->financeCompanyReferenceData($company));
+                }
+            }
+        }
+
+        if ($moduleKey === 'po') {
+            $linkedPr = $this->financeResolveModuleRecord('pr', data_get($data, 'linked_pr_id'));
+            if ($linkedPr) {
+                $data = array_replace($data, array_filter([
+                    'supplier_id' => data_get($data, 'supplier_id') ?: data_get($linkedPr->data ?? [], 'supplier_id'),
+                    'supplier_name' => data_get($data, 'supplier_name') ?: data_get($linkedPr->data ?? [], 'supplier_name') ?: data_get($linkedPr->data ?? [], 'supplier_name'),
+                    'trade_name' => data_get($data, 'trade_name') ?: data_get($linkedPr->data ?? [], 'trade_name'),
+                    'company_name' => data_get($data, 'company_name') ?: data_get($linkedPr->data ?? [], 'company_name'),
+                ], fn ($value) => ! blank($value)));
+            }
+        }
+
+        if ($moduleKey === 'arf') {
+            $linkedPo = $this->financeResolveModuleRecord('po', data_get($data, 'linked_po_id'));
+            $linkedDv = $this->financeResolveModuleRecord('dv', data_get($data, 'linked_dv_id'));
+            $sourceRecord = $linkedPo ?: $linkedDv;
+
+            if ($sourceRecord) {
+                $sourceData = $sourceRecord->data ?? [];
+                $data = array_replace($data, array_filter([
+                    'supplier_id' => data_get($data, 'supplier_id')
+                        ?: data_get($sourceData, 'supplier_id')
+                        ?: data_get($sourceData, 'linked_pr_supplier_id'),
+                    'asset_coa_id' => data_get($data, 'asset_coa_id')
+                        ?: data_get($sourceData, 'coa_id')
+                        ?: data_get($sourceData, 'asset_coa_id')
+                        ?: data_get($sourceData, 'linked_coa_id'),
+                    'acquisition_cost' => data_get($data, 'acquisition_cost')
+                        ?: data_get($sourceData, 'total_amount')
+                        ?: data_get($sourceData, 'amount')
+                        ?: data_get($sourceData, 'acquisition_cost'),
+                    'acquisition_date' => data_get($data, 'acquisition_date')
+                        ?: optional($sourceRecord->record_date)->format('Y-m-d'),
+                    'supplier_name' => data_get($data, 'supplier_name')
+                        ?: data_get($sourceData, 'supplier_name')
+                        ?: data_get($sourceData, 'trade_name'),
+                    'trade_name' => data_get($data, 'trade_name')
+                        ?: data_get($sourceData, 'trade_name'),
+                ], fn ($value) => ! blank($value)));
+            }
+
+            $supplierRecord = $this->financeResolveSupplierRecord(data_get($data, 'supplier_id'));
+            if ($supplierRecord) {
+                $data = array_replace($data, $this->financeSupplierReferenceData($supplierRecord));
+            }
+        }
+
+        return $data;
     }
 
     private function financeRecordIsApproved(?FinanceRecord $record): bool
@@ -1610,6 +1927,7 @@ SVG;
     {
         $moduleKey = $record->module_key;
         $data = $record->data ?? [];
+        $isConsumableInventory = $moduleKey === 'arf' && Str::lower((string) data_get($data, 'item_classification')) === 'consumable inventory';
         $notesSection = [
             'type' => 'notes',
             'title' => 'Review Notes',
@@ -2083,11 +2401,12 @@ SVG;
                 $notesSection,
             ],
             'arf' => [
+                // Inventory records carry stock, cost, custody, and movement history for transparency.
                 $section('Asset / Inventory Details', [
+                    ['name' => 'item_classification', 'label' => 'Item Classification'],
                     ['name' => 'linked_po_id', 'label' => 'Linked PO'],
                     ['name' => 'linked_dv_id', 'label' => 'Linked DV'],
                     ['name' => 'supplier_id', 'label' => 'Supplier'],
-                    ['name' => 'item_classification', 'label' => 'Item Classification'],
                     ['name' => 'asset_code', 'label' => 'Asset Code'],
                     ['name' => 'item_name', 'label' => 'Item Name'],
                     ['name' => 'item_code', 'label' => 'Item Code'],
@@ -2134,13 +2453,15 @@ SVG;
                     ['name' => 'location', 'label' => 'Location'],
                     ['name' => 'department', 'label' => 'Department'],
                     ['name' => 'custodian', 'label' => 'Custodian'],
-                    ['name' => 'useful_life', 'label' => 'Useful Life (Years)'],
-                    ['name' => 'residual_value', 'label' => 'Residual Value'],
-                    ['name' => 'depreciable_amount', 'label' => 'Depreciable Amount'],
-                    ['name' => 'annual_depreciation', 'label' => 'Annual Depreciation'],
-                    ['name' => 'monthly_depreciation', 'label' => 'Monthly Depreciation'],
-                    ['name' => 'accumulated_depreciation', 'label' => 'Accumulated Depreciation'],
-                    ['name' => 'net_book_value', 'label' => 'Net Book Value'],
+                    ...($isConsumableInventory ? [] : [
+                        ['name' => 'useful_life', 'label' => 'Useful Life (Years)'],
+                        ['name' => 'residual_value', 'label' => 'Residual Value'],
+                        ['name' => 'depreciable_amount', 'label' => 'Depreciable Amount'],
+                        ['name' => 'annual_depreciation', 'label' => 'Annual Depreciation'],
+                        ['name' => 'monthly_depreciation', 'label' => 'Monthly Depreciation'],
+                        ['name' => 'accumulated_depreciation', 'label' => 'Accumulated Depreciation'],
+                        ['name' => 'net_book_value', 'label' => 'Net Book Value'],
+                    ]),
                     ['name' => 'movement_history_note', 'label' => 'Inventory / Asset Movement Note'],
                     ['name' => 'remarks', 'label' => 'Remarks'],
                 ]),
@@ -2228,7 +2549,7 @@ SVG;
                 ['label' => 'Workflow', 'value' => $record->workflow_status ?: 'N/A'],
                 ['label' => 'Approval', 'value' => $record->approval_status ?: 'N/A'],
                 ['label' => 'Submitted By', 'value' => $this->financeSubmittedByName($record)],
-                ['label' => 'Approved By', 'value' => ($record->module_key === 'supplier' && $approvalActorNames) ? implode(', ', $approvalActorNames) : $this->financeUserDisplayName($record->approved_by, 'N/A')],
+                ['label' => 'Approved By', 'value' => $approvalActorNames ? implode(', ', $approvalActorNames) : $this->financeUserDisplayName($record->approved_by, 'N/A')],
                 ['label' => 'Relationship Status', 'value' => data_get($data, 'relationship_status') ?: 'N/A'],
                 ['label' => 'Next Action', 'value' => data_get($data, 'next_action') ?: 'N/A'],
                 ['label' => 'Submitted At', 'value' => optional($record->submitted_at)->format('Y-m-d H:i:s') ?: 'N/A'],
@@ -2253,6 +2574,10 @@ SVG;
                     ['label' => 'Attachments', 'value' => max(count((array) ($record->attachments ?? [])), 0) . ' file' . (count((array) ($record->attachments ?? [])) === 1 ? '' : 's')],
                     ['label' => 'History Entries', 'value' => count((array) data_get($data, 'history', []))],
                 ] : []),
+                ...($record->module_key === 'arf' ? [
+                    ['label' => 'Attachments', 'value' => max(count((array) ($record->attachments ?? [])), 0) . ' file' . (count((array) ($record->attachments ?? [])) === 1 ? '' : 's')],
+                    ['label' => 'Photo Attachments', 'value' => collect((array) ($record->attachments ?? []))->filter(fn ($attachment) => $this->financeAttachmentIsImage(is_array($attachment) ? $attachment : []))->count()],
+                ] : []),
             ]
             : [
                 ['label' => 'Module', 'value' => $moduleLabel],
@@ -2265,7 +2590,7 @@ SVG;
                 ['label' => 'Workflow', 'value' => $record->workflow_status ?: 'N/A'],
                 ['label' => 'Approval', 'value' => $record->approval_status ?: 'N/A'],
                 ['label' => 'Submitted By', 'value' => $this->financeSubmittedByName($record)],
-                ['label' => 'Approved By', 'value' => ($record->module_key === 'supplier' && $approvalActorNames) ? implode(', ', $approvalActorNames) : $this->financeUserDisplayName($record->approved_by, 'N/A')],
+                ['label' => 'Approved By', 'value' => $approvalActorNames ? implode(', ', $approvalActorNames) : $this->financeUserDisplayName($record->approved_by, 'N/A')],
                 ['label' => 'Relationship Status', 'value' => data_get($data, 'relationship_status') ?: 'N/A'],
                 ['label' => 'Next Action', 'value' => data_get($data, 'next_action') ?: 'N/A'],
                 ['label' => 'Submitted At', 'value' => optional($record->submitted_at)->format('Y-m-d H:i:s') ?: 'N/A'],
@@ -2280,6 +2605,10 @@ SVG;
                 ...($record->module_key === 'crf' ? [
                     ['label' => 'Attachments', 'value' => max(count((array) ($record->attachments ?? [])), 0) . ' file' . (count((array) ($record->attachments ?? [])) === 1 ? '' : 's')],
                     ['label' => 'History Entries', 'value' => count((array) data_get($data, 'history', []))],
+                ] : []),
+                ...($record->module_key === 'arf' ? [
+                    ['label' => 'Attachments', 'value' => max(count((array) ($record->attachments ?? [])), 0) . ' file' . (count((array) ($record->attachments ?? [])) === 1 ? '' : 's')],
+                    ['label' => 'Photo Attachments', 'value' => collect((array) ($record->attachments ?? []))->filter(fn ($attachment) => $this->financeAttachmentIsImage(is_array($attachment) ? $attachment : []))->count()],
                 ] : []),
             ];
 
@@ -2316,22 +2645,43 @@ SVG;
             $attachment = is_array($attachment) ? $attachment : [];
             $attachment['url'] = $this->financeAttachmentUrl($attachment);
             $attachment['download_url'] = $attachment['url'] ? $attachment['url'] . '?download=1' : null;
+            $attachment['is_image'] = $this->financeAttachmentIsImage($attachment);
+            $attachment['image_data_uri'] = $attachment['is_image'] ? $this->financeAttachmentDataUri($attachment) : null;
 
             return $attachment;
         }, array_filter((array) ($record->attachments ?? []), fn ($attachment) => !blank(data_get($attachment, 'name')) || !blank(data_get($attachment, 'path')))));
 
+        $attachmentSummary = $this->financeAttachmentSummary($record);
+        $approvalTrailRows = $this->financeApprovalTrailRows($record);
+        $completeDataRows = $this->financeCompleteDataRows($record);
+
+        $isConsumableInventory = $record->module_key === 'arf' && Str::lower((string) data_get($data, 'item_classification')) === 'consumable inventory';
         $detailRows = $record->module_key === 'arf'
-            ? [
+            ? array_values(array_filter([
                 $this->financePreviewRow($record, $lookupOptions, 'item_classification', 'Item Classification'),
                 $this->financePreviewRow($record, $lookupOptions, 'asset_code', 'Asset Code'),
                 $this->financePreviewRow($record, $lookupOptions, 'linked_po_id', 'Linked PO'),
                 $this->financePreviewRow($record, $lookupOptions, 'linked_dv_id', 'Linked DV'),
                 $this->financePreviewRow($record, $lookupOptions, 'supplier_id', 'Supplier'),
+                $this->financePreviewRow($record, $lookupOptions, 'goods_receiving_reference', 'Goods Receiving Reference'),
+                $this->financePreviewRow($record, $lookupOptions, 'item_name', 'Item Name'),
+                $this->financePreviewRow($record, $lookupOptions, 'item_code', 'Item Code'),
+                $this->financePreviewRow($record, $lookupOptions, 'sku', 'SKU'),
+                $this->financePreviewRow($record, $lookupOptions, 'barcode', 'Barcode'),
+                $this->financePreviewRow($record, $lookupOptions, 'qr_code', 'QR Code'),
+                $this->financePreviewRow($record, $lookupOptions, 'unit_of_measure', 'Unit of Measure'),
+                $this->financePreviewRow($record, $lookupOptions, 'beginning_quantity', 'Beginning Quantity'),
                 $this->financePreviewRow($record, $lookupOptions, 'current_quantity', 'Current Quantity'),
                 $this->financePreviewRow($record, $lookupOptions, 'reserved_quantity', 'Reserved Quantity'),
                 $this->financePreviewRow($record, $lookupOptions, 'available_quantity', 'Available Quantity'),
+                $this->financePreviewRow($record, $lookupOptions, 'reorder_level', 'Reorder Level'),
+                $this->financePreviewRow($record, $lookupOptions, 'minimum_stock_level', 'Minimum Stock Level'),
+                $this->financePreviewRow($record, $lookupOptions, 'maximum_stock_level', 'Maximum Stock Level'),
+                $this->financePreviewRow($record, $lookupOptions, 'safety_stock_level', 'Safety Stock Level'),
                 $this->financePreviewRow($record, $lookupOptions, 'unit_cost', 'Unit Cost'),
                 $this->financePreviewRow($record, $lookupOptions, 'total_cost', 'Total Cost'),
+                $this->financePreviewRow($record, $lookupOptions, 'average_cost', 'Average Cost'),
+                $this->financePreviewRow($record, $lookupOptions, 'last_purchase_cost', 'Last Purchase Cost'),
                 $this->financePreviewRow($record, $lookupOptions, 'asset_description', 'Asset Description'),
                 $this->financePreviewRow($record, $lookupOptions, 'asset_category', 'Asset Category'),
                 $this->financePreviewRow($record, $lookupOptions, 'serial_number', 'Serial Number'),
@@ -2340,16 +2690,19 @@ SVG;
                 $this->financePreviewRow($record, $lookupOptions, 'acquisition_date', 'Acquisition Date'),
                 $this->financePreviewRow($record, $lookupOptions, 'asset_coa_id', 'Asset Account from Chart of Accounts'),
                 $this->financePreviewRow($record, $lookupOptions, 'location', 'Location'),
+                $this->financePreviewRow($record, $lookupOptions, 'department', 'Department'),
                 $this->financePreviewRow($record, $lookupOptions, 'custodian', 'Custodian'),
-                $this->financePreviewRow($record, $lookupOptions, 'useful_life', 'Useful Life (Years)'),
-                $this->financePreviewRow($record, $lookupOptions, 'residual_value', 'Residual Value'),
-                $this->financePreviewRow($record, $lookupOptions, 'depreciable_amount', 'Depreciable Amount'),
-                $this->financePreviewRow($record, $lookupOptions, 'annual_depreciation', 'Annual Depreciation'),
-                $this->financePreviewRow($record, $lookupOptions, 'monthly_depreciation', 'Monthly Depreciation'),
-                $this->financePreviewRow($record, $lookupOptions, 'accumulated_depreciation', 'Accumulated Depreciation'),
-                $this->financePreviewRow($record, $lookupOptions, 'net_book_value', 'Net Book Value'),
+                ...($isConsumableInventory ? [] : [
+                    $this->financePreviewRow($record, $lookupOptions, 'useful_life', 'Useful Life (Years)'),
+                    $this->financePreviewRow($record, $lookupOptions, 'residual_value', 'Residual Value'),
+                    $this->financePreviewRow($record, $lookupOptions, 'depreciable_amount', 'Depreciable Amount'),
+                    $this->financePreviewRow($record, $lookupOptions, 'annual_depreciation', 'Annual Depreciation'),
+                    $this->financePreviewRow($record, $lookupOptions, 'monthly_depreciation', 'Monthly Depreciation'),
+                    $this->financePreviewRow($record, $lookupOptions, 'accumulated_depreciation', 'Accumulated Depreciation'),
+                    $this->financePreviewRow($record, $lookupOptions, 'net_book_value', 'Net Book Value'),
+                ]),
                 $this->financePreviewRow($record, $lookupOptions, 'remarks', 'Remarks'),
-            ]
+            ], fn ($row) => is_array($row) && filled(data_get($row, 'value'))))
             : [];
 
         $liquidationReport = $record->module_key === 'lr'
@@ -2395,6 +2748,9 @@ SVG;
             'cashAdvancePaymentTracking' => $this->financeCashAdvancePaymentTracking($record),
             'transactionProgress' => data_get($data, 'transaction_progress', []),
             'attachments' => $attachments,
+            'attachmentSummary' => $attachmentSummary,
+            'approvalTrailRows' => $approvalTrailRows,
+            'completeDataRows' => $completeDataRows,
             'chartAccountLabel' => $this->financePdfLookupLabel($lookupOptions, 'chart_account', data_get($data, 'coa_id')) ?: data_get($data, 'coa_id') ?: 'N/A',
         ];
     }
@@ -2433,6 +2789,7 @@ SVG;
 
         return User::query()
             ->whereIn('id', $approverIds)
+            ->get()
             ->values();
     }
 
@@ -2448,6 +2805,62 @@ SVG;
             ->values();
     }
 
+    private function financeInventoryHistoryBoardItems(int $limit = 12): array
+    {
+        if (! Schema::hasTable('finance_records')) {
+            return [];
+        }
+
+        $movementActions = ['stock_in', 'stock_out', 'stock_transfer', 'stock_return', 'stock_adjustment'];
+
+        return FinanceRecord::query()
+            ->where('module_key', 'arf')
+            ->orderByDesc('updated_at')
+            ->orderByDesc('created_at')
+            ->get()
+            ->filter(fn (FinanceRecord $record) => $this->canViewFinanceRecord($record))
+            ->flatMap(function (FinanceRecord $record) use ($movementActions) {
+                $historyEntries = array_values(array_filter((array) data_get($record->data ?? [], 'history', []), 'is_array'));
+
+                return collect($historyEntries)
+                    ->filter(function (array $entry) use ($movementActions): bool {
+                        $action = Str::snake((string) data_get($entry, 'action', ''));
+                        $movementType = Str::snake((string) data_get($entry, 'movement_type', ''));
+                        $eventType = Str::snake((string) data_get($entry, 'event_type', ''));
+
+                        return in_array($action, $movementActions, true)
+                            || in_array($movementType, $movementActions, true)
+                            || in_array($eventType, $movementActions, true);
+                    })
+                    ->map(function (array $entry) use ($record): array {
+                        $changedAt = trim((string) data_get($entry, 'changed_at', data_get($entry, 'created_at', '')));
+                        $quantity = data_get($entry, 'changes.movement_quantity.new_value')
+                            ?? data_get($entry, 'new_values.movement_quantity')
+                            ?? data_get($entry, 'changes.current_quantity.new_value')
+                            ?? data_get($entry, 'new_values.current_quantity');
+                        $availableQuantity = data_get($entry, 'changes.available_quantity.new_value')
+                            ?? data_get($entry, 'new_values.available_quantity');
+
+                        return [
+                            'record_number' => $record->record_number ?: ('FIN-' . $record->id),
+                            'record_title' => $record->record_title ?: ('Inventory Record #' . $record->id),
+                            'action' => trim((string) data_get($entry, 'action', 'Inventory Movement')),
+                            'changed_by' => trim((string) data_get($entry, 'changed_by', 'System')) ?: 'System',
+                            'changed_at' => $changedAt !== '' ? $changedAt : optional($record->updated_at)->format('M d, Y h:i A'),
+                            'reason' => trim((string) data_get($entry, 'reason', '')),
+                            'quantity' => filled($quantity) ? (string) $quantity : null,
+                            'available_quantity' => filled($availableQuantity) ? (string) $availableQuantity : null,
+                            'location' => trim((string) data_get($entry, 'new_values.location', data_get($record->data ?? [], 'location', ''))),
+                            'department' => trim((string) data_get($entry, 'new_values.department', data_get($record->data ?? [], 'department', ''))),
+                        ];
+                    });
+            })
+            ->sortByDesc(fn (array $item) => strtotime((string) ($item['changed_at'] ?? '')) ?: 0)
+            ->take($limit)
+            ->values()
+            ->all();
+    }
+
     private function financeNotificationRecipients(FinanceRecord $record, string $action)
     {
         $owner = $record->submitted_by ? User::query()->find($record->submitted_by) : null;
@@ -2461,6 +2874,7 @@ SVG;
                 ? $approvers->merge($adminRecipients)
                 : $approvers,
             'updated' => in_array($record->workflow_status ?? 'Uploaded', ['Submitted', 'On Hold', 'Shared'], true)
+                || $record->module_key === 'crf'
                 ? $approvers
                     ->merge($owner ? [$owner] : [])
                     ->merge(in_array($record->module_key, ['supplier', 'ca', 'lr', 'err', 'pda', 'crf'], true) ? $adminRecipients : collect())
@@ -2576,6 +2990,59 @@ SVG;
                 buttonLabel: $buttonLabel,
                 url: $this->financeRecordSystemUrl($freshRecord),
                 reviewNote: $reviewNote,
+                pdfData: $this->financeRecordPdfData($freshRecord),
+                pdfFilename: $this->financeRecordPdfFilename($freshRecord)
+            ));
+        } catch (Throwable $exception) {
+            report($exception);
+        }
+    }
+
+    private function sendFinanceAssetCustodianNotification(FinanceRecord $record, string $action): void
+    {
+        $freshRecord = $record->fresh() ?: $record;
+        $custodianId = data_get($freshRecord->data ?? [], 'custodian');
+
+        if (!is_numeric($custodianId)) {
+            return;
+        }
+
+        $custodian = Employee::query()
+            ->with('user')
+            ->find((int) $custodianId);
+
+        $recipient = $custodian?->user;
+
+        if (!$recipient) {
+            return;
+        }
+
+        $recordLabel = trim(implode(' - ', array_filter([
+            $this->normalizeFinanceRecordNumber($freshRecord->module_key, $freshRecord->record_number),
+            $freshRecord->record_title,
+        ]))) ?: ($this->moduleLabel($freshRecord->module_key) . ' #' . $freshRecord->id);
+
+        [$title, $body, $buttonLabel] = match ($action) {
+            'transferred' => [
+                'Asset Custodian Updated: ' . $recordLabel,
+                'An asset has been transferred to a different custodian.',
+                'View Asset',
+            ],
+            default => [
+                'Asset Assigned: ' . $recordLabel,
+                'An asset has been assigned to you for custody.',
+                'View Asset',
+            ],
+        };
+
+        try {
+            Notification::send([$recipient], new FinanceRecordWorkflowNotification(
+                recordId: $freshRecord->id,
+                action: $action,
+                title: $title,
+                body: $body,
+                buttonLabel: $buttonLabel,
+                url: $this->financeRecordSystemUrl($freshRecord),
                 pdfData: $this->financeRecordPdfData($freshRecord),
                 pdfFilename: $this->financeRecordPdfFilename($freshRecord)
             ));
@@ -3248,6 +3715,11 @@ SVG;
             'damage' => 'Asset Reported Damaged',
             'return' => 'Asset Returned',
             'disposal' => 'Asset Disposed',
+            'stock_in' => 'Stock In',
+            'stock_out' => 'Stock Out',
+            'stock_transfer' => 'Stock Transfer',
+            'stock_return' => 'Stock Return',
+            'stock_adjustment' => 'Stock Adjustment',
             default => Str::headline(str_replace('_', ' ', $eventType)),
         };
     }
@@ -3261,8 +3733,18 @@ SVG;
             'damage' => 'Damaged',
             'return' => 'Returned',
             'disposal' => 'Disposed',
+            'stock_in' => 'In Stock',
+            'stock_out' => 'Issued',
+            'stock_transfer' => 'Transferred',
+            'stock_return' => 'Returned',
+            'stock_adjustment' => 'Adjusted',
             default => 'Active',
         };
+    }
+
+    private function financeAssetEventAffectsInventory(string $eventType): bool
+    {
+        return in_array($eventType, ['stock_in', 'stock_out', 'stock_transfer', 'stock_return', 'stock_adjustment'], true);
     }
 
     private function financeAssetCurrentUserEmployeeId(): ?int
@@ -3768,6 +4250,8 @@ SVG;
                 $attachment = is_array($attachment) ? $attachment : [];
                 $attachment['url'] = $this->financeAttachmentUrl($attachment);
                 $attachment['download_url'] = $attachment['url'] ? $attachment['url'] . '?download=1' : null;
+                $attachment['is_image'] = $this->financeAttachmentIsImage($attachment);
+                $attachment['image_data_uri'] = $attachment['is_image'] ? $this->financeAttachmentDataUri($attachment) : null;
 
                 return $attachment;
             }, (array) ($record->attachments ?? []))),
@@ -3990,18 +4474,19 @@ SVG;
             $category = $this->financeDefaultAttachmentTypeValue() ?: $category;
         }
         $attachmentLabels = (array) $request->input('attachment_labels', []);
+        $attachmentCategories = (array) $request->input('attachment_categories', []);
 
-        if (!$request->hasFile('attachments')) {
-            return $attachments;
-        }
-
-        $storeFile = function ($file, string|int|null $key = null) use (&$attachments, $attachmentLabels, $category): void {
+        $storeFile = function ($file, string|int|null $key = null, ?string $forcedCategory = null) use (&$attachments, $attachmentLabels, $attachmentCategories, $category): void {
             if (!$file instanceof \Illuminate\Http\UploadedFile || !$file->isValid()) {
                 return;
             }
 
             $path = $file->store('finance_documents', 'public');
-            $attachmentCategory = data_get($attachmentLabels, (string) $key) ?: $category ?: 'Supporting Document';
+            $attachmentCategory = $forcedCategory
+                ?: data_get($attachmentCategories, (string) $key)
+                ?: data_get($attachmentLabels, (string) $key)
+                ?: $category
+                ?: 'Supporting Document';
 
             $attachments[] = [
                 'name' => $file->getClientOriginalName(),
@@ -4015,20 +4500,24 @@ SVG;
             ];
         };
 
-        $walkFiles = function ($files, string|int|null $key = null) use (&$walkFiles, $storeFile): void {
+        $walkFiles = function ($files, string|int|null $key = null, ?string $forcedCategory = null) use (&$walkFiles, $storeFile): void {
             if ($files instanceof \Illuminate\Http\UploadedFile) {
-                $storeFile($files, $key);
+                $storeFile($files, $key, $forcedCategory);
 
                 return;
             }
 
             foreach ((array) $files as $childKey => $childFile) {
-                $walkFiles($childFile, $childKey);
+                $walkFiles($childFile, $childKey, $forcedCategory);
             }
         };
 
         foreach ((array) $request->file('attachments') as $key => $file) {
             $walkFiles($file, $key);
+        }
+
+        foreach ((array) $request->file('arf_photos') as $key => $file) {
+            $walkFiles($file, $key, 'Asset Photo');
         }
 
         return $attachments;
@@ -4121,6 +4610,8 @@ SVG;
             'data.transaction_time' => 'nullable|date_format:H:i',
             'attachments' => 'nullable|array',
             'attachments.*' => 'file|max:10240|mimes:pdf,jpg,jpeg,png,doc,docx,xls,xlsx',
+            'arf_photos' => 'nullable|array',
+            'arf_photos.*' => 'file|max:10240|mimes:jpg,jpeg,png,webp,gif',
             'attachment_category' => ['nullable', 'string', 'max:255', Rule::in($this->financeAttachmentTypeValues())],
         ];
     }
@@ -4447,6 +4938,10 @@ SVG;
             $request->merge(['data' => $data]);
         }
 
+        $request->merge([
+            'data' => $this->financeHydrateReferenceData($moduleKey, (array) $request->input('data', [])),
+        ]);
+
         $supplierSendMode = $moduleKey === 'supplier'
             && data_get($request->input('data', []), 'completion_mode') === 'send_to_supplier';
         $rules = array_merge($this->commonValidationRules(), $this->moduleSpecificRules($moduleKey));
@@ -4637,6 +5132,7 @@ SVG;
             data_set($data, 'completion_mode', 'complete_internally');
         }
 
+        $data = $this->financeHydrateReferenceData($moduleKey, $data);
         $data = $this->normalizeRequesterEmployeeData($moduleKey, $data);
 
         if ($moduleKey === 'err') {
@@ -5013,6 +5509,20 @@ SVG;
         }
 
         if ((string) data_get($data, 'requester_mode', 'own_request') !== 'request_for_another') {
+            $currentEmployee = $this->resolveCurrentUserEmployee(Auth::user()?->email ?? '', Auth::user()?->name ?? '');
+            if ($currentEmployee) {
+                $option = $this->employeeRequesterOption($currentEmployee);
+                data_set($data, 'requestor', data_get($data, 'requestor') ?: $option['full_name']);
+                data_set($data, 'employee_name', data_get($data, 'employee_name') ?: $option['full_name']);
+                data_set($data, 'employee_id', data_get($data, 'employee_id') ?: $option['employee_code']);
+                data_set($data, 'employee_email', data_get($data, 'employee_email') ?: $option['email']);
+                data_set($data, 'contact_number', data_get($data, 'contact_number') ?: $option['contact_number']);
+                data_set($data, 'position', data_get($data, 'position') ?: $option['position']);
+                data_set($data, 'department', data_get($data, 'department') ?: $option['department']);
+                data_set($data, 'superior', data_get($data, 'superior') ?: $option['superior']);
+                data_set($data, 'superior_email', data_get($data, 'superior_email') ?: $option['superior_email']);
+            }
+
             unset($data['requester_employee_id']);
 
             return $data;
@@ -5077,6 +5587,8 @@ SVG;
             ->map(fn (FinanceRecord $record) => $this->transformRecord($record))
             ->values();
 
+        $inventoryHistoryBoard = $this->financeInventoryHistoryBoardItems();
+
         $sourceRecords = FinanceRecord::query()
             ->where(function ($statusQuery) {
                 $statusQuery->where('workflow_status', 'Accepted')
@@ -5107,6 +5619,7 @@ SVG;
             'currentUserEmail' => Auth::user()->email ?? '',
             'currentUserEmployeeId' => Auth::user()?->employeeProfile?->id,
             'currentUserContact' => $this->resolveCurrentUserContactProfile(),
+            'inventoryHistoryBoard' => $inventoryHistoryBoard,
         ]);
     }
 
@@ -5156,6 +5669,8 @@ SVG;
             })
             ->values();
 
+        $inventoryHistoryBoard = $this->financeInventoryHistoryBoardItems();
+
         $counts = [
             'submitted' => $allRecords->where('workflow_status', 'Submitted')->count(),
             'accepted' => $allRecords->where('workflow_status', 'Accepted')->count(),
@@ -5169,6 +5684,7 @@ SVG;
             'workflowStatuses' => self::WORKFLOW_STATUSES,
             'filters' => $filters,
             'counts' => $counts,
+            'inventoryHistoryBoard' => $inventoryHistoryBoard,
         ]);
     }
 
@@ -5227,11 +5743,19 @@ SVG;
 
     public function previewHtml(FinanceRecord $financeRecord)
     {
+        if (! $this->canViewFinanceRecord($financeRecord)) {
+            abort(403, 'Unauthorized');
+        }
+
         return view('finance.preview-html', $this->financePdfContext($financeRecord->fresh()));
     }
 
     public function previewPdf(Request $request, FinanceRecord $financeRecord)
     {
+        if (! $this->canViewFinanceRecord($financeRecord)) {
+            abort(403, 'Unauthorized');
+        }
+
         $forceTemplatePreview = $request->boolean('template');
         $context = $this->financePdfContext($financeRecord->fresh(), false, $forceTemplatePreview);
         $pdf = Pdf::loadView('finance.pdf', $context)->setPaper('letter', 'portrait');
@@ -5729,24 +6253,94 @@ SVG;
         }
 
         $validated = $request->validate([
-            'event_type' => ['required', Rule::in(['loss', 'damage', 'return', 'disposal'])],
+            'event_type' => ['required', Rule::in(['loss', 'damage', 'return', 'disposal', 'stock_in', 'stock_out', 'stock_transfer', 'stock_return', 'stock_adjustment'])],
             'event_reason' => 'required|string|max:1000',
+            'movement_quantity' => 'nullable|numeric|min:0',
+            'movement_direction' => 'nullable|in:increase,decrease,set',
+            'target_location' => 'nullable|string|max:255',
+            'target_department' => 'nullable|string|max:255',
+            'target_custodian' => ['nullable', Rule::exists('employees', 'id')],
         ]);
 
         $data = $financeRecord->data ?? [];
+        $isInventoryMovement = $this->financeAssetEventAffectsInventory($validated['event_type']);
+        $currentQuantity = (float) data_get($data, 'current_quantity', 0);
+        $movementQuantity = max((float) ($validated['movement_quantity'] ?? 0), 0);
+        $newQuantity = $currentQuantity;
+
+        if ($isInventoryMovement) {
+            $direction = $validated['movement_direction'] ?? match ($validated['event_type']) {
+                'stock_out' => 'decrease',
+                'stock_adjustment' => 'set',
+                default => 'increase',
+            };
+
+            $newQuantity = $validated['event_type'] === 'stock_transfer'
+                ? $currentQuantity
+                : match ($direction) {
+                    'decrease' => max($currentQuantity - $movementQuantity, 0),
+                    'set' => $movementQuantity,
+                    default => $currentQuantity + $movementQuantity,
+                };
+        }
+
         $oldValues = [
             'asset_status' => data_get($data, 'asset_status'),
             'asset_last_event' => data_get($data, 'asset_last_event'),
+            'current_quantity' => data_get($data, 'current_quantity'),
+            'available_quantity' => data_get($data, 'available_quantity'),
+            'location' => data_get($data, 'location'),
+            'department' => data_get($data, 'department'),
+            'custodian' => data_get($data, 'custodian'),
+            'movement_history_note' => data_get($data, 'movement_history_note'),
         ];
 
         data_set($data, 'asset_status', $this->financeAssetStatusForEvent($validated['event_type']));
         data_set($data, 'asset_last_event', $this->financeAssetEventLabel($validated['event_type']));
         data_set($data, 'asset_last_event_note', trim((string) $validated['event_reason']));
 
+        if ($isInventoryMovement) {
+            data_set($data, 'current_quantity', number_format($newQuantity, 2, '.', ''));
+            data_set($data, 'available_quantity', number_format(max($newQuantity - (float) data_get($data, 'reserved_quantity', 0), 0), 2, '.', ''));
+            data_set($data, 'total_cost', number_format($newQuantity * (float) data_get($data, 'unit_cost', 0), 2, '.', ''));
+            data_set($data, 'movement_history_note', trim((string) $validated['event_reason']));
+
+            if ($validated['event_type'] === 'stock_transfer') {
+                if (filled($validated['target_location'] ?? null)) {
+                    data_set($data, 'location', trim((string) $validated['target_location']));
+                }
+                if (filled($validated['target_department'] ?? null)) {
+                    data_set($data, 'department', trim((string) $validated['target_department']));
+                }
+                if (filled($validated['target_custodian'] ?? null)) {
+                    data_set($data, 'custodian', (int) $validated['target_custodian']);
+                    $custodianEmployee = Employee::query()
+                        ->when(Schema::hasTable('departments'), fn ($query) => $query->with('department'))
+                        ->find((int) $validated['target_custodian']);
+                    if ($custodianEmployee) {
+                        data_set($data, 'custodian_name', $this->employeeRequesterOption($custodianEmployee)['label'] ?? $custodianEmployee->full_name);
+                        data_set($data, 'custodian_employee_code', $custodianEmployee->employee_code);
+                        data_set($data, 'custodian_email', $custodianEmployee->login_email ?: $custodianEmployee->email);
+                    }
+                }
+            }
+        }
+
         $data = $this->financeAppendAssetEventHistory($financeRecord, $validated['event_type'], $oldValues, [
             'asset_status' => data_get($data, 'asset_status'),
             'asset_last_event' => data_get($data, 'asset_last_event'),
             'asset_last_event_note' => data_get($data, 'asset_last_event_note'),
+            'current_quantity' => data_get($data, 'current_quantity'),
+            'available_quantity' => data_get($data, 'available_quantity'),
+            'location' => data_get($data, 'location'),
+            'department' => data_get($data, 'department'),
+            'custodian' => data_get($data, 'custodian'),
+            'movement_history_note' => data_get($data, 'movement_history_note'),
+            'movement_quantity' => $isInventoryMovement ? number_format($movementQuantity, 2, '.', '') : null,
+            'movement_direction' => $isInventoryMovement ? ($validated['movement_direction'] ?? ($validated['event_type'] === 'stock_transfer' ? 'transfer' : null)) : null,
+            'target_location' => $validated['target_location'] ?? null,
+            'target_department' => $validated['target_department'] ?? null,
+            'target_custodian' => $validated['target_custodian'] ?? null,
         ], trim((string) $validated['event_reason']));
 
         $financeRecord->update(['data' => $data]);

@@ -366,6 +366,20 @@
         return '';
     }
 
+    function getVisibleRecordTitle(record) {
+        const rawTitle = String(record?.record_title || '').trim();
+        if (!rawTitle) {
+            return '';
+        }
+
+        const defaultTitle = String(getModuleConfig(record?.module_key)?.recordTitleLabel || '').trim();
+        if (defaultTitle && rawTitle.toLowerCase() === defaultTitle.toLowerCase()) {
+            return '';
+        }
+
+        return rawTitle;
+    }
+
     function isFinanceRecordTitleRequired(moduleKey) {
         return ['supplier', 'service', 'product', 'chart_account', 'bank_account'].includes(moduleKey);
     }
@@ -1536,6 +1550,7 @@
                 selectField('linked_dv_id', 'Linked DV', { source: 'dv' }),
                 selectField('item_classification', 'Item Classification', {
                     required: true,
+                    help: 'Choose Fixed Asset for depreciable items or Consumable Inventory for office supplies and other stock items.',
                     options: [
                         { value: 'Fixed Asset', label: 'Fixed Asset' },
                         { value: 'Consumable Inventory', label: 'Consumable Inventory' },
@@ -1552,16 +1567,16 @@
                 textField('serial_number', 'Serial Number'),
                 textField('model', 'Model'),
                 selectField('supplier_id', 'Supplier', { source: 'supplier' }),
-                textField('goods_receiving_reference', 'Goods Receiving Reference'),
+                textField('goods_receiving_reference', 'Goods Receiving Reference', { help: 'Receiving report, delivery receipt, or goods acceptance reference.' }),
                 numberField('ordered_quantity', 'Ordered Quantity'),
                 numberField('delivered_quantity', 'Delivered Quantity'),
                 numberField('accepted_quantity', 'Accepted Quantity'),
                 numberField('rejected_quantity', 'Rejected Quantity'),
                 textField('unit_of_measure', 'Unit of Measure'),
                 numberField('beginning_quantity', 'Beginning Quantity'),
-                numberField('current_quantity', 'Current Quantity'),
+                numberField('current_quantity', 'Quantity on Hand'),
                 numberField('reserved_quantity', 'Reserved Quantity'),
-                numberField('available_quantity', 'Available Quantity', { readOnly: true }),
+                numberField('available_quantity', 'Available Stock', { readOnly: true }),
                 numberField('reorder_level', 'Reorder Level'),
                 numberField('minimum_stock_level', 'Minimum Stock Level'),
                 numberField('maximum_stock_level', 'Maximum Stock Level'),
@@ -2849,7 +2864,7 @@
                 tableBody.innerHTML += `
                     <tr class="border-t hover:bg-blue-50 cursor-pointer" onclick="window.financeModule.openPreview(${item.id})">
                         <td class="p-3 break-words">${escapeHtml(item.record_number || '')}</td>
-                        <td class="p-3 break-words">${escapeHtml(item.record_title || '')}</td>
+                        <td class="p-3 break-words">${escapeHtml(getVisibleRecordTitle(item))}</td>
                         <td class="p-3 break-words">${escapeHtml(item.data?.requestor || item.data?.employee_name || '')}</td>
                         <td class="p-3">${escapeHtml(item.data?.priority || '')}</td>
                         <td class="p-3">${escapeHtml(formatDate(item.data?.needed_date))}</td>
@@ -2870,7 +2885,7 @@
             tableBody.innerHTML += `
                 <tr class="border-t hover:bg-blue-50 cursor-pointer" onclick="window.financeModule.openPreview(${item.id})">
                     <td class="p-3 break-words">${escapeHtml(item.record_number || '')}</td>
-                    <td class="p-3 break-words">${escapeHtml(item.record_title || '')}</td>
+                    <td class="p-3 break-words">${escapeHtml(getVisibleRecordTitle(item))}</td>
                     <td class="p-3 text-gray-700">${escapeHtml(buildSummary(item, moduleConfig))}</td>
                     <td class="p-3">${escapeHtml(formatDate(item.record_date))}</td>
                     <td class="p-3 ${workflowBadgeClass(item.workflow_status)} font-medium">${escapeHtml(workflowLabel(item.workflow_status))}</td>
@@ -3505,7 +3520,7 @@
 
         const paymentDate = payload.payment_date || data.payment_date || sourceRecord?.record_date || todayDateValue();
         const referenceNumber = payload.reference_number || data.reference_number || sourceRecord?.record_number || '';
-        const recordTitle = sourceRecord?.record_title || sourceRecord?.display_label || referenceNumber || '';
+        const recordTitle = getVisibleRecordTitle(sourceRecord) || referenceNumber || '';
 
         const prefill = {
             source_document_type: moduleKey,
@@ -4986,12 +5001,14 @@
         };
 
         const classification = form.querySelector('[name="data[item_classification]"]')?.value || 'Fixed Asset';
+        const isFixedAsset = classification === 'Fixed Asset';
         const currentQuantity = valueFor('current_quantity') || valueFor('accepted_quantity') || valueFor('beginning_quantity');
         const reservedQuantity = valueFor('reserved_quantity');
         const unitCost = valueFor('unit_cost');
         const acquisitionCost = valueFor('acquisition_cost');
         const residualValue = valueFor('residual_value');
         const usefulLife = valueFor('useful_life');
+        const acquisitionDateValue = String(form.querySelector('[name="data[acquisition_date]"]')?.value || '').trim();
 
         setValue('available_quantity', Math.max(currentQuantity - reservedQuantity, 0));
         setValue('total_cost', currentQuantity * unitCost);
@@ -5000,13 +5017,21 @@
         depreciationFields.forEach((fieldName) => {
             const wrapper = form.querySelector(`[data-finance-field="${fieldName}"]`);
             if (wrapper) {
-                wrapper.classList.toggle('hidden', classification === 'Consumable Inventory');
+                wrapper.classList.toggle('hidden', !isFixedAsset);
             }
         });
 
-        form.querySelector('[name="data[useful_life]"]')?.toggleAttribute('required', classification === 'Fixed Asset');
+        form.querySelector('[name="data[useful_life]"]')?.toggleAttribute('required', isFixedAsset);
 
-        if (classification === 'Consumable Inventory') {
+        if (!isFixedAsset) {
+            ['useful_life', 'residual_value'].forEach((fieldName) => {
+                const input = form.querySelector(`[name="data[${fieldName}]"]`);
+                if (input) {
+                    input.value = '';
+                    financeFormValues[fieldName] = '';
+                    financeFormValues[`data[${fieldName}]`] = '';
+                }
+            });
             ['depreciable_amount', 'annual_depreciation', 'monthly_depreciation', 'accumulated_depreciation', 'net_book_value'].forEach((fieldName) => setValue(fieldName, 0));
             return;
         }
@@ -5014,12 +5039,18 @@
         const depreciableAmount = Math.max(acquisitionCost - residualValue, 0);
         const annualDepreciation = usefulLife > 0 ? depreciableAmount / usefulLife : 0;
         const monthlyDepreciation = annualDepreciation / 12;
+        const acquisitionDate = acquisitionDateValue ? new Date(`${acquisitionDateValue}T00:00:00`) : null;
+        const now = new Date();
+        const monthsElapsed = acquisitionDate && !Number.isNaN(acquisitionDate.getTime())
+            ? Math.max(((now.getFullYear() - acquisitionDate.getFullYear()) * 12) + (now.getMonth() - acquisitionDate.getMonth()), 0)
+            : 0;
+        const accumulatedDepreciation = Math.min(monthlyDepreciation * monthsElapsed, depreciableAmount);
 
         setValue('depreciable_amount', depreciableAmount);
         setValue('annual_depreciation', annualDepreciation);
         setValue('monthly_depreciation', monthlyDepreciation);
-        setValue('accumulated_depreciation', 0);
-        setValue('net_book_value', acquisitionCost);
+        setValue('accumulated_depreciation', accumulatedDepreciation);
+        setValue('net_book_value', Math.max(acquisitionCost - accumulatedDepreciation, 0));
     }
 
     function getBankAccountCodeValue(bankAccountId) {
@@ -5436,7 +5467,7 @@
 
         const rows = [
             ['Record Number', record.record_number || ''],
-            [moduleConfig.recordTitleLabel || 'Name', record.record_title || ''],
+            [moduleConfig.recordTitleLabel || 'Name', getVisibleRecordTitle(record)],
             ['Record Date', record.record_date || ''],
             ['Status', record.status || ''],
             ['Created By', record.user || ''],
@@ -6063,9 +6094,13 @@
                     { title: 'Reference & Notes', fieldNames: ['source_account_code', 'destination_account_code', 'transfer_reference_number', 'remarks'] },
                     { type: 'notes', renderer: () => renderFinanceReviewNotesSection(record) },
                 ];
-            case 'arf':
+            case 'arf': {
+                const isConsumableInventory = String(data.item_classification || '').toLowerCase() === 'consumable inventory';
                 return [
-                    { title: 'Asset Details', fieldNames: ['linked_po_id', 'linked_dv_id', 'supplier_id', 'asset_code', 'asset_description', 'asset_category', 'serial_number', 'model'] },
+                    { title: 'Asset Details', fieldNames: ['item_classification', 'linked_po_id', 'linked_dv_id', 'supplier_id', 'asset_code', 'asset_description', 'asset_category', 'serial_number', 'model'] },
+                    { title: 'Inventory & Receiving', fieldNames: ['goods_receiving_reference', 'ordered_quantity', 'delivered_quantity', 'accepted_quantity', 'rejected_quantity', 'unit_of_measure', 'beginning_quantity', 'current_quantity', 'reserved_quantity', 'available_quantity', 'reorder_level', 'minimum_stock_level', 'maximum_stock_level', 'safety_stock_level', 'unit_cost', 'total_cost', 'average_cost', 'last_purchase_cost'] },
+                    { type: 'attachments', title: 'Photos & Attachments' },
+                    { type: 'history' },
                     {
                         type: 'asset_tag',
                         title: 'Asset Tag',
@@ -6075,9 +6110,12 @@
                         barcodeSvg: generateFinanceBarcodeSvg(data.asset_code || record.record_number || ''),
                     },
                     { title: 'Asset Lifecycle', fieldNames: ['asset_status', 'asset_last_event', 'custodian', 'custodian_name', 'custodian_acknowledged_at', 'movement_history_note'] },
-                    { title: 'Valuation & Custody', fieldNames: ['acquisition_cost', 'acquisition_date', 'asset_coa_id', 'location', 'custodian', 'useful_life', 'residual_value', 'remarks'] },
+                    ...(isConsumableInventory
+                        ? [{ title: 'Inventory Costing & Custody', fieldNames: ['acquisition_cost', 'acquisition_date', 'asset_coa_id', 'location', 'custodian', 'remarks'] }]
+                        : [{ title: 'Valuation & Custody', fieldNames: ['acquisition_cost', 'acquisition_date', 'asset_coa_id', 'location', 'custodian', 'useful_life', 'residual_value', 'remarks'] }]),
                     { type: 'notes', renderer: () => renderFinanceReviewNotesSection(record) },
                 ];
+            }
             default:
                 return [
                     { title: 'Record Details', fieldNames: ['status'] },
@@ -7142,7 +7180,27 @@
             return;
         }
 
-        target.innerHTML = attachments.map((attachment, index) => `
+        const imageAttachmentCard = (attachment, index) => {
+            const previewUrl = attachment.image_data_uri || attachment.url || normalizeAttachmentUrl(attachment.path || '');
+            return `
+                <div class="overflow-hidden rounded-lg border border-blue-100 bg-white shadow-sm">
+                    <div class="aspect-[4/3] bg-slate-50">
+                        <img src="${escapeHtml(previewUrl)}" alt="${escapeHtml(attachment.name || `Attachment ${index + 1}`)}" class="h-full w-full object-cover">
+                    </div>
+                    <div class="px-3 py-2 text-sm">
+                        <div class="flex items-center justify-between gap-3">
+                            <div class="min-w-0">
+                                <p class="font-medium text-gray-900 break-all">${escapeHtml(attachment.name || `Attachment ${index + 1}`)}</p>
+                                <p class="text-xs text-gray-500 break-all">${escapeHtml(attachment.category || 'Asset Photo')}${attachment.path ? ` - ${escapeHtml(attachment.path)}` : ''}</p>
+                            </div>
+                            <a href="${escapeHtml(attachment.url || normalizeAttachmentUrl(attachment.path || ''))}" target="_blank" class="text-blue-600 hover:underline">Open</a>
+                        </div>
+                    </div>
+                </div>
+            `;
+        };
+
+        const fileAttachmentCard = (attachment, index) => `
             <div class="rounded-md border border-gray-200 bg-white px-3 py-2 text-sm">
                 <div class="flex items-center justify-between gap-3">
                     <div class="min-w-0">
@@ -7160,7 +7218,9 @@
                     ${attachment.size ? `<span>${escapeHtml(formatBytes(attachment.size))}</span>` : ''}
                 </div>
             </div>
-        `).join('');
+        `;
+
+        target.innerHTML = attachments.map((attachment, index) => financeAttachmentIsImage(attachment) ? imageAttachmentCard(attachment, index) : fileAttachmentCard(attachment, index)).join('');
     }
 
     function renderPendingAttachmentList(container) {
@@ -7212,6 +7272,47 @@
         `;
     }
 
+    function arfAttachmentControlsHtml() {
+        const attachmentOptions = financeAttachmentTypes.filter((option) => option.active !== false && !option.hidden);
+        return `
+            <div class="rounded-lg border border-emerald-100 bg-emerald-50/60 p-3">
+                <label class="block text-sm font-medium mb-1 text-emerald-700">Asset Photos</label>
+                <input
+                    id="arfPhotosInput"
+                    name="arf_photos[]"
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    multiple
+                    class="w-full border border-emerald-200 rounded-md p-2 bg-white text-sm"
+                >
+                <p class="mt-2 text-xs text-gray-500">Upload photos or use the device camera. Photos are saved as Asset Photo attachments.</p>
+            </div>
+            <div class="rounded-lg border border-blue-100 bg-white p-3">
+                <label class="block text-sm font-medium mb-1 text-blue-700">Supporting Attachments</label>
+                <select
+                    id="attachmentCategoryInput"
+                    name="attachment_category"
+                    class="mb-2 w-full border border-blue-200 rounded-md p-2 bg-white text-sm"
+                >
+                    ${attachmentOptions.length ? attachmentOptions.map((option) => `
+                        <option value="${escapeHtml(option.value)}">${escapeHtml(option.label || option.value)}</option>
+                    `).join('') : '<option value="Supporting Document">Supporting Document</option>'}
+                </select>
+                <input
+                    id="attachmentsInput"
+                    name="attachments[]"
+                    type="file"
+                    multiple
+                    class="w-full border border-blue-200 rounded-md p-2 bg-blue-50"
+                >
+                <p id="attachmentHint" class="mt-2 text-xs text-gray-500">Upload supporting files if needed. Photos and documents stay in the same ARF record.</p>
+            </div>
+            <div id="pendingAttachmentList" class="mt-3 space-y-2"></div>
+            <div id="existingAttachmentList" class="mt-3 space-y-2"></div>
+        `;
+    }
+
     function supplierAttachmentControlsHtml(entityType = '') {
         const labels = supplierAttachmentLabelsForEntity(entityType);
         const fields = labels.length
@@ -7250,6 +7351,8 @@
         if (currentModuleKey === 'supplier' && !isSupplierDispatchLayout(currentRecord)) {
             const entityType = $('dynamicFields')?.querySelector('[name="data[entity_type]"]')?.value || '';
             section.innerHTML = supplierAttachmentControlsHtml(entityType);
+        } else if (currentModuleKey === 'arf') {
+            section.innerHTML = arfAttachmentControlsHtml();
         } else {
             section.innerHTML = defaultAttachmentControlsHtml();
         }
@@ -7632,7 +7735,7 @@
             : (record
                 ? `Update the ${moduleConfig.label.toLowerCase()} record and save changes.`
                 : `Create a new ${moduleConfig.label.toLowerCase()} record.`);
-        $('drawerPreviewTitle').textContent = record ? `Preview: ${record.display_label || record.record_title || moduleConfig.label}` : 'New Finance Record';
+        $('drawerPreviewTitle').textContent = record ? `Preview: ${record.record_number || getVisibleRecordTitle(record) || record.display_label || moduleConfig.label}` : 'New Finance Record';
         $('drawerSaveButton').textContent = supplierDispatchLayout ? 'Send Form' : (record ? 'Update' : 'Save');
         $('existingAttachmentsJson').value = JSON.stringify(existingAttachments);
 
@@ -8321,6 +8424,7 @@
                 const linkedPoId = getDraftValue('linked_po_id', record);
                 const linkedDvId = getDraftValue('linked_dv_id', record);
                 const itemClassificationValue = getDraftValue('item_classification', record) || 'Fixed Asset';
+                const isFixedAsset = itemClassificationValue === 'Fixed Asset';
                 const assetCodeValue = getDraftValue('asset_code', record) || recordNumberValue;
                 const assetDescriptionValue = getDraftValue('asset_description', record);
                 const assetCategoryValue = getDraftValue('asset_category', record);
@@ -8363,6 +8467,7 @@
                 return `
                     <div class="md:col-span-2 rounded-xl border border-blue-100 bg-blue-50/40 p-4">
                         <h4 class="text-sm font-semibold uppercase tracking-[0.24em] text-blue-700">Asset / Inventory Details</h4>
+                        <p class="mt-2 text-xs text-gray-500">Use Fixed Asset for depreciable items. Use Consumable Inventory for office supplies, stock, and other consumables.</p>
                         <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                             ${renderFieldsByNames(moduleConfig, ['linked_po_id', 'linked_dv_id', 'supplier_id', 'item_classification', 'asset_code', 'item_name', 'item_code', 'sku', 'barcode', 'qr_code', 'asset_description', 'asset_category', 'serial_number', 'model'], values, record)}
                         </div>
@@ -8384,7 +8489,8 @@
                     </div>
 
                     <div class="md:col-span-2 rounded-xl border border-gray-200 bg-white p-4">
-                        <h4 class="text-sm font-semibold uppercase tracking-[0.24em] text-gray-700">Valuation & Custody</h4>
+                        <h4 class="text-sm font-semibold uppercase tracking-[0.24em] text-gray-700">${isFixedAsset ? 'Valuation & Custody' : 'Inventory Costing & Custody'}</h4>
+                        <p class="mt-2 text-xs text-gray-500">${isFixedAsset ? 'Depreciation fields appear for fixed assets.' : 'Depreciation fields are hidden for consumable inventory.'}</p>
                         <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                             ${renderFieldsByNames(moduleConfig, ['acquisition_cost', 'acquisition_date', 'asset_coa_id', 'location', 'department', 'custodian', 'useful_life', 'residual_value', 'depreciable_amount', 'annual_depreciation', 'monthly_depreciation', 'accumulated_depreciation', 'net_book_value', 'movement_history_note', 'remarks'], values, record)}
                         </div>
@@ -8547,6 +8653,8 @@
 
         if (currentModuleKey === 'arf') {
             const assetCode = formValues['data[asset_code]'] || $('dynamicFields').querySelector('input[name="data[asset_code]"]')?.value || recordNumber || 'N/A';
+            const itemClassification = formValues['data[item_classification]'] || $('dynamicFields').querySelector('select[name="data[item_classification]"]')?.value || 'Fixed Asset';
+            const isFixedAsset = itemClassification === 'Fixed Asset';
             const linkedPo = getLookupLabel('po', formValues['data[linked_po_id]']) || formValues['data[linked_po_id]'] || 'N/A';
             const linkedDv = getLookupLabel('dv', formValues['data[linked_dv_id]']) || formValues['data[linked_dv_id]'] || 'N/A';
             const supplier = getLookupLabel('supplier', formValues['data[supplier_id]']) || formValues['data[supplier_id]'] || 'N/A';
@@ -8558,6 +8666,24 @@
             const assetAccount = getLookupLabel('chart_account', formValues['data[asset_coa_id]']) || formValues['data[asset_coa_id]'] || 'N/A';
             const location = formValues['data[location]'] || $('dynamicFields').querySelector('input[name="data[location]"]')?.value || 'N/A';
             const custodian = formValues['data[custodian]'] || 'N/A';
+            const goodsReceivingReference = formValues['data[goods_receiving_reference]'] || 'N/A';
+            const orderedQuantity = formValues['data[ordered_quantity]'] || '0.00';
+            const deliveredQuantity = formValues['data[delivered_quantity]'] || '0.00';
+            const acceptedQuantity = formValues['data[accepted_quantity]'] || '0.00';
+            const rejectedQuantity = formValues['data[rejected_quantity]'] || '0.00';
+            const unitOfMeasure = formValues['data[unit_of_measure]'] || 'N/A';
+            const beginningQuantity = formValues['data[beginning_quantity]'] || '0.00';
+            const currentQuantity = formValues['data[current_quantity]'] || '0.00';
+            const reservedQuantity = formValues['data[reserved_quantity]'] || '0.00';
+            const availableStock = formValues['data[available_quantity]'] || '0.00';
+            const reorderLevel = formValues['data[reorder_level]'] || '0.00';
+            const minimumStockLevel = formValues['data[minimum_stock_level]'] || '0.00';
+            const maximumStockLevel = formValues['data[maximum_stock_level]'] || '0.00';
+            const safetyStockLevel = formValues['data[safety_stock_level]'] || '0.00';
+            const unitCost = formValues['data[unit_cost]'] || '0.00';
+            const totalCost = formValues['data[total_cost]'] || '0.00';
+            const averageCost = formValues['data[average_cost]'] || '0.00';
+            const lastPurchaseCost = formValues['data[last_purchase_cost]'] || '0.00';
             const usefulLife = formValues['data[useful_life]'] || 'N/A';
             const residualValue = formValues['data[residual_value]'] || '0.00';
             const serialNumber = formValues['data[serial_number]'] || $('dynamicFields').querySelector('input[name="data[serial_number]"]')?.value || 'N/A';
@@ -8616,6 +8742,39 @@
 
                         <div class="relative border-t border-gray-300">
                             <div class="bg-gray-50 px-4 py-2 border-b border-gray-300">
+                                <h4 class="text-[12px] font-semibold uppercase tracking-[0.26em] text-gray-700">Inventory & Receiving</h4>
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-2">
+                                ${[
+                                    ['Goods Receiving Reference', goodsReceivingReference],
+                                    ['Ordered Quantity', orderedQuantity],
+                                    ['Delivered Quantity', deliveredQuantity],
+                                    ['Accepted Quantity', acceptedQuantity],
+                                    ['Rejected Quantity', rejectedQuantity],
+                                    ['Unit of Measure', unitOfMeasure],
+                                    ['Beginning Quantity', beginningQuantity],
+                                    ['Quantity on Hand', currentQuantity],
+                                    ['Reserved Quantity', reservedQuantity],
+                                    ['Available Stock', availableStock],
+                                    ['Reorder Level', reorderLevel],
+                                    ['Minimum Stock Level', minimumStockLevel],
+                                    ['Maximum Stock Level', maximumStockLevel],
+                                    ['Safety Stock Level', safetyStockLevel],
+                                    ['Unit Cost', unitCost],
+                                    ['Total Cost', totalCost],
+                                    ['Average Cost', averageCost],
+                                    ['Last Purchase Cost', lastPurchaseCost],
+                                ].map(([label, value], index) => `
+                                    <div class="${index % 2 === 0 ? 'border-r' : ''} ${index > 1 ? 'border-t' : ''} border-gray-300 px-4 py-3">
+                                        <p class="text-[11px] uppercase tracking-[0.22em] text-gray-500">${escapeHtml(label)}</p>
+                                        <p class="mt-2 min-h-[20px] border-b border-gray-300 text-[14px] font-semibold text-gray-900 break-words">${escapeHtml(value)}</p>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+
+                        <div class="relative border-t border-gray-300">
+                            <div class="bg-gray-50 px-4 py-2 border-b border-gray-300">
                                 <h4 class="text-[12px] font-semibold uppercase tracking-[0.26em] text-gray-700">Valuation & Custody</h4>
                             </div>
                             <div class="grid grid-cols-1 md:grid-cols-2">
@@ -8624,9 +8783,12 @@
                                     ['Acquisition Date', acquisitionDate],
                                     ['Asset Account', assetAccount],
                                     ['Location', location],
+                                    ['Item Classification', itemClassification],
                                     ['Custodian', custodian],
-                                    ['Useful Life', usefulLife],
-                                    ['Residual Value', residualValue],
+                                    ...(isFixedAsset ? [
+                                        ['Useful Life (Years)', usefulLife],
+                                        ['Residual Value', residualValue],
+                                    ] : []),
                                     ['Remarks', formValues['data[remarks]'] || 'N/A'],
                                 ].map(([label, value], index) => `
                                     <div class="${index % 2 === 0 ? 'border-r' : ''} ${index > 1 ? 'border-t' : ''} border-gray-300 px-4 py-3">
@@ -9680,6 +9842,13 @@
         return name.endsWith('.pdf') || mime.includes('pdf');
     }
 
+    function financeAttachmentIsImage(attachment) {
+        const name = String(attachment?.name || attachment?.path || '').toLowerCase();
+        const mime = String(attachment?.mime || '').toLowerCase();
+        const category = String(attachment?.category || '').toLowerCase();
+        return mime.startsWith('image/') || ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg'].some((ext) => name.endsWith(ext)) || category === 'asset photo';
+    }
+
     function renderFinanceAttachmentCards(record) {
         const attachments = financeAttachmentEntries(record);
 
@@ -9696,7 +9865,8 @@
         }
 
         const pdfAttachments = attachments.filter((attachment) => financeAttachmentIsPdf(attachment));
-        const otherAttachments = attachments.filter((attachment) => !financeAttachmentIsPdf(attachment));
+        const imageAttachments = attachments.filter((attachment) => financeAttachmentIsImage(attachment));
+        const otherAttachments = attachments.filter((attachment) => !financeAttachmentIsPdf(attachment) && !financeAttachmentIsImage(attachment));
 
         const attachmentCard = (attachment, index, isPdf = false) => `
             <div class="rounded-xl border ${isPdf ? 'border-sky-200 bg-sky-50/60' : 'border-gray-200 bg-white'} px-4 py-3 shadow-sm">
@@ -9711,6 +9881,27 @@
             </div>
         `;
 
+        const imageCard = (attachment, index) => {
+            const previewUrl = attachment.image_data_uri || attachment.url || normalizeAttachmentUrl(attachment.path || '');
+            return `
+                <div class="overflow-hidden rounded-xl border border-emerald-200 bg-emerald-50/50 shadow-sm">
+                    <div class="aspect-[4/3] bg-white">
+                        <img src="${escapeHtml(previewUrl)}" alt="${escapeHtml(attachment.name || `Attachment ${index + 1}`)}" class="h-full w-full object-cover">
+                    </div>
+                    <div class="px-4 py-3">
+                        <div class="flex items-start justify-between gap-3">
+                            <div class="min-w-0">
+                                <p class="text-sm font-semibold text-gray-900 break-all">${escapeHtml(attachment.name || `Attachment ${index + 1}`)}</p>
+                                <p class="mt-1 text-xs text-gray-500 break-all">${escapeHtml(attachment.path || '')}</p>
+                                <p class="mt-1 text-[11px] text-gray-500">${escapeHtml(attachment.category || 'Asset Photo')}${attachment.uploaded_by ? ` • ${escapeHtml(attachment.uploaded_by)}` : ''}${attachment.uploaded_at ? ` • ${escapeHtml(attachment.uploaded_at)}` : ''}</p>
+                            </div>
+                            <a href="${escapeHtml(attachment.url || normalizeAttachmentUrl(attachment.path || ''))}" target="_blank" class="rounded-full border border-emerald-200 bg-white px-3 py-1 text-[11px] font-medium text-emerald-700 hover:bg-emerald-50">Open</a>
+                        </div>
+                    </div>
+                </div>
+            `;
+        };
+
         return `
             <div class="rounded-2xl border border-gray-200 bg-white shadow-sm">
                 <div class="border-b border-gray-100 bg-slate-50 px-4 py-3">
@@ -9720,6 +9911,14 @@
                     </div>
                 </div>
                 <div class="p-4 space-y-4">
+                    ${imageAttachments.length ? `
+                        <div>
+                            <p class="text-[11px] uppercase tracking-[0.18em] text-emerald-700">Photos</p>
+                            <div class="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                                ${imageAttachments.map((attachment, index) => imageCard(attachment, index)).join('')}
+                            </div>
+                        </div>
+                    ` : ''}
                     ${pdfAttachments.length ? `
                         <div>
                             <p class="text-[11px] uppercase tracking-[0.18em] text-sky-700">PDF Attachments</p>
@@ -9923,7 +10122,7 @@
             : [
                 ['Module', moduleConfig.label],
                 ['Record Number', record.record_number || 'N/A'],
-                [moduleConfig.recordTitleLabel || 'Name', record.record_title || 'N/A'],
+                [moduleConfig.recordTitleLabel || 'Name', getVisibleRecordTitle(record) || ''],
                 ['Record Date', record.record_date || 'N/A'],
                 ['Record Time', data.transaction_time || 'N/A'],
                 ...(shouldShowGenericAmount(record) ? [['Amount', record.amount ? formatCurrency(record.amount) : 'N/A']] : []),
@@ -10142,7 +10341,7 @@
                             <p class="finance-preview-eyebrow">Official Finance Form</p>
                             <div class="finance-preview-title">${escapeHtml(companyName)}</div>
                             <div class="finance-preview-subtitle">${escapeHtml(companyLegalName)} | ${escapeHtml(moduleConfig.label)}</div>
-                            <div class="finance-preview-note">${escapeHtml(record.record_number || 'N/A')} - ${escapeHtml(record.record_title || 'N/A')}</div>
+                            <div class="finance-preview-note">${escapeHtml(record.record_number || 'N/A')}${getVisibleRecordTitle(record) ? ` - ${escapeHtml(getVisibleRecordTitle(record))}` : ''}</div>
                         </div>
                     </div>
                     <div class="finance-preview-status">
@@ -10483,12 +10682,19 @@
             const assetAcknowledged = Boolean(record.data?.custodian_acknowledged_at);
             const currentUserIsCustodian = currentUserEmployeeId > 0 && currentUserEmployeeId === custodianId;
             const canManageAsset = Boolean(bootstrap.canApproveFinance || record.can_edit || record.can_review || currentUserIsCustodian);
+            const isConsumableInventory = String(record.data?.item_classification || '').toLowerCase() === 'consumable inventory';
 
             if (currentUserIsCustodian && !assetAcknowledged) {
                 actions.push(`<button type="button" onclick="window.financeModule.acknowledgeArfAsset(${record.id})" class="w-full bg-emerald-600 text-white rounded-md py-2 hover:bg-emerald-700">Acknowledge Receipt</button>`);
             }
 
-            if (canManageAsset) {
+            if (canManageAsset && isConsumableInventory) {
+                actions.push(`<button type="button" onclick="window.financeModule.openArfInventoryMovementDialog(${record.id}, 'stock_in')" class="w-full bg-emerald-600 text-white rounded-md py-2 hover:bg-emerald-700">Stock In</button>`);
+                actions.push(`<button type="button" onclick="window.financeModule.openArfInventoryMovementDialog(${record.id}, 'stock_out')" class="w-full border border-red-300 text-red-700 rounded-md py-2 hover:bg-red-50">Stock Out</button>`);
+                actions.push(`<button type="button" onclick="window.financeModule.openArfInventoryMovementDialog(${record.id}, 'stock_transfer')" class="w-full border border-indigo-300 text-indigo-700 rounded-md py-2 hover:bg-indigo-50">Stock Transfer</button>`);
+                actions.push(`<button type="button" onclick="window.financeModule.openArfInventoryMovementDialog(${record.id}, 'stock_return')" class="w-full border border-sky-300 text-sky-700 rounded-md py-2 hover:bg-sky-50">Stock Return</button>`);
+                actions.push(`<button type="button" onclick="window.financeModule.openArfInventoryMovementDialog(${record.id}, 'stock_adjustment')" class="w-full border border-gray-300 text-gray-700 rounded-md py-2 hover:bg-gray-50">Stock Adjustment</button>`);
+            } else if (canManageAsset) {
                 actions.push(`<button type="button" onclick="window.financeModule.openArfTransferDialog(${record.id})" class="w-full bg-indigo-600 text-white rounded-md py-2 hover:bg-indigo-700">Transfer Asset</button>`);
                 actions.push(`<button type="button" onclick="window.financeModule.recordArfAssetEvent(${record.id}, 'loss')" class="w-full border border-red-300 text-red-700 rounded-md py-2 hover:bg-red-50">Record Loss</button>`);
                 actions.push(`<button type="button" onclick="window.financeModule.recordArfAssetEvent(${record.id}, 'damage')" class="w-full border border-amber-300 text-amber-700 rounded-md py-2 hover:bg-amber-50">Record Damage</button>`);
@@ -10600,6 +10806,159 @@
 
     function closeArfTransferDialog() {
         removeArfTransferDialog();
+    }
+
+    function removeArfInventoryMovementDialog() {
+        $('arfInventoryMovementDialog')?.remove();
+    }
+
+    function movementDialogConfig(eventType) {
+        const labels = {
+            stock_in: { title: 'Stock In', button: 'Record Stock In', quantityLabel: 'Quantity Received', direction: 'increase', note: 'Receive new stock into inventory.' },
+            stock_out: { title: 'Stock Out', button: 'Record Stock Out', quantityLabel: 'Quantity Released', direction: 'decrease', note: 'Record stock issued or consumed.' },
+            stock_transfer: { title: 'Stock Transfer', button: 'Record Transfer', quantityLabel: 'Transfer Quantity (optional)', direction: 'transfer', note: 'Move stock to another location, department, or custodian.' },
+            stock_return: { title: 'Stock Return', button: 'Record Return', quantityLabel: 'Quantity Returned', direction: 'increase', note: 'Return stock back into inventory.' },
+            stock_adjustment: { title: 'Stock Adjustment', button: 'Record Adjustment', quantityLabel: 'Adjusted Quantity', direction: 'set', note: 'Set the current quantity to the counted amount.' },
+        };
+
+        return labels[eventType] || labels.stock_adjustment;
+    }
+
+    function openArfInventoryMovementDialog(recordId, eventType) {
+        const record = getRecordById(recordId);
+        if (!record || record.module_key !== 'arf') return;
+
+        removeArfInventoryMovementDialog();
+        const config = movementDialogConfig(eventType);
+        const currentQuantity = record.data?.current_quantity || '0.00';
+        const currentLocation = record.data?.location || '';
+        const currentDepartment = record.data?.department || '';
+        const currentCustodian = record.data?.custodian_name || getLookupLabel('employee', record.data?.custodian) || 'Select employee';
+        const requiresTarget = eventType === 'stock_transfer';
+        const dialog = document.createElement('div');
+        dialog.id = 'arfInventoryMovementDialog';
+        dialog.className = 'fixed inset-0 z-[80] flex items-center justify-center bg-black/40 px-4';
+        dialog.innerHTML = `
+            <div class="w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-2xl">
+                <div class="flex items-center justify-between border-b border-gray-100 px-5 py-4">
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-900">${escapeHtml(config.title)}</h3>
+                        <p class="text-sm text-gray-500">${escapeHtml(config.note)}</p>
+                    </div>
+                    <button type="button" onclick="window.financeModule.closeArfInventoryMovementDialog()" class="text-sm text-gray-500 hover:text-gray-700">Close</button>
+                </div>
+                <div class="space-y-4 px-5 py-5">
+                    <div class="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                        <p class="text-[11px] uppercase tracking-[0.18em] text-gray-500">Current Quantity</p>
+                        <p class="mt-1 text-sm font-semibold text-gray-900">${escapeHtml(String(currentQuantity))}</p>
+                    </div>
+                    ${requiresTarget ? `
+                        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                            <div class="rounded-xl border border-gray-200 bg-white p-4">
+                                <p class="text-sm font-semibold text-gray-900">Target Location</p>
+                                <input type="text" data-arf-movement-target-location class="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" placeholder="e.g. Main Office Storage" value="${escapeHtml(currentLocation)}">
+                            </div>
+                            <div class="rounded-xl border border-gray-200 bg-white p-4">
+                                <p class="text-sm font-semibold text-gray-900">Target Department</p>
+                                <input type="text" data-arf-movement-target-department class="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" placeholder="e.g. Admin" value="${escapeHtml(currentDepartment)}">
+                            </div>
+                        </div>
+                        <div class="rounded-xl border border-gray-200 bg-white p-4">
+                            <div class="flex items-center justify-between gap-3">
+                                <div>
+                                    <p class="text-sm font-semibold text-gray-900">Target Custodian</p>
+                                    <p class="text-xs text-gray-500">Choose from the employee list if the stock is moving to a new custodian.</p>
+                                </div>
+                                <button type="button" onclick="window.financeModule.openLookupSelector('__arf_inventory_target_custodian__', 'employee', 'Target Custodian')" class="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-100">Choose Employee</button>
+                            </div>
+                            <input type="hidden" data-lookup-selector-hidden="__arf_inventory_target_custodian__">
+                            <div data-lookup-selector-display="__arf_inventory_target_custodian__" class="mt-3 rounded-lg border border-dashed border-gray-200 bg-gray-50 px-3 py-3 text-sm text-gray-500">${escapeHtml(currentCustodian)}</div>
+                        </div>
+                    ` : `
+                        <div class="rounded-xl border border-gray-200 bg-white p-4">
+                            <p class="text-sm font-semibold text-gray-900">${escapeHtml(config.quantityLabel)}</p>
+                            <input type="number" min="0" step="0.01" data-arf-movement-quantity class="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" placeholder="Enter quantity">
+                        </div>
+                    `}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Reason / Notes</label>
+                        <textarea data-arf-movement-reason rows="4" class="mt-1 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm text-gray-900 focus:border-blue-400 focus:ring-2 focus:ring-blue-100" placeholder="Describe the movement."></textarea>
+                    </div>
+                </div>
+                <div class="flex items-center justify-end gap-3 border-t border-gray-100 px-5 py-4">
+                    <button type="button" onclick="window.financeModule.closeArfInventoryMovementDialog()" class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Cancel</button>
+                    <button type="button" onclick="window.financeModule.submitArfInventoryMovementDialog(${record.id}, ${JSON.stringify(eventType)})" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">${escapeHtml(config.button)}</button>
+                </div>
+            </div>
+        `;
+        dialog.addEventListener('click', (event) => {
+            if (event.target === dialog) {
+                removeArfInventoryMovementDialog();
+            }
+        });
+        document.body.appendChild(dialog);
+    }
+
+    function closeArfInventoryMovementDialog() {
+        removeArfInventoryMovementDialog();
+    }
+
+    async function submitArfInventoryMovementDialog(recordId, eventType) {
+        const dialog = $('arfInventoryMovementDialog');
+        if (!dialog) return;
+
+        const reason = String(dialog.querySelector('[data-arf-movement-reason]')?.value || '').trim();
+        if (!reason) {
+            alert('Please enter a reason or note for the stock movement.');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('event_type', eventType);
+        formData.append('event_reason', reason);
+
+        if (eventType === 'stock_transfer') {
+            const targetLocation = String(dialog.querySelector('[data-arf-movement-target-location]')?.value || '').trim();
+            const targetDepartment = String(dialog.querySelector('[data-arf-movement-target-department]')?.value || '').trim();
+            const targetCustodian = String(dialog.querySelector('[data-lookup-selector-hidden="__arf_inventory_target_custodian__"]')?.value || '').trim();
+
+            if (!targetLocation && !targetDepartment && !targetCustodian) {
+                alert('Please choose at least one transfer destination detail.');
+                return;
+            }
+
+            if (targetLocation) formData.append('target_location', targetLocation);
+            if (targetDepartment) formData.append('target_department', targetDepartment);
+            if (targetCustodian) formData.append('target_custodian', targetCustodian);
+        } else {
+            const quantity = String(dialog.querySelector('[data-arf-movement-quantity]')?.value || '').trim();
+            if (!quantity || Number(quantity) <= 0) {
+                alert('Please enter a valid quantity.');
+                return;
+            }
+            formData.append('movement_quantity', quantity);
+            formData.append('movement_direction', eventType === 'stock_out'
+                ? 'decrease'
+                : (eventType === 'stock_adjustment' ? 'set' : 'increase'));
+        }
+
+        const res = await csrfFetch(`/finance/${recordId}/asset-event`, {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json'
+            },
+            body: formData,
+        });
+        const data = await res.json();
+        if (!res.ok) {
+            alert(data.message || 'Unable to record inventory movement.');
+            return;
+        }
+
+        removeArfInventoryMovementDialog();
+        upsertFinanceRecord(data.data);
+        refreshFinanceView();
+        openPreview(data.data.id);
     }
 
     async function submitArfTransferDialog(recordId) {
@@ -10792,9 +11151,10 @@
         const existingIndex = options.findIndex((option) => String(option.id) === String(record.id));
 
         if (eligible) {
+            const visibleTitle = getVisibleRecordTitle(record);
             const newOption = {
                 id: record.id,
-                label: record.display_label || record.record_title || record.record_number || `${record.module_label} #${record.id}`,
+                label: [record.record_number || '', visibleTitle || ''].filter(Boolean).join(' - ') || record.record_number || `${record.module_label} #${record.id}`,
             };
 
             if (existingIndex >= 0) {
@@ -11190,7 +11550,7 @@
 
                         <div class="grid">
                             <div class="item"><div class="label">Number</div><div class="value">${escapeHtml(record.record_number || 'N/A')}</div></div>
-                            <div class="item"><div class="label">${escapeHtml(getModuleConfig(record.module_key).recordTitleLabel || 'Name')}</div><div class="value">${escapeHtml(record.record_title || 'N/A')}</div></div>
+                            <div class="item"><div class="label">${escapeHtml(getModuleConfig(record.module_key).recordTitleLabel || 'Name')}</div><div class="value">${escapeHtml(getVisibleRecordTitle(record))}</div></div>
                             <div class="item"><div class="label">Date</div><div class="value">${escapeHtml(record.record_date || 'N/A')}</div></div>
                             <div class="item"><div class="label">Time</div><div class="value">${escapeHtml(record.data?.transaction_time || 'N/A')}</div></div>
                             ${shouldShowGenericAmount(record) ? `<div class="item"><div class="label">Amount</div><div class="value">${escapeHtml(record.amount ? formatCurrency(record.amount) : 'N/A')}</div></div>` : ''}

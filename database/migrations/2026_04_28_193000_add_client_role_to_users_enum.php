@@ -12,11 +12,13 @@ return new class extends Migration
             return;
         }
 
-        DB::statement("
-            ALTER TABLE users 
-            MODIFY role ENUM('SuperAdmin', 'Admin', 'Employee', 'Client') 
-            NOT NULL DEFAULT 'Employee'
-        ");
+        if (DB::getDriverName() !== 'sqlite') {
+            DB::statement("
+                ALTER TABLE users 
+                MODIFY role ENUM('SuperAdmin', 'Admin', 'Employee', 'Client') 
+                NOT NULL DEFAULT 'Employee'
+            ");
+        }
     }
 
     public function down(): void
@@ -25,10 +27,12 @@ return new class extends Migration
             return;
         }
 
-        DB::statement("
-            ALTER TABLE users 
-            MODIFY role ENUM('SuperAdmin', 'Admin', 'Employee') 
-            NOT NULL DEFAULT 'Employee'
-        ");
+        if (DB::getDriverName() !== 'sqlite') {
+            DB::statement("
+                ALTER TABLE users 
+                MODIFY role ENUM('SuperAdmin', 'Admin', 'Employee') 
+                NOT NULL DEFAULT 'Employee'
+            ");
+        }
     }
 };

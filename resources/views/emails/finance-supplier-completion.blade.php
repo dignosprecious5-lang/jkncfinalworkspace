@@ -34,6 +34,14 @@
                     <td><strong>Business Name:</strong></td>
                     <td>{{ $record->record_title ?: 'N/A' }}</td>
                 </tr>
+                <tr>
+                    <td><strong>Record Date:</strong></td>
+                    <td>{{ optional($record->record_date)->format('Y-m-d') ?: 'N/A' }}</td>
+                </tr>
+                <tr>
+                    <td><strong>Attachments:</strong></td>
+                    <td>{{ count((array) ($record->attachments ?? [])) }} file{{ count((array) ($record->attachments ?? [])) === 1 ? '' : 's' }}</td>
+                </tr>
             </table>
 
             <div style="margin: 28px 0;">
@@ -44,6 +52,9 @@
 
             <p style="margin-bottom: 0;">
                 After submission, the details will automatically update the supplier record in Finance.
+            </p>
+            <p style="margin-top: 16px;">
+                Your PDF reference copy is included with this email for easier checking and filing.
             </p>
 
             <p style="margin-top: 24px;">

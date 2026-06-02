@@ -648,7 +648,7 @@ class CompanyServiceController extends Controller
     private function ensureGlobalCompanyLinkNullable(): void
     {
         try {
-            if (! Schema::hasTable('services') || ! Schema::hasColumn('services', 'company_id')) {
+            if (DB::getDriverName() === 'sqlite' || ! Schema::hasTable('services') || ! Schema::hasColumn('services', 'company_id')) {
                 return;
             }
 

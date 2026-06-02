@@ -1,5 +1,10 @@
 <?php
 
+use App\Models\DirectorOfficer;
+use App\Models\Employee;
+use App\Models\GisRecord;
+use App\Models\User;
+
 /*
 |--------------------------------------------------------------------------
 | Test Case
@@ -44,4 +49,83 @@ expect()->extend('toBeOne', function () {
 function something()
 {
     // ..
+}
+
+function seedFinanceOfficialApprovers(User $owner): array
+{
+    $president = User::factory()->create([
+        'name' => 'Finance President',
+        'email' => 'finance-president-' . $owner->id . '@example.com',
+        'role' => 'admin',
+    ]);
+    Employee::query()->create([
+        'user_id' => $president->id,
+        'first_name' => 'Finance',
+        'last_name' => 'President',
+        'email' => $president->email,
+        'position' => 'President',
+        'payroll_type' => 'Monthly Paid',
+        'basic_salary' => 0,
+        'hourly_rate' => 0,
+    ]);
+
+    $treasurer = User::factory()->create([
+        'name' => 'Finance Treasurer',
+        'email' => 'finance-treasurer-' . $owner->id . '@example.com',
+        'role' => 'admin',
+    ]);
+    Employee::query()->create([
+        'user_id' => $treasurer->id,
+        'first_name' => 'Finance',
+        'last_name' => 'Treasurer',
+        'email' => $treasurer->email,
+        'position' => 'Treasurer',
+        'payroll_type' => 'Monthly Paid',
+        'basic_salary' => 0,
+        'hourly_rate' => 0,
+    ]);
+
+    $gisRecord = GisRecord::query()->create([
+        'uploaded_by' => $owner->name,
+        'submission_status' => 'Submitted',
+        'receive_on' => now()->toDateString(),
+        'period_date' => now()->format('Y'),
+        'corporation_name' => 'JKNC Holdings, Inc.',
+        'trade_name' => 'JKNC',
+        'approval_status' => 'Approved',
+        'workflow_status' => 'Accepted',
+        'submitted_by' => $owner->id,
+        'approved_by' => $owner->id,
+        'approved_at' => now(),
+    ]);
+
+    DirectorOfficer::query()->create([
+        'gis_id' => $gisRecord->id,
+        'officer_name' => $president->name,
+        'address' => 'Test Address',
+        'gender' => 'Male',
+        'nationality' => 'Filipino',
+        'incr' => false,
+        'stockholder' => false,
+        'board' => 'Board',
+        'officer_type' => 'President',
+        'committee' => 'N/A',
+        'tin' => '000-000-000',
+    ]);
+
+    DirectorOfficer::query()->create([
+        'gis_id' => $gisRecord->id,
+        'officer_name' => $treasurer->name,
+        'address' => 'Test Address',
+        'gender' => 'Female',
+        'nationality' => 'Filipino',
+        'incr' => false,
+        'stockholder' => false,
+        'board' => 'Board',
+        'officer_type' => 'Treasurer',
+        'committee' => 'N/A',
+        'tin' => '111-111-111',
+    ]);
+
+    return compact('president', 'treasurer', 'gisRecord');
 }

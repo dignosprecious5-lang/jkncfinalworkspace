@@ -43,6 +43,10 @@ class Employee extends Model
                 $nextId = (static::max('id') ?? 0) + 1;
                 $employee->employee_code = 'EMP-' . str_pad($nextId, 4, '0', STR_PAD_LEFT);
             }
+
+            if (blank($employee->payroll_type)) {
+                $employee->payroll_type = 'Monthly Paid';
+            }
         });
     }
 

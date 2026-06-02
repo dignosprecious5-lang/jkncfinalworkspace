@@ -44,7 +44,14 @@
                                 <tr>
                                     <td style="padding:20px;">
                                         <p style="margin:0 0 14px; font-size:14px; line-height:1.6; color:#334155;"><strong style="color:#0f172a;">Record:</strong> {{ $recordNumber }} - {{ $recordTitle }}</p>
+                                        <p style="margin:0 0 14px; font-size:14px; line-height:1.6; color:#334155;"><strong style="color:#0f172a;">Record Date:</strong> {{ $recordDate }}</p>
                                         <p style="margin:0 0 14px; font-size:14px; line-height:1.6; color:#334155;"><strong style="color:#0f172a;">Status:</strong> {{ $workflowStatus }} / {{ $approvalStatus }}</p>
+                                        <p style="margin:0 0 14px; font-size:14px; line-height:1.6; color:#334155;"><strong style="color:#0f172a;">Submitted By:</strong> {{ $submittedByName ?: 'N/A' }}</p>
+                                        @if(filled($approvedByName))
+                                            <p style="margin:0 0 14px; font-size:14px; line-height:1.6; color:#334155;"><strong style="color:#0f172a;">Approved By:</strong> {{ $approvedByName }}</p>
+                                        @endif
+                                        <p style="margin:0 0 14px; font-size:14px; line-height:1.6; color:#334155;"><strong style="color:#0f172a;">Attachments:</strong> {{ $attachmentCount }} file{{ $attachmentCount === 1 ? '' : 's' }}</p>
+                                        <p style="margin:0 0 14px; font-size:14px; line-height:1.6; color:#334155;"><strong style="color:#0f172a;">History Entries:</strong> {{ $historyCount }}</p>
                                         @if(filled($reviewNote))
                                             <p style="margin:0; font-size:14px; line-height:1.7; color:#334155;"><strong style="color:#0f172a;">Review Note:</strong> {{ $reviewNote }}</p>
                                         @endif
@@ -61,6 +68,7 @@
                             </table>
 
                             <p style="margin:0 0 8px; font-size:14px; line-height:1.7; color:#475569;">For concerns, please contact the Finance Department of JK&amp;C Inc.</p>
+                            <p style="margin:0 0 8px; font-size:14px; line-height:1.7; color:#475569;">A PDF copy of the current record is attached for your reference.</p>
                             <p style="margin:0; font-size:14px; line-height:1.7; color:#475569;">Regards,<br>JK&amp;C Inc.</p>
                         </td>
                     </tr>

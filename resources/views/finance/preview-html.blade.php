@@ -661,6 +661,101 @@
             @endforeach
         </table>
 
+        @if(!empty($approvalTrailRows))
+            <div class="box">
+                <div class="block-title">Approval Trail</div>
+                <div class="block">
+                    <table class="details">
+                        <tr>
+                            <th>Step</th>
+                            <th>Role</th>
+                            <th>Approver</th>
+                            <th>Approved At</th>
+                            <th>Status</th>
+                        </tr>
+                        @foreach($approvalTrailRows as $row)
+                            <tr>
+                                <td>{{ $row['step'] ?: '-' }}</td>
+                                <td>{{ $row['role'] ?: '-' }}</td>
+                                <td>{{ $row['approver'] ?: '-' }}</td>
+                                <td>{{ $row['approved_at'] ?: '-' }}</td>
+                                <td>{{ $row['status'] ?: '-' }}</td>
+                            </tr>
+                        @endforeach
+                    </table>
+                </div>
+            </div>
+        @endif
+
+        @if(!empty($attachmentSummary['items'] ?? []))
+            <div class="box">
+                <div class="block-title">Attachment Summary</div>
+                <div class="block">
+                    <table class="details">
+                        <tr>
+                            <td>
+                                <p class="label">Total Attachments</p>
+                                <p class="value">{{ $attachmentSummary['total_count'] ?? 0 }}</p>
+                            </td>
+                            <td>
+                                <p class="label">Photo Attachments</p>
+                                <p class="value">{{ $attachmentSummary['image_count'] ?? 0 }}</p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <p class="label">Document Attachments</p>
+                                <p class="value">{{ $attachmentSummary['document_count'] ?? 0 }}</p>
+                            </td>
+                            <td>
+                                <p class="label">Attachment Types</p>
+                                <p class="value">{{ !empty($attachmentSummary['type_summary']) ? implode('; ', $attachmentSummary['type_summary']) : 'N/A' }}</p>
+                            </td>
+                        </tr>
+                    </table>
+                    <table class="details" style="margin-top: 8px;">
+                        <tr>
+                            <th>File</th>
+                            <th>Category</th>
+                            <th>Uploaded By</th>
+                            <th>Uploaded At</th>
+                        </tr>
+                        @foreach(($attachmentSummary['items'] ?? []) as $attachment)
+                            <tr>
+                                <td>{{ $attachment['name'] ?? '-' }}</td>
+                                <td>{{ $attachment['category'] ?? '-' }}</td>
+                                <td>{{ $attachment['uploaded_by'] ?: '-' }}</td>
+                                <td>{{ $attachment['uploaded_at'] ?: '-' }}</td>
+                            </tr>
+                        @endforeach
+                    </table>
+                </div>
+            </div>
+        @endif
+
+        @if(!empty($completeDataRows))
+            <div class="box">
+                <div class="block-title">Complete Record Data</div>
+                <div class="block">
+                    <table class="details">
+                        @foreach(array_chunk($completeDataRows, 2) as $pair)
+                            <tr>
+                                @foreach($pair as $detail)
+                                    <td>
+                                        <p class="label">{{ $detail['label'] }}</p>
+                                        <p class="value">{{ $detail['value'] }}</p>
+                                    </td>
+                                @endforeach
+                                @for($i = count($pair); $i < 2; $i++)
+                                    <td></td>
+                                @endfor
+                            </tr>
+                        @endforeach
+                    </table>
+                </div>
+            </div>
+        @endif
+
         @foreach($previewSections as $section)
             <div class="box">
                 <div class="block">
@@ -761,12 +856,34 @@
                         @endphp
                         @if(count($attachmentEntries))
                             <div class="attachments">
+                                @php
+                                    $isImageAttachment = fn ($attachment) => str_starts_with(strtolower((string) data_get($attachment, 'mime', '')), 'image/')
+                                        || in_array(strtolower(pathinfo((string) data_get($attachment, 'name', data_get($attachment, 'path', '')), PATHINFO_EXTENSION)), ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'], true)
+                                        || strtolower((string) data_get($attachment, 'category', '')) === 'asset photo';
+                                    $imageAttachments = array_values(array_filter($attachmentEntries, $isImageAttachment));
+                                @endphp
+                                @if(count($imageAttachments))
+                                    <div class="attachments-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-bottom:12px;">
+                                        @foreach($imageAttachments as $attachment)
+                                            @php
+                                                $previewUrl = data_get($attachment, 'image_data_uri') ?: data_get($attachment, 'url') ?: data_get($attachment, 'path');
+                                            @endphp
+                                            <a href="{{ data_get($attachment, 'url') ?: data_get($attachment, 'path') }}" target="_blank" style="padding:0;overflow:hidden;">
+                                                <img src="{{ $previewUrl }}" alt="{{ data_get($attachment, 'name') ?: 'Attachment' }}" style="width:100%;height:140px;object-fit:cover;display:block;">
+                                                <div style="padding:10px 12px;">
+                                                    <strong>{{ data_get($attachment, 'name') ?: data_get($attachment, 'path') ?: 'Attachment' }}</strong>
+                                                    <span>{{ data_get($attachment, 'category') ?: 'Asset Photo' }}</span>
+                                                </div>
+                                            </a>
+                                        @endforeach
+                                    </div>
+                                @endif
                                 @foreach($attachmentEntries as $attachment)
                                     <a href="{{ data_get($attachment, 'url') ?: data_get($attachment, 'path') }}" target="_blank">
                                         <strong>{{ data_get($attachment, 'name') ?: data_get($attachment, 'path') ?: 'Attachment' }}</strong>
                                         <span>{{ data_get($attachment, 'category') ?: 'Supporting Document' }}</span>
                                         @if(data_get($attachment, 'uploaded_by') || data_get($attachment, 'uploaded_at'))
-                                            <small>{{ collect([data_get($attachment, 'uploaded_by'), data_get($attachment, 'uploaded_at')])->filter()->implode(' â€¢ ') }}</small>
+                                            <small>{{ collect([data_get($attachment, 'uploaded_by'), data_get($attachment, 'uploaded_at')])->filter()->implode(' • ') }}</small>
                                         @endif
                                         <small>{{ data_get($attachment, 'path') }}</small>
                                     </a>

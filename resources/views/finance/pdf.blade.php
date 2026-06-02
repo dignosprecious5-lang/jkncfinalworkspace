@@ -648,6 +648,101 @@
             @endforeach
         </table>
 
+        @if(!empty($approvalTrailRows))
+            <div class="section-box">
+                <div class="section-title">Approval Trail</div>
+                <div class="section-body">
+                    <table class="line-table">
+                        <tr>
+                            <th>Step</th>
+                            <th>Role</th>
+                            <th>Approver</th>
+                            <th>Approved At</th>
+                            <th>Status</th>
+                        </tr>
+                        @foreach($approvalTrailRows as $row)
+                            <tr>
+                                <td>{{ $row['step'] ?: '-' }}</td>
+                                <td>{{ $row['role'] ?: '-' }}</td>
+                                <td>{{ $row['approver'] ?: '-' }}</td>
+                                <td>{{ $row['approved_at'] ?: '-' }}</td>
+                                <td>{{ $row['status'] ?: '-' }}</td>
+                            </tr>
+                        @endforeach
+                    </table>
+                </div>
+            </div>
+        @endif
+
+        @if(!empty($attachmentSummary['items'] ?? []))
+            <div class="section-box">
+                <div class="section-title">Attachment Summary</div>
+                <div class="section-body">
+                    <table class="detail-table">
+                        <tr>
+                            <td>
+                                <div class="detail-label">Total Attachments</div>
+                                <div class="detail-value">{{ $attachmentSummary['total_count'] ?? 0 }}</div>
+                            </td>
+                            <td>
+                                <div class="detail-label">Photo Attachments</div>
+                                <div class="detail-value">{{ $attachmentSummary['image_count'] ?? 0 }}</div>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <div class="detail-label">Document Attachments</div>
+                                <div class="detail-value">{{ $attachmentSummary['document_count'] ?? 0 }}</div>
+                            </td>
+                            <td>
+                                <div class="detail-label">Attachment Types</div>
+                                <div class="detail-value">{{ !empty($attachmentSummary['type_summary']) ? implode('; ', $attachmentSummary['type_summary']) : 'N/A' }}</div>
+                            </td>
+                        </tr>
+                    </table>
+                    <table class="line-table" style="margin-top: 8px;">
+                        <tr>
+                            <th>File</th>
+                            <th>Category</th>
+                            <th>Uploaded By</th>
+                            <th>Uploaded At</th>
+                        </tr>
+                        @foreach(($attachmentSummary['items'] ?? []) as $attachment)
+                            <tr>
+                                <td>{{ $attachment['name'] ?? '-' }}</td>
+                                <td>{{ $attachment['category'] ?? '-' }}</td>
+                                <td>{{ $attachment['uploaded_by'] ?: '-' }}</td>
+                                <td>{{ $attachment['uploaded_at'] ?: '-' }}</td>
+                            </tr>
+                        @endforeach
+                    </table>
+                </div>
+            </div>
+        @endif
+
+        @if(!empty($completeDataRows))
+            <div class="section-box">
+                <div class="section-title">Complete Record Data</div>
+                <div class="section-body">
+                    <table class="detail-table">
+                        @foreach(array_chunk($completeDataRows, 2) as $pair)
+                            <tr>
+                                @foreach($pair as $detail)
+                                    <td>
+                                        <div class="detail-label">{{ $detail['label'] }}</div>
+                                        <div class="detail-value">{{ $detail['value'] }}</div>
+                                    </td>
+                                @endforeach
+                                @for($pad = count($pair); $pad < 2; $pad++)
+                                    <td></td>
+                                @endfor
+                            </tr>
+                        @endforeach
+                    </table>
+                </div>
+            </div>
+        @endif
+
         @if(empty($isTemplatePreview) && !empty($transactionProgress))
             <div class="section-box">
                 <div class="section-title">Transaction Progress Tracker</div>
@@ -731,6 +826,28 @@
                         <div class="section-box">
                             <div class="section-title">Attachments</div>
                             <div class="section-body">
+                                @php
+                                    $isImageAttachment = fn ($attachment) => str_starts_with(strtolower((string) data_get($attachment, 'mime', '')), 'image/')
+                                        || in_array(strtolower(pathinfo((string) data_get($attachment, 'name', data_get($attachment, 'path', '')), PATHINFO_EXTENSION)), ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'], true)
+                                        || strtolower((string) data_get($attachment, 'category', '')) === 'asset photo';
+                                    $imageAttachments = array_values(array_filter($attachments, $isImageAttachment));
+                                @endphp
+                                @if(count($imageAttachments))
+                                    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-bottom:12px;">
+                                        @foreach($imageAttachments as $attachment)
+                                            @php
+                                                $previewUrl = data_get($attachment, 'image_data_uri') ?: data_get($attachment, 'url') ?: data_get($attachment, 'path');
+                                            @endphp
+                                            <div style="border:1px solid #dbe2ea;border-radius:8px;overflow:hidden;background:#fff;">
+                                                <img src="{{ $previewUrl }}" alt="{{ data_get($attachment, 'name') ?: 'Attachment' }}" style="width:100%;height:140px;object-fit:cover;display:block;">
+                                                <div style="padding:8px 10px;">
+                                                    <div class="detail-value">{{ data_get($attachment, 'name') ?: data_get($attachment, 'path') ?: 'Attachment' }}</div>
+                                                    <div class="detail-label">{{ data_get($attachment, 'category') ?: 'Asset Photo' }}</div>
+                                                </div>
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                @endif
                                 <table class="detail-table">
                                     @foreach($attachments as $index => $attachment)
                                         <tr>
@@ -743,7 +860,7 @@
                                                 <div class="detail-value">{{ data_get($attachment, 'path') ?: 'N/A' }}</div>
                                                 @if(data_get($attachment, 'uploaded_by') || data_get($attachment, 'uploaded_at'))
                                                     <div class="detail-label" style="margin-top:4px;">Uploaded</div>
-                                                    <div class="detail-value" style="font-weight:500;">{{ collect([data_get($attachment, 'uploaded_by'), data_get($attachment, 'uploaded_at')])->filter()->implode(' â€¢ ') }}</div>
+                                                    <div class="detail-value" style="font-weight:500;">{{ collect([data_get($attachment, 'uploaded_by'), data_get($attachment, 'uploaded_at')])->filter()->implode(' • ') }}</div>
                                                 @endif
                                             </td>
                                         </tr>

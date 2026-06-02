@@ -45,6 +45,8 @@
                                 <tr>
                                     <td style="padding:20px;">
                                         <p style="margin:0 0 14px; font-size:14px; line-height:1.6; color:#334155;"><strong style="color:#0f172a;">Record:</strong> {{ $record->record_number ?: 'N/A' }} - {{ $record->record_title ?: 'N/A' }}</p>
+                                        <p style="margin:0 0 14px; font-size:14px; line-height:1.6; color:#334155;"><strong style="color:#0f172a;">Record Date:</strong> {{ optional($record->record_date)->format('Y-m-d') ?: 'N/A' }}</p>
+                                        <p style="margin:0 0 14px; font-size:14px; line-height:1.6; color:#334155;"><strong style="color:#0f172a;">Attachments:</strong> {{ count((array) ($record->attachments ?? [])) }} file{{ count((array) ($record->attachments ?? [])) === 1 ? '' : 's' }}</p>
                                         @if(!empty($revertedByName))
                                             <p style="margin:0 0 14px; font-size:14px; line-height:1.6; color:#334155;"><strong style="color:#0f172a;">Reverted By:</strong> {{ $revertedByName }}</p>
                                         @endif
@@ -67,6 +69,7 @@
                             @endif
 
                             <p style="margin:0 0 8px; font-size:14px; line-height:1.7; color:#475569;">For concerns, please contact the Finance Department of JK&amp;C Inc.</p>
+                            <p style="margin:0 0 8px; font-size:14px; line-height:1.7; color:#475569;">The attached PDF copy reflects the same revision request details shown here.</p>
                             <p style="margin:0; font-size:14px; line-height:1.7; color:#475569;">Regards,<br>JK&amp;C Inc.</p>
                         </td>
                     </tr>
