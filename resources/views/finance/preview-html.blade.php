@@ -117,6 +117,73 @@
             font-weight: 700;
             line-height: 1.5;
         }
+        .audit-banner {
+            margin: 10px 12px 0;
+            border: 1px solid #c7d2fe;
+            border-radius: 14px;
+            background: linear-gradient(135deg, #eff6ff 0%, #ffffff 55%, #eef2ff 100%);
+            padding: 12px 14px;
+            box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+        }
+        .audit-banner-head {
+            display: flex;
+            justify-content: space-between;
+            gap: 16px;
+            align-items: flex-start;
+        }
+        .audit-banner-title {
+            margin: 0;
+            text-transform: uppercase;
+            letter-spacing: .24em;
+            font-size: 8px;
+            color: var(--muted);
+            font-weight: 700;
+        }
+        .audit-banner-copy {
+            margin: 4px 0 0;
+            font-size: 9px;
+            color: #4b5563;
+            max-width: 62ch;
+        }
+        .audit-badges {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+            gap: 6px;
+        }
+        .audit-badge {
+            display: inline-flex;
+            align-items: center;
+            border-radius: 999px;
+            padding: 4px 10px;
+            font-size: 8px;
+            font-weight: 700;
+            background: #e0e7ff;
+            color: #3730a3;
+        }
+        .audit-badge.locked {
+            background: #111827;
+            color: #fff;
+        }
+        .audit-grid {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 6px;
+            margin-top: 10px;
+        }
+        .audit-grid td {
+            width: 33.333%;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            background: #fff;
+            padding: 8px 9px;
+        }
+        .audit-grid .label {
+            font-size: 7.5px;
+        }
+        .audit-grid .value {
+            font-size: 10px;
+        }
         .section-title {
             margin: 0;
             background: var(--blue);
@@ -643,6 +710,41 @@
                 <p>Approval: {{ $record->approval_status ?: 'N/A' }}</p>
                 <p>Status: {{ $record->status ?: 'N/A' }}</p>
             </div>
+        </div>
+
+        @php
+            $previewHistory = (array) data_get($record->data, 'history', []);
+            $previewRelationshipStatus = data_get($record->data, 'relationship_status') ?: 'In Progress';
+            $previewIsLocked = in_array($record->status ?? '', ['Disbursed', 'Completed', 'Closed'], true) || !($record->can_edit ?? true);
+        @endphp
+        <div class="audit-banner">
+            <div class="audit-banner-head">
+                <div>
+                    <p class="audit-banner-title">Audit / Control Status</p>
+                    <p class="audit-banner-copy">System-managed status, relationship updates, validations, and audit entries. Users manage the transaction while the system manages the controls.</p>
+                </div>
+                <div class="audit-badges">
+                    <span class="audit-badge {{ $previewIsLocked ? 'locked' : '' }}">{{ $previewIsLocked ? 'Read-only' : 'Editable' }}</span>
+                    <span class="audit-badge">{{ $record->status ?: 'N/A' }}</span>
+                    <span class="audit-badge">{{ $previewRelationshipStatus }}</span>
+                </div>
+            </div>
+            <table class="audit-grid">
+                <tr>
+                    <td>
+                        <p class="label">Current Status</p>
+                        <p class="value">{{ $record->status ?: 'N/A' }}</p>
+                    </td>
+                    <td>
+                        <p class="label">Relationship</p>
+                        <p class="value">{{ $previewRelationshipStatus }}</p>
+                    </td>
+                    <td>
+                        <p class="label">History Entries</p>
+                        <p class="value">{{ count($previewHistory) }}</p>
+                    </td>
+                </tr>
+            </table>
         </div>
 
         <table class="summary">

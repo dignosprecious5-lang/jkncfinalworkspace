@@ -938,11 +938,7 @@
                 }),
                 numberField('default_cost', 'Default Cost'),
                 selectField('tax_type', 'Tax Type', {
-                    options: [
-                        { value: 'VAT', label: 'VAT' },
-                        { value: 'Non-VAT', label: 'Non-VAT' },
-                        { value: 'Zero-Rated', label: 'Zero-Rated' },
-                    ],
+                    options: getFinanceTaxTypeOptions(),
                 }),
                 selectField('service_status', 'Service Status', {
                     options: [
@@ -978,11 +974,7 @@
                 }),
                 numberField('default_cost', 'Default Cost'),
                 selectField('tax_type', 'Tax Type', {
-                    options: [
-                        { value: 'VAT', label: 'VAT' },
-                        { value: 'Non-VAT', label: 'Non-VAT' },
-                        { value: 'Zero-Rated', label: 'Zero-Rated' },
-                    ],
+                    options: getFinanceTaxTypeOptions(),
                 }),
                 selectField('product_status', 'Product Status', {
                     options: [
@@ -1178,12 +1170,8 @@
                 }),
                 numberField('discount_amount', 'Discount Amount'),
                 numberField('shipping_amount', 'Shipping'),
-                selectField('tax_type', 'Tax (VAT/Non-VAT/N/A)', {
-                    options: [
-                        { value: 'VAT', label: 'VAT' },
-                        { value: 'Non-VAT', label: 'Non-VAT' },
-                        { value: 'N/A', label: 'N/A' },
-                    ],
+                selectField('tax_type', 'Tax Classification', {
+                    options: getFinanceTaxTypeOptions(),
                 }),
                 numberField('tax_amount', 'Tax Amount'),
                 numberField('wht_amount', 'WHT'),
@@ -1415,6 +1403,8 @@
                     },
                     sourceKey: 'source_document_type',
                 }),
+                textField('payee_type', 'Payee Type', { readOnly: true }),
+                textField('payee_name', 'Payee', { readOnly: true }),
                 selectField('supplier_id', 'Supplier', { source: 'supplier' }),
                 numberField('amount', 'Amount', { required: true }),
                 selectField('payment_type', 'Payment Type', {
@@ -1611,6 +1601,7 @@
     let financeLookupOptions = bootstrap.lookupOptions || {};
     let financeDropdownOptions = normalizeDropdownSettings(bootstrap.financeDropdownOptions || {});
     let financeAttachmentTypes = normalizeAttachmentTypeSettings(bootstrap.financeAttachmentTypes || []);
+    let financeLabelOverrides = normalizeLabelOverrides(bootstrap.financeLabelOverrides || {});
     const officialApproverOptions = Array.isArray(bootstrap.officialApproverOptions) ? bootstrap.officialApproverOptions.slice() : [];
     const defaultApprovalSteps = Array.isArray(bootstrap.defaultApprovalSteps) ? bootstrap.defaultApprovalSteps.slice() : [];
     const requestTypeModules = new Set(Array.isArray(bootstrap.requestTypeModules) ? bootstrap.requestTypeModules : []);
@@ -1626,6 +1617,7 @@
     let currentPreviewPdfGeneration = 0;
     let currentPreviewRefreshTimer = null;
     let currentEditRecordId = null;
+    let financeFormLockedReadOnly = false;
     let activeLookupSelector = null;
     let activeBankAccountLookupQuery = '';
     let financeDraftContext = null;
@@ -2204,7 +2196,7 @@
     }
 
     function getModuleConfig(moduleKey) {
-        return financeModules[moduleKey] || financeModules.supplier;
+        return getResolvedModuleConfig(moduleKey);
     }
 
     function normalizeOption(option) {
@@ -2269,8 +2261,114 @@
         return normalized;
     }
 
+    function normalizeLabelOverrides(settings = {}) {
+        const normalized = {};
+
+        Object.entries(settings || {}).forEach(([moduleKey, config]) => {
+            if (!financeModules[moduleKey] || !config || typeof config !== 'object') return;
+
+            const moduleOverrides = {};
+            const recordNumberLabel = String(config.record_number_label ?? '').trim();
+            const recordTitleLabel = String(config.record_title_label ?? '').trim();
+            const recordDateLabel = String(config.record_date_label ?? '').trim();
+            const fieldLabels = config.field_labels && typeof config.field_labels === 'object' ? config.field_labels : {};
+
+            if (recordNumberLabel) moduleOverrides.record_number_label = recordNumberLabel;
+            if (recordTitleLabel) moduleOverrides.record_title_label = recordTitleLabel;
+            if (recordDateLabel) moduleOverrides.record_date_label = recordDateLabel;
+
+            const normalizedFieldLabels = {};
+            Object.entries(fieldLabels).forEach(([fieldName, fieldLabel]) => {
+                const cleanFieldName = String(fieldName || '').trim();
+                const cleanFieldLabel = String(fieldLabel || '').trim();
+                if (!cleanFieldName || !cleanFieldLabel) return;
+                normalizedFieldLabels[cleanFieldName] = cleanFieldLabel;
+            });
+
+            if (Object.keys(normalizedFieldLabels).length) {
+                moduleOverrides.field_labels = normalizedFieldLabels;
+            }
+
+            if (Object.keys(moduleOverrides).length) {
+                normalized[moduleKey] = moduleOverrides;
+            }
+        });
+
+        return normalized;
+    }
+
     function isAttachmentSettingsModule(moduleKey) {
         return moduleKey === attachmentSettingsModuleKey;
+    }
+
+    function getModuleLabelOverrides(moduleKey) {
+        return financeLabelOverrides[moduleKey] || {};
+    }
+
+    function getResolvedModuleConfig(moduleKey) {
+        const baseConfig = financeModules[moduleKey] || financeModules.supplier;
+        const overrides = getModuleLabelOverrides(moduleKey);
+        const fieldLabels = overrides.field_labels || {};
+
+        return {
+            ...baseConfig,
+            recordNumberLabel: overrides.record_number_label || baseConfig.recordNumberLabel,
+            recordTitleLabel: overrides.record_title_label || baseConfig.recordTitleLabel,
+            recordDateLabel: overrides.record_date_label || baseConfig.recordDateLabel,
+            fields: (baseConfig.fields || []).map((field) => ({
+                ...field,
+                label: fieldLabels[field.name] || field.label,
+            })),
+        };
+    }
+
+    function formatLabelOverridesForTextarea(moduleKey) {
+        const overrides = getModuleLabelOverrides(moduleKey);
+        const lines = [];
+
+        if (overrides.record_number_label) {
+            lines.push(`record_number_label | ${overrides.record_number_label}`);
+        }
+        if (overrides.record_title_label) {
+            lines.push(`record_title_label | ${overrides.record_title_label}`);
+        }
+        if (overrides.record_date_label) {
+            lines.push(`record_date_label | ${overrides.record_date_label}`);
+        }
+
+        Object.entries(overrides.field_labels || {}).forEach(([fieldName, label]) => {
+            lines.push(`${fieldName} | ${label}`);
+        });
+
+        return lines.join('\n');
+    }
+
+    function parseLabelOverridesTextarea(value) {
+        const result = {};
+        const fieldLabels = {};
+
+        String(value || '').split(/\r?\n/).forEach((line) => {
+            const trimmed = line.trim();
+            if (!trimmed) return;
+
+            const separatorIndex = trimmed.indexOf('|');
+            const key = separatorIndex >= 0 ? trimmed.slice(0, separatorIndex).trim() : trimmed;
+            const label = separatorIndex >= 0 ? trimmed.slice(separatorIndex + 1).trim() : '';
+            if (!key || !label) return;
+
+            if (['record_number_label', 'record_title_label', 'record_date_label'].includes(key)) {
+                result[key] = label;
+                return;
+            }
+
+            fieldLabels[key] = label;
+        });
+
+        if (Object.keys(fieldLabels).length) {
+            result.field_labels = fieldLabels;
+        }
+
+        return result;
     }
 
     function isEditableDropdownField(field) {
@@ -2448,7 +2546,29 @@
 
         const fields = getEditableDropdownFields(activeDropdownSettingsModuleKey);
         title.textContent = `${getModuleConfig(activeDropdownSettingsModuleKey).label} Dropdowns`;
-        fieldsHost.innerHTML = fields.length ? fields.map((field) => `
+        const labelTextareaId = `financeLabelOverrides_${cssIdentifier(activeDropdownSettingsModuleKey)}`;
+        const labelCardHtml = `
+            <div class="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-4 shadow-sm">
+                <div class="flex items-start justify-between gap-3">
+                    <div>
+                        <p class="text-[11px] uppercase tracking-[0.18em] text-slate-600">Field Labels</p>
+                        <h4 class="mt-1 text-sm font-semibold text-gray-900">Rename visible labels globally</h4>
+                        <p class="mt-2 text-xs text-gray-500">Use <span class="font-mono">record_title_label | Custom Title</span> for core labels, and <span class="font-mono">field_name | Custom Label</span> for form fields. Leave blank to keep the default wording.</p>
+                    </div>
+                    <button type="button" onclick="window.financeModule.resetLabelOverrides('${escapeHtml(activeDropdownSettingsModuleKey)}')" class="shrink-0 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50">Reset Labels</button>
+                </div>
+                <textarea
+                    id="${escapeHtml(labelTextareaId)}"
+                    data-finance-label-setting
+                    data-module-key="${escapeHtml(activeDropdownSettingsModuleKey)}"
+                    rows="8"
+                    class="mt-3 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-mono leading-6 outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
+                    placeholder="record_title_label | Custom title label&#10;field_name | Custom field label"
+                >${escapeHtml(formatLabelOverridesForTextarea(activeDropdownSettingsModuleKey))}</textarea>
+            </div>
+        `;
+
+        const fieldCardsHtml = fields.length ? fields.map((field) => `
             <div class="rounded-xl border border-gray-200 bg-white p-4">
                 <div class="flex items-start justify-between gap-3">
                     <div>
@@ -2475,9 +2595,11 @@
         `).join('') : `
             <div class="rounded-xl border border-gray-200 bg-gray-50 p-8 text-center">
                 <p class="text-sm font-medium text-gray-700">No standalone dropdowns in this finance tab.</p>
-                <p class="mt-1 text-xs text-gray-500">Linked lookup dropdowns are managed by their source records.</p>
+                <p class="mt-1 text-xs text-gray-500">Linked lookup dropdowns are managed by their source records. Use the label editor above to rename visible field labels.</p>
             </div>
         `;
+
+        fieldsHost.innerHTML = `${labelCardHtml}<div class="space-y-4">${fieldCardsHtml}</div>`;
     }
 
     function openDropdownSettings() {
@@ -2513,6 +2635,21 @@
         renderDropdownSettingsModal();
     }
 
+    function resetLabelOverrides(moduleKey) {
+        const textarea = document.querySelector(`[data-finance-label-setting][data-module-key="${cssIdentifier(moduleKey)}"]`);
+
+        if (textarea) {
+            textarea.value = '';
+        }
+
+        financeLabelOverrides = {
+            ...financeLabelOverrides,
+        };
+        delete financeLabelOverrides[moduleKey];
+
+        renderDropdownSettingsModal();
+    }
+
     function resetDropdownSettingsField(moduleKey, fieldName) {
         const field = getEditableDropdownFields(moduleKey).find((item) => item.name === fieldName);
         const textarea = document.querySelector(`[data-finance-dropdown-setting][data-module-key="${cssIdentifier(moduleKey)}"][data-field-name="${cssIdentifier(fieldName)}"]`);
@@ -2543,6 +2680,19 @@
         payload[activeDropdownSettingsModuleKey] = activeModuleOptions;
         const attachmentTextarea = document.querySelector('[data-finance-attachment-setting]');
         const attachmentTypes = attachmentTextarea ? parseAttachmentTypesTextarea(attachmentTextarea.value) : financeAttachmentTypes;
+        const labelTextarea = document.querySelector(`[data-finance-label-setting][data-module-key="${cssIdentifier(activeDropdownSettingsModuleKey)}"]`);
+        const labelOverrides = labelTextarea
+            ? parseLabelOverridesTextarea(labelTextarea.value)
+            : getModuleLabelOverrides(activeDropdownSettingsModuleKey);
+        const mergedLabelOverrides = {
+            ...normalizeLabelOverrides(financeLabelOverrides),
+        };
+
+        if (Object.keys(labelOverrides || {}).length) {
+            mergedLabelOverrides[activeDropdownSettingsModuleKey] = labelOverrides;
+        } else {
+            delete mergedLabelOverrides[activeDropdownSettingsModuleKey];
+        }
 
         const res = await csrfFetch('/finance/dropdown-settings', {
             method: 'POST',
@@ -2550,7 +2700,11 @@
                 'Accept': 'application/json',
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ options: payload, attachment_types: attachmentTypes }),
+            body: JSON.stringify({
+                options: payload,
+                attachment_types: attachmentTypes,
+                label_overrides: mergedLabelOverrides,
+            }),
         });
 
         const data = await res.json().catch(() => ({}));
@@ -2562,6 +2716,7 @@
 
         financeDropdownOptions = normalizeDropdownSettings(data.options || payload);
         financeAttachmentTypes = normalizeAttachmentTypeSettings(data.attachment_types || attachmentTypes);
+        financeLabelOverrides = normalizeLabelOverrides(data.label_overrides || mergedLabelOverrides);
         renderDropdownSettingsModal();
         refreshFinanceView();
         showFinanceToast(data.message || 'Finance dropdown settings saved.', 'success');
@@ -3262,6 +3417,187 @@
         return fieldsByModule[sourceType] || ['record_number', 'record_title', 'record_date', 'amount', 'remarks'];
     }
 
+    function getDvSourceDocumentSnapshot(sourceType, sourceRecord = null) {
+        const data = sourceRecord?.data || {};
+        const amount = [
+            data.amount,
+            data.grand_total,
+            data.amount_requested,
+            data.total_cash_advance,
+            data.amount_returned,
+            data.total_payroll_amount,
+            data.acquisition_cost,
+            sourceRecord?.amount,
+        ].find((value) => !blank(value));
+
+        const remainingBalance = [
+            data.ca_payment_remaining_balance,
+            data.remaining_balance,
+            data.balance_remaining,
+            data.remaining_amount,
+            data.available_balance,
+        ].find((value) => !blank(value));
+
+        const requester = [
+            data.requestor,
+            data.employee_name,
+            data.requester_name,
+            data.submitted_by_name,
+            sourceRecord?.requestor,
+            sourceRecord?.employee_name,
+            sourceRecord?.requester_name,
+            sourceRecord?.submitted_by_name,
+        ].find((value) => !blank(value)) || '';
+
+        const supplierName = [
+            data.supplier_name,
+            data.supplier_submitted_by_name,
+            data.representative_full_name,
+            sourceRecord?.supplier_name,
+        ].find((value) => !blank(value)) || '';
+
+        const employeeName = [
+            data.employee_name,
+            data.requestor,
+            data.requester_name,
+            sourceRecord?.employee_name,
+            sourceRecord?.requestor,
+        ].find((value) => !blank(value)) || '';
+
+        const totalDisbursedAmount = [
+            data.total_disbursed_amount,
+            sourceRecord?.total_disbursed_amount,
+        ].find((value) => !blank(value)) || '';
+
+        const percentagePaid = [
+            data.percentage_paid,
+            sourceRecord?.percentage_paid,
+        ].find((value) => !blank(value)) || '';
+
+        const disbursementStatus = [
+            data.disbursement_status,
+            sourceRecord?.disbursement_status,
+        ].find((value) => !blank(value)) || '';
+        const payeeInfo = getDvSourceDocumentPayeeInfo(sourceType, sourceRecord);
+        const currentBalance = amount ?? '';
+        const availableBalance = remainingBalance ?? '';
+        const reservedBalance = numericAmount(currentBalance || 0) > 0 || numericAmount(availableBalance || 0) >= 0
+            ? Math.max(numericAmount(currentBalance || 0) - numericAmount(availableBalance || 0), 0).toFixed(2)
+            : (totalDisbursedAmount || '0.00');
+        const accountingRows = Array.isArray(sourceRecord?.data?.line_items) ? sourceRecord.data.line_items : [];
+        const accountingTotals = accountingRows.reduce((totals, row) => {
+            totals.debit += numericAmount(row?.debit || 0);
+            totals.credit += numericAmount(row?.credit || 0);
+            return totals;
+        }, { debit: 0, credit: 0 });
+        const totalDebitAmount = accountingTotals.debit.toFixed(2);
+        const totalCreditAmount = accountingTotals.credit.toFixed(2);
+        const accountingBalanceDifference = Math.abs(accountingTotals.debit - accountingTotals.credit).toFixed(2);
+        const accountingBalanceStatus = numericAmount(accountingBalanceDifference) < 0.01 ? 'Balanced' : 'Unbalanced';
+
+        return {
+            source_record_number: sourceRecord?.record_number || '',
+            source_record_date: sourceRecord?.record_date || '',
+            source_requester: requester,
+            source_department: data.department || data.requesting_department || '',
+            source_project: data.project || data.project_name || data.project_code || '',
+            source_cost_center: data.cost_center || data.cost_center_code || data.cost_center_name || '',
+            source_fund_source: data.fund_source || data.project || data.department || '',
+            source_amount: amount ?? '',
+            source_remaining_balance: remainingBalance ?? '',
+            source_current_balance: currentBalance,
+            source_reserved_balance: reservedBalance,
+            source_available_balance: availableBalance,
+            source_approval_status: sourceRecord?.approval_status || 'Pending',
+            source_approved_by_name: sourceRecord?.approved_by_name || data.approved_by_name || '',
+            source_approved_at: sourceRecord?.approved_at || data.approved_at || '',
+            source_supplier_name: supplierName,
+            source_employee_name: employeeName,
+            source_payee_type: payeeInfo.payee_type,
+            source_payee_name: payeeInfo.payee_name,
+            source_status: sourceRecord?.status || '',
+            source_workflow_status: sourceRecord?.workflow_status || '',
+            source_relationship_status: sourceRecord?.relationship_status || '',
+            total_disbursed_amount: totalDisbursedAmount,
+            percentage_paid: percentagePaid,
+            disbursement_status: disbursementStatus,
+            total_debit_amount: totalDebitAmount,
+            total_credit_amount: totalCreditAmount,
+            accounting_balance_difference: accountingBalanceDifference,
+            accounting_balance_status: accountingBalanceStatus,
+            accounting_balance_warning: accountingBalanceStatus === 'Unbalanced'
+                ? 'Total Debit must equal Total Credit before the Disbursement Voucher can be approved.'
+                : '',
+        };
+    }
+
+    function getDvSourceDocumentPayeeInfo(sourceType, sourceRecord = null) {
+        const data = sourceRecord?.data || {};
+        const moduleKey = String(sourceType || sourceRecord?.module_key || '').toLowerCase();
+        const requestorName = [
+            data.requestor,
+            data.employee_name,
+            data.requester_name,
+            data.representative_full_name,
+            sourceRecord?.requestor,
+            sourceRecord?.employee_name,
+        ].find((value) => !blank(value)) || '';
+        const supplierName = [
+            data.supplier_name,
+            data.supplier_submitted_by_name,
+            data.representative_full_name,
+            sourceRecord?.supplier_name,
+        ].find((value) => !blank(value)) || '';
+        const representativeName = [
+            data.representative_full_name,
+            data.supplier_submitted_by_name,
+            sourceRecord?.representative_full_name,
+        ].find((value) => !blank(value)) || '';
+        const position = String(data.position || data.officer_type || '').trim().toLowerCase();
+        const payrollLabel = [
+            data.payroll_period_label,
+            data.payroll_period_name,
+            sourceRecord?.record_title,
+        ].find((value) => !blank(value)) || '';
+        const bankAccountLabel = [
+            getLookupLabel('bank_account', data.destination_bank_account_id),
+            data.destination_account_code,
+            data.destination_bank_account_id,
+        ].find((value) => !blank(value)) || '';
+
+        if (moduleKey === 'po') {
+            return { payee_type: 'Supplier', payee_name: supplierName };
+        }
+
+        if (moduleKey === 'ca' || moduleKey === 'err') {
+            return {
+                payee_type: representativeName
+                    ? 'Authorized Representative'
+                    : (['president', 'treasurer', 'secretary', 'vice president', 'vice-president', 'chairperson', 'chairman', 'director'].includes(position) ? 'Officer' : 'Employee'),
+                payee_name: representativeName || requestorName,
+            };
+        }
+
+        if (moduleKey === 'pda') {
+            return {
+                payee_type: 'Payroll Group',
+                payee_name: payrollLabel || sourceRecord?.record_number || '',
+            };
+        }
+
+        if (moduleKey === 'ibtf') {
+            return {
+                payee_type: 'Receiving Bank Account',
+                payee_name: bankAccountLabel,
+            };
+        }
+
+        return {
+            payee_type: '',
+            payee_name: requestorName || supplierName || representativeName,
+        };
+    }
+
     function normalizeDvPaymentType(value) {
         const text = String(value || '').trim().toLowerCase();
         if (!text) return '';
@@ -3304,7 +3640,7 @@
         const accountCode = getDvAccountCode(payload.coa_id || data.coa_id || data.payroll_expense_coa_id || data.asset_coa_id);
 
         if (sourceRows.length) {
-            return sourceRows
+            const debitRows = sourceRows
                 .filter((row) => row && Object.values(row).some((value) => !blank(value)))
                 .map((row, index) => {
                     const amount = getDvSourceLineItemAmount(row);
@@ -3320,6 +3656,21 @@
                         credit: '',
                     };
                 });
+
+            const totalDebit = debitRows.reduce((sum, row) => sum + numericAmount(row.debit || 0), 0);
+            const bankAccountRecord = getRecordByLookupValue('bank_account', payload.bank_account_id || data.bank_account_id || data.funding_bank_account_id || data.receiving_bank_account_id || data.source_bank_account_id || data.destination_bank_account_id);
+            const creditAccountCode = getDvAccountCode(bankAccountRecord?.data?.linked_coa_id || payload.coa_id || data.coa_id || data.payroll_expense_coa_id || data.asset_coa_id || firstLookupValue('chart_account'));
+
+            if (totalDebit > 0 && creditAccountCode) {
+                debitRows.push({
+                    description: `Credit ${getLookupLabel('bank_account', payload.bank_account_id || data.bank_account_id || data.funding_bank_account_id || data.receiving_bank_account_id || data.source_bank_account_id || data.destination_bank_account_id) || 'fund source'}`,
+                    account_code: creditAccountCode,
+                    debit: '',
+                    credit: totalDebit.toFixed(2),
+                });
+            }
+
+            return debitRows;
         }
 
         if (sourceType === 'ibtf') {
@@ -3346,12 +3697,23 @@
             data.purpose || data.expense_details || data.reason || data.asset_description || data.supporting_payroll_summary || sourceRecord?.record_title || 'Source document amount',
         ].filter(Boolean).join(' - ');
 
-        return [{
-            description,
-            account_code: accountCode,
-            debit: amount ? amount.toFixed(2) : '',
-            credit: '',
-        }];
+        const bankAccountRecord = getRecordByLookupValue('bank_account', payload.bank_account_id || data.bank_account_id || data.funding_bank_account_id || data.receiving_bank_account_id || data.source_bank_account_id || data.destination_bank_account_id);
+        const creditAccountCode = getDvAccountCode(bankAccountRecord?.data?.linked_coa_id || payload.coa_id || data.coa_id || data.payroll_expense_coa_id || data.asset_coa_id || firstLookupValue('chart_account'));
+
+        return [
+            {
+                description,
+                account_code: accountCode,
+                debit: amount ? amount.toFixed(2) : '',
+                credit: '',
+            },
+            {
+                description: `Credit ${getLookupLabel('bank_account', payload.bank_account_id || data.bank_account_id || data.funding_bank_account_id || data.receiving_bank_account_id || data.source_bank_account_id || data.destination_bank_account_id) || 'fund source'}`,
+                account_code: creditAccountCode,
+                debit: '',
+                credit: amount ? amount.toFixed(2) : '',
+            },
+        ].filter((row) => blank(row.account_code) ? false : true);
     }
 
     function getDvSourceDocumentOptionsHtml(sourceType, selectedValue = '') {
@@ -3416,9 +3778,35 @@
         }
 
         const payload = getDvSourceDocumentPrefill(sourceType, sourceRecord);
+        const sourceSnapshot = getDvSourceDocumentSnapshot(sourceType, sourceRecord);
         const statusLabel = sourceRecord.workflow_status || sourceRecord.approval_status || 'Accepted';
         const detailsFields = getDvSourceDocumentFields(sourceType);
         const data = sourceRecord.data || {};
+        const approvalInformation = [
+            sourceSnapshot.source_approval_status,
+            sourceSnapshot.source_approved_by_name ? `Approved by ${sourceSnapshot.source_approved_by_name}` : '',
+            sourceSnapshot.source_approved_at ? `on ${sourceSnapshot.source_approved_at}` : '',
+        ].filter(Boolean).join(' • ');
+        const disbursementInformation = [
+            sourceSnapshot.disbursement_status,
+            blank(sourceSnapshot.total_disbursed_amount) ? '' : `Disbursed ${formatCurrency(sourceSnapshot.total_disbursed_amount)}`,
+            blank(sourceSnapshot.percentage_paid) ? '' : `${sourceSnapshot.percentage_paid}% paid`,
+        ].filter(Boolean).join(' • ');
+        const statusInformation = [
+            sourceSnapshot.source_status,
+            sourceSnapshot.source_workflow_status,
+            sourceSnapshot.source_relationship_status,
+        ].filter(Boolean).join(' • ');
+        const projectedBalanceAfterPayment = Math.max(
+            numericAmount(sourceSnapshot.source_available_balance || sourceSnapshot.source_remaining_balance || 0)
+            - numericAmount(payload.prefill.amount || sourceSnapshot.source_amount || 0),
+            0,
+        );
+        const partyInformation = [
+            sourceSnapshot.source_payee_type && sourceSnapshot.source_payee_name ? `${sourceSnapshot.source_payee_type}: ${sourceSnapshot.source_payee_name}` : '',
+            sourceSnapshot.source_supplier_name ? `Supplier: ${sourceSnapshot.source_supplier_name}` : '',
+            sourceSnapshot.source_employee_name ? `Employee: ${sourceSnapshot.source_employee_name}` : '',
+        ].filter(Boolean).join(' • ');
 
         return `
             <div class="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm">
@@ -3446,6 +3834,98 @@
                     <div class="rounded-lg border border-gray-100 bg-slate-50 px-3 py-2">
                         <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">Auto-fill</p>
                         <p class="mt-1 font-semibold text-gray-900">Source fields populate after selection</p>
+                    </div>
+                </div>
+                <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                    <div class="rounded-lg border border-gray-100 bg-white px-3 py-2">
+                        <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">Source Record Number</p>
+                        <p class="mt-1 font-semibold text-gray-900 break-words">${escapeHtml(sourceSnapshot.source_record_number || 'N/A')}</p>
+                    </div>
+                    <div class="rounded-lg border border-gray-100 bg-white px-3 py-2">
+                        <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">Source Record Date</p>
+                        <p class="mt-1 font-semibold text-gray-900 break-words">${escapeHtml(sourceSnapshot.source_record_date || 'N/A')}</p>
+                    </div>
+                    <div class="rounded-lg border border-gray-100 bg-white px-3 py-2">
+                        <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">Requester</p>
+                        <p class="mt-1 font-semibold text-gray-900 break-words">${escapeHtml(sourceSnapshot.source_requester || 'N/A')}</p>
+                    </div>
+                    <div class="rounded-lg border border-gray-100 bg-white px-3 py-2">
+                        <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">Department</p>
+                        <p class="mt-1 font-semibold text-gray-900 break-words">${escapeHtml(sourceSnapshot.source_department || 'N/A')}</p>
+                    </div>
+                    <div class="rounded-lg border border-gray-100 bg-white px-3 py-2">
+                        <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">Project</p>
+                        <p class="mt-1 font-semibold text-gray-900 break-words">${escapeHtml(sourceSnapshot.source_project || 'N/A')}</p>
+                    </div>
+                    <div class="rounded-lg border border-gray-100 bg-white px-3 py-2">
+                        <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">Cost Center</p>
+                        <p class="mt-1 font-semibold text-gray-900 break-words">${escapeHtml(sourceSnapshot.source_cost_center || 'N/A')}</p>
+                    </div>
+                    <div class="rounded-lg border border-gray-100 bg-white px-3 py-2">
+                        <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">Fund Source</p>
+                        <p class="mt-1 font-semibold text-gray-900 break-words">${escapeHtml(sourceSnapshot.source_fund_source || 'N/A')}</p>
+                    </div>
+                    <div class="rounded-lg border border-gray-100 bg-white px-3 py-2">
+                        <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">Amount</p>
+                        <p class="mt-1 font-semibold text-gray-900 break-words">${escapeHtml(formatCurrency(sourceSnapshot.source_amount || 0))}</p>
+                    </div>
+                    <div class="rounded-lg border border-gray-100 bg-white px-3 py-2">
+                        <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">Current Balance</p>
+                        <p class="mt-1 font-semibold text-gray-900 break-words">${escapeHtml(formatCurrency(sourceSnapshot.source_current_balance || sourceSnapshot.source_amount || 0))}</p>
+                    </div>
+                    <div class="rounded-lg border border-gray-100 bg-white px-3 py-2">
+                        <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">Reserved Balance</p>
+                        <p class="mt-1 font-semibold text-gray-900 break-words">${escapeHtml(formatCurrency(sourceSnapshot.source_reserved_balance || sourceSnapshot.total_disbursed_amount || 0))}</p>
+                    </div>
+                    <div class="rounded-lg border border-gray-100 bg-white px-3 py-2">
+                        <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">Available Balance</p>
+                        <p class="mt-1 font-semibold text-gray-900 break-words">${escapeHtml(formatCurrency(sourceSnapshot.source_available_balance || sourceSnapshot.source_remaining_balance || 0))}</p>
+                    </div>
+                    <div class="rounded-lg border border-gray-100 bg-white px-3 py-2">
+                        <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">Projected Balance After Payment</p>
+                        <p class="mt-1 font-semibold text-gray-900 break-words">${escapeHtml(formatCurrency(projectedBalanceAfterPayment || 0))}</p>
+                    </div>
+                    <div class="rounded-lg border border-gray-100 bg-white px-3 py-2">
+                        <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">Accounting Status</p>
+                        <p class="mt-1 font-semibold text-gray-900 break-words">${escapeHtml(sourceSnapshot.accounting_balance_status || 'Balanced')}</p>
+                    </div>
+                    <div class="rounded-lg border border-gray-100 bg-white px-3 py-2">
+                        <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">Total Debit</p>
+                        <p class="mt-1 font-semibold text-gray-900 break-words">${escapeHtml(formatCurrency(sourceSnapshot.total_debit_amount || 0))}</p>
+                    </div>
+                    <div class="rounded-lg border border-gray-100 bg-white px-3 py-2">
+                        <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">Total Credit</p>
+                        <p class="mt-1 font-semibold text-gray-900 break-words">${escapeHtml(formatCurrency(sourceSnapshot.total_credit_amount || 0))}</p>
+                    </div>
+                    <div class="rounded-lg border border-gray-100 bg-white px-3 py-2">
+                        <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">Remaining Balance</p>
+                        <p class="mt-1 font-semibold text-gray-900 break-words">${escapeHtml(blank(sourceSnapshot.source_remaining_balance) ? 'N/A' : formatCurrency(sourceSnapshot.source_remaining_balance))}</p>
+                    </div>
+                    ${(sourceSnapshot.accounting_balance_warning ? `
+                        <div class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 md:col-span-2">
+                            <p class="text-[11px] uppercase tracking-[0.2em] text-amber-700">Accounting Warning</p>
+                            <p class="mt-1 font-semibold text-amber-900 break-words">${escapeHtml(sourceSnapshot.accounting_balance_warning)}</p>
+                        </div>
+                    ` : '')}
+                    <div class="rounded-lg border border-gray-100 bg-white px-3 py-2 md:col-span-2">
+                        <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">Approval Information</p>
+                        <p class="mt-1 font-semibold text-gray-900 break-words">${escapeHtml(approvalInformation || 'N/A')}</p>
+                    </div>
+                    <div class="rounded-lg border border-gray-100 bg-white px-3 py-2 md:col-span-2">
+                        <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">Payee Information</p>
+                        <p class="mt-1 font-semibold text-gray-900 break-words">${escapeHtml(sourceSnapshot.source_payee_type && sourceSnapshot.source_payee_name ? `${sourceSnapshot.source_payee_type}: ${sourceSnapshot.source_payee_name}` : 'N/A')}</p>
+                    </div>
+                    <div class="rounded-lg border border-gray-100 bg-white px-3 py-2 md:col-span-2">
+                        <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">Supplier / Employee Information</p>
+                        <p class="mt-1 font-semibold text-gray-900 break-words">${escapeHtml(partyInformation || 'N/A')}</p>
+                    </div>
+                    <div class="rounded-lg border border-gray-100 bg-white px-3 py-2 md:col-span-2">
+                        <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">Status Information</p>
+                        <p class="mt-1 font-semibold text-gray-900 break-words">${escapeHtml(statusInformation || 'N/A')}</p>
+                    </div>
+                    <div class="rounded-lg border border-gray-100 bg-white px-3 py-2 md:col-span-2">
+                        <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">Disbursement Summary</p>
+                        <p class="mt-1 font-semibold text-gray-900 break-words">${escapeHtml(disbursementInformation || 'N/A')}</p>
                     </div>
                 </div>
                 <div class="mt-4 rounded-xl border border-gray-100 bg-slate-50 p-3">
@@ -3521,10 +4001,29 @@
         const paymentDate = payload.payment_date || data.payment_date || sourceRecord?.record_date || todayDateValue();
         const referenceNumber = payload.reference_number || data.reference_number || sourceRecord?.record_number || '';
         const recordTitle = getVisibleRecordTitle(sourceRecord) || referenceNumber || '';
+        const sourceSnapshot = getDvSourceDocumentSnapshot(moduleKey, sourceRecord);
+        const payeeInfo = getDvSourceDocumentPayeeInfo(moduleKey, sourceRecord);
+        const currentBalance = numericAmount(sourceSnapshot.source_current_balance || sourceSnapshot.source_amount || amount || 0);
+        const reservedBalance = numericAmount(sourceSnapshot.source_reserved_balance || sourceSnapshot.total_disbursed_amount || 0);
+        const availableBalance = numericAmount(sourceSnapshot.source_available_balance || sourceSnapshot.source_remaining_balance || 0);
+        const projectedBalanceAfterPayment = Math.max(availableBalance - numericAmount(amount || 0), 0);
+        const accountingSourceRows = Array.isArray(sourceRecord?.data?.line_items) && sourceRecord.data.line_items.length
+            ? sourceRecord.data.line_items
+            : [];
+        const accountingTotals = accountingSourceRows.reduce((totals, row) => {
+            totals.debit += numericAmount(row?.debit || 0);
+            totals.credit += numericAmount(row?.credit || 0);
+            return totals;
+        }, { debit: 0, credit: 0 });
+        const totalDebit = accountingTotals.debit.toFixed(2);
+        const totalCredit = accountingTotals.credit.toFixed(2);
+        const accountingBalanceDifference = Math.abs(accountingTotals.debit - accountingTotals.credit).toFixed(2);
+        const accountingBalanceStatus = numericAmount(accountingBalanceDifference) < 0.01 ? 'Balanced' : 'Unbalanced';
 
         const prefill = {
             source_document_type: moduleKey,
             source_document_id: sourceRecord?.id || '',
+            ...sourceSnapshot,
             amount: amount ?? '',
             supplier_id: supplierId,
             coa_id: coaId || '',
@@ -3545,6 +4044,13 @@
             received_by_signature: data.received_by_signature || '',
             date_received: data.date_received || '',
             remarks: payload.remarks || data.remarks || '',
+            payee_type: payeeInfo.payee_type || '',
+            payee_name: payeeInfo.payee_name || '',
+            current_balance: currentBalance ? currentBalance.toFixed(2) : '',
+            reserved_balance: reservedBalance ? reservedBalance.toFixed(2) : '',
+            available_balance: availableBalance ? availableBalance.toFixed(2) : '',
+            projected_balance_after_payment: projectedBalanceAfterPayment.toFixed(2),
+            ...sourceSnapshot,
         };
 
         if (moduleKey === 'ca') {
@@ -3579,14 +4085,14 @@
         const form = $('financeForm');
         if (!form) return;
 
-        ['source_document_id', 'supplier_id', 'amount', 'bank_account_id', 'coa_id', 'payment_type', 'disbursement_type', 'fund_source', 'department', 'purpose', 'payment_date', 'due_date', 'withholding_tax', 'vat_amount', 'net_amount', 'currency', 'exchange_rate', 'received_by_name', 'received_by_signature', 'date_received', 'reference_number', 'remarks'].forEach((fieldName) => {
+        ['source_document_id', 'supplier_id', 'payee_type', 'payee_name', 'amount', 'bank_account_id', 'coa_id', 'payment_type', 'disbursement_type', 'fund_source', 'department', 'purpose', 'payment_date', 'due_date', 'withholding_tax', 'vat_amount', 'net_amount', 'currency', 'exchange_rate', 'received_by_name', 'received_by_signature', 'date_received', 'reference_number', 'remarks', 'source_record_number', 'source_record_date', 'source_requester', 'source_department', 'source_project', 'source_cost_center', 'source_fund_source', 'source_amount', 'source_remaining_balance', 'source_current_balance', 'source_reserved_balance', 'source_available_balance', 'source_approval_status', 'source_approved_by_name', 'source_approved_at', 'source_supplier_name', 'source_employee_name', 'source_payee_type', 'source_payee_name', 'source_status', 'source_workflow_status', 'source_relationship_status', 'total_disbursed_amount', 'percentage_paid', 'disbursement_status', 'projected_balance_after_payment', 'fund_availability_status', 'fund_availability_warning', 'fund_availability_requested_amount', 'fund_availability_available_balance', 'fund_availability_checked_at', 'fund_availability_checked_by', 'fund_availability_checked_by_name', 'fund_availability_policy_allows_approval', 'accounting_balance_status', 'accounting_balance_warning', 'total_debit_amount', 'total_credit_amount', 'accounting_balance_difference', 'accounting_balance_checked_at', 'accounting_balance_checked_by', 'accounting_balance_checked_by_name'].forEach((fieldName) => {
             const input = form.querySelector(`[name="data[${fieldName}]"]`);
             if (input) {
                 input.value = '';
             }
         });
         financeFormValues = financeFormValues || {};
-        ['source_document_id', 'supplier_id', 'amount', 'bank_account_id', 'coa_id', 'payment_type', 'disbursement_type', 'fund_source', 'department', 'purpose', 'payment_date', 'due_date', 'withholding_tax', 'vat_amount', 'net_amount', 'currency', 'exchange_rate', 'received_by_name', 'received_by_signature', 'date_received', 'reference_number', 'remarks'].forEach((fieldName) => {
+        ['source_document_id', 'supplier_id', 'payee_type', 'payee_name', 'amount', 'bank_account_id', 'coa_id', 'payment_type', 'disbursement_type', 'fund_source', 'department', 'purpose', 'payment_date', 'due_date', 'withholding_tax', 'vat_amount', 'net_amount', 'currency', 'exchange_rate', 'received_by_name', 'received_by_signature', 'date_received', 'reference_number', 'remarks', 'source_record_number', 'source_record_date', 'source_requester', 'source_department', 'source_project', 'source_cost_center', 'source_fund_source', 'source_amount', 'source_remaining_balance', 'source_current_balance', 'source_reserved_balance', 'source_available_balance', 'source_approval_status', 'source_approved_by_name', 'source_approved_at', 'source_supplier_name', 'source_employee_name', 'source_payee_type', 'source_payee_name', 'source_status', 'source_workflow_status', 'source_relationship_status', 'total_disbursed_amount', 'percentage_paid', 'disbursement_status', 'projected_balance_after_payment', 'fund_availability_status', 'fund_availability_warning', 'fund_availability_requested_amount', 'fund_availability_available_balance', 'fund_availability_checked_at', 'fund_availability_checked_by', 'fund_availability_checked_by_name', 'fund_availability_policy_allows_approval', 'accounting_balance_status', 'accounting_balance_warning', 'total_debit_amount', 'total_credit_amount', 'accounting_balance_difference', 'accounting_balance_checked_at', 'accounting_balance_checked_by', 'accounting_balance_checked_by_name'].forEach((fieldName) => {
             financeFormValues[fieldName] = '';
             financeFormValues[`data[${fieldName}]`] = '';
         });
@@ -3608,6 +4114,49 @@
         return {
             source_document_type: resolvedSourceType,
             source_document_id: sourceId || sourceRecord.id || '',
+            source_record_number: prefill?.prefill?.source_record_number || '',
+            source_record_date: prefill?.prefill?.source_record_date || '',
+            source_requester: prefill?.prefill?.source_requester || '',
+            source_department: prefill?.prefill?.source_department || '',
+            source_project: prefill?.prefill?.source_project || '',
+            source_cost_center: prefill?.prefill?.source_cost_center || '',
+            source_fund_source: prefill?.prefill?.source_fund_source || '',
+            source_amount: prefill?.prefill?.source_amount || '',
+            source_remaining_balance: prefill?.prefill?.source_remaining_balance || '',
+            source_approval_status: prefill?.prefill?.source_approval_status || '',
+            source_approved_by_name: prefill?.prefill?.source_approved_by_name || '',
+            source_approved_at: prefill?.prefill?.source_approved_at || '',
+            source_supplier_name: prefill?.prefill?.source_supplier_name || '',
+            source_employee_name: prefill?.prefill?.source_employee_name || '',
+            source_payee_type: prefill?.prefill?.source_payee_type || '',
+            source_payee_name: prefill?.prefill?.source_payee_name || '',
+            source_current_balance: prefill?.prefill?.source_current_balance || '',
+            source_reserved_balance: prefill?.prefill?.source_reserved_balance || '',
+            source_available_balance: prefill?.prefill?.source_available_balance || '',
+            source_status: prefill?.prefill?.source_status || '',
+            source_workflow_status: prefill?.prefill?.source_workflow_status || '',
+            source_relationship_status: prefill?.prefill?.source_relationship_status || '',
+            total_disbursed_amount: prefill?.prefill?.total_disbursed_amount || '',
+            percentage_paid: prefill?.prefill?.percentage_paid || '',
+            disbursement_status: prefill?.prefill?.disbursement_status || '',
+            projected_balance_after_payment: prefill?.prefill?.projected_balance_after_payment || '',
+            fund_availability_status: prefill?.prefill?.fund_availability_status || '',
+            fund_availability_warning: prefill?.prefill?.fund_availability_warning || '',
+            fund_availability_requested_amount: prefill?.prefill?.fund_availability_requested_amount || '',
+            fund_availability_available_balance: prefill?.prefill?.fund_availability_available_balance || '',
+            fund_availability_checked_at: prefill?.prefill?.fund_availability_checked_at || '',
+            fund_availability_checked_by: prefill?.prefill?.fund_availability_checked_by || '',
+            fund_availability_checked_by_name: prefill?.prefill?.fund_availability_checked_by_name || '',
+            fund_availability_policy_allows_approval: prefill?.prefill?.fund_availability_policy_allows_approval || '',
+            accounting_balance_status: accountingBalanceStatus,
+            accounting_balance_warning: accountingBalanceStatus === 'Unbalanced'
+                ? 'Total Debit must equal Total Credit before the Disbursement Voucher can be approved.'
+                : '',
+            total_debit_amount: totalDebit,
+            total_credit_amount: totalCredit,
+            accounting_balance_difference: accountingBalanceDifference,
+            payee_type: prefill?.prefill?.payee_type || '',
+            payee_name: prefill?.prefill?.payee_name || '',
             supplier_id: prefill?.prefill?.supplier_id || '',
             amount: prefill?.prefill?.amount || '',
             bank_account_id: prefill?.prefill?.bank_account_id || '',
@@ -3650,6 +4199,47 @@
 
         setField('source_document_type', payload.source_document_type);
         setField('source_document_id', payload.source_document_id);
+        setField('source_record_number', payload.source_record_number);
+        setField('source_record_date', payload.source_record_date);
+        setField('source_requester', payload.source_requester);
+        setField('source_department', payload.source_department);
+        setField('source_project', payload.source_project);
+        setField('source_cost_center', payload.source_cost_center);
+        setField('source_fund_source', payload.source_fund_source);
+        setField('source_amount', payload.source_amount);
+        setField('source_remaining_balance', payload.source_remaining_balance);
+        setField('source_approval_status', payload.source_approval_status);
+        setField('source_approved_by_name', payload.source_approved_by_name);
+        setField('source_approved_at', payload.source_approved_at);
+        setField('source_supplier_name', payload.source_supplier_name);
+        setField('source_employee_name', payload.source_employee_name);
+        setField('source_payee_type', payload.source_payee_type);
+        setField('source_payee_name', payload.source_payee_name);
+        setField('source_current_balance', payload.source_current_balance);
+        setField('source_reserved_balance', payload.source_reserved_balance);
+        setField('source_available_balance', payload.source_available_balance);
+        setField('source_status', payload.source_status);
+        setField('source_workflow_status', payload.source_workflow_status);
+        setField('source_relationship_status', payload.source_relationship_status);
+        setField('total_disbursed_amount', payload.total_disbursed_amount);
+        setField('percentage_paid', payload.percentage_paid);
+        setField('disbursement_status', payload.disbursement_status);
+        setField('projected_balance_after_payment', payload.projected_balance_after_payment);
+        setField('fund_availability_status', payload.fund_availability_status);
+        setField('fund_availability_warning', payload.fund_availability_warning);
+        setField('fund_availability_requested_amount', payload.fund_availability_requested_amount);
+        setField('fund_availability_available_balance', payload.fund_availability_available_balance);
+        setField('fund_availability_checked_at', payload.fund_availability_checked_at);
+        setField('fund_availability_checked_by', payload.fund_availability_checked_by);
+        setField('fund_availability_checked_by_name', payload.fund_availability_checked_by_name);
+        setField('fund_availability_policy_allows_approval', payload.fund_availability_policy_allows_approval);
+        setField('accounting_balance_status', payload.accounting_balance_status);
+        setField('accounting_balance_warning', payload.accounting_balance_warning);
+        setField('total_debit_amount', payload.total_debit_amount);
+        setField('total_credit_amount', payload.total_credit_amount);
+        setField('accounting_balance_difference', payload.accounting_balance_difference);
+        setField('payee_type', payload.payee_type);
+        setField('payee_name', payload.payee_name);
         setField('supplier_id', payload.supplier_id);
         setField('amount', payload.amount);
         setField('bank_account_id', payload.bank_account_id);
@@ -3881,10 +4471,11 @@
         const fieldName = `data[${field.name}]`;
         const dependencyValue = field.dependsOnCheckbox ? formValues[`data[${field.dependsOnCheckbox}]`] : null;
         const dependencyEnabled = !field.dependsOnCheckbox || isTruthyFormValue(dependencyValue);
-        const disabledAttr = field.dependsOnCheckbox && !dependencyEnabled ? 'disabled' : '';
+        const forceReadOnly = financeFormLockedReadOnly;
+        const disabledAttr = (field.dependsOnCheckbox && !dependencyEnabled) || forceReadOnly ? 'disabled' : '';
         const emptyOption = field.placeholder || `Select ${field.label}`;
-        const readOnlyAttr = field.readOnly ? 'readonly' : '';
-        const readOnlyClass = field.readOnly || (field.dependsOnCheckbox && !dependencyEnabled) ? 'bg-gray-100 cursor-not-allowed' : '';
+        const readOnlyAttr = field.readOnly || forceReadOnly ? 'readonly' : '';
+        const readOnlyClass = field.readOnly || (field.dependsOnCheckbox && !dependencyEnabled) || forceReadOnly ? 'bg-gray-100 cursor-not-allowed' : '';
 
         let control = '';
 
@@ -3892,24 +4483,32 @@
             control = `<textarea name="${fieldName}" rows="${field.rows || 3}" class="w-full border rounded-md p-2 ${readOnlyClass}" ${readOnlyAttr}>${escapeHtml(value)}</textarea>`;
         } else if (field.type === 'selector') {
             const selectedLabel = getLookupLabel(field.source, value) || value || '';
-            control = `
-                <div class="space-y-1.5">
+            control = forceReadOnly || field.readOnly
+                ? `
+                    <div class="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-800">
+                        <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500">${label}</div>
+                        <div class="mt-1 break-words font-medium">${escapeHtml(selectedLabel || `Select ${field.label}`)}</div>
+                    </div>
                     <input type="hidden" name="${fieldName}" data-lookup-selector-hidden="${escapeHtml(field.name)}" value="${escapeHtml(value)}">
-                    <button
-                        type="button"
-                        onclick="window.financeModule.openLookupSelector(${JSON.stringify(field.name)}, ${JSON.stringify(field.source)}, ${JSON.stringify(field.label)}, ${JSON.stringify(field.selectorFilter || '')})"
-                        class="w-full rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-left shadow-sm hover:bg-blue-100 transition"
-                    >
-                        <div class="flex items-center justify-between gap-3">
-                            <div class="min-w-0 flex-1">
-                                <span class="block text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-600">${label}</span>
-                                <span data-lookup-selector-display="${escapeHtml(field.name)}" class="mt-1 block truncate text-sm font-medium text-gray-800">${escapeHtml(selectedLabel || `Select ${field.label}`)}</span>
+                `
+                : `
+                    <div class="space-y-1.5">
+                        <input type="hidden" name="${fieldName}" data-lookup-selector-hidden="${escapeHtml(field.name)}" value="${escapeHtml(value)}">
+                        <button
+                            type="button"
+                            onclick="window.financeModule.openLookupSelector(${JSON.stringify(field.name)}, ${JSON.stringify(field.source)}, ${JSON.stringify(field.label)}, ${JSON.stringify(field.selectorFilter || '')})"
+                            class="w-full rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-left shadow-sm hover:bg-blue-100 transition"
+                        >
+                            <div class="flex items-center justify-between gap-3">
+                                <div class="min-w-0 flex-1">
+                                    <span class="block text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-600">${label}</span>
+                                    <span data-lookup-selector-display="${escapeHtml(field.name)}" class="mt-1 block truncate text-sm font-medium text-gray-800">${escapeHtml(selectedLabel || `Select ${field.label}`)}</span>
+                                </div>
+                                <span class="shrink-0 rounded-full bg-white px-3 py-1 text-xs font-semibold text-blue-700 shadow-sm">Search list</span>
                             </div>
-                            <span class="shrink-0 rounded-full bg-white px-3 py-1 text-xs font-semibold text-blue-700 shadow-sm">Search list</span>
-                        </div>
-                    </button>
-                </div>
-            `;
+                        </button>
+                    </div>
+                `;
         } else if (field.type === 'calculation') {
             const displayValue = value || 'N/A';
             control = `
@@ -3941,7 +4540,7 @@
                         const checked = selectedValues.includes(optionValue);
                         return `
                             <label class="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700">
-                                <input type="checkbox" name="${fieldName}[]" value="${escapeHtml(optionValue)}" ${checked ? 'checked' : ''} class="rounded border-gray-300">
+                                <input type="checkbox" name="${fieldName}[]" value="${escapeHtml(optionValue)}" ${checked ? 'checked' : ''} class="rounded border-gray-300" ${forceReadOnly ? 'disabled' : ''}>
                                 <span>${escapeHtml(option.label ?? optionValue)}</span>
                             </label>
                         `;
@@ -3957,7 +4556,7 @@
                         const checked = selectedValue === optionValue;
                         return `
                             <label class="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700">
-                                <input type="radio" name="${fieldName}" value="${escapeHtml(optionValue)}" ${checked ? 'checked' : ''} class="border-gray-300">
+                                <input type="radio" name="${fieldName}" value="${escapeHtml(optionValue)}" ${checked ? 'checked' : ''} class="border-gray-300" ${forceReadOnly ? 'disabled' : ''}>
                                 <span>${escapeHtml(option.label ?? optionValue)}</span>
                             </label>
                         `;
@@ -3967,14 +4566,14 @@
         } else if (field.type === 'checkbox') {
             control = `
                 <label class="inline-flex items-center gap-2 mt-2">
-                    <input type="checkbox" name="${fieldName}" value="1" ${isTruthyFormValue(value) ? 'checked' : ''} data-checkbox-field="${escapeHtml(field.name)}" class="rounded border-gray-300">
+                    <input type="checkbox" name="${fieldName}" value="1" ${isTruthyFormValue(value) ? 'checked' : ''} data-checkbox-field="${escapeHtml(field.name)}" class="rounded border-gray-300" ${forceReadOnly ? 'disabled' : ''}>
                     <span class="text-sm text-gray-700">${label}</span>
                 </label>
             `;
         } else if (field.type === 'acknowledgment') {
             control = `
                 <label class="flex items-start gap-3 rounded-lg border border-gray-200 bg-white px-3 py-3">
-                    <input type="checkbox" name="${fieldName}" value="1" ${isTruthyFormValue(value) ? 'checked' : ''} class="mt-1 rounded border-gray-300" ${required}>
+                    <input type="checkbox" name="${fieldName}" value="1" ${isTruthyFormValue(value) ? 'checked' : ''} class="mt-1 rounded border-gray-300" ${required} ${forceReadOnly ? 'disabled' : ''}>
                     <span class="text-sm leading-6 text-gray-700">${escapeHtml(field.statement || field.label)}</span>
                 </label>
             `;
@@ -4147,9 +4746,10 @@
                 discount: item.discount || '0%',
                 discount_amount: item.discount_amount || '',
                 shipping_amount: item.shipping_amount || '',
-                tax_type: item.tax_type || 'N/A',
+                tax_type: normalizeFinanceTaxType(item.tax_type || 'N/A'),
                 tax_amount: item.tax_amount || '',
                 wht_amount: item.wht_amount || '',
+                tax_impact_label: item.tax_impact_label || '',
                 total: item.total || '',
                 supplier_id: item.supplier_id || '',
                 client_id: item.client_id || '',
@@ -4169,9 +4769,10 @@
                 discount: record ? (getModuleFieldValue(record, { name: 'discount' }) || '0%') : '0%',
                 discount_amount: record ? (getModuleFieldValue(record, { name: 'discount_amount' }) || '') : '',
                 shipping_amount: record ? (getModuleFieldValue(record, { name: 'shipping_amount' }) || '') : '',
-                tax_type: record ? (getModuleFieldValue(record, { name: 'tax_type' }) || 'N/A') : 'N/A',
+                tax_type: record ? normalizeFinanceTaxType(getModuleFieldValue(record, { name: 'tax_type' }) || 'N/A') : 'N/A',
                 tax_amount: record ? (getModuleFieldValue(record, { name: 'tax_amount' }) || '') : '',
                 wht_amount: record ? (getModuleFieldValue(record, { name: 'wht_amount' }) || '') : '',
+                tax_impact_label: record ? (getModuleFieldValue(record, { name: 'tax_impact_label' }) || '') : '',
                 total: record ? (getModuleFieldValue(record, { name: 'total_amount' }) || '') : '',
                 supplier_id: record ? (getModuleFieldValue(record, { name: 'supplier_id' }) || '') : '',
                 client_id: '',
@@ -4221,6 +4822,7 @@
             tax_type: 'N/A',
             tax_amount: '',
             wht_amount: '',
+            tax_impact_label: '',
             total: '',
             supplier_id: '',
             client_id: '',
@@ -4298,7 +4900,7 @@
             category: data.category || (isService ? 'Service' : 'Product'),
             amount: data.default_cost ?? '',
             supplier_id: data.supplier_id ?? '',
-            tax_type: data.tax_type ?? '',
+            tax_type: normalizeFinanceTaxType(data.tax_type ?? ''),
         };
     }
 
@@ -4699,14 +5301,15 @@
     function renderDvLineItemsTable(record = null) {
         const rows = getDvLineItemRows(record);
         const lockSourceFields = currentModuleKey === 'dv';
-        const sourceFieldAttr = lockSourceFields ? 'readonly' : '';
-        const sourceFieldClass = lockSourceFields ? 'bg-gray-100 cursor-not-allowed' : 'bg-white';
+        const isLocked = Boolean(financeFormLockedReadOnly);
+        const sourceFieldAttr = lockSourceFields || isLocked ? 'readonly' : '';
+        const sourceFieldClass = lockSourceFields || isLocked ? 'bg-gray-100 cursor-not-allowed' : 'bg-white';
 
         return `
             <div class="md:col-span-2 rounded-xl border border-gray-200 bg-white p-4" data-dv-line-items-section>
                 <div class="flex items-center justify-between gap-3">
                     <h4 class="text-sm font-semibold uppercase tracking-[0.24em] text-gray-700">Breakdown / Line Items</h4>
-                    ${lockSourceFields ? '<span class="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">Debit/Credit editable</span>' : '<button type="button" onclick="window.financeModule.addDvLineItemRow()" class="rounded-md border border-blue-200 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-50">Add Line</button>'}
+                    ${isLocked ? '<span class="rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700">Read-only</span>' : (lockSourceFields ? '<span class="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">Debit/Credit editable</span>' : '<button type="button" onclick="window.financeModule.addDvLineItemRow()" class="rounded-md border border-blue-200 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-50">Add Line</button>')}
                 </div>
                 <div class="mt-4 space-y-3">
                     ${rows.map((row, index) => `
@@ -4721,13 +5324,13 @@
                             </div>
                             <div class="md:col-span-2">
                                 <label class="block text-xs font-medium text-gray-600">Debit</label>
-                                <input type="number" step="0.01" min="0" name="data[line_items][${index}][debit]" data-dv-line-item-field="debit" value="${escapeHtml(row.debit || '')}" class="mt-1 w-full border rounded-md p-2 bg-white">
+                                <input type="number" step="0.01" min="0" name="data[line_items][${index}][debit]" data-dv-line-item-field="debit" value="${escapeHtml(row.debit || '')}" class="mt-1 w-full border rounded-md p-2 ${isLocked ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'}" ${isLocked ? 'readonly' : ''}>
                             </div>
                             <div class="md:col-span-2">
                                 <label class="block text-xs font-medium text-gray-600">Credit</label>
-                                <input type="number" step="0.01" min="0" name="data[line_items][${index}][credit]" data-dv-line-item-field="credit" value="${escapeHtml(row.credit || '')}" class="mt-1 w-full border rounded-md p-2 bg-white">
+                                <input type="number" step="0.01" min="0" name="data[line_items][${index}][credit]" data-dv-line-item-field="credit" value="${escapeHtml(row.credit || '')}" class="mt-1 w-full border rounded-md p-2 ${isLocked ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'}" ${isLocked ? 'readonly' : ''}>
                             </div>
-                            <div class="md:col-span-12 ${lockSourceFields ? 'hidden' : 'flex'} justify-end">
+                            <div class="md:col-span-12 ${(lockSourceFields || isLocked) ? 'hidden' : 'flex'} justify-end">
                                 <button type="button" onclick="window.financeModule.removeDvLineItemRow(${index})" class="text-xs font-semibold text-red-600 hover:text-red-700">Remove</button>
                             </div>
                         </div>
@@ -5844,7 +6447,7 @@
     function renderNextActionCallout(record, section = {}) {
         const data = record?.data || {};
         const nextAction = section.next_action || data.next_action || 'Continue workflow';
-        const relationshipStatus = section.relationship_status || data.relationship_status || 'In Progress';
+        const relationshipStatus = section.relationship_status || record?.relationship_status || data.relationship_status || 'In Progress';
         const description = section.description || 'This record is ready for the next step in the finance workflow.';
 
         return `
@@ -6029,6 +6632,7 @@
                 return [
                     { title: 'Order Overview', fieldNames: ['record_number', 'record_title', 'linked_pr_id', 'linked_dv_id', 'record_date', 'workflow_status', 'approval_status'] },
                     { title: 'Connected Records', fieldNames: ['linked_pr_id', 'linked_dv_id', 'supplier_id'] },
+                    { type: 'source_disbursement_summary', renderer: () => renderSourceDisbursementSummaryCard(record) },
                     { title: 'Order Details', fieldNames: ['supplier_id', 'expected_delivery_date', 'delivery_address', 'terms_and_conditions', 'purpose', 'remarks', 'coa_id'] },
                     { title: 'Items / Cost Details', renderer: () => renderPrPreviewTable(record) },
                     { type: 'history' },
@@ -6037,6 +6641,7 @@
             case 'ca':
                 return [
                     { type: 'ca_payment_tracking', renderer: () => renderCashAdvancePaymentPreview(record) },
+                    { type: 'source_disbursement_summary', renderer: () => renderSourceDisbursementSummaryCard(record) },
                     { title: 'Approval Routing', fieldNames: ['first_approver_user_id', 'second_approver_user_id'] },
                     { title: 'Request Details', fieldNames: ['requester_mode', 'requester_employee_id', 'requestor', 'department', 'purpose', 'needed_date', 'mode_of_release', 'amount_requested', 'release_schedule', 'release_count', 'amount_per_release', 'cash_release_date', 'cash_release_time', 'paid_through'] },
                     { title: 'Funding & Notes', fieldNames: ['bank_account_id', 'coa_id', 'remarks'] },
@@ -6064,13 +6669,14 @@
                 return [
                     { title: 'Reimbursement Overview', fieldNames: ['record_number', 'record_title', 'linked_lr_id', 'reimbursement_mode', 'amount', 'workflow_status', 'approval_status'] },
                     { title: 'Connected Records', fieldNames: ['linked_lr_id', 'requester_mode', 'requestor'] },
+                    { type: 'source_disbursement_summary', renderer: () => renderSourceDisbursementSummaryCard(record) },
                     { title: 'Reimbursement Details', fieldNames: ['requester_mode', 'requester_employee_id', 'expense_details', 'reimbursement_payment_details', 'reimbursement_mode', ...errPaymentFieldNames, 'remarks'] },
                     { type: 'notes', renderer: () => renderFinanceReviewNotesSection(record) },
                 ];
             case 'dv':
                 return [
-                    { title: 'Voucher Details', fieldNames: ['source_document_type', 'source_document_id', 'supplier_id', 'amount', 'payment_type', 'disbursement_type', 'payment_date', 'due_date'] },
-                    { title: 'Accounting & Notes', fieldNames: ['bank_account_id', 'coa_id', 'fund_source', 'department', 'reference_number', 'purpose', 'remarks'] },
+                    { title: 'Voucher Details', fieldNames: ['source_document_type', 'source_document_id', 'payee_type', 'payee_name', 'supplier_id', 'amount', 'payment_type', 'disbursement_type', 'payment_date', 'due_date', 'projected_balance_after_payment', 'fund_availability_status', 'fund_availability_requested_amount', 'fund_availability_available_balance', 'accounting_balance_status', 'total_debit_amount', 'total_credit_amount', 'accounting_balance_difference'] },
+                    { title: 'Funding & Notes', fieldNames: ['bank_account_id', 'coa_id', 'fund_source', 'source_current_balance', 'source_reserved_balance', 'source_available_balance', 'source_fund_source', 'department', 'reference_number', 'purpose', 'remarks', 'fund_availability_warning', 'fund_availability_checked_at', 'fund_availability_checked_by_name', 'fund_availability_policy_allows_approval', 'accounting_balance_warning', 'accounting_balance_checked_at', 'accounting_balance_checked_by_name'] },
                     { renderer: () => renderDvPreviewLineItems(record) },
                     { title: 'Tax & Receipt', fieldNames: ['withholding_tax', 'vat_amount', 'net_amount', 'currency', 'exchange_rate', 'received_by_name', 'received_by_signature', 'date_received'] },
                     { type: 'notes', renderer: () => renderFinanceReviewNotesSection(record) },
@@ -6079,6 +6685,7 @@
                 return [
                     { title: 'Payroll Overview', fieldNames: ['record_number', 'record_title', 'payroll_period_id', 'pay_date', 'workflow_status', 'approval_status'] },
                     { title: 'Approval Routing', fieldNames: ['first_approver_user_id', 'second_approver_user_id'] },
+                    { type: 'source_disbursement_summary', renderer: () => renderSourceDisbursementSummaryCard(record) },
                     { type: 'pda_payroll_period', title: 'Payroll Period' },
                     { title: 'Payroll Variables', fieldNames: ['employee_count', 'basic_salary_total', 'yearly_basic_total', 'daily_rate_total', 'hourly_rate_total', 'minute_rate_total', 'gross_pay_total', 'benefits_total', 'allowances_total', 'deductions_total', 'night_differential_total', 'holiday_pay_total', 'total_payroll_amount'] },
                     { title: 'Funding', fieldNames: ['department', 'funding_bank_account_id', 'payroll_expense_coa_id'] },
@@ -6099,11 +6706,12 @@
                         type: 'next_action_callout',
                         title: 'Next Action',
                         next_action: data.next_action || 'Create Disbursement Voucher',
-                        relationship_status: data.relationship_status || 'In Progress',
-                        description: String(data.relationship_status || '').toLowerCase() === 'awaiting disbursement voucher'
+                        relationship_status: data.relationship_status || record.relationship_status || 'In Progress',
+                        description: String(data.relationship_status || record.relationship_status || '').toLowerCase() === 'awaiting disbursement voucher'
                             ? 'This approved interbank transfer now moves forward to the disbursement voucher stage.'
                             : 'Once the transfer is approved, the next step is to create a disbursement voucher.',
                     },
+                    { type: 'source_disbursement_summary', renderer: () => renderSourceDisbursementSummaryCard(record) },
                     { title: 'Transfer Details', fieldNames: ['source_bank_account_id', 'destination_bank_account_id', 'amount', 'reason'] },
                     { title: 'Reference & Notes', fieldNames: ['source_account_code', 'destination_account_code', 'transfer_reference_number', 'remarks'] },
                     { type: 'notes', renderer: () => renderFinanceReviewNotesSection(record) },
@@ -6164,6 +6772,65 @@
             return cleaned;
         }
         return '';
+    }
+
+    function getFinanceTaxTypeOptions() {
+        return [
+            { value: 'VAT', label: 'VAT' },
+            { value: 'Expanded Withholding Tax', label: 'Expanded Withholding Tax' },
+            { value: 'VAT Exempt', label: 'VAT Exempt' },
+            { value: 'Zero Rated', label: 'Zero Rated' },
+            { value: 'Non-VAT', label: 'Non-VAT' },
+            { value: 'N/A', label: 'N/A' },
+        ];
+    }
+
+    function normalizeFinanceTaxType(value) {
+        const cleaned = String(value || '').trim().toLowerCase().replace(/[_–]+/g, ' ').replace(/\s+/g, ' ');
+        if (cleaned === 'vat') return 'VAT';
+        if (cleaned === 'expanded withholding tax' || cleaned === 'expanded wht' || cleaned === 'ewt' || cleaned === 'withholding tax') return 'Expanded Withholding Tax';
+        if (cleaned === 'vat exempt' || cleaned === 'vat-exempt' || cleaned === 'tax exempt') return 'VAT Exempt';
+        if (cleaned === 'zero rated' || cleaned === 'zero-rated' || cleaned === 'zero rated transactions') return 'Zero Rated';
+        if (cleaned === 'non-vat' || cleaned === 'non vat' || cleaned === 'non vat transaction') return 'Non-VAT';
+        if (cleaned === 'n/a' || cleaned === 'na' || cleaned === 'not applicable') return 'N/A';
+        return value || 'N/A';
+    }
+
+    function getFinanceLineItemTaxImpact(taxType, taxableAmount) {
+        const normalizedTaxType = normalizeFinanceTaxType(taxType);
+        const taxable = Math.max(Number(taxableAmount || 0) || 0, 0);
+        let taxAmount = 0;
+        let whtAmount = 0;
+        let taxRate = 0;
+        let whtRate = 0;
+        let label = 'No tax impact';
+
+        if (normalizedTaxType === 'VAT') {
+            taxRate = 0.12;
+            taxAmount = taxable * taxRate;
+            label = 'VAT 12%';
+        } else if (normalizedTaxType === 'Expanded Withholding Tax') {
+            whtRate = 0.01;
+            whtAmount = taxable * whtRate;
+            label = 'Expanded Withholding Tax 1%';
+        } else if (normalizedTaxType === 'Non-VAT') {
+            taxRate = 0.03;
+            taxAmount = taxable * taxRate;
+            label = 'Non-VAT 3%';
+        } else if (normalizedTaxType === 'VAT Exempt') {
+            label = 'VAT Exempt';
+        } else if (normalizedTaxType === 'Zero Rated') {
+            label = 'Zero Rated';
+        }
+
+        return {
+            taxType: normalizedTaxType,
+            taxAmount: Number(taxAmount.toFixed(2)),
+            whtAmount: Number(whtAmount.toFixed(2)),
+            taxRate: Number((taxRate * 100).toFixed(2)),
+            whtRate: Number((whtRate * 100).toFixed(2)),
+            label,
+        };
     }
 
     function renderPrLineItemsTable(record) {
@@ -6290,10 +6957,10 @@
                                             <input type="number" step="0.01" min="0" name="data[line_items][${index}][shipping_amount]" data-pr-line-item-field="shipping_amount" value="${escapeHtml(row.shipping_amount || '')}" class="w-full rounded-xl border border-gray-200 bg-white p-3 text-right font-semibold" placeholder="0.00">
                                         </div>
                                         <div class="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_180px] sm:items-center">
-                                            <label class="text-sm font-semibold text-blue-900">Tax (VAT/Non-VAT/N/A):</label>
+                                            <label class="text-sm font-semibold text-blue-900">Tax Classification:</label>
                                             <select name="data[line_items][${index}][tax_type]" data-pr-line-item-field="tax_type" class="w-full rounded-xl border border-gray-200 bg-white p-3 font-semibold">
-                                                ${['VAT', 'Non-VAT', 'N/A'].map((option) => `
-                                                    <option value="${escapeHtml(option)}" ${String(row.tax_type || 'N/A') === option ? 'selected' : ''}>${escapeHtml(option)}</option>
+                                                ${getFinanceTaxTypeOptions().map((option) => `
+                                                    <option value="${escapeHtml(option.value)}" ${normalizeFinanceTaxType(row.tax_type || 'N/A') === option.value ? 'selected' : ''}>${escapeHtml(option.label)}</option>
                                                 `).join('')}
                                             </select>
                                         </div>
@@ -6516,6 +7183,14 @@
                                     <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">Line Total</p>
                                     <p class="mt-1 text-sm font-semibold text-gray-900">${escapeHtml(formatCurrency(row.total || (Number(row.quantity || 0) * Number(row.amount || 0))))}</p>
                                 </div>
+                                <div class="rounded-xl border border-white/80 bg-white px-3 py-2">
+                                    <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">Tax Classification</p>
+                                    <p class="mt-1 text-sm font-semibold text-gray-900 break-words">${escapeHtml(normalizeFinanceTaxType(row.tax_type || 'N/A'))}</p>
+                                </div>
+                                <div class="rounded-xl border border-white/80 bg-white px-3 py-2">
+                                    <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">Tax Impact</p>
+                                    <p class="mt-1 text-sm font-semibold text-gray-900 break-words">${escapeHtml(row.tax_impact_label || getFinanceLineItemTaxImpact(row.tax_type || 'N/A', Math.max((Number(row.quantity || 0) * Number(row.amount || 0)) - Number(row.discount_amount || 0), 0)).label)}</p>
+                                </div>
                                 ${record?.module_key === 'pr' ? `
                                     <div class="rounded-xl border border-white/80 bg-white px-3 py-2">
                                         <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">Supplier</p>
@@ -6700,6 +7375,57 @@
         `;
     }
 
+    function renderSourceDisbursementSummaryCard(record) {
+        const data = record?.data || {};
+        const amount = data.amount || record.amount || data.amount_requested || data.total_cash_advance || data.total_payroll_amount || data.acquisition_cost || '0.00';
+        const totalDisbursed = data.total_disbursed_amount || '0.00';
+        const remainingBalance = data.remaining_balance || '0.00';
+        const percentagePaid = data.percentage_paid || '0.00';
+        const disbursementStatus = data.disbursement_status || data.relationship_status || record.relationship_status || 'Awaiting Disbursement';
+        const dvCount = data.dv_count || 0;
+        const releasedDvCount = data.released_dv_count || 0;
+
+        return `
+            <div class="overflow-hidden rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-cyan-50 shadow-sm">
+                <div class="border-b border-emerald-100 bg-white/80 px-4 py-3">
+                    <div class="flex items-start justify-between gap-3">
+                        <div>
+                            <p class="text-[11px] uppercase tracking-[0.18em] text-emerald-700">Disbursement Summary</p>
+                            <h4 class="mt-1 text-[16px] font-semibold text-gray-900">${escapeHtml(disbursementStatus)}</h4>
+                        </div>
+                        <span class="rounded-full border border-emerald-200 bg-emerald-100 px-3 py-1 text-[11px] font-semibold text-emerald-700">${escapeHtml(disbursementStatus)}</span>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3 p-4">
+                    <div class="rounded-lg border border-emerald-100 bg-white px-3 py-2">
+                        <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">Source Amount</p>
+                        <p class="mt-1 font-semibold text-gray-900">${escapeHtml(formatCurrency(amount || 0))}</p>
+                    </div>
+                    <div class="rounded-lg border border-emerald-100 bg-white px-3 py-2">
+                        <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">Total Disbursed</p>
+                        <p class="mt-1 font-semibold text-gray-900">${escapeHtml(formatCurrency(totalDisbursed || 0))}</p>
+                    </div>
+                    <div class="rounded-lg border border-emerald-100 bg-white px-3 py-2">
+                        <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">Remaining Balance</p>
+                        <p class="mt-1 font-semibold text-gray-900">${escapeHtml(formatCurrency(remainingBalance || 0))}</p>
+                    </div>
+                    <div class="rounded-lg border border-emerald-100 bg-white px-3 py-2">
+                        <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">Percentage Paid</p>
+                        <p class="mt-1 font-semibold text-gray-900">${escapeHtml(String(percentagePaid || '0.00'))}%</p>
+                    </div>
+                    <div class="rounded-lg border border-emerald-100 bg-white px-3 py-2">
+                        <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">DV Count</p>
+                        <p class="mt-1 font-semibold text-gray-900">${escapeHtml(String(dvCount || 0))}</p>
+                    </div>
+                    <div class="rounded-lg border border-emerald-100 bg-white px-3 py-2">
+                        <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">Released DVs</p>
+                        <p class="mt-1 font-semibold text-gray-900">${escapeHtml(String(releasedDvCount || 0))}</p>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
     function renderLiquidationReportSection(record, fallbackValues = {}) {
         const data = record?.data || {};
         const linkedCaId = fallbackValues['data[linked_ca_id]'] || data.linked_ca_id || '';
@@ -6848,10 +7574,9 @@
                 : manualDiscountAmount;
             const shippingAmount = parseFloat(shippingInput?.value || '0') || 0;
             const taxableAmount = Math.max(rowSubtotal - discountAmount, 0);
-            const taxType = String(taxTypeInput?.value || 'N/A').trim();
-            const taxRate = taxType === 'VAT' ? 0.12 : (taxType === 'Non-VAT' ? 0.03 : 0);
-            const taxAmount = taxableAmount * taxRate;
-            const whtAmount = parseFloat(whtInput?.value || '0') || 0;
+            const taxImpact = getFinanceLineItemTaxImpact(taxTypeInput?.value || 'N/A', taxableAmount);
+            const taxAmount = taxImpact.taxAmount;
+            const whtAmount = taxImpact.whtAmount;
             const lineTotal = rowSubtotal - discountAmount + shippingAmount + taxAmount - whtAmount;
 
             subtotal += rowSubtotal;
@@ -6869,6 +7594,18 @@
             }
             if (taxInput) {
                 taxInput.value = taxAmount.toFixed(2);
+                taxInput.readOnly = true;
+                taxInput.classList.add('bg-gray-50');
+                taxInput.classList.remove('bg-white');
+            }
+            if (taxTypeInput) {
+                taxTypeInput.value = taxImpact.taxType;
+            }
+            if (whtInput) {
+                whtInput.value = whtAmount.toFixed(2);
+                whtInput.readOnly = true;
+                whtInput.classList.add('bg-gray-50');
+                whtInput.classList.remove('bg-white');
             }
             if (totalInput) {
                 totalInput.value = lineTotal.toFixed(2);
@@ -6877,7 +7614,7 @@
                 totalInput.classList.remove('bg-white');
             }
             if (formulaText) {
-                formulaText.textContent = `Subtotal ${formatCurrency(rowSubtotal)} - Discount ${formatCurrency(discountAmount)} + Shipping ${formatCurrency(shippingAmount)} + Tax ${formatCurrency(taxAmount)} - WHT ${formatCurrency(whtAmount)} = ${formatCurrency(lineTotal)}`;
+                formulaText.textContent = `Subtotal ${formatCurrency(rowSubtotal)} - Discount ${formatCurrency(discountAmount)} + Shipping ${formatCurrency(shippingAmount)} + Tax ${formatCurrency(taxAmount)} - WHT ${formatCurrency(whtAmount)} = ${formatCurrency(lineTotal)} (${taxImpact.label})`;
             }
         });
 
@@ -6970,7 +7707,7 @@
         if (shippingInput) shippingInput.value = shipping.toFixed(2);
         if (taxAmountInput) taxAmountInput.value = taxAmount.toFixed(2);
         if (whtInput) whtInput.value = wht.toFixed(2);
-        if (taxTypeInput && !taxTypeInput.value) taxTypeInput.value = financeFormValues.tax_type || 'N/A';
+        if (taxTypeInput && !taxTypeInput.value) taxTypeInput.value = normalizeFinanceTaxType(financeFormValues.tax_type || 'N/A');
         if (amountInput) amountInput.value = grandTotal.toFixed(2);
         syncPrPrimaryFields();
     }
@@ -7362,6 +8099,18 @@
         if (!section) return;
 
         const currentRecord = currentEditRecordId ? getRecordById(currentEditRecordId) : null;
+        if (financeFormLockedReadOnly) {
+            section.innerHTML = `
+                <div class="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
+                    <p class="text-sm font-semibold text-gray-800">Attachments are locked</p>
+                    <p class="mt-1 text-xs text-gray-500">This record is final and its attachments are part of the permanent record.</p>
+                </div>
+                <div id="existingAttachmentList" class="mt-3 space-y-2"></div>
+            `;
+            renderAttachmentList(existingAttachments);
+            return;
+        }
+
         if (currentModuleKey === 'supplier' && !isSupplierDispatchLayout(currentRecord)) {
             const entityType = $('dynamicFields')?.querySelector('[name="data[entity_type]"]')?.value || '';
             section.innerHTML = supplierAttachmentControlsHtml(entityType);
@@ -7683,6 +8432,7 @@
         const moduleConfig = getModuleConfig(currentModuleKey);
         const draftContext = financeDraftContext && financeDraftContext.moduleKey === currentModuleKey ? financeDraftContext : null;
         const draftLinkedRecord = draftContext?.linkedRecord || null;
+        financeFormLockedReadOnly = Boolean(record && record.can_edit === false);
         const values = {};
         financeFormValues = values;
         if (currentModuleKey === 'supplier' && record?.data?.completion_mode) {
@@ -7705,9 +8455,19 @@
         const amountValue = record
             ? (record.amount || '')
             : (draftContext?.prefill?.amount || draftContext?.prefill?.amount_returned || '');
-        const statusValue = currentModuleKey === 'dv'
-            ? (record && !['Active', 'Inactive'].includes(record.status || '') ? record.status : 'Draft')
-            : (record ? record.status || 'Active' : 'Active');
+        const statusValue = record ? (record.status || 'Draft') : 'Draft';
+        const systemStatusOptions = [
+            'Draft',
+            'Pending Approval',
+            'Partially Approved',
+            'Approved',
+            'On Hold',
+            'Reverted',
+            'Awaiting Disbursement',
+            'Disbursed',
+            'Completed',
+            'Cancelled',
+        ];
         const existingAttachments = record ? (record.attachments || []) : [];
         const activeRecord = record || draftLinkedRecord || null;
 
@@ -7733,14 +8493,11 @@
         $('recordDateInput').value = recordDateValue;
         $('recordTimeInput').value = recordTimeValue;
         $('amountInput').value = amountValue;
-        if (currentModuleKey === 'dv') {
-            $('statusInput').innerHTML = ['Draft', 'For Approval', 'Approved', 'Released', 'Cancelled']
-                .map((status) => `<option value="${status}">${status}</option>`)
-                .join('');
-        } else {
-            $('statusInput').innerHTML = '<option value="Active">Active</option><option value="Inactive">Inactive</option>';
-        }
+        $('statusInput').innerHTML = systemStatusOptions
+            .map((status) => `<option value="${status}">${status}</option>`)
+            .join('');
         $('statusInput').value = statusValue;
+        $('statusInput').disabled = true;
         $('drawerTitle').textContent = record ? `Edit ${moduleConfig.label}` : `Add ${moduleConfig.label}`;
         const supplierDispatchLayout = currentModuleKey === 'supplier' && isSupplierDispatchLayout(record);
 
@@ -8055,6 +8812,30 @@
                 const receivedBySignatureValue = getDraftValue('received_by_signature', record);
                 const dateReceivedValue = getDraftValue('date_received', record);
                 const remarksValue = getDraftValue('remarks', record);
+                const sourceRecordNumberValue = getDraftValue('source_record_number', record);
+                const sourceRecordDateValue = getDraftValue('source_record_date', record);
+                const sourceRequesterValue = getDraftValue('source_requester', record);
+                const sourceDepartmentSnapshotValue = getDraftValue('source_department', record);
+                const sourceProjectValue = getDraftValue('source_project', record);
+                const sourceCostCenterValue = getDraftValue('source_cost_center', record);
+                const sourceFundSourceSnapshotValue = getDraftValue('source_fund_source', record);
+                const sourceAmountValue = getDraftValue('source_amount', record);
+                const sourceRemainingBalanceValue = getDraftValue('source_remaining_balance', record);
+                const sourceApprovalStatusValue = getDraftValue('source_approval_status', record);
+                const sourceApprovedByNameValue = getDraftValue('source_approved_by_name', record);
+                const sourceApprovedAtValue = getDraftValue('source_approved_at', record);
+                const sourceSupplierNameValue = getDraftValue('source_supplier_name', record);
+                const sourceEmployeeNameValue = getDraftValue('source_employee_name', record);
+                const sourcePayeeTypeValue = getDraftValue('source_payee_type', record);
+                const sourcePayeeNameValue = getDraftValue('source_payee_name', record);
+                const sourceStatusValue = getDraftValue('source_status', record);
+                const sourceWorkflowStatusValue = getDraftValue('source_workflow_status', record);
+                const sourceRelationshipStatusValue = getDraftValue('source_relationship_status', record);
+                const totalDisbursedAmountValue = getDraftValue('total_disbursed_amount', record);
+                const percentagePaidValue = getDraftValue('percentage_paid', record);
+                const disbursementStatusValue = getDraftValue('disbursement_status', record);
+                const payeeTypeValue = getDraftValue('payee_type', record);
+                const payeeNameValue = getDraftValue('payee_name', record);
                 const sourceRecord = sourceDocumentValue ? (getRecordByLookupValue(sourceTypeValue, sourceDocumentValue) || getRecordById(sourceDocumentValue) || getRecordByLookupValue('', sourceDocumentValue)) : null;
                 const resolvedSourceTypeValue = sourceTypeValue || sourceRecord?.module_key || '';
 
@@ -8104,6 +8885,62 @@
                 values['data[date_received]'] = dateReceivedValue;
                 values.remarks = remarksValue;
                 values['data[remarks]'] = remarksValue;
+                values.source_record_number = sourceRecordNumberValue;
+                values['data[source_record_number]'] = sourceRecordNumberValue;
+                values.source_record_date = sourceRecordDateValue;
+                values['data[source_record_date]'] = sourceRecordDateValue;
+                values.source_requester = sourceRequesterValue;
+                values['data[source_requester]'] = sourceRequesterValue;
+                values.source_department = sourceDepartmentSnapshotValue;
+                values['data[source_department]'] = sourceDepartmentSnapshotValue;
+                values.source_project = sourceProjectValue;
+                values['data[source_project]'] = sourceProjectValue;
+                values.source_cost_center = sourceCostCenterValue;
+                values['data[source_cost_center]'] = sourceCostCenterValue;
+                values.source_fund_source = sourceFundSourceSnapshotValue;
+                values['data[source_fund_source]'] = sourceFundSourceSnapshotValue;
+                values.source_amount = sourceAmountValue;
+                values['data[source_amount]'] = sourceAmountValue;
+                values.source_remaining_balance = sourceRemainingBalanceValue;
+                values['data[source_remaining_balance]'] = sourceRemainingBalanceValue;
+                values.source_approval_status = sourceApprovalStatusValue;
+                values['data[source_approval_status]'] = sourceApprovalStatusValue;
+                values.source_approved_by_name = sourceApprovedByNameValue;
+                values['data[source_approved_by_name]'] = sourceApprovedByNameValue;
+                values.source_approved_at = sourceApprovedAtValue;
+                values['data[source_approved_at]'] = sourceApprovedAtValue;
+                values.source_supplier_name = sourceSupplierNameValue;
+                values['data[source_supplier_name]'] = sourceSupplierNameValue;
+                values.source_employee_name = sourceEmployeeNameValue;
+                values['data[source_employee_name]'] = sourceEmployeeNameValue;
+                values.source_payee_type = sourcePayeeTypeValue;
+                values['data[source_payee_type]'] = sourcePayeeTypeValue;
+                values.source_payee_name = sourcePayeeNameValue;
+                values['data[source_payee_name]'] = sourcePayeeNameValue;
+                values.source_current_balance = getDraftValue('source_current_balance', record);
+                values['data[source_current_balance]'] = values.source_current_balance;
+                values.source_reserved_balance = getDraftValue('source_reserved_balance', record);
+                values['data[source_reserved_balance]'] = values.source_reserved_balance;
+                values.source_available_balance = getDraftValue('source_available_balance', record);
+                values['data[source_available_balance]'] = values.source_available_balance;
+                values.source_status = sourceStatusValue;
+                values['data[source_status]'] = sourceStatusValue;
+                values.source_workflow_status = sourceWorkflowStatusValue;
+                values['data[source_workflow_status]'] = sourceWorkflowStatusValue;
+                values.source_relationship_status = sourceRelationshipStatusValue;
+                values['data[source_relationship_status]'] = sourceRelationshipStatusValue;
+                values.total_disbursed_amount = totalDisbursedAmountValue;
+                values['data[total_disbursed_amount]'] = totalDisbursedAmountValue;
+                values.percentage_paid = percentagePaidValue;
+                values['data[percentage_paid]'] = percentagePaidValue;
+                values.disbursement_status = disbursementStatusValue;
+                values['data[disbursement_status]'] = disbursementStatusValue;
+                values.payee_type = payeeTypeValue;
+                values['data[payee_type]'] = payeeTypeValue;
+                values.payee_name = payeeNameValue;
+                values['data[payee_name]'] = payeeNameValue;
+                values.projected_balance_after_payment = getDraftValue('projected_balance_after_payment', record);
+                values['data[projected_balance_after_payment]'] = values.projected_balance_after_payment;
 
                 return `
                     <div class="md:col-span-2 rounded-xl border border-blue-100 bg-blue-50/40 p-4">
@@ -8134,11 +8971,44 @@
                                 </select>
                                 <p id="dvSourceDocumentHint" class="mt-2 text-xs text-gray-500">${escapeHtml(resolvedSourceTypeValue ? 'Choose the exact document to auto-fill the voucher values and breakdown.' : 'Choose a source type first.')}</p>
                             </div>
-                            <div class="md:col-span-2">
-                                <div id="dvSourceDocumentInfo">
+                    <div class="md:col-span-2">
+                        <div id="dvSourceDocumentInfo">
                                     ${getDvSourceDocumentInfoHtml(resolvedSourceTypeValue, sourceRecord)}
-                                </div>
-                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+                    <div class="md:col-span-2 rounded-xl border border-gray-200 bg-white p-4">
+                        <h4 class="text-sm font-semibold uppercase tracking-[0.24em] text-gray-700">Source Record Snapshot</h4>
+                        <p class="mt-2 text-xs text-gray-500">These values are copied from the selected source document and remain read-only.</p>
+                        <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                            ${renderDynamicField(textField('source_record_number', 'Source Record Number', { readOnly: true }), sourceRecordNumberValue, values)}
+                            ${renderDynamicField(dateField('source_record_date', 'Source Record Date', { readOnly: true }), sourceRecordDateValue, values)}
+                            ${renderDynamicField(textField('source_requester', 'Requester', { readOnly: true }), sourceRequesterValue, values)}
+                            ${renderDynamicField(textField('source_department', 'Department', { readOnly: true }), sourceDepartmentSnapshotValue, values)}
+                            ${renderDynamicField(textField('source_project', 'Project', { readOnly: true }), sourceProjectValue, values)}
+                            ${renderDynamicField(textField('source_cost_center', 'Cost Center', { readOnly: true }), sourceCostCenterValue, values)}
+                            ${renderDynamicField(textField('source_fund_source', 'Fund Source', { readOnly: true }), sourceFundSourceSnapshotValue, values)}
+                            ${renderDynamicField(numberField('source_amount', 'Amount', { readOnly: true }), sourceAmountValue, values)}
+                            ${renderDynamicField(numberField('source_remaining_balance', 'Remaining Balance', { readOnly: true }), sourceRemainingBalanceValue, values)}
+                            ${renderDynamicField(textField('source_approval_status', 'Approval Status', { readOnly: true }), sourceApprovalStatusValue, values)}
+                            ${renderDynamicField(textField('source_approved_by_name', 'Approved By', { readOnly: true }), sourceApprovedByNameValue, values)}
+                            ${renderDynamicField(textField('source_approved_at', 'Approved At', { readOnly: true }), sourceApprovedAtValue, values)}
+                            ${renderDynamicField(textField('source_payee_type', 'Payee Type', { readOnly: true }), sourcePayeeTypeValue, values)}
+                            ${renderDynamicField(textField('source_payee_name', 'Payee', { readOnly: true }), sourcePayeeNameValue, values)}
+                            ${renderDynamicField(textField('source_supplier_name', 'Supplier Information', { readOnly: true }), sourceSupplierNameValue, values)}
+                            ${renderDynamicField(textField('source_employee_name', 'Employee Information', { readOnly: true }), sourceEmployeeNameValue, values)}
+                            ${renderDynamicField(numberField('source_current_balance', 'Current Balance', { readOnly: true }), values.source_current_balance, values)}
+                            ${renderDynamicField(numberField('source_reserved_balance', 'Reserved Balance', { readOnly: true }), values.source_reserved_balance, values)}
+                            ${renderDynamicField(numberField('source_available_balance', 'Available Balance', { readOnly: true }), values.source_available_balance, values)}
+                            ${renderDynamicField(textField('source_status', 'Status', { readOnly: true }), sourceStatusValue, values)}
+                            ${renderDynamicField(textField('source_workflow_status', 'Workflow Status', { readOnly: true }), sourceWorkflowStatusValue, values)}
+                            ${renderDynamicField(textField('source_relationship_status', 'Relationship Status', { readOnly: true }), sourceRelationshipStatusValue, values)}
+                            ${renderDynamicField(numberField('total_disbursed_amount', 'Total Disbursed Amount', { readOnly: true }), totalDisbursedAmountValue, values)}
+                            ${renderDynamicField(numberField('percentage_paid', 'Percentage Paid', { readOnly: true }), percentagePaidValue, values)}
+                            ${renderDynamicField(textField('disbursement_status', 'Disbursement Status', { readOnly: true }), disbursementStatusValue, values)}
+                            ${renderDynamicField(numberField('projected_balance_after_payment', 'Projected Balance After Payment', { readOnly: true }), values.projected_balance_after_payment, values)}
                         </div>
                     </div>
 
@@ -8147,10 +9017,16 @@
                         <p class="mt-2 text-xs text-gray-500">These values are generated from the selected source document.</p>
                         <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
+                                ${renderDynamicField(textField('payee_type', 'Payee Type', { readOnly: true }), payeeTypeValue, values)}
+                            </div>
+                            <div>
+                                ${renderDynamicField(textField('payee_name', 'Payee', { readOnly: true }), payeeNameValue, values)}
+                            </div>
+                            <div>
                                 ${renderDynamicField(textField('supplier_id', 'Supplier', { readOnly: true }), supplierValue, values)}
                             </div>
                             <div>
-                                ${renderDynamicField(numberField('amount', 'Amount', { readOnly: true }), amountValue, values)}
+                                ${renderDynamicField(numberField('amount', 'Amount'), amountValue, values)}
                             </div>
                             <div>
                                 ${renderDynamicField(textField('payment_type', 'Payment Type', { readOnly: true }), paymentTypeValue, values)}
@@ -9991,6 +10867,48 @@
         `;
     }
 
+    function renderAuditControlCallout(record) {
+        const historyEntries = financeHistoryEntries(record, 10);
+        const relationshipStatus = record?.relationship_status || record?.data?.relationship_status || 'In Progress';
+        const isLocked = record?.can_edit === false || ['Disbursed', 'Completed', 'Closed'].includes(String(record?.status || '').trim());
+        const lockBadge = isLocked
+            ? '<span class="rounded-full bg-slate-900 px-3 py-1 text-[11px] font-semibold text-white">Read-only</span>'
+            : '<span class="rounded-full bg-emerald-100 px-3 py-1 text-[11px] font-semibold text-emerald-700">Editable</span>';
+
+        return `
+            <div class="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-indigo-50 p-4 shadow-sm">
+                <div class="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                        <p class="text-[11px] uppercase tracking-[0.18em] text-slate-600">Audit / Control Status</p>
+                        <h4 class="mt-1 text-[15px] font-semibold text-gray-900">System-managed history and transaction controls</h4>
+                        <p class="mt-2 text-sm text-gray-600">The system updates status, relationship progress, validations, and audit entries automatically. Users manage the transaction, not the control state.</p>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2">
+                        ${lockBadge}
+                        <span class="rounded-full bg-indigo-100 px-3 py-1 text-[11px] font-semibold text-indigo-700">${escapeHtml(relationshipStatus)}</span>
+                    </div>
+                </div>
+                <div class="mt-4 grid gap-3 sm:grid-cols-3">
+                    <div class="rounded-xl border border-white bg-white/90 px-4 py-3 shadow-sm">
+                        <p class="text-[11px] uppercase tracking-[0.18em] text-gray-500">History Entries</p>
+                        <p class="mt-1 text-2xl font-semibold text-gray-900">${escapeHtml(String(historyEntries.length))}</p>
+                        <p class="mt-1 text-sm text-gray-500">Actions are retained in the audit trail.</p>
+                    </div>
+                    <div class="rounded-xl border border-white bg-white/90 px-4 py-3 shadow-sm">
+                        <p class="text-[11px] uppercase tracking-[0.18em] text-gray-500">Current Status</p>
+                        <p class="mt-1 text-lg font-semibold text-gray-900">${escapeHtml(record?.status || 'N/A')}</p>
+                        <p class="mt-1 text-sm text-gray-500">Controlled by workflow progression.</p>
+                    </div>
+                    <div class="rounded-xl border border-white bg-white/90 px-4 py-3 shadow-sm">
+                        <p class="text-[11px] uppercase tracking-[0.18em] text-gray-500">Relationship</p>
+                        <p class="mt-1 text-lg font-semibold text-gray-900">${escapeHtml(relationshipStatus)}</p>
+                        <p class="mt-1 text-sm text-gray-500">Derived from linked records and state changes.</p>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
     function renderFinanceAttachmentSourceHtml(record) {
         const attachments = financeAttachmentEntries(record);
 
@@ -10505,12 +11423,13 @@
     function renderFinanceProgressTracker(record) {
         const steps = Array.isArray(record?.data?.transaction_progress) ? record.data.transaction_progress : [];
         if (!steps.length) return '';
+        const relationshipStatus = record?.relationship_status || record?.data?.relationship_status || 'In Progress';
 
         return `
             <div class="rounded-2xl border border-slate-200 bg-white p-4">
                 <div class="flex flex-wrap items-center justify-between gap-3">
                     <h4 class="text-[15px] font-semibold text-gray-900">Transaction Progress</h4>
-                    <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">${escapeHtml(record.data?.relationship_status || 'In Progress')}</span>
+                    <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">${escapeHtml(relationshipStatus)}</span>
                 </div>
                 <div class="mt-4 space-y-2">
                     ${steps.map((step) => {
@@ -10644,7 +11563,7 @@
             ? attachmentsHtml
             : (currentPreviewTab === 'template'
                 ? templateHtml
-                : `${crfCalloutHtml}${moduleTrackingHtml}${progressHtml}${notesHtml}${historyHtml}`);
+                : `${renderAuditControlCallout(record)}${crfCalloutHtml}${moduleTrackingHtml}${progressHtml}${notesHtml}${historyHtml}`);
     }
 
     function updatePreviewTabButtons() {
@@ -11234,7 +12153,6 @@
             formData.set('record_title', $('recordTitleInput').value.trim());
             formData.set('record_date', $('recordDateInput').value || new Date().toISOString().slice(0, 10));
             formData.set('amount', $('amountInput').value || '');
-            formData.set('status', $('statusInput').value || 'Active');
         } else {
             if (currentModuleKey === 'dv') {
                 collectDvLineItems();
@@ -11248,7 +12166,6 @@
             if (currentModuleKey !== 'dv') {
                 formData.set('amount', $('amountInput').value);
             }
-            formData.set('status', $('statusInput').value);
 
             if (!formData.get('record_number') || !formData.get('record_date')) {
                 alert('Please fill in the record number and date.');
@@ -11656,6 +12573,7 @@
         changeDropdownSettingsModule,
         resetDropdownSettingsField,
         resetAttachmentTypesSettings,
+        resetLabelOverrides,
         saveDropdownSettings,
         fetchLiquidationSource,
         openPendingLiquidationBranch,

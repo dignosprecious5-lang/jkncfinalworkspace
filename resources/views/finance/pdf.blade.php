@@ -113,6 +113,88 @@
             color: #111827;
         }
 
+        .audit-banner {
+            margin-top: 8px;
+            border: 1px solid #c7d2fe;
+            border-radius: 10px;
+            background: linear-gradient(135deg, #eff6ff 0%, #ffffff 55%, #eef2ff 100%);
+            padding: 7px 8px;
+        }
+
+        .audit-banner-head {
+            display: flex;
+            justify-content: space-between;
+            gap: 8px;
+            align-items: flex-start;
+        }
+
+        .audit-banner-title {
+            margin: 0;
+            text-transform: uppercase;
+            letter-spacing: 0.22em;
+            font-size: 7px;
+            color: #4b5563;
+            font-weight: 700;
+        }
+
+        .audit-banner-copy {
+            margin: 3px 0 0;
+            font-size: 7.5px;
+            color: #4b5563;
+        }
+
+        .audit-badges {
+            text-align: right;
+        }
+
+        .audit-badge {
+            display: inline-block;
+            margin-left: 3px;
+            margin-bottom: 3px;
+            padding: 2px 6px;
+            border-radius: 999px;
+            font-size: 7px;
+            font-weight: 700;
+            background: #e0e7ff;
+            color: #3730a3;
+        }
+
+        .audit-badge.locked {
+            background: #111827;
+            color: #ffffff;
+        }
+
+        .audit-grid {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 4px;
+            margin-top: 5px;
+        }
+
+        .audit-grid td {
+            width: 33.333%;
+            border: 1px solid #dbe2ea;
+            border-radius: 8px;
+            background: #ffffff;
+            padding: 4px 5px;
+        }
+
+        .audit-label {
+            margin: 0;
+            text-transform: uppercase;
+            letter-spacing: 0.18em;
+            font-size: 6.5px;
+            color: #6b7280;
+        }
+
+        .audit-value {
+            margin: 2px 0 0;
+            font-size: 8px;
+            font-weight: 700;
+            color: #111827;
+            word-break: break-word;
+        }
+
         .section-title {
             margin: 7px 0 0;
             padding: 5px 7px;
@@ -631,6 +713,41 @@
                 </td>
             </tr>
         </table>
+
+        @php
+            $auditHistory = (array) data_get($data, 'history', []);
+            $relationshipStatus = data_get($data, 'relationship_status') ?: 'In Progress';
+            $isLocked = in_array($record->status ?? '', ['Disbursed', 'Completed', 'Closed'], true) || !($record->can_edit ?? true);
+        @endphp
+        <div class="audit-banner">
+            <div class="audit-banner-head">
+                <div>
+                    <p class="audit-banner-title">Audit / Control Status</p>
+                    <p class="audit-banner-copy">System-managed status, relationship updates, validations, and history. Users manage the transaction, while the system manages the control state.</p>
+                </div>
+                <div class="audit-badges">
+                    <span class="audit-badge {{ $isLocked ? 'locked' : '' }}">{{ $isLocked ? 'Read-only' : 'Editable' }}</span>
+                    <span class="audit-badge">{{ $record->status ?: 'N/A' }}</span>
+                    <span class="audit-badge">{{ $relationshipStatus }}</span>
+                </div>
+            </div>
+            <table class="audit-grid">
+                <tr>
+                    <td>
+                        <p class="audit-label">Current Status</p>
+                        <p class="audit-value">{{ $record->status ?: 'N/A' }}</p>
+                    </td>
+                    <td>
+                        <p class="audit-label">Relationship</p>
+                        <p class="audit-value">{{ $relationshipStatus }}</p>
+                    </td>
+                    <td>
+                        <p class="audit-label">History Entries</p>
+                        <p class="audit-value">{{ count($auditHistory) }}</p>
+                    </td>
+                </tr>
+            </table>
+        </div>
 
         <table class="summary-table" style="margin-top: 12px;">
             @foreach(array_chunk($summaryCards, 4) as $row)

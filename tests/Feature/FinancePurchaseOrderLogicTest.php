@@ -272,7 +272,7 @@ test('purchase orders must link to an approved purchase request and promote the 
 
     expect($po->workflow_status)->toBe('Accepted');
     expect($po->approval_status)->toBe('Approved');
-    expect(data_get($po->data, 'relationship_status'))->toBe('Awaiting Disbursement');
+    expect(data_get($po->data, 'relationship_status'))->toBe('Awaiting DV Creation');
     expect(data_get($po->data, 'next_action'))->toBe('Create Disbursement Voucher');
     expect(data_get($fixtures['approvedPr']->data, 'relationship_status'))->toBe('Purchase Order Approved');
     expect(data_get($fixtures['approvedPr']->data, 'next_action'))->toBe('Create Disbursement Voucher');
@@ -340,11 +340,42 @@ test('purchase orders must link to an approved purchase request and promote the 
     $po->refresh();
     $fixtures['approvedPr']->refresh();
 
-    expect($dv->status)->toBe('Released');
+    expect($dv->status)->toBe('Completed');
     expect(data_get($dv->data, 'relationship_status'))->toBe('Completed');
     expect(data_get($dv->data, 'next_action'))->toBe('No further action');
-    expect(data_get($po->data, 'relationship_status'))->toBe('Completed');
+    expect(data_get($po->data, 'relationship_status'))->toBe('Fully Disbursed');
     expect(data_get($po->data, 'next_action'))->toBe('No further action');
-    expect(data_get($fixtures['approvedPr']->data, 'relationship_status'))->toBe('Completed');
+    expect(data_get($fixtures['approvedPr']->data, 'relationship_status'))->toBe('Fully Disbursed');
     expect(data_get($fixtures['approvedPr']->data, 'next_action'))->toBe('No further action');
+});
+
+test('status input is ignored and purchase orders use system-controlled status values', function () {
+    $fixtures = financePurchaseOrderFixtures();
+
+    $response = $this->actingAs($fixtures['owner'])->post(route('finance.store'), [
+        'module_key' => 'po',
+        'record_number' => 'PO-09001',
+        'record_title' => 'Status Control Purchase Order',
+        'record_date' => now()->toDateString(),
+        'amount' => 1500,
+        'status' => 'Released',
+        'data' => [
+            'relationship_status' => 'Completed',
+            'linked_pr_id' => $fixtures['approvedPr']->id,
+            'supplier_id' => $fixtures['supplier']->id,
+            'linked_item_type' => 'service',
+            'linked_item_id' => $fixtures['service']->id,
+            'coa_id' => $fixtures['chartAccount']->id,
+        ],
+    ]);
+
+    $response->assertCreated();
+
+    $po = FinanceRecord::query()->findOrFail($response->json('data.id'));
+
+    expect($response->json('data.status'))->toBe('Draft');
+    expect($response->json('data.relationship_status'))->toBe('Draft');
+    expect($po->status)->toBe('Draft');
+    expect($po->workflow_status)->toBe('Uploaded');
+    expect(data_get($po->data, 'relationship_status'))->toBe('Draft');
 });

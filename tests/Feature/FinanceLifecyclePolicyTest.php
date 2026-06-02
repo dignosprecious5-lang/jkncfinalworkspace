@@ -2,11 +2,15 @@
 
 use App\Models\DirectorOfficer;
 use App\Models\Employee;
+use App\Models\EmployeePayrollProfile;
 use App\Models\FinanceRecord;
 use App\Models\GisRecord;
 use App\Models\PayrollPeriod;
+use App\Models\PayrollLevel;
+use App\Models\SalaryGrade;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 
 uses(RefreshDatabase::class);
 
@@ -104,6 +108,46 @@ function financeLifecyclePolicyFixtures(): array
         'dispute_end' => now()->toDateString(),
         'date_created' => now()->toDateString(),
         'status' => 'open',
+    ]);
+
+    $salaryGrade = SalaryGrade::query()->create([
+        'code' => 'SG-LIFE',
+        'name' => 'Lifecycle Salary Grade',
+        'payment_type' => 'monthly',
+        'monthly_basic_pay' => 25000,
+        'applicable_daily_rate' => 833.33,
+        'hourly_rate' => 104.17,
+        'minute_rate' => 1.7362,
+        'yearly_rate' => 300000,
+        'date_created' => now()->toDateString(),
+    ]);
+
+    $payrollLevel = PayrollLevel::query()->create([
+        'salary_grade_id' => $salaryGrade->id,
+        'level_name' => 'Lifecycle Level',
+        'computation_type' => 'monthly',
+        'work_schedule' => 'every_day',
+        'work_schedule_label' => 'Monday to Sunday - 8:00 AM to 5:00 PM',
+        'hours_per_day' => 8,
+        'date_created' => now()->toDateString(),
+    ]);
+
+    $ownerEmployee = Employee::query()->create([
+        'user_id' => $owner->id,
+        'first_name' => 'Lifecycle',
+        'last_name' => 'Requester',
+        'email' => 'lifecycle.requester@example.com',
+        'position' => 'Employee',
+        'payroll_type' => 'monthly',
+        'basic_salary' => 25000,
+        'hourly_rate' => 104.17,
+    ]);
+
+    EmployeePayrollProfile::query()->create([
+        'employee_id' => $ownerEmployee->id,
+        'payroll_level_id' => $payrollLevel->id,
+        'basic_salary_override' => 25000,
+        'night_differential_enabled' => false,
     ]);
 
     $fundingBankAccount = FinanceRecord::query()->create([
@@ -218,6 +262,12 @@ function financeLifecyclePolicyFixtures(): array
 
 function financeCreateAndApproveRecord($testCase, array $payload, User $owner, User $president, User $treasurer): FinanceRecord
 {
+    if (! array_key_exists('attachments', $payload)) {
+        $payload['attachments'] = [
+            UploadedFile::fake()->create('supporting-document.pdf', 10, 'application/pdf'),
+        ];
+    }
+
     $storeResponse = $testCase->actingAs($owner)->post(route('finance.store'), $payload);
     $storeResponse->assertCreated();
 
@@ -238,11 +288,12 @@ test('payroll authorization completes after dv release and locks the record', fu
         'record_number' => 'PDA-00001',
         'record_title' => 'Payroll Authorization',
         'record_date' => now()->toDateString(),
-        'amount' => 0,
+        'amount' => 25000,
         'status' => 'Active',
         'data' => [
             'requestor' => $fixtures['owner']->name,
             'payroll_period_id' => $fixtures['payrollPeriod']->id,
+            'total_payroll_amount' => 25000,
             'funding_bank_account_id' => $fixtures['fundingBankAccount']->id,
             'payroll_expense_coa_id' => $fixtures['chartAccount']->id,
         ],
@@ -297,6 +348,12 @@ test('payroll authorization completes after dv release and locks the record', fu
                     'debit' => 25000,
                     'credit' => 0,
                 ],
+                [
+                    'description' => 'Payroll funding',
+                    'account_code' => '1000',
+                    'debit' => 0,
+                    'credit' => 25000,
+                ],
             ],
         ]),
     ]);
@@ -307,6 +364,10 @@ test('payroll authorization completes after dv release and locks the record', fu
 
     expect(data_get($dv->data, 'relationship_status'))->toBe('Completed');
     expect(data_get($pda->data, 'relationship_status'))->toBe('Payroll Released');
+    expect(data_get($pda->data, 'disbursement_status'))->toBe('Fully Disbursed');
+    expect(data_get($pda->data, 'total_disbursed_amount'))->toBe('25000.00');
+    expect(data_get($pda->data, 'remaining_balance'))->toBe('0.00');
+    expect(data_get($pda->data, 'percentage_paid'))->toBe('100.00');
 
     $updateResponse = $this->actingAs($fixtures['owner'])->put(route('finance.update', $pda), [
         'module_key' => 'pda',
@@ -388,6 +449,12 @@ test('completed payroll records accept correction requests without overwriting t
                     'debit' => 25000,
                     'credit' => 0,
                 ],
+                [
+                    'description' => 'Payroll funding',
+                    'account_code' => '1000',
+                    'debit' => 0,
+                    'credit' => 25000,
+                ],
             ],
         ]),
     ])->assertOk();
@@ -410,7 +477,7 @@ test('completed payroll records accept correction requests without overwriting t
 
     $pda = $pda->fresh();
     expect($pda->workflow_status)->toBe('Correction Requested');
-    expect($pda->amount)->toBe('0.00');
+    expect($pda->amount)->toBe('25000.00');
     expect(data_get($pda->data, 'correction_request_status'))->toBe('Pending');
     expect(collect((array) data_get($pda->data, 'history'))->firstWhere('action', 'Correction Requested'))->not->toBeNull();
 
@@ -422,7 +489,10 @@ test('completed payroll records accept correction requests without overwriting t
     expect($pda->workflow_status)->toBe('Accepted');
     expect($pda->approval_status)->toBe('Approved');
     expect(data_get($pda->data, 'correction_request_status'))->toBe('Approved');
-    expect($pda->amount)->toBe('0.00');
+    expect($pda->amount)->toBe('26000.00');
+    expect(data_get($pda->data, 'correction_requests.0.original.amount'))->toBe('25000.00');
+    expect(data_get($pda->data, 'correction_requests.0.corrected.amount'))->toBe(26000);
+    expect(data_get($pda->data, 'correction_requests.0.approved_by_name'))->toBe($fixtures['president']->name);
     expect(data_get($pda->data, 'correction_requests.0.status'))->toBe('Approved');
 });
 
@@ -566,6 +636,12 @@ test('finance audit trail preserves significant actions and lifecycle cascades',
                     'debit' => 5000,
                     'credit' => 0,
                 ],
+                [
+                    'description' => 'Audit trail funding.',
+                    'account_code' => '1000',
+                    'debit' => 0,
+                    'credit' => 5000,
+                ],
             ],
         ]),
     ])->assertOk();
@@ -640,6 +716,10 @@ test('interbank transfer completes after dv release', function () {
 
     expect(data_get($dv->data, 'relationship_status'))->toBe('Completed');
     expect(data_get($ibtf->data, 'relationship_status'))->toBe('Transfer Completed');
+    expect(data_get($ibtf->data, 'disbursement_status'))->toBe('Fully Disbursed');
+    expect(data_get($ibtf->data, 'total_disbursed_amount'))->toBe('15000.00');
+    expect(data_get($ibtf->data, 'remaining_balance'))->toBe('0.00');
+    expect(data_get($ibtf->data, 'percentage_paid'))->toBe('100.00');
 });
 
 test('cash advances remain awaiting liquidation until a liquidation report is approved', function () {
@@ -703,12 +783,22 @@ test('cash advances remain awaiting liquidation until a liquidation report is ap
                     'debit' => 5000,
                     'credit' => 0,
                 ],
+                [
+                    'description' => 'Cash advance funding',
+                    'account_code' => '2000',
+                    'debit' => 0,
+                    'credit' => 5000,
+                ],
             ],
         ]),
     ])->assertOk();
 
     $ca = $ca->fresh();
     expect(data_get($ca->data, 'relationship_status'))->toBe('Awaiting Liquidation');
+    expect(data_get($ca->data, 'disbursement_status'))->toBe('Fully Disbursed');
+    expect(data_get($ca->data, 'total_disbursed_amount'))->toBe('5000.00');
+    expect(data_get($ca->data, 'remaining_balance'))->toBe('0.00');
+    expect(data_get($ca->data, 'percentage_paid'))->toBe('100.00');
 
     $lrResponse = $this->actingAs($fixtures['owner'])->post(route('finance.store'), [
         'module_key' => 'lr',
@@ -741,6 +831,10 @@ test('cash advances remain awaiting liquidation until a liquidation report is ap
 
     expect(data_get($lr->data, 'relationship_status'))->toBe('Completed');
     expect(data_get($ca->data, 'relationship_status'))->toBe('Completed');
+    expect(data_get($ca->data, 'disbursement_status'))->toBe('Fully Disbursed');
+    expect(data_get($ca->data, 'total_disbursed_amount'))->toBe('5000.00');
+    expect(data_get($ca->data, 'remaining_balance'))->toBe('0.00');
+    expect(data_get($ca->data, 'percentage_paid'))->toBe('100.00');
     expect(data_get($ca->data, 'next_action'))->toBe('No further action');
 });
 
@@ -825,6 +919,7 @@ test('expense reimbursements complete after dv release and remain linked to the 
             'requestor' => $fixtures['owner']->name,
             'linked_lr_id' => $fixtures['shortageLiquidation']->id,
             'amount' => 1800,
+            'fund_source' => 'Expense Budget',
             'reimbursement_mode' => 'Bank Transfer',
             'recipient_bank_account' => 'Employee settlement account',
             'recipient_bank_number' => '000-000-000',
@@ -882,6 +977,12 @@ test('expense reimbursements complete after dv release and remain linked to the 
                     'debit' => 1800,
                     'credit' => 0,
                 ],
+                [
+                    'description' => 'Expense reimbursement funding',
+                    'account_code' => '1000',
+                    'debit' => 0,
+                    'credit' => 1800,
+                ],
             ],
         ]),
     ])->assertOk();
@@ -891,5 +992,9 @@ test('expense reimbursements complete after dv release and remain linked to the 
 
     expect(data_get($err->data, 'relationship_status'))->toBe('Completed');
     expect(data_get($dv->data, 'relationship_status'))->toBe('Completed');
+    expect(data_get($err->data, 'disbursement_status'))->toBe('Fully Disbursed');
+    expect(data_get($err->data, 'total_disbursed_amount'))->toBe('1800.00');
+    expect(data_get($err->data, 'remaining_balance'))->toBe('0.00');
+    expect(data_get($err->data, 'percentage_paid'))->toBe('100.00');
     expect((string) data_get($err->data, 'linked_lr_id'))->toBe((string) $fixtures['shortageLiquidation']->id);
 });

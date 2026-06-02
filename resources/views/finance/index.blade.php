@@ -212,10 +212,19 @@
 
                             <div id="statusField">
                                 <label class="block text-sm font-medium mb-1">Status</label>
-                                <select id="statusInput" name="status" class="w-full border rounded-md p-2">
-                                    <option value="Active">Active</option>
-                                    <option value="Inactive">Inactive</option>
+                                <select id="statusInput" name="status" class="w-full border rounded-md p-2 bg-slate-50" disabled aria-readonly="true">
+                                    <option value="Draft">Draft</option>
+                                    <option value="Pending Approval">Pending Approval</option>
+                                    <option value="Partially Approved">Partially Approved</option>
+                                    <option value="Approved">Approved</option>
+                                    <option value="On Hold">On Hold</option>
+                                    <option value="Reverted">Reverted</option>
+                                    <option value="Awaiting Disbursement">Awaiting Disbursement</option>
+                                    <option value="Disbursed">Disbursed</option>
+                                    <option value="Completed">Completed</option>
+                                    <option value="Cancelled">Cancelled</option>
                                 </select>
+                                <p class="mt-1 text-xs text-gray-500">Status is system-controlled and updates automatically from workflow progress.</p>
                             </div>
 
                             <div id="dynamicFields" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
@@ -327,6 +336,7 @@
         'canManageFinanceSettings' => $canManageFinanceSettings,
         'financeDropdownOptions' => $financeDropdownOptions,
         'financeAttachmentTypes' => $financeAttachmentTypes,
+        'financeLabelOverrides' => $financeLabelOverrides,
         'officialApproverOptions' => $officialApproverOptions,
         'defaultApprovalSteps' => $defaultApprovalSteps,
         'requestTypeModules' => $requestTypeModules,

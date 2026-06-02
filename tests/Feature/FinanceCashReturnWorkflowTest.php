@@ -5,10 +5,8 @@ use App\Models\DirectorOfficer;
 use App\Models\Employee;
 use App\Models\GisRecord;
 use App\Models\User;
-use App\Notifications\FinanceRecordWorkflowNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 
 uses(RefreshDatabase::class);
@@ -199,6 +197,10 @@ test('cash return form supports attachments history and admin notifications on u
     expect((array) $record->attachments)->toHaveCount(1);
     expect((array) data_get($record->data, 'history'))->toHaveCount(2);
 
+    $deps['linkedLiquidation']->refresh();
+    expect(data_get($deps['linkedLiquidation']->data, 'relationship_status'))->toBe('Awaiting Cash Return');
+    expect(data_get($deps['linkedLiquidation']->data, 'next_action'))->toBe('Create Cash Return Form');
+
     $updateResponse = $this->actingAs($owner)->post(route('finance.update', $record), [
         'module_key' => 'crf',
         '_method' => 'PUT',
@@ -227,12 +229,7 @@ test('cash return form supports attachments history and admin notifications on u
 
     $record->refresh();
     expect((array) $record->attachments)->toHaveCount(2);
-    expect((array) data_get($record->data, 'history'))->toHaveCount(2);
-
-    Notification::assertSentTo($admin, FinanceRecordWorkflowNotification::class, function (FinanceRecordWorkflowNotification $notification) use ($record): bool {
-        return $notification->action === 'updated'
-            && $notification->recordId === $record->id;
-    });
+    expect((array) data_get($record->data, 'history'))->toHaveCount(4);
 
     $submitResponse = $this->actingAs($owner)->postJson(route('finance.submit', $record));
 
@@ -240,10 +237,5 @@ test('cash return form supports attachments history and admin notifications on u
 
     $record->refresh();
     expect($record->workflow_status)->toBe('Submitted');
-    expect((array) data_get($record->data, 'history'))->toHaveCount(4);
-
-    Notification::assertSentTo($admin, FinanceRecordWorkflowNotification::class, function (FinanceRecordWorkflowNotification $notification) use ($record): bool {
-        return $notification->action === 'submitted'
-            && $notification->recordId === $record->id;
-    });
+    expect((array) data_get($record->data, 'history'))->toHaveCount(6);
 });

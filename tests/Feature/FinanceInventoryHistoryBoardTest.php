@@ -271,3 +271,76 @@ test('finance reporting uses live system data for dashboards and previews', func
     $previewResponse->assertSee('Live Reporting Cash Advance');
     $previewResponse->assertSee('Created');
 });
+
+test('transaction tracker is automatically derived from record state and attachments', function () {
+    $admin = User::factory()->create([
+        'name' => 'Finance Tracker Admin',
+        'email' => 'tracker.admin@example.com',
+        'role' => 'admin',
+    ]);
+
+    $record = FinanceRecord::query()->create([
+        'module_key' => 'po',
+        'record_number' => 'PO-TRACK-01',
+        'record_title' => 'Auto Tracker Purchase Order',
+        'record_date' => now()->toDateString(),
+        'amount' => 50000,
+        'status' => 'Active',
+        'workflow_status' => 'Accepted',
+        'approval_status' => 'Approved',
+        'submitted_by' => $admin->id,
+        'submitted_at' => now()->subDay(),
+        'approved_by' => $admin->id,
+        'approved_at' => now(),
+        'data' => [
+            'requestor' => $admin->name,
+            'purpose' => 'Tracker regression test.',
+            'fund_source' => 'Operating Funds',
+            'department' => 'Finance',
+            'project' => 'Tracker Project',
+            'cost_center' => 'CC-TRACK',
+            'line_items' => [
+                [
+                    'description' => 'Office supplies batch',
+                    'account_code' => '6100',
+                    'account_name' => 'Office Supplies Expense',
+                    'quantity' => 1,
+                    'unit_cost' => 50000,
+                    'amount' => 50000,
+                    'tax' => 0,
+                    'net_amount' => 50000,
+                ],
+            ],
+            'relationship_status' => 'Awaiting DV Creation',
+            'transaction_progress' => [
+                ['label' => 'Source Document Approved', 'completed' => true, 'state' => 'completed'],
+                ['label' => 'DV Created', 'completed' => false, 'state' => 'current'],
+            ],
+        ],
+        'attachments' => [
+            [
+                'name' => 'po-supporting-doc.pdf',
+                'path' => 'storage/testing/po-supporting-doc.pdf',
+                'mime' => 'application/pdf',
+                'size' => 1024,
+                'category' => 'Purchase Order',
+                'status' => 'uploaded',
+                'uploaded_at' => now()->format('Y-m-d H:i:s'),
+                'uploaded_by' => $admin->name,
+            ],
+        ],
+        'user' => $admin->name,
+    ]);
+
+    $response = $this->actingAs($admin)->getJson(route('finance.show', $record));
+
+    $response->assertOk();
+    $response->assertJsonPath('data.transaction_progress.0.label', 'Source Document Approved');
+    $response->assertJsonPath('data.transaction_progress.1.label', 'DV Created');
+    $response->assertJsonPath('data.transaction_progress.2.label', 'DV Approved');
+    $response->assertJsonPath('data.transaction_progress.3.label', 'Funds Released');
+    $response->assertJsonPath('data.transaction_progress.4.label', 'Supporting Documents Submitted');
+    $response->assertJsonPath('data.transaction_progress.5.label', 'Transaction Completed');
+    $response->assertJsonPath('data.transaction_progress.0.completed', true);
+    $response->assertJsonPath('data.transaction_progress.1.state', 'current');
+});

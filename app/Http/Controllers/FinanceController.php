@@ -64,6 +64,8 @@ class FinanceController extends Controller
 
     private const DROPDOWN_SETTINGS_KEY = 'finance_dropdown_options';
     private const ATTACHMENT_TYPES_SETTINGS_KEY = 'finance_attachment_types';
+    private const LABEL_OVERRIDES_SETTINGS_KEY = 'finance_label_overrides';
+    private const DV_ALLOW_INSUFFICIENT_FUNDS_APPROVAL_SETTINGS_KEY = 'finance_allow_dv_approval_with_insufficient_funds';
 
     private function canApproveFinance(): bool
     {
@@ -626,14 +628,50 @@ class FinanceController extends Controller
         return is_array($decoded) ? $decoded : [];
     }
 
+    private function financeDvApprovalAllowedWithInsufficientFunds(): bool
+    {
+        if (
+            !Schema::hasTable('settings')
+            || !Schema::hasColumn('settings', 'key')
+            || !Schema::hasColumn('settings', 'value')
+        ) {
+            return false;
+        }
+
+        $setting = Setting::query()
+            ->where('key', self::DV_ALLOW_INSUFFICIENT_FUNDS_APPROVAL_SETTINGS_KEY)
+            ->first();
+
+        if (!$setting || blank($setting->value)) {
+            return false;
+        }
+
+        $decoded = json_decode((string) $setting->value, true);
+
+        if (is_array($decoded) && array_key_exists('allow', $decoded)) {
+            return filter_var($decoded['allow'], FILTER_VALIDATE_BOOL, FILTER_NULL_ON_FAILURE) ?? false;
+        }
+
+        return filter_var($setting->value, FILTER_VALIDATE_BOOL, FILTER_NULL_ON_FAILURE) ?? false;
+    }
+
     private function financeDefaultAttachmentTypes(): array
     {
         return [
             ['label' => 'Supporting Document', 'value' => 'Supporting Document', 'active' => true, 'hidden' => false],
+            ['label' => 'Purchase Order', 'value' => 'Purchase Order', 'active' => true, 'hidden' => false],
             ['label' => 'Invoice', 'value' => 'Invoice', 'active' => true, 'hidden' => false],
-            ['label' => 'OR', 'value' => 'OR', 'active' => true, 'hidden' => false],
-            ['label' => 'DR', 'value' => 'DR', 'active' => true, 'hidden' => false],
+            ['label' => 'Official Receipt', 'value' => 'Official Receipt', 'active' => true, 'hidden' => false],
+            ['label' => 'Billing Statement', 'value' => 'Billing Statement', 'active' => true, 'hidden' => false],
             ['label' => 'Contract', 'value' => 'Contract', 'active' => true, 'hidden' => false],
+            ['label' => 'Quotation', 'value' => 'Quotation', 'active' => true, 'hidden' => false],
+            ['label' => 'Payroll Register', 'value' => 'Payroll Register', 'active' => true, 'hidden' => false],
+            ['label' => 'Liquidation Report', 'value' => 'Liquidation Report', 'active' => true, 'hidden' => false],
+            ['label' => 'Deposit Slip', 'value' => 'Deposit Slip', 'active' => true, 'hidden' => false],
+            ['label' => 'Bank Confirmation', 'value' => 'Bank Confirmation', 'active' => true, 'hidden' => false],
+            ['label' => 'Proof of Transfer', 'value' => 'Proof of Transfer', 'active' => true, 'hidden' => false],
+            ['label' => 'OR', 'value' => 'OR', 'active' => true, 'hidden' => true],
+            ['label' => 'DR', 'value' => 'DR', 'active' => true, 'hidden' => true],
         ];
     }
 
@@ -704,6 +742,73 @@ class FinanceController extends Controller
         $decoded = json_decode((string) $setting->value, true);
 
         return $this->sanitizeFinanceAttachmentTypes(is_array($decoded) ? $decoded : []);
+    }
+
+    private function financeDefaultLabelOverrides(): array
+    {
+        return [];
+    }
+
+    private function sanitizeFinanceLabelOverrides(array $settings): array
+    {
+        $moduleKeys = $this->moduleKeys();
+        $sanitized = [];
+
+        foreach ($settings as $moduleKey => $moduleConfig) {
+            if (!is_string($moduleKey) || !in_array($moduleKey, $moduleKeys, true) || !is_array($moduleConfig)) {
+                continue;
+            }
+
+            $fieldLabels = [];
+            foreach ((array) data_get($moduleConfig, 'field_labels', []) as $fieldName => $fieldLabel) {
+                if (!is_string($fieldName) || !preg_match('/^[A-Za-z0-9_]+$/', $fieldName)) {
+                    continue;
+                }
+
+                $cleanLabel = trim((string) $fieldLabel);
+                if ($cleanLabel === '') {
+                    continue;
+                }
+
+                $fieldLabels[$fieldName] = Str::limit($cleanLabel, 255, '');
+            }
+
+            $recordNumberLabel = trim((string) data_get($moduleConfig, 'record_number_label', ''));
+            $recordTitleLabel = trim((string) data_get($moduleConfig, 'record_title_label', ''));
+            $recordDateLabel = trim((string) data_get($moduleConfig, 'record_date_label', ''));
+
+            $sanitized[$moduleKey] = array_filter([
+                'record_number_label' => $recordNumberLabel !== '' ? Str::limit($recordNumberLabel, 255, '') : null,
+                'record_title_label' => $recordTitleLabel !== '' ? Str::limit($recordTitleLabel, 255, '') : null,
+                'record_date_label' => $recordDateLabel !== '' ? Str::limit($recordDateLabel, 255, '') : null,
+                'field_labels' => $fieldLabels,
+            ], fn ($value) => $value !== null && $value !== []);
+        }
+
+        return $sanitized ?: $this->financeDefaultLabelOverrides();
+    }
+
+    private function financeLabelOverridesSettings(): array
+    {
+        if (
+            !Schema::hasTable('settings')
+            || !Schema::hasColumn('settings', 'key')
+            || !Schema::hasColumn('settings', 'value')
+        ) {
+            return $this->financeDefaultLabelOverrides();
+        }
+
+        $setting = Setting::query()
+            ->where('key', self::LABEL_OVERRIDES_SETTINGS_KEY)
+            ->first();
+
+        if (!$setting || blank($setting->value)) {
+            return $this->financeDefaultLabelOverrides();
+        }
+
+        $decoded = json_decode((string) $setting->value, true);
+
+        return $this->sanitizeFinanceLabelOverrides(is_array($decoded) ? $decoded : []);
     }
 
     private function financeVisibleAttachmentTypes(): array
@@ -780,6 +885,12 @@ class FinanceController extends Controller
 
     private function moduleRecordTitleLabel(string $moduleKey): string
     {
+        $labelOverrides = $this->financeLabelOverridesSettings();
+        $override = data_get($labelOverrides, "{$moduleKey}.record_title_label");
+        if (filled($override)) {
+            return (string) $override;
+        }
+
         return match ($moduleKey) {
             'supplier' => 'Registered Business Name',
             'service' => 'Service Name',
@@ -1546,6 +1657,15 @@ SVG;
             return false;
         }
 
+        if (
+            filled(data_get($record->data ?? [], 'released_at'))
+            || filled(data_get($record->data ?? [], 'released_by_name'))
+            || filled(data_get($record->data ?? [], 'release_recorded_at'))
+            || filled(data_get($record->data ?? [], 'release_recorded_by_name'))
+        ) {
+            return true;
+        }
+
         $status = Str::lower((string) ($record->status ?? ''));
         $workflow = Str::lower((string) ($record->workflow_status ?? ''));
         $relationshipStatus = Str::lower((string) data_get($record->data ?? [], 'relationship_status'));
@@ -1576,11 +1696,100 @@ SVG;
                 'completed',
                 'paid',
                 'disbursed',
+                'partially disbursed',
+                'fully disbursed',
                 'liquidated',
                 'closed',
                 'correction requested',
                 'payroll released',
             ], true));
+    }
+
+    private function financeSystemStatusForRecord(FinanceRecord $record): string
+    {
+        $workflowStatus = Str::lower((string) ($record->workflow_status ?? 'Uploaded'));
+        $approvalStatus = Str::lower((string) ($record->approval_status ?? 'Pending'));
+        $relationshipStatus = Str::lower((string) data_get($record->data ?? [], 'relationship_status'));
+        $paymentStatus = Str::lower((string) data_get($record->data ?? [], 'ca_payment_status', data_get($record->data ?? [], 'payment_status')));
+
+        if (in_array($workflowStatus, ['deleted', 'delete requested'], true)) {
+            return 'Cancelled';
+        }
+
+        if ($workflowStatus === 'correction requested') {
+            return 'On Hold';
+        }
+
+        if ($workflowStatus === 'on hold' || $approvalStatus === 'on hold') {
+            return 'On Hold';
+        }
+
+        if ($workflowStatus === 'reverted' || in_array($approvalStatus, ['needs revision', 'reverted'], true)) {
+            return 'Reverted';
+        }
+
+        if ($workflowStatus === 'uploaded') {
+            return 'Draft';
+        }
+
+        if ($workflowStatus === 'submitted') {
+            return 'Pending Approval';
+        }
+
+        if ($workflowStatus === 'partially approved' || $approvalStatus === 'partially approved') {
+            return 'Partially Approved';
+        }
+
+        if (in_array($relationshipStatus, ['completed', 'payroll released', 'transfer completed'], true) || $workflowStatus === 'archived') {
+            return 'Completed';
+        }
+
+        if (in_array($relationshipStatus, ['disbursed', 'paid', 'partially disbursed', 'fully disbursed'], true) || in_array($paymentStatus, ['disbursed', 'paid', 'fully disbursed', 'fully released'], true)) {
+            return 'Disbursed';
+        }
+
+        if (in_array($relationshipStatus, [
+            'awaiting disbursement',
+            'pending disbursement',
+            'approved for payment',
+            'approved for release',
+            'for payment processing',
+            'awaiting disbursement voucher',
+        ], true)) {
+            return 'Awaiting Disbursement';
+        }
+
+        if ($record->module_key === 'pr') {
+            return $this->financeRecordIsApproved($record) ? 'Approved' : ($workflowStatus ?: 'Draft');
+        }
+
+        if (in_array($record->module_key, ['po', 'ca', 'err', 'pda', 'ibtf'], true)) {
+            if ($record->module_key === 'ca' && $this->financeRecordIsReleased($record)) {
+                return 'Disbursed';
+            }
+
+            return $this->financeRecordIsApproved($record) ? 'Awaiting Disbursement' : ($workflowStatus ?: 'Draft');
+        }
+
+        if ($record->module_key === 'dv') {
+            if ($this->financeRecordIsReleased($record)) {
+                return (string) data_get($record->data ?? [], 'source_document_type') === 'ca'
+                    ? 'Disbursed'
+                    : 'Completed';
+            }
+
+            return $this->financeRecordIsApproved($record) ? 'Approved' : ($workflowStatus ?: 'Draft');
+        }
+
+        if (in_array($record->module_key, ['lr', 'arf'], true)) {
+            return $this->financeRecordIsApproved($record) ? 'Completed' : ($workflowStatus ?: 'Draft');
+        }
+
+        if ($workflowStatus === 'accepted' || $approvalStatus === 'approved') {
+            return 'Approved';
+        }
+
+        return 'Draft';
     }
 
     private function financeOwnLinkedRecordIds(FinanceRecord $record): array
@@ -1665,6 +1874,116 @@ SVG;
         });
     }
 
+    private function financeSourceDocumentPayeeSnapshot(FinanceRecord $record): array
+    {
+        $data = $record->data ?? [];
+        $moduleKey = (string) $record->module_key;
+        $requestor = trim((string) data_get($data, 'requestor', data_get($data, 'employee_name', '')));
+        $representative = trim((string) data_get($data, 'representative_full_name', data_get($data, 'supplier_submitted_by_name', '')));
+        $position = Str::lower(trim((string) data_get($data, 'position', data_get($data, 'officer_type', ''))));
+        $destinationBankAccount = $this->financeResolveModuleRecord('bank_account', data_get($data, 'destination_bank_account_id'));
+        $bankAccount = trim((string) collect([
+            data_get($data, 'destination_account_code'),
+            $destinationBankAccount?->record_title,
+            $destinationBankAccount?->record_number,
+            data_get($data, 'destination_bank_account_id'),
+        ])->first(fn ($value) => !blank($value)) ?: '');
+        $payrollLabel = trim((string) collect([
+            data_get($data, 'payroll_period_label'),
+            data_get($data, 'payroll_period_name'),
+            $record->record_title,
+        ])->first(fn ($value) => !blank($value)) ?: '');
+
+        return match ($moduleKey) {
+            'po' => [
+                'payee_type' => 'Supplier',
+                'payee_name' => trim((string) data_get($data, 'supplier_name', data_get($data, 'representative_full_name', ''))),
+            ],
+            'ca', 'err' => [
+                'payee_type' => $representative !== ''
+                    ? 'Authorized Representative'
+                    : (in_array($position, ['president', 'treasurer', 'secretary', 'vice president', 'vice-president', 'chairperson', 'chairman', 'director'], true) ? 'Officer' : 'Employee'),
+                'payee_name' => $representative !== '' ? $representative : ($requestor !== '' ? $requestor : trim((string) data_get($data, 'supplier_name', ''))),
+            ],
+            'pda' => [
+                'payee_type' => 'Payroll Group',
+                'payee_name' => $payrollLabel !== '' ? $payrollLabel : trim((string) data_get($data, 'payroll_period_id', '')),
+            ],
+            'ibtf' => [
+                'payee_type' => 'Receiving Bank Account',
+                'payee_name' => $bankAccount !== '' ? $bankAccount : trim((string) data_get($data, 'destination_bank_account_id', '')),
+            ],
+            default => [
+                'payee_type' => '',
+                'payee_name' => trim((string) collect([
+                    $requestor,
+                    $representative,
+                    data_get($data, 'supplier_name', ''),
+                ])->first(fn ($value) => !blank($value)) ?: ''),
+            ],
+        };
+    }
+
+    private function financeDvsForSource(string $moduleKey, mixed $recordId): \Illuminate\Support\Collection
+    {
+        return $this->financeRelatedRecords('dv', function (FinanceRecord $record) use ($moduleKey, $recordId) {
+            return (string) data_get($record->data ?? [], 'source_document_type') === $moduleKey
+                && (string) data_get($record->data ?? [], 'source_document_id') === (string) $recordId;
+        });
+    }
+
+    private function financeSourceDocumentAmount(FinanceRecord $record): float
+    {
+        $data = $record->data ?? [];
+        $amountCandidates = match ($record->module_key) {
+            'pda' => [
+                data_get($data, 'total_payroll_amount'),
+                data_get($data, 'amount'),
+                $record->amount,
+            ],
+            default => [
+                data_get($data, 'amount'),
+                data_get($data, 'grand_total'),
+                data_get($data, 'amount_requested'),
+                data_get($data, 'total_cash_advance'),
+                data_get($data, 'amount_returned'),
+                data_get($data, 'total_payroll_amount'),
+                data_get($data, 'acquisition_cost'),
+                $record->amount,
+            ],
+        };
+
+        return (float) (collect($amountCandidates)->first(fn ($value) => ! blank($value)) ?? 0);
+    }
+
+    private function financeSourceDisbursementSummary(FinanceRecord $record): array
+    {
+        $dvs = $this->financeDvsForSource($record->module_key, $record->id);
+        $releasedDvs = $dvs->filter(fn (FinanceRecord $dv) => $this->financeRecordIsReleased($dv))->values();
+        $approvedDvs = $dvs->filter(fn (FinanceRecord $dv) => $this->financeRecordIsApproved($dv))->values();
+        $amount = max($this->financeSourceDocumentAmount($record), 0);
+        $totalDisbursed = (float) $releasedDvs->sum(fn (FinanceRecord $dv) => (float) (data_get($dv->data ?? [], 'amount', $dv->amount) ?: $dv->amount ?: 0));
+        $remainingBalance = max($amount - $totalDisbursed, 0);
+        $percentagePaid = $amount > 0 ? min(($totalDisbursed / $amount) * 100, 100) : 0;
+        $releasedCount = $releasedDvs->count();
+        $approvedCount = $approvedDvs->count();
+
+        return [
+            'source_amount' => number_format($amount, 2, '.', ''),
+            'total_disbursed_amount' => number_format($totalDisbursed, 2, '.', ''),
+            'remaining_balance' => number_format($remainingBalance, 2, '.', ''),
+            'percentage_paid' => number_format($percentagePaid, 2, '.', ''),
+            'dv_count' => $dvs->count(),
+            'released_dv_count' => $releasedCount,
+            'approved_dv_count' => $approvedCount,
+            'pending_dv_count' => max($dvs->count() - $approvedCount, 0),
+            'pending_release_count' => max($approvedCount - $releasedCount, 0),
+            'has_partial_disbursement' => $totalDisbursed > 0 && $remainingBalance > 0,
+            'is_fully_disbursed' => $amount > 0 && $remainingBalance <= 0 && $releasedCount > 0,
+            'is_partially_disbursed' => $totalDisbursed > 0 && $remainingBalance > 0,
+        ];
+    }
+
     private function financeFirstPoForPr(mixed $recordId): ?FinanceRecord
     {
         return $this->financeFirstRelatedRecord('po', fn (FinanceRecord $record) => (string) data_get($record->data ?? [], 'linked_pr_id') === (string) $recordId);
@@ -1673,6 +1992,11 @@ SVG;
     private function financeFirstLiquidationForCa(mixed $recordId): ?FinanceRecord
     {
         return $this->financeFirstRelatedRecord('lr', fn (FinanceRecord $record) => (string) data_get($record->data ?? [], 'linked_ca_id') === (string) $recordId);
+    }
+
+    private function financeFirstCashReturnForLr(mixed $recordId): ?FinanceRecord
+    {
+        return $this->financeFirstRelatedRecord('crf', fn (FinanceRecord $record) => (string) data_get($record->data ?? [], 'linked_lr_id') === (string) $recordId);
     }
 
     private function financeLifecycleLinkedRecords(FinanceRecord $record): array
@@ -1706,6 +2030,15 @@ SVG;
         return compact('po', 'dv', 'ca', 'lr', 'arf');
     }
 
+    private function financeLifecycleDisbursementSourceRecord(FinanceRecord $record, ?FinanceRecord $po = null): ?FinanceRecord
+    {
+        return match ($record->module_key) {
+            'pr' => $po,
+            'po', 'ca', 'err', 'pda', 'ibtf' => $record,
+            default => null,
+        };
+    }
+
     private function financeDerivedRelationshipStatus(FinanceRecord $record): string
     {
         if (($record->workflow_status ?? '') === 'Deleted') {
@@ -1714,6 +2047,10 @@ SVG;
 
         if (($record->workflow_status ?? '') === 'Correction Requested') {
             return 'Correction Requested';
+        }
+
+        if (($record->workflow_status ?? '') === 'Uploaded') {
+            return 'Draft';
         }
 
         if (in_array(Str::lower((string) ($record->status ?? '')), ['cancelled', 'inactive'], true)) {
@@ -1735,16 +2072,26 @@ SVG;
                 return 'Converted to Purchase Order';
             }
 
+            $disbursement = $this->financeSourceDisbursementSummary($po);
+
             if (!$dv) {
                 return 'Purchase Order Approved';
+            }
+
+            if ($disbursement['is_partially_disbursed']) {
+                return 'Partially Disbursed';
             }
 
             if (!$this->financeRecordIsApproved($dv)) {
                 return 'For Payment Processing';
             }
 
+            if ($disbursement['is_fully_disbursed']) {
+                return 'Fully Disbursed';
+            }
+
             return $this->financeRecordIsReleased($dv)
-                ? 'Completed'
+                ? 'Fully Disbursed'
                 : 'Approved for Payment';
         }
 
@@ -1753,16 +2100,26 @@ SVG;
                 return $record->workflow_status ?: 'Draft';
             }
 
+            $disbursement = $this->financeSourceDisbursementSummary($record);
+
             if (!$dv) {
-                return 'Awaiting Disbursement';
+                return 'Awaiting DV Creation';
+            }
+
+            if ($disbursement['is_partially_disbursed']) {
+                return 'Partially Disbursed';
             }
 
             if (!$this->financeRecordIsApproved($dv)) {
-                return 'Pending Disbursement';
+                return 'Pending DV Approval';
+            }
+
+            if ($disbursement['is_fully_disbursed']) {
+                return 'Fully Disbursed';
             }
 
             return $this->financeRecordIsReleased($dv)
-                ? 'Completed'
+                ? 'Fully Disbursed'
                 : 'Approved for Payment';
         }
 
@@ -1783,8 +2140,14 @@ SVG;
                 return $record->workflow_status ?: 'Draft';
             }
 
+            $disbursement = $this->financeSourceDisbursementSummary($record);
+
             if (!$dv) {
                 return 'Awaiting Disbursement';
+            }
+
+            if ($disbursement['is_partially_disbursed']) {
+                return 'Partially Disbursed';
             }
 
             if (!$this->financeRecordIsApproved($dv)) {
@@ -1795,6 +2158,10 @@ SVG;
                 return 'Approved for Release';
             }
 
+            if ($disbursement['is_fully_disbursed'] && !$lr) {
+                return 'Awaiting Liquidation';
+            }
+
             if (!$lr) {
                 return 'Awaiting Liquidation';
             }
@@ -1803,7 +2170,21 @@ SVG;
         }
 
         if ($record->module_key === 'lr') {
-            return $this->financeRecordIsApproved($record) ? 'Completed' : ($record->workflow_status ?: 'Draft');
+            if (! $this->financeRecordIsApproved($record)) {
+                return $record->workflow_status ?: 'Draft';
+            }
+
+            $varianceIndicator = Str::lower((string) data_get($record->data ?? [], 'variance_indicator'));
+            if ($varianceIndicator === 'overage') {
+                $cashReturn = $this->financeFirstCashReturnForLr($record->id);
+                if ($cashReturn && $this->financeRecordIsApproved($cashReturn)) {
+                    return 'Completed';
+                }
+
+                return 'Awaiting Cash Return';
+            }
+
+            return 'Completed';
         }
 
         if (in_array($record->module_key, ['err', 'pda', 'ibtf'], true)) {
@@ -1811,12 +2192,26 @@ SVG;
                 return $record->workflow_status ?: 'Draft';
             }
 
+            $disbursement = $this->financeSourceDisbursementSummary($record);
+
             if (!$dv) {
                 return 'Awaiting Disbursement Voucher';
             }
 
+            if ($disbursement['is_partially_disbursed']) {
+                return 'Partially Disbursed';
+            }
+
             if (!$this->financeRecordIsApproved($dv)) {
                 return 'Pending Disbursement';
+            }
+
+            if ($disbursement['is_fully_disbursed']) {
+                return match ($record->module_key) {
+                    'pda' => 'Payroll Released',
+                    'ibtf' => 'Transfer Completed',
+                    default => 'Completed',
+                };
             }
 
             return match ($record->module_key) {
@@ -1833,6 +2228,11 @@ SVG;
         return $this->financeRecordIsApproved($record) ? 'Completed' : ($record->workflow_status ?: 'Draft');
     }
 
+    private function financeSystemRelationshipStatus(FinanceRecord $record): string
+    {
+        return $this->financeDerivedRelationshipStatus($record);
+    }
+
     private function financeDerivedNextAction(FinanceRecord $record, string $relationshipStatus): string
     {
         $moduleKey = $record->module_key;
@@ -1841,12 +2241,19 @@ SVG;
             $relationshipStatus === 'Cancelled' => 'No further action',
             $relationshipStatus === 'Correction Requested' => 'Review Correction Request',
             $relationshipStatus === 'Completed' => 'No further action',
+            $relationshipStatus === 'Partially Disbursed' => in_array($moduleKey, ['ca'], true) ? 'Continue Liquidation' : 'Release Remaining Balance',
+            $relationshipStatus === 'Fully Disbursed' => match ($moduleKey) {
+                'ca' => 'Submit Liquidation Report',
+                'po', 'pr' => 'No further action',
+                'err', 'pda', 'ibtf' => 'No further action',
+                default => 'Continue workflow',
+            },
             $moduleKey === 'pr' && $relationshipStatus === 'Awaiting Purchase Order' => 'Create Purchase Order',
             $moduleKey === 'pr' && $relationshipStatus === 'Converted to Purchase Order' => 'Approve Purchase Order',
             $moduleKey === 'pr' && $relationshipStatus === 'Purchase Order Approved' => 'Create Disbursement Voucher',
             $moduleKey === 'pr' && in_array($relationshipStatus, ['For Payment Processing', 'Pending Disbursement'], true) => 'Approve Disbursement Voucher',
             $moduleKey === 'pr' && $relationshipStatus === 'Approved for Payment' => 'Release Funds',
-            $moduleKey === 'po' && $relationshipStatus === 'Awaiting Disbursement' => 'Create Disbursement Voucher',
+            $moduleKey === 'po' && in_array($relationshipStatus, ['Awaiting DV Creation', 'Awaiting Disbursement'], true) => 'Create Disbursement Voucher',
             $moduleKey === 'po' && $relationshipStatus === 'Pending Disbursement' => 'Approve Disbursement Voucher',
             $moduleKey === 'po' && $relationshipStatus === 'Approved for Payment' => 'Release Funds',
             $moduleKey === 'dv' && $relationshipStatus === 'Pending Approval' => 'Approve Disbursement Voucher',
@@ -1857,6 +2264,8 @@ SVG;
             $moduleKey === 'ca' && $relationshipStatus === 'Approved for Release' => 'Release Funds',
             $moduleKey === 'ca' && $relationshipStatus === 'Awaiting Liquidation' => 'Submit Liquidation Report',
             $moduleKey === 'ca' && $relationshipStatus === 'Awaiting Liquidation Approval' => 'Approve Liquidation Report',
+            $moduleKey === 'lr' && $relationshipStatus === 'Awaiting Cash Return' => 'Create Cash Return Form',
+            $moduleKey === 'lr' && $relationshipStatus === 'Completed' => 'No further action',
             in_array($moduleKey, ['err', 'pda', 'ibtf'], true) && $relationshipStatus === 'Awaiting Disbursement Voucher' => 'Create Disbursement Voucher',
             in_array($moduleKey, ['err', 'pda', 'ibtf'], true) && $relationshipStatus === 'Pending Disbursement' => 'Approve Disbursement Voucher',
             $moduleKey === 'pda' && $relationshipStatus === 'Payroll Released' => 'No further action',
@@ -1870,29 +2279,35 @@ SVG;
     private function financeProgressTracker(FinanceRecord $record, string $relationshipStatus): array
     {
         ['dv' => $dv, 'lr' => $lr] = $this->financeLifecycleLinkedRecords($record);
-        $isApproved = $this->financeRecordIsApproved($record);
+        $sourceRecord = $record->module_key === 'dv'
+            ? $this->financeResolveModuleRecord(
+                (string) data_get($record->data ?? [], 'source_document_type', ''),
+                data_get($record->data ?? [], 'source_document_id')
+            )
+            : $record;
+        $sourceDocumentApproved = $sourceRecord ? $this->financeRecordIsApproved($sourceRecord) : $this->financeRecordIsApproved($record);
         $dvCreated = $record->module_key === 'dv' || (bool) $dv;
         $dvApproved = $record->module_key === 'dv'
             ? $this->financeRecordIsApproved($record)
             : $this->financeRecordIsApproved($dv);
-        $fundsReleased = $this->financeRecordIsReleased($record) || $this->financeRecordIsReleased($dv);
-        $liquidatedOrReceived = $this->financeRecordIsApproved($lr)
-            || filled(data_get(($dv ?: $record)->data ?? [], 'received_by_name'))
-            || filled(data_get(($dv ?: $record)->data ?? [], 'date_received'));
+        $fundsReleased = $this->financeRecordIsReleased($record)
+            || $this->financeRecordIsReleased($dv)
+            || ($sourceRecord ? $this->financeRecordIsReleased($sourceRecord) : false);
+        $supportingDocumentsSubmitted = collect([$record, $sourceRecord, $dv, $lr])
+            ->filter(fn ($candidate) => $candidate instanceof FinanceRecord)
+            ->contains(fn (FinanceRecord $candidate) => !blank((array) ($candidate->attachments ?? [])));
         $completed = $relationshipStatus === 'Completed'
             || $relationshipStatus === 'Payroll Released'
             || $relationshipStatus === 'Transfer Completed'
             || in_array(Str::lower((string) ($record->status ?? '')), ['completed', 'paid', 'liquidated', 'closed'], true);
 
         $steps = [
-            ['label' => 'Request Created', 'completed' => true],
-            ['label' => 'Submitted', 'completed' => filled($record->submitted_at) || $isApproved],
-            ['label' => 'Approved', 'completed' => $isApproved],
-            ['label' => 'Disbursement Voucher Created', 'completed' => $dvCreated],
-            ['label' => 'Disbursement Voucher Approved', 'completed' => $dvApproved],
+            ['label' => 'Source Document Approved', 'completed' => $sourceDocumentApproved],
+            ['label' => 'DV Created', 'completed' => $dvCreated],
+            ['label' => 'DV Approved', 'completed' => $dvApproved],
             ['label' => 'Funds Released', 'completed' => $fundsReleased],
-            ['label' => 'Liquidated / Received', 'completed' => $liquidatedOrReceived],
-            ['label' => 'Completed', 'completed' => $completed],
+            ['label' => 'Supporting Documents Submitted', 'completed' => $supportingDocumentsSubmitted],
+            ['label' => 'Transaction Completed', 'completed' => $completed],
         ];
 
         $firstPending = collect($steps)->search(fn (array $step) => !$step['completed']);
@@ -1910,11 +2325,33 @@ SVG;
     {
         $relationshipStatus = $this->financeDerivedRelationshipStatus($record);
         ['po' => $po, 'dv' => $dv, 'ca' => $ca, 'lr' => $lr, 'arf' => $arf] = $this->financeLifecycleLinkedRecords($record);
+        $disbursementSource = $this->financeLifecycleDisbursementSourceRecord($record, $po);
+        $disbursementSummary = $disbursementSource ? $this->financeSourceDisbursementSummary($disbursementSource) : [];
+        $disbursementStatus = data_get($disbursementSummary, 'is_partially_disbursed')
+            ? 'Partially Disbursed'
+            : (data_get($disbursementSummary, 'is_fully_disbursed') ? 'Fully Disbursed' : 'Awaiting Disbursement');
+
+        if ($disbursementStatus !== 'Fully Disbursed') {
+            if ($record->module_key === 'ca' && in_array($relationshipStatus, ['Awaiting Liquidation', 'Completed'], true)) {
+                $disbursementStatus = 'Fully Disbursed';
+            } elseif (in_array($record->module_key, ['err', 'pda', 'ibtf'], true) && in_array($relationshipStatus, ['Payroll Released', 'Transfer Completed', 'Completed'], true)) {
+                $disbursementStatus = 'Fully Disbursed';
+            } elseif ($record->module_key === 'po' && $relationshipStatus === 'Fully Disbursed') {
+                $disbursementStatus = 'Fully Disbursed';
+            }
+        }
 
         return [
             'relationship_status' => $relationshipStatus,
             'next_action' => $this->financeDerivedNextAction($record, $relationshipStatus),
             'transaction_progress' => $this->financeProgressTracker($record, $relationshipStatus),
+            'total_disbursed_amount' => data_get($disbursementSummary, 'total_disbursed_amount'),
+            'remaining_balance' => data_get($disbursementSummary, 'remaining_balance'),
+            'percentage_paid' => data_get($disbursementSummary, 'percentage_paid'),
+            'disbursement_status' => $disbursementStatus,
+            'dv_count' => data_get($disbursementSummary, 'dv_count', 0),
+            'released_dv_count' => data_get($disbursementSummary, 'released_dv_count', 0),
+            'approved_dv_count' => data_get($disbursementSummary, 'approved_dv_count', 0),
             'linked_po_id' => $po?->id,
             'linked_dv_id' => $dv?->id,
             'linked_ca_id' => $ca?->id,
@@ -1937,24 +2374,39 @@ SVG;
 
             $oldData = $linkedRecord->data ?? [];
             $snapshot = $this->financeLifecycleSnapshot($linkedRecord);
-            $hasChanged = collect($snapshot)->contains(function ($value, $key) use ($oldData) {
+            $snapshotChanged = collect($snapshot)->contains(function ($value, $key) use ($oldData) {
                 return json_encode(data_get($oldData, $key)) !== json_encode($value);
             });
+            $derivedStatus = $this->financeSystemStatusForRecord($linkedRecord);
+            $statusChanged = (string) ($linkedRecord->status ?? '') !== $derivedStatus;
+            $hasChanged = $snapshotChanged || $statusChanged;
 
             if (!$hasChanged) {
                 continue;
             }
 
             $newData = array_merge($oldData, $snapshot);
-            $newData = $this->appendFinanceHistoryEntry($newData, 'Relationship Status Updated', $linkedRecord->module_key, [
+            $historyAction = $statusChanged
+                ? ($snapshotChanged ? 'Status and Relationship Status Updated' : 'Status Updated')
+                : 'Relationship Status Updated';
+
+            $newData = $this->appendFinanceHistoryEntry($newData, $historyAction, $linkedRecord->module_key, [
+                'status' => $linkedRecord->status,
                 'relationship_status' => data_get($oldData, 'relationship_status'),
                 'next_action' => data_get($oldData, 'next_action'),
             ], [
+                'status' => $derivedStatus,
                 'relationship_status' => $snapshot['relationship_status'],
                 'next_action' => $snapshot['next_action'],
             ]);
 
-            $linkedRecord->update(['data' => $newData]);
+            $updatePayload = ['data' => $newData];
+
+            if ($statusChanged) {
+                $updatePayload['status'] = $derivedStatus;
+            }
+
+            $linkedRecord->update($updatePayload);
             if ($linkedRecord->module_key === 'ca' && $snapshot['relationship_status'] === 'Awaiting Liquidation') {
                 $this->sendFinanceRecordWorkflowNotification($linkedRecord, 'liquidation_due');
             }
@@ -1966,7 +2418,7 @@ SVG;
         $data = $record->data ?? [];
 
         $items = match ($record->module_key) {
-            'pr' => [[
+            'pr' => [$this->financeNormalizeTaxLineItem([
                 'item_module' => 'product',
                 'item_record_id' => data_get($data, 'master_item_id'),
                 'item_id' => data_get($data, 'master_item_id'),
@@ -1981,8 +2433,8 @@ SVG;
                 'wht_amount' => data_get($data, 'wht_amount'),
                 'total' => data_get($data, 'estimated_total_cost'),
                 'supplier_id' => data_get($data, 'supplier_id'),
-            ]],
-            'po' => [[
+            ])],
+            'po' => [$this->financeNormalizeTaxLineItem([
                 'item_module' => data_get($data, 'linked_item_type'),
                 'item_record_id' => data_get($data, 'linked_item_id'),
                 'item_id' => data_get($data, 'linked_item_id'),
@@ -1997,13 +2449,89 @@ SVG;
                 'wht_amount' => data_get($data, 'wht_amount'),
                 'total' => data_get($data, 'total_amount'),
                 'supplier_id' => data_get($data, 'supplier_id'),
-            ]],
+            ])],
             default => [],
         };
 
         return array_values(array_filter($items, function (array $item) {
             return collect($item)->contains(fn ($value) => !blank($value) && $value !== 0 && $value !== '0');
         }));
+    }
+
+    private function financeNormalizeTaxType(?string $taxType): string
+    {
+        $normalized = Str::of((string) $taxType)
+            ->trim()
+            ->replace(['_', '–'], [' ', '-'])
+            ->replaceMatches('/\s+/', ' ')
+            ->lower()
+            ->toString();
+
+        return match ($normalized) {
+            'vat' => 'VAT',
+            'expanded withholding tax', 'expanded wht', 'ewt', 'withholding tax' => 'Expanded Withholding Tax',
+            'vat exempt', 'vat-exempt', 'tax exempt' => 'VAT Exempt',
+            'zero rated', 'zero-rated', 'zero rated transactions' => 'Zero Rated',
+            'non-vat', 'non vat', 'non vat transaction' => 'Non-VAT',
+            'n/a', 'na', 'not applicable' => 'N/A',
+            default => blank($taxType) ? 'N/A' : trim((string) $taxType),
+        };
+    }
+
+    private function financeNormalizeTaxLineItem(array $item): array
+    {
+        $quantity = (float) data_get($item, 'quantity', 0);
+        $amount = (float) data_get($item, 'amount', 0);
+        $subtotal = (float) data_get($item, 'subtotal', $quantity * $amount);
+        $discount = (string) data_get($item, 'discount', '0%');
+        $discountPercent = (float) str_replace('%', '', $discount);
+        $manualDiscount = (float) data_get($item, 'discount_amount', 0);
+        $discountAmount = $discountPercent > 0 ? $subtotal * ($discountPercent / 100) : $manualDiscount;
+        $shippingAmount = (float) data_get($item, 'shipping_amount', 0);
+        $taxType = $this->financeNormalizeTaxType(data_get($item, 'tax_type', 'N/A'));
+        $taxableAmount = max($subtotal - $discountAmount, 0);
+        $taxAmount = 0.0;
+        $whtAmount = 0.0;
+        $taxRate = 0.0;
+        $whtRate = 0.0;
+        $taxImpactLabel = 'No tax impact';
+
+        match ($taxType) {
+            'VAT' => (function () use ($taxableAmount, &$taxAmount, &$taxRate, &$taxImpactLabel) {
+                $taxRate = 0.12;
+                $taxAmount = round($taxableAmount * $taxRate, 2);
+                $taxImpactLabel = 'VAT 12%';
+            })(),
+            'Expanded Withholding Tax' => (function () use ($taxableAmount, &$whtAmount, &$whtRate, &$taxImpactLabel) {
+                $whtRate = 0.01;
+                $whtAmount = round($taxableAmount * $whtRate, 2);
+                $taxImpactLabel = 'Expanded Withholding Tax 1%';
+            })(),
+            'Non-VAT' => (function () use ($taxableAmount, &$taxAmount, &$taxRate, &$taxImpactLabel) {
+                $taxRate = 0.03;
+                $taxAmount = round($taxableAmount * $taxRate, 2);
+                $taxImpactLabel = 'Non-VAT 3%';
+            })(),
+            'VAT Exempt' => $taxImpactLabel = 'VAT Exempt',
+            'Zero Rated' => $taxImpactLabel = 'Zero Rated',
+            default => null,
+        };
+
+        $total = round($subtotal - $discountAmount + $shippingAmount + $taxAmount - $whtAmount, 2);
+
+        data_set($item, 'tax_type', $taxType);
+        data_set($item, 'subtotal', number_format($subtotal, 2, '.', ''));
+        data_set($item, 'discount_amount', number_format($discountAmount, 2, '.', ''));
+        data_set($item, 'shipping_amount', number_format($shippingAmount, 2, '.', ''));
+        data_set($item, 'taxable_amount', number_format($taxableAmount, 2, '.', ''));
+        data_set($item, 'tax_rate', number_format($taxRate * 100, 2, '.', ''));
+        data_set($item, 'wht_rate', number_format($whtRate * 100, 2, '.', ''));
+        data_set($item, 'tax_amount', number_format($taxAmount, 2, '.', ''));
+        data_set($item, 'wht_amount', number_format($whtAmount, 2, '.', ''));
+        data_set($item, 'tax_impact_label', $taxImpactLabel);
+        data_set($item, 'total', number_format($total, 2, '.', ''));
+
+        return $item;
     }
 
     private function financeResolvedLineItems(FinanceRecord $record, array $lookupOptions): array
@@ -2021,6 +2549,7 @@ SVG;
         $lineItems = [];
 
         foreach ($rawItems as $item) {
+            $item = $this->financeNormalizeTaxLineItem($item);
             $itemModule = (string) data_get($item, 'item_module', '');
             if (!in_array($itemModule, ['product', 'service'], true)) {
                 $itemModule = $record->module_key === 'po'
@@ -2066,6 +2595,7 @@ SVG;
                 'tax_type' => $this->financePdfValue($taxType ?: 'N/A'),
                 'tax_amount' => number_format($taxAmount, 2),
                 'wht_amount' => number_format($whtAmount, 2),
+                'tax_impact_label' => $this->financePdfValue(data_get($item, 'tax_impact_label')),
                 'total' => number_format($total, 2),
                 'total_value' => $total,
                 'supplier_id' => $supplierId,
@@ -2834,7 +3364,7 @@ SVG;
                 ['label' => 'Discount', 'value' => $data['discount'] ?? '0%'],
                 ['label' => 'Discount Amount', 'value' => $data['discount_amount'] ?? '0.00'],
                 ['label' => 'Shipping', 'value' => $data['shipping_amount'] ?? '0.00'],
-                ['label' => 'Tax (VAT/Non-VAT/N/A)', 'value' => $data['tax_type'] ?? 'N/A'],
+                ['label' => 'Tax (VAT/EWT/VAT Exempt/Zero Rated)', 'value' => $data['tax_type'] ?? 'N/A'],
                 ['label' => 'Tax Amount', 'value' => $data['tax_amount'] ?? '0.00'],
                 ['label' => 'WHT', 'value' => $data['wht_amount'] ?? '0.00'],
                 ['label' => 'Grand Total', 'value' => $data['grand_total'] ?? $record->amount ?? '0.00'],
@@ -3093,6 +3623,8 @@ SVG;
             'partially_approved' => $pendingApprovers->merge($owner ? [$owner] : []),
             'liquidation_due' => collect($owner ? [$owner] : [])->merge($adminRecipients),
             'inventory_alert' => $inventoryAlertRecipients,
+            'insufficient_funds' => $approvers->merge($adminRecipients),
+            'accounting_imbalance' => $approvers->merge($adminRecipients),
             'approved', 'reverted', 'held' => collect($owner ? [$owner] : []),
             'delete_requested' => $adminRecipients->merge($owner ? [$owner] : []),
             default => collect($owner ? [$owner] : [])->merge($approvers),
@@ -3145,6 +3677,16 @@ SVG;
             'inventory_alert' => [
                 'Inventory Alert: ' . $recordLabel,
                 'Stock levels are at or below the reorder threshold.',
+                'Review Record',
+            ],
+            'insufficient_funds' => [
+                'Insufficient Funds: ' . $recordLabel,
+                'The available balance is lower than the requested amount. Please review the funding status before approving.',
+                'Review Record',
+            ],
+            'accounting_imbalance' => [
+                'Accounting Imbalance: ' . $recordLabel,
+                'Total debit and total credit do not match. Please correct the accounting entries before approval.',
                 'Review Record',
             ],
             'approved' => [
@@ -3312,12 +3854,49 @@ SVG;
         return $query;
     }
 
+    private function financeRecordEligibleAsSourceDocument(FinanceRecord $record): bool
+    {
+        if (in_array($record->workflow_status ?? 'Uploaded', ['Cancelled', 'Reverted', 'Closed'], true)) {
+            return false;
+        }
+
+        $relationshipStatus = Str::lower((string) data_get($record->data ?? [], 'relationship_status'));
+        $paymentStatus = Str::lower((string) data_get($record->data ?? [], 'payment_status', data_get($record->data ?? [], 'ca_payment_status')));
+
+        if (in_array($relationshipStatus, [
+            'cancelled',
+            'reverted',
+            'closed',
+            'completed',
+            'disbursed',
+            'liquidated',
+            'paid',
+            'fully disbursed',
+            'fully released',
+        ], true)) {
+            return false;
+        }
+
+        if (in_array($paymentStatus, [
+            'fully disbursed',
+            'fully released',
+            'disbursed',
+            'paid',
+        ], true)) {
+            return false;
+        }
+
+        return true;
+    }
+
     private function visibleAcceptedFinanceRecords(string $moduleKey, array $dataConstraints = [])
     {
         $records = $this->acceptedRecordQuery($moduleKey, $dataConstraints)
             ->orderByDesc('record_date')
             ->orderByDesc('created_at')
             ->get();
+
+        $records = $records->filter(fn (FinanceRecord $record) => $this->financeRecordEligibleAsSourceDocument($record));
 
         if ($this->canApproveFinance()) {
             return $records->values();
@@ -4500,6 +5079,7 @@ SVG;
     {
         $data = array_merge($record->data ?? [], $this->financeLifecycleSnapshot($record));
         $existingDvPayload = is_array(data_get($data, 'dv_payload')) ? data_get($data, 'dv_payload') : [];
+        $relationshipStatus = $this->financeSystemRelationshipStatus($record);
 
         if ($record->module_key === 'arf') {
             $data['custodian_name'] = data_get($data, 'custodian_name') ?: $this->financeAssetCustodianDisplayName($record);
@@ -4516,7 +5096,8 @@ SVG;
             'display_label' => $this->optionLabel($record),
             'record_date' => optional($record->record_date)->format('Y-m-d'),
             'amount' => $record->amount,
-            'status' => $record->status ?? 'Active',
+            'status' => $this->financeSystemStatusForRecord($record),
+            'relationship_status' => $relationshipStatus,
             'workflow_status' => $record->workflow_status ?? 'Uploaded',
             'approval_status' => $record->approval_status ?? 'Pending',
             'submitted_by' => $record->submitted_by,
@@ -4600,6 +5181,7 @@ SVG;
     private function fallbackDvPayload(FinanceRecord $record): array
     {
         $data = $record->data ?? [];
+        $sourceSnapshot = $this->financeSourceDocumentSnapshot($record);
 
         $firstFilled = function (array $values) {
             foreach ($values as $value) {
@@ -4621,6 +5203,8 @@ SVG;
 
         $payload = [
             'supplier_id' => data_get($data, 'supplier_id') ?? '',
+            'payee_type' => data_get($data, 'payee_type') ?: data_get($this->financeSourceDocumentPayeeSnapshot($record), 'payee_type', ''),
+            'payee_name' => data_get($data, 'payee_name') ?: data_get($this->financeSourceDocumentPayeeSnapshot($record), 'payee_name', ''),
             'amount' => $firstFilled([
                 data_get($data, 'amount'),
                 data_get($data, 'grand_total'),
@@ -4688,11 +5272,310 @@ SVG;
             'received_by_signature' => data_get($data, 'received_by_signature') ?: '',
             'date_received' => data_get($data, 'date_received') ?: '',
             'remarks' => data_get($data, 'remarks') ?: 'Seeded DV dummy payload.',
+            'source_record_number' => data_get($sourceSnapshot, 'source_record_number', $record->record_number ?: ''),
+            'source_record_date' => data_get($sourceSnapshot, 'source_record_date', optional($record->record_date)->format('Y-m-d') ?: ''),
+            'source_requester' => data_get($sourceSnapshot, 'requester', ''),
+            'source_department' => data_get($sourceSnapshot, 'department', ''),
+            'source_project' => data_get($sourceSnapshot, 'project', ''),
+            'source_cost_center' => data_get($sourceSnapshot, 'cost_center', ''),
+            'source_fund_source' => data_get($sourceSnapshot, 'fund_source', ''),
+            'source_amount' => data_get($sourceSnapshot, 'amount', $record->amount ?: ''),
+            'source_remaining_balance' => data_get($sourceSnapshot, 'remaining_balance', ''),
+            'source_current_balance' => data_get($sourceSnapshot, 'current_balance', data_get($sourceSnapshot, 'amount', '')),
+            'source_reserved_balance' => data_get($sourceSnapshot, 'reserved_balance', data_get($sourceSnapshot, 'total_disbursed_amount', '0.00')),
+            'source_available_balance' => data_get($sourceSnapshot, 'available_balance', data_get($sourceSnapshot, 'remaining_balance', '0.00')),
+            'source_approval_status' => data_get($sourceSnapshot, 'approval_status', $record->approval_status ?: 'Pending'),
+            'source_approved_by_name' => data_get($sourceSnapshot, 'approved_by_name', $this->financeUserDisplayName($record->approved_by)),
+            'source_approved_at' => data_get($sourceSnapshot, 'approved_at', optional($record->approved_at)->format('Y-m-d H:i:s') ?: ''),
+            'source_supplier_name' => data_get($sourceSnapshot, 'supplier_name', ''),
+            'source_employee_name' => data_get($sourceSnapshot, 'employee_name', ''),
+            'source_payee_type' => data_get($sourceSnapshot, 'payee_type', ''),
+            'source_payee_name' => data_get($sourceSnapshot, 'payee_name', ''),
+            'source_status' => data_get($sourceSnapshot, 'status', $this->financeSystemStatusForRecord($record)),
+            'source_workflow_status' => data_get($sourceSnapshot, 'workflow_status', $record->workflow_status ?? 'Uploaded'),
+            'source_relationship_status' => data_get($sourceSnapshot, 'relationship_status', $this->financeDerivedRelationshipStatus($record)),
         ];
 
         $payload['line_items'] = $this->financeDvLineItemsFromSource($record, $payload);
 
         return $payload;
+    }
+
+    private function financeSourceDocumentSnapshot(FinanceRecord $record): array
+    {
+        $data = $record->data ?? [];
+        $disbursementSummary = $this->financeSourceDisbursementSummary($record);
+        $payeeSnapshot = $this->financeSourceDocumentPayeeSnapshot($record);
+        $firstFilled = function (array $values) {
+            foreach ($values as $value) {
+                if (!blank($value)) {
+                    return $value;
+                }
+            }
+
+            return null;
+        };
+
+        $amount = $firstFilled([
+            data_get($data, 'amount'),
+            data_get($data, 'grand_total'),
+            data_get($data, 'amount_requested'),
+            data_get($data, 'total_cash_advance'),
+            data_get($data, 'amount_returned'),
+            data_get($data, 'total_payroll_amount'),
+            data_get($data, 'acquisition_cost'),
+            $record->amount,
+        ]) ?? '';
+
+        $remainingBalance = $firstFilled([
+            data_get($data, 'ca_payment_remaining_balance'),
+            data_get($data, 'remaining_balance'),
+            data_get($data, 'balance_remaining'),
+            data_get($data, 'remaining_amount'),
+            data_get($data, 'available_balance'),
+            data_get($disbursementSummary, 'remaining_balance'),
+        ]) ?? '';
+
+        $requester = trim((string) $firstFilled([
+            data_get($data, 'requestor'),
+            data_get($data, 'employee_name'),
+            data_get($data, 'requester_name'),
+            data_get($data, 'submitted_by_name'),
+            $this->financeSubmittedByName($record),
+        ]) ?: '');
+
+        $supplierName = trim((string) $firstFilled([
+            data_get($data, 'supplier_name'),
+            data_get($data, 'supplier_submitted_by_name'),
+            data_get($data, 'representative_full_name'),
+        ]) ?: '');
+
+        $resolvedBankAccountLabel = trim((string) $firstFilled([
+            data_get($data, 'bank_account_name'),
+            data_get($data, 'funding_bank_account_name'),
+            data_get($data, 'source_bank_account_name'),
+            data_get($data, 'destination_bank_account_name'),
+            data_get($data, 'receiving_bank_account_name'),
+            data_get($data, 'bank_account_label'),
+        ]) ?: '');
+
+        if ($resolvedBankAccountLabel === '') {
+            foreach ([
+                data_get($data, 'bank_account_id'),
+                data_get($data, 'funding_bank_account_id'),
+                data_get($data, 'source_bank_account_id'),
+                data_get($data, 'destination_bank_account_id'),
+                data_get($data, 'receiving_bank_account_id'),
+                data_get($data, 'paid_through'),
+            ] as $bankAccountId) {
+                $bankAccountRecord = blank($bankAccountId)
+                    ? null
+                    : $this->financeResolveModuleRecord('bank_account', $bankAccountId);
+
+                if ($bankAccountRecord) {
+                    $resolvedBankAccountLabel = trim((string) collect([
+                        $bankAccountRecord->record_title,
+                        $bankAccountRecord->record_number,
+                    ])->first(fn ($value) => !blank($value)) ?: '');
+
+                    if ($resolvedBankAccountLabel !== '') {
+                        break;
+                    }
+                }
+            }
+        }
+
+        $employeeName = trim((string) $firstFilled([
+            data_get($data, 'employee_name'),
+            data_get($data, 'requestor'),
+            data_get($data, 'requester_name'),
+        ]) ?: '');
+
+        return [
+            'source_record_number' => $record->record_number ?: '',
+            'source_record_date' => optional($record->record_date)->format('Y-m-d') ?: '',
+            'requester' => $requester,
+            'department' => trim((string) ($firstFilled([
+                data_get($data, 'department'),
+                data_get($data, 'requesting_department'),
+            ]) ?: '')),
+            'project' => trim((string) ($firstFilled([
+                data_get($data, 'project'),
+                data_get($data, 'project_name'),
+                data_get($data, 'project_code'),
+            ]) ?: '')),
+            'cost_center' => trim((string) ($firstFilled([
+                data_get($data, 'cost_center'),
+                data_get($data, 'cost_center_code'),
+                data_get($data, 'cost_center_name'),
+            ]) ?: '')),
+            'fund_source' => trim((string) ($firstFilled([
+                data_get($data, 'fund_source'),
+                $resolvedBankAccountLabel,
+                data_get($data, 'project'),
+                data_get($data, 'department'),
+            ]) ?: '')),
+            'amount' => is_numeric($amount) ? number_format((float) $amount, 2, '.', '') : $amount,
+            'remaining_balance' => is_numeric($remainingBalance) ? number_format((float) $remainingBalance, 2, '.', '') : $remainingBalance,
+            'current_balance' => is_numeric($amount) ? number_format((float) $amount, 2, '.', '') : $amount,
+            'reserved_balance' => is_numeric($amount) && is_numeric($remainingBalance)
+                ? number_format(max(((float) $amount) - ((float) $remainingBalance), 0), 2, '.', '')
+                : data_get($disbursementSummary, 'total_disbursed_amount', '0.00'),
+            'available_balance' => is_numeric($remainingBalance) ? number_format((float) $remainingBalance, 2, '.', '') : data_get($disbursementSummary, 'remaining_balance', '0.00'),
+            'total_disbursed_amount' => data_get($disbursementSummary, 'total_disbursed_amount', '0.00'),
+            'percentage_paid' => data_get($disbursementSummary, 'percentage_paid', '0.00'),
+            'dv_count' => data_get($disbursementSummary, 'dv_count', 0),
+            'released_dv_count' => data_get($disbursementSummary, 'released_dv_count', 0),
+            'approval_status' => $record->approval_status ?: 'Pending',
+            'approved_by_name' => trim((string) ($this->financeUserDisplayName($record->approved_by) ?: data_get($data, 'approved_by_name', ''))),
+            'approved_at' => optional($record->approved_at)->format('Y-m-d H:i:s') ?: trim((string) data_get($data, 'approved_at', '')),
+            'supplier_name' => $supplierName,
+            'employee_name' => $employeeName,
+            'payee_type' => data_get($payeeSnapshot, 'payee_type', ''),
+            'payee_name' => data_get($payeeSnapshot, 'payee_name', ''),
+            'status' => $this->financeSystemStatusForRecord($record),
+            'workflow_status' => $record->workflow_status ?? 'Uploaded',
+            'relationship_status' => $this->financeDerivedRelationshipStatus($record),
+            'disbursement_status' => data_get($disbursementSummary, 'is_partially_disbursed')
+                ? 'Partially Disbursed'
+                : (data_get($disbursementSummary, 'is_fully_disbursed') ? 'Fully Disbursed' : 'Awaiting Disbursement'),
+        ];
+    }
+
+    private function financeDvFundAvailabilityAssessment(FinanceRecord $financeRecord): ?array
+    {
+        if ($financeRecord->module_key !== 'dv') {
+            return null;
+        }
+
+        $data = $financeRecord->data ?? [];
+        $sourceDocumentType = (string) data_get($data, 'source_document_type', '');
+        $sourceDocumentId = data_get($data, 'source_document_id');
+
+        if ($sourceDocumentType === '' || blank($sourceDocumentId)) {
+            return null;
+        }
+
+        $sourceRecord = $this->financeResolveModuleRecord($sourceDocumentType, $sourceDocumentId);
+
+        if (!$sourceRecord) {
+            return null;
+        }
+
+        $sourceSnapshot = $this->financeSourceDocumentSnapshot($sourceRecord);
+        $requestedAmount = (float) data_get($data, 'amount', $financeRecord->amount ?: 0);
+        $availableBalance = (float) data_get($sourceSnapshot, 'available_balance', data_get($sourceSnapshot, 'remaining_balance', 0));
+        $status = $requestedAmount > $availableBalance ? 'Insufficient Funds' : 'Sufficient Funds';
+
+        return [
+            'source_record' => $sourceRecord,
+            'source_snapshot' => $sourceSnapshot,
+            'requested_amount' => number_format($requestedAmount, 2, '.', ''),
+            'available_balance' => number_format($availableBalance, 2, '.', ''),
+            'status' => $status,
+            'warning' => $status === 'Insufficient Funds'
+                ? 'Requested amount exceeds the available balance. Approval is controlled by company policy.'
+                : null,
+            'policy_allows_approval' => $this->financeDvApprovalAllowedWithInsufficientFunds(),
+        ];
+    }
+
+    private function financeDvAccountingAssessment(FinanceRecord $financeRecord): ?array
+    {
+        if ($financeRecord->module_key !== 'dv') {
+            return null;
+        }
+
+        $lineItems = array_values(array_filter((array) data_get($financeRecord->data ?? [], 'line_items', []), fn ($item) => is_array($item)));
+        $totalDebit = 0.0;
+        $totalCredit = 0.0;
+
+        foreach ($lineItems as $lineItem) {
+            $totalDebit += (float) data_get($lineItem, 'debit', 0);
+            $totalCredit += (float) data_get($lineItem, 'credit', 0);
+        }
+
+        $totalDebit = round($totalDebit, 2);
+        $totalCredit = round($totalCredit, 2);
+        $difference = round(abs($totalDebit - $totalCredit), 2);
+        $isBalanced = $difference < 0.01;
+
+        return [
+            'total_debit' => number_format($totalDebit, 2, '.', ''),
+            'total_credit' => number_format($totalCredit, 2, '.', ''),
+            'difference' => number_format($difference, 2, '.', ''),
+            'status' => $isBalanced ? 'Balanced' : 'Unbalanced',
+            'warning' => $isBalanced
+                ? null
+                : 'Total Debit must equal Total Credit before the Disbursement Voucher can be approved.',
+        ];
+    }
+
+    private function financeDvReleasePrerequisitesAssessment(FinanceRecord $financeRecord, array $data, array $attachments = []): ?array
+    {
+        if ($financeRecord->module_key !== 'dv') {
+            return null;
+        }
+
+        $sourceDocumentType = (string) data_get($data, 'source_document_type', '');
+        $sourceDocumentId = data_get($data, 'source_document_id');
+        $sourceRecord = $sourceDocumentType !== '' && filled($sourceDocumentId)
+            ? $this->financeResolveModuleRecord($sourceDocumentType, $sourceDocumentId)
+            : null;
+        $sourceSnapshot = $sourceRecord ? $this->financeSourceDocumentSnapshot($sourceRecord) : [];
+
+        $currentAttachments = collect($attachments)->filter(fn ($attachment) => is_array($attachment) && collect($attachment)->contains(fn ($value) => !blank($value)));
+        $sourceAttachments = collect((array) ($sourceRecord?->attachments ?? []))->filter(fn ($attachment) => is_array($attachment) && collect($attachment)->contains(fn ($value) => !blank($value)));
+        $hasSupportingAttachments = $currentAttachments->isNotEmpty() || $sourceAttachments->isNotEmpty();
+
+        $requirements = [];
+
+        if (!$this->financeRecordIsApproved($financeRecord)) {
+            $requirements[] = 'Fully approved';
+        }
+
+        if (! $hasSupportingAttachments) {
+            $requirements[] = 'required attachments uploaded';
+        }
+
+        if (blank(data_get($data, 'fund_source')) && blank(data_get($sourceSnapshot, 'fund_source'))) {
+            $requirements[] = 'fund source identified';
+        }
+
+        if ((blank(data_get($data, 'payee_type')) || blank(data_get($data, 'payee_name')))
+            && (blank(data_get($sourceSnapshot, 'payee_type')) || blank(data_get($sourceSnapshot, 'payee_name')))) {
+            $requirements[] = 'payee identified';
+        }
+
+        if (blank(data_get($data, 'payment_type')) || blank(data_get($data, 'disbursement_type'))) {
+            $requirements[] = 'payment information complete';
+        }
+
+        if (blank(data_get($data, 'bank_account_id')) || blank(data_get($data, 'coa_id'))) {
+            $requirements[] = 'funding and accounting references identified';
+        }
+
+        $accountingAssessment = $this->financeDvAccountingAssessment(new FinanceRecord([
+            'module_key' => 'dv',
+            'data' => array_merge($financeRecord->data ?? [], $data),
+        ]));
+
+        if ($accountingAssessment && data_get($accountingAssessment, 'status') !== 'Balanced') {
+            $requirements[] = 'debit and credit balanced';
+        }
+
+        if (!$requirements) {
+            return [
+                'status' => 'Ready',
+                'warning' => null,
+            ];
+        }
+
+        return [
+            'status' => 'Blocked',
+            'warning' => 'The Disbursement Voucher cannot be marked as disbursed until it is ' . collect($requirements)->join(', ') . '.',
+            'missing' => $requirements,
+        ];
     }
 
     private function financeDvLineItemsFromSource(FinanceRecord $record, array $payload): array
@@ -4703,7 +5586,7 @@ SVG;
             ->values();
 
         if ($rows->isNotEmpty()) {
-            return $rows->map(function (array $row, int $index) use ($payload, $data) {
+            $debitRows = $rows->map(function (array $row, int $index) use ($payload, $data) {
                 $quantity = (float) data_get($row, 'quantity', 0);
                 $unitAmount = (float) (data_get($row, 'amount') ?: data_get($row, 'unit_cost') ?: 0);
                 $amount = (float) (data_get($row, 'total') ?: data_get($row, 'line_total') ?: data_get($row, 'debit') ?: data_get($row, 'credit') ?: ($quantity * $unitAmount) ?: $unitAmount);
@@ -4718,7 +5601,34 @@ SVG;
                     'debit' => $amount > 0 ? number_format($amount, 2, '.', '') : '',
                     'credit' => '',
                 ];
-            })->all();
+            })->values()->all();
+
+            $totalDebit = array_sum(array_map(fn (array $row) => (float) data_get($row, 'debit', 0), $debitRows));
+            $bankAccountRecord = $this->financeResolveModuleRecord(
+                'bank_account',
+                data_get($payload, 'bank_account_id')
+                    ?: data_get($data, 'bank_account_id')
+                    ?: data_get($data, 'funding_bank_account_id')
+                    ?: data_get($data, 'receiving_bank_account_id')
+                    ?: data_get($data, 'source_bank_account_id')
+                    ?: data_get($data, 'destination_bank_account_id')
+            );
+            $creditAccountCode = data_get($bankAccountRecord?->data, 'linked_coa_id')
+                ?: data_get($payload, 'coa_id')
+                ?: data_get($data, 'coa_id')
+                ?: data_get($data, 'payroll_expense_coa_id')
+                ?: data_get($data, 'asset_coa_id');
+
+            if ($totalDebit > 0 && filled($creditAccountCode)) {
+                $debitRows[] = [
+                    'description' => 'Credit ' . (data_get($bankAccountRecord?->data, 'bank_account_name') ?: data_get($bankAccountRecord?->data, 'bank_name') ?: data_get($payload, 'bank_account_id') ?: 'fund source'),
+                    'account_code' => $creditAccountCode,
+                    'debit' => '',
+                    'credit' => number_format($totalDebit, 2, '.', ''),
+                ];
+            }
+
+            return $debitRows;
         }
 
         $amount = (float) (data_get($payload, 'amount') ?: $record->amount ?: data_get($data, 'amount') ?: 0);
@@ -4740,15 +5650,38 @@ SVG;
             ];
         }
 
-        return [[
-            'description' => trim(collect([
-                $record->record_number ?: strtoupper($record->module_key),
-                data_get($payload, 'purpose') ?: $record->record_title ?: 'Source document amount',
-            ])->filter()->implode(' - ')),
-            'account_code' => data_get($payload, 'coa_id') ?: '',
-            'debit' => $amount > 0 ? number_format($amount, 2, '.', '') : '',
-            'credit' => '',
-        ]];
+        $bankAccountRecord = $this->financeResolveModuleRecord(
+            'bank_account',
+            data_get($payload, 'bank_account_id')
+                ?: data_get($data, 'bank_account_id')
+                ?: data_get($data, 'funding_bank_account_id')
+                ?: data_get($data, 'receiving_bank_account_id')
+                ?: data_get($data, 'source_bank_account_id')
+                ?: data_get($data, 'destination_bank_account_id')
+        );
+        $creditAccountCode = data_get($bankAccountRecord?->data, 'linked_coa_id')
+            ?: data_get($payload, 'coa_id')
+            ?: data_get($data, 'coa_id')
+            ?: data_get($data, 'payroll_expense_coa_id')
+            ?: data_get($data, 'asset_coa_id');
+
+        return array_values(array_filter([
+            [
+                'description' => trim(collect([
+                    $record->record_number ?: strtoupper($record->module_key),
+                    data_get($payload, 'purpose') ?: $record->record_title ?: 'Source document amount',
+                ])->filter()->implode(' - ')),
+                'account_code' => data_get($payload, 'coa_id') ?: '',
+                'debit' => $amount > 0 ? number_format($amount, 2, '.', '') : '',
+                'credit' => '',
+            ],
+            $amount > 0 && filled($creditAccountCode) ? [
+                'description' => 'Credit ' . (data_get($bankAccountRecord?->data, 'bank_account_name') ?: data_get($bankAccountRecord?->data, 'bank_name') ?: data_get($payload, 'bank_account_id') ?: 'fund source'),
+                'account_code' => $creditAccountCode,
+                'debit' => '',
+                'credit' => number_format($amount, 2, '.', ''),
+            ] : null,
+        ]));
     }
 
     private function persistAttachments(Request $request, array $existingAttachments = []): array
@@ -4893,7 +5826,7 @@ SVG;
             'record_title' => 'nullable|string|max:255',
             'record_date' => 'required|date',
             'amount' => 'nullable|numeric|min:0',
-            'status' => 'required|in:Active,Inactive,Draft,For Approval,Approved,Released,Cancelled',
+            'status' => 'nullable|in:Active,Inactive,For Approval,Released,Draft,Pending Approval,Partially Approved,Approved,On Hold,Reverted,Awaiting Disbursement,Disbursed,Completed,Cancelled',
             'data' => 'nullable|array',
             'data.transaction_time' => 'nullable|date_format:H:i',
             'attachments' => 'nullable|array',
@@ -4977,10 +5910,12 @@ SVG;
                 'data.supplier_id' => ['required', $this->acceptedLinkedRecordRule('supplier')],
                 'data.coa_id' => ['required', $this->acceptedLinkedRecordRule('chart_account')],
                 'data.products_services_provided' => 'nullable|string|max:2000',
+                'data.tax_type' => 'nullable|in:VAT,Expanded Withholding Tax,VAT Exempt,Zero Rated,Zero-Rated,Non-VAT,N/A',
             ],
             'product' => [
                 'data.supplier_id' => ['required', $this->acceptedLinkedRecordRule('supplier')],
                 'data.coa_id' => ['required', $this->acceptedLinkedRecordRule('chart_account')],
+                'data.tax_type' => 'nullable|in:VAT,Expanded Withholding Tax,VAT Exempt,Zero Rated,Zero-Rated,Non-VAT,N/A',
             ],
             'chart_account' => [
                 'data.is_sub_account' => 'nullable|boolean',
@@ -5017,6 +5952,7 @@ SVG;
                 'data.line_items.*.category' => 'nullable|string|max:255',
                 'data.line_items.*.quantity' => 'nullable|numeric|min:0',
                 'data.line_items.*.amount' => 'nullable|numeric|min:0',
+                'data.line_items.*.tax_type' => 'nullable|in:VAT,Expanded Withholding Tax,VAT Exempt,Zero Rated,Zero-Rated,Non-VAT,N/A',
                 'data.line_items.*.supplier_id' => ['nullable', $this->acceptedLinkedRecordRule('supplier')],
                 'data.line_items.*.client_id' => ['nullable', 'string', 'max:255', $this->financeLineItemClientRule()],
             ],
@@ -5029,6 +5965,17 @@ SVG;
                 'data.quantity' => 'nullable|numeric|min:0',
                 'data.unit_cost' => 'nullable|numeric|min:0',
                 'data.total_amount' => 'nullable|numeric|min:0',
+                'data.line_items' => 'nullable|array',
+                'data.line_items.*.item_module' => 'nullable|in:service,product',
+                'data.line_items.*.item_record_id' => 'nullable|integer',
+                'data.line_items.*.item_id' => 'nullable|string|max:255',
+                'data.line_items.*.description' => 'nullable|string|max:1000',
+                'data.line_items.*.category' => 'nullable|string|max:255',
+                'data.line_items.*.quantity' => 'nullable|numeric|min:0',
+                'data.line_items.*.amount' => 'nullable|numeric|min:0',
+                'data.line_items.*.tax_type' => 'nullable|in:VAT,Expanded Withholding Tax,VAT Exempt,Zero Rated,Zero-Rated,Non-VAT,N/A',
+                'data.line_items.*.supplier_id' => ['nullable', $this->acceptedLinkedRecordRule('supplier')],
+                'data.line_items.*.client_id' => ['nullable', 'string', 'max:255', $this->financeLineItemClientRule()],
             ],
             'ca' => [
                 'data.requester_mode' => 'nullable|in:own_request,request_for_another',
@@ -5470,6 +6417,7 @@ SVG;
 
         $data = $this->financeHydrateReferenceData($moduleKey, $data);
         $data = $this->normalizeRequesterEmployeeData($moduleKey, $data);
+        unset($data['relationship_status'], $data['next_action'], $data['transaction_progress']);
 
         if ($moduleKey === 'err') {
             unset($data['supplier_id'], $data['coa_id']);
@@ -5486,6 +6434,64 @@ SVG;
             }
         }
 
+        if (in_array($moduleKey, ['pr', 'po', 'lr'], true)) {
+            $lineItems = array_values(array_filter((array) data_get($data, 'line_items', []), function ($item) {
+                return is_array($item) && collect($item)->contains(fn ($value) => !blank($value));
+            }));
+
+            if ($lineItems) {
+                $subtotal = 0.0;
+                $discountTotal = 0.0;
+                $shippingTotal = 0.0;
+                $taxTotal = 0.0;
+                $whtTotal = 0.0;
+                $grandTotal = 0.0;
+
+                foreach ($lineItems as $index => $item) {
+                    $normalizedItem = $this->financeNormalizeTaxLineItem($item);
+                    $lineItems[$index] = $normalizedItem;
+
+                    $subtotal += (float) data_get($normalizedItem, 'subtotal', 0);
+                    $discountTotal += (float) data_get($normalizedItem, 'discount_amount', 0);
+                    $shippingTotal += (float) data_get($normalizedItem, 'shipping_amount', 0);
+                    $taxTotal += (float) data_get($normalizedItem, 'tax_amount', 0);
+                    $whtTotal += (float) data_get($normalizedItem, 'wht_amount', 0);
+                    $grandTotal += (float) data_get($normalizedItem, 'total', 0);
+                }
+
+                data_set($data, 'line_items', $lineItems);
+                data_set($data, 'subtotal', number_format($subtotal, 2, '.', ''));
+                data_set($data, 'discount_total', number_format($discountTotal, 2, '.', ''));
+                data_set($data, 'shipping_total', number_format($shippingTotal, 2, '.', ''));
+                data_set($data, 'tax_total', number_format($taxTotal, 2, '.', ''));
+                data_set($data, 'wht_total', number_format($whtTotal, 2, '.', ''));
+                data_set($data, 'grand_total', number_format($grandTotal, 2, '.', ''));
+            }
+
+            if ($moduleKey === 'pr') {
+                $prGrandTotal = (float) data_get($data, 'grand_total', data_get($data, 'estimated_total_cost', data_get($data, 'amount', 0)));
+                data_set($data, 'estimated_total_cost', number_format($prGrandTotal, 2, '.', ''));
+                data_set($data, 'amount', number_format($prGrandTotal, 2, '.', ''));
+            }
+
+            if ($moduleKey === 'po') {
+                $poGrandTotal = (float) data_get($data, 'grand_total', data_get($data, 'total_amount', data_get($data, 'amount', 0)));
+                data_set($data, 'total_amount', number_format($poGrandTotal, 2, '.', ''));
+                data_set($data, 'amount', number_format($poGrandTotal, 2, '.', ''));
+            }
+
+            if ($moduleKey === 'lr') {
+                $actualExpenses = (float) data_get($data, 'grand_total', data_get($data, 'actual_expenses', 0));
+                $cashAdvance = (float) data_get($data, 'total_cash_advance', 0);
+                $variance = $cashAdvance - $actualExpenses;
+                $varianceIndicator = $variance > 0 ? 'Overage' : ($variance < 0 ? 'Shortage' : 'Balanced');
+
+                data_set($data, 'actual_expenses', number_format($actualExpenses, 2, '.', ''));
+                data_set($data, 'variance', number_format($variance, 2, '.', ''));
+                data_set($data, 'variance_indicator', $varianceIndicator);
+            }
+        }
+
         if ($moduleKey === 'dv') {
             $sourceType = (string) data_get($data, 'source_document_type', '');
             $sourceId = data_get($data, 'source_document_id');
@@ -5498,10 +6504,11 @@ SVG;
                 $sourcePayload = $this->fallbackDvPayload($sourceRecord);
                 foreach ([
                     'supplier_id',
-                    'amount',
                     'bank_account_id',
                     'payment_type',
                     'disbursement_type',
+                    'payee_type',
+                    'payee_name',
                     'coa_id',
                     'fund_source',
                     'department',
@@ -5517,6 +6524,32 @@ SVG;
                     'date_received',
                     'reference_number',
                     'remarks',
+                    'source_record_number',
+                    'source_record_date',
+                    'source_requester',
+                    'source_department',
+                    'source_project',
+                    'source_cost_center',
+                    'source_fund_source',
+                    'source_amount',
+                    'source_remaining_balance',
+                    'source_current_balance',
+                    'source_reserved_balance',
+                    'source_available_balance',
+                    'source_approval_status',
+                    'source_approved_by_name',
+                    'source_approved_at',
+                    'source_supplier_name',
+                    'source_employee_name',
+                    'source_payee_type',
+                    'source_payee_name',
+                    'source_status',
+                    'source_workflow_status',
+                    'source_relationship_status',
+                    'total_disbursed_amount',
+                    'percentage_paid',
+                    'disbursement_status',
+                    'projected_balance_after_payment',
                 ] as $lockedField) {
                     data_set($data, $lockedField, data_get($sourcePayload, $lockedField, data_get($data, $lockedField)));
                 }
@@ -5538,6 +6571,9 @@ SVG;
                 }, $sourceLineItems, array_keys($sourceLineItems));
 
                 data_set($data, 'line_items', $lineItems ?: $submittedLineItems);
+                if (blank(data_get($data, 'amount'))) {
+                    data_set($data, 'amount', data_get($sourcePayload, 'amount', data_get($data, 'amount')));
+                }
             }
 
             if (blank(data_get($data, 'currency'))) {
@@ -5555,10 +6591,41 @@ SVG;
                 data_set($data, 'net_amount', max($amount + $vatAmount - $withholdingTax, 0));
             }
 
+            $availableBalance = (float) data_get($data, 'source_available_balance', data_get($data, 'source_remaining_balance', 0));
+            $projectedBalanceAfterPayment = max($availableBalance - $amount, 0);
+            data_set($data, 'projected_balance_after_payment', number_format($projectedBalanceAfterPayment, 2, '.', ''));
+            data_set($data, 'source_projected_balance_after_payment', number_format($projectedBalanceAfterPayment, 2, '.', ''));
+            foreach ([
+                'fund_availability_status',
+                'fund_availability_warning',
+                'fund_availability_requested_amount',
+                'fund_availability_available_balance',
+                'fund_availability_checked_at',
+                'fund_availability_checked_by',
+                'fund_availability_checked_by_name',
+                'fund_availability_policy_allows_approval',
+            ] as $lockedField) {
+                unset($data[$lockedField]);
+            }
+
             $lineItems = array_values(array_filter((array) data_get($data, 'line_items', []), function ($item) {
                 return is_array($item) && collect($item)->contains(fn ($value) => !blank($value));
             }));
             data_set($data, 'line_items', $lineItems);
+
+            $totalDebit = 0.0;
+            $totalCredit = 0.0;
+            foreach ($lineItems as $lineItem) {
+                $totalDebit += (float) data_get($lineItem, 'debit', 0);
+                $totalCredit += (float) data_get($lineItem, 'credit', 0);
+            }
+            $totalDebit = round($totalDebit, 2);
+            $totalCredit = round($totalCredit, 2);
+            $difference = round(abs($totalDebit - $totalCredit), 2);
+            data_set($data, 'total_debit_amount', number_format($totalDebit, 2, '.', ''));
+            data_set($data, 'total_credit_amount', number_format($totalCredit, 2, '.', ''));
+            data_set($data, 'accounting_balance_difference', number_format($difference, 2, '.', ''));
+            data_set($data, 'accounting_balance_status', $difference < 0.01 ? 'Balanced' : 'Unbalanced');
         }
 
         if ($moduleKey === 'arf') {
@@ -5896,9 +6963,11 @@ SVG;
 
     private function recordExistsForWorkflow(string $moduleKey, mixed $recordId, array $dataConstraints = []): bool
     {
-        return $this->acceptedRecordQuery($moduleKey, $dataConstraints)
+        $record = $this->acceptedRecordQuery($moduleKey, $dataConstraints)
             ->where('id', $recordId)
-            ->exists();
+            ->first();
+
+        return $record instanceof FinanceRecord && $this->financeRecordEligibleAsSourceDocument($record);
     }
 
     public function index(Request $request)
@@ -5933,6 +7002,7 @@ SVG;
             ->orderByDesc('record_date')
             ->orderByDesc('created_at')
             ->get()
+            ->filter(fn (FinanceRecord $record) => $this->financeRecordEligibleAsSourceDocument($record))
             ->filter(fn (FinanceRecord $record) => $this->canViewFinanceRecord($record))
             ->map(fn (FinanceRecord $record) => $this->transformRecord($record))
             ->values();
@@ -5948,6 +7018,7 @@ SVG;
             'canManageFinanceSettings' => $this->canManageFinanceSettings(),
             'financeDropdownOptions' => $this->financeDropdownSettings(),
             'financeAttachmentTypes' => $this->financeAttachmentTypesSettings(),
+            'financeLabelOverrides' => $this->financeLabelOverridesSettings(),
             'officialApproverOptions' => $this->financeOfficialApproverDirectory()['options'],
             'defaultApprovalSteps' => $this->financeOfficialApproverDirectory()['default_steps'],
             'requestTypeModules' => $this->requestTypeModuleKeys(),
@@ -6043,6 +7114,7 @@ SVG;
         $validated = $request->validate([
             'options' => ['required', 'array'],
             'attachment_types' => ['nullable', 'array'],
+            'label_overrides' => ['nullable', 'array'],
         ]);
 
         $settings = $this->sanitizeFinanceDropdownSettings($validated['options']);
@@ -6061,10 +7133,20 @@ SVG;
             );
         }
 
+        $labelOverrides = null;
+        if ($request->has('label_overrides')) {
+            $labelOverrides = $this->sanitizeFinanceLabelOverrides((array) ($validated['label_overrides'] ?? []));
+            Setting::query()->updateOrCreate(
+                ['key' => self::LABEL_OVERRIDES_SETTINGS_KEY],
+                ['value' => json_encode($labelOverrides, JSON_UNESCAPED_SLASHES)]
+            );
+        }
+
         return response()->json([
             'message' => 'Finance dropdown settings saved.',
             'options' => $settings,
             'attachment_types' => $attachmentTypes,
+            'label_overrides' => $labelOverrides,
         ]);
     }
 
@@ -6145,7 +7227,7 @@ SVG;
             'record_title' => $recordTitle,
             'record_date' => $recordDate,
             'amount' => $recordAmount,
-            'status' => $request->status,
+            'status' => 'Draft',
             'workflow_status' => 'Uploaded',
             'approval_status' => 'Pending',
             'data' => $data,
@@ -6158,7 +7240,7 @@ SVG;
             'record_title' => $recordTitle,
             'record_date' => $recordDate,
             'amount' => $recordAmount,
-            'status' => $request->status,
+            'status' => 'Draft',
             'workflow_status' => 'Uploaded',
             'approval_status' => 'Pending',
             'submitted_by' => Auth::id(),
@@ -6201,6 +7283,7 @@ SVG;
 
         $this->validateModulePayload($request, $financeRecord);
         $oldCustodianId = data_get($financeRecord->data ?? [], 'custodian');
+        $wasReleased = $this->financeRecordIsReleased($financeRecord);
 
         $existingAttachments = json_decode((string) $request->input('existing_attachments_json', '[]'), true);
         $existingAttachments = is_array($existingAttachments) ? $existingAttachments : [];
@@ -6231,6 +7314,7 @@ SVG;
             ? data_get($data, $request->module_key === 'pda' ? 'total_payroll_amount' : 'amount')
             : $request->amount;
         $actorName = Auth::user()?->name ?: 'System';
+        $derivedStatus = $this->financeSystemStatusForRecord($financeRecord);
         $data['updated_by_name'] = $actorName;
         $data['requested_by_name'] = data_get($data, 'requested_by_name') ?: $this->financeRequestedByNameFromData($request->module_key, $data, $financeRecord);
         $oldHistorySnapshot = [
@@ -6238,7 +7322,7 @@ SVG;
             'record_title' => $financeRecord->record_title,
             'record_date' => optional($financeRecord->record_date)->format('Y-m-d'),
             'amount' => $financeRecord->amount,
-            'status' => $financeRecord->status,
+            'status' => $derivedStatus,
             'workflow_status' => $financeRecord->workflow_status,
             'approval_status' => $financeRecord->approval_status,
             'review_note' => $financeRecord->review_note,
@@ -6250,7 +7334,7 @@ SVG;
             'record_title' => $recordTitle,
             'record_date' => $recordDate,
             'amount' => $recordAmount,
-            'status' => $request->status,
+            'status' => $derivedStatus,
             'workflow_status' => $financeRecord->workflow_status,
             'approval_status' => ($financeRecord->workflow_status ?? 'Uploaded') === 'Reverted' ? 'Pending' : $financeRecord->approval_status,
             'review_note' => ($financeRecord->workflow_status ?? 'Uploaded') === 'Reverted' ? null : $financeRecord->review_note,
@@ -6259,13 +7343,30 @@ SVG;
         ];
         $data = $this->appendFinanceHistoryEntry($data, 'Updated', $request->module_key, $oldHistorySnapshot, $newHistorySnapshot);
 
+        if ($request->module_key === 'dv' && $this->financeRecordIsApproved($financeRecord)) {
+            $releaseAssessment = $this->financeDvReleasePrerequisitesAssessment($financeRecord, $data, $attachments);
+
+            if ($releaseAssessment && data_get($releaseAssessment, 'status') !== 'Ready') {
+                throw ValidationException::withMessages([
+                    'data.attachments' => data_get($releaseAssessment, 'warning') ?: 'The Disbursement Voucher cannot be marked as disbursed yet.',
+                ]);
+            }
+
+            $data['released_at'] = data_get($data, 'released_at') ?: now()->toDateTimeString();
+            $data['released_by'] = data_get($data, 'released_by') ?: Auth::id();
+            $data['released_by_name'] = data_get($data, 'released_by_name') ?: $actorName;
+            $data['release_recorded_at'] = data_get($data, 'release_recorded_at') ?: now()->toDateTimeString();
+            $data['release_recorded_by'] = data_get($data, 'release_recorded_by') ?: Auth::id();
+            $data['release_recorded_by_name'] = data_get($data, 'release_recorded_by_name') ?: $actorName;
+        }
+
         $payload = [
             'module_key' => $request->module_key,
             'record_number' => $recordNumber,
             'record_title' => $recordTitle,
             'record_date' => $recordDate,
             'amount' => $recordAmount,
-            'status' => $request->status,
+            'status' => $derivedStatus,
             'data' => $data,
             'attachments' => $attachments,
         ];
@@ -6292,7 +7393,8 @@ SVG;
         if (
             $request->module_key === 'dv'
             && (string) data_get($financeRecord->data ?? [], 'source_document_type') === 'ca'
-            && Str::lower((string) $request->input('status', '')) === 'released'
+            && !$wasReleased
+            && $this->financeRecordIsReleased($financeRecord)
         ) {
             $linkedCa = $this->financeResolveModuleRecord('ca', data_get($financeRecord->data ?? [], 'source_document_id'));
             if ($linkedCa) {
@@ -6327,16 +7429,19 @@ SVG;
         $data['approval_remaining_count'] = $this->financeApprovalThreshold($financeRecord->module_key);
         $data['submitted_by_name'] = Auth::user()?->name ?: $this->financeSubmittedByName($financeRecord);
         $data['updated_by_name'] = Auth::user()?->name ?: $this->financeSubmittedByName($financeRecord);
+        $derivedStatus = $this->financeSystemStatusForRecord($financeRecord);
 
         $data = $this->appendFinanceHistoryEntry($data, 'Submitted', $financeRecord->module_key, [
             'workflow_status' => $financeRecord->workflow_status,
             'approval_status' => $financeRecord->approval_status,
             'review_note' => $financeRecord->review_note,
+            'status' => $derivedStatus,
             'data' => $financeRecord->data ?? [],
         ], [
             'workflow_status' => 'Submitted',
             'approval_status' => 'Pending',
             'review_note' => null,
+            'status' => 'Pending Approval',
             'data' => $data,
         ]);
 
@@ -6346,6 +7451,7 @@ SVG;
             'submitted_at' => now(),
             'review_note' => null,
             'data' => $data,
+            'status' => 'Pending Approval',
         ]);
 
         $this->syncFinanceRelationshipLifecycle($financeRecord);
@@ -6366,6 +7472,92 @@ SVG;
 
         $oldData = $financeRecord->data ?? [];
         $data = $this->initializeFinanceApprovalState($oldData, $financeRecord->module_key);
+
+        if ($financeRecord->module_key === 'dv') {
+            $fundAvailability = $this->financeDvFundAvailabilityAssessment($financeRecord);
+
+            if ($fundAvailability) {
+                $data = array_merge($data, [
+                    'fund_availability_status' => data_get($fundAvailability, 'status', 'Sufficient Funds'),
+                    'fund_availability_warning' => data_get($fundAvailability, 'warning'),
+                    'fund_availability_requested_amount' => data_get($fundAvailability, 'requested_amount'),
+                    'fund_availability_available_balance' => data_get($fundAvailability, 'available_balance'),
+                    'fund_availability_checked_at' => now()->format('Y-m-d H:i:s'),
+                    'fund_availability_checked_by' => Auth::id(),
+                    'fund_availability_checked_by_name' => Auth::user()?->name ?: 'Finance Approver',
+                    'fund_availability_policy_allows_approval' => data_get($fundAvailability, 'policy_allows_approval', false),
+                ]);
+
+                $data = $this->appendFinanceHistoryEntry($data, 'Fund Availability Checked', $financeRecord->module_key, [
+                    'available_balance' => data_get($fundAvailability, 'available_balance'),
+                    'requested_amount' => data_get($fundAvailability, 'requested_amount'),
+                    'status' => data_get($fundAvailability, 'status'),
+                    'warning' => data_get($fundAvailability, 'warning'),
+                ], [
+                    'available_balance' => data_get($fundAvailability, 'available_balance'),
+                    'requested_amount' => data_get($fundAvailability, 'requested_amount'),
+                    'status' => data_get($fundAvailability, 'status'),
+                    'warning' => data_get($fundAvailability, 'warning'),
+                ]);
+
+                $financeRecord->update([
+                    'data' => $data,
+                ]);
+                $financeRecord = $financeRecord->fresh();
+
+                if (data_get($fundAvailability, 'status') === 'Insufficient Funds') {
+                    $this->sendFinanceRecordWorkflowNotification($financeRecord, 'insufficient_funds', data_get($fundAvailability, 'warning'));
+
+                    if (!data_get($fundAvailability, 'policy_allows_approval', false)) {
+                        throw ValidationException::withMessages([
+                            'data.amount' => data_get($fundAvailability, 'warning') ?: 'The requested amount exceeds the available balance.',
+                        ]);
+                    }
+                }
+            }
+
+            $accountingAssessment = $this->financeDvAccountingAssessment($financeRecord);
+
+            if ($accountingAssessment) {
+                $data = array_merge($data, [
+                    'accounting_balance_status' => data_get($accountingAssessment, 'status', 'Balanced'),
+                    'accounting_balance_warning' => data_get($accountingAssessment, 'warning'),
+                    'total_debit_amount' => data_get($accountingAssessment, 'total_debit', '0.00'),
+                    'total_credit_amount' => data_get($accountingAssessment, 'total_credit', '0.00'),
+                    'accounting_balance_difference' => data_get($accountingAssessment, 'difference', '0.00'),
+                    'accounting_balance_checked_at' => now()->format('Y-m-d H:i:s'),
+                    'accounting_balance_checked_by' => Auth::id(),
+                    'accounting_balance_checked_by_name' => Auth::user()?->name ?: 'Finance Approver',
+                ]);
+
+                $data = $this->appendFinanceHistoryEntry($data, 'Accounting Entry Checked', $financeRecord->module_key, [
+                    'total_debit' => data_get($accountingAssessment, 'total_debit'),
+                    'total_credit' => data_get($accountingAssessment, 'total_credit'),
+                    'difference' => data_get($accountingAssessment, 'difference'),
+                    'status' => data_get($accountingAssessment, 'status'),
+                    'warning' => data_get($accountingAssessment, 'warning'),
+                ], [
+                    'total_debit' => data_get($accountingAssessment, 'total_debit'),
+                    'total_credit' => data_get($accountingAssessment, 'total_credit'),
+                    'difference' => data_get($accountingAssessment, 'difference'),
+                    'status' => data_get($accountingAssessment, 'status'),
+                    'warning' => data_get($accountingAssessment, 'warning'),
+                ]);
+
+                $financeRecord->update([
+                    'data' => $data,
+                ]);
+                $financeRecord = $financeRecord->fresh();
+
+                if (data_get($accountingAssessment, 'status') === 'Unbalanced') {
+                    $this->sendFinanceRecordWorkflowNotification($financeRecord, 'accounting_imbalance', data_get($accountingAssessment, 'warning'));
+                    throw ValidationException::withMessages([
+                        'data.line_items' => data_get($accountingAssessment, 'warning') ?: 'Total Debit must equal Total Credit before approval.',
+                    ]);
+                }
+            }
+        }
+
         $actions = array_values((array) data_get($data, 'approval_actions', []));
         $approvalStep = $this->financeApprovalStepForUser($financeRecord);
         $actions[] = [
@@ -6391,18 +7583,21 @@ SVG;
         $data['approval_remaining_count'] = max($requiredApprovals - $uniqueApproverCount, 0);
         $data['approved_by_name'] = Auth::user()?->name ?: 'Finance Approver';
         $data['updated_by_name'] = Auth::user()?->name ?: 'Finance Approver';
+        $derivedStatus = $this->financeSystemStatusForRecord($financeRecord);
 
         $data = $this->appendFinanceHistoryEntry($data, $isFullyApproved ? 'Approved' : 'Partially Approved', $financeRecord->module_key, [
             'workflow_status' => $financeRecord->workflow_status,
             'approval_status' => $financeRecord->approval_status,
             'approved_by' => $financeRecord->approved_by,
             'approved_at' => optional($financeRecord->approved_at)->format('Y-m-d H:i:s'),
+            'status' => $derivedStatus,
             'data' => $oldData,
         ], [
             'workflow_status' => $nextWorkflowStatus,
             'approval_status' => $nextApprovalStatus,
             'approved_by' => Auth::id(),
             'approved_at' => now()->format('Y-m-d H:i:s'),
+            'status' => $isFullyApproved ? 'Approved' : 'Partially Approved',
             'data' => $data,
         ]);
 
@@ -6413,6 +7608,7 @@ SVG;
             'approved_at' => $isFullyApproved ? now() : null,
             'review_note' => null,
             'data' => $data,
+            'status' => $isFullyApproved ? 'Approved' : 'Partially Approved',
         ]);
         $this->syncFinanceRelationshipLifecycle($financeRecord);
         $financeRecord = $financeRecord->fresh();
@@ -6441,15 +7637,18 @@ SVG;
         $data['held_by'] = Auth::id();
         $data['held_by_name'] = Auth::user()?->name ?: 'System';
         $data['held_at'] = now()->format('Y-m-d H:i:s');
+        $derivedStatus = $this->financeSystemStatusForRecord($financeRecord);
 
         $data = $this->appendFinanceHistoryEntry($data, 'Placed On Hold', $financeRecord->module_key, [
             'workflow_status' => $financeRecord->workflow_status,
             'approval_status' => $financeRecord->approval_status,
             'review_note' => $financeRecord->review_note,
+            'status' => $derivedStatus,
         ], [
             'workflow_status' => 'On Hold',
             'approval_status' => 'On Hold',
             'review_note' => $request->review_note,
+            'status' => 'On Hold',
         ], $request->review_note);
 
         $financeRecord->update([
@@ -6457,6 +7656,7 @@ SVG;
             'approval_status' => 'On Hold',
             'review_note' => $request->review_note,
             'data' => $data,
+            'status' => 'On Hold',
         ]);
         $this->syncFinanceRelationshipLifecycle($financeRecord);
         $financeRecord = $financeRecord->fresh();
@@ -6486,17 +7686,20 @@ SVG;
         $data['reverted_by'] = Auth::id();
         $data['reverted_by_name'] = Auth::user()?->name ?: 'System';
         $data['reverted_at'] = now()->format('Y-m-d H:i:s');
+        $derivedStatus = $this->financeSystemStatusForRecord($financeRecord);
 
         $data = $this->appendFinanceHistoryEntry($data, 'Reverted', $financeRecord->module_key, [
             'workflow_status' => $financeRecord->workflow_status,
             'approval_status' => $financeRecord->approval_status,
             'review_note' => $financeRecord->review_note,
             'review_reason' => $reason,
+            'status' => $derivedStatus,
         ], [
             'workflow_status' => 'Reverted',
             'approval_status' => 'Needs Revision',
             'review_note' => $reason,
             'review_reason' => $reason,
+            'status' => 'Reverted',
         ], $reason);
         $data['approval_actions'] = [];
         $data['approval_completed_count'] = 0;
@@ -6507,6 +7710,7 @@ SVG;
             'approval_status' => 'Needs Revision',
             'review_note' => $reason,
             'data' => $data,
+            'status' => 'Reverted',
         ]);
         $this->syncFinanceRelationshipLifecycle($financeRecord);
         $financeRecord = $financeRecord->fresh();
@@ -6913,6 +8117,7 @@ SVG;
         $currentData = $financeRecord->data ?? [];
         $proposedChanges = (array) data_get($validated, 'proposed_changes', []);
         $proposedData = array_merge((array) $currentData, (array) data_get($proposedChanges, 'data', []));
+        $requestTypeLabel = Str::headline((string) $validated['request_type']);
 
         $currentSnapshot = [
             'record_number' => $financeRecord->record_number,
@@ -6927,14 +8132,14 @@ SVG;
             'attachments' => $financeRecord->attachments ?? [],
         ];
 
-        $requestedSnapshot = [
+        $correctedSnapshot = [
             'record_number' => data_get($proposedChanges, 'record_number', $financeRecord->record_number),
             'record_title' => data_get($proposedChanges, 'record_title', $financeRecord->record_title),
             'record_date' => data_get($proposedChanges, 'record_date', optional($financeRecord->record_date)->format('Y-m-d')),
             'amount' => data_get($proposedChanges, 'amount', $financeRecord->amount),
             'status' => data_get($proposedChanges, 'status', $financeRecord->status),
-            'workflow_status' => 'Correction Requested',
-            'approval_status' => 'Correction Pending',
+            'workflow_status' => $financeRecord->workflow_status,
+            'approval_status' => $financeRecord->approval_status,
             'review_note' => $validated['reason'],
             'data' => array_merge($proposedData, [
                 'correction_request_type' => $validated['request_type'],
@@ -6953,7 +8158,11 @@ SVG;
             'requested_by_name' => Auth::user()?->name ?: 'System',
             'requested_at' => now()->format('Y-m-d H:i:s'),
             'original' => $currentSnapshot,
-            'proposed' => $requestedSnapshot,
+            'corrected' => $correctedSnapshot,
+            'original_data' => data_get($currentSnapshot, 'data', []),
+            'corrected_data' => data_get($correctedSnapshot, 'data', []),
+            'original_attachments' => data_get($currentSnapshot, 'attachments', []),
+            'corrected_attachments' => data_get($correctedSnapshot, 'attachments', []),
         ];
 
         $currentData['correction_requests'] = $correctionRequests;
@@ -6964,7 +8173,7 @@ SVG;
         $currentData['correction_requested_at'] = now()->format('Y-m-d H:i:s');
         $currentData['correction_request_reason'] = $validated['reason'];
 
-        $currentData = $this->appendFinanceHistoryEntry($currentData, 'Correction Requested', $financeRecord->module_key, $currentSnapshot, $requestedSnapshot, $validated['reason']);
+        $currentData = $this->appendFinanceHistoryEntry($currentData, $requestTypeLabel . ' Requested', $financeRecord->module_key, $currentSnapshot, $correctedSnapshot, $validated['reason']);
 
         $financeRecord->update([
             'workflow_status' => 'Correction Requested',
@@ -7006,6 +8215,7 @@ SVG;
         $requestEntry['approved_at'] = now()->format('Y-m-d H:i:s');
         $requestEntry['approval_note'] = $request->input('review_note');
         $correctionRequests[$latestIndex] = $requestEntry;
+        $requestTypeLabel = Str::headline((string) data_get($requestEntry, 'type', 'Correction'));
 
         $data['correction_requests'] = array_values($correctionRequests);
         $data['correction_request_status'] = 'Approved';
@@ -7015,25 +8225,30 @@ SVG;
         $data['correction_request_approval_note'] = $request->input('review_note');
 
         $originalSnapshot = data_get($requestEntry, 'original', []);
-        $proposedSnapshot = data_get($requestEntry, 'proposed', []);
-        $restoredSnapshot = [
-            'record_number' => data_get($originalSnapshot, 'record_number', $financeRecord->record_number),
-            'record_title' => data_get($originalSnapshot, 'record_title', $financeRecord->record_title),
-            'record_date' => data_get($originalSnapshot, 'record_date', optional($financeRecord->record_date)->format('Y-m-d')),
-            'amount' => data_get($originalSnapshot, 'amount', $financeRecord->amount),
-            'status' => data_get($originalSnapshot, 'status', $financeRecord->status),
-            'workflow_status' => data_get($originalSnapshot, 'workflow_status', $financeRecord->workflow_status),
-            'approval_status' => data_get($originalSnapshot, 'approval_status', $financeRecord->approval_status),
+        $correctedSnapshot = data_get($requestEntry, 'corrected', data_get($requestEntry, 'proposed', []));
+        $appliedSnapshot = [
+            'record_number' => data_get($correctedSnapshot, 'record_number', $financeRecord->record_number),
+            'record_title' => data_get($correctedSnapshot, 'record_title', $financeRecord->record_title),
+            'record_date' => data_get($correctedSnapshot, 'record_date', optional($financeRecord->record_date)->format('Y-m-d')),
+            'amount' => data_get($correctedSnapshot, 'amount', $financeRecord->amount),
+            'status' => data_get($correctedSnapshot, 'status', $financeRecord->status),
+            'workflow_status' => data_get($correctedSnapshot, 'workflow_status', $financeRecord->workflow_status),
+            'approval_status' => data_get($correctedSnapshot, 'approval_status', $financeRecord->approval_status),
             'review_note' => $request->input('review_note'),
-            'data' => data_get($originalSnapshot, 'data', $financeRecord->data ?? []),
-            'attachments' => data_get($originalSnapshot, 'attachments', $financeRecord->attachments ?? []),
+            'data' => data_get($correctedSnapshot, 'data', $financeRecord->data ?? []),
+            'attachments' => data_get($correctedSnapshot, 'attachments', $financeRecord->attachments ?? []),
         ];
 
-        $data = $this->appendFinanceHistoryEntry($data, 'Correction Approved', $financeRecord->module_key, $proposedSnapshot, $restoredSnapshot, $request->input('review_note'));
+        $data = $this->appendFinanceHistoryEntry($data, $requestTypeLabel . ' Approved', $financeRecord->module_key, $originalSnapshot, $appliedSnapshot, $request->input('review_note'));
 
         $financeRecord->update([
-            'workflow_status' => data_get($originalSnapshot, 'workflow_status', $financeRecord->workflow_status),
-            'approval_status' => data_get($originalSnapshot, 'approval_status', $financeRecord->approval_status),
+            'record_number' => data_get($appliedSnapshot, 'record_number', $financeRecord->record_number),
+            'record_title' => data_get($appliedSnapshot, 'record_title', $financeRecord->record_title),
+            'record_date' => data_get($appliedSnapshot, 'record_date', optional($financeRecord->record_date)->format('Y-m-d')),
+            'amount' => data_get($appliedSnapshot, 'amount', $financeRecord->amount),
+            'status' => data_get($appliedSnapshot, 'status', $financeRecord->status),
+            'workflow_status' => data_get($appliedSnapshot, 'workflow_status', $financeRecord->workflow_status),
+            'approval_status' => data_get($appliedSnapshot, 'approval_status', $financeRecord->approval_status),
             'review_note' => $request->input('review_note'),
             'data' => $data,
         ]);
@@ -7080,7 +8295,7 @@ SVG;
         $data['correction_request_rejection_note'] = $request->review_note;
 
         $originalSnapshot = data_get($requestEntry, 'original', []);
-        $proposedSnapshot = data_get($requestEntry, 'proposed', []);
+        $correctedSnapshot = data_get($requestEntry, 'corrected', data_get($requestEntry, 'proposed', []));
         $restoredSnapshot = [
             'record_number' => data_get($originalSnapshot, 'record_number', $financeRecord->record_number),
             'record_title' => data_get($originalSnapshot, 'record_title', $financeRecord->record_title),
@@ -7094,7 +8309,8 @@ SVG;
             'attachments' => data_get($originalSnapshot, 'attachments', $financeRecord->attachments ?? []),
         ];
 
-        $data = $this->appendFinanceHistoryEntry($data, 'Correction Rejected', $financeRecord->module_key, $proposedSnapshot, $restoredSnapshot, $request->review_note);
+        $requestTypeLabel = Str::headline((string) data_get($requestEntry, 'type', 'Correction'));
+        $data = $this->appendFinanceHistoryEntry($data, $requestTypeLabel . ' Rejected', $financeRecord->module_key, $correctedSnapshot, $restoredSnapshot, $request->review_note);
 
         $financeRecord->update([
             'workflow_status' => data_get($originalSnapshot, 'workflow_status', $financeRecord->workflow_status),
