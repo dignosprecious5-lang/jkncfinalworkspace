@@ -1,9 +1,13 @@
 @php
     $logoPath = asset('images/imaglogo.png');
     $selectedOrganization = old('business_organization', $bif?->business_organization ?? '');
+    $selectedOfficeType = old('office_type', $bif?->office_type ?? '');
+    $selectedIndustryOther = old('industry_other', $bif?->industry_other ?? false);
+    $selectedSourceOther = old('source_other', $bif?->source_other ?? false);
     $showSoleRequirements = $selectedOrganization === 'sole_proprietorship';
     $showJuridicalRequirements = in_array($selectedOrganization, ['partnership', 'corporation', 'cooperative', 'ngo', 'other'], true);
     $showPlaceholderRequirements = ! $showSoleRequirements && ! $showJuridicalRequirements;
+    $roleContactOptionsJson = collect($roleContactOptions ?? [])->values()->all();
 @endphp
 
 <style>
@@ -40,6 +44,15 @@
     .bif-static-box:last-child { border-right: 0; }
     .bif-static-box h4 { margin: 0 0 4px; font-size: 8px; font-weight: 700; text-transform: uppercase; text-align: center; }
     .bif-static-box ol { margin: 0; padding-left: 14px; }
+    .bif-contact-picker { position: relative; }
+    .bif-contact-results { position: absolute; z-index: 60; left: 0; right: 0; top: calc(100% + 2px); max-height: 180px; overflow-y: auto; border: 1px solid #d1d5db; border-radius: 6px; background: #fff; box-shadow: 0 12px 24px rgba(15, 23, 42, 0.18); font-family: Arial, sans-serif; }
+    .bif-contact-results.hidden { display: none; }
+    .bif-contact-option { display: block; width: 100%; border: 0; border-bottom: 1px solid #e5e7eb; background: #fff; padding: 7px 9px; text-align: left; cursor: pointer; }
+    .bif-contact-option:hover, .bif-contact-option:focus { background: #eff6ff; outline: none; }
+    .bif-contact-option:last-child { border-bottom: 0; }
+    .bif-contact-name { display: block; font-size: 11px; font-weight: 700; color: #1f2937; }
+    .bif-contact-meta { display: block; margin-top: 2px; font-size: 9px; color: #6b7280; }
+    .bif-contact-empty { padding: 8px 9px; font-size: 10px; color: #6b7280; }
     .col-3 { grid-column: span 3 / span 3; } .col-4 { grid-column: span 4 / span 4; } .col-5 { grid-column: span 5 / span 5; }
     .col-6 { grid-column: span 6 / span 6; } .col-7 { grid-column: span 7 / span 7; } .col-8 { grid-column: span 8 / span 8; }
     .col-10 { grid-column: span 10 / span 10; } .col-11 { grid-column: span 11 / span 11; } .col-12 { grid-column: span 12 / span 12; }
@@ -74,7 +87,9 @@
                     <label class="bif-check"><input type="radio" name="business_organization" value="{{ $value }}" data-business-organization-option {{ old('business_organization', $bif?->business_organization ?? '') === $value ? 'checked' : '' }}><span>{{ $label }}</span></label>
                 @endforeach
             </div>
-            <input name="business_organization_other" type="text" value="{{ old('business_organization_other', $bif?->business_organization_other ?? '') }}" placeholder="Other organization" class="bif-input">
+            <div id="business_organization_other_wrap" style="{{ $selectedOrganization === 'other' ? '' : 'display:none;' }}">
+                <input name="business_organization_other" type="text" value="{{ old('business_organization_other', $bif?->business_organization_other ?? '') }}" placeholder="Other organization" class="bif-input">
+            </div>
         </div>
         <div class="bif-cell col-8">
             <label class="bif-label">Nationality</label>
@@ -93,7 +108,9 @@
                     <label class="bif-check"><input type="radio" name="office_type" value="{{ $value }}" {{ old('office_type', $bif?->office_type ?? '') === $value ? 'checked' : '' }}><span>{{ $label }}</span></label>
                 @endforeach
             </div>
-            <input name="office_type_other" type="text" value="{{ old('office_type_other', $bif?->office_type_other ?? '') }}" placeholder="Other office type" class="bif-input">
+            <div id="office_type_other_wrap" style="{{ $selectedOfficeType === 'other' ? '' : 'display:none;' }}">
+                <input name="office_type_other" type="text" value="{{ old('office_type_other', $bif?->office_type_other ?? '') }}" placeholder="Other office type" class="bif-input">
+            </div>
         </div>
         <div class="bif-cell col-14"><label class="bif-label" for="business_name">Business Name</label><input id="business_name" name="business_name" type="text" value="{{ old('business_name', $bif?->business_name ?? '') }}" class="bif-input" required></div>
     </div>
@@ -124,7 +141,9 @@
                 <label class="bif-check"><input type="checkbox" name="industry_wholesale_retail_trade" value="1" {{ old('industry_wholesale_retail_trade', $bif?->industry_wholesale_retail_trade ?? false) ? 'checked' : '' }}><span>Whole Sale/Retail Trade</span></label>
                 <label class="bif-check"><input type="checkbox" name="industry_other" value="1" {{ old('industry_other', $bif?->industry_other ?? false) ? 'checked' : '' }}><span>Other</span></label>
             </div>
-            <input name="industry_other_text" type="text" value="{{ old('industry_other_text', $bif?->industry_other_text ?? '') }}" class="bif-input">
+            <div id="industry_other_wrap" style="{{ $selectedIndustryOther ? '' : 'display:none;' }}">
+                <input name="industry_other_text" type="text" value="{{ old('industry_other_text', $bif?->industry_other_text ?? '') }}" class="bif-input">
+            </div>
         </div>
     </div>
     <div class="bif-row">
@@ -157,16 +176,18 @@
                 <label class="bif-check"><input type="checkbox" name="source_other" value="1" {{ old('source_other', $bif?->source_other ?? false) ? 'checked' : '' }}><span>Other</span></label>
                 <label class="bif-check"><input type="checkbox" name="source_fees" value="1" {{ old('source_fees', $bif?->source_fees ?? false) ? 'checked' : '' }}><span>Fees</span></label>
             </div>
-            <input name="source_other_text" type="text" value="{{ old('source_other_text', $bif?->source_other_text ?? '') }}" class="bif-input">
+            <div id="source_other_wrap" style="{{ $selectedSourceOther ? '' : 'display:none;' }}">
+                <input name="source_other_text" type="text" value="{{ old('source_other_text', $bif?->source_other_text ?? '') }}" class="bif-input">
+            </div>
         </div>
     </div>
     <div class="bif-row">
-        <div class="bif-cell col-12"><label class="bif-label" for="president_name">Name of President</label><input id="president_name" name="president_name" type="text" value="{{ old('president_name', $bif?->president_name ?? '') }}" class="bif-input"></div>
-        <div class="bif-cell col-12"><label class="bif-label" for="treasurer_name">Name of Treasurer</label><input id="treasurer_name" name="treasurer_name" type="text" value="{{ old('treasurer_name', $bif?->treasurer_name ?? '') }}" class="bif-input"></div>
+        <div class="bif-cell col-12 bif-contact-picker" data-bif-contact-picker data-fill-name="president_name"><label class="bif-label" for="president_name">Name of President</label><input id="president_name" name="president_name" type="text" value="{{ old('president_name', $bif?->president_name ?? '') }}" autocomplete="off" class="bif-input" data-bif-contact-input><div class="bif-contact-results hidden" data-bif-contact-results></div></div>
+        <div class="bif-cell col-12 bif-contact-picker" data-bif-contact-picker data-fill-name="treasurer_name"><label class="bif-label" for="treasurer_name">Name of Treasurer</label><input id="treasurer_name" name="treasurer_name" type="text" value="{{ old('treasurer_name', $bif?->treasurer_name ?? '') }}" autocomplete="off" class="bif-input" data-bif-contact-input><div class="bif-contact-results hidden" data-bif-contact-results></div></div>
     </div>
     <div class="bif-section-title">Authorized Signatories</div>
     <div class="bif-row">
-        <div class="bif-cell col-5"><label class="bif-label" for="authorized_signatory_name">Full Name</label><input id="authorized_signatory_name" name="authorized_signatory_name" type="text" value="{{ old('authorized_signatory_name', $bif?->authorized_signatory_name ?? '') }}" class="bif-input"></div>
+        <div class="bif-cell col-5 bif-contact-picker" data-bif-contact-picker data-fill-name="authorized_signatory_name" data-fill-address="authorized_signatory_address" data-fill-nationality="authorized_signatory_nationality" data-fill-date-of-birth="authorized_signatory_date_of_birth" data-fill-tin="authorized_signatory_tin" data-fill-position="authorized_signatory_position"><label class="bif-label" for="authorized_signatory_name">Full Name</label><input id="authorized_signatory_name" name="authorized_signatory_name" type="text" value="{{ old('authorized_signatory_name', $bif?->authorized_signatory_name ?? '') }}" autocomplete="off" class="bif-input" data-bif-contact-input><div class="bif-contact-results hidden" data-bif-contact-results></div></div>
         <div class="bif-cell col-7"><label class="bif-label" for="authorized_signatory_address">Address</label><input id="authorized_signatory_address" name="authorized_signatory_address" type="text" value="{{ old('authorized_signatory_address', $bif?->authorized_signatory_address ?? '') }}" class="bif-input"></div>
         <div class="bif-cell col-3"><label class="bif-label" for="authorized_signatory_nationality">Nationality</label><input id="authorized_signatory_nationality" name="authorized_signatory_nationality" type="text" value="{{ old('authorized_signatory_nationality', $bif?->authorized_signatory_nationality ?? '') }}" class="bif-input"></div>
         <div class="bif-cell col-3"><label class="bif-label" for="authorized_signatory_date_of_birth">Date of Birth</label><input id="authorized_signatory_date_of_birth" name="authorized_signatory_date_of_birth" type="date" value="{{ old('authorized_signatory_date_of_birth', isset($bif?->authorized_signatory_date_of_birth) && $bif?->authorized_signatory_date_of_birth ? $bif->authorized_signatory_date_of_birth->format('Y-m-d') : '') }}" class="bif-input"></div>
@@ -175,7 +196,7 @@
     </div>
     <div class="bif-section-title">Ultimate Beneficial Owners with at least 20% shares of stock holdings</div>
     <div class="bif-row">
-        <div class="bif-cell col-5"><label class="bif-label" for="ubo_name">Full Name</label><input id="ubo_name" name="ubo_name" type="text" value="{{ old('ubo_name', $bif?->ubo_name ?? '') }}" class="bif-input"></div>
+        <div class="bif-cell col-5 bif-contact-picker" data-bif-contact-picker data-fill-name="ubo_name" data-fill-address="ubo_address" data-fill-nationality="ubo_nationality" data-fill-date-of-birth="ubo_date_of_birth" data-fill-tin="ubo_tin" data-fill-position="ubo_position"><label class="bif-label" for="ubo_name">Full Name</label><input id="ubo_name" name="ubo_name" type="text" value="{{ old('ubo_name', $bif?->ubo_name ?? '') }}" autocomplete="off" class="bif-input" data-bif-contact-input><div class="bif-contact-results hidden" data-bif-contact-results></div></div>
         <div class="bif-cell col-7"><label class="bif-label" for="ubo_address">Address</label><input id="ubo_address" name="ubo_address" type="text" value="{{ old('ubo_address', $bif?->ubo_address ?? '') }}" class="bif-input"></div>
         <div class="bif-cell col-3"><label class="bif-label" for="ubo_nationality">Nationality</label><input id="ubo_nationality" name="ubo_nationality" type="text" value="{{ old('ubo_nationality', $bif?->ubo_nationality ?? '') }}" class="bif-input"></div>
         <div class="bif-cell col-3"><label class="bif-label" for="ubo_date_of_birth">Date of Birth</label><input id="ubo_date_of_birth" name="ubo_date_of_birth" type="date" value="{{ old('ubo_date_of_birth', isset($bif?->ubo_date_of_birth) && $bif?->ubo_date_of_birth ? $bif->ubo_date_of_birth->format('Y-m-d') : '') }}" class="bif-input"></div>
@@ -184,7 +205,7 @@
     </div>
     <div class="bif-section-title">Authorized Contact Person</div>
     <div class="bif-row">
-        <div class="bif-cell col-8"><label class="bif-label" for="authorized_contact_person_name">Name of Authorized Contact Person</label><input id="authorized_contact_person_name" name="authorized_contact_person_name" type="text" value="{{ old('authorized_contact_person_name', $bif?->authorized_contact_person_name ?? '') }}" class="bif-input"></div>
+        <div class="bif-cell col-8 bif-contact-picker" data-bif-contact-picker data-fill-name="authorized_contact_person_name" data-fill-position="authorized_contact_person_position" data-fill-email="authorized_contact_person_email" data-fill-phone="authorized_contact_person_phone" data-fill-ack-name="signature_printed_name" data-fill-ack-position="signature_position" data-fill-sales-marketing="sales_marketing_name" data-fill-referred-by="referred_by" data-fill-consultant-lead="consultant_lead" data-fill-lead-associate="lead_associate"><label class="bif-label" for="authorized_contact_person_name">Name of Authorized Contact Person</label><input id="authorized_contact_person_name" name="authorized_contact_person_name" type="text" value="{{ old('authorized_contact_person_name', $bif?->authorized_contact_person_name ?? '') }}" autocomplete="off" class="bif-input" data-bif-contact-input><div class="bif-contact-results hidden" data-bif-contact-results></div></div>
         <div class="bif-cell col-4"><label class="bif-label" for="authorized_contact_person_position">Position</label><input id="authorized_contact_person_position" name="authorized_contact_person_position" type="text" value="{{ old('authorized_contact_person_position', $bif?->authorized_contact_person_position ?? '') }}" class="bif-input"></div>
         <div class="bif-cell col-7"><label class="bif-label" for="authorized_contact_person_email">Email Address</label><input id="authorized_contact_person_email" name="authorized_contact_person_email" type="email" value="{{ old('authorized_contact_person_email', $bif?->authorized_contact_person_email ?? '') }}" class="bif-input"></div>
         <div class="bif-cell col-5"><label class="bif-label" for="authorized_contact_person_phone">Phone/Mobile No.</label><input id="authorized_contact_person_phone" name="authorized_contact_person_phone" type="text" value="{{ old('authorized_contact_person_phone', $bif?->authorized_contact_person_phone ?? '') }}" class="bif-input"></div>
@@ -223,28 +244,211 @@
 
 <script>
     (() => {
+        const contactRecords = @json($roleContactOptionsJson);
+        const addContactUrl = @js(route('contacts.index'));
+        const pickers = Array.from(document.querySelectorAll('[data-bif-contact-picker]'));
+
+        if (pickers.length === 0) {
+            return;
+        }
+
+        const valueFor = (contact, key) => String(contact?.[key] || '').trim();
+        const setNamedField = (name, value, overwrite = true) => {
+            if (!name) return;
+            const field = document.querySelector(`[name="${CSS.escape(name)}"]`);
+            if (!field) return;
+            const nextValue = String(value || '').trim();
+            if (!overwrite && String(field.value || '').trim() !== '') return;
+            field.value = nextValue;
+            field.dispatchEvent(new Event('input', { bubbles: true }));
+            field.dispatchEvent(new Event('change', { bubbles: true }));
+        };
+        const contactMatches = (keyword = '') => {
+            const query = String(keyword || '').trim().toLowerCase();
+
+            if (query === '') {
+                return contactRecords.slice(0, 10);
+            }
+
+            return contactRecords
+                .filter((contact) => String(contact.search_blob || [
+                    contact.label,
+                    contact.company_name,
+                    contact.position,
+                    contact.email,
+                    contact.phone,
+                    contact.address,
+                    contact.tin,
+                ].join(' ')).toLowerCase().includes(query))
+                .slice(0, 10);
+        };
+        const hidePicker = (picker) => picker?.querySelector('[data-bif-contact-results]')?.classList.add('hidden');
+        const hideOtherPickers = (currentPicker) => {
+            pickers.forEach((picker) => {
+                if (picker !== currentPicker) hidePicker(picker);
+            });
+        };
+        const selectContact = (picker, contact) => {
+            setNamedField(picker.dataset.fillName, contact.label);
+            setNamedField(picker.dataset.fillAddress, contact.address);
+            setNamedField(picker.dataset.fillNationality, contact.nationality);
+            setNamedField(picker.dataset.fillDateOfBirth, contact.date_of_birth);
+            setNamedField(picker.dataset.fillTin, contact.tin);
+            setNamedField(picker.dataset.fillPosition, contact.position);
+            setNamedField(picker.dataset.fillEmail, contact.email);
+            setNamedField(picker.dataset.fillPhone, contact.phone);
+            setNamedField(picker.dataset.fillAckName, contact.label, false);
+            setNamedField(picker.dataset.fillAckPosition, contact.position, false);
+            setNamedField(picker.dataset.fillSalesMarketing, contact.sales_marketing_name);
+            setNamedField(picker.dataset.fillReferredBy, contact.referred_by);
+            setNamedField(picker.dataset.fillConsultantLead, contact.consultant_lead, false);
+            setNamedField(picker.dataset.fillLeadAssociate, contact.lead_associate, false);
+            hidePicker(picker);
+        };
+        const goToContactCreate = (picker) => {
+            const input = picker.querySelector('[data-bif-contact-input]');
+            const [firstName = '', ...lastNameParts] = String(input?.value || '').trim().split(/\s+/).filter(Boolean);
+            const params = new URLSearchParams({ open_create: '1', return_to_company: '1' });
+            const prefill = {
+                company_name: document.querySelector('[name="business_name"]')?.value || '',
+                first_name: firstName,
+                last_name: lastNameParts.join(' '),
+                position: picker.dataset.fillPosition ? document.querySelector(`[name="${CSS.escape(picker.dataset.fillPosition)}"]`)?.value || '' : '',
+                contact_address: picker.dataset.fillAddress ? document.querySelector(`[name="${CSS.escape(picker.dataset.fillAddress)}"]`)?.value || '' : '',
+            };
+
+            Object.entries(prefill).forEach(([key, value]) => {
+                if (String(value || '').trim() !== '') params.set(key, value);
+            });
+
+            window.location.href = `${addContactUrl}?${params.toString()}`;
+        };
+        const renderPicker = (picker, keyword = '') => {
+            const results = picker.querySelector('[data-bif-contact-results]');
+            if (!results) return;
+
+            hideOtherPickers(picker);
+            const matches = contactMatches(keyword);
+
+            if (matches.length === 0) {
+                const empty = document.createElement('div');
+                empty.className = 'bif-contact-empty';
+                empty.textContent = 'No matching contact found.';
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'bif-contact-option';
+                button.innerHTML = '<span class="bif-contact-name">+ Add Contact</span><span class="bif-contact-meta">Create a contact record from this entry</span>';
+                button.addEventListener('mousedown', (event) => event.preventDefault());
+                button.addEventListener('click', () => goToContactCreate(picker));
+                results.replaceChildren(empty, button);
+                results.classList.remove('hidden');
+                return;
+            }
+
+            results.replaceChildren(...matches.map((contact) => {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'bif-contact-option';
+                const meta = [contact.company_name, contact.position, contact.email, contact.phone].filter(Boolean).join(' - ');
+                button.innerHTML = `<span class="bif-contact-name">${contact.label || ''}</span><span class="bif-contact-meta">${meta}</span>`;
+                button.addEventListener('mousedown', (event) => event.preventDefault());
+                button.addEventListener('click', () => selectContact(picker, contact));
+                return button;
+            }));
+            results.classList.remove('hidden');
+        };
+
+        pickers.forEach((picker) => {
+            const input = picker.querySelector('[data-bif-contact-input]');
+            if (!input) return;
+
+            input.addEventListener('focus', () => renderPicker(picker, input.value));
+            input.addEventListener('click', () => renderPicker(picker, input.value));
+            input.addEventListener('input', () => renderPicker(picker, input.value));
+            input.addEventListener('keydown', (event) => {
+                if (event.key === 'Escape') hidePicker(picker);
+            });
+        });
+
+        document.addEventListener('click', (event) => {
+            pickers.forEach((picker) => {
+                if (!picker.contains(event.target)) hidePicker(picker);
+            });
+        });
+    })();
+
+    (() => {
         const soleRequirements = document.getElementById('bif-sole-requirements');
         const juridicalRequirements = document.getElementById('bif-juridical-requirements');
         const placeholder = document.getElementById('bif-requirements-placeholder');
         const organizationOptions = Array.from(document.querySelectorAll('input[name="business_organization"][data-business-organization-option]'));
+        const businessOrganizationOtherWrap = document.getElementById('business_organization_other_wrap');
+        const officeTypeOtherWrap = document.getElementById('office_type_other_wrap');
+        const industryOtherWrap = document.getElementById('industry_other_wrap');
+        const sourceOtherWrap = document.getElementById('source_other_wrap');
+        const businessOrganizationOtherInput = document.querySelector('[name="business_organization_other"]');
+        const officeTypeOtherInput = document.querySelector('[name="office_type_other"]');
+        const industryOtherCheckbox = document.querySelector('[name="industry_other"]');
+        const sourceOtherCheckbox = document.querySelector('[name="source_other"]');
+        const industryOtherText = document.querySelector('[name="industry_other_text"]');
+        const sourceOtherText = document.querySelector('[name="source_other_text"]');
 
         if (!soleRequirements || !juridicalRequirements || !placeholder || organizationOptions.length === 0) {
             return;
         }
 
         const juridicalOrganizations = ['partnership', 'corporation', 'cooperative', 'ngo', 'other'];
+        const clearValidationState = (field) => {
+            if (!field) {
+                return;
+            }
+
+            field.removeAttribute('aria-invalid');
+            field.classList.remove('border-red-400', 'bg-red-50', 'text-red-900', 'focus:border-red-500', 'focus:ring-red-100');
+            field.classList.add('border-gray-300');
+        };
+
+        const setFieldVisibility = (wrapper, field, visible) => {
+            if (!wrapper || !field) {
+                return;
+            }
+
+            wrapper.style.display = visible ? '' : 'none';
+
+            if (!visible) {
+                if (field.type === 'checkbox' || field.type === 'radio') {
+                    field.checked = false;
+                } else {
+                    field.value = '';
+                }
+
+                clearValidationState(field);
+            }
+        };
 
         const syncRequirements = () => {
             const selected = organizationOptions.find((option) => option.checked)?.value ?? '';
             const showSole = selected === 'sole_proprietorship';
             const showJuridical = juridicalOrganizations.includes(selected);
+            const showOtherOrganization = selected === 'other';
+            const showOtherOfficeType = (document.querySelector('input[name="office_type"]:checked')?.value ?? '') === 'other';
+            const showIndustryOther = Boolean(industryOtherCheckbox?.checked);
+            const showSourceOther = Boolean(sourceOtherCheckbox?.checked);
 
             soleRequirements.style.display = showSole ? '' : 'none';
             juridicalRequirements.style.display = showJuridical ? '' : 'none';
             placeholder.style.display = showSole || showJuridical ? 'none' : '';
+
+            setFieldVisibility(businessOrganizationOtherWrap, businessOrganizationOtherInput, showOtherOrganization);
+            setFieldVisibility(officeTypeOtherWrap, officeTypeOtherInput, showOtherOfficeType);
+            setFieldVisibility(industryOtherWrap, industryOtherText, showIndustryOther);
+            setFieldVisibility(sourceOtherWrap, sourceOtherText, showSourceOther);
         };
 
         organizationOptions.forEach((option) => option.addEventListener('change', syncRequirements));
+        document.querySelectorAll('input[name="office_type"]').forEach((option) => option.addEventListener('change', syncRequirements));
+        industryOtherCheckbox?.addEventListener('change', syncRequirements);
+        sourceOtherCheckbox?.addEventListener('change', syncRequirements);
         syncRequirements();
     })();
 </script>

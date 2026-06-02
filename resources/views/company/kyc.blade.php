@@ -197,7 +197,7 @@
                             <div class="border-b border-gray-100 px-4 py-3">
                                 <h3 class="text-base font-semibold text-gray-900">Actions</h3>
                             </div>
-                            <div class="space-y-2 px-4 py-4">
+                            <div id="companyKycActionPanel" class="space-y-2 px-4 py-4">
                                 @if ($bif && $bif->change_request_status === 'pending')
                                     <div class="mb-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 text-xs text-amber-900">
                                         <p class="font-semibold">Pending BIF Change Request</p>
@@ -256,7 +256,7 @@
                                         <button type="button" class="h-10 w-full rounded-lg bg-amber-500 text-sm font-medium text-white cursor-not-allowed opacity-80" disabled>Waiting For Admin Decision</button>
                                     @elseif ($bifApproved)
                                         <button type="button" class="h-10 w-full rounded-lg border border-green-200 bg-green-100 text-sm font-medium text-green-700 cursor-not-allowed" disabled>Approved</button>
-                                        <a href="{{ route('company.bif.edit', ['company' => $company->id, 'bif' => $bif->id]) }}" class="inline-flex h-10 w-full items-center justify-center rounded-lg bg-blue-600 text-sm font-medium text-white hover:bg-blue-700">Request BIF Changes</a>
+                                        <a href="{{ route('company.bif.edit', ['company' => $company->id, 'bif' => $bif->id]) }}" class="inline-flex h-10 w-full items-center justify-center rounded-lg bg-blue-600 text-sm font-medium text-white hover:bg-blue-700">Edit BIF</a>
                                     @elseif ($bifPendingApproval)
                                         <button type="button" class="h-10 w-full rounded-lg bg-slate-500 text-sm font-medium text-white cursor-not-allowed opacity-80" disabled>Submitted For Approval</button>
                                     @else
@@ -513,9 +513,9 @@
         const submitCompanyKycForm = document.getElementById('submitCompanyKycForm');
         const approveCompanyKycForm = document.getElementById('approveCompanyKycForm');
         const rejectCompanyKycForm = document.getElementById('rejectCompanyKycForm');
-        const companyBifStatusBadge = document.getElementById('companyBifStatusBadge');
-        const companyBifSubmittedAt = document.getElementById('companyBifSubmittedAt');
-        const companyBifClientSubmittedAt = document.getElementById('companyBifClientSubmittedAt');
+        const q = (id) => document.getElementById(id);
+        let refreshSequence = 0;
+        const syncEventName = 'jknc:kyc-sync';
         const statusBadgeClasses = {
             draft: 'bg-gray-100 text-gray-700 border border-gray-200',
             pending_approval: 'bg-amber-100 text-amber-700 border border-amber-200',
@@ -577,6 +577,7 @@
             current.innerHTML = incoming.innerHTML;
         };
         const syncCompanyKycFragments = async () => {
+            const sequence = ++refreshSequence;
             try {
                 const refreshUrl = new URL(window.location.href);
                 refreshUrl.searchParams.set('tab', 'business-client-information');
@@ -587,6 +588,7 @@
                 });
                 if (!response.ok) return;
                 const html = await response.text();
+                if (sequence !== refreshSequence) return;
                 const parser = new DOMParser();
                 const doc = parser.parseFromString(html, 'text/html');
                 replaceHtmlIfPresent('companyHeaderWrap', doc);
@@ -594,6 +596,7 @@
                 replaceHtmlIfPresent('companyHeaderSummary', doc);
                 replaceHtmlIfPresent('companyBifDocumentContent', doc);
                 replaceHtmlIfPresent('companyBifSummaryCard', doc);
+                replaceHtmlIfPresent('companyKycActionPanel', doc);
                 replaceHtmlIfPresent('companyKycRequirementsList', doc);
             } catch (error) {
             }
@@ -608,18 +611,35 @@
                 body: new FormData(form),
                 cache: 'no-store',
             });
+            const contentType = response.headers.get('content-type') || '';
+            const isJson = contentType.includes('application/json');
+            const responseText = await response.text();
+            let payload = {};
+
+            if (responseText.trim() !== '') {
+                try {
+                    payload = JSON.parse(responseText);
+                } catch (error) {
+                    if (isJson) {
+                        throw new Error(fallbackError);
+                    }
+                }
+            }
 
             if (response.status === 422) {
-                const payload = await response.json();
                 const firstError = Object.values(payload.errors || {}).flat()[0] || 'Please review the form.';
                 throw new Error(firstError);
             }
 
-            if (!response.ok) {
-                throw new Error(fallbackError);
+            if (response.redirected || !isJson || responseText.trim().startsWith('<')) {
+                throw new Error(response.redirected ? 'Your session may have expired. Please refresh the page and try again.' : fallbackError);
             }
 
-            return response.json();
+            if (!response.ok) {
+                throw new Error(payload.message || fallbackError);
+            }
+
+            return payload;
         };
         const syncBifState = (bif) => {
             if (!bif) return;
@@ -631,6 +651,9 @@
                     : status === 'rejected'
                         ? 'Rejected'
                         : 'Draft';
+            const companyBifStatusBadge = q('companyBifStatusBadge');
+            const companyBifSubmittedAt = q('companyBifSubmittedAt');
+            const companyBifClientSubmittedAt = q('companyBifClientSubmittedAt');
             if (companyBifStatusBadge) {
                 companyBifStatusBadge.className = `inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${statusBadgeClasses[status] || statusBadgeClasses.draft}`;
                 companyBifStatusBadge.textContent = label;
@@ -750,6 +773,22 @@
         if (sessionClientEmail) {
             showSendSuccess(sessionClientEmail);
         }
+
+        const handleKycSyncEvent = (detail) => {
+            if (!detail || detail.module !== 'company' || String(detail.id || '') !== @json((string) $company->id)) return;
+            syncCompanyKycFragments();
+        };
+        if ('BroadcastChannel' in window) {
+            const syncChannel = new BroadcastChannel(syncEventName);
+            syncChannel.addEventListener('message', (event) => handleKycSyncEvent(event.data));
+        }
+        window.addEventListener('storage', (event) => {
+            if (event.key !== syncEventName || !event.newValue) return;
+            try {
+                handleKycSyncEvent(JSON.parse(event.newValue));
+            } catch (error) {
+            }
+        });
 
         sendBifForm?.addEventListener('submit', async (event) => {
             event.preventDefault();

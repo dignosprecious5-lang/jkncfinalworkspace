@@ -192,6 +192,8 @@ class RegularController extends Controller
             'assigned_project_manager' => ['nullable', 'string', 'max:255'],
             'assigned_consultant' => ['nullable', 'string', 'max:255'],
             'assigned_associate' => ['nullable', 'string', 'max:255'],
+            'sales_marketing' => ['nullable', 'string', 'max:255'],
+            'finance' => ['nullable', 'string', 'max:255'],
             'client_confirmation_name' => ['nullable', 'string', 'max:255'],
             'engagement_requirements_text' => ['nullable', 'string', 'max:4000'],
             'template_id' => Schema::hasTable('form_templates')
@@ -275,6 +277,10 @@ class RegularController extends Controller
                 'source_mode' => $validated['source_mode'] ?? ($linkedDeal ? 'deal' : 'manual'),
                 'template_id' => $selectedTemplate?->id,
                 'template_name' => $selectedTemplate?->name,
+                'internal_assignments' => [
+                    'sales_marketing' => $validated['sales_marketing'] ?? null,
+                    'finance' => $validated['finance'] ?? null,
+                ],
             ],
             'opened_at' => now(),
         ]);
@@ -298,12 +304,15 @@ class RegularController extends Controller
             'engagement_requirements' => $rsatRequirements,
             'approval_steps' => $this->mergeRegularTemplateApprovalSteps(
                 (array) ($templatePayload['approval_steps'] ?? []),
+                $validated['sales_marketing'] ?? null,
+                $validated['finance'] ?? null,
                 $validated['assigned_consultant'] ?? null,
                 $validated['assigned_associate'] ?? null
             ),
             'clearance' => $this->mergeRegularTemplateClearancePayload(
                 (array) ($templatePayload['clearance'] ?? []),
                 $validated['prepared_by_default'] ?? ($validated['assigned_project_manager'] ?? ($validated['assigned_consultant'] ?? null)),
+                $validated['sales_marketing'] ?? null,
                 $validated['assigned_consultant'] ?? null,
                 $validated['assigned_associate'] ?? null
             ),
@@ -325,11 +334,11 @@ class RegularController extends Controller
                 'reviewed_by_name' => null,
                 'reviewed_by_date' => null,
                 'referred_by_closed_by' => null,
-                'sales_marketing' => 'Sales & Marketing',
+                'sales_marketing' => $validated['sales_marketing'] ?? null,
                 'lead_consultant' => $validated['assigned_consultant'] ?? null,
                 'lead_associate_assigned' => $validated['assigned_associate'] ?? null,
-                'finance' => 'Finance',
-                'president' => 'President',
+                'finance' => $validated['finance'] ?? null,
+                'president' => 'John Kelly Abalde',
                 'record_custodian' => 'Record Custodian',
                 'date_recorded' => now()->toDateString(),
                 'date_signed' => null,
@@ -943,7 +952,7 @@ class RegularController extends Controller
             'engagement_provided_by' => ['nullable', 'array'],
             'engagement_provided_by.*' => ['nullable', 'string', 'max:255'],
             'engagement_submitted_to' => ['nullable', 'array'],
-            'engagement_submitted_to.*' => ['nullable', 'string', 'max:255'],
+            'engagement_submitted_to.*' => ['nullable', 'date'],
             'engagement_assigned_to' => ['nullable', 'array'],
             'engagement_assigned_to.*' => ['nullable', 'string', 'max:255'],
             'engagement_timeline' => ['nullable', 'array'],
@@ -1222,21 +1231,46 @@ class RegularController extends Controller
             ->all();
     }
 
-    private function mergeRegularTemplateApprovalSteps(array $templateSteps, ?string $consultant, ?string $associate): array
+    private function mergeRegularTemplateApprovalSteps(array $templateSteps, ?string $salesMarketing, ?string $finance, ?string $consultant, ?string $associate): array
     {
-        $fallback = $this->buildManualApprovalSteps($consultant, $associate);
+        $fallback = $this->buildManualApprovalSteps($salesMarketing, $consultant, $associate);
 
-        return collect($templateSteps)
+        $steps = collect($templateSteps)
             ->filter(fn ($row) => is_array($row))
             ->values()
             ->all() ?: $fallback;
+
+        if (filled($salesMarketing) || filled($finance)) {
+            $steps = collect($steps)
+                ->map(function (array $row) use ($salesMarketing, $finance): array {
+                    $responsible = trim((string) ($row['responsible_person'] ?? ''));
+                    if (filled($salesMarketing) && $responsible === 'Sales & Marketing') {
+                        $row['responsible_person'] = $salesMarketing;
+                    } elseif (filled($salesMarketing) && str_starts_with($responsible, 'Sales & Marketing/')) {
+                        $row['responsible_person'] = $salesMarketing.substr($responsible, strlen('Sales & Marketing'));
+                    } elseif (filled($finance) && $responsible === 'Finance') {
+                        $row['responsible_person'] = $finance;
+                    }
+
+                    return $row;
+                })
+                ->values()
+                ->all();
+        }
+
+        return $steps;
     }
 
-    private function mergeRegularTemplateClearancePayload(array $templateClearance, ?string $preparedBy, ?string $consultant, ?string $associate): array
+    private function mergeRegularTemplateClearancePayload(array $templateClearance, ?string $preparedBy, ?string $salesMarketing, ?string $consultant, ?string $associate): array
     {
-        $fallback = $this->buildManualClearancePayload($preparedBy, $consultant, $associate);
+        $fallback = $this->buildManualClearancePayload($preparedBy, $salesMarketing, $consultant, $associate);
 
-        return array_replace_recursive($fallback, array_filter($templateClearance, fn ($value) => $value !== null));
+        $merged = array_replace_recursive($fallback, array_filter($templateClearance, fn ($value) => $value !== null));
+        if (filled($salesMarketing)) {
+            $merged['sales_marketing'] = $salesMarketing;
+        }
+
+        return $merged;
     }
 
     private function regularContactRecords(): array
@@ -1368,6 +1402,7 @@ class RegularController extends Controller
                     'assigned_project_manager' => $deal->assigned_consultant,
                     'assigned_consultant' => $deal->assigned_consultant,
                     'assigned_associate' => $deal->assigned_associate,
+                    'sales_marketing' => $deal->internal_sales_marketing,
                     'client_confirmation_name' => $clientName,
                     'engagement_type' => $deal->engagement_type,
                 ];
@@ -1598,8 +1633,8 @@ class RegularController extends Controller
             'sales_marketing' => $clearance['sales_marketing'] ?? null,
             'lead_consultant' => $regular->assigned_consultant,
             'lead_associate_assigned' => $clearance['lead_associate_assigned'] ?? null,
-            'finance' => null,
-            'president' => null,
+            'finance' => data_get($regular->metadata ?? [], 'internal_assignments.finance'),
+            'president' => 'John Kelly Abalde',
             'record_custodian' => $clearance['record_custodian_name'] ?? null,
             'date_recorded' => $clearance['date_recorded'] ?? null,
             'date_signed' => $clearance['date_signed'] ?? null,
@@ -1647,7 +1682,7 @@ class RegularController extends Controller
                 'notes' => '',
                 'purpose' => 'Regular service activity',
                 'provided_by' => 'Client',
-                'submitted_to' => 'Sales & Marketing',
+                'submitted_to' => '',
                 'assigned_to' => $assignedTo,
                 'timeline' => 'Recurring schedule',
                 'status' => 'open',
@@ -1664,27 +1699,28 @@ class RegularController extends Controller
             'notes' => '',
             'purpose' => 'Regular service activity',
             'provided_by' => 'Client',
-            'submitted_to' => 'Sales & Marketing',
+            'submitted_to' => '',
             'assigned_to' => $assignedTo,
             'timeline' => 'Recurring schedule',
             'status' => 'open',
         ]];
     }
 
-    private function buildManualApprovalSteps(?string $assignedConsultant, ?string $assignedAssociate): array
+    private function buildManualApprovalSteps(?string $salesMarketing, ?string $assignedConsultant, ?string $assignedAssociate): array
     {
+        $sales = $salesMarketing ?: 'Sales & Marketing';
         $leadConsultant = $assignedConsultant ?: 'Lead Consultant';
         $leadAssociate = $assignedAssociate ?: 'Lead Associate';
 
         return [
-            ['requirement' => 'Client Contact Form', 'responsible_person' => 'Sales & Marketing', 'name_and_signature' => '', 'date_time_done' => ''],
-            ['requirement' => 'Business Information Form', 'responsible_person' => 'Sales & Marketing', 'name_and_signature' => '', 'date_time_done' => ''],
-            ['requirement' => 'Regular Service Activity Tracker (RSAT)', 'responsible_person' => 'Sales & Marketing', 'name_and_signature' => '', 'date_time_done' => ''],
-            ['requirement' => 'Engagement-Specific Requirement', 'responsible_person' => 'Sales & Marketing/'.$leadConsultant.'/'.$leadAssociate, 'name_and_signature' => '', 'date_time_done' => ''],
+            ['requirement' => 'Client Contact Form', 'responsible_person' => $sales, 'name_and_signature' => '', 'date_time_done' => ''],
+            ['requirement' => 'Business Information Form', 'responsible_person' => $sales, 'name_and_signature' => '', 'date_time_done' => ''],
+            ['requirement' => 'Regular Service Activity Tracker (RSAT)', 'responsible_person' => $sales, 'name_and_signature' => '', 'date_time_done' => ''],
+            ['requirement' => 'Engagement-Specific Requirement', 'responsible_person' => $sales.'/'.$leadConsultant.'/'.$leadAssociate, 'name_and_signature' => '', 'date_time_done' => ''],
         ];
     }
 
-    private function buildManualClearancePayload(?string $preparedBy, ?string $assignedConsultant, ?string $assignedAssociate): array
+    private function buildManualClearancePayload(?string $preparedBy, ?string $salesMarketing, ?string $assignedConsultant, ?string $assignedAssociate): array
     {
         return [
             'assigned_team_lead' => $preparedBy ?? '',
@@ -1693,7 +1729,7 @@ class RegularController extends Controller
             'lead_consultant_signature' => '',
             'lead_associate_assigned' => $assignedAssociate ?? '',
             'lead_associate_signature' => '',
-            'sales_marketing' => 'Sales & Marketing',
+            'sales_marketing' => $salesMarketing ?? '',
             'sales_marketing_signature' => '',
             'record_custodian_name' => 'Record Custodian',
             'record_custodian_signature' => '',

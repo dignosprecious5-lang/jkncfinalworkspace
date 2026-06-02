@@ -308,12 +308,31 @@ class CompanyKycController extends Controller
         $bif = $this->latestCompanyBif($company);
 
         if (! $bif) {
+            if ($this->prefersJsonResponse($request)) {
+                return response()->json([
+                    'message' => 'No Business Information Form found to approve.',
+                ], 404);
+            }
+
             return redirect()
                 ->route('company.kyc', ['company' => $company, 'tab' => 'business-client-information'])
                 ->withErrors(['kyc' => 'No Business Information Form found to approve.']);
         }
 
         if ((string) $bif->status !== 'pending_approval') {
+            if ($this->prefersJsonResponse($request)) {
+                return response()->json([
+                    'message' => 'Only records submitted for verification can be approved.',
+                    'bif' => [
+                        'status' => $bif->status,
+                        'submitted_at' => optional($bif->submitted_at)->toIso8601String(),
+                        'approved_at' => optional($bif->approved_at)->toIso8601String(),
+                        'approved_by_name' => $bif->approved_by_name,
+                        'rejection_reason' => $bif->rejection_reason,
+                    ],
+                ], 409);
+            }
+
             return redirect()
                 ->route('company.kyc', ['company' => $company, 'tab' => 'business-client-information'])
                 ->withErrors(['kyc' => 'Only records submitted for verification can be approved.']);
@@ -366,12 +385,31 @@ class CompanyKycController extends Controller
         $bif = $this->latestCompanyBif($company);
 
         if (! $bif) {
+            if ($this->prefersJsonResponse($request)) {
+                return response()->json([
+                    'message' => 'No Business Information Form found to reject.',
+                ], 404);
+            }
+
             return redirect()
                 ->route('company.kyc', ['company' => $company, 'tab' => 'business-client-information'])
                 ->withErrors(['kyc' => 'No Business Information Form found to reject.']);
         }
 
         if ((string) $bif->status !== 'pending_approval') {
+            if ($this->prefersJsonResponse($request)) {
+                return response()->json([
+                    'message' => 'Only records submitted for verification can be rejected.',
+                    'bif' => [
+                        'status' => $bif->status,
+                        'submitted_at' => optional($bif->submitted_at)->toIso8601String(),
+                        'approved_at' => optional($bif->approved_at)->toIso8601String(),
+                        'approved_by_name' => $bif->approved_by_name,
+                        'rejection_reason' => $bif->rejection_reason,
+                    ],
+                ], 409);
+            }
+
             return redirect()
                 ->route('company.kyc', ['company' => $company, 'tab' => 'business-client-information'])
                 ->withErrors(['kyc' => 'Only records submitted for verification can be rejected.']);
@@ -870,9 +908,9 @@ class CompanyKycController extends Controller
     {
         $signatories = collect($bif->authorized_signatories ?? [])->values();
         $principalName = trim((string) ($bif->president_name ?: $bif->authorized_signatory_name ?: data_get($signatories->first(), 'full_name', '')));
-        $principalAddress = trim((string) ($bif->business_address ?: data_get($signatories->first(), 'address', ($companyData['address'] ?? ''))));
+        $principalAddress = trim((string) ($bif->business_address ?: ($companyData['address'] ?? '')));
         $attorneyName = trim((string) ($bif->authorized_contact_person_name ?: data_get($signatories->get(1), 'full_name', '')));
-        $attorneyAddress = trim((string) ($principalAddress !== '' ? $principalAddress : ($companyData['address'] ?? '')));
+        $attorneyAddress = trim((string) ($bif->business_address ?: ($companyData['address'] ?? '')));
         $signedAt = $bif->bif_date instanceof CarbonInterface ? $bif->bif_date : now();
 
         return [
@@ -1062,12 +1100,8 @@ class CompanyKycController extends Controller
 
     private function spaPrincipalAddress(array $companyData, CompanyBif $bif): string
     {
-        $signatories = collect($bif->authorized_signatories ?? []);
-        $firstSignatory = $signatories->first(fn ($row) => filled($row['address'] ?? null));
-
         return trim((string) (
             $bif->business_address
-            ?: ($firstSignatory['address'] ?? null)
             ?: ($companyData['address'] ?? '')
         ));
     }

@@ -138,7 +138,7 @@
                             <label for="business_address" class="mb-1 block text-sm font-medium text-slate-700">Business Address</label>
                             <textarea id="business_address" name="business_address" rows="3" class="w-full border border-slate-300 px-3 py-3 text-sm">{{ old('business_address', $bif->business_address) }}</textarea>
                         </div>
-                        <div class="md:col-span-2 xl:col-span-3">
+                        <div id="business_organization_other_wrap" class="md:col-span-2 xl:col-span-3 {{ old('business_organization', $bif->business_organization) === 'other' ? '' : 'hidden' }}">
                             <label for="business_organization_other" class="mb-1 block text-sm font-medium text-slate-700">If Other, please specify</label>
                             <input id="business_organization_other" name="business_organization_other" value="{{ old('business_organization_other', $bif->business_organization_other) }}" class="h-11 w-full border border-slate-300 px-3 text-sm">
                         </div>
@@ -314,8 +314,50 @@
                 feedback.textContent = message || '';
                 feedback.classList.toggle('hidden', !message);
             };
+            const notifyKycUpdated = () => {
+                const detail = {
+                    module: 'company',
+                    id: @json((string) $bif->company_id),
+                    source: 'client-bif',
+                    at: Date.now(),
+                };
+
+                if ('BroadcastChannel' in window) {
+                    const channel = new BroadcastChannel('jknc:kyc-sync');
+                    channel.postMessage(detail);
+                    channel.close();
+                }
+
+                try {
+                    localStorage.setItem('jknc:kyc-sync', JSON.stringify(detail));
+                } catch (error) {
+                }
+            };
 
             const juridicalTypes = new Set(['partnership', 'corporation', 'cooperative', 'ngo', 'other']);
+            const businessOrganizationOtherWrap = document.getElementById('business_organization_other_wrap');
+            const businessOrganizationOtherInput = document.getElementById('business_organization_other');
+
+            const clearValidationState = (field) => {
+                if (!field) {
+                    return;
+                }
+
+                field.removeAttribute('aria-invalid');
+                field.classList.remove('border-red-400', 'bg-red-50', 'text-red-900', 'focus:border-red-500', 'focus:ring-red-100');
+                field.classList.add('border-slate-300');
+            };
+
+            const syncOtherField = () => {
+                const showOther = organizationSelect.value === 'other';
+
+                businessOrganizationOtherWrap?.classList.toggle('hidden', !showOther);
+
+                if (!showOther && businessOrganizationOtherInput) {
+                    businessOrganizationOtherInput.value = '';
+                    clearValidationState(businessOrganizationOtherInput);
+                }
+            };
 
             const syncCompanyNameHeading = () => {
                 if (!companyNameHeading) return;
@@ -336,6 +378,7 @@
                 soleUploads.style.display = showSole ? '' : 'none';
                 juridicalUploads.style.display = showJuridical ? '' : 'none';
                 placeholder.style.display = (showSole || showJuridical) ? 'none' : '';
+                syncOtherField();
             };
 
             organizationSelect.addEventListener('change', syncRequirementCards);
@@ -367,6 +410,7 @@
 
                     const payload = await response.json();
                     showFeedback(payload.message || 'Your Business Information Form has been submitted successfully.', 'success');
+                    notifyKycUpdated();
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                     syncCompanyNameHeading();
                 } catch (error) {

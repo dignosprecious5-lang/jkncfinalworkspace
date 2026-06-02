@@ -1,8 +1,9 @@
 @php
     $defaultReferredBy = old('referred_by', auth()->user()->name ?? '');
     $defaultPresident = old('president_use_only_name', 'John Kelly Abalde');
+    $defaultReviewSignatureName = old('review_signature_printed_name', auth()->user()->name ?? '');
+    $defaultReviewSignaturePosition = old('review_signature_position', auth()->user()->role ?? 'Reviewer');
     $roleContactOptionsJson = collect($roleContactOptions ?? [])->values()->all();
-    $roleContactSearchUrl = route('company.contacts.search');
     $addContactUrl = route('contacts.index');
 @endphp
 
@@ -63,7 +64,7 @@
                                 data-phone="{{ ($contact->company_autofill['authorized_contact_person_phone'] ?? null) ?: $contact->phone }}"
                                 data-business-phone="{{ ($contact->company_autofill['business_phone'] ?? null) ?: $contact->phone }}"
                                 data-mobile="{{ ($contact->company_autofill['mobile_no'] ?? null) ?: $contact->phone }}"
-                                data-address="{{ ($contact->company_autofill['business_address'] ?? null) ?: $contact->contact_address }}"
+                                data-address="{{ $contact->company_autofill['business_address'] ?? '' }}"
                                 data-tin="{{ ($contact->company_autofill['tin_no'] ?? null) ?: $contact->tin }}"
                                 data-zip-code="{{ $contact->company_autofill['zip_code'] ?? '' }}"
                                 data-nationality-status="{{ $contact->company_autofill['nationality_status'] ?? '' }}"
@@ -72,8 +73,14 @@
                                 data-office-type="{{ $contact->company_autofill['office_type'] ?? '' }}"
                                 data-office-type-other="{{ $contact->company_autofill['office_type_other'] ?? '' }}"
                                 data-alternative-business-name="{{ $contact->company_autofill['alternative_business_name'] ?? '' }}"
+                                data-industry-types="{{ implode(',', $contact->company_autofill['industry_types'] ?? []) }}"
+                                data-industry-other-text="{{ $contact->company_autofill['industry_other_text'] ?? '' }}"
                                 data-contact-name="{{ ($contact->company_autofill['authorized_contact_person_name'] ?? null) ?: ($contact->contact_full_name ?: trim(collect([$contact->first_name, $contact->last_name])->filter()->implode(' '))) }}"
                                 data-contact-position="{{ ($contact->company_autofill['authorized_contact_person_position'] ?? null) ?: $contact->position }}"
+                                data-sales-marketing-name="{{ ($contact->company_autofill['sales_marketing_name'] ?? null) ?: $contact->sales_marketing }}"
+                                data-consultant-lead="{{ ($contact->company_autofill['consultant_lead'] ?? null) ?: $contact->consultant_lead }}"
+                                data-lead-associate="{{ ($contact->company_autofill['lead_associate'] ?? null) ?: $contact->lead_associate }}"
+                                data-referred-by="{{ ($contact->company_autofill['referred_by'] ?? null) ?: $contact->referred_by }}"
                                 @selected((string) old('contact_id') === (string) $contact->id)
                             >
                                 {{ $contactName !== '' ? $contactName : 'Contact #'.$contact->id }}{{ $contactCompany }} • CIF: APPROVED
@@ -165,12 +172,12 @@
                 <div class="grid gap-2 sm:grid-cols-2">
                     @foreach (['services' => 'Services', 'export_import' => 'Export/Import', 'education' => 'Education', 'financial_services' => 'Financial Services', 'transportation' => 'Transportation', 'distribution' => 'Distribution', 'manufacturing' => 'Manufacturing', 'government' => 'Government', 'wholesale_retail_trade' => 'Wholesale/Retail Trade', 'other' => 'Other'] as $value => $label)
                         <label class="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700">
-                            <input type="checkbox" name="industry_types[]" value="{{ $value }}" @checked(in_array($value, old('industry_types', []), true)) class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                            <input type="checkbox" name="industry_types[]" value="{{ $value }}" x-model="industryTypes" @checked(in_array($value, old('industry_types', []), true)) class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
                             <span>{{ $label }}</span>
                         </label>
                     @endforeach
                 </div>
-                <div class="mt-4">
+                <div class="mt-4" x-show="industryTypes.includes('other')" x-cloak>
                     <label class="mb-2 block text-sm font-medium text-gray-700">Other Industry</label>
                     <input type="text" name="industry_other_text" value="{{ old('industry_other_text') }}" class="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
                 </div>
@@ -204,12 +211,12 @@
                 <div class="grid gap-2 sm:grid-cols-2">
                     @foreach (['revenue_income' => 'Revenue/Income', 'investments' => 'Investments', 'remittance' => 'Remittance', 'fees' => 'Fees', 'other' => 'Other'] as $value => $label)
                         <label class="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700">
-                            <input type="checkbox" name="source_of_funds[]" value="{{ $value }}" @checked(in_array($value, old('source_of_funds', []), true)) class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                            <input type="checkbox" name="source_of_funds[]" value="{{ $value }}" x-model="sourceOfFunds" @checked(in_array($value, old('source_of_funds', []), true)) class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
                             <span>{{ $label }}</span>
                         </label>
                     @endforeach
                 </div>
-                <div class="mt-4">
+                <div class="mt-4" x-show="sourceOfFunds.includes('other')" x-cloak>
                     <label class="mb-2 block text-sm font-medium text-gray-700">Other Source of Funds</label>
                     <input type="text" name="source_other_text" value="{{ old('source_other_text') }}" class="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
                 </div>
@@ -221,14 +228,14 @@
                     <div>
                         <label class="mb-2 block text-sm font-medium text-gray-700">Name of President</label>
                         <div class="relative mb-2">
-                            <input type="text" name="president_name" x-model="keyOfficerSelections.president.full_name" @focus="openRoleSearch(keyOfficerSelections.president, 'president')" @input.debounce.250ms="searchRoleContacts(keyOfficerSelections.president, 'president')" @keydown.escape="closeRoleSearch(keyOfficerSelections.president)" placeholder="Search Contact" autocomplete="off" class="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
-                            <div x-show="keyOfficerSelections.president.search_open" x-cloak @click.outside="closeRoleSearch(keyOfficerSelections.president)" class="absolute z-40 mt-1 max-h-72 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-xl">
+                            <input type="text" name="president_name" x-model="keyOfficerSelections.president.full_name" @focus="openRoleSearch(keyOfficerSelections.president, 'president')" @click="openRoleSearch(keyOfficerSelections.president, 'president')" @input.debounce.150ms="searchRoleContacts(keyOfficerSelections.president, 'president', $event.target.value)" @keydown.escape="closeRoleSearch(keyOfficerSelections.president)" placeholder="Search Contact" autocomplete="off" class="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
+                            <div x-show="keyOfficerSelections.president.search_open" x-cloak class="absolute z-40 mt-1 max-h-72 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-xl">
                                 <template x-if="roleSearchResults(keyOfficerSelections.president).length > 0">
                                     <div>
                                         <template x-for="contact in roleSearchResults(keyOfficerSelections.president)" :key="'president-result-'+contact.id">
-                                            <button type="button" @click="selectKeyOfficer('president_name', keyOfficerSelections.president, contact)" class="block w-full border-b border-gray-100 px-3 py-2 text-left last:border-b-0 hover:bg-blue-50">
+                                            <button type="button" @mousedown.prevent @click="selectKeyOfficer('president_name', keyOfficerSelections.president, contact)" class="block w-full border-b border-gray-100 px-3 py-2 text-left last:border-b-0 hover:bg-blue-50">
                                                 <span class="block text-sm font-medium text-gray-800" x-text="contact.label"></span>
-                                                <span class="block text-xs text-gray-500" x-text="contactOptionMeta(contact)"></span>
+                                                <span class="block text-xs text-gray-500" x-text="[contact.company_name, contact.position, contact.email, contact.phone].filter(Boolean).join(' - ')"></span>
                                             </button>
                                         </template>
                                     </div>
@@ -244,14 +251,14 @@
                     <div>
                         <label class="mb-2 block text-sm font-medium text-gray-700">Name of Treasurer</label>
                         <div class="relative mb-2">
-                            <input type="text" name="treasurer_name" x-model="keyOfficerSelections.treasurer.full_name" @focus="openRoleSearch(keyOfficerSelections.treasurer, 'treasurer')" @input.debounce.250ms="searchRoleContacts(keyOfficerSelections.treasurer, 'treasurer')" @keydown.escape="closeRoleSearch(keyOfficerSelections.treasurer)" placeholder="Search Contact" autocomplete="off" class="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
-                            <div x-show="keyOfficerSelections.treasurer.search_open" x-cloak @click.outside="closeRoleSearch(keyOfficerSelections.treasurer)" class="absolute z-40 mt-1 max-h-72 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-xl">
+                            <input type="text" name="treasurer_name" x-model="keyOfficerSelections.treasurer.full_name" @focus="openRoleSearch(keyOfficerSelections.treasurer, 'treasurer')" @click="openRoleSearch(keyOfficerSelections.treasurer, 'treasurer')" @input.debounce.150ms="searchRoleContacts(keyOfficerSelections.treasurer, 'treasurer', $event.target.value)" @keydown.escape="closeRoleSearch(keyOfficerSelections.treasurer)" placeholder="Search Contact" autocomplete="off" class="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
+                            <div x-show="keyOfficerSelections.treasurer.search_open" x-cloak class="absolute z-40 mt-1 max-h-72 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-xl">
                                 <template x-if="roleSearchResults(keyOfficerSelections.treasurer).length > 0">
                                     <div>
                                         <template x-for="contact in roleSearchResults(keyOfficerSelections.treasurer)" :key="'treasurer-result-'+contact.id">
-                                            <button type="button" @click="selectKeyOfficer('treasurer_name', keyOfficerSelections.treasurer, contact)" class="block w-full border-b border-gray-100 px-3 py-2 text-left last:border-b-0 hover:bg-blue-50">
+                                            <button type="button" @mousedown.prevent @click="selectKeyOfficer('treasurer_name', keyOfficerSelections.treasurer, contact)" class="block w-full border-b border-gray-100 px-3 py-2 text-left last:border-b-0 hover:bg-blue-50">
                                                 <span class="block text-sm font-medium text-gray-800" x-text="contact.label"></span>
-                                                <span class="block text-xs text-gray-500" x-text="contactOptionMeta(contact)"></span>
+                                                <span class="block text-xs text-gray-500" x-text="[contact.company_name, contact.position, contact.email, contact.phone].filter(Boolean).join(' - ')"></span>
                                             </button>
                                         </template>
                                     </div>
@@ -285,14 +292,14 @@
                             <div class="grid gap-3 sm:grid-cols-2">
                                 <div class="relative sm:col-span-2">
                                     <input type="hidden" :name="`authorized_signatories[${index}][contact_id]`" x-model="row.contact_id">
-                                    <input type="text" :name="`authorized_signatories[${index}][full_name]`" x-model="row.full_name" @focus="openRoleSearch(row, 'signatory')" @input.debounce.250ms="searchRoleContacts(row, 'signatory')" @keydown.escape="closeRoleSearch(row)" placeholder="Search Contact" autocomplete="off" class="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
-                                    <div x-show="row.search_open" x-cloak @click.outside="closeRoleSearch(row)" class="absolute z-40 mt-1 max-h-72 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-xl">
+                                    <input type="text" :name="`authorized_signatories[${index}][full_name]`" x-model="row.full_name" @focus="openRoleSearch(row, 'signatory')" @click="openRoleSearch(row, 'signatory')" @input.debounce.150ms="searchRoleContacts(row, 'signatory', $event.target.value)" @keydown.escape="closeRoleSearch(row)" placeholder="Search Contact" autocomplete="off" class="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
+                                    <div x-show="row.search_open" x-cloak class="absolute z-40 mt-1 max-h-72 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-xl">
                                         <template x-if="roleSearchResults(row).length > 0">
                                             <div>
                                                 <template x-for="contact in roleSearchResults(row)" :key="'signatory-result-'+index+'-'+contact.id">
-                                                    <button type="button" @click="selectRoleContact(row, contact)" class="block w-full border-b border-gray-100 px-3 py-2 text-left last:border-b-0 hover:bg-blue-50">
+                                                    <button type="button" @mousedown.prevent @click="selectRoleContact(row, contact)" class="block w-full border-b border-gray-100 px-3 py-2 text-left last:border-b-0 hover:bg-blue-50">
                                                         <span class="block text-sm font-medium text-gray-800" x-text="contact.label"></span>
-                                                        <span class="block text-xs text-gray-500" x-text="contactOptionMeta(contact)"></span>
+                                                        <span class="block text-xs text-gray-500" x-text="[contact.company_name, contact.position, contact.email, contact.phone].filter(Boolean).join(' - ')"></span>
                                                     </button>
                                                 </template>
                                             </div>
@@ -333,14 +340,14 @@
                             <div class="grid gap-3 sm:grid-cols-2">
                                 <div class="relative sm:col-span-2">
                                     <input type="hidden" :name="`ubos[${index}][contact_id]`" x-model="row.contact_id">
-                                    <input type="text" :name="`ubos[${index}][full_name]`" x-model="row.full_name" @focus="openRoleSearch(row, 'ubo')" @input.debounce.250ms="searchRoleContacts(row, 'ubo')" @keydown.escape="closeRoleSearch(row)" placeholder="Search Contact" autocomplete="off" class="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
-                                    <div x-show="row.search_open" x-cloak @click.outside="closeRoleSearch(row)" class="absolute z-40 mt-1 max-h-72 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-xl">
+                                    <input type="text" :name="`ubos[${index}][full_name]`" x-model="row.full_name" @focus="openRoleSearch(row, 'ubo')" @click="openRoleSearch(row, 'ubo')" @input.debounce.150ms="searchRoleContacts(row, 'ubo', $event.target.value)" @keydown.escape="closeRoleSearch(row)" placeholder="Search Contact" autocomplete="off" class="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
+                                    <div x-show="row.search_open" x-cloak class="absolute z-40 mt-1 max-h-72 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-xl">
                                         <template x-if="roleSearchResults(row).length > 0">
                                             <div>
                                                 <template x-for="contact in roleSearchResults(row)" :key="'ubo-result-'+index+'-'+contact.id">
-                                                    <button type="button" @click="selectRoleContact(row, contact)" class="block w-full border-b border-gray-100 px-3 py-2 text-left last:border-b-0 hover:bg-blue-50">
+                                                    <button type="button" @mousedown.prevent @click="selectRoleContact(row, contact)" class="block w-full border-b border-gray-100 px-3 py-2 text-left last:border-b-0 hover:bg-blue-50">
                                                         <span class="block text-sm font-medium text-gray-800" x-text="contact.label"></span>
-                                                        <span class="block text-xs text-gray-500" x-text="contactOptionMeta(contact)"></span>
+                                                        <span class="block text-xs text-gray-500" x-text="[contact.company_name, contact.position, contact.email, contact.phone].filter(Boolean).join(' - ')"></span>
                                                     </button>
                                                 </template>
                                             </div>
@@ -379,8 +386,8 @@
                 <div class="grid gap-4 sm:grid-cols-2">
                     <div><label class="mb-2 block text-sm font-medium text-gray-700">Signature over Printed Name</label><input type="text" name="signature_printed_name" value="{{ old('signature_printed_name') }}" class="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"></div>
                     <div><label class="mb-2 block text-sm font-medium text-gray-700">Position</label><input type="text" name="signature_position" value="{{ old('signature_position') }}" class="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"></div>
-                    <div><label class="mb-2 block text-sm font-medium text-gray-700">Review Signature over Printed Name</label><input type="text" name="review_signature_printed_name" value="{{ old('review_signature_printed_name') }}" class="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"></div>
-                    <div><label class="mb-2 block text-sm font-medium text-gray-700">Review Position</label><input type="text" name="review_signature_position" value="{{ old('review_signature_position') }}" class="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"></div>
+                    <div><label class="mb-2 block text-sm font-medium text-gray-700">Review Signature over Printed Name</label><input type="text" name="review_signature_printed_name" value="{{ $defaultReviewSignatureName }}" class="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"></div>
+                    <div><label class="mb-2 block text-sm font-medium text-gray-700">Review Position</label><input type="text" name="review_signature_position" value="{{ $defaultReviewSignaturePosition }}" class="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"></div>
                 </div>
             </section>
 
@@ -431,13 +438,13 @@
                         <label class="mb-2 block text-sm font-medium text-gray-700">Consultant Lead</label>
                         <input type="text" name="consultant_lead" value="{{ old('consultant_lead') }}" autocomplete="off" data-employee-search-input class="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
                         <div class="absolute z-20 mt-1 hidden w-full rounded-lg border border-gray-200 bg-white shadow-lg" data-employee-search-results></div>
-                        <p class="mt-1 text-xs text-gray-500">Search existing employees from Human Capital. You can still type manually.</p>
+                        <p class="mt-1 text-xs text-gray-500">Search existing contacts from the company contact list. You can still type manually.</p>
                     </div>
                     <div class="relative" data-employee-picker>
                         <label class="mb-2 block text-sm font-medium text-gray-700">Lead Associate</label>
                         <input type="text" name="lead_associate" value="{{ old('lead_associate') }}" autocomplete="off" data-employee-search-input class="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
                         <div class="absolute z-20 mt-1 hidden w-full rounded-lg border border-gray-200 bg-white shadow-lg" data-employee-search-results></div>
-                        <p class="mt-1 text-xs text-gray-500">Search existing employees from Human Capital. You can still type manually.</p>
+                        <p class="mt-1 text-xs text-gray-500">Search existing contacts from the company contact list. You can still type manually.</p>
                     </div>
                     <div class="relative" data-employee-picker>
                         <label class="mb-2 block text-sm font-medium text-gray-700">President</label>
@@ -466,13 +473,14 @@
 function companyBifForm() {
     const employeeRecords = @json($employeeOptions ?? []);
     let roleContactRecords = @json($roleContactOptionsJson);
-    const roleContactSearchUrl = @js($roleContactSearchUrl);
     const addContactUrl = @js($addContactUrl);
     const draftStorageKey = 'jknc.company.createCompanyDraft';
 
     return {
         businessOrganization: @js(old('business_organization', '')),
         officeType: @js(old('office_type', '')),
+        industryTypes: @js(old('industry_types', [])),
+        sourceOfFunds: @js(old('source_of_funds', [])),
         keyOfficerSelections: {
             president: null,
             treasurer: null,
@@ -508,6 +516,7 @@ function companyBifForm() {
             const normalized = {
                 contact_id: '',
                 contact_search: '',
+                search_query: '',
                 search_open: false,
                 search_loading: false,
                 search_searched: false,
@@ -524,6 +533,7 @@ function companyBifForm() {
             };
             normalized.contact_id = String(normalized.contact_id || '');
             normalized.contact_search = normalized.contact_search || normalized.full_name || '';
+            normalized.search_query = normalized.search_query || normalized.contact_search || '';
             normalized.search_open = false;
             normalized.search_loading = false;
             normalized.search_searched = false;
@@ -531,30 +541,22 @@ function companyBifForm() {
 
             return normalized;
         },
-        filteredRoleContacts() {
-            const businessName = String(document.querySelector('[name="business_name"]')?.value || '').trim().toLowerCase();
+        filteredRoleContacts(exceptRow = null, keyword = '') {
+            const query = String(keyword || '').trim().toLowerCase();
 
-            if (businessName === '') {
+            if (query === '') {
                 return roleContactRecords;
             }
 
-            const matching = roleContactRecords.filter((contact) => String(contact.company_name || '').trim().toLowerCase() === businessName);
-
-            return matching.length > 0 ? matching : roleContactRecords;
-        },
-        contactOptionLabel(contact) {
-            const company = String(contact.company_name || '').trim();
-            const position = String(contact.position || '').trim();
-
-            return [contact.label, company, position].filter(Boolean).join(' - ');
-        },
-        contactOptionMeta(contact) {
-            return [
+            return roleContactRecords.filter((contact) => String(contact.search_blob || [
+                contact.label,
                 contact.company_name,
                 contact.position,
                 contact.email,
                 contact.phone,
-            ].filter(Boolean).join(' - ');
+                contact.address,
+                contact.tin,
+            ].join(' ')).toLowerCase().includes(query));
         },
         findRoleContact(contactId) {
             return roleContactRecords.find((contact) => String(contact.id) === String(contactId)) || null;
@@ -565,8 +567,6 @@ function companyBifForm() {
             this.setFieldValue(fieldName, contact.label || '');
         },
         selectKeyOfficer(fieldName, row, contact) {
-            if (this.isDuplicateRoleContact(contact.id, row)) return;
-
             if (!roleContactRecords.some((record) => String(record.id) === String(contact.id))) {
                 roleContactRecords.push(contact);
             }
@@ -574,14 +574,16 @@ function companyBifForm() {
             row.contact_id = String(contact.id || '');
             row.contact_search = contact.label || '';
             row.full_name = contact.label || '';
+            row.search_query = contact.label || '';
             row.search_open = false;
+            row.search_loading = false;
+            row.search_searched = false;
+            row.search_results = [];
             this.setFieldValue(fieldName, contact.label || '');
         },
         hydrateRoleRow(row, contactId) {
             const contact = this.findRoleContact(contactId);
             if (!contact) return;
-            if (this.isDuplicateRoleContact(contact.id, row)) return;
-
             row.contact_id = String(contact.id || '');
             row.contact_search = contact.label || '';
             row.full_name = contact.label || '';
@@ -592,7 +594,11 @@ function companyBifForm() {
             row.address = contact.address || '';
             row.email = contact.email || '';
             row.phone = contact.phone || '';
+            row.search_query = contact.label || '';
             row.search_open = false;
+            row.search_loading = false;
+            row.search_searched = false;
+            row.search_results = [];
         },
         selectedRoleContactIds(exceptRow = null) {
             return [this.keyOfficerSelections.president, this.keyOfficerSelections.treasurer, ...this.signatories, ...this.ubos]
@@ -605,69 +611,31 @@ function companyBifForm() {
             return this.selectedRoleContactIds(currentRow).includes(String(contactId || ''));
         },
         roleSearchResults(row) {
-            const results = row.search_searched
-                ? row.search_results
-                : this.filteredRoleContacts();
+            const results = this.filteredRoleContacts(row, row.search_query || row.contact_search || row.full_name || '');
 
-            return results.filter((contact) => !this.isDuplicateRoleContact(contact.id, row)).slice(0, 8);
+            return results.slice(0, 8);
         },
         openRoleSearch(row, roleType = '') {
             row.search_open = true;
-            row.search_searched = false;
-            row.search_results = this.filteredRoleContacts();
-            this.searchRoleContacts(row, roleType);
+            row.search_loading = false;
+            row.search_query = String(row.contact_search || row.full_name || '').trim();
+            row.search_searched = row.search_query !== '';
+            row.search_results = this.filteredRoleContacts(row, row.search_query);
+            this.searchRoleContacts(row, roleType, row.search_query);
         },
         closeRoleSearch(row) {
             row.search_open = false;
+            row.search_loading = false;
         },
-        async searchRoleContacts(row, roleType = '') {
+        searchRoleContacts(row, roleType = '', keyword = '') {
             row.search_open = true;
-            const query = String(row.full_name || row.contact_search || '').trim();
-
-            row.search_loading = true;
+            const query = String(keyword || row.search_query || row.full_name || row.contact_search || '').trim();
+            row.search_query = query;
+            row.search_loading = false;
             row.search_searched = query !== '';
-
-            const params = new URLSearchParams({
-                search: query,
-                business_name: document.querySelector('[name="business_name"]')?.value || '',
-                role: roleType,
-            });
-
-            try {
-                const response = await fetch(`${roleContactSearchUrl}?${params.toString()}`, {
-                    headers: { Accept: 'application/json' },
-                });
-
-                if (!response.ok) throw new Error('Unable to search contacts');
-
-                const payload = await response.json();
-                const contacts = Array.isArray(payload.contacts) ? payload.contacts : [];
-                contacts.forEach((contact) => {
-                    if (!roleContactRecords.some((record) => String(record.id) === String(contact.id))) {
-                        roleContactRecords.push(contact);
-                    }
-                });
-                row.search_results = contacts;
-            } catch (error) {
-                row.search_results = this.filteredRoleContacts().filter((contact) => {
-                    const query = String(row.full_name || row.contact_search || '').trim().toLowerCase();
-                    if (query === '') return true;
-
-                    return [
-                        contact.label,
-                        contact.company_name,
-                        contact.position,
-                        contact.email,
-                        contact.phone,
-                    ].join(' ').toLowerCase().includes(query);
-                });
-            } finally {
-                row.search_loading = false;
-            }
+            row.search_results = this.filteredRoleContacts(row, query);
         },
         selectRoleContact(row, contact) {
-            if (this.isDuplicateRoleContact(contact.id, row)) return;
-
             if (!roleContactRecords.some((record) => String(record.id) === String(contact.id))) {
                 roleContactRecords.push(contact);
             }
@@ -694,6 +662,8 @@ function companyBifForm() {
                 fields,
                 businessOrganization: this.businessOrganization,
                 officeType: this.officeType,
+                industryTypes: this.industryTypes,
+                sourceOfFunds: this.sourceOfFunds,
                 keyOfficerSelections: this.keyOfficerSelections,
                 employees: this.employees,
                 signatories: this.signatories,
@@ -714,6 +684,8 @@ function companyBifForm() {
                 const draft = JSON.parse(rawDraft);
                 this.businessOrganization = draft.businessOrganization || this.businessOrganization;
                 this.officeType = draft.officeType || this.officeType;
+                this.industryTypes = Array.isArray(draft.industryTypes) ? draft.industryTypes : this.industryTypes;
+                this.sourceOfFunds = Array.isArray(draft.sourceOfFunds) ? draft.sourceOfFunds : this.sourceOfFunds;
                 if (draft.keyOfficerSelections) {
                     this.keyOfficerSelections.president = this.normalizeRoleRow(draft.keyOfficerSelections.president || {});
                     this.keyOfficerSelections.treasurer = this.normalizeRoleRow(draft.keyOfficerSelections.treasurer || {});
@@ -793,6 +765,8 @@ function companyBifForm() {
         syncInternalUseDefaults() {
             this.fillIfBlank('referred_by', @js(auth()->user()->name ?? ''));
             this.fillIfBlank('president_use_only_name', 'John Kelly Abalde');
+            this.fillIfBlank('review_signature_printed_name', @js(auth()->user()->name ?? ''));
+            this.fillIfBlank('review_signature_position', @js(auth()->user()->role ?? 'Reviewer'));
         },
         hideEmployeeSearchResults(picker) {
             picker?.querySelector('[data-employee-search-results]')?.classList.add('hidden');
@@ -887,8 +861,14 @@ function companyBifForm() {
             const officeType = option.dataset.officeType || '';
             const officeTypeOther = option.dataset.officeTypeOther || '';
             const alternativeBusinessName = option.dataset.alternativeBusinessName || '';
+            const industryTypes = String(option.dataset.industryTypes || '').split(',').map((value) => value.trim()).filter(Boolean);
+            const industryOtherText = option.dataset.industryOtherText || '';
             const contactName = option.dataset.contactName || '';
             const contactPosition = option.dataset.contactPosition || '';
+            const salesMarketingName = option.dataset.salesMarketingName || '';
+            const consultantLead = option.dataset.consultantLead || '';
+            const leadAssociate = option.dataset.leadAssociate || '';
+            const referredBy = option.dataset.referredBy || '';
 
             this.setFieldValue('business_name', companyName);
             this.setFieldValue('alternative_business_name', alternativeBusinessName);
@@ -901,6 +881,10 @@ function companyBifForm() {
             this.setFieldValue('business_address', address);
             this.setFieldValue('tin_no', tin);
             this.setFieldValue('zip_code', zipCode);
+            if (industryTypes.length > 0) {
+                this.industryTypes = industryTypes;
+            }
+            this.setFieldValue('industry_other_text', industryTypes.includes('other') ? industryOtherText : '');
             if (String(businessOrganization || '').trim() !== '' || String(this.businessOrganization || '').trim() === '') {
                 this.businessOrganization = businessOrganization;
             }
@@ -909,6 +893,14 @@ function companyBifForm() {
                 this.officeType = officeType;
             }
             this.setFieldValue('office_type_other', officeTypeOther);
+            this.setFieldValue('signature_printed_name', contactName);
+            this.setFieldValue('signature_position', contactPosition);
+            this.setFieldValue('review_signature_printed_name', @js($defaultReviewSignatureName));
+            this.setFieldValue('review_signature_position', @js($defaultReviewSignaturePosition));
+            this.setFieldValue('sales_marketing_name', salesMarketingName);
+            this.setFieldValue('consultant_lead', consultantLead);
+            this.setFieldValue('lead_associate', leadAssociate);
+            this.setFieldValue('referred_by', referredBy || @js($defaultReferredBy));
 
             if (nationalityStatus) {
                 const nationalityInput = document.querySelector(`[name="nationality_status"][value="${nationalityStatus}"]`);

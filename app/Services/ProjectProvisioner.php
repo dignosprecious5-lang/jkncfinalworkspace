@@ -18,7 +18,7 @@ class ProjectProvisioner
     public function resolveDealWorkspaceStartKyc(Project $project): array
     {
         $project->loadMissing([
-            'deal:id,deal_code,engagement_type,contact_id,company_name,planned_start_date,estimated_completion_date,client_preferred_completion_date,assigned_consultant,assigned_associate,service_area,services,products,total_estimated_engagement_value,scope_of_work,engagement_type,deal_status',
+            'deal:id,deal_code,engagement_type,contact_id,company_name,planned_start_date,estimated_completion_date,client_preferred_completion_date,assigned_consultant,assigned_associate,internal_sales_marketing,service_area,services,products,total_estimated_engagement_value,scope_of_work,engagement_type,deal_status',
             'contact:id,first_name,middle_name,last_name,email,phone,company_name,cif_status,organization_type,business_type_organization,ownership_flag,foreign_business_nature',
             'company.primaryContact:id,first_name,middle_name,last_name,email,phone,company_name,cif_status,organization_type,business_type_organization,ownership_flag,foreign_business_nature',
             'company.latestBif',
@@ -120,6 +120,9 @@ class ProjectProvisioner
                 'deal_stage_at_creation' => $deal->stage,
                 'workspace_type' => $workspaceType,
                 'source_engagement_type' => $deal->engagement_type,
+                'internal_assignments' => [
+                    'sales_marketing' => $deal->internal_sales_marketing,
+                ],
             ],
             'opened_at' => now(),
         ];
@@ -334,7 +337,7 @@ class ProjectProvisioner
 
     private function defaultStartApprovalSteps(Deal $deal, bool $isRegular = false): array
     {
-        $sales = 'Sales & Marketing';
+        $sales = $deal->internal_sales_marketing ?: 'Sales & Marketing';
         $leadConsultant = $deal->assigned_consultant ?: 'Lead Consultant';
         $leadAssociate = $deal->assigned_associate ?: 'Lead Associate';
         $trackerLabel = $isRegular
@@ -375,7 +378,7 @@ class ProjectProvisioner
             'lead_consultant_signature' => '',
             'lead_associate_assigned' => $deal->assigned_associate ?: '',
             'lead_associate_signature' => '',
-            'sales_marketing' => 'Sales & Marketing',
+            'sales_marketing' => $deal->internal_sales_marketing ?: '',
             'sales_marketing_signature' => '',
             'record_custodian_name' => 'Record Custodian',
             'record_custodian_signature' => '',
@@ -419,11 +422,11 @@ class ProjectProvisioner
             'prepared_by' => $deal->assigned_consultant,
             'reviewed_by' => 'Admin',
             'referred_by_closed_by' => null,
-            'sales_marketing' => 'Sales & Marketing',
+            'sales_marketing' => $deal->internal_sales_marketing ?: null,
             'lead_consultant' => $deal->assigned_consultant,
             'lead_associate_assigned' => $deal->assigned_associate,
             'finance' => 'Finance',
-            'president' => 'President',
+            'president' => 'John Kelly Abalde',
             'record_custodian' => 'Record Custodian',
             'date_recorded' => now()->toDateString(),
             'date_signed' => null,
