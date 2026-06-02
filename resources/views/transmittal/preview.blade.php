@@ -3,7 +3,15 @@
 
 @section('content')
 @php
-    $attachmentItems = $transmittal->items->filter(fn($item) => !empty($item->attachment_path))->values();
+    $itemAttachmentItems = $transmittal->items->filter(fn($item) => !empty($item->attachment_path))->values();
+    $recordAttachmentItems = ($transmittal->attachments ?? collect())->map(function ($attachment) {
+        return (object) [
+            'attachment_path' => $attachment->file_path,
+            'remarks' => 'Supporting Attachment',
+            'original_name' => $attachment->original_name,
+        ];
+    });
+    $attachmentItems = $itemAttachmentItems->concat($recordAttachmentItems)->values();
 
     $firstAttachment = $attachmentItems->first();
 
@@ -40,12 +48,26 @@
             </div>
 
             <div class="flex items-center gap-2">
+                <form method="POST" action="{{ route('transmittal.send-email', $transmittal->id) }}" onsubmit="return confirm('Send this transmittal by email with PDF and attachments?')">
+                    @csrf
+                    <button type="submit" class="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition">
+                        Send Email
+                    </button>
+                </form>
+
                 <a href="{{ url('/transmittal') }}"
                    class="inline-flex items-center justify-center rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition">
                     Back
                 </a>
             </div>
         </div>
+
+        @if(session('success'))
+            <div class="mx-5 mt-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">{{ session('success') }}</div>
+        @endif
+        @if(session('error'))
+            <div class="mx-5 mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{{ session('error') }}</div>
+        @endif
 
         <div class="p-5 bg-[#f8fafc]">
             <div class="grid grid-cols-1 2xl:grid-cols-[1fr_420px] gap-5">
@@ -178,11 +200,11 @@
                                                     class="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-left hover:border-blue-400 hover:bg-blue-50 transition"
                                                 >
                                                     <p class="text-sm font-semibold text-gray-900">
-                                                        {{ $item->particular ?: 'Item ' . $item->item_no }}
+                                                        {{ $item->particular ?? $item->particulars ?? $item->description ?? $item->item_name ?? ('Item ' . ($item->item_no ?? $loop->iteration)) }}
                                                     </p>
 
                                                     <p class="mt-1 text-xs text-gray-500 break-all">
-                                                        {{ $fileName }}
+                                                        {{ $item->original_name ?? $fileName }}
                                                     </p>
 
                                                     @if(!empty($item->remarks))

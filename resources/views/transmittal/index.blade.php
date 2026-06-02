@@ -7,6 +7,11 @@
     $transmittalContacts = $contactOptions ?? [];
     $transmittalEmployees = $employeeOptions ?? [];
     $transmittalCompanies = $companyOptions ?? [];
+    $transmittalCorporateContext = $corporateContext ?? [];
+    $tmCompanyName = $transmittalCorporateContext['companyName'] ?? 'John Kelly & Company';
+    $tmSecRegNo = $transmittalCorporateContext['secRegNo'] ?? '';
+    $tmPrincipalAddress = $transmittalCorporateContext['principalAddress'] ?? '';
+    $tmLogoUrl = $transmittalCorporateContext['logoUrl'] ?? asset('images/jknc_logo.png');
 @endphp
 <div
     id="transmittal-page"
@@ -50,10 +55,25 @@
         selectedCompanyId: '',
         receiverOptions: @js(array_merge($transmittalContacts, $transmittalEmployees)),
         companyOptions: @js($transmittalCompanies),
+        employeeOptions: @js($transmittalEmployees),
+        selectedApprovedByKey: '',
+        selectedOperationsManagerKey: '',
+        selectedDeliveredByKey: '',
+        extraAttachments: [],
 
         previewItems: [
             { no: 1, particular: '', unique_id: '', qty: '', description: '', remarks: '', file: null },
         ],
+
+        applyEmployeeSelection(target, selectedKey) {
+            if (!selectedKey) return;
+            const selected = this.employeeOptions.find(option => `${option.type}-${option.id}` === selectedKey || String(option.id) === String(selectedKey));
+            if (!selected) return;
+
+            if (target === 'approved_by') this.previewApprovedBy = selected.label || '';
+            if (target === 'operations_manager') this.previewApprovedPosition = selected.label || '';
+            if (target === 'delivered_by') this.previewDeliveredBy = selected.label || '';
+        },
 
         applyReceiverSelection() {
             if (!this.selectedReceiverKey) return;
@@ -268,15 +288,15 @@
 
                     <div class="max-w-[930px] mx-auto flex justify-center">
                         <div id="transmittal-preview-pdf" class="transmittal-doc-page bg-white border border-gray-300 shadow">
-                            <div class="tm-letterhead">
-                                <div class="tm-letterhead-logo-box">
-                                    <img src="{{ asset('images/jknc_logo.png') }}" alt="John Kelly & Company" class="tm-letterhead-logo">
-                                </div>
-                                <div class="tm-letterhead-info">
-                                    <div class="tm-company-name">John Kelly & Company</div>
-                                    <div>Duran Residences, Canyon Road, Beverly Hills, Cebu City</div>
-                                    <div>Email: start@jknc.io &nbsp; Website: https://jknc.io/ &nbsp; Phone Number: 0995 353 3789</div>
-                                </div>
+                            <div class="tm-corp-header">
+                                <img src="{{ $tmLogoUrl }}" alt="Company Logo" class="tm-corp-logo">
+                                <div class="tm-corp-name">{{ $tmCompanyName }}</div>
+                                @if($tmSecRegNo)
+                                    <div class="tm-corp-line">COMPANY REG. NO.: {{ $tmSecRegNo }}</div>
+                                @endif
+                                @if($tmPrincipalAddress)
+                                    <div class="tm-corp-line">{{ $tmPrincipalAddress }}</div>
+                                @endif
                             </div>
 
                             <div class="tm-title">
@@ -382,7 +402,7 @@
                                     <div class="tm-sign-label tm-sign-gap">Received by:</div>
                                     <div class="tm-sign-line" x-text="previewReceivedBy || ' '"></div>
 
-                                    <div class="tm-sign-label tm-sign-gap-sm">Affiliated to / Company:</div>
+                                    <div class="tm-sign-label tm-sign-gap-sm">Processing for Company / Organization:</div>
                                     <div class="tm-sign-line" x-text="previewReceiverAffiliation || ' '"></div>
                                 </div>
                             </div>
@@ -578,6 +598,20 @@
                             </div>
                         </div>
 
+                        
+                        <div class="border-t border-gray-200 pt-4">
+                            <h3 class="text-sm font-semibold text-gray-800 mb-3">Supporting Attachments</h3>
+                            <input type="file" multiple @change="extraAttachments = Array.from($event.target.files)" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white">
+                            <template x-if="extraAttachments.length">
+                                <ul class="mt-2 text-xs text-gray-500 list-disc pl-5">
+                                    <template x-for="file in extraAttachments" :key="file.name">
+                                        <li x-text="file.name"></li>
+                                    </template>
+                                </ul>
+                            </template>
+                            <p class="mt-1 text-[11px] text-gray-400">You may upload multiple supporting files. These will be attached when using Send Email.</p>
+                        </div>
+
                         <div class="border-t border-gray-200 pt-4">
                             <h3 class="text-sm font-semibold text-gray-800 mb-3">Signatories</h3>
 
@@ -594,34 +628,35 @@
 
                                 <div>
                                     <label class="block text-xs font-semibold text-gray-500 mb-1">Approved by</label>
-                                    <input
-                                        type="text"
-                                        x-model="previewApprovedBy"
-                                        readonly
-                                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-gray-100 text-gray-600"
-                                        placeholder="Will be filled after admin approval"
-                                    >
-                                    <p class="mt-1 text-[11px] text-gray-400">This will be filled by the admin who approves the transmittal.</p>
+                                    <select x-model="selectedApprovedByKey" @change="applyEmployeeSelection('approved_by', selectedApprovedByKey)" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white">
+                                        <option value="">Select employee approver</option>
+                                        <template x-for="employee in employeeOptions" :key="`approved-${employee.id}`">
+                                            <option :value="`${employee.type}-${employee.id}`" x-text="`${employee.label}${employee.position ? ' - ' + employee.position : ''}`"></option>
+                                        </template>
+                                    </select>
+                                    <input type="text" x-model="previewApprovedBy" class="mt-2 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="Or type approver manually">
                                 </div>
 
                                 <div>
                                     <label class="block text-xs font-semibold text-gray-500 mb-1">Operations Manager</label>
-                                    <input
-                                        type="text"
-                                        x-model="previewApprovedPosition"
-                                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500"
-                                        placeholder="Enter Operations Manager name"
-                                    >
+                                    <select x-model="selectedOperationsManagerKey" @change="applyEmployeeSelection('operations_manager', selectedOperationsManagerKey)" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white">
+                                        <option value="">Select Operations Manager</option>
+                                        <template x-for="employee in employeeOptions" :key="`ops-${employee.id}`">
+                                            <option :value="`${employee.type}-${employee.id}`" x-text="`${employee.label}${employee.position ? ' - ' + employee.position : ''}`"></option>
+                                        </template>
+                                    </select>
+                                    <input type="text" x-model="previewApprovedPosition" class="mt-2 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="Or type Operations Manager manually">
                                 </div>
 
                                 <div>
                                     <label class="block text-xs font-semibold text-gray-500 mb-1">Delivered by</label>
-                                    <input
-                                        type="text"
-                                        x-model="previewDeliveredBy"
-                                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500"
-                                        placeholder="Enter delivered by name"
-                                    >
+                                    <select x-model="selectedDeliveredByKey" @change="applyEmployeeSelection('delivered_by', selectedDeliveredByKey)" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white">
+                                        <option value="">Select employee</option>
+                                        <template x-for="employee in employeeOptions" :key="`delivered-${employee.id}`">
+                                            <option :value="`${employee.type}-${employee.id}`" x-text="`${employee.label}${employee.position ? ' - ' + employee.position : ''}`"></option>
+                                        </template>
+                                    </select>
+                                    <input type="text" x-model="previewDeliveredBy" class="mt-2 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="Or type delivered by manually">
                                 </div>
 
                                 <div>
@@ -636,7 +671,7 @@
                                 </div>
 
                                 <div>
-                                    <label class="block text-xs font-semibold text-gray-500 mb-1">Affiliated to / Company</label>
+                                    <label class="block text-xs font-semibold text-gray-500 mb-1">Processing for Company / Organization</label>
                                     <select x-model="selectedCompanyId" @change="applyCompanySelection()" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white">
                                         <option value="">Select company</option>
                                         <template x-for="company in companyOptions" :key="company.id">
@@ -678,6 +713,12 @@
         display: flex;
         flex-direction: column;
     }
+
+
+    .tm-corp-header { text-align:center; margin-bottom:18mm; color:#000; }
+    .tm-corp-logo { width:70px; max-height:70px; object-fit:contain; margin:0 auto 4px auto; display:block; }
+    .tm-corp-name { font-family: Georgia, 'Times New Roman', serif; font-size:22px; font-weight:700; text-transform:uppercase; line-height:1.15; }
+    .tm-corp-line { font-family: Georgia, 'Times New Roman', serif; font-size:12px; font-weight:700; line-height:1.25; text-transform:uppercase; }
 
     .tm-letterhead {
         display: grid;
@@ -1185,6 +1226,7 @@ async function saveTransmittal() {
     formData.append('action_drop_off', alpineData.actionDropOff ? 1 : 0);
     formData.append('action_email', alpineData.actionEmail ? 1 : 0);
 
+    formData.append('approved_by_name', alpineData.previewApprovedBy ?? '');
     formData.append('approved_position', alpineData.previewApprovedPosition ?? '');
     formData.append('document_custodian', alpineData.previewCustodian ?? '');
     formData.append('delivered_by', alpineData.previewDeliveredBy ?? '');
@@ -1207,6 +1249,10 @@ async function saveTransmittal() {
         if (item.file) {
             formData.append(`item_files[${index}]`, item.file);
         }
+    });
+
+    (alpineData.extraAttachments || []).forEach((file) => {
+        formData.append('attachments[]', file);
     });
 
     try {

@@ -11,6 +11,9 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Mail;
 
 class TransmittalController extends Controller
 {
@@ -28,6 +31,7 @@ class TransmittalController extends Controller
             'contactOptions' => $this->transmittalContactOptions(),
             'employeeOptions' => $this->transmittalEmployeeOptions(),
             'companyOptions' => $this->transmittalCompanyOptions(),
+            'corporateContext' => $this->transmittalCorporateContext(),
         ]);
     }
 
@@ -74,7 +78,7 @@ class TransmittalController extends Controller
 
         $workflowStatus = $workflowMap[$workflow] ?? 'Uploaded';
 
-        $paginator = Transmittal::with(['items', 'receipt'])
+        $paginator = Transmittal::with(['items', 'receipt', 'attachments'])
             ->where('workflow_status', $workflowStatus)
             ->latest()
             ->paginate($perPage);
@@ -113,6 +117,7 @@ class TransmittalController extends Controller
                     'received_by' => $item->received_by,
                     'receiver_affiliation' => $item->receiver_affiliation,
                     'received_at' => optional($item->received_at)->format('Y-m-d\TH:i'),
+                    'attachments_count' => $item->attachments->count(),
                     'items' => $item->items->map(function ($row) {
                         return [
                             'no' => $row->item_no,
@@ -174,6 +179,7 @@ class TransmittalController extends Controller
             'received_at' => ['nullable', 'date'],
             'items' => ['nullable'],
             'item_files.*' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png,doc,docx,xls,xlsx', 'max:10240'],
+            'attachments.*' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png,doc,docx,xls,xlsx,txt,csv', 'max:20480'],
         ]);
 
         if (empty($validated['party_name']) || empty($validated['office_name'])) {
@@ -247,6 +253,24 @@ class TransmittalController extends Controller
                 ]);
             }
 
+            if ($request->hasFile('attachments')) {
+                foreach ($request->file('attachments') as $uploadedFile) {
+                    if (! $uploadedFile) {
+                        continue;
+                    }
+
+                    $path = $uploadedFile->store('transmittal/attachments', 'public');
+
+                    $transmittal->attachments()->create([
+                        'file_path' => $path,
+                        'original_name' => $uploadedFile->getClientOriginalName(),
+                        'mime_type' => $uploadedFile->getClientMimeType(),
+                        'size' => $uploadedFile->getSize(),
+                        'uploaded_by' => Auth::id(),
+                    ]);
+                }
+            }
+
             DB::commit();
 
             return response()->json(['message' => 'Transmittal saved successfully.', 'id' => $transmittal->id]);
@@ -276,7 +300,7 @@ class TransmittalController extends Controller
 
     public function preview($id)
     {
-        $transmittal = Transmittal::with(['items', 'receipt'])->findOrFail($id);
+        $transmittal = Transmittal::with(['items', 'receipt', 'attachments'])->findOrFail($id);
 
         $transmittalPdfUrl = route('transmittal.preview.pdf', $transmittal->id);
         $receiptPdfUrl = $transmittal->receipt
@@ -288,17 +312,79 @@ class TransmittalController extends Controller
 
     public function previewPdf($id)
     {
-        $transmittal = Transmittal::with(['items', 'receipt'])->findOrFail($id);
+        $transmittal = Transmittal::with(['items', 'receipt', 'attachments'])->findOrFail($id);
 
         $approvedByDisplay = $this->resolveApprovedByName($transmittal);
+        $corporateContext = $this->transmittalCorporateContext();
 
         $pdf = Pdf::loadView('transmittal.preview-pdf', [
                 'transmittal' => $transmittal,
                 'approvedByDisplay' => $approvedByDisplay,
+                'corporateContext' => $corporateContext,
             ])
-            ->setPaper('a4', 'portrait');
+            ->setPaper('a4', 'portrait')
+            ->setOptions(['isPhpEnabled' => true, 'isRemoteEnabled' => true]);
 
         return $pdf->stream('transmittal-' . $transmittal->transmittal_no . '.pdf');
+    }
+
+    public function sendEmail($id)
+    {
+        $transmittal = Transmittal::with(['items', 'receipt', 'attachments'])->findOrFail($id);
+
+        $recipient = trim((string) $transmittal->recipient_email);
+        if ($recipient === '') {
+            return back()->with('error', 'Recipient email is required before sending the transmittal.');
+        }
+
+        $approvedByDisplay = $this->resolveApprovedByName($transmittal);
+        $corporateContext = $this->transmittalCorporateContext();
+
+        $pdf = Pdf::loadView('transmittal.preview-pdf', [
+                'transmittal' => $transmittal,
+                'approvedByDisplay' => $approvedByDisplay,
+                'corporateContext' => $corporateContext,
+            ])
+            ->setPaper('a4', 'portrait')
+            ->setOptions(['isPhpEnabled' => true, 'isRemoteEnabled' => true]);
+
+        $pdfFileName = 'transmittal-' . Str::slug((string) $transmittal->transmittal_no, '-') . '.pdf';
+        $pdfOutput = $pdf->output();
+
+        $fileAttachments = [];
+
+        foreach ($transmittal->items as $item) {
+            if (! empty($item->attachment_path) && Storage::disk('public')->exists($item->attachment_path)) {
+                $fileAttachments[] = [
+                    'path' => Storage::disk('public')->path($item->attachment_path),
+                    'name' => basename($item->attachment_path),
+                ];
+            }
+        }
+
+        foreach ($transmittal->attachments as $attachment) {
+            if (! empty($attachment->file_path) && Storage::disk('public')->exists($attachment->file_path)) {
+                $fileAttachments[] = [
+                    'path' => Storage::disk('public')->path($attachment->file_path),
+                    'name' => $attachment->original_name ?: basename($attachment->file_path),
+                ];
+            }
+        }
+
+        Mail::send('emails.transmittal-sent', [
+            'transmittal' => $transmittal,
+            'corporateContext' => $corporateContext,
+        ], function ($message) use ($recipient, $transmittal, $pdfOutput, $pdfFileName, $fileAttachments) {
+            $message->to($recipient)
+                ->subject('Transmittal Form ' . ($transmittal->transmittal_no ?? ''))
+                ->attachData($pdfOutput, $pdfFileName, ['mime' => 'application/pdf']);
+
+            foreach ($fileAttachments as $attachment) {
+                $message->attach($attachment['path'], ['as' => $attachment['name']]);
+            }
+        });
+
+        return back()->with('success', 'Transmittal email sent successfully to ' . $recipient . '.');
     }
 
     public function receiptPdf($id)
@@ -522,7 +608,7 @@ class TransmittalController extends Controller
             $columns = Schema::getColumnListing('employees');
             $select = array_values(array_intersect([
                 'id', 'employee_id', 'full_name', 'first_name', 'middle_name', 'last_name',
-                'work_email', 'email', 'department', 'position'
+                'work_email', 'company_email', 'personal_email', 'email', 'department', 'position'
             ], $columns));
 
             if (! in_array('id', $select, true)) {
@@ -550,7 +636,7 @@ class TransmittalController extends Controller
                         'type' => 'employee',
                         'label' => $fullName !== '' ? $fullName : 'Employee #' . $employee->id,
                         'affiliation' => trim((string) ($employee->department ?? '')),
-                        'email' => $employee->work_email ?? ($employee->email ?? ''),
+                        'email' => $employee->work_email ?? ($employee->company_email ?? ($employee->email ?? ($employee->personal_email ?? ''))),
                         'position' => $employee->position ?? '',
                     ];
                 })
@@ -632,6 +718,73 @@ class TransmittalController extends Controller
 
         // Fallback only for old records where approved_by_name already stores the admin approver.
         return trim((string) ($transmittal->approved_by_name ?? ''));
+    }
+
+
+    private function transmittalCorporateContext(): array
+    {
+        $fallback = [
+            'companyName' => 'John Kelly & Company',
+            'secRegNo' => '',
+            'principalAddress' => '',
+            'logoUrl' => asset('images/jknc_logo.png'),
+            'logoBase64' => null,
+        ];
+
+        if (! Schema::hasTable('gis_records')) {
+            return $fallback;
+        }
+
+        $query = DB::table('gis_records');
+
+        if (Schema::hasColumn('gis_records', 'workflow_status')) {
+            $query->where(function ($q) {
+                $q->where('workflow_status', 'Accepted');
+
+                if (Schema::hasColumn('gis_records', 'approval_status')) {
+                    $q->orWhere('approval_status', 'Approved')->orWhere('approval_status', 'Accepted');
+                }
+            });
+        }
+
+        $gis = $query->latest('updated_at')->first();
+
+        if (! $gis) {
+            $gis = DB::table('gis_records')->latest('updated_at')->first();
+        }
+
+        if (! $gis) {
+            return $fallback;
+        }
+
+        $companyName = trim((string) ($gis->corporation_name ?? '')) ?: $fallback['companyName'];
+        $secRegNo = trim((string) ($gis->company_reg_no ?? ''));
+        $principalAddress = trim((string) ($gis->principal_address ?? ($gis->business_address ?? '')));
+        $logoPath = trim((string) ($gis->logo_path ?? ''));
+        $logoUrl = $fallback['logoUrl'];
+        $logoBase64 = null;
+
+        if ($logoPath !== '') {
+            if (Storage::disk('public')->exists($logoPath)) {
+                $absoluteLogoPath = Storage::disk('public')->path($logoPath);
+                $mime = mime_content_type($absoluteLogoPath) ?: 'image/png';
+                $logoBase64 = 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($absoluteLogoPath));
+                $logoUrl = asset('storage/' . $logoPath);
+            } elseif (file_exists(public_path($logoPath))) {
+                $absoluteLogoPath = public_path($logoPath);
+                $mime = mime_content_type($absoluteLogoPath) ?: 'image/png';
+                $logoBase64 = 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($absoluteLogoPath));
+                $logoUrl = asset($logoPath);
+            }
+        }
+
+        return [
+            'companyName' => $companyName,
+            'secRegNo' => $secRegNo,
+            'principalAddress' => $principalAddress,
+            'logoUrl' => $logoUrl,
+            'logoBase64' => $logoBase64,
+        ];
     }
 
 }
