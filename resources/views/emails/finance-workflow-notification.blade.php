@@ -46,6 +46,7 @@
                                         <p style="margin:0 0 14px; font-size:14px; line-height:1.6; color:#334155;"><strong style="color:#0f172a;">Record:</strong> {{ $recordNumber }} - {{ $recordTitle }}</p>
                                         <p style="margin:0 0 14px; font-size:14px; line-height:1.6; color:#334155;"><strong style="color:#0f172a;">Record Date:</strong> {{ $recordDate }}</p>
                                         <p style="margin:0 0 14px; font-size:14px; line-height:1.6; color:#334155;"><strong style="color:#0f172a;">Status:</strong> {{ $workflowStatus }} / {{ $approvalStatus }}</p>
+                                        <p style="margin:0 0 14px; font-size:14px; line-height:1.6; color:#334155;"><strong style="color:#0f172a;">Relationship Status:</strong> {{ $relationshipStatus }}</p>
                                         <p style="margin:0 0 14px; font-size:14px; line-height:1.6; color:#334155;"><strong style="color:#0f172a;">Submitted By:</strong> {{ $submittedByName ?: 'N/A' }}</p>
                                         @if(filled($approvedByName))
                                             <p style="margin:0 0 14px; font-size:14px; line-height:1.6; color:#334155;"><strong style="color:#0f172a;">Approved By:</strong> {{ $approvedByName }}</p>

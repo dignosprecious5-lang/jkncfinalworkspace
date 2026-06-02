@@ -131,6 +131,16 @@ test('finance preview html shows approval trail attachment summary and complete 
         'data' => [
             'purpose' => 'Field visit expense support',
             'amount_requested' => 5000,
+            'created_by_name' => 'Finance Approver',
+            'requested_by_name' => 'Finance Approver',
+            'submitted_by_name' => 'Finance Approver',
+            'approved_by_name' => 'Finance Approver',
+            'reverted_by_name' => 'Finance Approver',
+            'held_by_name' => 'Finance Approver',
+            'updated_by_name' => 'Finance Approver',
+            'released_by_name' => 'Finance Approver',
+            'received_by_name' => 'Finance Approver',
+            'liquidated_by_name' => 'Finance Approver',
             'approval_steps' => [
                 [
                     'step' => 1,
@@ -186,8 +196,78 @@ test('finance preview html shows approval trail attachment summary and complete 
     $response->assertSee('Approval Trail');
     $response->assertSee('Attachment Summary');
     $response->assertSee('Complete Record Data');
+    $response->assertSee('Created By');
+    $response->assertSee('Requested By');
+    $response->assertSee('Submitted By');
+    $response->assertSee('Approved By');
+    $response->assertSee('Reverted By');
+    $response->assertSee('Held By');
+    $response->assertSee('Updated By');
+    $response->assertSee('Released By');
+    $response->assertSee('Received By');
+    $response->assertSee('Liquidated By');
     $response->assertSee('President');
     $response->assertSee('Treasurer');
     $response->assertSee('ca-support.pdf');
     $response->assertSee('receipt.jpg');
+});
+
+test('finance reporting uses live system data for dashboards and previews', function () {
+    $admin = User::factory()->create([
+        'name' => 'Finance Reporting Admin',
+        'email' => 'reporting.admin@example.com',
+        'role' => 'admin',
+    ]);
+
+    $record = FinanceRecord::query()->create([
+        'module_key' => 'ca',
+        'record_number' => 'CA-REPORT-01',
+        'record_title' => 'Live Reporting Cash Advance',
+        'record_date' => now()->toDateString(),
+        'amount' => 7200,
+        'status' => 'Active',
+        'workflow_status' => 'Accepted',
+        'approval_status' => 'Approved',
+        'submitted_by' => $admin->id,
+        'submitted_at' => now()->subDay(),
+        'approved_by' => $admin->id,
+        'approved_at' => now(),
+        'data' => [
+            'requestor' => 'Finance Reporting Admin',
+            'purpose' => 'Live report verification.',
+            'relationship_status' => 'Awaiting Liquidation',
+            'next_action' => 'Submit Liquidation Report',
+            'transaction_progress' => [
+                ['label' => 'Request Created', 'completed' => true, 'state' => 'completed'],
+                ['label' => 'Approved', 'completed' => true, 'state' => 'completed'],
+            ],
+            'history' => [
+                [
+                    'action' => 'Created',
+                    'changed_by' => 'Finance Reporting Admin',
+                    'changed_at' => now()->subDay()->format('M d, Y h:i A'),
+                    'reason' => null,
+                    'new_values' => [
+                        'record_number' => 'CA-REPORT-01',
+                        'record_title' => 'Live Reporting Cash Advance',
+                    ],
+                ],
+            ],
+        ],
+        'attachments' => [],
+        'user' => $admin->name,
+    ]);
+
+    $dashboardResponse = $this->actingAs($admin)->get(route('admin.finance.dashboard'));
+    $dashboardResponse->assertOk();
+    $dashboardResponse->assertSee('CA-REPORT-01');
+    $dashboardResponse->assertSee('Live Reporting Cash Advance');
+    $dashboardResponse->assertSee('Accepted');
+
+    $previewResponse = $this->actingAs($admin)->get(route('finance.preview.html', $record));
+    $previewResponse->assertOk();
+    $previewResponse->assertSee('Relationship Status');
+    $previewResponse->assertSee('Awaiting Disbursement');
+    $previewResponse->assertSee('Live Reporting Cash Advance');
+    $previewResponse->assertSee('Created');
 });

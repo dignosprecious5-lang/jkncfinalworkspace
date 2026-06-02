@@ -4476,10 +4476,22 @@
 
         const firstApproverValue = approverStepValue(record, 'first_approver_user_id', 0);
         const secondApproverValue = approverStepValue(record, 'second_approver_user_id', 1);
-        const approverOptions = officialApproverOptions.map((option) => ({
-            value: String(option.user_id || ''),
-            label: option.label || option.user_name || option.official_name || 'Official Approver',
-        }));
+        const employeeApproverOptions = (financeLookupOptions.employee || [])
+            .map((option) => ({
+                value: String(option.user_id || ''),
+                label: option.label || option.user_name || option.full_name || option.record_title || 'Employee Approver',
+                source: 'employee',
+            }))
+            .filter((option) => option.value);
+        const approverOptionsSource = currentModuleKey === 'dv'
+            ? officialApproverOptions
+            : [...officialApproverOptions, ...employeeApproverOptions];
+        const approverOptions = approverOptionsSource
+            .map((option) => ({
+                value: String(option.user_id || ''),
+                label: option.label || option.user_name || option.official_name || option.full_name || 'Approver',
+            }))
+            .filter((option, index, options) => option.value && options.findIndex((candidate) => candidate.value === option.value) === index);
 
         values.first_approver_user_id = firstApproverValue;
         values['data[first_approver_user_id]'] = firstApproverValue;
@@ -4489,7 +4501,9 @@
         return `
             <div class="md:col-span-2 rounded-xl border border-violet-100 bg-violet-50/60 p-4">
                 <h4 class="text-sm font-semibold uppercase tracking-[0.24em] text-violet-700">Approval Routing</h4>
-                <p class="mt-2 text-xs text-gray-600">Request-type records require two approvers. Defaults come from the official company officer records.</p>
+                <p class="mt-2 text-xs text-gray-600">${currentModuleKey === 'dv'
+                    ? 'Disbursement Vouchers require two approvers from the official company officer / corporate record list.'
+                    : 'Request-type records require two approvers. Defaults come from the official company officer records, and authorized users may choose approvers from the employee list when needed.'}</p>
                 <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                     ${renderDynamicField(selectField('first_approver_user_id', 'First Approver', { required: true, options: approverOptions }), firstApproverValue, values)}
                     ${renderDynamicField(selectField('second_approver_user_id', 'Second Approver', { required: true, options: approverOptions }), secondApproverValue, values)}

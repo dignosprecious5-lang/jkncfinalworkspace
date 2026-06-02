@@ -106,6 +106,7 @@ class FinanceRecordWorkflowNotification extends Notification
                 'recordDate' => $record?->record_date?->format('Y-m-d') ?: 'N/A',
                 'workflowStatus' => $record?->workflow_status ?: 'N/A',
                 'approvalStatus' => $record?->approval_status ?: 'N/A',
+                'relationshipStatus' => data_get($record?->data ?? [], 'relationship_status') ?: 'N/A',
                 'submittedByName' => $submittedByName,
                 'approvedByName' => $approvedByName,
                 'attachmentCount' => $attachmentCount,

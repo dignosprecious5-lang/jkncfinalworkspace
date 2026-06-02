@@ -939,6 +939,9 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::post('/finance/{financeRecord}/approve', [FinanceController::class, 'approve'])->name('finance.approve');
     Route::post('/finance/{financeRecord}/hold', [FinanceController::class, 'hold'])->name('finance.hold');
     Route::post('/finance/{financeRecord}/revert', [FinanceController::class, 'revert'])->name('finance.revert');
+    Route::post('/finance/{financeRecord}/request-correction', [FinanceController::class, 'requestCorrection'])->name('finance.correction.request');
+    Route::post('/finance/{financeRecord}/approve-correction', [FinanceController::class, 'approveCorrection'])->name('finance.correction.approve');
+    Route::post('/finance/{financeRecord}/reject-correction', [FinanceController::class, 'rejectCorrection'])->name('finance.correction.reject');
     Route::post('/finance/{financeRecord}/archive', [FinanceController::class, 'archive'])->name('finance.archive');
     Route::post('/finance/{financeRecord}/request-delete', [FinanceController::class, 'requestDelete'])->name('finance.delete.request');
     Route::post('/finance/{financeRecord}/share-supplier-link', [FinanceController::class, 'shareSupplierLink'])->name('finance.supplier.share');

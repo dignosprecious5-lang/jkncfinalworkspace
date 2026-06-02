@@ -105,6 +105,7 @@ it('stores asset photos as attachments and captures them in history', function (
             'asset_description' => 'Office printer for records room',
             'linked_po_id' => $deps['po']->id,
             'custodian' => $deps['custodian']->id,
+            'location' => 'Records Room',
             'useful_life' => 5,
             'remarks' => 'Photo upload regression test.',
         ],
@@ -136,4 +137,59 @@ it('stores asset photos as attachments and captures them in history', function (
     $jsonResponse->assertOk();
     $jsonResponse->assertJsonPath('attachments.0.is_image', false);
     $jsonResponse->assertJsonPath('attachments.1.is_image', true);
+});
+
+it('rejects duplicate asset registrations for the same source purchase order and asset code', function () {
+    Storage::fake('public');
+
+    $owner = User::factory()->create([
+        'name' => 'Asset Owner',
+        'email' => 'owner-duplicate@example.com',
+        'role' => 'employee',
+    ]);
+
+    $deps = financeAssetPhotoDependencies($owner);
+
+    $firstResponse = $this->actingAs($owner)->post(route('finance.store'), [
+        'module_key' => 'arf',
+        'record_number' => 'ARF-00901',
+        'record_title' => 'Conference Room Projector',
+        'record_date' => now()->toDateString(),
+        'amount' => 8000,
+        'status' => 'Active',
+        'data' => [
+            'item_classification' => 'Fixed Asset',
+            'asset_code' => 'FA-PROJECTOR-001',
+            'asset_description' => 'Conference room projector',
+            'linked_po_id' => $deps['po']->id,
+            'custodian' => $deps['custodian']->id,
+            'location' => 'Conference Room',
+            'useful_life' => 5,
+            'remarks' => 'Initial asset registration.',
+        ],
+    ]);
+
+    $firstResponse->assertCreated();
+
+    $duplicateResponse = $this->actingAs($owner)->postJson(route('finance.store'), [
+        'module_key' => 'arf',
+        'record_number' => 'ARF-00902',
+        'record_title' => 'Conference Room Projector Duplicate',
+        'record_date' => now()->toDateString(),
+        'amount' => 8000,
+        'status' => 'Active',
+        'data' => [
+            'item_classification' => 'Fixed Asset',
+            'asset_code' => 'FA-PROJECTOR-001',
+            'asset_description' => 'Conference room projector duplicate',
+            'linked_po_id' => $deps['po']->id,
+            'custodian' => $deps['custodian']->id,
+            'location' => 'Conference Room',
+            'useful_life' => 5,
+            'remarks' => 'Should be rejected as a duplicate asset registration.',
+        ],
+    ]);
+
+    $duplicateResponse->assertStatus(422);
+    $duplicateResponse->assertJsonValidationErrors(['data.asset_code', 'data.linked_po_id']);
 });
