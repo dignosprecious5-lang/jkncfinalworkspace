@@ -115,12 +115,12 @@ class TownHallCommunication extends Model
 
     public function managementApprover()
     {
-        return $this->belongsTo(\App\Models\Employee::class, 'management_approver_id');
+        return $this->belongsTo(\App\Models\DirectorOfficer::class, 'management_approver_id');
     }
 
     public function executiveApprover()
     {
-        return $this->belongsTo(\App\Models\Employee::class, 'executive_approver_id');
+        return $this->belongsTo(\App\Models\DirectorOfficer::class, 'executive_approver_id');
     }
 
     public function getRecipientNamesAttribute(): string

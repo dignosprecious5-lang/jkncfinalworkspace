@@ -2,7 +2,7 @@
 @section('title', 'Town Hall')
 
 @section('content')
-<div id="townhall-page" class="w-full h-full px-6 py-5" x-data="townhallContactSuggest()" x-init="syncRecipientFields(); syncManagementApprover()">
+<div id="townhall-page" class="w-full h-full px-6 py-5" x-data="townhallContactSuggest()" x-init="syncRecipientFields(); syncManagementApprover(); syncExecutiveApprover()">
 
     @if(session('success'))
         <div class="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
@@ -467,7 +467,14 @@
                         </div>
                     </div>
 
-                    <div class="rounded-xl border border-blue-100 bg-blue-50/60 p-4 space-y-3">
+                    <div class="rounded-xl border border-blue-100 bg-blue-50/60 p-4 space-y-4">
+                        <div class="rounded-lg border border-blue-100 bg-white p-3">
+                            <p class="text-xs font-bold uppercase tracking-wide text-blue-700">Approval Workflow</p>
+                            <p class="mt-1 text-xs text-gray-500">
+                                Level 1 and Level 2 approvers are selected from the latest approved GIS Directors / Officers list.
+                            </p>
+                        </div>
+
                         <div>
                             <label class="block text-xs font-semibold text-blue-700 mb-1">Level 1 Approver - From Management</label>
                             <select
@@ -477,10 +484,10 @@
                                 required
                                 class="w-full border border-blue-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500"
                             >
-                                <option value="">Select active employee approver</option>
+                                <option value="">Select GIS director/officer</option>
                                 @foreach($managementApprovers as $approver)
                                     <option value="{{ $approver['id'] }}">
-                                        {{ $approver['name'] }} — {{ $approver['position'] }}
+                                        {{ $approver['name'] }} — {{ $approver['position'] }}{{ !empty($approver['department']) && $approver['department'] !== '—' ? ' • '.$approver['department'] : '' }}
                                     </option>
                                 @endforeach
                             </select>
@@ -493,11 +500,29 @@
                             <p><span class="font-semibold">Department:</span> <span x-text="previewManagementDepartment || '—'"></span></p>
                         </div>
 
+                        <div>
+                            <label class="block text-xs font-semibold text-blue-700 mb-1">Level 2 Approver - From Executive Management</label>
+                            <select
+                                name="executive_approver_id"
+                                x-model="previewExecutiveApproverId"
+                                @change="syncExecutiveApprover()"
+                                required
+                                class="w-full border border-blue-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500"
+                            >
+                                <option value="">Select GIS director/officer</option>
+                                @foreach(($executiveApprovers ?? $managementApprovers) as $approver)
+                                    <option value="{{ $approver['id'] }}">
+                                        {{ $approver['name'] }} — {{ $approver['position'] }}{{ !empty($approver['department']) && $approver['department'] !== '—' ? ' • '.$approver['department'] : '' }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+
                         <div class="rounded-lg bg-white border border-blue-100 p-3 text-sm">
                             <p class="text-xs font-bold uppercase text-blue-700 mb-2">From Executive Management</p>
-                            <p><span class="font-semibold">Name:</span> <span x-text="previewExecutiveName || 'John Kelly D. Abalde'"></span></p>
-                            <p><span class="font-semibold">Position:</span> <span x-text="previewExecutivePosition || 'President and CEO'"></span></p>
-                            <p><span class="font-semibold">Department:</span> <span x-text="previewExecutiveDepartment || 'Executive Management'"></span></p>
+                            <p><span class="font-semibold">Name:</span> <span x-text="previewExecutiveName || '—'"></span></p>
+                            <p><span class="font-semibold">Position:</span> <span x-text="previewExecutivePosition || '—'"></span></p>
+                            <p><span class="font-semibold">Department:</span> <span x-text="previewExecutiveDepartment || '—'"></span></p>
                         </div>
                     </div>
 
@@ -1369,13 +1394,15 @@ function townhallContactSuggest() {
             ];
         })->values()),
         managementApprovers: @js($managementApprovers ?? []),
+        executiveApprovers: @js($executiveApprovers ?? $managementApprovers ?? []),
         previewManagementApproverId: @js(old('management_approver_id', '')),
+        previewExecutiveApproverId: @js(old('executive_approver_id', '')),
         previewManagementName: '',
         previewManagementPosition: '',
         previewManagementDepartment: '',
-        previewExecutiveName: @js(($executiveApprover['name'] ?? 'John Kelly D. Abalde')),
-        previewExecutivePosition: @js(($executiveApprover['position'] ?? 'President and CEO')),
-        previewExecutiveDepartment: @js(($executiveApprover['department'] ?? 'Executive Management')),
+        previewExecutiveName: '',
+        previewExecutivePosition: '',
+        previewExecutiveDepartment: '',
         previewTo: @js(old('to_for', 'All Employees')),
         previewPriority: @js(old('priority', 'Low')),
         previewSubject: @js(old('subject', '')),
@@ -1389,6 +1416,13 @@ function townhallContactSuggest() {
             this.previewManagementName = approver ? approver.name : '';
             this.previewManagementPosition = approver ? approver.position : '';
             this.previewManagementDepartment = approver ? approver.department : '';
+        },
+
+        syncExecutiveApprover() {
+            const approver = this.executiveApprovers.find(item => String(item.id) === String(this.previewExecutiveApproverId));
+            this.previewExecutiveName = approver ? approver.name : '';
+            this.previewExecutivePosition = approver ? approver.position : '';
+            this.previewExecutiveDepartment = approver ? approver.department : '';
         },
 
         syncRecipientFields() {

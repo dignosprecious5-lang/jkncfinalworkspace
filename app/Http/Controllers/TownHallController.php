@@ -22,6 +22,8 @@ use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Pagination\LengthAwarePaginator;
 use App\Models\Employee;
+use App\Models\GisRecord;
+use App\Models\DirectorOfficer;
 
 class TownHallController extends Controller
 {
@@ -93,8 +95,10 @@ class TownHallController extends Controller
             ->orderBy('last_name')
             ->get();
 
-        $managementApprovers = $this->activeEmployeeApprovers();
-        $executiveApprover = $this->resolveExecutiveApprover();
+        $gisApprovers = $this->gisApprovers();
+        $managementApprovers = $gisApprovers;
+        $executiveApprovers = $gisApprovers;
+        $executiveApprover = $gisApprovers->first() ?? $this->resolveExecutiveApprover();
 
         $creatorEmployee = class_exists(Employee::class)
             ? Employee::where('user_id', Auth::id())->first()
@@ -111,7 +115,9 @@ class TownHallController extends Controller
             'usersForRecipients',
             'contactsForRecipients',
             'managementApprovers',
+            'executiveApprovers',
             'executiveApprover',
+            'gisApprovers',
             'creatorPosition',
             'creatorDepartment'
         ));
@@ -141,6 +147,7 @@ class TownHallController extends Controller
             'attachment' => ['nullable', 'file', 'mimes:jpg,jpeg,png,gif,webp,pdf,doc,docx', 'max:5120'],
             'expires_at' => ['nullable', 'date'],
             'management_approver_id' => ['required', 'integer'],
+            'executive_approver_id' => ['required', 'integer'],
         ]);
 
         if ($request->hasFile('attachment')) {
@@ -156,7 +163,7 @@ class TownHallController extends Controller
         }
 
         $validated = $this->normalizeRecipientFields($validated, $request);
-        $validated = array_merge($validated, $this->buildApprovalData($request->input('management_approver_id')));
+        $validated = array_merge($validated, $this->buildApprovalData($request->input('management_approver_id'), $request->input('executive_approver_id')));
 
         // Default to today's date when Add Communication is submitted without a date.
         // The field is still editable from the form.
@@ -308,15 +315,20 @@ class TownHallController extends Controller
             ->orderBy('last_name')
             ->get();
 
-        $managementApprovers = $this->activeEmployeeApprovers();
-        $executiveApprover = $this->resolveExecutiveApprover();
+        $gisApprovers = $this->gisApprovers();
+        $managementApprovers = $gisApprovers;
+        $executiveApprovers = $gisApprovers;
+        $executiveApprover = $gisApprovers->first() ?? $this->resolveExecutiveApprover();
+
         return view('townhall.edit', compact(
             'communication',
             'employees',
             'usersForRecipients',
             'contactsForRecipients',
             'managementApprovers',
-            'executiveApprover'
+            'executiveApprovers',
+            'executiveApprover',
+            'gisApprovers'
         ));
     }
 
@@ -357,6 +369,7 @@ class TownHallController extends Controller
             'attachment' => ['nullable', 'file', 'mimes:jpg,jpeg,png,gif,webp,pdf,doc,docx', 'max:5120'],
             'expires_at' => ['nullable', 'date'],
             'management_approver_id' => ['required', 'integer'],
+            'executive_approver_id' => ['required', 'integer'],
         ]);
 
         if ($request->hasFile('attachment')) {
@@ -376,7 +389,7 @@ class TownHallController extends Controller
         }
 
         $validated = $this->normalizeRecipientFields($validated, $request);
-        $validated = array_merge($validated, $this->buildApprovalData($request->input('management_approver_id')));
+        $validated = array_merge($validated, $this->buildApprovalData($request->input('management_approver_id'), $request->input('executive_approver_id')));
 
         $validated['approval_status'] = 'Pending Approval';
         $validated['workflow_status'] = 'Submitted';
@@ -1228,34 +1241,55 @@ class TownHallController extends Controller
 
     private function activeEmployeeApprovers()
     {
-        if (!class_exists(Employee::class)) {
+        return $this->gisApprovers();
+    }
+
+    private function gisApprovers()
+    {
+        $latestApprovedGis = $this->latestApprovedGisRecord();
+
+        if (!$latestApprovedGis) {
             return collect();
         }
 
-        return Employee::query()
-            ->whereNotNull('user_id')
-            ->where(function ($query) {
-                $query->whereNull('employment_status')
-                    ->orWhereIn('employment_status', ['Active', 'active', 'Regular', 'regular', 'Probationary', 'probationary']);
-            })
-            ->orderBy('last_name')
-            ->orderBy('first_name')
+        return $latestApprovedGis->directors()
+            ->whereNotNull('officer_name')
+            ->where('officer_name', '<>', '')
+            ->orderBy('officer_name')
             ->get()
-            ->map(function ($employee) {
-                return $this->formatEmployeeApprover($employee);
+            ->map(function ($officer) {
+                return $this->formatGisApprover($officer);
             })
-            ->filter(fn($employee) => !empty($employee['name']))
+            ->filter(fn($officer) => !empty($officer['name']))
             ->values();
     }
 
-    private function buildApprovalData($managementApproverId): array
+    private function latestApprovedGisRecord(): ?GisRecord
     {
-        $management = $this->getEmployeeApproverData($managementApproverId);
-        $executive = $this->resolveExecutiveApprover();
+        $query = GisRecord::with('directors')
+            ->where('approval_status', 'Approved');
+
+        if (Schema::hasColumn('gis_records', 'workflow_status')) {
+            $query->where(function ($q) {
+                $q->whereIn('workflow_status', ['Accepted', 'Approved', 'Posted'])
+                    ->orWhereNull('workflow_status');
+            });
+        }
+
+        return $query
+            ->orderByDesc('approved_at')
+            ->orderByDesc('id')
+            ->first();
+    }
+
+    private function buildApprovalData($managementApproverId, $executiveApproverId = null): array
+    {
+        $management = $this->getGisApproverData($managementApproverId);
+        $executive = $this->getGisApproverData($executiveApproverId);
 
         return [
             'management_approver_id' => $management['id'] ?? null,
-            'management_approver_user_id' => $management['user_id'] ?? null,
+            'management_approver_user_id' => null,
             'management_approver_name' => $management['name'] ?? null,
             'management_approver_position' => $management['position'] ?? null,
             'management_approver_department' => $management['department'] ?? null,
@@ -1263,53 +1297,61 @@ class TownHallController extends Controller
             'management_approved_at' => null,
 
             'executive_approver_id' => $executive['id'] ?? null,
-            'executive_approver_user_id' => $executive['user_id'] ?? null,
-            'executive_approver_name' => $executive['name'] ?? 'John Kelly D. Abalde',
-            'executive_approver_position' => $executive['position'] ?? 'President and CEO',
-            'executive_approver_department' => $executive['department'] ?? 'Executive Management',
+            'executive_approver_user_id' => null,
+            'executive_approver_name' => $executive['name'] ?? null,
+            'executive_approver_position' => $executive['position'] ?? null,
+            'executive_approver_department' => $executive['department'] ?? null,
             'executive_approval_status' => 'Pending',
             'executive_approved_at' => null,
         ];
     }
 
-    private function getEmployeeApproverData($employeeId): array
+    private function getGisApproverData($officerId): array
     {
-        if (!$employeeId || !class_exists(Employee::class)) {
+        if (!$officerId) {
             return [];
         }
 
-        $employee = Employee::find($employeeId);
+        $latestApprovedGis = $this->latestApprovedGisRecord();
 
-        return $employee ? $this->formatEmployeeApprover($employee) : [];
+        $query = DirectorOfficer::query()->whereKey($officerId);
+
+        if ($latestApprovedGis) {
+            $query->where('gis_id', $latestApprovedGis->id);
+        }
+
+        $officer = $query->first();
+
+        return $officer ? $this->formatGisApprover($officer) : [];
+    }
+
+    private function formatGisApprover(DirectorOfficer $officer): array
+    {
+        return [
+            'id' => $officer->id,
+            'user_id' => null,
+            'name' => $officer->officer_name ?: 'Unnamed Officer',
+            'email' => $officer->email,
+            'position' => $officer->officer_type ?: 'Officer',
+            'department' => $officer->committee ?: 'Executive Management',
+            'gis_id' => $officer->gis_id,
+        ];
     }
 
     private function resolveExecutiveApprover(): array
     {
-        if (class_exists(Employee::class)) {
-            $employee = Employee::query()
-                ->where(function ($query) {
-                    $query->whereNull('employment_status')
-                        ->orWhereIn('employment_status', ['Active', 'active', 'Regular', 'regular', 'Probationary', 'probationary']);
-                })
-                ->where(function ($query) {
-                    $query->where('position', 'like', '%President%')
-                        ->orWhere('position', 'like', '%President and CEO%')
-                        ->orWhere('position', 'like', '%CEO%');
-                })
-                ->latest('updated_at')
-                ->first();
+        $approver = $this->gisApprovers()->first();
 
-            if ($employee) {
-                return $this->formatEmployeeApprover($employee);
-            }
+        if ($approver) {
+            return $approver;
         }
 
         return [
             'id' => null,
             'user_id' => null,
-            'name' => 'John Kelly D. Abalde',
-            'position' => 'President and CEO',
-            'department' => 'Executive Management',
+            'name' => null,
+            'position' => null,
+            'department' => null,
         ];
     }
 
@@ -1997,25 +2039,29 @@ class TownHallController extends Controller
         }
     }
 
-    private function resolveApprovalNotificationUser(TownHallCommunication $communication, string $level): ?User
+    private function resolveApprovalNotificationUser(TownHallCommunication $communication, string $level): ?object
     {
-        $userId = null;
+        $officerId = $level === 'management'
+            ? $communication->management_approver_id
+            : $communication->executive_approver_id;
 
-        if ($level === 'management') {
-            $userId = $communication->management_approver_user_id;
+        if ($officerId) {
+            $officer = DirectorOfficer::find($officerId);
 
-            if (!$userId && $communication->management_approver_id && class_exists(Employee::class)) {
-                $userId = Employee::whereKey($communication->management_approver_id)->value('user_id');
+            if ($officer && !empty($officer->email)) {
+                return (object) [
+                    'id' => $officer->id,
+                    'name' => $officer->officer_name,
+                    'email' => $officer->email,
+                    'position' => $officer->officer_type,
+                    'department' => $officer->committee,
+                ];
             }
         }
 
-        if ($level === 'executive') {
-            $userId = $communication->executive_approver_user_id;
-
-            if (!$userId && $communication->executive_approver_id && class_exists(Employee::class)) {
-                $userId = Employee::whereKey($communication->executive_approver_id)->value('user_id');
-            }
-        }
+        $userId = $level === 'management'
+            ? $communication->management_approver_user_id
+            : $communication->executive_approver_user_id;
 
         return $userId ? User::find($userId) : null;
     }
