@@ -329,7 +329,7 @@ class MinuteController extends Controller
             return $data;
         }
 
-        $notice = Notice::with('attendees')->find($data['notice_id']);
+        $notice = Notice::whereNull('company_id')->with('attendees')->find($data['notice_id']);
         if (!$notice) {
             return $data;
         }
@@ -448,6 +448,7 @@ class MinuteController extends Controller
     private function latestAcceptedGis(): ?GisRecord
     {
         $acceptedQuery = GisRecord::query()
+            ->whereNull('company_id')
             ->where(function ($query) {
                 $query->where('workflow_status', 'Accepted')
                     ->orWhere('approval_status', 'Accepted')

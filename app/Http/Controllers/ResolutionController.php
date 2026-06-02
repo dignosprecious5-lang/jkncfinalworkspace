@@ -23,8 +23,15 @@ class ResolutionController extends Controller
 
     public function index()
     {
-        $resolutions = Resolution::with(['minute.notice.attendees', 'notice.attendees', 'secretaryCertificates'])->latest()->get();
-        $minutes = Minute::with('notice.attendees')->orderByDesc('date_of_meeting')->get();
+        $resolutions = Resolution::whereNull('company_id')
+            ->with(['minute.notice.attendees', 'notice.attendees', 'secretaryCertificates'])
+            ->latest()
+            ->get();
+
+        $minutes = Minute::whereNull('company_id')
+            ->with('notice.attendees')
+            ->orderByDesc('date_of_meeting')
+            ->get();
 
         return view('corporate.resolutions.index', [
             'resolutions' => $resolutions,
@@ -68,6 +75,8 @@ class ResolutionController extends Controller
 
     public function show(Resolution $resolution)
     {
+        abort_if($resolution->company_id !== null, 404);
+
         $this->syncGeneratedResolutionPdf($resolution, false);
         $resolution = $resolution->fresh();
         $resolution->load(['minute.notice.attendees', 'notice.attendees', 'secretaryCertificates']);
@@ -91,6 +100,8 @@ class ResolutionController extends Controller
 
     public function downloadPdf(Resolution $resolution)
     {
+        abort_if($resolution->company_id !== null, 404);
+
         $resolution->load(['minute.notice.attendees', 'notice.attendees']);
         $filename = 'resolution-' . Str::slug($resolution->resolution_no ?: ('resolution-' . $resolution->id)) . '.pdf';
 
@@ -105,6 +116,8 @@ class ResolutionController extends Controller
 
     public function edit(Resolution $resolution)
     {
+        abort_if($resolution->company_id !== null, 404);
+
         return view('corporate.common.form', [
             'title' => 'Edit Resolution',
             'action' => route('resolutions.update', $resolution),
@@ -117,6 +130,8 @@ class ResolutionController extends Controller
 
     public function update(Request $request, Resolution $resolution)
     {
+        abort_if($resolution->company_id !== null, 404);
+
         $data = $this->validateData($request);
         $data = $this->mergeMinuteData($data);
         $data = $this->applyAutomaticResolutionPeople($data);
@@ -133,6 +148,8 @@ class ResolutionController extends Controller
 
     public function destroy(Resolution $resolution)
     {
+        abort_if($resolution->company_id !== null, 404);
+
         $resolution->delete();
 
         return redirect()->route('resolutions')->with('success', 'Resolution deleted.');

@@ -13,6 +13,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
@@ -133,7 +134,20 @@ class CompanyCorporateFormationController extends Controller
     public function showGis(Request $request, int $company, int $record): View
     {
         $companyData = $this->findCompanyOrAbort($request, $company);
-        $model = $this->scopeModelRecord(GisRecord::query(), new GisRecord(), $record, $company);
+
+        $model = $this->scopeModelRecord(
+            GisRecord::query()->with([
+                'directors',
+                'stockholders',
+                'authorizedCapital',
+                'subscribedCapital',
+                'paidUpCapital',
+                'ubos',
+            ]),
+            new GisRecord(),
+            $record,
+            $company
+        );
 
         return view('company.corporate-formation-gis-show', [
             'company' => (object) $companyData,
@@ -443,19 +457,24 @@ class CompanyCorporateFormationController extends Controller
     {
         $companyData = $this->findCompanyOrAbort($request, $company);
         $payload = $this->validateGis($request);
+        unset($payload['logo_upload']);
 
         if ($request->hasFile('draft_file_upload')) {
             $file = $request->file('draft_file_upload');
-            $fileName = time() . '_draft_' . $file->getClientOriginalName();
+            $fileName = time() . '_draft_' . preg_replace('/[^A-Za-z0-9._-]/', '_', $file->getClientOriginalName());
             $file->storeAs('gis_files', $fileName, 'public');
             $payload['file'] = 'gis_files/' . $fileName;
         }
 
         if ($request->hasFile('notary_file_upload')) {
             $file = $request->file('notary_file_upload');
-            $fileName = time() . '_notary_' . $file->getClientOriginalName();
+            $fileName = time() . '_notary_' . preg_replace('/[^A-Za-z0-9._-]/', '_', $file->getClientOriginalName());
             $file->storeAs('gis_files', $fileName, 'public');
             $payload['notary_file_path'] = 'gis_files/' . $fileName;
+        }
+
+        if ($request->hasFile('logo_upload')) {
+            $payload['logo_path'] = $this->storeGisLogoUpload($request);
         }
 
         $payload['uploaded_by']     = $this->employeeName();
@@ -486,16 +505,44 @@ class CompanyCorporateFormationController extends Controller
 
         return redirect()
             ->route('company.corporate-formation.gis', $company)
-            ->with('corporate_formation_success', 'GIS record added for ' . $companyData['company_name'] . '.');
+            ->with('corporate_formation_success', 'GIS record added for ' . ($companyData['company_name'] ?? 'this company') . '.');
     }
 
     public function updateGis(Request $request, int $company, int $record): RedirectResponse
     {
         $this->findCompanyOrAbort($request, $company);
+
         $model = $this->scopeModelRecord(GisRecord::query(), new GisRecord(), $record, $company);
-        $model->update($this->validateGis($request));
+        $this->abortIfNotEditable($model);
+
+        $payload = $this->validateGis($request);
+        unset($payload['logo_upload']);
+
+        if ($request->hasFile('logo_upload')) {
+            $payload['logo_path'] = $this->storeGisLogoUpload($request, $model);
+        }
+
+        $model->update($payload);
 
         return back()->with('corporate_formation_success', 'GIS details updated successfully.');
+    }
+
+    private function storeGisLogoUpload(Request $request, ?GisRecord $existingGis = null): ?string
+    {
+        if (! $request->hasFile('logo_upload')) {
+            return $existingGis?->logo_path;
+        }
+
+        $file = $request->file('logo_upload');
+
+        if ($existingGis?->logo_path && Storage::disk('public')->exists($existingGis->logo_path)) {
+            Storage::disk('public')->delete($existingGis->logo_path);
+        }
+
+        $fileName = time() . '_logo_' . preg_replace('/[^A-Za-z0-9._-]/', '_', $file->getClientOriginalName());
+        $file->storeAs('gis_logos', $fileName, 'public');
+
+        return 'gis_logos/' . $fileName;
     }
 
     public function uploadDraftGis(Request $request, int $company, int $record): RedirectResponse
@@ -885,6 +932,7 @@ class CompanyCorporateFormationController extends Controller
             'subsidiary_name' => ['nullable', 'string', 'max:255'],
             'subsidiary_sec_no' => ['nullable', 'string', 'max:255'],
             'subsidiary_address' => ['nullable', 'string', 'max:255'],
+            'logo_upload' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
         ]);
     }
 

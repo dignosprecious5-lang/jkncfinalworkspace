@@ -26,13 +26,24 @@ class SecretaryCertificateController extends Controller
 
     public function index()
     {
-        $certificates = SecretaryCertificate::with(['notice', 'resolution', 'minute'])->latest()->get();
-        $resolutions = Resolution::with(['notice', 'minute'])->orderBy('date_of_meeting')->get()
+        $certificates = SecretaryCertificate::whereNull('company_id')
+            ->with(['notice', 'resolution', 'minute'])
+            ->latest()
+            ->get();
+
+        $resolutions = Resolution::whereNull('company_id')
+            ->with(['notice', 'minute'])
+            ->orderBy('date_of_meeting')
+            ->get()
             ->map(function (Resolution $resolution) {
                 $resolution->full_resolution_body = $this->completeResolutionBodyForCertificate($resolution);
                 return $resolution;
             });
-        $minutes = Minute::with('notice')->orderBy('date_of_meeting')->get();
+
+        $minutes = Minute::whereNull('company_id')
+            ->with('notice')
+            ->orderBy('date_of_meeting')
+            ->get();
 
         return view('corporate.secretary-certificates.index', [
             'certificates' => $certificates,
@@ -74,6 +85,8 @@ class SecretaryCertificateController extends Controller
 
     public function show(SecretaryCertificate $secretaryCertificate)
     {
+        abort_if($secretaryCertificate->company_id !== null, 404);
+
         $secretaryCertificate->load(['notice.attendees', 'resolution.notice.attendees', 'resolution.minute.notice.attendees', 'minute.notice.attendees']);
         $corporateContext = $this->corporateContextForCertificate($secretaryCertificate);
 
@@ -96,6 +109,8 @@ class SecretaryCertificateController extends Controller
 
     public function edit(SecretaryCertificate $secretaryCertificate)
     {
+        abort_if($secretaryCertificate->company_id !== null, 404);
+
         return view('corporate.common.form', [
             'title' => 'Edit Secretary Certificate',
             'action' => route('secretary-certificates.update', $secretaryCertificate),
@@ -108,6 +123,8 @@ class SecretaryCertificateController extends Controller
 
     public function update(Request $request, SecretaryCertificate $secretaryCertificate)
     {
+        abort_if($secretaryCertificate->company_id !== null, 404);
+
         $data = $this->validateData($request);
         $data = $this->mergeMeetingSourceData($data);
         $data['document_path'] = $this->handleUpload($request, 'document_path', $secretaryCertificate->document_path);
@@ -120,6 +137,8 @@ class SecretaryCertificateController extends Controller
 
     public function destroy(SecretaryCertificate $secretaryCertificate)
     {
+        abort_if($secretaryCertificate->company_id !== null, 404);
+
         $secretaryCertificate->delete();
 
         return redirect()->route('secretary-certificates')->with('success', 'Secretary certificate deleted.');

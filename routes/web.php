@@ -666,6 +666,8 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::get('/company/{company}/corporate-formation/notices', [CompanyCorporateRecordController::class, 'notices'])->name('company.corporate-formation.notices');
     Route::post('/company/{company}/corporate-formation/notices', [CompanyCorporateRecordController::class, 'storeNotice'])->name('company.corporate-formation.notices.store');
     Route::get('/company/{company}/corporate-formation/notices/{notice}', [CompanyCorporateRecordController::class, 'showNotice'])->name('company.corporate-formation.notices.preview');
+    Route::get('/company/{company}/corporate-formation/notices/{notice}/download', [CompanyCorporateRecordController::class, 'downloadNoticePdf'])->name('company.corporate-formation.notices.download');
+    Route::post('/company/{company}/corporate-formation/notices/{notice}/upload-original', [CompanyCorporateRecordController::class, 'uploadOriginalNotice'])->name('company.corporate-formation.notices.upload-original');
     Route::match(['put', 'patch'], '/company/{company}/corporate-formation/notices/{notice}', [CompanyCorporateRecordController::class, 'updateNotice'])->name('company.corporate-formation.notices.update');
     Route::delete('/company/{company}/corporate-formation/notices/{notice}', [CompanyCorporateRecordController::class, 'destroyNotice'])->name('company.corporate-formation.notices.destroy');
     Route::post('/company/{company}/corporate-formation/notices/{notice}/send', [CompanyCorporateRecordController::class, 'sendNotice'])->name('company.corporate-formation.notices.send');

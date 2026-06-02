@@ -46,10 +46,54 @@
         : null;
     $originalNoticeDownloadUrl = $originalNoticeUrl ? route('uploads.show', ['path' => $originalNoticePath, 'download' => 1]) : null;
 
-    $livePdfUrl = route('notices.download', $selected);
+    /*
+     |--------------------------------------------------------------------------
+     | Draft / Original PDF URLs
+     |--------------------------------------------------------------------------
+     | This blade is shared by:
+     | - Corporate Notice Preview: /corporate/notices/{notice}
+     | - Company Notice Preview:   /company/{company}/corporate-formation/notices/{notice}
+     |
+     | The old code always used route('notices.download'), which points to the
+     | Corporate NoticeController. Company notices can 404 there because they
+     | belong to a company_id. So we first use URLs passed by the company
+     | controller, then safely fall back to company routes when the current
+     | request has a company route parameter, then finally fall back to the
+     | normal corporate routes.
+     */
+
+    $routeCompany = request()->route('company');
+    $routeCompanyId = is_object($routeCompany) ? data_get($routeCompany, 'id') : $routeCompany;
+    $hasCompanyNoticeContext = filled($routeCompanyId)
+        && \Illuminate\Support\Facades\Route::has('company.corporate-formation.notices.download');
+
+    $noticePreviewRoute = $previewRoute
+        ?? ($hasCompanyNoticeContext && \Illuminate\Support\Facades\Route::has('company.corporate-formation.notices.preview')
+            ? route('company.corporate-formation.notices.preview', [$routeCompanyId, $selected->id])
+            : route('notices.preview', $selected));
+
+    $livePdfUrl = $draftPdfUrl
+        ?? $downloadRoute
+        ?? ($hasCompanyNoticeContext
+            ? route('company.corporate-formation.notices.download', [$routeCompanyId, $selected->id])
+            : route('notices.download', $selected));
+
+    $livePdfDownloadUrl = $draftPdfDownloadUrl
+        ?? ($hasCompanyNoticeContext
+            ? route('company.corporate-formation.notices.download', [$routeCompanyId, $selected->id, 'download' => 1])
+            : route('notices.download', $selected));
+
+    $uploadOriginalAction = $uploadOriginalRoute
+        ?? ($hasCompanyNoticeContext && \Illuminate\Support\Facades\Route::has('company.corporate-formation.notices.upload-original')
+            ? route('company.corporate-formation.notices.upload-original', [$routeCompanyId, $selected->id])
+            : route('notices.upload-original', $selected));
+
+    $noticePreviewDraftUrl = $noticePreviewRoute . (str_contains($noticePreviewRoute, '?') ? '&' : '?') . 'version=draft';
+    $noticePreviewOriginalUrl = $noticePreviewRoute . (str_contains($noticePreviewRoute, '?') ? '&' : '?') . 'version=original';
+
     $activePdfVersion = request('version') === 'original' && $originalNoticeUrl ? 'original' : 'draft';
     $previewPdfUrl = $activePdfVersion === 'original' ? $originalNoticeUrl : $livePdfUrl;
-    $previewPdfDownloadUrl = $activePdfVersion === 'original' ? $originalNoticeDownloadUrl : $livePdfUrl;
+    $previewPdfDownloadUrl = $activePdfVersion === 'original' ? $originalNoticeDownloadUrl : $livePdfDownloadUrl;
 
     $meetingTitle = strtoupper(trim(($selected->type_of_meeting ?: 'Special') . ' ' . ($selected->governing_body ?: 'Board of Directors') . ' Meeting'));
     $noticeDate = optional($selected->date_of_notice)->format('F d, Y')
@@ -380,8 +424,8 @@ HTML;
             <div class="flex-1"></div>
 
             <div class="inline-flex rounded-full bg-gray-100 p-1 text-xs font-semibold">
-                <a href="{{ route('notices.preview', $selected) }}?version=draft" class="rounded-full px-3 py-1 {{ $activePdfVersion === 'draft' ? 'bg-white text-blue-700 shadow' : 'text-gray-600 hover:text-gray-900' }}">Draft</a>
-                <a href="{{ $originalNoticeUrl ? route('notices.preview', $selected) . '?version=original' : '#' }}" class="rounded-full px-3 py-1 {{ $activePdfVersion === 'original' ? 'bg-white text-blue-700 shadow' : 'text-gray-600 hover:text-gray-900' }} {{ $originalNoticeUrl ? '' : 'pointer-events-none opacity-50' }}">Original / Signed</a>
+                <a href="{{ $noticePreviewDraftUrl }}" class="rounded-full px-3 py-1 {{ $activePdfVersion === 'draft' ? 'bg-white text-blue-700 shadow' : 'text-gray-600 hover:text-gray-900' }}">Draft</a>
+                <a href="{{ $originalNoticeUrl ? $noticePreviewOriginalUrl : '#' }}" class="rounded-full px-3 py-1 {{ $activePdfVersion === 'original' ? 'bg-white text-blue-700 shadow' : 'text-gray-600 hover:text-gray-900' }} {{ $originalNoticeUrl ? '' : 'pointer-events-none opacity-50' }}">Original / Signed</a>
             </div>
 
             <a href="{{ $previewPdfDownloadUrl }}" target="_blank" class="px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium">
@@ -460,7 +504,7 @@ HTML;
                         <div class="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">No original / signed copy uploaded yet.</div>
                     @endif
 
-                    <form method="POST" action="{{ route('notices.upload-original', $selected) }}" enctype="multipart/form-data" class="mt-3 space-y-3">
+                    <form method="POST" action="{{ $uploadOriginalAction }}" enctype="multipart/form-data" class="mt-3 space-y-3">
                         @csrf
                         <input type="file" name="original_notice_path" accept="application/pdf" required class="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
                         <button type="submit" class="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">

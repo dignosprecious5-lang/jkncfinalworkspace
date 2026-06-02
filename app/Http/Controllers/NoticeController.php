@@ -80,6 +80,11 @@ class NoticeController extends Controller
     {
         abort_if($notice->company_id !== null, 404);
 
+        if (($notice->body_mode ?? 'builder') === 'builder') {
+            $this->syncGeneratedNoticePdf($notice->fresh(), $notice->body_html, false);
+            $notice = $notice->fresh();
+        }
+
         $this->syncNoticeAttendeesFromLatestGis($notice->fresh());
         $notice->load(['minutes', 'resolutions', 'secretaryCertificates', 'attendees']);
 
@@ -557,7 +562,11 @@ class NoticeController extends Controller
     {
         $baseQuery = GisRecord::query()
             ->with(['directors', 'stockholders'])
-            ->when($notice->company_id, fn ($query) => $query->where('company_id', $notice->company_id))
+            ->when(
+                $notice->company_id,
+                fn ($query) => $query->where('company_id', $notice->company_id),
+                fn ($query) => $query->whereNull('company_id')
+            )
             ->where(function ($query) {
                 $query->where('workflow_status', 'Accepted')
                     ->orWhere('approval_status', 'Approved');
@@ -612,6 +621,7 @@ class NoticeController extends Controller
     private function latestAcceptedGis(): ?GisRecord
     {
         $acceptedQuery = GisRecord::query()
+            ->whereNull('company_id')
             ->where(function ($query) {
                 $query->where('workflow_status', 'Accepted')
                     ->orWhere('approval_status', 'Accepted')
