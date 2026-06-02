@@ -1384,20 +1384,20 @@
             fields: [
                 selectField('source_document_type', 'Linked Source Document Type', {
                     options: [
+                        { value: 'po', label: 'PO' },
                         { value: 'ca', label: 'CA' },
                         { value: 'err', label: 'ERR' },
                         { value: 'pda', label: 'PDA' },
                         { value: 'ibtf', label: 'IBTF' },
-                        { value: 'po', label: 'PO' },
                     ],
                 }),
                 selectField('source_document_id', 'Linked Source Document', {
                     sourceMap: {
+                        po: 'po',
                         ca: 'ca',
                         err: 'err',
                         pda: 'pda',
                         ibtf: 'ibtf',
-                        po: 'po',
                     },
                     sourceKey: 'source_document_type',
                 }),
@@ -1599,6 +1599,7 @@
     const officialApproverOptions = Array.isArray(bootstrap.officialApproverOptions) ? bootstrap.officialApproverOptions.slice() : [];
     const defaultApprovalSteps = Array.isArray(bootstrap.defaultApprovalSteps) ? bootstrap.defaultApprovalSteps.slice() : [];
     const requestTypeModules = new Set(Array.isArray(bootstrap.requestTypeModules) ? bootstrap.requestTypeModules : []);
+    const currentUserEmployeeId = Number(bootstrap.currentUserEmployeeId || 0) || 0;
     let currentModuleKey = financeModules[bootstrap.currentModule] ? bootstrap.currentModule : 'supplier';
     let currentWorkflowFilter = workflowFilters.includes(bootstrap.currentWorkflowFilter) ? bootstrap.currentWorkflowFilter : 'all';
     let currentPreviewRecord = null;
@@ -2564,6 +2565,29 @@
         const options = financeLookupOptions[moduleKey] || [];
         const match = options.find((item) => String(item.id) === String(id));
         return match ? match.label : '';
+    }
+
+    function getApproverRoutingDisplayValue(record, index) {
+        const data = record?.data || {};
+        const step = Array.isArray(data.approval_steps) ? data.approval_steps[index] || {} : {};
+        const role = index === 0 ? 'President' : 'Treasurer';
+        const userId = step.user_id || getFieldValue(record, index === 0 ? 'first_approver_user_id' : 'second_approver_user_id');
+        const match = officialApproverOptions.find((option) => String(option.user_id || '') === String(userId || ''));
+        const name = match?.user_name || match?.official_name || String(userId || '');
+
+        if (!name) {
+            return role;
+        }
+
+        return match ? `${name} (${role})` : `${name} (${role})`;
+    }
+
+    function getAttachmentSummaryValue(record) {
+        const attachments = Array.isArray(record?.attachments) ? record.attachments : [];
+        if (!attachments.length) {
+            return 'No attachments';
+        }
+        return `${attachments.length} file${attachments.length === 1 ? '' : 's'}`;
     }
 
     function getRecordByLookupValue(moduleKey, value) {
@@ -5343,6 +5367,14 @@
     }
 
     function getPreviewFieldValue(record, fieldName, moduleConfig) {
+        if (fieldName === 'first_approver_user_id') {
+            return getApproverRoutingDisplayValue(record, 0);
+        }
+
+        if (fieldName === 'second_approver_user_id') {
+            return getApproverRoutingDisplayValue(record, 1);
+        }
+
         const field = (moduleConfig.fields || []).find((item) => item.name === fieldName);
         const rawValue = getFieldValue(record, fieldName);
         if (!field) {
@@ -5379,6 +5411,21 @@
                 ['Date Needed', data.needed_date || ''],
                 ['Amount', record.amount ? formatCurrency(record.amount) : ''],
                 ['Record Date', record.record_date || ''],
+                ['Workflow', record.workflow_status || ''],
+                ['Approval', previewApprovalLabel(record) || ''],
+                ['Submitted By', record.user || ''],
+                ['Submitted At', record.submitted_at || ''],
+                ['Approved At', record.approved_at || ''],
+            ];
+        }
+
+        if (record.module_key === 'err') {
+            return [
+                ['Record Number', record.record_number || ''],
+                ['Requestor', data.requestor || data.employee_name || ''],
+                ['Linked LR', getLookupLabel('lr', data.linked_lr_id) || data.linked_lr_id || ''],
+                ['Reimbursement Mode', data.reimbursement_mode || ''],
+                ['Amount', record.amount ? formatCurrency(record.amount) : ''],
                 ['Workflow', record.workflow_status || ''],
                 ['Approval', previewApprovalLabel(record) || ''],
                 ['Submitted By', record.user || ''],
@@ -5471,6 +5518,8 @@
             ca: [
                 ['Workflow', record.workflow_status || ''],
                 ['Approval', previewApprovalLabel(record) || ''],
+                ['President', getApproverRoutingDisplayValue(record, 0)],
+                ['Treasurer', getApproverRoutingDisplayValue(record, 1)],
                 ['Requester Option', data.requester_mode || ''],
                 ['Requested By', data.requestor || getLookupLabel('employee', data.requester_employee_id) || ''],
                 ['Department', data.department || ''],
@@ -5487,6 +5536,7 @@
                 ['Requester Option', data.requester_mode || ''],
                 ['Linked CA', getLookupLabel('ca', data.linked_ca_id) || ''],
                 ['Total Cash Advance', data.total_cash_advance ? formatCurrency(data.total_cash_advance) : ''],
+                ['Attachments', getAttachmentSummaryValue(record)],
                 ['Purpose', data.purpose || ''],
             ],
             err: [
@@ -5511,6 +5561,8 @@
             pda: [
                 ['Workflow', record.workflow_status || ''],
                 ['Approval', previewApprovalLabel(record) || ''],
+                ['President', getApproverRoutingDisplayValue(record, 0)],
+                ['Treasurer', getApproverRoutingDisplayValue(record, 1)],
                 ['Payroll Period', getLookupLabel('payroll_period', data.payroll_period_id) || ''],
                 ['Pay Date', data.pay_date || ''],
                 ['Employee Count', data.employee_count || ''],
@@ -5540,6 +5592,9 @@
                 ['Linked DV', getLookupLabel('dv', data.linked_dv_id) || ''],
                 ['Supplier', getLookupLabel('supplier', data.supplier_id) || ''],
                 ['Asset Code', data.asset_code || ''],
+                ['Custodian', getLookupLabel('employee', data.custodian) || data.custodian_name || ''],
+                ['Asset Status', data.asset_status || ''],
+                ['Last Event', data.asset_last_event || ''],
                 ['Asset Description', data.asset_description || ''],
                 ['Serial Number', data.serial_number || ''],
                 ['Location', data.location || ''],
@@ -5602,6 +5657,112 @@
         `;
     }
 
+    function renderPdaPayrollPeriodCard(record) {
+        const data = record.data || {};
+        const payrollPeriodLabel = getLookupLabel('payroll_period', data.payroll_period_id) || record.record_title || 'Payroll Period';
+        const periodStart = formatDate(data.period_start || '');
+        const periodEnd = formatDate(data.period_end || '');
+        const payrollStart = formatDate(data.payroll_start || '');
+        const payrollEnd = formatDate(data.payroll_end || '');
+        const payDate = formatDate(data.pay_date || '');
+
+        return `
+            <div class="overflow-hidden rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-50 to-white shadow-sm">
+                <div class="border-b border-blue-100 bg-white/80 px-4 py-3">
+                    <div class="flex items-start justify-between gap-3">
+                        <div>
+                            <p class="text-[11px] uppercase tracking-[0.18em] text-blue-700">Payroll Period</p>
+                            <h4 class="mt-1 text-[15px] font-semibold text-gray-900">${escapeHtml(payrollPeriodLabel)}</h4>
+                        </div>
+                        <span class="rounded-full border border-blue-200 bg-blue-100 px-3 py-1 text-[11px] font-semibold text-blue-700">PDA</span>
+                    </div>
+                </div>
+                <div class="p-4">
+                    <div class="grid gap-3 md:grid-cols-2">
+                        <div class="rounded-xl border border-blue-100 bg-white px-4 py-3 shadow-sm">
+                            <p class="text-[10px] uppercase tracking-[0.18em] text-gray-500">Period Start</p>
+                            <p class="mt-2 text-[20px] font-semibold leading-none text-gray-900">${escapeHtml(periodStart)}</p>
+                        </div>
+                        <div class="rounded-xl border border-blue-100 bg-white px-4 py-3 shadow-sm">
+                            <p class="text-[10px] uppercase tracking-[0.18em] text-gray-500">Period End</p>
+                            <p class="mt-2 text-[20px] font-semibold leading-none text-gray-900">${escapeHtml(periodEnd)}</p>
+                        </div>
+                    </div>
+                    <div class="mt-3 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3">
+                        <div class="grid gap-3 sm:grid-cols-3">
+                            <div>
+                                <p class="text-[10px] uppercase tracking-[0.18em] text-gray-500">Payroll Start</p>
+                                <p class="mt-1 text-sm font-semibold text-gray-900">${escapeHtml(payrollStart)}</p>
+                            </div>
+                            <div>
+                                <p class="text-[10px] uppercase tracking-[0.18em] text-gray-500">Payroll End</p>
+                                <p class="mt-1 text-sm font-semibold text-gray-900">${escapeHtml(payrollEnd)}</p>
+                            </div>
+                            <div>
+                                <p class="text-[10px] uppercase tracking-[0.18em] text-gray-500">Pay Date</p>
+                                <p class="mt-1 text-sm font-semibold text-gray-900">${escapeHtml(payDate)}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    function renderPdaPayrollPeriodSourceHtml(record) {
+        const data = record.data || {};
+        const payrollPeriodLabel = getLookupLabel('payroll_period', data.payroll_period_id) || record.record_title || 'Payroll Period';
+        const periodStart = formatDate(data.period_start || '');
+        const periodEnd = formatDate(data.period_end || '');
+        const payrollStart = formatDate(data.payroll_start || '');
+        const payrollEnd = formatDate(data.payroll_end || '');
+        const payDate = formatDate(data.pay_date || '');
+
+        return `
+            <div class="finance-preview-box">
+                <div class="finance-preview-section-title">Payroll Period</div>
+                <div class="finance-preview-inner">
+                    <div style="border:1px solid #bfdbfe;border-radius:12px;background:linear-gradient(135deg,#eff6ff 0%,#ffffff 100%);overflow:hidden;">
+                        <div style="padding:10px 12px;border-bottom:1px solid #dbeafe;background:rgba(255,255,255,.8);">
+                            <p class="finance-preview-label" style="color:#2563eb;">Payroll Period</p>
+                            <p class="finance-preview-value" style="font-size:15px;">${escapeHtml(payrollPeriodLabel)}</p>
+                        </div>
+                        <div style="padding:12px;">
+                            <table class="finance-preview-details" style="border:none;">
+                                <tr>
+                                    <td style="width:50%;border:1px solid #dbe2ea;border-radius:10px;background:#fff;">
+                                        <p class="finance-preview-label">Period Start</p>
+                                        <p class="finance-preview-value" style="font-size:16px;">${escapeHtml(periodStart)}</p>
+                                    </td>
+                                    <td style="width:50%;border:1px solid #dbe2ea;border-radius:10px;background:#fff;">
+                                        <p class="finance-preview-label">Period End</p>
+                                        <p class="finance-preview-value" style="font-size:16px;">${escapeHtml(periodEnd)}</p>
+                                    </td>
+                                </tr>
+                            </table>
+                            <table class="finance-preview-details" style="margin-top:10px;">
+                                <tr>
+                                    <td>
+                                        <p class="finance-preview-label">Payroll Start</p>
+                                        <p class="finance-preview-value">${escapeHtml(payrollStart)}</p>
+                                    </td>
+                                    <td>
+                                        <p class="finance-preview-label">Payroll End</p>
+                                        <p class="finance-preview-value">${escapeHtml(payrollEnd)}</p>
+                                    </td>
+                                    <td>
+                                        <p class="finance-preview-label">Pay Date</p>
+                                        <p class="finance-preview-value">${escapeHtml(payDate)}</p>
+                                    </td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
     function renderPreviewRowsCard(title, rows, options = {}) {
         const filteredRows = (rows || [])
             .filter((row) => Array.isArray(row) && row.length >= 2)
@@ -5635,6 +5796,34 @@
         `;
     }
 
+    function renderNextActionCallout(record, section = {}) {
+        const data = record?.data || {};
+        const nextAction = section.next_action || data.next_action || 'Continue workflow';
+        const relationshipStatus = section.relationship_status || data.relationship_status || 'In Progress';
+        const description = section.description || 'This record is ready for the next step in the finance workflow.';
+
+        return `
+            <div class="overflow-hidden rounded-2xl border border-indigo-200 bg-gradient-to-br from-indigo-50 via-white to-cyan-50 shadow-sm">
+                <div class="border-b border-indigo-100 bg-white/80 px-4 py-3">
+                    <div class="flex items-start justify-between gap-3">
+                        <div>
+                            <p class="text-[11px] uppercase tracking-[0.18em] text-indigo-700">Next Action</p>
+                            <h4 class="mt-1 text-[16px] font-semibold text-gray-900">${escapeHtml(nextAction)}</h4>
+                        </div>
+                        <span class="rounded-full border border-indigo-200 bg-indigo-100 px-3 py-1 text-[11px] font-semibold text-indigo-700">${escapeHtml(relationshipStatus)}</span>
+                    </div>
+                </div>
+                <div class="p-4">
+                    <div class="rounded-xl border border-indigo-100 bg-white px-4 py-3 shadow-sm">
+                        <p class="text-[10px] uppercase tracking-[0.18em] text-gray-500">Status</p>
+                        <p class="mt-1 text-sm font-semibold text-gray-900">${escapeHtml(relationshipStatus)}</p>
+                        <p class="mt-2 text-sm text-gray-600">${escapeHtml(description)}</p>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
     function renderPreviewSectionCard(record, moduleConfig, section) {
         if (!section) {
             return '';
@@ -5642,6 +5831,14 @@
 
         if (typeof section.renderer === 'function') {
             return section.renderer();
+        }
+
+        if (section.type === 'history') {
+            return renderFinanceHistoryCards(record);
+        }
+
+        if (section.type === 'attachments') {
+            return renderFinanceAttachmentCards(record);
         }
 
         if (section.type === 'asset_tag') {
@@ -5655,6 +5852,14 @@
                     </div>
                 </div>
             `;
+        }
+
+        if (section.type === 'next_action_callout') {
+            return renderNextActionCallout(record, section);
+        }
+
+        if (section.type === 'pda_payroll_period') {
+            return renderPdaPayrollPeriodCard(record);
         }
 
         if (section.type === 'notes') {
@@ -5769,28 +5974,36 @@
                 ];
             case 'pr':
                 return [
-                    { title: 'Request Details', fieldNames: ['priority', 'needed_date', 'for_client', 'pr_reason_categories'] },
-                    { title: 'Requester Details', fieldNames: ['requester_mode', 'requester_employee_id', 'requestor', 'employee_id', 'employee_email', 'contact_number', 'position', 'department', 'superior', 'superior_email'] },
+                    { title: 'Request Overview', fieldNames: ['record_number', 'record_title', 'requestor', 'priority', 'needed_date', 'amount', 'record_date', 'workflow_status', 'approval_status'] },
+                    { title: 'Request Details', fieldNames: ['requester_mode', 'requester_employee_id', 'for_client', 'pr_reason_categories', 'request_type'] },
+                    { title: 'Requester Details', fieldNames: ['requestor', 'employee_id', 'employee_email', 'contact_number', 'position', 'department', 'superior', 'superior_email'] },
                     { title: 'Items / Cost Details', renderer: () => renderPrPreviewTable(record) },
                     { type: 'notes', renderer: () => renderFinanceReviewNotesSection(record) },
                 ];
             case 'po':
                 return [
-                    { title: 'Order Details', fieldNames: ['linked_pr_id', 'supplier_id', 'expected_delivery_date', 'delivery_address', 'terms_and_conditions'] },
+                    { title: 'Order Overview', fieldNames: ['record_number', 'record_title', 'linked_pr_id', 'linked_dv_id', 'record_date', 'workflow_status', 'approval_status'] },
+                    { title: 'Connected Records', fieldNames: ['linked_pr_id', 'linked_dv_id', 'supplier_id'] },
+                    { title: 'Order Details', fieldNames: ['supplier_id', 'expected_delivery_date', 'delivery_address', 'terms_and_conditions', 'purpose', 'remarks', 'coa_id'] },
                     { title: 'Items / Cost Details', renderer: () => renderPrPreviewTable(record) },
-                    { title: 'Purpose & Notes', fieldNames: ['purpose', 'remarks', 'coa_id'] },
+                    { type: 'history' },
                     { type: 'notes', renderer: () => renderFinanceReviewNotesSection(record) },
                 ];
             case 'ca':
                 return [
                     { type: 'ca_payment_tracking', renderer: () => renderCashAdvancePaymentPreview(record) },
+                    { title: 'Approval Routing', fieldNames: ['first_approver_user_id', 'second_approver_user_id'] },
                     { title: 'Request Details', fieldNames: ['requester_mode', 'requester_employee_id', 'requestor', 'department', 'purpose', 'needed_date', 'mode_of_release', 'amount_requested', 'release_schedule', 'release_count', 'amount_per_release', 'cash_release_date', 'cash_release_time', 'paid_through'] },
                     { title: 'Funding & Notes', fieldNames: ['bank_account_id', 'coa_id', 'remarks'] },
                     { type: 'notes', renderer: () => renderFinanceReviewNotesSection(record) },
                 ];
             case 'lr':
                 return [
-                    { title: 'Liquidation Details', fieldNames: ['requester_mode', 'linked_ca_id', 'total_cash_advance', 'purpose'] },
+                    { title: 'Liquidation Overview', fieldNames: ['record_number', 'record_title', 'linked_ca_id', 'total_cash_advance', 'workflow_status', 'approval_status'] },
+                    { title: 'Connected Records', fieldNames: ['linked_ca_id', 'linked_dv_id', 'requester_mode'] },
+                    { type: 'attachments', title: 'Attachments' },
+                    { type: 'history' },
+                    { title: 'Liquidation Details', fieldNames: ['requester_mode', 'requester_employee_id', 'total_cash_advance', 'purpose', 'department'] },
                     { title: 'Requester Details', fieldNames: ['requester_employee_id', 'employee_id', 'employee_name', 'employee_email', 'contact_number', 'position', 'department', 'superior', 'superior_email'] },
                     { type: 'line_items', renderer: () => renderLiquidationPreviewTable(record) },
                     { type: 'cost_summary', renderer: () => renderLiquidationPreviewSummary(record) },
@@ -5804,7 +6017,9 @@
                 }[data.reimbursement_mode] || [];
 
                 return [
-                    { title: 'Reimbursement Details', fieldNames: ['requester_mode', 'requester_employee_id', 'linked_lr_id', 'requestor', 'expense_details', 'amount', 'reimbursement_payment_details', 'reimbursement_mode', ...errPaymentFieldNames, 'remarks'] },
+                    { title: 'Reimbursement Overview', fieldNames: ['record_number', 'record_title', 'linked_lr_id', 'reimbursement_mode', 'amount', 'workflow_status', 'approval_status'] },
+                    { title: 'Connected Records', fieldNames: ['linked_lr_id', 'requester_mode', 'requestor'] },
+                    { title: 'Reimbursement Details', fieldNames: ['requester_mode', 'requester_employee_id', 'expense_details', 'reimbursement_payment_details', 'reimbursement_mode', ...errPaymentFieldNames, 'remarks'] },
                     { type: 'notes', renderer: () => renderFinanceReviewNotesSection(record) },
                 ];
             case 'dv':
@@ -5817,7 +6032,9 @@
                 ];
             case 'pda':
                 return [
-                    { title: 'Payroll Period', fieldNames: ['payroll_period_id', 'period_start', 'period_end', 'payroll_start', 'payroll_end', 'pay_date'] },
+                    { title: 'Payroll Overview', fieldNames: ['record_number', 'record_title', 'payroll_period_id', 'pay_date', 'workflow_status', 'approval_status'] },
+                    { title: 'Approval Routing', fieldNames: ['first_approver_user_id', 'second_approver_user_id'] },
+                    { type: 'pda_payroll_period', title: 'Payroll Period' },
                     { title: 'Payroll Variables', fieldNames: ['employee_count', 'basic_salary_total', 'yearly_basic_total', 'daily_rate_total', 'hourly_rate_total', 'minute_rate_total', 'gross_pay_total', 'benefits_total', 'allowances_total', 'deductions_total', 'night_differential_total', 'holiday_pay_total', 'total_payroll_amount'] },
                     { title: 'Funding', fieldNames: ['department', 'funding_bank_account_id', 'payroll_expense_coa_id'] },
                     { title: 'Supporting Notes', fieldNames: ['supporting_payroll_summary', 'employee_payroll_breakdown', 'remarks'] },
@@ -5826,11 +6043,22 @@
             case 'crf':
                 return [
                     { title: 'Return Details', fieldNames: ['requester_mode', 'requester_employee_id', 'requestor', 'linked_lr_id', 'amount_returned', 'mode_of_return', 'receiving_bank_account_id', 'coa_id'] },
+                    { type: 'attachments', title: 'Attachments' },
+                    { type: 'history' },
                     { title: 'Reference & Notes', fieldNames: ['reference_number', 'remarks'] },
                     { type: 'notes', renderer: () => renderFinanceReviewNotesSection(record) },
                 ];
             case 'ibtf':
                 return [
+                    {
+                        type: 'next_action_callout',
+                        title: 'Next Action',
+                        next_action: data.next_action || 'Create Disbursement Voucher',
+                        relationship_status: data.relationship_status || 'In Progress',
+                        description: String(data.relationship_status || '').toLowerCase() === 'awaiting disbursement voucher'
+                            ? 'This approved interbank transfer now moves forward to the disbursement voucher stage.'
+                            : 'Once the transfer is approved, the next step is to create a disbursement voucher.',
+                    },
                     { title: 'Transfer Details', fieldNames: ['source_bank_account_id', 'destination_bank_account_id', 'amount', 'reason'] },
                     { title: 'Reference & Notes', fieldNames: ['source_account_code', 'destination_account_code', 'transfer_reference_number', 'remarks'] },
                     { type: 'notes', renderer: () => renderFinanceReviewNotesSection(record) },
@@ -5846,6 +6074,7 @@
                         serialNumber: data.serial_number || 'N/A',
                         barcodeSvg: generateFinanceBarcodeSvg(data.asset_code || record.record_number || ''),
                     },
+                    { title: 'Asset Lifecycle', fieldNames: ['asset_status', 'asset_last_event', 'custodian', 'custodian_name', 'custodian_acknowledged_at', 'movement_history_note'] },
                     { title: 'Valuation & Custody', fieldNames: ['acquisition_cost', 'acquisition_date', 'asset_coa_id', 'location', 'custodian', 'useful_life', 'residual_value', 'remarks'] },
                     { type: 'notes', renderer: () => renderFinanceReviewNotesSection(record) },
                 ];
@@ -9103,6 +9332,33 @@
         requestAnimationFrame(() => renderDrawerPreview());
     }
 
+    function openDisbursementVoucherFromSource(sourceRecord) {
+        const resolvedSourceRecord = typeof sourceRecord === 'object' && sourceRecord !== null
+            ? sourceRecord
+            : getRecordById(sourceRecord);
+
+        if (!resolvedSourceRecord) return;
+
+        currentModuleKey = 'dv';
+        currentWorkflowFilter = 'all';
+
+        const url = new URL(window.location.href);
+        url.searchParams.set('module', 'dv');
+        url.searchParams.delete('workflow_status');
+        window.history.replaceState({}, '', url);
+
+        financeDraftContext = {
+            moduleKey: 'dv',
+            linkedRecord: resolvedSourceRecord,
+            prefill: getDvFieldPayload('ibtf', resolvedSourceRecord, resolvedSourceRecord.id),
+        };
+
+        closePreview();
+        refreshFinanceView();
+        openFinanceDrawer(null);
+        showFinanceToast('IBTF details loaded into a new Disbursement Voucher.', 'success');
+    }
+
     function closeFinanceDrawer() {
         const drawerSection = $('drawerSection');
         const drawerPanel = $('drawerPanel');
@@ -9304,6 +9560,10 @@
     }
 
     function renderFinanceHistoryCards(record) {
+        if (record?.module_key === 'crf') {
+            return renderCrfHistoryTimeline(record);
+        }
+
         const entries = financeHistoryEntries(record, 10);
 
         if (!entries.length) {
@@ -9364,11 +9624,217 @@
         `;
     }
 
+    function renderCrfHistoryTimeline(record) {
+        const entries = financeHistoryEntries(record, 10);
+
+        if (!entries.length) {
+            return `
+                <div class="rounded-2xl border border-amber-100 bg-white p-4">
+                    <div class="flex items-center justify-between gap-3">
+                        <h4 class="text-[15px] font-semibold text-gray-900">Record History / Audit Trail</h4>
+                        <span class="rounded-full bg-amber-50 px-3 py-1 text-[11px] font-semibold text-amber-700">0 entries</span>
+                    </div>
+                    <p class="mt-3 text-sm text-gray-500">No audit entries have been recorded yet.</p>
+                </div>
+            `;
+        }
+
+        return `
+            <div class="rounded-2xl border border-amber-100 bg-gradient-to-br from-amber-50 via-white to-white p-4 shadow-sm">
+                <div class="flex items-center justify-between gap-3">
+                    <div>
+                        <h4 class="text-[15px] font-semibold text-gray-900">Record History / Audit Trail</h4>
+                        <p class="mt-1 text-xs text-gray-500">A compact timeline of CRF changes.</p>
+                    </div>
+                    <span class="rounded-full bg-white px-3 py-1 text-[11px] font-semibold text-amber-700 shadow-sm">${escapeHtml(String(entries.length))} latest</span>
+                </div>
+                <div class="mt-4 space-y-3">
+                    ${entries.map((entry) => {
+                        return `
+                            <div class="relative overflow-hidden rounded-xl border border-amber-100 bg-white px-4 py-3 shadow-sm">
+                                <span class="absolute left-0 top-0 h-full w-1 bg-amber-300"></span>
+                                <div class="pl-3">
+                                    <div class="flex flex-wrap items-start justify-between gap-3">
+                                        <div>
+                                            <p class="font-semibold text-gray-900">${escapeHtml(entry.action || 'Action')}</p>
+                                            <p class="mt-1 text-xs text-gray-500">${escapeHtml(entry.changed_by || 'System')} | ${escapeHtml(entry.changed_at || 'N/A')} | ${escapeHtml(entry.module || record.module_key || 'Finance')}</p>
+                                        </div>
+                                    </div>
+                                    ${entry.reason ? `<p class="mt-2 text-xs text-amber-800">${escapeHtml(entry.reason)}</p>` : ''}
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            </div>
+        `;
+    }
+
+    function financeAttachmentEntries(record) {
+        return Array.isArray(record?.attachments) ? record.attachments.filter((attachment) => attachment && typeof attachment === 'object') : [];
+    }
+
+    function financeAttachmentIsPdf(attachment) {
+        const name = String(attachment?.name || attachment?.path || '').toLowerCase();
+        const mime = String(attachment?.mime || '').toLowerCase();
+        return name.endsWith('.pdf') || mime.includes('pdf');
+    }
+
+    function renderFinanceAttachmentCards(record) {
+        const attachments = financeAttachmentEntries(record);
+
+        if (!attachments.length) {
+            return `
+                <div class="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+                    <div class="flex items-center justify-between gap-3">
+                        <h4 class="text-[15px] font-semibold text-gray-900">Attachments</h4>
+                        <span class="rounded-full bg-gray-100 px-3 py-1 text-[11px] font-semibold text-gray-600">0 files</span>
+                    </div>
+                    <p class="mt-3 text-sm text-gray-500">No attachments have been uploaded yet.</p>
+                </div>
+            `;
+        }
+
+        const pdfAttachments = attachments.filter((attachment) => financeAttachmentIsPdf(attachment));
+        const otherAttachments = attachments.filter((attachment) => !financeAttachmentIsPdf(attachment));
+
+        const attachmentCard = (attachment, index, isPdf = false) => `
+            <div class="rounded-xl border ${isPdf ? 'border-sky-200 bg-sky-50/60' : 'border-gray-200 bg-white'} px-4 py-3 shadow-sm">
+                <div class="flex items-start justify-between gap-3">
+                    <div class="min-w-0">
+                        <p class="text-sm font-semibold text-gray-900 break-all">${escapeHtml(attachment.name || `Attachment ${index + 1}`)}</p>
+                        <p class="mt-1 text-xs text-gray-500 break-all">${escapeHtml(attachment.path || '')}</p>
+                        <p class="mt-1 text-[11px] text-gray-500">${escapeHtml(attachment.category || 'Supporting Document')}${attachment.uploaded_by ? ` • ${escapeHtml(attachment.uploaded_by)}` : ''}${attachment.uploaded_at ? ` • ${escapeHtml(attachment.uploaded_at)}` : ''}</p>
+                    </div>
+                    <span class="rounded-full border ${isPdf ? 'border-sky-200 text-sky-700' : 'border-gray-200 text-gray-600'} bg-white px-3 py-1 text-[11px] font-medium">${isPdf ? 'PDF' : 'File'}</span>
+                </div>
+            </div>
+        `;
+
+        return `
+            <div class="rounded-2xl border border-gray-200 bg-white shadow-sm">
+                <div class="border-b border-gray-100 bg-slate-50 px-4 py-3">
+                    <div class="flex items-center justify-between gap-3">
+                        <h4 class="text-[15px] font-semibold text-gray-900">Attachments</h4>
+                        <span class="rounded-full bg-gray-100 px-3 py-1 text-[11px] font-semibold text-gray-600">${escapeHtml(String(attachments.length))} file${attachments.length === 1 ? '' : 's'}</span>
+                    </div>
+                </div>
+                <div class="p-4 space-y-4">
+                    ${pdfAttachments.length ? `
+                        <div>
+                            <p class="text-[11px] uppercase tracking-[0.18em] text-sky-700">PDF Attachments</p>
+                            <div class="mt-3 space-y-3">
+                                ${pdfAttachments.map((attachment, index) => attachmentCard(attachment, index, true)).join('')}
+                            </div>
+                        </div>
+                    ` : ''}
+                    ${otherAttachments.length ? `
+                        <div>
+                            <p class="text-[11px] uppercase tracking-[0.18em] text-gray-500">Other Attachments</p>
+                            <div class="mt-3 space-y-3">
+                                ${otherAttachments.map((attachment, index) => attachmentCard(attachment, index, false)).join('')}
+                            </div>
+                        </div>
+                    ` : ''}
+                </div>
+            </div>
+        `;
+    }
+
+    function renderCrfPreviewCallout(record) {
+        const attachments = financeAttachmentEntries(record);
+        const historyEntries = financeHistoryEntries(record, 10);
+
+        return `
+            <div class="rounded-2xl border border-amber-100 bg-gradient-to-br from-amber-50 via-white to-white p-4 shadow-sm">
+                <div class="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                        <p class="text-[11px] uppercase tracking-[0.18em] text-amber-700">Cash Return Form</p>
+                        <h4 class="mt-1 text-[15px] font-semibold text-gray-900">Attachments and history are part of this record</h4>
+                        <p class="mt-2 text-sm text-gray-600">Use the tabs below to review uploaded files and the audit trail, or open the printable source when you need a full record view.</p>
+                    </div>
+                    <div class="flex flex-wrap gap-2">
+                        <button type="button" onclick="window.financeModule.changePreviewTab('attachments')" class="rounded-full border border-amber-200 bg-white px-3 py-2 text-[11px] font-semibold text-amber-800 hover:bg-amber-50">
+                            View Attachments
+                        </button>
+                        <button type="button" onclick="window.financeModule.changePreviewTab('details')" class="rounded-full border border-gray-200 bg-white px-3 py-2 text-[11px] font-semibold text-gray-700 hover:bg-gray-50">
+                            View Details
+                        </button>
+                    </div>
+                </div>
+                <div class="mt-4 grid gap-3 sm:grid-cols-2">
+                    <div class="rounded-xl border border-white bg-white/90 px-4 py-3 shadow-sm">
+                        <p class="text-[11px] uppercase tracking-[0.18em] text-gray-500">Attachments</p>
+                        <p class="mt-1 text-2xl font-semibold text-gray-900">${escapeHtml(String(attachments.length))}</p>
+                        <p class="mt-1 text-sm text-gray-500">${attachments.length === 1 ? 'file is' : 'files are'} available for review.</p>
+                    </div>
+                    <div class="rounded-xl border border-white bg-white/90 px-4 py-3 shadow-sm">
+                        <p class="text-[11px] uppercase tracking-[0.18em] text-gray-500">History Entries</p>
+                        <p class="mt-1 text-2xl font-semibold text-gray-900">${escapeHtml(String(historyEntries.length))}</p>
+                        <p class="mt-1 text-sm text-gray-500">${historyEntries.length === 1 ? 'action' : 'actions'} are recorded in the audit trail.</p>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    function renderFinanceAttachmentSourceHtml(record) {
+        const attachments = financeAttachmentEntries(record);
+
+        if (!attachments.length) {
+            return '';
+        }
+
+        return `
+            <div class="finance-preview-box">
+                <div class="finance-preview-section-title">Attachments</div>
+                <div class="finance-preview-inner">
+                    <table class="finance-preview-details">
+                        <tr>
+                            <td><p class="finance-preview-label">Count</p></td>
+                            <td><p class="finance-preview-value">${escapeHtml(String(attachments.length))} file${attachments.length === 1 ? '' : 's'}</p></td>
+                        </tr>
+                        ${attachments.map((attachment) => `
+                            <tr>
+                                <td class="finance-preview-label">Attachment</td>
+                                <td class="finance-preview-value">
+                                    ${escapeHtml(attachment.name || attachment.path || 'Attachment')}
+                                    ${attachment.category ? `<div class="finance-preview-muted">Category: ${escapeHtml(attachment.category)}</div>` : ''}
+                                    ${attachment.uploaded_by ? `<div class="finance-preview-muted">Uploaded by: ${escapeHtml(attachment.uploaded_by)}</div>` : ''}
+                                    ${attachment.uploaded_at ? `<div class="finance-preview-muted">Uploaded at: ${escapeHtml(attachment.uploaded_at)}</div>` : ''}
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </table>
+                </div>
+            </div>
+        `;
+    }
+
     function renderFinanceHistorySourceHtml(record) {
         const entries = financeHistoryEntries(record, 8);
 
         if (!entries.length) {
             return '';
+        }
+
+        if (record?.module_key === 'crf') {
+            return `
+                <div class="finance-preview-box">
+                    <div class="finance-preview-section-title">Record History / Audit Trail</div>
+                    <div class="finance-preview-inner">
+                        ${entries.map((entry) => {
+                            return `
+                                <div class="finance-preview-audit-entry" style="border-left:3px solid #f59e0b; padding-left:10px;">
+                                    <p class="finance-preview-value">${escapeHtml(entry.action || 'Action')}</p>
+                                    <p class="finance-preview-muted">${escapeHtml(entry.changed_by || 'System')} | ${escapeHtml(entry.changed_at || 'N/A')} | ${escapeHtml(entry.module || record.module_key || 'Finance')}</p>
+                                    ${entry.reason ? `<p class="finance-preview-muted">Reason: ${escapeHtml(entry.reason)}</p>` : ''}
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
+            `;
         }
 
         return `
@@ -9467,12 +9933,25 @@
                 ['Created By', record.user || 'N/A'],
                 ['Submitted At', record.submitted_at || 'N/A'],
                 ['Approved At', record.approved_at || 'N/A'],
+                ...(record.module_key === 'ca' ? [
+                    ['President', getApproverRoutingDisplayValue(record, 0)],
+                    ['Treasurer', getApproverRoutingDisplayValue(record, 1)],
+                ] : []),
+                ...(record.module_key === 'lr' ? [
+                    ['Attachments', getAttachmentSummaryValue(record)],
+                ] : []),
             ];
 
         const previewSections = getModulePreviewSections(record);
         const modulePreviewHtml = previewSections.map((section) => {
             if (typeof section.renderer === 'function') {
                 return section.renderer();
+            }
+            if (section.type === 'pda_payroll_period') {
+                return renderPdaPayrollPeriodSourceHtml(record);
+            }
+            if (section.type === 'attachments') {
+                return renderFinanceAttachmentSourceHtml(record);
             }
             if (section.type === 'asset_tag') {
                 return `
@@ -9867,6 +10346,7 @@
                 </div>
             </div>
         `;
+        const crfCalloutHtml = record.module_key === 'crf' ? renderCrfPreviewCallout(record) : '';
 
         const pdfAttachments = attachments.filter((attachment) => {
             const name = String(attachment.name || attachment.path || '').toLowerCase();
@@ -9951,7 +10431,7 @@
             ? attachmentsHtml
             : (currentPreviewTab === 'template'
                 ? templateHtml
-                : `${moduleTrackingHtml}${progressHtml}${notesHtml}${historyHtml}`);
+                : `${crfCalloutHtml}${moduleTrackingHtml}${progressHtml}${notesHtml}${historyHtml}`);
     }
 
     function updatePreviewTabButtons() {
@@ -9998,6 +10478,25 @@
             actions.push(renderArfAssetTagPrintButton(assetCode, location, serialNumber, 'w-full border border-gray-300 rounded-md py-2 hover:bg-gray-50'));
         }
 
+        if (record.module_key === 'arf') {
+            const custodianId = Number(record.data?.custodian || 0) || 0;
+            const assetAcknowledged = Boolean(record.data?.custodian_acknowledged_at);
+            const currentUserIsCustodian = currentUserEmployeeId > 0 && currentUserEmployeeId === custodianId;
+            const canManageAsset = Boolean(bootstrap.canApproveFinance || record.can_edit || record.can_review || currentUserIsCustodian);
+
+            if (currentUserIsCustodian && !assetAcknowledged) {
+                actions.push(`<button type="button" onclick="window.financeModule.acknowledgeArfAsset(${record.id})" class="w-full bg-emerald-600 text-white rounded-md py-2 hover:bg-emerald-700">Acknowledge Receipt</button>`);
+            }
+
+            if (canManageAsset) {
+                actions.push(`<button type="button" onclick="window.financeModule.openArfTransferDialog(${record.id})" class="w-full bg-indigo-600 text-white rounded-md py-2 hover:bg-indigo-700">Transfer Asset</button>`);
+                actions.push(`<button type="button" onclick="window.financeModule.recordArfAssetEvent(${record.id}, 'loss')" class="w-full border border-red-300 text-red-700 rounded-md py-2 hover:bg-red-50">Record Loss</button>`);
+                actions.push(`<button type="button" onclick="window.financeModule.recordArfAssetEvent(${record.id}, 'damage')" class="w-full border border-amber-300 text-amber-700 rounded-md py-2 hover:bg-amber-50">Record Damage</button>`);
+                actions.push(`<button type="button" onclick="window.financeModule.recordArfAssetEvent(${record.id}, 'return')" class="w-full border border-sky-300 text-sky-700 rounded-md py-2 hover:bg-sky-50">Record Return</button>`);
+                actions.push(`<button type="button" onclick="window.financeModule.recordArfAssetEvent(${record.id}, 'disposal')" class="w-full border border-gray-300 text-gray-700 rounded-md py-2 hover:bg-gray-50">Record Disposal</button>`);
+            }
+        }
+
         if (record.can_submit) {
             actions.push(`<button type="button" onclick="window.financeModule.submitFinanceRecord(${record.id})" class="w-full bg-blue-600 text-white rounded-md py-2 hover:bg-blue-700">Submit for Review</button>`);
         }
@@ -10023,6 +10522,10 @@
             actions.push(`<button type="button" onclick="window.financeModule.revertFinanceRecord(${record.id})" class="w-full bg-amber-500 text-white rounded-md py-2 hover:bg-amber-600">Return for Revision</button>`);
         }
 
+        if (record.module_key === 'ibtf' && (record.approval_status === 'Approved' || record.relationship_status === 'Awaiting Disbursement Voucher')) {
+            actions.push(`<button type="button" onclick="window.financeModule.openDisbursementVoucherFromSource(${record.id})" class="w-full bg-indigo-600 text-white rounded-md py-2 hover:bg-indigo-700">Create Disbursement Voucher</button>`);
+        }
+
         if (record.can_archive) {
             actions.push(`<button type="button" onclick="window.financeModule.archiveFinanceRecord(${record.id})" class="w-full bg-gray-700 text-white rounded-md py-2 hover:bg-gray-800">Archive</button>`);
         }
@@ -10036,6 +10539,152 @@
         }
 
         $('previewActions').innerHTML = actions.join('');
+    }
+
+    function removeArfTransferDialog() {
+        $('arfTransferDialog')?.remove();
+    }
+
+    function openArfTransferDialog(recordId) {
+        const record = getRecordById(recordId);
+        if (!record || record.module_key !== 'arf') return;
+
+        removeArfTransferDialog();
+        const currentCustodian = record.data?.custodian_name || getLookupLabel('employee', record.data?.custodian) || 'Select employee';
+        const dialog = document.createElement('div');
+        dialog.id = 'arfTransferDialog';
+        dialog.className = 'fixed inset-0 z-[80] flex items-center justify-center bg-black/40 px-4';
+        dialog.innerHTML = `
+            <div class="w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-2xl">
+                <div class="flex items-center justify-between border-b border-gray-100 px-5 py-4">
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-900">Transfer Asset</h3>
+                        <p class="text-sm text-gray-500">Choose a new custodian from the employee list and add the reason for transfer.</p>
+                    </div>
+                    <button type="button" onclick="window.financeModule.closeArfTransferDialog()" class="text-sm text-gray-500 hover:text-gray-700">Close</button>
+                </div>
+                <div class="space-y-4 px-5 py-5">
+                    <div class="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                        <p class="text-[11px] uppercase tracking-[0.18em] text-gray-500">Current Custodian</p>
+                        <p class="mt-1 text-sm font-semibold text-gray-900">${escapeHtml(currentCustodian)}</p>
+                    </div>
+                    <div class="rounded-xl border border-gray-200 bg-white p-4">
+                        <div class="flex items-center justify-between gap-3">
+                            <div>
+                                <p class="text-sm font-semibold text-gray-900">New Custodian</p>
+                                <p class="text-xs text-gray-500">Select from the employee list.</p>
+                            </div>
+                            <button type="button" onclick="window.financeModule.openLookupSelector('__arf_transfer_custodian__', 'employee', 'New Custodian')" class="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-100">Choose Employee</button>
+                        </div>
+                        <input type="hidden" data-lookup-selector-hidden="__arf_transfer_custodian__">
+                        <div data-lookup-selector-display="__arf_transfer_custodian__" class="mt-3 rounded-lg border border-dashed border-gray-200 bg-gray-50 px-3 py-3 text-sm text-gray-500">No employee selected.</div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Transfer Reason</label>
+                        <textarea data-arf-transfer-reason rows="4" class="mt-1 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm text-gray-900 focus:border-blue-400 focus:ring-2 focus:ring-blue-100" placeholder="Explain why the asset is being transferred."></textarea>
+                    </div>
+                </div>
+                <div class="flex items-center justify-end gap-3 border-t border-gray-100 px-5 py-4">
+                    <button type="button" onclick="window.financeModule.closeArfTransferDialog()" class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Cancel</button>
+                    <button type="button" onclick="window.financeModule.submitArfTransferDialog(${record.id})" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">Transfer Asset</button>
+                </div>
+            </div>
+        `;
+        dialog.addEventListener('click', (event) => {
+            if (event.target === dialog) {
+                removeArfTransferDialog();
+            }
+        });
+        document.body.appendChild(dialog);
+    }
+
+    function closeArfTransferDialog() {
+        removeArfTransferDialog();
+    }
+
+    async function submitArfTransferDialog(recordId) {
+        const dialog = $('arfTransferDialog');
+        const custodianId = String(dialog?.querySelector('[data-lookup-selector-hidden="__arf_transfer_custodian__"]')?.value || '').trim();
+        const reason = String(dialog?.querySelector('[data-arf-transfer-reason]')?.value || '').trim();
+
+        if (!custodianId) {
+            alert('Please choose a new custodian from the employee list.');
+            return;
+        }
+
+        if (!reason) {
+            alert('Please enter a reason for the transfer.');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('new_custodian_id', custodianId);
+        formData.append('transfer_reason', reason);
+
+        const res = await csrfFetch(`/finance/${recordId}/asset-transfer`, {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json'
+            },
+            body: formData,
+        });
+        const data = await res.json();
+        if (!res.ok) {
+            alert(data.message || 'Unable to transfer asset.');
+            return;
+        }
+
+        removeArfTransferDialog();
+        upsertFinanceRecord(data.data);
+        refreshFinanceView();
+        openPreview(data.data.id);
+    }
+
+    async function acknowledgeArfAsset(recordId) {
+        const res = await csrfFetch(`/finance/${recordId}/asset-acknowledge`, {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json'
+            },
+        });
+        const data = await res.json();
+        if (!res.ok) {
+            alert(data.message || 'Unable to acknowledge asset receipt.');
+            return;
+        }
+
+        upsertFinanceRecord(data.data);
+        refreshFinanceView();
+        openPreview(data.data.id);
+    }
+
+    async function recordArfAssetEvent(recordId, eventType) {
+        const reason = prompt(`Enter the reason for recording this asset ${eventType}:`);
+        if (reason === null) return;
+
+        const trimmedReason = String(reason || '').trim();
+        if (!trimmedReason) return;
+
+        const formData = new FormData();
+        formData.append('event_type', eventType);
+        formData.append('event_reason', trimmedReason);
+
+        const res = await csrfFetch(`/finance/${recordId}/asset-event`, {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json'
+            },
+            body: formData,
+        });
+        const data = await res.json();
+        if (!res.ok) {
+            alert(data.message || 'Unable to record asset event.');
+            return;
+        }
+
+        upsertFinanceRecord(data.data);
+        refreshFinanceView();
+        openPreview(data.data.id);
     }
 
     function openPreview(id) {
@@ -10644,6 +11293,7 @@
         toggleRecordNumberEditMode,
         changePreviewTab,
         openFinanceDrawer,
+        openDisbursementVoucherFromSource,
         closeFinanceDrawer,
         openPreview,
         closePreview,

@@ -693,6 +693,88 @@
                                 </td>
                             </tr>
                         </table>
+                    @elseif(data_get($section, 'type') === 'next_action_callout')
+                        <div style="border:1px solid #c7d2fe; border-radius:12px; overflow:hidden; background:linear-gradient(135deg,#eef2ff 0%,#ffffff 100%);">
+                            <div style="padding:10px 12px; border-bottom:1px solid #e0e7ff; background:rgba(255,255,255,.8);">
+                                <p class="label" style="color:#4f46e5;">Next Action</p>
+                                <p class="value" style="font-size:14px;">{{ data_get($section, 'next_action') ?: 'Create Disbursement Voucher' }}</p>
+                            </div>
+                            <div style="padding:12px;">
+                                <table class="details">
+                                    <tr>
+                                        <td>
+                                            <p class="label">Relationship Status</p>
+                                            <p class="value">{{ data_get($section, 'relationship_status') ?: 'In Progress' }}</p>
+                                        </td>
+                                        <td>
+                                            <p class="label">Status Note</p>
+                                            <p class="value">{{ data_get($section, 'description') ?: 'This record is ready for the next step in the workflow.' }}</p>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </div>
+                        </div>
+                    @elseif(data_get($section, 'type') === 'history')
+                        @php
+                            $historyEntries = array_values(array_filter((array) data_get($record->data, 'history', []), fn ($entry) => is_array($entry)));
+                        @endphp
+                        @if(count($historyEntries))
+                            @if($record->module_key === 'crf')
+                                <div class="lr-report">
+                                    <table class="details" style="margin-bottom: 8px;">
+                                        <tr>
+                                            <td colspan="2"><p class="label">Record History / Audit Trail</p></td>
+                                        </tr>
+                                    </table>
+                                    @foreach(array_reverse($historyEntries) as $entry)
+                                        <div class="lr-report-panel" style="margin-bottom: 10px; border-left: 3px solid #f59e0b; padding-left: 10px;">
+                                            <div class="lr-report-title">{{ data_get($entry, 'action') ?: 'Action' }}</div>
+                                            <div class="lr-report-subtitle">{{ data_get($entry, 'changed_by') ?: 'System' }} | {{ data_get($entry, 'changed_at') ?: 'N/A' }} | {{ data_get($entry, 'module') ?: $record->module_key }}</div>
+                                            @if(data_get($entry, 'reason'))
+                                                <div style="margin-top:4px; color:#92400e; font-size:12px;">{{ data_get($entry, 'reason') }}</div>
+                                            @endif
+                                        </div>
+                                    @endforeach
+                                </div>
+                            @else
+                                <div class="lr-report">
+                                    <table class="details" style="margin-bottom: 8px;">
+                                        <tr>
+                                            <td colspan="2"><p class="label">Record History / Audit Trail</p></td>
+                                        </tr>
+                                    </table>
+                                    @foreach(array_reverse($historyEntries) as $entry)
+                                        <div class="lr-report-panel" style="margin-bottom: 10px;">
+                                            <div class="lr-report-title">{{ data_get($entry, 'action') ?: 'Action' }}</div>
+                                            <div class="lr-report-subtitle">{{ data_get($entry, 'changed_by') ?: 'System' }} | {{ data_get($entry, 'changed_at') ?: 'N/A' }} | {{ data_get($entry, 'module') ?: $record->module_key }}</div>
+                                            @if(data_get($entry, 'reason'))
+                                                <div style="margin-top:6px; color:#92400e; font-size:12px;">Reason: {{ data_get($entry, 'reason') }}</div>
+                                            @endif
+                                        </div>
+                                    @endforeach
+                                </div>
+                            @endif
+                        @endif
+                    @elseif(data_get($section, 'type') === 'attachments')
+                        @php
+                            $attachmentEntries = array_values(array_filter((array) $attachments, fn ($attachment) => is_array($attachment)));
+                        @endphp
+                        @if(count($attachmentEntries))
+                            <div class="attachments">
+                                @foreach($attachmentEntries as $attachment)
+                                    <a href="{{ data_get($attachment, 'url') ?: data_get($attachment, 'path') }}" target="_blank">
+                                        <strong>{{ data_get($attachment, 'name') ?: data_get($attachment, 'path') ?: 'Attachment' }}</strong>
+                                        <span>{{ data_get($attachment, 'category') ?: 'Supporting Document' }}</span>
+                                        @if(data_get($attachment, 'uploaded_by') || data_get($attachment, 'uploaded_at'))
+                                            <small>{{ collect([data_get($attachment, 'uploaded_by'), data_get($attachment, 'uploaded_at')])->filter()->implode(' â€¢ ') }}</small>
+                                        @endif
+                                        <small>{{ data_get($attachment, 'path') }}</small>
+                                    </a>
+                                @endforeach
+                            </div>
+                        @else
+                            <p class="note">No attachments uploaded yet.</p>
+                        @endif
                     @elseif(data_get($section, 'type') === 'dv_line_items')
                         @php
                             $dvLineItems = array_values(array_filter((array) data_get($record->data, 'line_items', []), fn ($item) => is_array($item) && collect($item)->contains(fn ($value) => !blank($value))));
@@ -1031,7 +1113,10 @@
             </div>
         @endforeach
 
-        @if(count($attachments))
+        @php
+            $hasAttachmentSection = collect($previewSections ?? [])->contains(fn ($section) => data_get($section, 'type') === 'attachments');
+        @endphp
+        @if(count($attachments) && ! $hasAttachmentSection)
             <div class="box">
                 <div class="block-title">Attachments</div>
                 <div class="attachments">

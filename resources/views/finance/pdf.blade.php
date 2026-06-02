@@ -717,6 +717,105 @@
         @endif
 
         @php
+            $specialPreviewSections = collect($previewSections ?? [])
+                ->filter(fn ($section) => in_array(data_get($section, 'type'), ['attachments', 'history', 'next_action_callout'], true))
+                ->values();
+            $hasAttachmentSection = $specialPreviewSections->contains(fn ($section) => data_get($section, 'type') === 'attachments');
+            $hasHistorySection = $specialPreviewSections->contains(fn ($section) => data_get($section, 'type') === 'history');
+        @endphp
+
+        @if($specialPreviewSections->isNotEmpty())
+            @foreach($specialPreviewSections as $section)
+                @if(data_get($section, 'type') === 'attachments')
+                    @if(count($attachments))
+                        <div class="section-box">
+                            <div class="section-title">Attachments</div>
+                            <div class="section-body">
+                                <table class="detail-table">
+                                    @foreach($attachments as $index => $attachment)
+                                        <tr>
+                                            <td>
+                                                <div class="detail-label">File {{ $index + 1 }}</div>
+                                                <div class="detail-value">{{ data_get($attachment, 'name') ?: data_get($attachment, 'path') ?: 'Attachment' }}</div>
+                                            </td>
+                                            <td>
+                                                <div class="detail-label">{{ data_get($attachment, 'category') ?: 'Supporting Document' }}</div>
+                                                <div class="detail-value">{{ data_get($attachment, 'path') ?: 'N/A' }}</div>
+                                                @if(data_get($attachment, 'uploaded_by') || data_get($attachment, 'uploaded_at'))
+                                                    <div class="detail-label" style="margin-top:4px;">Uploaded</div>
+                                                    <div class="detail-value" style="font-weight:500;">{{ collect([data_get($attachment, 'uploaded_by'), data_get($attachment, 'uploaded_at')])->filter()->implode(' â€¢ ') }}</div>
+                                                @endif
+                                            </td>
+                                        </tr>
+                                    @endforeach
+                                </table>
+                            </div>
+                        </div>
+                    @endif
+                @elseif(data_get($section, 'type') === 'next_action_callout')
+                    <div class="section-box" style="border-color:#c7d2fe; background:linear-gradient(135deg,#eef2ff 0%,#ffffff 100%);">
+                        <div class="section-title" style="background:#4338ca;">Next Action</div>
+                        <div class="section-body">
+                            <table class="detail-table">
+                                <tr>
+                                    <td colspan="2">
+                                        <div class="detail-label">Action</div>
+                                        <div class="detail-value" style="font-size:14px;">{{ data_get($section, 'next_action') ?: 'Create Disbursement Voucher' }}</div>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <div class="detail-label">Relationship Status</div>
+                                        <div class="detail-value">{{ data_get($section, 'relationship_status') ?: 'In Progress' }}</div>
+                                    </td>
+                                    <td>
+                                        <div class="detail-label">Status Note</div>
+                                        <div class="detail-value">{{ data_get($section, 'description') ?: 'This record is ready for the next step in the workflow.' }}</div>
+                                    </td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+                @elseif(data_get($section, 'type') === 'history')
+                    @php
+                        $historyEntries = array_values(array_filter((array) data_get($record->data, 'history', []), fn ($entry) => is_array($entry)));
+                    @endphp
+                    @if(count($historyEntries))
+                        <div class="section-box">
+                            <div class="section-title">Record History / Audit Trail</div>
+                            <div class="section-body">
+                                @foreach(array_reverse($historyEntries) as $entry)
+                                    <table class="detail-table" style="margin-bottom: 8px;">
+                                        <tr>
+                                            <td>
+                                                <div class="detail-label">Action</div>
+                                                <div class="detail-value">{{ data_get($entry, 'action') ?: 'Action' }}</div>
+                                            </td>
+                                            <td>
+                                                <div class="detail-label">Changed By</div>
+                                                <div class="detail-value">{{ data_get($entry, 'changed_by') ?: 'System' }}</div>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td>
+                                                <div class="detail-label">Changed At</div>
+                                                <div class="detail-value">{{ data_get($entry, 'changed_at') ?: 'N/A' }}</div>
+                                            </td>
+                                            <td>
+                                                <div class="detail-label">Reason</div>
+                                                <div class="detail-value">{{ data_get($entry, 'reason') ?: 'N/A' }}</div>
+                                            </td>
+                                        </tr>
+                                    </table>
+                                @endforeach
+                            </div>
+                        </div>
+                    @endif
+                @endif
+            @endforeach
+        @endif
+
+        @php
             $fieldPreviewSections = collect($previewSections ?? [])
                 ->filter(fn ($section) => data_get($section, 'type') === 'fields')
                 ->values();
@@ -776,6 +875,41 @@
                 <div class="section-title">Details</div>
                 <div class="section-body">
                     <div class="muted">No additional details provided.</div>
+                </div>
+            </div>
+        @endif
+
+        @php
+            $historyEntries = array_values(array_filter((array) data_get($record->data, 'history', []), fn ($entry) => is_array($entry)));
+        @endphp
+        @if(count($historyEntries) && ! $hasHistorySection)
+            <div class="section-box">
+                <div class="section-title">Record History / Audit Trail</div>
+                <div class="section-body">
+                    @foreach(array_reverse($historyEntries) as $entry)
+                        <table class="detail-table" style="margin-bottom: 8px;">
+                            <tr>
+                                <td>
+                                    <div class="detail-label">Action</div>
+                                    <div class="detail-value">{{ data_get($entry, 'action') ?: 'Action' }}</div>
+                                </td>
+                                <td>
+                                    <div class="detail-label">Changed By</div>
+                                    <div class="detail-value">{{ data_get($entry, 'changed_by') ?: 'System' }}</div>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <div class="detail-label">Changed At</div>
+                                    <div class="detail-value">{{ data_get($entry, 'changed_at') ?: 'N/A' }}</div>
+                                </td>
+                                <td>
+                                    <div class="detail-label">Reason</div>
+                                    <div class="detail-value">{{ data_get($entry, 'reason') ?: 'N/A' }}</div>
+                                </td>
+                            </tr>
+                        </table>
+                    @endforeach
                 </div>
             </div>
         @endif
@@ -1279,7 +1413,7 @@
             </div>
         @endif
 
-        @if(count($attachments))
+        @if(count($attachments) && ! $hasAttachmentSection)
             <div class="section-box">
                 <div class="section-title">Attachments</div>
                 <div class="section-body">

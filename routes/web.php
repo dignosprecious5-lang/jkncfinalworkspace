@@ -943,6 +943,9 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::post('/finance/{financeRecord}/request-delete', [FinanceController::class, 'requestDelete'])->name('finance.delete.request');
     Route::post('/finance/{financeRecord}/share-supplier-link', [FinanceController::class, 'shareSupplierLink'])->name('finance.supplier.share');
     Route::post('/finance/{financeRecord}/supplier-email', [FinanceController::class, 'updateSupplierEmailAndResend'])->name('finance.supplier.email');
+    Route::post('/finance/{financeRecord}/asset-acknowledge', [FinanceController::class, 'acknowledgeAsset'])->name('finance.asset.acknowledge');
+    Route::post('/finance/{financeRecord}/asset-transfer', [FinanceController::class, 'transferAsset'])->name('finance.asset.transfer');
+    Route::post('/finance/{financeRecord}/asset-event', [FinanceController::class, 'recordAssetEvent'])->name('finance.asset.event');
 
     Route::get('/banking/data', [BankingController::class, 'index'])->name('banking.index');
     Route::post('/banking/store', [BankingController::class, 'store'])->name('banking.store');
