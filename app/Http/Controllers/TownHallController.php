@@ -1246,6 +1246,15 @@ class TownHallController extends Controller
 
     private function gisApprovers()
     {
+        if (
+            !class_exists(GisRecord::class)
+            || !class_exists(DirectorOfficer::class)
+            || !Schema::hasTable((new GisRecord())->getTable())
+            || !Schema::hasTable((new DirectorOfficer())->getTable())
+        ) {
+            return collect();
+        }
+
         $latestApprovedGis = $this->latestApprovedGisRecord();
 
         if (!$latestApprovedGis) {
@@ -1255,22 +1264,24 @@ class TownHallController extends Controller
         return $latestApprovedGis->directors()
             ->whereNotNull('officer_name')
             ->where('officer_name', '<>', '')
-            ->whereNotNull('officer_type')
-            ->where('officer_type', '<>', '')
             ->orderBy('officer_name')
             ->get()
-            ->filter(function ($officer) {
-                return $this->isValidGisOfficerType($officer->officer_type);
-            })
             ->map(function ($officer) {
                 return $this->formatGisApprover($officer);
             })
-            ->filter(fn($officer) => !empty($officer['name']) && !empty($officer['position']))
+            ->filter(fn($officer) => !empty($officer['name']))
             ->values();
     }
 
-    private function latestApprovedGisRecord(): ?GisRecord
+    private function latestApprovedGisRecord()
     {
+        if (
+            !class_exists(GisRecord::class)
+            || !Schema::hasTable((new GisRecord())->getTable())
+        ) {
+            return null;
+        }
+
         $query = GisRecord::with('directors')
             ->where('approval_status', 'Approved');
 
@@ -1313,7 +1324,11 @@ class TownHallController extends Controller
 
     private function getGisApproverData($officerId): array
     {
-        if (!$officerId) {
+        if (
+            !$officerId
+            || !class_exists(DirectorOfficer::class)
+            || !Schema::hasTable((new DirectorOfficer())->getTable())
+        ) {
             return [];
         }
 
@@ -1334,17 +1349,15 @@ class TownHallController extends Controller
         return $this->formatGisApprover($officer);
     }
 
-    private function formatGisApprover(DirectorOfficer $officer): array
+    private function formatGisApprover($officer): array
     {
-        $position = trim((string) $officer->officer_type);
-
         return [
             'id' => $officer->id,
             'user_id' => null,
             'name' => $officer->officer_name ?: 'Unnamed Officer',
             'email' => $officer->email,
-            'position' => $position,
-            'department' => 'Department of the ' . $position,
+            'position' => $officer->officer_type ?: 'Officer',
+            'department' => $officer->committee ?: 'Executive Management',
             'gis_id' => $officer->gis_id,
         ];
     }
@@ -2056,16 +2069,22 @@ class TownHallController extends Controller
             ? $communication->management_approver_id
             : $communication->executive_approver_id;
 
-        if ($officerId) {
+        if (
+            $officerId
+            && class_exists(DirectorOfficer::class)
+            && Schema::hasTable((new DirectorOfficer())->getTable())
+        ) {
             $officer = DirectorOfficer::find($officerId);
 
-            if ($officer && !empty($officer->email)) {
+            if ($officer && !empty($officer->email) && $this->isValidGisOfficerType($officer->officer_type)) {
+                $position = trim((string) $officer->officer_type);
+
                 return (object) [
                     'id' => $officer->id,
                     'name' => $officer->officer_name,
                     'email' => $officer->email,
-                    'position' => $officer->officer_type,
-                    'department' => $officer->committee,
+                    'position' => $position,
+                    'department' => 'Department of the ' . $position,
                 ];
             }
         }
