@@ -4,10 +4,14 @@ namespace App\Http\Controllers;
 
 use App\Models\Employee;
 use App\Models\CandidateApplication;
+use App\Models\Department;
+use App\Models\Division;
+use App\Models\Office;
 use App\Models\OnboardingChecklist;
 use App\Models\OnboardingEmployeeRegistration;
 use App\Models\PersonalDataSheet;
 use App\Models\TrainingAssignment;
+use App\Models\Unit;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -344,6 +348,13 @@ class OnboardingRecordController extends Controller
     $hourlyRate = $this->computeEmployeeHourlyRate($basicSalary, $payrollType);
     $profilePhoto = $this->resolveEmployeeProfilePhoto($candidateApplication, $checklist);
     $attachments = $this->buildEmployeeAttachments($checklist, $candidateApplication, $jobOffer);
+    $organization = $this->completeOrgAssignment([
+        'branch_id' => $this->resolveOrgId($jobOffer?->branch_id, $offerDetails, $applicationData, ['branch_id', 'branchId', 'orgBranchId']),
+        'office_id' => $this->resolveOrgId($jobOffer?->office_id, $offerDetails, $applicationData, ['office_id', 'officeId', 'orgOfficeId']),
+        'department_id' => $this->resolveOrgId($jobOffer?->department_id, $offerDetails, $applicationData, ['department_id', 'departmentId', 'orgDepartmentId']),
+        'division_id' => $this->resolveOrgId($jobOffer?->division_id, $offerDetails, $applicationData, ['division_id', 'divisionId', 'orgDivisionId']),
+        'unit_id' => $this->resolveOrgId($jobOffer?->unit_id, $offerDetails, $applicationData, ['unit_id', 'unitId', 'orgUnitId']),
+    ]);
 
     $employeeProfile = Employee::create([
         'employee_code' => $validated['employeeId'],
@@ -386,11 +397,11 @@ class OnboardingRecordController extends Controller
         ] : [],
 
         // Organizational assignment from Job Offer
-        'office_id' => $jobOffer?->office_id,
-        'branch_id' => $jobOffer?->branch_id,
-        'department_id' => $jobOffer?->department_id,
-        'division_id' => $jobOffer?->division_id,
-        'unit_id' => $jobOffer?->unit_id,
+        'office_id' => $organization['office_id'],
+        'branch_id' => $organization['branch_id'],
+        'department_id' => $organization['department_id'],
+        'division_id' => $organization['division_id'],
+        'unit_id' => $organization['unit_id'],
 
         // Position and payroll from Job Offer for new applicants, or HR manual input for existing employees.
         'applicant_id' => $candidateApplication?->applicant_id ?: ($offerDetails['applicantId'] ?? null),
@@ -411,7 +422,7 @@ class OnboardingRecordController extends Controller
         'salary_grade' => $offerDetails['salaryGrade'] ?? null,
         'basic_salary' => $basicSalary,
         'hourly_rate' => $hourlyRate,
-        'benefits_checklist' => $this->linesFromText($jobOffer?->benefits ?: ($offerDetails['benefits'] ?? null)),
+        'benefits_checklist' => $this->benefitsFromValue($jobOffer?->benefits ?: ($offerDetails['benefits'] ?? null)),
         'tin_number' => $pdsData['tin'] ?? null,
         'sss_number' => $pdsData['sss'] ?? null,
         'philhealth_number' => $pdsData['philhealth'] ?? null,
@@ -801,6 +812,61 @@ private function attachmentLabel(string $key): string
     };
 }
 
+private function resolveOrgId($directValue, array $offerDetails, array $applicationData, array $keys): ?int
+{
+    foreach ([$directValue] as $value) {
+        if ($this->validOrgId($value)) {
+            return (int) $value;
+        }
+    }
+
+    foreach ($keys as $key) {
+        foreach ([$offerDetails[$key] ?? null, $applicationData[$key] ?? null] as $value) {
+            if ($this->validOrgId($value)) {
+                return (int) $value;
+            }
+        }
+    }
+
+    return null;
+}
+
+private function completeOrgAssignment(array $organization): array
+{
+    if (!empty($organization['unit_id'])) {
+        $unit = Unit::find($organization['unit_id']);
+        $organization['division_id'] = $organization['division_id'] ?: $unit?->division_id;
+    }
+
+    if (!empty($organization['division_id'])) {
+        $division = Division::find($organization['division_id']);
+        $organization['department_id'] = $organization['department_id'] ?: $division?->department_id;
+    }
+
+    if (!empty($organization['department_id'])) {
+        $department = Department::find($organization['department_id']);
+        $organization['office_id'] = $organization['office_id'] ?: $department?->office_id;
+    }
+
+    if (!empty($organization['office_id'])) {
+        $office = Office::find($organization['office_id']);
+        $organization['branch_id'] = $organization['branch_id'] ?: $office?->branch_id;
+    }
+
+    return [
+        'branch_id' => $organization['branch_id'] ?: null,
+        'office_id' => $organization['office_id'] ?: null,
+        'department_id' => $organization['department_id'] ?: null,
+        'division_id' => $organization['division_id'] ?: null,
+        'unit_id' => $organization['unit_id'] ?: null,
+    ];
+}
+
+private function validOrgId($value): bool
+{
+    return $value !== null && $value !== '' && is_numeric($value) && (int) $value > 0;
+}
+
 private function decodeArray($value): array
 {
     if (is_array($value)) {
@@ -905,6 +971,64 @@ private function linesFromText($value): array
     }
 
     return array_values(array_filter(preg_split('/\r?\n|,/', (string) $value)));
+}
+
+private function benefitsFromValue($value): array
+{
+    if (is_array($value)) {
+        return collect($value)->map(fn ($item) => trim((string) $item))->filter()->values()->all();
+    }
+
+    $text = trim((string) $value);
+    if ($text === '') {
+        return [];
+    }
+
+    $knownBenefits = [
+        'Social Security System (SSS)',
+        'PhilHealth',
+        'Pag-IBIG Fund (HDMF)',
+        '13th Month Pay',
+        'Overtime Pay',
+        'Night Differential Pay, if applicable',
+        'Rest Day / Special Holiday Premium Pay, if applicable',
+        'Maternity Benefits, per law',
+        'Paternity Benefits, per law',
+        'Solo Parent and other statutory leave benefits, if applicable',
+        'Retirement Benefits as required by law or policy, if applicable',
+        'Other benefits mandated under Philippine labor laws',
+        'Bonus, Performance Incentive Schemes and Merit-Based Rewards',
+        'Healthcare, Insurance, and Investment Benefit Plan after 6 months of employment, subject to company policy and eligibility',
+        'Service Incentive Leave',
+        'Incentives / Commission',
+        'Holiday Pay',
+        'HMO',
+        'Day Shift + Weekends Off',
+        'No Work on Philippine Holidays, subject to operations',
+        'Structured and Professional Work Environment',
+        'Exposure to Corporate Advisory and Governance Practice',
+        'Opportunity for Long-Term Growth Based on Performance',
+    ];
+
+    $items = [];
+    $remaining = $text;
+
+    foreach ($knownBenefits as $benefit) {
+        if (stripos($text, $benefit) !== false) {
+            $items[] = $benefit;
+            $remaining = str_ireplace($benefit, '', $remaining);
+        }
+    }
+
+    $fallback = preg_split('/\r?\n|,/', $remaining);
+    foreach ($fallback as $item) {
+        $clean = trim($item, " \t\n\r\0\x0B,");
+        if ($clean !== '' && !in_array(strtolower($clean), ['if applicable', 'per law', 'subject to operations'], true)) {
+            $items[] = $clean;
+        }
+    }
+
+    return array_values(array_unique(array_filter($items)));
 }
 
 private function yesNoBoolean($value): ?bool
