@@ -2494,11 +2494,17 @@ inferPayrollType(value) {
         generateEmployeeId() {
             const existing = this.data['Employee Registration'] ?? [];
             const used = new Set(existing.map(item => String(item.employeeId || item.employee_id || '')));
+            const firstDigitPool = ['1', '2', '3', '5', '7', '8', '9'];
+            const digitPool = ['0', '1', '2', '3', '5', '7', '8', '9'];
             let id = '';
 
             do {
-                id = String(Math.floor(10000 + Math.random() * 90000));
-            } while (used.has(id));
+                id = firstDigitPool[Math.floor(Math.random() * firstDigitPool.length)];
+
+                while (id.length < 5) {
+                    id += digitPool[Math.floor(Math.random() * digitPool.length)];
+                }
+            } while (used.has(id) || id.includes('13') || id.includes('31'));
 
             return id;
         },

@@ -264,7 +264,14 @@ class OnboardingRecordController extends Controller
     $validated = $request->validate([
         'checklistId' => ['required', 'exists:onboarding_checklists,id'],
         'fullName' => ['required', 'string', 'max:255'],
-        'employeeId' => ['required', 'regex:/^\d{5}$/', 'unique:onboarding_employee_registrations,employee_id', 'unique:employees,employee_code'],
+        'employeeId' => [
+            'required',
+            'regex:/^\d{5}$/',
+            'not_regex:/[46]/',
+            'not_regex:/(13|31)/',
+            'unique:onboarding_employee_registrations,employee_id',
+            'unique:employees,employee_code',
+        ],
         'department' => ['nullable', 'string', 'max:255'],
         'position' => ['required', 'string', 'max:255'],
         'payrollType' => ['required', Rule::in(['Monthly Paid', 'Daily Paid'])],
