@@ -55,7 +55,7 @@ class PolicyController extends Controller
         $policy = Policy::create([
             'code' => $validated['code'] ?? null,
             'policy' => $validated['policy'] ?? null,
-            'policy_subtitle' => $validated['policy_subtitle'] ?? 'Policy Document',
+            'policy_subtitle' => $validated['policy_subtitle'] ?? null,
             'version' => $validated['version'] ?? '1.0',
             'effectivity_date' => $validated['effectivity_date'] ?? null,
             'prepared_by' => $validated['prepared_by'] ?? (Auth::user()->name ?? 'System Admin'),
@@ -130,7 +130,7 @@ class PolicyController extends Controller
         $data = [
             'code' => $safePdfText($request->input('code', 'AUTO-GENERATED'), 30),
             'policy' => $safePdfText($request->input('policy', ''), 32),
-            'policy_subtitle' => $safePdfText($request->input('policy_subtitle', 'Policy Document'), 42),
+            'policy_subtitle' => $safePdfText($request->input('policy_subtitle', ''), 42),
             'version' => $safePdfText($request->input('version', '1.0'), 30),
             'effectivity_date' => $request->input('effectivity_date', ''),
             'prepared_by' => $safePdfText($request->input('prepared_by', auth()->user()->name ?? 'System Admin'), 30),
@@ -490,7 +490,7 @@ class PolicyController extends Controller
         $payload = [
             'code' => $validated['code'] ?? null,
             'policy' => $validated['policy'] ?? null,
-            'policy_subtitle' => $validated['policy_subtitle'] ?? 'Policy Document',
+            'policy_subtitle' => $validated['policy_subtitle'] ?? null,
             'version' => $validated['version'] ?? '1.0',
             'effectivity_date' => $validated['effectivity_date'] ?? null,
             'prepared_by' => $validated['prepared_by'] ?? (Auth::user()->name ?? 'System Admin'),

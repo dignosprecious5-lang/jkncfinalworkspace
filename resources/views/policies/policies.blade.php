@@ -5,7 +5,7 @@
 <div id="policy-page" class="w-full min-h-screen bg-slate-50" x-data="{
     showSlideOver: false,
     previewPolicy: '',
-    previewPolicySubtitle: 'Policy Document',
+    previewPolicySubtitle: '',
     previewCode: '',
     previewVersion: '1.0',
     previewDate: '',
@@ -299,7 +299,7 @@
 
                             <div class="cover-title">
                                 <h1 x-text="previewPolicy || 'POLICY TITLE'"></h1>
-                                <p x-text="previewPolicySubtitle || 'Policy Document'"></p>
+                                <p x-text="previewPolicySubtitle"></p>
                             </div>
 
                             <div class="cover-details">
@@ -373,6 +373,7 @@
 
                 <form id="policyFormSubmit" method="POST" action="{{ route('policies.store') }}" enctype="multipart/form-data" class="flex-1 overflow-y-auto px-6 py-6 space-y-5">
                     @csrf
+                    <input type="hidden" name="prepared_by" x-model="previewPrepared">
 
                     <div>
                         <label class="text-[11px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Policy Title</label>
@@ -392,7 +393,7 @@
                             type="text"
                             name="policy_subtitle"
                             x-model="previewPolicySubtitle"
-                            placeholder="e.g. Policy Document"
+                            placeholder="e.g. Corporate Meeting Documentation Policy"
                             class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition"
                             oninput="syncPreview()"
                         >
@@ -438,38 +439,11 @@
                     </div>
 
                     <div class="space-y-4 pt-4 border-t border-gray-100">
-                        <div>
-                            <label class="text-[11px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Prepared By</label>
-                            <input
-                                type="text"
-                                name="prepared_by"
-                                x-model="previewPrepared"
-                                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-gray-50"
-                            >
-                        </div>
-
-                        <div>
-                            <label class="text-[11px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Reviewed By</label>
-                            <input
-                                type="text"
-                                name="reviewed_by"
-                                x-model="previewReviewed"
-                                placeholder="e.g. Policy Development Committee (PDC)"
-                                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition"
-                                oninput="syncPreview()"
-                            >
-                        </div>
-
-                        <div>
-                            <label class="text-[11px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Approved By</label>
-                            <input
-                                type="text"
-                                name="approved_by"
-                                x-model="previewApproved"
-                                placeholder="e.g. Board of Directors"
-                                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition"
-                                oninput="syncPreview()"
-                            >
+                        <div class="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-xs text-blue-700">
+                            <p class="font-semibold">Automatic approval details</p>
+                            <p class="mt-1">
+                                Prepared By is automatically set to the signed-in user. Reviewed By and Approved By will be filled once the policy is reviewed or approved.
+                            </p>
                         </div>
 
                         <div>
