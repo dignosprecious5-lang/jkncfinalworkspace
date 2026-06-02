@@ -9,6 +9,7 @@ class Policy extends Model
     protected $fillable = [
         'code',
         'policy',
+        'policy_subtitle',
         'version',
         'effectivity_date',
         'prepared_by',
@@ -34,4 +35,9 @@ class Policy extends Model
         'archived_at' => 'datetime',
         'approved_at' => 'datetime',
     ];
+
+    public function attachments()
+    {
+        return $this->hasMany(PolicyAttachment::class);
+    }
 }
