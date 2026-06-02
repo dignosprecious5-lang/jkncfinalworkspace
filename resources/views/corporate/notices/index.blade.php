@@ -236,10 +236,10 @@
                 </button>
             </div>
 
-            <form method="POST" action="{{ $noticeStoreUrl }}" enctype="multipart/form-data" class="flex-1 overflow-hidden p-6" @submit="prepareSubmit()">
+            <form method="POST" action="{{ $noticeStoreUrl }}" enctype="multipart/form-data" class="flex-1 min-h-0 flex flex-col overflow-hidden" @submit="prepareSubmit()">
                 @csrf
 
-                <div class="grid grid-cols-1 xl:grid-cols-[minmax(0,1.35fr)_minmax(420px,0.95fr)] gap-6 h-[calc(100vh-8rem)] min-h-0 overflow-hidden">
+                <div class="grid grid-cols-1 xl:grid-cols-[minmax(0,1.35fr)_minmax(420px,0.95fr)] gap-6 flex-1 min-h-0 overflow-hidden p-6">
                     <div class="rounded-2xl border border-slate-200 overflow-hidden bg-[#f7f7fb] flex flex-col min-h-0">
                         <div class="px-5 py-4 border-b border-slate-200 bg-white shrink-0">
                             <div class="text-sm font-semibold text-slate-900">Live Notice Preview</div>
@@ -569,7 +569,7 @@
                     </div>
                 </div>
 
-                <div class="px-6 py-4 border-t border-gray-100 flex items-center gap-2 -mx-6 -mb-6">
+                <div class="shrink-0 sticky bottom-0 z-50 px-6 py-4 border-t border-gray-100 bg-white flex items-center gap-2 shadow-[0_-10px_30px_rgba(15,23,42,0.06)]">
                     <button class="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-900 text-sm font-medium rounded-lg" @click="showAddPanel = false" type="button">
                         Cancel
                     </button>

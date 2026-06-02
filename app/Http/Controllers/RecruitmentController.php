@@ -33,6 +33,7 @@ use App\Models\Training;
 use App\Models\User;
 use App\Models\AssessmentType;
 use App\Models\AssessmentQuestion;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class RecruitmentController extends Controller
 {
@@ -228,6 +229,21 @@ class RecruitmentController extends Controller
             ->orderBy('position')
             ->get()
             ->filter(fn($jpf) => $this->jpfApprovalsAllApproved($jpf))
+            ->map(fn ($job) => [
+                'id' => $job->id,
+                'job_id' => $job->job_id,
+                'position' => $job->position,
+                'department' => $job->department,
+                'department_unit' => $job->department_unit,
+                'employment_type' => $job->employment_type,
+                'work_arrangement' => $job->work_arrangement,
+                'work_schedule' => $job->work_schedule,
+                'location' => $job->location,
+                'office_branch_site' => $job->office_branch_site,
+                'applicable_area' => $job->applicable_area,
+                'target_hire_date' => optional($job->target_hire_date)->format('Y-m-d'),
+                'date_needed' => optional($job->date_needed)->format('Y-m-d'),
+            ])
             ->values();
 
         return view('careers.apply', compact('jobPostings'));
@@ -282,6 +298,7 @@ class RecruitmentController extends Controller
     public function showPublicPDSForm($token = null)
     {
         $jobOffer = null;
+        $pdsPrefill = [];
 
         if ($token) {
             $jobOffer = JobOffer::where('accept_token', $token)->firstOrFail();
@@ -289,11 +306,14 @@ class RecruitmentController extends Controller
             if ($jobOffer->status !== 'Accepted') {
                 abort(403, 'This PDS link is only available after accepting the job offer.');
             }
+
+            $pdsPrefill = $this->buildPdsPrefill($jobOffer);
         }
 
         return view('careers.pds', [
             'jobOffer' => $jobOffer,
             'token' => $token,
+            'pdsPrefill' => $pdsPrefill,
         ]);
     }
 
@@ -395,6 +415,195 @@ class RecruitmentController extends Controller
                 'message' => $e->getMessage(),
             ], 500);
         }
+    }
+
+
+    private function buildPdsPrefill(JobOffer $jobOffer): array
+    {
+        $prefill = [
+            'jobOfferToken' => $jobOffer->accept_token,
+            'fullName' => $jobOffer->name ?? '',
+            'position' => $jobOffer->position ?? '',
+            'email' => $jobOffer->candidate_email ?? '',
+            'phone' => '',
+        ];
+
+        $caf = $this->findCandidateApplicationForJobOffer($jobOffer);
+        $application = is_array($caf?->application_data) ? $caf->application_data : [];
+
+        if ($caf) {
+            $prefill = array_merge($prefill, [
+                'fullName' => $caf->name ?: ($prefill['fullName'] ?? ''),
+                'position' => $caf->position ?: ($prefill['position'] ?? ''),
+                'email' => $caf->email ?: ($prefill['email'] ?? ''),
+                'phone' => $caf->phone ?: ($prefill['phone'] ?? ''),
+                'surname' => $application['lastName'] ?? '',
+                'firstName' => $application['firstName'] ?? '',
+                'middleName' => $application['middleName'] ?? '',
+                'dob' => $application['dateOfBirth'] ?? '',
+                'citizenship' => $application['nationality'] ?? '',
+                'sex' => in_array(($application['gender'] ?? ''), ['Male', 'Female'], true) ? $application['gender'] : '',
+                'civilStatus' => $this->normalizePdsCivilStatus($application['civilStatus'] ?? ''),
+                'resHouse' => $application['currentAddress'] ?? '',
+                'permHouse' => $application['permanentAddress'] ?? '',
+                'permSameAsRes' => $this->truthyRecruitmentValue($application['sameAddress'] ?? false),
+                'mobileNo' => $caf->phone ?: ($application['phone'] ?? ''),
+                'email' => $caf->email ?: ($application['email'] ?? ($prefill['email'] ?? '')),
+            ]);
+
+            $prefill = array_merge($prefill, $this->mapPdsEducation($this->decodeRecruitmentArray($application['education'] ?? [])));
+            $prefill['lnd'] = $this->mapPdsLearningDevelopment($this->decodeRecruitmentArray($application['certifications'] ?? []));
+        }
+
+        $existingPds = \App\Models\PersonalDataSheet::where('job_offer_id', $jobOffer->id)
+            ->orWhere(function ($query) use ($jobOffer) {
+                $query->where('email', $jobOffer->candidate_email)
+                    ->whereNotNull('email');
+            })
+            ->latest()
+            ->first();
+
+        if ($existingPds && is_array($existingPds->data)) {
+            $prefill = array_merge($prefill, array_filter(
+                $existingPds->data,
+                fn ($value) => $value !== null && $value !== ''
+            ));
+        }
+
+        if (empty($prefill['phone']) && !empty($prefill['mobileNo'])) {
+            $prefill['phone'] = $prefill['mobileNo'];
+        }
+
+        return $prefill;
+    }
+
+    private function findCandidateApplicationForJobOffer(JobOffer $jobOffer): ?CandidateApplication
+    {
+        $email = strtolower((string) $jobOffer->candidate_email);
+        $name = strtolower((string) $jobOffer->name);
+
+        if ($email === '' && $name === '') {
+            return null;
+        }
+
+        return CandidateApplication::query()
+            ->when($jobOffer->job_posting_id, fn ($query) => $query->where('job_posting_id', $jobOffer->job_posting_id))
+            ->where(function ($query) use ($email, $name) {
+                if ($email !== '') {
+                    $query->orWhereRaw('LOWER(email) = ?', [$email]);
+                }
+
+                if ($name !== '') {
+                    $query->orWhereRaw('LOWER(name) = ?', [$name]);
+                }
+            })
+            ->latest()
+            ->first()
+            ?: CandidateApplication::query()
+                ->where(function ($query) use ($email, $name) {
+                    if ($email !== '') {
+                        $query->orWhereRaw('LOWER(email) = ?', [$email]);
+                    }
+
+                    if ($name !== '') {
+                        $query->orWhereRaw('LOWER(name) = ?', [$name]);
+                    }
+                })
+                ->latest()
+                ->first();
+    }
+
+    private function normalizePdsCivilStatus(?string $status): string
+    {
+        return match (strtolower(trim((string) $status))) {
+            'single' => 'Single',
+            'married' => 'Married',
+            'widowed' => 'Widowed',
+            'separated', 'legally separated' => 'Legally Separated',
+            default => '',
+        };
+    }
+
+    private function mapPdsEducation($education): array
+    {
+        $mapped = [];
+
+        foreach ((array) $education as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $level = strtolower((string) ($row['level'] ?? ''));
+            $target = null;
+
+            if (str_contains($level, 'elementary')) {
+                $target = 'Elem';
+            } elseif (str_contains($level, 'high school') || str_contains($level, 'secondary')) {
+                $target = 'Sec';
+            } elseif (str_contains($level, 'college') || str_contains($level, 'bachelor')) {
+                $target = 'Coll';
+            } elseif (str_contains($level, 'master')) {
+                $target = 'Mast';
+            } elseif (str_contains($level, 'doctor')) {
+                $target = 'Doct';
+            }
+
+            if (!$target) {
+                continue;
+            }
+
+            $mapped["educ{$target}School"] = $row['school'] ?? '';
+            $mapped["educ{$target}Degree"] = trim(implode(' - ', array_filter([
+                $row['degree'] ?? '',
+                $row['course'] ?? '',
+            ])));
+            $mapped["educ{$target}To"] = $row['year'] ?? '';
+        }
+
+        return $mapped;
+    }
+
+    private function decodeRecruitmentArray($value): array
+    {
+        if (is_array($value)) {
+            return $value;
+        }
+
+        if (is_string($value)) {
+            $decoded = json_decode($value, true);
+            return is_array($decoded) ? $decoded : [];
+        }
+
+        return [];
+    }
+
+    private function truthyRecruitmentValue($value): bool
+    {
+        if (is_bool($value)) {
+            return $value;
+        }
+
+        return in_array(strtolower((string) $value), ['1', 'true', 'yes', 'on'], true);
+    }
+
+    private function mapPdsLearningDevelopment($certifications): array
+    {
+        $rows = collect((array) $certifications)
+            ->filter(fn ($row) => is_array($row) && !empty($row['name']))
+            ->map(fn ($row) => [
+                'title' => $row['name'] ?? '',
+                'conductedBy' => $row['provider'] ?? '',
+                'date' => $row['dateTaken'] ?? ($row['datePlanned'] ?? ''),
+                'cert' => !empty($row['code']) ? 'Yes' : '',
+            ])
+            ->values()
+            ->all();
+
+        while (count($rows) < 3) {
+            $rows[] = ['title' => '', 'conductedBy' => '', 'date' => '', 'cert' => ''];
+        }
+
+        return $rows;
     }
 
 
@@ -1397,6 +1606,23 @@ class RecruitmentController extends Controller
         ]);
     }
 
+    public function updateInterviewDetails(Request $request, $id)
+    {
+        $request->validate([
+            'application_details' => 'nullable|array',
+        ]);
+
+        $interview = CandidateInterview::findOrFail($id);
+        $interview->update([
+            'application_details' => $request->input('application_details', []),
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'data' => $interview,
+        ]);
+    }
+
     public function deleteInterview($id)
     {
         CandidateInterview::findOrFail($id)->delete();
@@ -1488,6 +1714,7 @@ class RecruitmentController extends Controller
                 'department'       => $request->department ?: ($jpf->department_unit ?? $jpf->department ?? null),
                 'company_address'  => $request->companyAddress ?: $jpf->location,
                 'benefits'         => $request->benefits,
+                'offer_details'    => $request->input('offerDetails', []),
                 'accept_token'     => $this->generateJobOfferToken(),
                 'status'           => $request->status ?: 'Draft',
             ]);
@@ -1568,7 +1795,26 @@ class RecruitmentController extends Controller
         ]);
     }
 
-    public function acceptJobOffer($token)
+    public function showJobOfferReview($token)
+    {
+        $jobOffer = JobOffer::where('accept_token', $token)->firstOrFail();
+
+        return view('careers.job-offer-review', [
+            'jobOffer' => $jobOffer,
+        ]);
+    }
+
+    public function downloadJobOffer($token)
+    {
+        $jobOffer = JobOffer::where('accept_token', $token)->firstOrFail();
+        $filename = 'job-offer-' . Str::slug($jobOffer->name ?: 'applicant') . '.pdf';
+
+        return Pdf::loadView('careers.job-offer-download', [
+            'jobOffer' => $jobOffer,
+        ])->setPaper('a4', 'portrait')->download($filename);
+    }
+
+    public function acceptJobOffer(Request $request, $token)
     {
         $jobOffer = JobOffer::where('accept_token', $token)->firstOrFail();
 
@@ -1592,10 +1838,30 @@ class RecruitmentController extends Controller
 
         $pdsMessage = 'Please check your email for the PDS form link.';
 
+        if (!$request->isMethod('post')) {
+            return redirect()->route('job-offer.review', $jobOffer->accept_token);
+        }
+
+        $signedOfferPath = $jobOffer->signed_offer_path;
+
+        $request->validate([
+            'signed_offer' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:10240'],
+        ]);
+
+        if ($request->hasFile('signed_offer')) {
+            if ($signedOfferPath) {
+                Storage::disk('public')->delete($signedOfferPath);
+            }
+
+            $signedOfferPath = $request->file('signed_offer')->store('job-offers/signed', 'public');
+        }
+
         $jobOffer->update([
             'status' => 'Accepted',
             'accepted_at' => now(),
             'declined_at' => null,
+            'signed_offer_path' => $signedOfferPath,
+            'signed_offer_uploaded_at' => $signedOfferPath ? now() : $jobOffer->signed_offer_uploaded_at,
         ]);
 
         $jobOffer->refresh();

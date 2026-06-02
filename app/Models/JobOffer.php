@@ -31,16 +31,21 @@ class JobOffer extends Model
         'department',
         'company_address',
         'benefits',
+        'offer_details',
         'status',
         'accepted_at',
         'declined_at',
+        'signed_offer_path',
+        'signed_offer_uploaded_at',
         'pds_sent_at',
     ];
 
     protected $casts = [
         'start_date' => 'date',
+        'offer_details' => 'array',
         'accepted_at' => 'datetime',
         'declined_at' => 'datetime',
+        'signed_offer_uploaded_at' => 'datetime',
         'pds_sent_at' => 'datetime',
     ];
 

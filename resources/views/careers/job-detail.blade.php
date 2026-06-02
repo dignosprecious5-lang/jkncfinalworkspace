@@ -29,70 +29,44 @@
             --panel: #f8fafc;
         }
 
-        .topbar {
+        nav {
             position: sticky;
             top: 0;
-            z-index: 50;
-            background: rgba(255, 255, 255, .97);
-            border-bottom: 1px solid #e5e7eb;
-            box-shadow: 0 1px 8px rgba(15, 23, 42, .04);
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            box-shadow: 0 2px 20px rgba(0, 0, 0, 0.08);
         }
 
-        .nav {
-            width: min(1120px, calc(100% - 32px));
-            min-height: 72px;
+        .nav-container {
+            max-width: 1280px;
             margin: 0 auto;
+            padding: 0 2rem;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            gap: 20px;
+            height: 80px;
         }
 
-        .brand {
+        .nav-brand {
             display: inline-flex;
             align-items: center;
-            gap: 12px;
+            gap: 16px;
         }
 
-        .brand img {
-            width: 48px;
-            height: 48px;
+        .logo img {
+            height: 50px;
+            width: auto;
             object-fit: contain;
         }
 
-        .brand-text strong {
-            display: block;
-            color: var(--ink);
-            font-size: 15px;
-            font-weight: 900;
-            letter-spacing: -.03em;
-            line-height: 1.1;
-        }
-
-        .brand-text span {
-            display: block;
-            margin-top: 3px;
+        .nav-title {
             color: var(--brand);
-            font-size: 10px;
+            font-size: 12px;
             font-weight: 900;
-            letter-spacing: .22em;
+            letter-spacing: .16em;
             text-transform: uppercase;
-        }
-
-        .nav-actions {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            font-size: 14px;
-            font-weight: 800;
-        }
-
-        .nav-actions a:first-child {
-            color: #334155;
-        }
-
-        .nav-actions a:first-child:hover {
-            color: var(--brand);
+            white-space: nowrap;
         }
 
         .outline-btn {
@@ -109,40 +83,6 @@
         }
 
         .outline-btn:hover { background: var(--brand-soft); }
-
-        .subnav {
-            border-bottom: 1px solid #e5e7eb;
-            background: #fff;
-        }
-
-        .subnav-inner {
-            width: min(1120px, calc(100% - 32px));
-            margin: 0 auto;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 14px;
-            padding: 12px 0;
-            color: #334155;
-            font-size: 13px;
-            font-weight: 800;
-            overflow-x: auto;
-        }
-
-        .subnav-links {
-            display: flex;
-            align-items: center;
-            gap: 22px;
-            white-space: nowrap;
-        }
-
-        .subnav-links .active {
-            color: var(--brand);
-            border-bottom: 2px solid var(--brand);
-            padding-bottom: 4px;
-        }
-
-        .search-jobs { color: var(--brand); white-space: nowrap; }
 
         .page {
             width: min(1180px, calc(100% - 32px));
@@ -192,35 +132,6 @@
             margin-bottom: 30px;
         }
 
-        .job-brand-row {
-            display: flex;
-            align-items: center;
-            gap: 16px;
-            margin-bottom: 18px;
-        }
-
-        .job-company-logo {
-            width: 86px;
-            height: 56px;
-            object-fit: contain;
-            object-position: left center;
-        }
-
-        .eyebrow {
-            color: var(--brand);
-            font-size: 11px;
-            font-weight: 900;
-            letter-spacing: .16em;
-            text-transform: uppercase;
-        }
-
-        .company-name {
-            margin-top: 3px;
-            color: #334155;
-            font-size: 14px;
-            font-weight: 800;
-        }
-
         .job-title {
             color: #020617;
             font-size: clamp(30px, 5vw, 48px);
@@ -253,7 +164,7 @@
 
         .job-summary-grid {
             display: grid;
-            grid-template-columns: repeat(4, minmax(0, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
             gap: 12px;
             margin-top: 18px;
         }
@@ -437,11 +348,12 @@
         @media (max-width: 640px) {
             .brand-text { display: none; }
             .nav { min-height: 64px; }
+            .nav-container { padding: 0 1rem; height: 68px; }
+            .nav-brand { gap: 10px; }
+            .nav-title { font-size: 10px; letter-spacing: .12em; }
+            .logo img { height: 42px; }
             .nav-actions a:first-child { display: none; }
-            .subnav-links { gap: 14px; }
             .page { width: calc(100% - 24px); }
-            .job-company-logo { width: 92px; height: 62px; }
-            .job-brand-row { align-items: flex-start; }
             .job-summary-grid { grid-template-columns: 1fr; }
             .info-grid { grid-template-columns: 1fr; }
             .info-row { grid-template-columns: 105px minmax(0, 1fr); }
@@ -459,7 +371,7 @@
         }
 
         @media print {
-            .topbar, .subnav, .side-panel, .mobile-apply, .footer, .back-btn { display: none !important; }
+            nav, .side-panel, .mobile-apply, .footer, .back-btn { display: none !important; }
             .page { width: 100%; padding: 0; }
             .job-layout { display: block; }
             body { background: white; }
@@ -485,33 +397,41 @@
     $benefits = is_array($job->benefits_package) ? array_values(array_filter($job->benefits_package)) : [];
     $workSchedule = is_array($job->work_schedule) ? array_values(array_filter($job->work_schedule)) : [];
     $applyUrl = route('careers.apply') . '?job_id=' . $job->id;
+
+    // Get MRF data for required documents
+    $mrf = $job->mrf;
+    $requiredDocuments = [];
+    if ($mrf && is_array($mrf->required_documents)) {
+        $requiredDocuments = array_values(array_filter($mrf->required_documents));
+    }
+    
+    // Get division/unit info
+    $divisionUnit = null;
+    if ($job->division) {
+        $divisionUnit = $job->division->name;
+        if ($job->unit) {
+            $divisionUnit .= ' / ' . $job->unit->name;
+        }
+    } elseif ($job->unit) {
+        $divisionUnit = $job->unit->name;
+    }
+    
+    $jobStatus = $job->status === 'Screening' ? 'Posted / Open' : ($job->status ?: 'Posted');
 @endphp
 
-<header class="topbar">
-    <div class="nav">
-        <a href="{{ route('homepage.public') }}" class="brand">
-            <img src="{{ asset('images/FINAL_LOGO.jpg') }}" onerror="this.src='{{ asset('images/imaglogo.png') }}'" alt="John Kelly &amp; Company Logo">
-            <div class="brand-text">
-                <strong>John Kelly &amp; Company</strong>
-                <span>Careers Portal</span>
+<!-- Navigation Bar -->
+<nav>
+    <div class="nav-container">
+        <div class="nav-brand">
+            <div class="logo">
+                <a href="{{ route('homepage.public') }}">
+                    <img src="{{ asset('images/FINAL_LOGO.jpg') }}" onerror="this.src='{{ asset('images/imaglogo.png') }}'" alt="John Kelly &amp; Company Logo">
+                </a>
             </div>
-        </a>
-        <div class="nav-actions">
-            <a href="{{ route('homepage.public') }}#careers">Search Jobs</a>
+            <div class="nav-title">Career Opportunity</div>
         </div>
     </div>
-</header>
-
-<div class="subnav">
-    <div class="subnav-inner">
-        <div class="subnav-links">
-            <span class="active">Job Details</span>
-            <span>{{ $job->employment_type ?: 'Open Role' }}</span>
-            <span>{{ $department }}</span>
-        </div>
-        <a href="{{ route('homepage.public') }}#careers" class="search-jobs">Search Jobs</a>
-    </div>
-</div>
+</nav>
 
 <main class="page">
     <a href="{{ route('homepage.public') }}#careers" class="back-btn">Back</a>
@@ -526,14 +446,6 @@
         <section class="main-content">
 
             <div class="job-hero">
-                <div class="job-brand-row">
-                    <img src="{{ asset('images/FINAL_LOGO.jpg') }}" onerror="this.src='{{ asset('images/imaglogo.png') }}'" alt="John Kelly &amp; Company" class="job-company-logo">
-                    <div>
-                        <div class="eyebrow">Career Opportunity</div>
-                        <div class="company-name">John Kelly &amp; Company</div>
-                    </div>
-                </div>
-
                 <h1 class="job-title">{{ $title }}</h1>
 
                 <div class="badges">
@@ -544,26 +456,58 @@
 
                 <div class="job-summary-grid">
                     <div class="summary-item">
+                        <strong>Position / Title</strong>
+                        <span>{{ $title }}</span>
+                    </div>
+                    <div class="summary-item">
+                        <strong>Date Posted</strong>
+                        <span>{{ $postedDate }}</span>
+                    </div>
+                    <div class="summary-item">
+                        <strong>Job Status</strong>
+                        <span>{{ $jobStatus }}</span>
+                    </div>
+                    <div class="summary-item">
                         <strong>Department</strong>
                         <span>{{ $department }}</span>
+                    </div>
+                    <div class="summary-item">
+                        <strong>Division / Unit</strong>
+                        <span>{{ $divisionUnit ?: 'TBA' }}</span>
                     </div>
                     <div class="summary-item">
                         <strong>Employment Type</strong>
                         <span>{{ $job->employment_type ?: 'TBA' }}</span>
                     </div>
                     <div class="summary-item">
-                        <strong>Location</strong>
+                        <strong>Job Level / Rank</strong>
+                        <span>{{ $job->position_level ?: 'TBA' }}</span>
+                    </div>
+                    <div class="summary-item">
+                        <strong>Work Location</strong>
                         <span>{{ $location }}</span>
+                    </div>
+                    <div class="summary-item">
+                        <strong>Work Arrangement</strong>
+                        <span>{{ $job->office_branch_site ?: 'TBA' }}</span>
+                    </div>
+                    <div class="summary-item">
+                        <strong>Work Schedule</strong>
+                        <span>{{ count($workSchedule) ? implode(', ', array_slice($workSchedule, 0, 1)) : ($job->rest_days ?: 'TBA') }}</span>
                     </div>
                     <div class="summary-item">
                         <strong>Vacancies</strong>
                         <span>{{ $job->no_of_vacancies ? $job->no_of_vacancies . (((int) $job->no_of_vacancies) > 1 ? ' Open Positions' : ' Open Position') : 'TBA' }}</span>
                     </div>
+                    <div class="summary-item">
+                        <strong>Salary Range</strong>
+                        <span>{{ $salary ?: 'Competitive' }}</span>
+                    </div>
                 </div>
             </div>
 
             <div class="details-section">
-                <h2>Role Overview</h2>
+                <h2>Job Summary</h2>
                 <div class="body-text">
                     <p>{!! nl2br(e($description)) !!}</p>
                 </div>
@@ -571,44 +515,73 @@
 
             @if($job->duties_responsibilities && $job->duties_responsibilities !== $job->job_description)
                 <div class="details-section">
-                    <h3>Responsibilities</h3>
+                    <h3>Duties & Responsibilities</h3>
                     <div class="body-text">{!! nl2br(e($job->duties_responsibilities)) !!}</div>
                 </div>
             @endif
 
-            @if($requirements || $job->experience_req || $job->skills_req || $job->licenses_req || $job->preferred_qualifications)
-                <div class="details-section">
-                    <h3>Qualifications</h3>
+            <div class="details-section">
+                <h2>Qualifications</h2>
+                
+                @if($job->education_req)
+                    <h3>Educational Requirement</h3>
                     <div class="body-text">
-                        <ul>
-                            @if($requirements)<li>{{ $requirements }}</li>@endif
-                            @if($job->experience_req)<li>{{ $job->experience_req }}</li>@endif
-                            @if($job->skills_req)<li>{{ $job->skills_req }}</li>@endif
-                            @if($job->licenses_req)<li>{{ $job->licenses_req }}</li>@endif
-                            @if($job->preferred_qualifications)<li>{{ $job->preferred_qualifications }}</li>@endif
-                        </ul>
+                        <p>{!! nl2br(e($job->education_req)) !!}</p>
                     </div>
-                </div>
-            @endif
+                @endif
+
+                @if($job->experience_req)
+                    <h3>Preferred Qualifications / Experience</h3>
+                    <div class="body-text">
+                        <p>{!! nl2br(e($job->experience_req)) !!}</p>
+                    </div>
+                @endif
+
+                @if($job->skills_req)
+                    <h3>Required Skills / Competencies</h3>
+                    <div class="body-text">
+                        <p>{!! nl2br(e($job->skills_req)) !!}</p>
+                    </div>
+                @endif
+            </div>
 
             <div class="details-section">
-                <h3>Job Information</h3>
+                <h2>Work Details</h2>
                 <div class="info-grid">
-                    <div class="info-row"><strong>Title:</strong><span>{{ $title }}</span></div>
-                    <div class="info-row"><strong>Location:</strong><span>{{ $location }}</span></div>
-                    <div class="info-row"><strong>Department:</strong><span>{{ $department }}</span></div>
-                    <div class="info-row"><strong>Type:</strong><span>{{ $job->employment_type ?: 'TBA' }}</span></div>
-                    <div class="info-row"><strong>Level:</strong><span>{{ $job->position_level ?: 'TBA' }}</span></div>
-                    <div class="info-row"><strong>Vacancies:</strong><span>{{ $job->no_of_vacancies ?: 'TBA' }}</span></div>
-                    <div class="info-row"><strong>Salary:</strong><span>{{ $salary ?: 'Competitive' }}</span></div>
-                    <div class="info-row"><strong>Schedule:</strong><span>{{ count($workSchedule) ? implode(', ', $workSchedule) : ($job->rest_days ?: 'TBA') }}</span></div>
-                    <div class="info-row"><strong>Target Hire:</strong><span>{{ $job->target_hire_date ? optional($job->target_hire_date)->format('M d, Y') : 'TBA' }}</span></div>
+                    <div class="info-row">
+                        <strong>Work Classification:</strong>
+                        <span>{{ $job->office_branch_site ?: 'TBA' }}</span>
+                    </div>
+                    <div class="info-row">
+                        <strong>Work Arrangement:</strong>
+                        <span>{{ $job->applicable_area ?: 'TBA' }}</span>
+                    </div>
+                    <div class="info-row">
+                        <strong>Work Location:</strong>
+                        <span>{{ $location }}</span>
+                    </div>
+                    @if(count($workSchedule))
+                        <div class="info-row">
+                            <strong>Work Schedule:</strong>
+                            <span>
+                                @foreach($workSchedule as $schedule)
+                                    {{ $schedule }}<br>
+                                @endforeach
+                            </span>
+                        </div>
+                    @endif
+                    @if($job->rest_days)
+                        <div class="info-row">
+                            <strong>Rest Days:</strong>
+                            <span>{{ $job->rest_days }}</span>
+                        </div>
+                    @endif
                 </div>
             </div>
 
             @if(count($benefits))
                 <div class="details-section">
-                    <h3>Benefits</h3>
+                    <h2>Benefits</h2>
                     <div class="body-text">
                         <ul>
                             @foreach($benefits as $benefit)
@@ -619,18 +592,15 @@
                 </div>
             @endif
 
-            @if(count($workSchedule) || $job->rest_days)
+            @if(count($requiredDocuments))
                 <div class="details-section">
-                    <h3>Work Schedule</h3>
+                    <h2>Required Applicant Documents</h2>
                     <div class="body-text">
-                        @if(count($workSchedule))
-                            <ul>
-                                @foreach($workSchedule as $schedule)
-                                    <li>{{ $schedule }}</li>
-                                @endforeach
-                            </ul>
-                        @endif
-                        @if($job->rest_days)<p><strong>Rest Days:</strong> {{ $job->rest_days }}</p>@endif
+                        <ul>
+                            @foreach($requiredDocuments as $document)
+                                <li>{{ $document }}</li>
+                            @endforeach
+                        </ul>
                     </div>
                 </div>
             @endif
@@ -665,5 +635,3 @@
 </div>
 </body>
 </html>
-
-

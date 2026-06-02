@@ -582,5 +582,3 @@
 
 </style>
 @endpush
-
-

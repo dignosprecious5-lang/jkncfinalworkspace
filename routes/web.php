@@ -235,8 +235,17 @@ Route::get('/assessment/start/{uuid}', [RecruitmentController::class, 'startAsse
 Route::post('/assessment/start/{uuid}/submit', [RecruitmentController::class, 'submitAssessmentTest'])
     ->name('recruitment.assessment.submit');
 
+Route::get('/job-offer/{token}', [RecruitmentController::class, 'showJobOfferReview'])
+    ->name('job-offer.review');
+
+Route::get('/job-offer/{token}/download', [RecruitmentController::class, 'downloadJobOffer'])
+    ->name('job-offer.download');
+
 Route::get('/job-offer/{token}/accept', [RecruitmentController::class, 'acceptJobOffer'])
     ->name('job-offer.accept');
+
+Route::post('/job-offer/{token}/accept', [RecruitmentController::class, 'acceptJobOffer'])
+    ->name('job-offer.accept.submit');
 
 Route::get('/job-offer/{token}/decline', [RecruitmentController::class, 'declineJobOffer'])
     ->name('job-offer.decline');
@@ -1201,6 +1210,8 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
             Route::delete('/recruitment/interview/{id}', [RecruitmentController::class, 'deleteInterview'])->name('recruitment.delete_interview');
             Route::post('/recruitment/interview/{id}/status', [RecruitmentController::class, 'updateInterviewStatus'])
                 ->name('recruitment.interview_status');
+            Route::post('/recruitment/interview/{id}/details', [RecruitmentController::class, 'updateInterviewDetails'])
+                ->name('recruitment.interview_details');
 
             Route::get('/recruitment/job-offer/latest', [RecruitmentController::class, 'latestJobOffers'])->name('recruitment.job_offer.latest');
             Route::post('/recruitment/job-offer', [RecruitmentController::class, 'storeJobOffer'])->name('recruitment.store_job_offer');

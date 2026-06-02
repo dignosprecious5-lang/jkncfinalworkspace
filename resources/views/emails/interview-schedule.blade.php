@@ -21,7 +21,7 @@
             box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
         }
         .header {
-            background: linear-gradient(135deg, #4f46e5, #2563eb);
+            background: linear-gradient(135deg, #0f172a, #1d4ed8);
             padding: 32px;
             color: #ffffff;
             text-align: center;
@@ -84,6 +84,13 @@
             color: #2563eb;
             font-size: 13px;
         }
+        .meeting-box {
+            background: #eef2ff;
+            border: 1px solid #c7d2fe;
+            border-radius: 14px;
+            padding: 18px;
+            margin: 22px 0;
+        }
     </style>
 </head>
 <body>
@@ -129,15 +136,26 @@
                     <span class="value">{{ $interview->interviewer }}</span>
                 </div>
 
-                @if($interview->meeting_link)
-                    <div class="row">
-                        <span class="label">Meeting Link</span>
+                <div class="row">
+                    <span class="label">Meeting Details</span>
+                    @if($interview->meeting_link)
                         <a class="link" href="{{ $interview->meeting_link }}">{{ $interview->meeting_link }}</a>
-                    </div>
-                @endif
+                    @else
+                        <span class="value">In-person / to be coordinated by Human Capital</span>
+                    @endif
+                </div>
             </div>
 
             @if($interview->meeting_link)
+                <div class="meeting-box">
+                    <span class="label">Online Interview Link</span>
+                    <p style="margin: 6px 0 0;">
+                        Please use the button below or copy this link to join the scheduled interview:
+                    </p>
+                    <p style="margin: 10px 0 0;">
+                        <a class="link" href="{{ $interview->meeting_link }}">{{ $interview->meeting_link }}</a>
+                    </p>
+                </div>
                 <p style="text-align:center; margin: 30px 0;">
                     <a href="{{ $interview->meeting_link }}" class="btn">Join Interview</a>
                 </p>

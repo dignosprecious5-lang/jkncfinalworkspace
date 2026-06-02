@@ -15,26 +15,65 @@
         .field:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37, 99, 235, .12); }
         .label { display: block; margin-bottom: .4rem; font-size: .68rem; font-weight: 900; text-transform: uppercase; letter-spacing: .12em; color: #4b5563; }
         .section-title { font-size: 1rem; font-weight: 900; text-transform: uppercase; letter-spacing: .12em; color: #111827; }
+        nav {
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            box-shadow: 0 2px 20px rgba(0, 0, 0, 0.08);
+        }
+        .nav-container {
+            max-width: 1280px;
+            margin: 0 auto;
+            padding: 0 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            height: 80px;
+        }
+        .logo img {
+            height: 50px;
+            width: auto;
+            object-fit: contain;
+        }
+        .nav-link {
+            font-size: .875rem;
+            font-weight: 800;
+            color: #2563eb;
+        }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-900">
-<div class="min-h-screen px-4 py-8" x-data='publicApplication(@json($jobPostings ?? []))'>
+    <!-- Navigation Bar -->
+    <nav>
+        <div class="nav-container">
+            <div class="logo">
+                <a href="{{ route('homepage.public') }}">
+                    <img src="{{ asset('images/FINAL_LOGO.jpg') }}" alt="John Kelly &amp; Company Logo">
+                </a>
+            </div>
+            <a class="nav-link" href="{{ route('homepage.public') }}#careers">Back to Careers</a>
+        </div>
+    </nav>
+
+<div class="min-h-screen px-4 py-8" x-data="publicApplication(@js($jobPostings ?? []))" x-init="init()">
     <div class="mx-auto max-w-5xl">
-        <header class="mb-8 flex flex-col gap-4 border-b border-slate-200 pb-6 sm:flex-row sm:items-center sm:justify-between">
-            <a href="{{ route('homepage.public') }}" class="flex items-center gap-4">
-                <img src="{{ asset('images/FINAL_LOGO.jpg') }}" alt="John Kelly &amp; Company" class="h-16 w-auto object-contain">
-                <div>
-                    <h1 class="text-xl font-black uppercase tracking-tight">Career Portal</h1>
-                    <p class="text-sm font-semibold text-slate-500">Candidate Application Form</p>
-                </div>
-            </a>
-            <a href="{{ route('homepage.public') }}" class="inline-flex items-center justify-center rounded-lg border border-blue-200 px-4 py-2 text-sm font-bold text-blue-700 hover:bg-blue-50">Back to Careers</a>
-        </header>
+        <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
+            <div>
+                <p class="text-xs font-black uppercase tracking-widest text-blue-700">Candidate Application</p>
+                <h1 class="mt-1 text-2xl font-black tracking-tight text-slate-950">Apply for an Open Position</h1>
+            </div>
+            <div class="flex flex-wrap gap-2">
+                <a href="{{ route('homepage.public') }}#careers" class="rounded-lg border border-blue-200 bg-white px-4 py-2 text-sm font-bold text-blue-700 hover:bg-blue-50">Back to Careers</a>
+                <a href="{{ route('homepage.public') }}" class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50">Homepage</a>
+            </div>
+        </div>
 
         <form @submit.prevent="submitForm" class="space-y-6">
             @csrf
 
-            <section class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+            <section class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm" x-effect="syncSelectedJobDetails()">
                 <div class="mb-5">
                     <h2 class="section-title">I. Personal Information</h2>
                     <p class="mt-1 text-sm text-slate-500">Your applicant ID will be generated after submission.</p>
@@ -44,8 +83,8 @@
                     <div><label class="label">Middle Name</label><input class="field" x-model="form.middleName"></div>
                     <div><label class="label">Last Name</label><input class="field" x-model="form.lastName" required></div>
                     <div><label class="label">Nickname / Preferred Name</label><input class="field" x-model="form.nickname"></div>
-                    <div><label class="label">Date of Birth</label><input type="date" class="field" x-model="form.dateOfBirth" @change="computeAge"></div>
-                    <div><label class="label">Age</label><input class="field bg-slate-100" x-model="form.age" readonly></div>
+                    <div><label class="label">Date of Birth</label><input type="date" class="field" x-model="form.dateOfBirth"></div>
+                    <div><label class="label">Age</label><input class="field bg-slate-100" :value="computedAge || form.age" readonly></div>
                     <div><label class="label">Gender</label><select class="field" x-model="form.gender"><option value="">Prefer not to say</option><option>Female</option><option>Male</option><option>Other</option></select></div>
                     <div><label class="label">Civil Status</label><select class="field" x-model="form.civilStatus"><option value="">Select...</option><option>Single</option><option>Married</option><option>Widowed</option><option>Separated</option></select></div>
                     <div><label class="label">Nationality</label><input class="field" x-model="form.nationality"></div>
@@ -54,7 +93,7 @@
                     <div><label class="label">Solo Parent?</label><select class="field" x-model="form.soloParent"><option>No</option><option>Yes</option></select></div>
                     <div><label class="label">Senior Citizen?</label><select class="field" x-model="form.seniorCitizen"><option>No</option><option>Yes</option></select></div>
                     <div class="sm:col-span-3"><label class="label">Current Address</label><textarea class="field" rows="2" x-model="form.currentAddress" required></textarea></div>
-                    <div class="sm:col-span-3"><label class="label">Permanent Address</label><textarea class="field" rows="2" x-model="form.permanentAddress" :placeholder="form.sameAddress ? 'Same as current address' : ''" :disabled="form.sameAddress"></textarea><label class="mt-2 flex items-center gap-2 text-sm"><input type="checkbox" x-model="form.sameAddress"> Same as current address</label></div>
+                    <div class="sm:col-span-3"><label class="label">Permanent Address</label><textarea class="field" rows="2" x-model="form.permanentAddress" :placeholder="form.sameAddress ? 'Same as current address' : ''" :readonly="form.sameAddress"></textarea><label class="mt-2 flex items-center gap-2 text-sm"><input type="checkbox" x-model="form.sameAddress"> Same as current address</label></div>
                     <div><label class="label">Contact Number</label><input class="field" x-model="form.phone" required></div>
                     <div class="sm:col-span-2"><label class="label">Email Address</label><input type="email" class="field" x-model="form.email" required></div>
                 </div>
@@ -68,13 +107,13 @@
                         <select class="field" x-model="form.jobPostingId" @change="onJobPostingChange()" required>
                             <option value="">Select active published job...</option>
                             @foreach($jobPostings as $job)
-                                <option value="{{ $job->id }}">{{ $job->job_id }} - {{ $job->position }}</option>
+                                <option value="{{ data_get($job, 'id') }}">{{ data_get($job, 'job_id') }} - {{ data_get($job, 'position') }}</option>
                             @endforeach
                         </select>
                     </div>
-                    <div><label class="label">Department / Team</label><input class="field bg-slate-100" x-model="form.departmentTeam" readonly></div>
-                    <div><label class="label">Employment Type</label><input class="field bg-slate-100" x-model="form.employmentType" readonly></div>
-                    <div><label class="label">Job ID</label><input class="field bg-slate-100" x-model="form.jobId" readonly></div>
+                    <div><label class="label">Department / Team</label><input class="field bg-slate-100" :value="form.departmentTeam" readonly></div>
+                    <div><label class="label">Employment Type</label><input class="field bg-slate-100" :value="form.employmentType" readonly></div>
+                    <div><label class="label">Job ID</label><input class="field bg-slate-100" :value="form.jobId" readonly></div>
                     <div><label class="label">Preferred Work Arrangement</label><select class="field" x-model="form.preferredWorkArrangement" required><template x-for="arrangement in allowedWorkArrangements" :key="arrangement"><option x-text="arrangement"></option></template></select></div>
                     <div><label class="label">Date Available to Start</label><input type="date" class="field" x-model="form.dateAvailable" :min="today" required></div>
                 </div>
@@ -99,7 +138,7 @@
                                 <input class="field" placeholder="Year Graduated" x-model="edu.year" :required="edu.required">
                                 <input class="field" placeholder="Honors / Awards" x-model="edu.honors">
                             </div>
-                            <label x-show="edu.level === 'Senior High School'" class="mt-3 flex items-center gap-2 text-sm"><input type="checkbox" x-model="edu.oldCurriculum"> Not Applicable / Old Curriculum</label>
+                            <label x-show="edu.level === 'Senior High School'" class="mt-3 flex items-center gap-2 text-sm"><input type="checkbox" x-model="edu.oldCurriculum" @change="fillOldCurriculumEducation(edu)"> Not Applicable / Old Curriculum</label>
                         </div>
                     </template>
                 </div>
@@ -197,8 +236,15 @@
                 </div>
             </section>
 
-            <div class="pb-8 text-center">
-                <button type="submit" :disabled="isSubmitting" class="rounded-xl bg-blue-700 px-8 py-4 text-sm font-black uppercase tracking-widest text-white shadow-lg hover:bg-blue-800 disabled:opacity-50" x-text="isSubmitting ? 'Submitting...' : 'Submit Application'"></button>
+            <div class="pb-8">
+                <div x-show="errorMessage" x-cloak class="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700" x-text="errorMessage"></div>
+                <div class="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <a href="{{ route('homepage.public') }}#careers" class="inline-flex justify-center rounded-xl border border-slate-300 bg-white px-6 py-4 text-sm font-black uppercase tracking-widest text-slate-700 hover:bg-slate-50">Back to Careers</a>
+                    <button type="submit" :disabled="isSubmitting" class="inline-flex justify-center rounded-xl bg-blue-700 px-8 py-4 text-sm font-black uppercase tracking-widest text-white shadow-lg hover:bg-blue-800 disabled:opacity-50">
+                        <span x-show="!isSubmitting">Submit Application</span>
+                        <span x-show="isSubmitting" x-cloak>Submitting...</span>
+                    </button>
+                </div>
             </div>
         </form>
 
@@ -207,7 +253,7 @@
                 <h2 class="text-2xl font-black">Application Submitted</h2>
                 <p class="mt-3 text-slate-600">Your application was received. Your Candidate Application ID is:</p>
                 <p class="mt-4 rounded-lg bg-blue-50 px-4 py-3 text-xl font-black text-blue-800" x-text="submittedApplicantId || 'Generated'"></p>
-                <a href="{{ route('homepage.public') }}" class="mt-6 inline-flex rounded-lg bg-slate-900 px-5 py-3 text-sm font-bold text-white">Back to Careers</a>
+                <a href="{{ route('homepage.public') }}#careers" class="mt-6 inline-flex rounded-lg bg-slate-900 px-5 py-3 text-sm font-bold text-white">Back to Careers</a>
             </div>
         </div>
     </div>
@@ -220,6 +266,8 @@ function publicApplication(jobPostings = []) {
         today: new Date().toISOString().slice(0, 10),
         isSubmitting: false,
         isSuccess: false,
+        errorMessage: '',
+        initialized: false,
         submittedApplicantId: '',
         form: {
             jobPostingId: new URLSearchParams(window.location.search).get('job_id') || '',
@@ -231,11 +279,19 @@ function publicApplication(jobPostings = []) {
                 { level: 'Elementary', required: true, added: false, school: '', degree: '', course: '', year: '', honors: '' },
                 { level: 'High School / Junior High School', required: true, added: false, school: '', degree: '', course: '', year: '', honors: '' },
                 { level: 'Senior High School', required: true, added: false, school: '', degree: '', course: '', year: '', honors: '', oldCurriculum: false },
-                { level: 'College / Bachelor\\'s Degree', required: false, added: false, school: '', degree: '', course: '', year: '', honors: '' }
+                { level: "College / Bachelor's Degree", required: false, added: false, school: '', degree: '', course: '', year: '', honors: '' }
             ],
             noPreviousEmployment: false,
             employmentHistory: [],
             certifications: [],
+            technicalSkills: '', softwareTools: '', certificationsLicenses: '', languages: '',
+            currentSalary: '', expectedSalary: '',
+            willingOvertime: '', willingSmallTeam: '', willingResidentialOffice: '',
+            authorizedToWork: '', pendingObligations: '', crimeConviction: '',
+            legalExplanation: '', backgroundCheck: '',
+            emergencyName: '', emergencyRelationship: '', emergencyNumber: '', emergencyAddress: '',
+            applicationSource: '', applicationSourceOther: '',
+            attachmentNotes: '',
             consentAccepted: false,
             photo: null, cv: null, portfolioFile: null, governmentId: null,
         },
@@ -244,32 +300,92 @@ function publicApplication(jobPostings = []) {
         },
         get allowedWorkArrangements() {
             const selected = this.selectedJob;
-            const raw = selected?.work_arrangement || selected?.workSchedule || selected?.work_schedule || null;
-            if (Array.isArray(raw) && raw.length) return raw;
+            const raw = selected?.work_arrangement || selected?.workArrangement || selected?.workSchedule || selected?.work_schedule || null;
+            if (Array.isArray(raw) && raw.length) return raw.filter(Boolean);
+            if (typeof raw === 'string' && raw.trim()) {
+                try {
+                    const parsed = JSON.parse(raw);
+                    if (Array.isArray(parsed) && parsed.length) return parsed.filter(Boolean);
+                } catch (e) {
+                    return raw.split(',').map(item => item.trim()).filter(Boolean);
+                }
+            }
             return ['On-site', 'Hybrid', 'Work-from-Home', 'Field Work', 'Others'];
         },
-        init() { this.onJobPostingChange(); },
+        get computedAge() {
+            if (!this.form.dateOfBirth) return '';
+            const birth = new Date(`${this.form.dateOfBirth}T00:00:00`);
+            if (Number.isNaN(birth.getTime())) return '';
+            const now = new Date();
+            let age = now.getFullYear() - birth.getFullYear();
+            const monthDiff = now.getMonth() - birth.getMonth();
+            if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < birth.getDate())) age--;
+            return age >= 0 ? String(age) : '';
+        },
+        init() { 
+            if (this.initialized) return;
+            this.initialized = true;
+            this.syncSelectedJobDetails();
+            this.computeAge();
+            this.$watch('form.currentAddress', () => {
+                if (this.form.sameAddress) {
+                    this.form.permanentAddress = this.form.currentAddress;
+                }
+            });
+            this.$watch('form.sameAddress', value => {
+                if (value) this.form.permanentAddress = this.form.currentAddress;
+            });
+            this.$watch('form.dateOfBirth', () => this.computeAge());
+            this.$watch('form.noPreviousEmployment', value => {
+                if (value) this.form.employmentHistory = [];
+                if (!value && this.form.employmentHistory.length === 0) this.addEmployment();
+            });
+        },
         computeAge() {
-            if (!this.form.dateOfBirth) return;
-            const birth = new Date(this.form.dateOfBirth);
-            const today = new Date();
-            let age = today.getFullYear() - birth.getFullYear();
-            const monthDiff = today.getMonth() - birth.getMonth();
-            if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) age--;
-            this.form.age = age >= 0 ? age : '';
+            this.form.age = this.computedAge;
+        },
+        syncPermanentAddress() {
+            if (this.form.sameAddress) {
+                this.form.permanentAddress = this.form.currentAddress;
+            } else {
+                this.form.permanentAddress = '';
+            }
         },
         onJobPostingChange() {
+            this.syncSelectedJobDetails(true);
+        },
+        syncSelectedJobDetails(forceDate = false) {
+            const selectedId = this.form.jobPostingId;
             const job = this.selectedJob;
+            if (!job) {
+                if (!selectedId) {
+                    this.form.positionApplied = '';
+                    this.form.departmentTeam = '';
+                    this.form.employmentType = '';
+                    this.form.jobId = '';
+                }
+                return;
+            }
             this.form.positionApplied = job?.position || '';
-            this.form.departmentTeam = job?.department_unit || job?.department || '';
-            this.form.employmentType = job?.employment_type || '';
-            this.form.jobId = job?.job_id || '';
+            this.form.departmentTeam = job?.department_unit || job?.departmentUnit || job?.department || '';
+            this.form.employmentType = job?.employment_type || job?.employmentType || '';
+            this.form.jobId = job?.job_id || job?.jobId || '';
             if (!this.allowedWorkArrangements.includes(this.form.preferredWorkArrangement)) {
                 this.form.preferredWorkArrangement = this.allowedWorkArrangements[0] || '';
             }
+            if ((forceDate || !this.form.dateAvailable) && (job?.target_hire_date || job?.date_needed)) {
+                this.form.dateAvailable = job.target_hire_date || job.date_needed;
+            }
+        },
+        fillOldCurriculumEducation(edu) {
+            if (!edu.oldCurriculum) return;
+            edu.school = edu.school || 'Not Applicable';
+            edu.degree = edu.degree || 'Old Curriculum';
+            edu.year = edu.year || 'Not Applicable';
         },
         addEducation(level = 'Others') {
-            this.form.education.push({ level, required: false, added: true, school: '', degree: '', course: '', year: '', honors: '', otherLevel: '' });
+            const edu = { level, required: false, added: true, school: '', degree: '', course: '', year: '', honors: '', otherLevel: '', oldCurriculum: false };
+            this.form.education.push(edu);
         },
         addEmployment() {
             this.form.employmentHistory.push({ company: '', address: '', contactPerson: '', contactEmail: '', contactNumber: '', position: '', inclusiveDates: '', responsibilities: '', reasonForLeaving: '' });
@@ -281,6 +397,9 @@ function publicApplication(jobPostings = []) {
             fd.append(key, typeof value === 'object' && value !== null ? JSON.stringify(value) : (value ?? ''));
         },
         submitForm() {
+            this.errorMessage = '';
+            this.computeAge();
+            if (this.form.sameAddress) this.form.permanentAddress = this.form.currentAddress;
             if (!this.form.jobPostingId) return alert('Please select an active job posting.');
             if (!this.form.consentAccepted) return alert('Declaration and consent is required.');
             this.isSubmitting = true;
@@ -307,7 +426,10 @@ function publicApplication(jobPostings = []) {
                     this.submittedApplicantId = data.data?.applicant_id || '';
                     this.isSuccess = true;
                 })
-                .catch(error => alert(error.message || 'Unable to submit application.'))
+                .catch(error => {
+                    this.errorMessage = error.message || 'Unable to submit application.';
+                    alert(this.errorMessage);
+                })
                 .finally(() => { this.isSubmitting = false; });
         }
     };
