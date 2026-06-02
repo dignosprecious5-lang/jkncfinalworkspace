@@ -525,11 +525,6 @@
                             </a>
 
                             {{-- Operations --}}
-                            <a href="{{ route('admin.dashboard.section', ['section' => 'activities']) }}"
-                               class="block px-3 py-2 rounded-lg transition
-                               {{ request()->routeIs('admin.dashboard.section') && request()->route('section') === 'activities' ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
-                                Activities
-                            </a>
 
                             <a href="{{ route('admin.dashboard.section', ['section' => 'regular']) }}"
                                class="block px-3 py-2 rounded-lg transition
