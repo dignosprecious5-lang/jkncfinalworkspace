@@ -1677,11 +1677,19 @@ class TownHallController extends Controller
                 return true;
             }
 
+            if ($this->isUserIncludedInCcOrAdditional($user, $communication)) {
+                return true;
+            }
+
             // If this is a new structured recipient record and none of the rules above matched,
             // do not fall through to legacy text matching. This prevents "All Clients" from being visible to all login users.
             if (!is_null($communication->recipient_type)) {
                 return false;
             }
+        }
+
+        if ($this->isUserIncludedInCcOrAdditional($user, $communication)) {
+            return true;
         }
 
         $toFor = strtolower((string) $communication->to_for);
@@ -1773,9 +1781,12 @@ class TownHallController extends Controller
             }
         }
 
+        $ccAdditionalUserAccounts = $this->getCcAdditionalUserAccounts($communication);
+
         return $baseUsers
             ->merge($extraUsers)
             ->merge($contactUserAccounts)
+            ->merge($ccAdditionalUserAccounts)
             ->unique('id')
             ->sortBy('name')
             ->values();
@@ -2196,9 +2207,216 @@ class TownHallController extends Controller
 
     private function getNotificationRecipients(TownHallCommunication $communication)
     {
-        return $this->getAcknowledgementUsers($communication)
+        $primaryRecipients = $this->getAcknowledgementUsers($communication)
             ->filter(fn($user) => !empty($user->email))
-            ->unique('email')
+            ->map(function ($user) {
+                return (object) [
+                    'id' => $user->id ?? null,
+                    'name' => $user->name ?? null,
+                    'email' => $user->email,
+                    'source' => 'primary',
+                ];
+            });
+
+        $ccAdditionalRecipients = $this->getCcAdditionalNotificationRecipients($communication);
+
+        return $primaryRecipients
+            ->merge($ccAdditionalRecipients)
+            ->filter(fn($recipient) => !empty($recipient->email) && filter_var($recipient->email, FILTER_VALIDATE_EMAIL))
+            ->unique(fn($recipient) => strtolower((string) $recipient->email))
+            ->values();
+    }
+
+    private function getCcAdditionalNotificationRecipients(TownHallCommunication $communication)
+    {
+        $tokens = $this->ccAdditionalRecipientTokens($communication);
+        $emails = $this->ccAdditionalRecipientEmails($communication);
+
+        if ($tokens->isEmpty() && $emails->isEmpty()) {
+            return collect();
+        }
+
+        $users = $this->getCcAdditionalUserAccounts($communication)
+            ->map(function ($user) {
+                return (object) [
+                    'id' => $user->id ?? null,
+                    'name' => $user->name ?? null,
+                    'email' => $user->email,
+                    'source' => 'cc_additional_user',
+                ];
+            });
+
+        $contacts = $this->getCcAdditionalContacts($communication)
+            ->filter(fn($contact) => !empty($contact->email))
+            ->map(function ($contact) {
+                $name = trim(collect([
+                    $contact->first_name ?? null,
+                    $contact->middle_name ?? null,
+                    $contact->last_name ?? null,
+                    $contact->name_extension ?? null,
+                ])->filter()->implode(' '));
+
+                return (object) [
+                    'id' => null,
+                    'name' => $name ?: ($contact->company_name ?? null),
+                    'email' => $contact->email,
+                    'source' => 'cc_additional_contact',
+                ];
+            });
+
+        $directEmails = $emails->map(function ($email) {
+            return (object) [
+                'id' => null,
+                'name' => null,
+                'email' => $email,
+                'source' => 'cc_additional_email',
+            ];
+        });
+
+        return $users
+            ->merge($contacts)
+            ->merge($directEmails)
+            ->filter(fn($recipient) => !empty($recipient->email))
+            ->unique(fn($recipient) => strtolower((string) $recipient->email))
+            ->values();
+    }
+
+    private function getCcAdditionalUserAccounts(TownHallCommunication $communication)
+    {
+        $tokens = $this->ccAdditionalRecipientTokens($communication);
+        $emails = $this->ccAdditionalRecipientEmails($communication);
+
+        if ($tokens->isEmpty() && $emails->isEmpty()) {
+            return collect();
+        }
+
+        $users = User::query()->get()->filter(function ($user) use ($tokens, $emails) {
+            $name = strtolower(trim((string) $user->name));
+            $email = strtolower(trim((string) $user->email));
+
+            return ($email && $emails->contains($email))
+                || ($name && $tokens->contains($name));
+        });
+
+        $contactEmails = $this->getCcAdditionalContacts($communication)
+            ->pluck('email')
+            ->filter()
+            ->map(fn($email) => strtolower(trim((string) $email)))
+            ->unique()
+            ->values();
+
+        $contactUserAccounts = collect();
+
+        if ($contactEmails->isNotEmpty()) {
+            $contactUserAccounts = User::whereIn(DB::raw('LOWER(email)'), $contactEmails)
+                ->get();
+        }
+
+        return $users
+            ->merge($contactUserAccounts)
+            ->filter(fn($user) => !empty($user->email))
+            ->unique('id')
+            ->values();
+    }
+
+    private function getCcAdditionalContacts(TownHallCommunication $communication)
+    {
+        $tokens = $this->ccAdditionalRecipientTokens($communication);
+        $emails = $this->ccAdditionalRecipientEmails($communication);
+
+        if ($tokens->isEmpty() && $emails->isEmpty()) {
+            return collect();
+        }
+
+        return Contact::query()
+            ->get()
+            ->filter(function ($contact) use ($tokens, $emails) {
+                $fullName = strtolower(trim(collect([
+                    $contact->first_name ?? null,
+                    $contact->middle_name ?? null,
+                    $contact->last_name ?? null,
+                    $contact->name_extension ?? null,
+                ])->filter()->implode(' ')));
+
+                $simpleName = strtolower(trim(collect([
+                    $contact->first_name ?? null,
+                    $contact->last_name ?? null,
+                ])->filter()->implode(' ')));
+
+                $companyName = strtolower(trim((string) ($contact->company_name ?? '')));
+                $email = strtolower(trim((string) ($contact->email ?? '')));
+
+                return ($email && $emails->contains($email))
+                    || ($fullName && $tokens->contains($fullName))
+                    || ($simpleName && $tokens->contains($simpleName))
+                    || ($companyName && $tokens->contains($companyName));
+            })
+            ->values();
+    }
+
+    private function isUserIncludedInCcOrAdditional(User $user, TownHallCommunication $communication): bool
+    {
+        $tokens = $this->ccAdditionalRecipientTokens($communication);
+        $emails = $this->ccAdditionalRecipientEmails($communication);
+
+        if ($tokens->isEmpty() && $emails->isEmpty()) {
+            return false;
+        }
+
+        $name = strtolower(trim((string) $user->name));
+        $email = strtolower(trim((string) $user->email));
+
+        return ($email && $emails->contains($email))
+            || ($name && $tokens->contains($name))
+            || $this->getCcAdditionalUserAccounts($communication)
+            ->contains(fn($matchedUser) => (int) $matchedUser->id === (int) $user->id);
+    }
+
+    private function ccAdditionalRecipientTokens(TownHallCommunication $communication)
+    {
+        return collect([
+            $communication->cc,
+            $communication->additional,
+        ])
+            ->filter()
+            ->flatMap(function ($value) {
+                return preg_split('/[,;\n\r]+/', (string) $value) ?: [];
+            })
+            ->map(function ($value) {
+                $value = trim((string) $value);
+
+                // Remove email address if the UI/text has "Name <email@domain.com>".
+                $value = preg_replace('/<[^>]+>/', '', $value);
+
+                // Remove extra role/company suffixes if copied from suggestions.
+                $value = preg_split('/\s+—\s+|\s+-\s+|\s+•\s+/', $value)[0] ?? $value;
+
+                return strtolower(trim($value));
+            })
+            ->filter()
+            ->unique()
+            ->values();
+    }
+
+    private function ccAdditionalRecipientEmails(TownHallCommunication $communication)
+    {
+        $text = collect([
+            $communication->cc,
+            $communication->additional,
+        ])
+            ->filter()
+            ->implode(', ');
+
+        if ($text === '') {
+            return collect();
+        }
+
+        preg_match_all('/[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}/i', $text, $matches);
+
+        return collect($matches[0] ?? [])
+            ->map(fn($email) => strtolower(trim((string) $email)))
+            ->filter()
+            ->unique()
             ->values();
     }
 
