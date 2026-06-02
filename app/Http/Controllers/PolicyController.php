@@ -345,13 +345,17 @@ class PolicyController extends Controller
 
         $policy = Policy::with('attachments')->findOrFail($id);
 
-        $policy->update([
-            'reviewed_by' => Auth::user()->name,
-        ]);
+        /*
+         * Do not overwrite reviewed_by here.
+         * reviewed_by is a manual document field entered during Add/Edit Policy.
+         * The logged-in reviewer is only the system user performing the action,
+         * not necessarily the person whose name should appear on the policy document.
+         */
+        $policy->touch();
 
         return redirect()
             ->route('admin.policies.show', $policy->id)
-            ->with('success', 'Policy reviewed by ' . Auth::user()->name . '.');
+            ->with('success', 'Policy review action recorded. Reviewed By field was preserved.');
     }
 
     public function approve($id)
@@ -363,11 +367,15 @@ class PolicyController extends Controller
         $policy = Policy::with('attachments')->findOrFail($id);
 
         $policy->update([
-            'reviewed_by' => $policy->reviewed_by ?: Auth::user()->name,
+            /*
+             * Do not overwrite reviewed_by / approved_by.
+             * These are document names manually typed in Add/Edit Policy.
+             * The actual system user who approved is still tracked through
+             * approved_by_user_id and approved_at for audit purposes.
+             */
             'approval_status' => 'Approved',
             'workflow_status' => 'Accepted',
             'approved_by_user_id' => Auth::id(),
-            'approved_by' => Auth::user()->name,
             'approved_at' => now(),
             'review_note' => null,
             'is_archived' => false,
@@ -386,11 +394,14 @@ class PolicyController extends Controller
         $policy = Policy::with('attachments')->findOrFail($id);
 
         $policy->update([
-            'reviewed_by' => $policy->reviewed_by ?: Auth::user()->name,
+            /*
+             * Preserve reviewed_by / approved_by document fields.
+             * The user who performed this action is tracked through
+             * approved_by_user_id and approved_at.
+             */
             'approval_status' => 'Rejected',
             'workflow_status' => 'Reverted',
             'approved_by_user_id' => Auth::id(),
-            'approved_by' => Auth::user()->name,
             'approved_at' => now(),
             'review_note' => $request->input('review_note'),
             'is_archived' => false,
@@ -409,11 +420,14 @@ class PolicyController extends Controller
         $policy = Policy::with('attachments')->findOrFail($id);
 
         $policy->update([
-            'reviewed_by' => $policy->reviewed_by ?: Auth::user()->name,
+            /*
+             * Preserve reviewed_by / approved_by document fields.
+             * The user who performed this action is tracked through
+             * approved_by_user_id and approved_at.
+             */
             'approval_status' => 'Needs Revision',
             'workflow_status' => 'Reverted',
             'approved_by_user_id' => Auth::id(),
-            'approved_by' => Auth::user()->name,
             'approved_at' => now(),
             'review_note' => $request->input('review_note'),
             'is_archived' => false,
