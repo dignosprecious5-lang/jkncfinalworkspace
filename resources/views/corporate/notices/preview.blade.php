@@ -39,8 +39,17 @@
         ? route('uploads.show', ['path' => $resolvedDocumentPath])
         : null;
 
+    $originalNoticePath = data_get($selected, 'original_notice_path');
+    $originalNoticePath = $originalNoticePath ? preg_replace('#^/?storage/#', '', (string) $originalNoticePath) : null;
+    $originalNoticeUrl = ($originalNoticePath && \Illuminate\Support\Facades\Storage::disk('public')->exists($originalNoticePath))
+        ? route('uploads.show', ['path' => $originalNoticePath])
+        : null;
+    $originalNoticeDownloadUrl = $originalNoticeUrl ? route('uploads.show', ['path' => $originalNoticePath, 'download' => 1]) : null;
+
     $livePdfUrl = route('notices.download', $selected);
-    $previewPdfUrl = (($selected->body_mode ?? 'builder') === 'upload' && $documentUrl) ? $documentUrl : $livePdfUrl;
+    $activePdfVersion = request('version') === 'original' && $originalNoticeUrl ? 'original' : 'draft';
+    $previewPdfUrl = $activePdfVersion === 'original' ? $originalNoticeUrl : $livePdfUrl;
+    $previewPdfDownloadUrl = $activePdfVersion === 'original' ? $originalNoticeDownloadUrl : $livePdfUrl;
 
     $meetingTitle = strtoupper(trim(($selected->type_of_meeting ?: 'Special') . ' ' . ($selected->governing_body ?: 'Board of Directors') . ' Meeting'));
     $noticeDate = optional($selected->date_of_notice)->format('F d, Y')
@@ -370,8 +379,13 @@ HTML;
 
             <div class="flex-1"></div>
 
-            <a href="{{ $livePdfUrl }}" target="_blank" class="px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium">
-                <i class="fas fa-file-pdf mr-1"></i> Open / Download PDF
+            <div class="inline-flex rounded-full bg-gray-100 p-1 text-xs font-semibold">
+                <a href="{{ route('notices.preview', $selected) }}?version=draft" class="rounded-full px-3 py-1 {{ $activePdfVersion === 'draft' ? 'bg-white text-blue-700 shadow' : 'text-gray-600 hover:text-gray-900' }}">Draft</a>
+                <a href="{{ $originalNoticeUrl ? route('notices.preview', $selected) . '?version=original' : '#' }}" class="rounded-full px-3 py-1 {{ $activePdfVersion === 'original' ? 'bg-white text-blue-700 shadow' : 'text-gray-600 hover:text-gray-900' }} {{ $originalNoticeUrl ? '' : 'pointer-events-none opacity-50' }}">Original / Signed</a>
+            </div>
+
+            <a href="{{ $previewPdfDownloadUrl }}" target="_blank" class="px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium">
+                <i class="fas fa-file-pdf mr-1"></i> Open / Download {{ $activePdfVersion === 'original' ? 'Original / Signed' : 'Draft' }} PDF
             </a>
 
             <span class="px-3 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-700">
@@ -430,6 +444,29 @@ HTML;
                             <div class="font-medium text-gray-900">{{ optional($selected->date_updated)->format('M d, Y') }}</div>
                         </div>
                     </div>
+                </div>
+
+
+                <div class="bg-white border border-gray-200 rounded-xl p-4">
+                    <div class="text-sm font-semibold text-gray-900">Original / Signed Notice</div>
+                    <div class="mt-1 text-xs text-gray-500">Upload the scanned signed/notarized notice here after printing the Draft PDF. This is separate from the draft/source PDF uploaded during Add Notice.</div>
+
+                    @if($originalNoticeUrl)
+                        <div class="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+                            <span>Original / signed copy uploaded.</span>
+                            <a href="{{ $originalNoticeDownloadUrl }}" target="_blank" class="font-semibold text-emerald-700 hover:underline">Open</a>
+                        </div>
+                    @else
+                        <div class="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">No original / signed copy uploaded yet.</div>
+                    @endif
+
+                    <form method="POST" action="{{ route('notices.upload-original', $selected) }}" enctype="multipart/form-data" class="mt-3 space-y-3">
+                        @csrf
+                        <input type="file" name="original_notice_path" accept="application/pdf" required class="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                        <button type="submit" class="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
+                            Upload Original / Signed Notice
+                        </button>
+                    </form>
                 </div>
 
                 <div class="bg-yellow-50 border border-yellow-200 rounded-xl p-4">

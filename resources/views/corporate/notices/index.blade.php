@@ -228,7 +228,7 @@
             <div class="px-6 py-4 border-b border-gray-100 flex items-center gap-3">
                 <div>
                     <div class="text-lg font-semibold">Add Notice</div>
-                    <div class="text-xs text-gray-500">Upload the original PDF or compose the notice body here.</div>
+                    <div class="text-xs text-gray-500">Create a draft notice using the builder, or upload an existing draft PDF. Upload the signed/original copy after saving the notice.</div>
                 </div>
                 <div class="flex-1"></div>
                 <button class="text-gray-500 hover:text-gray-700" @click="showAddPanel = false" type="button">
@@ -243,7 +243,7 @@
                     <div class="rounded-2xl border border-slate-200 overflow-hidden bg-[#f7f7fb] flex flex-col min-h-0">
                         <div class="px-5 py-4 border-b border-slate-200 bg-white shrink-0">
                             <div class="text-sm font-semibold text-slate-900">Live Notice Preview</div>
-                            <div class="mt-1 text-xs text-slate-500">This updates in real time from the slider and uses the same company notice layout as the saved preview.</div>
+                            <div class="mt-1 text-xs text-slate-500">This updates in real time from the builder and uses the same GIS-based notice layout as the saved draft preview.</div>
                         </div>
 
                         <div class="min-h-0 flex-1 overflow-auto p-6">
@@ -317,7 +317,7 @@
                                         <input type="date" name="date_updated" value="{{ $today }}" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
                                     </div>
                                     <div>
-                                        <label class="text-xs text-gray-600">Upload Notice (PDF)</label>
+                                        <label class="text-xs text-gray-600">Upload Existing Draft Notice PDF</label>
                                         <input type="file" name="document_path" accept="application/pdf" class="mt-1 block w-full text-sm text-gray-600 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-blue-600 file:text-white hover:file:bg-blue-700" @change="bodyMode = 'upload'">
                                     </div>
                                 </div>
@@ -325,15 +325,15 @@
                                 <div>
                                     <label class="text-xs text-gray-600">Body Source</label>
                                     <select name="body_mode" x-model="bodyMode" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
-                                        <option value="builder">Create in slider</option>
-                                        <option value="upload">Use uploaded PDF</option>
+                                        <option value="builder">Create draft in builder</option>
+                                        <option value="upload">Use uploaded draft PDF</option>
                                     </select>
                                 </div>
 
                                 <div class="rounded-2xl border border-gray-200 overflow-hidden bg-white shadow-sm">
                                     <div class="px-4 py-3 border-b border-gray-100 bg-gray-50">
                                         <div class="text-sm font-semibold text-gray-900">Notice Body Builder</div>
-                                        <div class="mt-1 text-xs text-gray-500">Write the body here with formatting tools. The saved notice preview will use this exact builder content.</div>
+                                        <div class="mt-1 text-xs text-gray-500">Write the draft notice body here. After saving, print/sign/notarize the draft, then upload the Original / Signed copy from the Notice Preview page.</div>
                                     </div>
 
                                     <div class="flex flex-wrap items-center gap-2 border-b border-gray-100 px-4 py-3 bg-white">

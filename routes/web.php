@@ -885,6 +885,7 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::put('/corporate/notices/{notice}', [NoticeController::class, 'update'])->name('notices.update');
     Route::delete('/corporate/notices/{notice}', [NoticeController::class, 'destroy'])->name('notices.destroy');
     Route::post('/corporate/notices/{notice}/send', [NoticeController::class, 'sendNotice'])->name('notices.send');
+    Route::post('/corporate/notices/{notice}/upload-original', [NoticeController::class, 'uploadOriginal'])->name('notices.upload-original');
 
     Route::get('/corporate/minutes', [MinuteController::class, 'index'])->name('minutes');
     Route::get('/corporate/minutes/create', [MinuteController::class, 'create'])->name('minutes.create');

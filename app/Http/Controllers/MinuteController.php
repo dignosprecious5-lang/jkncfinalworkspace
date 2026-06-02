@@ -410,7 +410,7 @@ class MinuteController extends Controller
 
     private function userCanApprove(): bool
     {
-        return auth()->check() && auth()->user()?->role === 'Admin';
+        return auth()->check() && in_array(auth()->user()?->role, ['Admin', 'Super Admin', 'superadmin'], true);
     }
 
     private function workspacePayload(Minute $minute): array

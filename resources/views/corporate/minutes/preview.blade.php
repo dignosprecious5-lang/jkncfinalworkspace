@@ -23,13 +23,17 @@
         'download_url' => route('uploads.show', ['path' => $path, 'download' => 1]),
         'saved' => true,
     ])->values();
-    $canApproveMinutes = auth()->user()?->role === 'Admin';
+    $canApproveMinutes = in_array(auth()->user()?->role, ['Admin', 'Super Admin', 'superadmin'], true);
     $minutesDocumentTitle = strtoupper(trim('Minutes of the ' . ($minute->type_of_meeting ?: 'Special') . ' ' . ($minute->governing_body ?: 'Meeting')));
     $templatePreviewUrl = $templatePreviewUrl ?? null;
     $templatePreviewDownloadUrl = $templatePreviewDownloadUrl ?? null;
     $workspaceSaveUrl = $workspaceSaveUrl ?? route('minutes.workspace-save', $minute);
     $finalAudioSaveUrl = $finalAudioSaveUrl ?? route('minutes.final-audio', $minute);
     $finalSaveUrl = $finalSaveUrl ?? route('minutes.final-save', $minute);
+
+    $activeMinutesPdfVersion = request('version') === 'original' && $approvedMinutesUrl ? 'original' : 'draft';
+    $activeMinutesPdfUrl = $activeMinutesPdfVersion === 'original' ? $approvedMinutesUrl : $templatePreviewUrl;
+    $activeMinutesPdfDownloadUrl = $activeMinutesPdfVersion === 'original' ? $approvedMinutesDownloadUrl : $templatePreviewDownloadUrl;
 
     $parseAttendanceRows = function ($value, array $fallback = []) {
         $rows = [];
@@ -383,16 +387,19 @@
                                     <div class="text-xs text-gray-500">Preview the minutes format before saving the final minutes.</div>
                                 </div>
                                 <div class="flex-1"></div>
-                                <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">Live Template</span>
+                                <div class="inline-flex rounded-full bg-slate-100 p-1 text-xs font-semibold">
+                                    <a href="{{ route('minutes.preview', $minute) }}?version=draft" class="rounded-full px-3 py-1 {{ $activeMinutesPdfVersion === 'draft' ? 'bg-white text-blue-700 shadow' : 'text-slate-600 hover:text-slate-900' }}">Draft</a>
+                                    <a href="{{ $approvedMinutesUrl ? route('minutes.preview', $minute) . '?version=original' : '#' }}" class="rounded-full px-3 py-1 {{ $activeMinutesPdfVersion === 'original' ? 'bg-white text-blue-700 shadow' : 'text-slate-600 hover:text-slate-900' }} {{ $approvedMinutesUrl ? '' : 'pointer-events-none opacity-50' }}">Approved / Signed</a>
+                                </div>
                                 <a
                                     id="minutes-template-download-btn"
-                                    href="{{ $templatePreviewDownloadUrl ?: '#' }}"
+                                    href="{{ $activeMinutesPdfDownloadUrl ?: '#' }}"
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    class="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700 {{ $templatePreviewDownloadUrl ? '' : 'pointer-events-none opacity-50' }}"
+                                    class="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700 {{ $activeMinutesPdfDownloadUrl ? '' : 'pointer-events-none opacity-50' }}"
                                 >
                                     <i class="fas fa-download"></i>
-                                    Download PDF
+                                    Download {{ $activeMinutesPdfVersion === 'original' ? 'Approved / Signed' : 'Draft' }} PDF
                                 </a>
                             </div>
 
@@ -638,6 +645,14 @@
                                             <span class="shrink-0 text-xs text-slate-400">No approved file uploaded</span>
                                         @endif
                                     </div>
+                                    @if($canApproveMinutes)
+                                        <form id="minutes-approval-card" method="POST" action="{{ route('minutes.approve', $minute) }}" enctype="multipart/form-data" class="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+                                            @csrf
+                                            <div class="text-xs font-semibold text-emerald-800">Upload Approved / Signed Minutes</div>
+                                            <input type="file" name="approved_minutes_path" accept="application/pdf" class="mt-2 block w-full rounded-lg border border-emerald-200 bg-white px-3 py-2 text-xs" {{ $approvedMinutesDownloadUrl ? '' : 'required' }}>
+                                            <button type="submit" class="mt-2 w-full rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700">Save Approved / Signed Copy</button>
+                                        </form>
+                                    @endif
                                     <div id="final-script-file-row" class="hidden flex flex-wrap items-center justify-between gap-3">
                                         <span id="final-script-file-label" class="min-w-0 flex-1 break-all">Attached Script</span>
                                         <a id="final-script-file-download" href="#" class="shrink-0 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-700">Download</a>
@@ -691,8 +706,8 @@
                                     </div>
                                 </div>
                                 <div class="mt-5 rounded-2xl border border-slate-200 bg-slate-50 overflow-hidden">
-                                    @if($templatePreviewUrl)
-                                        <iframe id="minutes-template-pdf-frame" src="{{ $templatePreviewUrl }}" class="h-[720px] w-full bg-white"></iframe>
+                                    @if($activeMinutesPdfUrl)
+                                        <iframe id="minutes-template-pdf-frame" src="{{ $activeMinutesPdfUrl }}" class="h-[720px] w-full bg-white"></iframe>
                                         <div id="minutes-template-pdf-empty" class="hidden px-6 py-10 text-sm text-slate-500">The PDF preview will appear here after the final preview is generated.</div>
                                     @else
                                         <iframe id="minutes-template-pdf-frame" src="" class="hidden h-[720px] w-full bg-white"></iframe>

@@ -61,6 +61,9 @@ class NoticeController extends Controller
 
         $data['company_id'] = null;
         $data['document_path'] = $this->handleUpload($request, 'document_path');
+        if (Schema::hasColumn('notices', 'original_notice_path')) {
+            $data['original_notice_path'] = $this->handleUpload($request, 'original_notice_path');
+        }
         $data['notice_number'] = $data['notice_number'] ?: $this->nextGlobalNoticeNumber();
         $data['body_mode'] = $this->resolveBodyMode($hasUploadedDocument, $bodyHtml, null, $data['body_mode'] ?? null);
         $data = $this->filterPersistableData($data);
@@ -110,6 +113,9 @@ class NoticeController extends Controller
 
         $data['company_id'] = null;
         $data['document_path'] = $this->handleUpload($request, 'document_path', $notice->document_path);
+        if (Schema::hasColumn('notices', 'original_notice_path')) {
+            $data['original_notice_path'] = $this->handleUpload($request, 'original_notice_path', $notice->original_notice_path ?? null);
+        }
         $data['body_mode'] = $this->resolveBodyMode($hasUploadedDocument, $bodyHtml, $notice, $data['body_mode'] ?? null);
         $data = $this->filterPersistableData($data);
 
@@ -164,6 +170,25 @@ class NoticeController extends Controller
         return back()->with('success', 'Notice sent to ' . $attendees->count() . ' attendee(s).');
     }
 
+    public function uploadOriginal(Request $request, Notice $notice)
+    {
+        abort_if($notice->company_id !== null, 404);
+
+        $request->validate([
+            'original_notice_path' => ['required', 'file', 'mimes:pdf', 'max:10240'],
+        ]);
+
+        if (!Schema::hasColumn('notices', 'original_notice_path')) {
+            return back()->with('error', 'Missing column original_notice_path. Please run the latest migration first.');
+        }
+
+        $notice->update([
+            'original_notice_path' => $this->handleUpload($request, 'original_notice_path', $notice->original_notice_path ?? null),
+        ]);
+
+        return back()->with('success', 'Original / signed notice uploaded.');
+    }
+
     private function fields(): array
     {
         $fields = [
@@ -189,7 +214,8 @@ class NoticeController extends Controller
             ['name' => 'authority_calling_meeting', 'label' => 'Authority Calling the Meeting', 'type' => 'text'],
             ['name' => 'uploaded_by', 'label' => 'Uploaded By', 'type' => 'text'],
             ['name' => 'date_updated', 'label' => 'Date Updated', 'type' => 'date'],
-            ['name' => 'document_path', 'label' => 'Upload Notice (PDF)', 'type' => 'file'],
+            ['name' => 'document_path', 'label' => 'Existing Draft Notice PDF (optional)', 'type' => 'file'],
+            ['name' => 'original_notice_path', 'label' => 'Original / Signed Notice PDF (upload after printing/signing)', 'type' => 'file'],
         ];
 
         if (Schema::hasColumn('notices', 'body_html')) {
@@ -231,6 +257,7 @@ class NoticeController extends Controller
             'body_html' => ['nullable', 'string'],
             'body_mode' => ['nullable', 'string', 'max:50'],
             'document_path' => ['nullable', 'file', 'mimes:pdf', 'max:5120'],
+            'original_notice_path' => ['nullable', 'file', 'mimes:pdf', 'max:10240'],
             'guests' => ['nullable', 'array'],
             'guests.*.name' => ['nullable', 'string', 'max:255'],
             'guests.*.email' => ['nullable', 'email', 'max:255'],
