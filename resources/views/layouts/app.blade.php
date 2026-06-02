@@ -944,6 +944,16 @@
                                     </button>
 
                                     <div x-cloak x-show="open" x-transition class="pl-3 space-y-1">
+                                        <a href="{{ route('company.corporate-formation', $currentCompanyId) }}"
+                                           class="block px-3 py-2 rounded-lg transition {{ request()->routeIs('company.corporate-formation*') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
+                                            Corporate Formation
+                                        </a>
+
+                                        <a href="{{ route('company.bir-tax', $currentCompanyId) }}"
+                                           class="block px-3 py-2 rounded-lg transition {{ request()->routeIs('company.bir-tax*') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
+                                            BIR & Tax
+                                        </a>
+
                                         <a href="{{ route('company.lgu', $currentCompanyId) }}"
                                            class="block px-3 py-2 rounded-lg transition {{ request()->routeIs('company.lgu*') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
                                             LGU
@@ -967,16 +977,6 @@
                                         <a href="{{ route('company.correspondence', $currentCompanyId) }}"
                                            class="block px-3 py-2 rounded-lg transition {{ request()->routeIs('company.correspondence*') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
                                             Correspondence
-                                        </a>
-
-                                        <a href="{{ route('company.bir-tax', $currentCompanyId) }}"
-                                           class="block px-3 py-2 rounded-lg transition {{ request()->routeIs('company.bir-tax*') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
-                                            BIR & Tax
-                                        </a>
-
-                                        <a href="{{ route('company.corporate-formation', $currentCompanyId) }}"
-                                           class="block px-3 py-2 rounded-lg transition {{ request()->routeIs('company.corporate-formation*') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
-                                            Corporate Formation
                                         </a>
                                     </div>
                                 </div>
