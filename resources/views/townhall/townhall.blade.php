@@ -487,7 +487,7 @@
                                 <option value="">Select GIS director/officer</option>
                                 @foreach($managementApprovers as $approver)
                                     <option value="{{ $approver['id'] }}">
-                                        {{ $approver['name'] }} — {{ $approver['position'] }}{{ !empty($approver['department']) && $approver['department'] !== '—' ? ' • '.$approver['department'] : '' }}
+                                        {{ $approver['name'] }} — {{ $approver['position'] }} • {{ $approver['department'] }}
                                     </option>
                                 @endforeach
                             </select>
@@ -512,7 +512,7 @@
                                 <option value="">Select GIS director/officer</option>
                                 @foreach(($executiveApprovers ?? $managementApprovers) as $approver)
                                     <option value="{{ $approver['id'] }}">
-                                        {{ $approver['name'] }} — {{ $approver['position'] }}{{ !empty($approver['department']) && $approver['department'] !== '—' ? ' • '.$approver['department'] : '' }}
+                                        {{ $approver['name'] }} — {{ $approver['position'] }} • {{ $approver['department'] }}
                                     </option>
                                 @endforeach
                             </select>

@@ -1239,11 +1239,6 @@ class TownHallController extends Controller
 
 
 
-    private function activeEmployeeApprovers()
-    {
-        return $this->gisApprovers();
-    }
-
     private function gisApprovers()
     {
         if (
@@ -1264,12 +1259,17 @@ class TownHallController extends Controller
         return $latestApprovedGis->directors()
             ->whereNotNull('officer_name')
             ->where('officer_name', '<>', '')
+            ->whereNotNull('officer_type')
+            ->where('officer_type', '<>', '')
             ->orderBy('officer_name')
             ->get()
+            ->filter(function ($officer) {
+                return $this->isValidGisOfficerType($officer->officer_type);
+            })
             ->map(function ($officer) {
                 return $this->formatGisApprover($officer);
             })
-            ->filter(fn($officer) => !empty($officer['name']))
+            ->filter(fn($officer) => !empty($officer['name']) && !empty($officer['position']))
             ->values();
     }
 
@@ -1285,7 +1285,7 @@ class TownHallController extends Controller
         $query = GisRecord::with('directors')
             ->where('approval_status', 'Approved');
 
-        if (Schema::hasColumn('gis_records', 'workflow_status')) {
+        if (Schema::hasColumn((new GisRecord())->getTable(), 'workflow_status')) {
             $query->where(function ($q) {
                 $q->whereIn('workflow_status', ['Accepted', 'Approved', 'Posted'])
                     ->orWhereNull('workflow_status');
@@ -1296,30 +1296,6 @@ class TownHallController extends Controller
             ->orderByDesc('approved_at')
             ->orderByDesc('id')
             ->first();
-    }
-
-    private function buildApprovalData($managementApproverId, $executiveApproverId = null): array
-    {
-        $management = $this->getGisApproverData($managementApproverId);
-        $executive = $this->getGisApproverData($executiveApproverId);
-
-        return [
-            'management_approver_id' => $management['id'] ?? null,
-            'management_approver_user_id' => null,
-            'management_approver_name' => $management['name'] ?? null,
-            'management_approver_position' => $management['position'] ?? null,
-            'management_approver_department' => $management['department'] ?? null,
-            'management_approval_status' => 'Pending',
-            'management_approved_at' => null,
-
-            'executive_approver_id' => $executive['id'] ?? null,
-            'executive_approver_user_id' => null,
-            'executive_approver_name' => $executive['name'] ?? null,
-            'executive_approver_position' => $executive['position'] ?? null,
-            'executive_approver_department' => $executive['department'] ?? null,
-            'executive_approval_status' => 'Pending',
-            'executive_approved_at' => null,
-        ];
     }
 
     private function getGisApproverData($officerId): array
@@ -1351,15 +1327,93 @@ class TownHallController extends Controller
 
     private function formatGisApprover($officer): array
     {
+        $position = trim((string) $officer->officer_type);
+
         return [
             'id' => $officer->id,
             'user_id' => null,
             'name' => $officer->officer_name ?: 'Unnamed Officer',
             'email' => $officer->email,
-            'position' => $officer->officer_type ?: 'Officer',
-            'department' => $officer->committee ?: 'Executive Management',
+            'position' => $position,
+            'department' => 'Department of the ' . $position,
             'gis_id' => $officer->gis_id,
         ];
+    }
+
+    private function isValidGisOfficerType($officerType): bool
+    {
+        $value = trim((string) $officerType);
+
+        if ($value === '') {
+            return false;
+        }
+
+        return !in_array(strtolower($value), [
+            'n/a',
+            'na',
+            'none',
+            'null',
+            '-',
+            '--',
+            'not applicable',
+        ], true);
+    }
+
+    private function activeEmployeeApprovers()
+    {
+        if (!class_exists(Employee::class)) {
+            return collect();
+        }
+
+        return Employee::query()
+            ->whereNotNull('user_id')
+            ->where(function ($query) {
+                $query->whereNull('employment_status')
+                    ->orWhereIn('employment_status', ['Active', 'active', 'Regular', 'regular', 'Probationary', 'probationary']);
+            })
+            ->orderBy('last_name')
+            ->orderBy('first_name')
+            ->get()
+            ->map(function ($employee) {
+                return $this->formatEmployeeApprover($employee);
+            })
+            ->filter(fn($employee) => !empty($employee['name']))
+            ->values();
+    }
+
+    private function buildApprovalData($managementApproverId, $executiveApproverId = null): array
+    {
+        $management = $this->getGisApproverData($managementApproverId);
+        $executive = $this->getGisApproverData($executiveApproverId);
+
+        return [
+            'management_approver_id' => $management['id'] ?? null,
+            'management_approver_user_id' => null,
+            'management_approver_name' => $management['name'] ?? null,
+            'management_approver_position' => $management['position'] ?? null,
+            'management_approver_department' => $management['department'] ?? null,
+            'management_approval_status' => 'Pending',
+            'management_approved_at' => null,
+
+            'executive_approver_id' => $executive['id'] ?? null,
+            'executive_approver_user_id' => null,
+            'executive_approver_name' => $executive['name'] ?? null,
+            'executive_approver_position' => $executive['position'] ?? null,
+            'executive_approver_department' => $executive['department'] ?? null,
+            'executive_approval_status' => 'Pending',
+            'executive_approved_at' => null,
+        ];
+    }
+
+    private function getEmployeeApproverData($employeeId): array
+    {
+        if (!$employeeId || !class_exists(Employee::class)) {
+            return [];
+        }
+
+        $employee = Employee::find($employeeId);
+
+        return $employee ? $this->formatEmployeeApprover($employee) : [];
     }
 
     private function resolveExecutiveApprover(): array
@@ -2063,35 +2117,25 @@ class TownHallController extends Controller
         }
     }
 
-    private function resolveApprovalNotificationUser(TownHallCommunication $communication, string $level): ?object
+    private function resolveApprovalNotificationUser(TownHallCommunication $communication, string $level): ?User
     {
-        $officerId = $level === 'management'
-            ? $communication->management_approver_id
-            : $communication->executive_approver_id;
+        $userId = null;
 
-        if (
-            $officerId
-            && class_exists(DirectorOfficer::class)
-            && Schema::hasTable((new DirectorOfficer())->getTable())
-        ) {
-            $officer = DirectorOfficer::find($officerId);
+        if ($level === 'management') {
+            $userId = $communication->management_approver_user_id;
 
-            if ($officer && !empty($officer->email) && $this->isValidGisOfficerType($officer->officer_type)) {
-                $position = trim((string) $officer->officer_type);
-
-                return (object) [
-                    'id' => $officer->id,
-                    'name' => $officer->officer_name,
-                    'email' => $officer->email,
-                    'position' => $position,
-                    'department' => 'Department of the ' . $position,
-                ];
+            if (!$userId && $communication->management_approver_id && class_exists(Employee::class)) {
+                $userId = Employee::whereKey($communication->management_approver_id)->value('user_id');
             }
         }
 
-        $userId = $level === 'management'
-            ? $communication->management_approver_user_id
-            : $communication->executive_approver_user_id;
+        if ($level === 'executive') {
+            $userId = $communication->executive_approver_user_id;
+
+            if (!$userId && $communication->executive_approver_id && class_exists(Employee::class)) {
+                $userId = Employee::whereKey($communication->executive_approver_id)->value('user_id');
+            }
+        }
 
         return $userId ? User::find($userId) : null;
     }

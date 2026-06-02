@@ -299,9 +299,9 @@
 
                         <div class="approval-block">
                             <p class="approval-title">From Executive Management</p>
-                            <p x-text="previewExecutiveName || '—'"></p>
-                            <p x-text="previewExecutivePosition || '—'"></p>
-                            <p x-text="previewExecutiveDepartment || '—'"></p>
+                            <p x-text="previewExecutiveName || 'John Kelly D. Abalde'"></p>
+                            <p x-text="previewExecutivePosition || 'President and CEO'"></p>
+                            <p x-text="previewExecutiveDepartment || 'Executive Management'"></p>
                             <p>Approved on: Date and Time</p>
                         </div>
 
@@ -592,14 +592,7 @@
                     </div>
                 </div>
 
-                <div class="rounded-xl border border-blue-100 bg-blue-50/50 p-4 space-y-4">
-                    <div class="rounded-lg border border-blue-100 bg-white p-3">
-                        <p class="text-xs font-bold uppercase tracking-wide text-blue-700">Approval Workflow</p>
-                        <p class="mt-1 text-xs text-gray-500">
-                            Level 1 and Level 2 approvers are selected from the latest approved GIS Directors / Officers list. Officers with N/A or blank officer type are hidden.
-                        </p>
-                    </div>
-
+                <div class="rounded-xl border border-blue-100 bg-blue-50/50 p-4 space-y-3">
                     <div>
                         <label class="block text-xs font-semibold text-blue-700 mb-1">
                             Level 1 Approver - From Management
@@ -612,10 +605,10 @@
                             class="w-full border border-blue-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500"
                             required
                         >
-                            <option value="">Select GIS director/officer</option>
+                            <option value="">Select active employee approver</option>
                             @foreach(($managementApprovers ?? collect()) as $approver)
-                                <option value="{{ $approver['id'] }}" {{ (string) old('management_approver_id', $communication->management_approver_id) === (string) $approver['id'] ? 'selected' : '' }}>
-                                    {{ $approver['name'] }} — {{ $approver['position'] ?? 'Position' }}{{ !empty($approver['department']) && $approver['department'] !== '—' ? ' • '.$approver['department'] : '' }}
+                                <option value="{{ $approver['id'] }}">
+                                    {{ $approver['name'] }} — {{ $approver['position'] ?? 'Position' }}
                                 </option>
                             @endforeach
                         </select>
@@ -628,32 +621,11 @@
                         <p><span class="font-semibold">Department:</span> <span x-text="previewManagementDepartment || '—'"></span></p>
                     </div>
 
-                    <div>
-                        <label class="block text-xs font-semibold text-blue-700 mb-1">
-                            Level 2 Approver - From Executive Management
-                        </label>
-
-                        <select
-                            name="executive_approver_id"
-                            x-model="previewExecutiveApproverId"
-                            @change="syncExecutiveApprover()"
-                            class="w-full border border-blue-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500"
-                            required
-                        >
-                            <option value="">Select GIS director/officer</option>
-                            @foreach(($executiveApprovers ?? $managementApprovers ?? collect()) as $approver)
-                                <option value="{{ $approver['id'] }}" {{ (string) old('executive_approver_id', $communication->executive_approver_id) === (string) $approver['id'] ? 'selected' : '' }}>
-                                    {{ $approver['name'] }} — {{ $approver['position'] ?? 'Position' }}{{ !empty($approver['department']) && $approver['department'] !== '—' ? ' • '.$approver['department'] : '' }}
-                                </option>
-                            @endforeach
-                        </select>
-                    </div>
-
                     <div class="rounded-lg border border-blue-100 bg-white p-3 text-sm">
                         <p class="text-xs font-bold uppercase text-blue-700 mb-2">From Executive Management</p>
-                        <p><span class="font-semibold">Name:</span> <span x-text="previewExecutiveName || '—'"></span></p>
-                        <p><span class="font-semibold">Position:</span> <span x-text="previewExecutivePosition || '—'"></span></p>
-                        <p><span class="font-semibold">Department:</span> <span x-text="previewExecutiveDepartment || '—'"></span></p>
+                        <p><span class="font-semibold">Name:</span> <span x-text="previewExecutiveName || 'John Kelly D. Abalde'"></span></p>
+                        <p><span class="font-semibold">Position:</span> <span x-text="previewExecutivePosition || 'President and CEO'"></span></p>
+                        <p><span class="font-semibold">Department:</span> <span x-text="previewExecutiveDepartment || 'Executive Management'"></span></p>
                     </div>
                 </div>
 
