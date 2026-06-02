@@ -596,7 +596,7 @@
                     <div class="rounded-lg border border-blue-100 bg-white p-3">
                         <p class="text-xs font-bold uppercase tracking-wide text-blue-700">Approval Workflow</p>
                         <p class="mt-1 text-xs text-gray-500">
-                            Level 1 and Level 2 approvers are selected from the latest approved GIS Directors / Officers list.
+                            Level 1 and Level 2 approvers are selected from the latest approved GIS Directors / Officers list. Officers with N/A or blank officer type are hidden.
                         </p>
                     </div>
 

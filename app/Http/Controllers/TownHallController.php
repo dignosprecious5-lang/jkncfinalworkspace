@@ -1255,12 +1255,17 @@ class TownHallController extends Controller
         return $latestApprovedGis->directors()
             ->whereNotNull('officer_name')
             ->where('officer_name', '<>', '')
+            ->whereNotNull('officer_type')
+            ->where('officer_type', '<>', '')
             ->orderBy('officer_name')
             ->get()
+            ->filter(function ($officer) {
+                return $this->isValidGisOfficerType($officer->officer_type);
+            })
             ->map(function ($officer) {
                 return $this->formatGisApprover($officer);
             })
-            ->filter(fn($officer) => !empty($officer['name']))
+            ->filter(fn($officer) => !empty($officer['name']) && !empty($officer['position']))
             ->values();
     }
 
@@ -1322,18 +1327,24 @@ class TownHallController extends Controller
 
         $officer = $query->first();
 
-        return $officer ? $this->formatGisApprover($officer) : [];
+        if (!$officer || !$this->isValidGisOfficerType($officer->officer_type)) {
+            return [];
+        }
+
+        return $this->formatGisApprover($officer);
     }
 
     private function formatGisApprover(DirectorOfficer $officer): array
     {
+        $position = trim((string) $officer->officer_type);
+
         return [
             'id' => $officer->id,
             'user_id' => null,
             'name' => $officer->officer_name ?: 'Unnamed Officer',
             'email' => $officer->email,
-            'position' => $officer->officer_type ?: 'Officer',
-            'department' => $officer->committee ?: 'Executive Management',
+            'position' => $position,
+            'department' => 'Department of the ' . $position,
             'gis_id' => $officer->gis_id,
         ];
     }
