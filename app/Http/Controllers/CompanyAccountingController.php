@@ -31,6 +31,8 @@ class CompanyAccountingController extends Controller
 
         return view('company.accounting', [
             'company' => (object) $companyData,
+            'companyTin' => $this->companyTin($companyData),
+            'currentUserName' => $this->currentUserName($request),
             'categories' => self::CATEGORIES,
             'selectedCategory' => $category,
             'records' => $records,
@@ -55,9 +57,9 @@ class CompanyAccountingController extends Controller
             'company_id' => $company,
             'category' => $validated['category'],
             'date_uploaded' => $validated['date_uploaded'],
-            'uploaded_by' => $validated['uploaded_by'],
+            'uploaded_by' => $this->currentUserName($request),
             'client' => $companyData['company_name'],
-            'tin' => $validated['tin'],
+            'tin' => $validated['tin'] ?: $this->companyTin($companyData),
             'status' => $validated['status'],
         ]);
 
@@ -87,9 +89,9 @@ class CompanyAccountingController extends Controller
                 'company_id' => $company,
                 'category' => $validated['category'],
                 'date_uploaded' => $validated['date_uploaded'],
-                'uploaded_by' => $validated['uploaded_by'],
+                'uploaded_by' => $this->currentUserName($request),
                 'client' => $companyData['company_name'],
-                'tin' => $validated['tin'],
+                'tin' => $validated['tin'] ?: $this->companyTin($companyData),
                 'status' => $validated['status'],
             ];
         });
@@ -125,15 +127,15 @@ class CompanyAccountingController extends Controller
         return $request->validate([
             'category' => ['required', 'string', 'in:' . implode(',', self::CATEGORIES)],
             'date_uploaded' => ['required', 'date'],
-            'uploaded_by' => ['required', 'string', 'max:255'],
-            'tin' => ['required', 'string', 'max:255'],
+            'uploaded_by' => ['nullable', 'string', 'max:255'],
+            'tin' => ['nullable', 'string', 'max:255'],
             'status' => ['required', 'string', 'in:' . implode(',', self::STATUSES)],
         ]);
     }
 
     private function sessionKey(): string
     {
-        return 'mock_company_accounting_records';
+        return 'company_accounting_records_v2';
     }
 
     private function findCompany(Request $request, int $company): array
@@ -152,12 +154,25 @@ class CompanyAccountingController extends Controller
 
     private function defaultRecords(): array
     {
-        return [
-            ['id' => 1, 'company_id' => 1, 'category' => 'PNL', 'date_uploaded' => '2024-04-22', 'uploaded_by' => 'Jasper Bulac', 'client' => 'Company 1', 'tin' => '123-456-756', 'status' => 'Completed'],
-            ['id' => 2, 'company_id' => 1, 'category' => 'Balance Sheet', 'date_uploaded' => '2024-05-03', 'uploaded_by' => 'Lara Cruz', 'client' => 'Company 1', 'tin' => '123-456-756', 'status' => 'Open'],
-            ['id' => 3, 'company_id' => 2, 'category' => 'Cash Flow', 'date_uploaded' => '2024-06-12', 'uploaded_by' => 'Jasper Bulac', 'client' => 'Company 2', 'tin' => '222-333-444', 'status' => 'Overdue'],
-            ['id' => 4, 'company_id' => 3, 'category' => 'PNL', 'date_uploaded' => '2024-07-18', 'uploaded_by' => 'Ana Reyes', 'client' => 'Company 3', 'tin' => '555-111-000', 'status' => 'Open'],
-            ['id' => 5, 'company_id' => 3, 'category' => 'AFS', 'date_uploaded' => '2024-08-09', 'uploaded_by' => 'Ana Reyes', 'client' => 'Company 3', 'tin' => '555-111-000', 'status' => 'Completed'],
-        ];
+        return [];
+    }
+
+    private function currentUserName(Request $request): string
+    {
+        $user = $request->user();
+
+        return trim((string) (
+            $user?->name
+            ?? $user?->full_name
+            ?? $user?->employee_name
+            ?? $user?->username
+            ?? $user?->email
+            ?? 'System User'
+        ));
+    }
+
+    private function companyTin(array $companyData): string
+    {
+        return trim((string) ($companyData['tin_no'] ?? $companyData['tin'] ?? $companyData['tin_number'] ?? $companyData['company_tin'] ?? $companyData['tax_identification_number'] ?? ''));
     }
 }

@@ -5,7 +5,9 @@ namespace App\Http\Controllers;
 use App\Models\Employee;
 use App\Models\EmployeeRequest;
 use App\Models\User;
+use App\Notifications\SystemRealtimeNotification;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Carbon;
 
 class EmployeeRequestController extends Controller
@@ -57,7 +59,7 @@ class EmployeeRequestController extends Controller
         $employee = $this->resolveEmployee($request->integer('employee_id') ?: null);
         $requestUser = $this->userForEmployee($employee);
 
-        EmployeeRequest::create([
+        $employeeRequest = EmployeeRequest::create([
             'user_id' => $requestUser->id,
             'employee_name' => $employee->full_name,
 
@@ -103,6 +105,11 @@ class EmployeeRequestController extends Controller
             'status' => 'Pending',
         ]);
 
+        $this->notifyAdmins(
+            title: 'New employee request submitted',
+            message: $employeeRequest->employee_name . ' submitted a ' . $employeeRequest->request_type . ' request.',
+            url: route('human-capital.employee-requests.index')
+        );
 
         return redirect()
             ->route('human-capital.employee-requests.index')
@@ -176,6 +183,12 @@ class EmployeeRequestController extends Controller
             'reviewed_at' => null,
         ]);
 
+        $this->notifyAdmins(
+            title: 'Employee request revision submitted',
+            message: $employeeRequest->employee_name . ' resubmitted a revised ' . $employeeRequest->request_type . ' request.',
+            url: route('human-capital.employee-requests.index')
+        );
+
         return redirect()
             ->route('human-capital.employee-requests.index')
             ->with('success', 'Employee request revision submitted successfully.');
@@ -195,6 +208,13 @@ class EmployeeRequestController extends Controller
             'reviewed_at' => now(),
             'admin_note' => $request->admin_note,
         ]);
+
+        $this->notifyEmployee(
+            $employeeRequest,
+            title: 'Employee request approved',
+            message: 'Your ' . $employeeRequest->request_type . ' request has been approved.',
+            url: route('human-capital.employee-requests.index')
+        );
 
         return redirect()
             ->route('human-capital.employee-requests.index')
@@ -216,6 +236,13 @@ class EmployeeRequestController extends Controller
             'admin_note' => $request->admin_note,
         ]);
 
+        $this->notifyEmployee(
+            $employeeRequest,
+            title: 'Employee request rejected',
+            message: 'Your ' . $employeeRequest->request_type . ' request has been rejected.',
+            url: route('human-capital.employee-requests.index')
+        );
+
         return redirect()
             ->route('human-capital.employee-requests.index')
             ->with('success', 'Employee request rejected successfully.');
@@ -236,9 +263,53 @@ class EmployeeRequestController extends Controller
             'admin_note' => $request->admin_note,
         ]);
 
+        $this->notifyEmployee(
+            $employeeRequest,
+            title: 'Employee request sent back for revision',
+            message: 'Your ' . $employeeRequest->request_type . ' request needs revision.',
+            url: route('human-capital.employee-requests.index')
+        );
+
         return redirect()
             ->route('human-capital.employee-requests.index')
             ->with('success', 'Employee request sent back for revision.');
+    }
+
+
+    private function notifyAdmins(string $title, string $message, ?string $url = null): void
+    {
+        $admins = User::query()
+            ->whereIn('role', ['admin', 'Admin', 'ADMIN', 'superadmin', 'Superadmin', 'SUPERADMIN'])
+            ->get();
+
+        if ($admins->isEmpty()) {
+            return;
+        }
+
+        Notification::send($admins, new SystemRealtimeNotification(
+            title: $title,
+            message: $message,
+            url: $url,
+            module: 'Employee Requests',
+            icon: 'fa-file-signature'
+        ));
+    }
+
+    private function notifyEmployee(EmployeeRequest $employeeRequest, string $title, string $message, ?string $url = null): void
+    {
+        $user = User::find($employeeRequest->user_id);
+
+        if (! $user) {
+            return;
+        }
+
+        $user->notify(new SystemRealtimeNotification(
+            title: $title,
+            message: $message,
+            url: $url,
+            module: 'Employee Requests',
+            icon: 'fa-file-signature'
+        ));
     }
 
     private function authorizeAdminAccess(): void

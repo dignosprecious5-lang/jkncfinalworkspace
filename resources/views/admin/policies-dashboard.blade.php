@@ -114,24 +114,28 @@
             </form>
 
             <div class="border border-gray-200 rounded-xl overflow-hidden flex-1">
-                <table class="w-full text-sm text-left border-collapse">
+                <div class="w-full overflow-x-auto">
+                <table class="policy-dashboard-table w-full text-sm text-left border-collapse table-fixed">
                     <thead class="bg-gray-100 text-gray-700">
                         <tr>
-                            <th class="px-4 py-3 border-r border-gray-200 font-semibold">Ref#</th>
-                            <th class="px-4 py-3 border-r border-gray-200 font-semibold">Module</th>
-                            <th class="px-4 py-3 border-r border-gray-200 font-semibold">Policy Title</th>
-                            <th class="px-4 py-3 border-r border-gray-200 font-semibold">Version</th>
-                            <th class="px-4 py-3 border-r border-gray-200 font-semibold">Prepared By</th>
-                            <th class="px-4 py-3 border-r border-gray-200 font-semibold">Date Uploaded</th>
-                            <th class="px-4 py-3 border-r border-gray-200 font-semibold">Workflow Status</th>
-                            <th class="px-4 py-3 font-semibold text-center">Action</th>
+                            <th class="w-[16%] px-4 py-3 border-r border-gray-200 font-semibold">Ref#</th>
+                            <th class="w-[8%] px-4 py-3 border-r border-gray-200 font-semibold">Module</th>
+                            <th class="w-[24%] px-4 py-3 border-r border-gray-200 font-semibold">Policy Title</th>
+                            <th class="w-[7%] px-4 py-3 border-r border-gray-200 font-semibold">Version</th>
+                            <th class="w-[13%] px-4 py-3 border-r border-gray-200 font-semibold">Prepared By</th>
+                            <th class="w-[10%] px-4 py-3 border-r border-gray-200 font-semibold">Date Uploaded</th>
+                            <th class="w-[10%] px-4 py-3 border-r border-gray-200 font-semibold">Workflow Status</th>
+                            <th class="w-[12%] px-4 py-3 font-semibold text-center">Action</th>
                         </tr>
                     </thead>
 
                     <tbody class="bg-white text-gray-700">
                         @forelse($policies as $policy)
-                            <tr class="border-t border-gray-200 hover:bg-gray-50 transition">
-                                <td class="px-4 py-3 border-r border-gray-200">{{ $policy->code ?? $policy->id }}</td>
+                            <tr
+                                class="border-t border-gray-200 hover:bg-gray-50 transition cursor-pointer align-top"
+                                onclick="window.location='{{ route('admin.policies.show', $policy->id) }}'"
+                            >
+                                <td class="px-4 py-3 border-r border-gray-200 align-top"><span class="policy-break policy-clamp-2">{{ $policy->code ?? $policy->id }}</span></td>
 
                                 <td class="px-4 py-3 border-r border-gray-200">
                                     <span class="px-2 py-1 text-xs rounded-full bg-blue-50 text-blue-700 font-medium">
@@ -139,15 +143,15 @@
                                     </span>
                                 </td>
 
-                                <td class="px-4 py-3 border-r border-gray-200">
-                                    <div class="font-medium text-gray-800">{{ $policy->policy ?? '-' }}</div>
+                                <td class="px-4 py-3 border-r border-gray-200 align-top">
+                                    <div class="policy-break policy-clamp-2 font-medium text-gray-800">{{ $policy->policy ?? '-' }}</div>
                                     @if(!empty($policy->classification))
-                                        <div class="text-xs text-gray-400 mt-1">{{ $policy->classification }}</div>
+                                        <div class="policy-break policy-clamp-1 text-xs text-gray-400 mt-1">{{ $policy->classification }}</div>
                                     @endif
                                 </td>
 
-                                <td class="px-4 py-3 border-r border-gray-200">{{ $policy->version ?? '-' }}</td>
-                                <td class="px-4 py-3 border-r border-gray-200">{{ $policy->prepared_by ?? '-' }}</td>
+                                <td class="px-4 py-3 border-r border-gray-200 align-top"><span class="policy-break policy-clamp-1">{{ $policy->version ?? '-' }}</span></td>
+                                <td class="px-4 py-3 border-r border-gray-200 align-top"><span class="policy-break policy-clamp-2">{{ $policy->prepared_by ?? '-' }}</span></td>
 
                                 <td class="px-4 py-3 border-r border-gray-200">
                                     {{ optional($policy->created_at)->format('Y-m-d') ?? '-' }}
@@ -172,8 +176,8 @@
 
                                 <td class="px-4 py-3 text-center">
                                     <div class="flex items-center justify-center gap-2 flex-wrap">
-                                        @if(($policy->workflow_status ?? null) === 'Submitted' && Auth::user()->hasPermission('approve_policies'))
-                                            <form method="POST" action="{{ route('admin.policies.approve', $policy->id) }}">
+                                        @if(!$policy->is_archived && Auth::user()->hasPermission('approve_policies'))
+                                            <form method="POST" action="{{ route('admin.policies.approve', $policy->id) }}" onclick="event.stopPropagation()">
                                                 @csrf
                                                 <button
                                                     type="submit"
@@ -182,8 +186,24 @@
                                                     Approve
                                                 </button>
                                             </form>
+                                        @endif
 
-                                            <form method="POST" action="{{ route('admin.policies.reject', $policy->id) }}">
+                                        <a
+                                            href="{{ route('admin.policies.show', $policy->id) }}"
+                                            class="px-3 py-1.5 text-xs font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition"
+                                        >
+                                            Review
+                                        </a>
+
+                                        <a
+                                            href="{{ route('policies.edit', $policy->id) }}"
+                                            class="px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-800 text-white hover:bg-slate-900 transition"
+                                        >
+                                            Edit
+                                        </a>
+
+                                        @if(!$policy->is_archived && Auth::user()->hasPermission('approve_policies'))
+                                            <form method="POST" action="{{ route('admin.policies.reject', $policy->id) }}" onclick="event.stopPropagation()">
                                                 @csrf
                                                 <input type="hidden" name="review_note" value="Rejected by admin">
                                                 <button
@@ -193,13 +213,15 @@
                                                     Reject
                                                 </button>
                                             </form>
+                                        @endif
 
-                                            <form method="POST" action="{{ route('admin.policies.revise', $policy->id) }}">
+                                        @if(!$policy->is_archived && Auth::user()->hasPermission('approve_policies'))
+                                            <form method="POST" action="{{ route('admin.policies.revise', $policy->id) }}" onclick="event.stopPropagation()">
                                                 @csrf
                                                 <input type="hidden" name="review_note" value="Needs revision">
                                                 <button
                                                     type="submit"
-                                                    class="px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-800 text-white hover:bg-slate-900 transition"
+                                                    class="px-3 py-1.5 text-xs font-medium rounded-lg border border-yellow-300 bg-yellow-50 text-yellow-700 hover:bg-yellow-100 transition"
                                                 >
                                                     Revise
                                                 </button>
@@ -207,11 +229,11 @@
                                         @endif
 
                                         @if(!$policy->is_archived && Auth::user()->hasPermission('approve_policies'))
-                                            <form method="POST" action="{{ route('admin.policies.archive', $policy->id) }}">
+                                            <form method="POST" action="{{ route('admin.policies.archive', $policy->id) }}" onclick="event.stopPropagation()">
                                                 @csrf
                                                 <button
                                                     type="submit"
-                                                    class="px-3 py-1.5 text-xs font-medium rounded-lg bg-gray-700 text-white hover:bg-gray-800 transition"
+                                                    class="px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 transition"
                                                 >
                                                     Archive
                                                 </button>
@@ -219,7 +241,7 @@
                                         @endif
 
                                         @if($policy->is_archived && Auth::user()->hasPermission('approve_policies'))
-                                            <form method="POST" action="{{ route('admin.policies.unarchive', $policy->id) }}">
+                                            <form method="POST" action="{{ route('admin.policies.unarchive', $policy->id) }}" onclick="event.stopPropagation()">
                                                 @csrf
                                                 <button
                                                     type="submit"
@@ -229,13 +251,6 @@
                                                 </button>
                                             </form>
                                         @endif
-
-                                        <a
-                                            href="{{ route('admin.policies.show', $policy->id) }}"
-                                            class="px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 transition"
-                                        >
-                                            View
-                                        </a>
                                     </div>
                                 </td>
                             </tr>
@@ -248,14 +263,122 @@
                         @endforelse
                     </tbody>
                 </table>
+                </div>
             </div>
 
-            @if(method_exists($policies, 'links'))
-                <div class="mt-2">
-                    {{ $policies->links() }}
+            <div class="mt-3 flex flex-col gap-3 border-t border-gray-100 pt-3">
+                <div class="flex flex-col gap-3 text-[11px] text-gray-500 lg:flex-row lg:items-center lg:justify-between">
+                    <div class="flex flex-wrap items-center gap-6">
+                        <span>
+                            Total Files
+                            <span class="text-gray-800 font-semibold">
+                                {{ method_exists($policies, 'total') ? $policies->total() : $policies->count() }}
+                            </span>
+                        </span>
+
+                        <span>
+                            Pending
+                            <span class="text-yellow-600 font-semibold">{{ $submittedCount }}</span>
+                        </span>
+
+                        <span>
+                            Approved
+                            <span class="text-green-600 font-semibold">{{ $acceptedCount }}</span>
+                        </span>
+
+                        <span>
+                            Rejected
+                            <span class="text-red-600 font-semibold">{{ $rejectedCount }}</span>
+                        </span>
+
+                        <span>
+                            Expired
+                            <span class="text-gray-700 font-semibold">{{ $archivedCount }}</span>
+                        </span>
+                    </div>
+
+                    <div class="flex items-center gap-4">
+                        <span>
+                            {{ method_exists($policies, 'firstItem') ? ($policies->firstItem() ?? 0) : 0 }}
+                            to
+                            {{ method_exists($policies, 'lastItem') ? ($policies->lastItem() ?? 0) : $policies->count() }}
+                        </span>
+                    </div>
                 </div>
-            @endif
+
+                <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                    <div class="text-sm text-gray-700">
+                        Showing
+                        <span class="font-semibold">
+                            {{ method_exists($policies, 'firstItem') ? ($policies->firstItem() ?? 0) : 0 }}
+                        </span>
+                        to
+                        <span class="font-semibold">
+                            {{ method_exists($policies, 'lastItem') ? ($policies->lastItem() ?? 0) : $policies->count() }}
+                        </span>
+                        of
+                        <span class="font-semibold">
+                            {{ method_exists($policies, 'total') ? $policies->total() : $policies->count() }}
+                        </span>
+                        results
+                    </div>
+
+                    @if(method_exists($policies, 'links'))
+                        <div class="flex justify-end">
+                            {{ $policies->links() }}
+                        </div>
+                    @endif
+                </div>
+            </div>
         </div>
     </div>
 </div>
 @endsection
+
+
+@push('styles')
+<style>
+    .policy-dashboard-table {
+        table-layout: fixed !important;
+        width: 100% !important;
+    }
+
+    .policy-dashboard-table th,
+    .policy-dashboard-table td {
+        min-width: 0 !important;
+        max-width: 100% !important;
+        vertical-align: top !important;
+        overflow-wrap: anywhere !important;
+        word-break: break-word !important;
+        white-space: normal !important;
+    }
+
+    .policy-break {
+        display: block !important;
+        min-width: 0 !important;
+        max-width: 100% !important;
+        overflow-wrap: anywhere !important;
+        word-break: break-word !important;
+        white-space: normal !important;
+    }
+
+    .policy-clamp-1 {
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        white-space: nowrap !important;
+    }
+
+    .policy-clamp-2 {
+        display: -webkit-box !important;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden !important;
+    }
+
+    .policy-dashboard-table form,
+    .policy-dashboard-table a,
+    .policy-dashboard-table button {
+        max-width: 100% !important;
+    }
+</style>
+@endpush

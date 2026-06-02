@@ -7,13 +7,19 @@ use App\Http\Controllers\Concerns\GeneratesPdfPreview;
 use App\Http\Controllers\Concerns\HandlesUploads;
 use App\Http\Controllers\Concerns\ResolvesCompanyRecords;
 use App\Models\Company;
+use App\Models\DirectorOfficer;
 use App\Models\GisRecord;
 use App\Models\Minute;
+use App\Mail\NoticeOfMeetingMail;
 use App\Models\Notice;
+use App\Models\NoticeAttendee;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Support\Facades\Mail;
 use App\Models\Resolution;
 use App\Models\SecAoi;
 use App\Models\SecCoi;
 use App\Models\SecretaryCertificate;
+use App\Models\Stockholder;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -36,7 +42,7 @@ class CompanyCorporateRecordController extends Controller
     {
         $companyData = $this->findCompanyOrAbort($request, $company);
         $notices = $this->companyScopedQuery(Notice::query(), new Notice(), $company)
-            ->with(['minutes', 'resolutions', 'secretaryCertificates'])
+            ->with(['minutes', 'resolutions', 'secretaryCertificates', 'attendees'])
             ->latest()
             ->get()
             ->each(fn (Notice $notice) => $notice->preview_url = route('company.corporate-formation.notices.preview', [$company, $notice->id]));
@@ -64,6 +70,7 @@ class CompanyCorporateRecordController extends Controller
 
         $notice = Notice::create($data);
         $this->syncGeneratedNoticePdf($notice, $bodyHtml, $hasUploadedDocument);
+        $this->syncNoticeAttendeesFromLatestGis($notice);
 
         return redirect()->route('company.corporate-formation.notices', $company)->with('success', 'Notice created.');
     }
@@ -72,14 +79,82 @@ class CompanyCorporateRecordController extends Controller
     {
         $companyData = $this->findCompanyOrAbort($request, $company);
         $noticeRecord = $this->findCompanyNotice($company, $notice);
-        $noticeRecord->load(['minutes', 'resolutions', 'secretaryCertificates']);
+
+        $this->syncNoticeAttendeesFromLatestGis($noticeRecord->fresh());
+
+        $noticeRecord = $this->findCompanyNotice($company, $notice);
+        $noticeRecord->load(['minutes', 'resolutions', 'secretaryCertificates', 'attendees']);
+
+        $draftPdfUrl = route('company.corporate-formation.notices.download', [$company, $noticeRecord->id]);
+        $draftPdfDownloadUrl = route('company.corporate-formation.notices.download', [
+            'company' => $company,
+            'notice' => $noticeRecord->id,
+            'download' => 1,
+        ]);
 
         return view('corporate.notices.preview', [
             'notice' => $noticeRecord,
             'backRoute' => route('company.corporate-formation.notices', $company),
             'sectionRibbonPartial' => 'company.partials.corporate-formation-ribbon',
+            'sendRoute' => route('company.corporate-formation.notices.send', [$company, $noticeRecord->id]),
+
+            // Company-specific PDF routes for the shared corporate notice preview blade.
+            'downloadRoute' => $draftPdfDownloadUrl,
+            'draftPdfUrl' => $draftPdfUrl,
+            'draftPdfDownloadUrl' => $draftPdfDownloadUrl,
+            'templatePreviewUrl' => $draftPdfUrl,
+            'templatePreviewDownloadUrl' => $draftPdfDownloadUrl,
+            'uploadOriginalRoute' => route('company.corporate-formation.notices.upload-original', [$company, $noticeRecord->id]),
+
             ...$this->companyViewData($companyData, $company),
         ]);
+    }
+
+    public function downloadNoticePdf(Request $request, int $company, int $notice)
+    {
+        $companyData = $this->findCompanyOrAbort($request, $company);
+        $noticeRecord = $this->findCompanyNotice($company, $notice);
+        $noticeRecord->loadMissing(['minutes', 'resolutions', 'secretaryCertificates', 'attendees']);
+
+        $viewData = $this->companyViewData($companyData, $company);
+
+        $pdf = Pdf::loadView('corporate.notices.pdf', [
+            'notice' => $noticeRecord,
+            'bodyHtml' => $noticeRecord->body_html,
+            ...$viewData,
+        ])->setPaper('a4');
+
+        $filename = 'notice-' . Str::slug($noticeRecord->notice_number ?: 'meeting') . '.pdf';
+
+        if ($request->boolean('download')) {
+            return $pdf->download($filename);
+        }
+
+        return $pdf->stream($filename);
+    }
+
+    public function uploadOriginalNotice(Request $request, int $company, int $notice): RedirectResponse
+    {
+        $this->findCompanyOrAbort($request, $company);
+        $noticeRecord = $this->findCompanyNotice($company, $notice);
+
+        $request->validate([
+            'original_notice_path' => ['required', 'file', 'mimes:pdf', 'max:10240'],
+        ]);
+
+        if ($noticeRecord->original_notice_path && Storage::disk('public')->exists($noticeRecord->original_notice_path)) {
+            Storage::disk('public')->delete($noticeRecord->original_notice_path);
+        }
+
+        $file = $request->file('original_notice_path');
+        $fileName = time() . '_original_notice_' . preg_replace('/[^A-Za-z0-9._-]/', '_', $file->getClientOriginalName());
+        $file->storeAs('notice_originals', $fileName, 'public');
+
+        $noticeRecord->forceFill([
+            'original_notice_path' => 'notice_originals/' . $fileName,
+        ])->save();
+
+        return back()->with('success', 'Original / signed notice uploaded successfully.');
     }
 
     public function updateNotice(Request $request, int $company, int $notice): RedirectResponse
@@ -95,6 +170,7 @@ class CompanyCorporateRecordController extends Controller
 
         $noticeRecord->update($data);
         $this->syncGeneratedNoticePdf($noticeRecord->fresh(), $bodyHtml, $hasUploadedDocument);
+        $this->syncNoticeAttendeesFromLatestGis($noticeRecord->fresh());
 
         return redirect()->route('company.corporate-formation.notices', $company)->with('success', 'Notice updated.');
     }
@@ -105,6 +181,23 @@ class CompanyCorporateRecordController extends Controller
         $this->findCompanyNotice($company, $notice)->delete();
 
         return redirect()->route('company.corporate-formation.notices', $company)->with('success', 'Notice deleted.');
+    }
+
+
+    public function sendNotice(Request $request, int $company, int $notice): RedirectResponse
+    {
+        $this->findCompanyOrAbort($request, $company);
+        $noticeRecord = $this->findCompanyNotice($company, $notice);
+        $noticeRecord->load('attendees');
+        $attendees = $noticeRecord->attendees()->whereIn('id', $request->input('attendee_ids', []))->whereNotNull('email')->get();
+        if ($attendees->isEmpty()) return back()->with('error', 'No selected attendees with valid email addresses.');
+        $pdfBinary = $this->noticePdfBinary($noticeRecord->fresh(['attendees']));
+        $filename = 'notice-' . Str::slug($noticeRecord->notice_number ?: 'meeting') . '.pdf';
+        foreach ($attendees as $attendee) {
+            Mail::to($attendee->email)->send(new NoticeOfMeetingMail($noticeRecord, $attendee, $pdfBinary, $filename));
+            $attendee->update(['sent_at' => now(), 'is_selected' => true]);
+        }
+        return back()->with('success', 'Notice sent to ' . $attendees->count() . ' attendee(s).');
     }
 
     public function minutes(Request $request, int $company): View
@@ -119,8 +212,13 @@ class CompanyCorporateRecordController extends Controller
                 $minute->approve_url = route('company.corporate-formation.minutes.approve', [$company, $minute->id]);
             });
         $notices = $this->companyScopedQuery(Notice::query(), new Notice(), $company)
+            ->with('attendees')
             ->orderBy('date_of_meeting')
-            ->get();
+            ->get()
+            ->each(function (Notice $notice): void {
+                $this->syncNoticeAttendeesFromLatestGis($notice);
+                $notice->load('attendees');
+            });
 
         return view('corporate.minutes.index', [
             'minutes' => $minutes,
@@ -152,7 +250,8 @@ class CompanyCorporateRecordController extends Controller
     {
         $companyData = $this->findCompanyOrAbort($request, $company);
         $minuteRecord = $this->findCompanyMinute($company, $minute);
-        $minuteRecord->load('notice');
+        $minuteRecord->load('notice.attendees');
+        $noticeRecord = $minuteRecord->notice;
         $templatePreviewPath = $this->generateCompanyMinuteTemplatePreviewPdf($minuteRecord);
 
         return view('corporate.minutes.preview', [
@@ -166,6 +265,9 @@ class CompanyCorporateRecordController extends Controller
             'templatePreviewUrl' => $templatePreviewPath ? route('uploads.show', ['path' => $templatePreviewPath]) : null,
             'templatePreviewDownloadUrl' => $templatePreviewPath ? route('uploads.show', ['path' => $templatePreviewPath, 'download' => 1]) : null,
             'sectionRibbonPartial' => 'company.partials.corporate-formation-ribbon',
+            'sendRoute' => $noticeRecord
+                ? route('company.corporate-formation.notices.send', [$company, $noticeRecord->id])
+                : null,
             ...$this->companyViewData($companyData, $company),
         ]);
     }
@@ -340,6 +442,9 @@ class CompanyCorporateRecordController extends Controller
     {
         $this->findCompanyOrAbort($request, $company);
         $data = $this->validateResolutionData($request);
+        if (array_key_exists('resolution_body', $data)) {
+            $data['resolution_body'] = $this->stripCompanyStandardResolutionClauses($data['resolution_body']);
+        }
         $minute = !empty($data['minute_id']) ? $this->findCompanyMinute($company, (int) $data['minute_id']) : null;
         $data = $this->mergeMinuteData($data, $minute);
         $data['draft_file_path'] = $this->handleUpload($request, 'draft_file_path');
@@ -358,9 +463,37 @@ class CompanyCorporateRecordController extends Controller
     {
         $companyData = $this->findCompanyOrAbort($request, $company);
         $resolutionRecord = $this->findCompanyResolution($company, $resolution);
+
+        // Always load the linked meeting sources before building the template data.
+        $resolutionRecord->load(['minute.notice.attendees', 'notice.attendees', 'secretaryCertificates']);
+
+        // Build the same document payload used by the Corporate Resolution module,
+        // but scoped to this company GIS/notice/minutes.
+        $document = $this->companyResolutionDocumentData($resolutionRecord, $company, $companyData);
+
+        // Rebuild the generated draft if it was system-generated, then reload and rebuild
+        // the live preview path using the same company document payload.
         $this->syncGeneratedResolutionPdf($resolutionRecord, false);
         $resolutionRecord = $resolutionRecord->fresh();
-        $resolutionRecord->load(['notice', 'secretaryCertificates']);
+        $resolutionRecord->load(['minute.notice.attendees', 'notice.attendees', 'secretaryCertificates']);
+        $document = $this->companyResolutionDocumentData($resolutionRecord, $company, $companyData);
+        $noticeRecord = $resolutionRecord->notice ?: $resolutionRecord->minute?->notice;
+
+        // Keep the editor/builder body clean. The standard WHEREAS RESOLVED
+        // clauses are system-generated in the preview/PDF only, not stored in
+        // or shown inside the editable Resolution Body field.
+        $resolutionRecord->setAttribute(
+            'resolution_body',
+            $this->stripCompanyStandardResolutionClauses($resolutionRecord->resolution_body)
+        );
+
+        // The shared blade may read signatories directly from the resolution
+        // model, so expose the company-scoped attendees/signatories in-memory.
+        $resolutionRecord->setAttribute('directors', collect($document['approval_rows'] ?? [])->pluck('name')->implode(', '));
+        if (!empty($document['chairman']['name'])) {
+            $resolutionRecord->setAttribute('chairman', $document['chairman']['name']);
+        }
+
         $generatedBodyPreviewPath = $this->generateResolutionPdf(
             $resolutionRecord,
             'generated-previews/resolutions/' . ($resolutionRecord->resolution_no ?: $resolutionRecord->id) . '-body-built.pdf'
@@ -368,12 +501,17 @@ class CompanyCorporateRecordController extends Controller
 
         return view('corporate.resolutions.preview', [
             'resolution' => $resolutionRecord,
+            'document' => $document,
             'generatedBodyPreviewUrl' => $generatedBodyPreviewPath ? route('uploads.show', ['path' => $generatedBodyPreviewPath]) : null,
             'backRoute' => route('company.corporate-formation.resolutions', $company),
             'editRoute' => route('company.corporate-formation.resolutions.preview', [$company, $resolutionRecord->id]),
             'updateRoute' => route('company.corporate-formation.resolutions.update', [$company, $resolutionRecord->id]),
             'deleteRoute' => route('company.corporate-formation.resolutions.destroy', [$company, $resolutionRecord->id]),
+            'downloadRoute' => $generatedBodyPreviewPath ? route('uploads.show', ['path' => $generatedBodyPreviewPath, 'download' => 1]) : null,
             'sectionRibbonPartial' => 'company.partials.corporate-formation-ribbon',
+            'sendRoute' => $noticeRecord
+                ? route('company.corporate-formation.notices.send', [$company, $noticeRecord->id])
+                : null,
             ...$this->companyViewData($companyData, $company),
         ]);
     }
@@ -383,6 +521,9 @@ class CompanyCorporateRecordController extends Controller
         $this->findCompanyOrAbort($request, $company);
         $resolutionRecord = $this->findCompanyResolution($company, $resolution);
         $data = $this->validateResolutionData($request);
+        if (array_key_exists('resolution_body', $data)) {
+            $data['resolution_body'] = $this->stripCompanyStandardResolutionClauses($data['resolution_body']);
+        }
         $minute = !empty($data['minute_id']) ? $this->findCompanyMinute($company, (int) $data['minute_id']) : null;
         $data = $this->mergeMinuteData($data, $minute);
         $data['draft_file_path'] = $this->handleUpload($request, 'draft_file_path', $resolutionRecord->draft_file_path);
@@ -452,6 +593,10 @@ class CompanyCorporateRecordController extends Controller
         $companyData = $this->findCompanyOrAbort($request, $company);
         $certificateRecord = $this->findCompanySecretaryCertificate($company, $certificate);
         $certificateRecord->load(['notice', 'resolution.notice', 'minute.notice']);
+        $noticeRecord = $certificateRecord->notice
+            ?? optional($certificateRecord->resolution)->notice
+            ?? optional($certificateRecord->minute)->notice;
+
         $generatedDraftPath = $this->generatePdfPreview(
             'corporate.secretary-certificates.pdf',
             ['certificate' => $certificateRecord],
@@ -466,6 +611,9 @@ class CompanyCorporateRecordController extends Controller
             'updateRoute' => route('company.corporate-formation.secretary-certificates.update', [$company, $certificateRecord->id]),
             'deleteRoute' => route('company.corporate-formation.secretary-certificates.destroy', [$company, $certificateRecord->id]),
             'sectionRibbonPartial' => 'company.partials.corporate-formation-ribbon',
+            'sendRoute' => $noticeRecord
+                ? route('company.corporate-formation.notices.send', [$company, $noticeRecord->id])
+                : null,
             ...$this->companyViewData($companyData, $company),
         ]);
     }
@@ -505,6 +653,20 @@ class CompanyCorporateRecordController extends Controller
             'meeting_no' => ['nullable', 'string', 'max:255'],
             'chairman' => ['nullable', 'string', 'max:255'],
             'secretary' => ['nullable', 'string', 'max:255'],
+
+            // President-requested notice procedure fields.
+            // These are saved for company notices separately through company_id.
+            'meeting_mode' => ['nullable', 'string', 'max:255'],
+            'meeting_platform' => ['nullable', 'string', 'max:255'],
+            'meeting_link_details' => ['nullable', 'string', 'max:1000'],
+            'authorized_meeting_officer' => ['nullable', 'string', 'max:255'],
+            'confirmation_email' => ['nullable', 'string', 'max:255'],
+            'confirmation_phone' => ['nullable', 'string', 'max:255'],
+            'office_address' => ['nullable', 'string', 'max:1000'],
+            'email_phone_confirmation_deadline' => ['nullable', 'string', 'max:255'],
+            'physical_submission_deadline' => ['nullable', 'string', 'max:255'],
+            'authority_calling_meeting' => ['nullable', 'string', 'max:255'],
+
             'uploaded_by' => ['nullable', 'string', 'max:255'],
             'date_updated' => ['nullable', 'date'],
             'body_html' => ['nullable', 'string'],
@@ -534,6 +696,10 @@ class CompanyCorporateRecordController extends Controller
             'meeting_no' => ['nullable', 'string', 'max:255'],
             'chairman' => ['nullable', 'string', 'max:255'],
             'secretary' => ['nullable', 'string', 'max:255'],
+            'directors_present' => ['nullable', 'string'],
+            'directors_absent' => ['nullable', 'string'],
+            'secretariat' => ['nullable', 'string'],
+            'guests' => ['nullable', 'string'],
             'document_path' => ['nullable', 'file', 'mimes:pdf', 'max:5120'],
         ]);
     }
@@ -701,6 +867,9 @@ class CompanyCorporateRecordController extends Controller
             'location' => $resolution->location,
             'secretary' => $resolution->secretary,
             'purpose' => $resolution->board_resolution,
+            // Keep Secretary Certificate in sync with the full system-built resolution text,
+            // not only the custom WHEREAS/body typed by the user.
+            'resolution_body' => $this->completeCompanyResolutionBody($resolution),
             'notary_doc_no' => $resolution->notary_doc_no,
             'notary_page_no' => $resolution->notary_page_no,
             'notary_book_no' => $resolution->notary_book_no,
@@ -712,6 +881,381 @@ class CompanyCorporateRecordController extends Controller
             ->where('resolution_id', $resolution->id)
             ->get()
             ->each(fn (SecretaryCertificate $certificate) => $certificate->update($shared));
+    }
+
+    private function companyResolutionDocumentData(Resolution $resolution, int $company, array $companyData = []): array
+    {
+        $resolution->loadMissing(['minute.notice.attendees', 'notice.attendees']);
+
+        if ($companyData === []) {
+            $companyRecord = Company::find($company);
+            $companyData = $companyRecord
+                ? $companyRecord->toArray()
+                : (collect($this->defaultCompanies())->firstWhere('id', $company) ?: []);
+        }
+
+        $base = $this->companyViewData($companyData, $company);
+        $baseDocument = $base['document'] ?? [];
+        $gis = $this->latestCompanyGisForDocuments($company);
+        if ($gis) {
+            $gis->loadMissing(['directors', 'stockholders']);
+        }
+
+        $governingBody = trim((string) ($resolution->governing_body ?: $resolution->minute?->governing_body ?: $resolution->notice?->governing_body));
+        $approvalRows = collect($this->companyResolutionAttendingSignatories($resolution, $gis));
+
+        $chairman = null;
+        $approvalRows = $approvalRows
+            ->reject(function ($row) use (&$chairman) {
+                $role = Str::lower((string) ($row['role'] ?? ''));
+                $position = Str::lower((string) ($row['position'] ?? ''));
+
+                $isChairman = Str::contains($role, 'chair') || Str::contains($position, 'chair');
+
+                if ($isChairman && !$chairman) {
+                    $chairman = [
+                        'name' => $row['name'],
+                        'role' => 'Chairman',
+                    ];
+                }
+
+                return $isChairman;
+            })
+            ->values()
+            ->all();
+
+        return array_merge($baseDocument, [
+            'company_name' => $baseDocument['company_name'] ?? ($base['companyName'] ?? 'JK&C INC.'),
+            'company_reg_no' => $baseDocument['company_reg_no'] ?? ($base['companyRegNo'] ?? null),
+            'company_address' => $baseDocument['company_address'] ?? ($base['companyAddress'] ?? null),
+            'logo_path' => $baseDocument['logo_path'] ?? $gis?->logo_path,
+            'gis' => $gis,
+            'approval_rows' => $approvalRows,
+            'chairman' => $chairman,
+            'resolution_label' => $this->companyResolutionNumberLabel($governingBody),
+            'certifying_body' => $this->companyResolutionCertifyingBodyLabel($governingBody),
+            'standard_resolution_clauses' => $this->companyStandardResolutionClauses($resolution),
+            'full_resolution_body' => $this->completeCompanyResolutionBody($resolution),
+        ]);
+    }
+
+    private function completeCompanyResolutionBody(Resolution $resolution): string
+    {
+        $customBody = trim($this->stripCompanyStandardResolutionClauses((string) $resolution->resolution_body));
+        $standardClauses = trim($this->companyStandardResolutionClauses($resolution));
+
+        if ($customBody === '') {
+            return $standardClauses;
+        }
+
+        $normalizedCustom = Str::lower(strip_tags($customBody));
+
+        if (Str::contains($normalizedCustom, 'whereas finally resolved')
+            && Str::contains($normalizedCustom, 'be it further resolved')
+            && Str::contains($normalizedCustom, 'all prior inconsistent resolutions')) {
+            return $customBody;
+        }
+
+        return $customBody . "\n\n" . $standardClauses;
+    }
+
+    private function stripCompanyStandardResolutionClauses(?string $body): string
+    {
+        $body = trim((string) $body);
+
+        if ($body === '') {
+            return '';
+        }
+
+        // If a previous version accidentally saved the system-generated
+        // standard clauses into the editable Resolution Body, remove them so
+        // the builder shows only the user's custom WHEREAS/resolution details.
+        $patterns = [
+            '/\s*WHEREAS\s+RESOLVED;?\s+that\s+the\s+foregoing\s+resolutions\s+are\s+hereby\s+approved\s+and\s+adopted\.?/iu',
+            '/\s*WHEREAS\s+FINALLY\s+RESOLVED,?\s+that\s+the\s+foregoing\s+resolution\s+is\s+valid\s+and\s+existing\s+until\s+withdrawn,?\s+revoked,?\s+or\s+modified\s+by\s+the\s+Corporation\.?/iu',
+            '/\s*BE\s+IT\s+FURTHER\s+RESOLVED,?\s+that\s+the\s+Corporate\s+Secretary\s+is\s+hereby\s+authorized\s+and\s+directed\s+to\s+include\s+this\s+Resolution\s+in\s+the\s+Company[’\']s\s+Minute\s+Book\s+and\s+to\s+notify\s+all\s+concerned\s+parties\s+of\s+the\s+adoption\s+of\s+this\s+Resolution\.?/iu',
+            '/\s*FINALLY\s+BE\s+IT\s+FURTHER\s+RESOLVED\s+that\s+we,?\s+the\s+undersigned,?\s+hereby\s+accept\s+and\s+agree\s+to\s+the\s+foregoing\s+resolutions\.\s+We\s+have\s+affixed\s+our\s+signatures\s+on\s+this\s+.*?\.?/isu',
+            '/\s*All\s+prior\s+inconsistent\s+resolutions\s+or\s+actions\s+of\s+the\s+Board\s+of\s+Directors\s+are\s+hereby\s+revoked\s+and\s+superseded\.\s+This\s+resolution\s+shall\s+be\s+effective\s+immediately\.?/iu',
+        ];
+
+        foreach ($patterns as $pattern) {
+            $body = preg_replace($pattern, '', $body) ?? $body;
+        }
+
+        return trim(preg_replace("/\n{3,}/", "\n\n", $body) ?? $body);
+    }
+
+    private function companyStandardResolutionClauses(Resolution $resolution): string
+    {
+        $meetingDate = optional($resolution->date_of_meeting)->format('jS \d\a\y \o\f F Y') ?: '_____ day of ____________';
+        $location = trim((string) ($resolution->location ?: '_____________________'));
+
+        return trim(implode("\n\n", [
+            'WHEREAS RESOLVED; that the foregoing resolutions are hereby approved and adopted.',
+            'WHEREAS FINALLY RESOLVED, that the foregoing resolution is valid and existing until withdrawn, revoked, or modified by the Corporation.',
+            "BE IT FURTHER RESOLVED, that the Corporate Secretary is hereby authorized and directed to include this Resolution in the Company's Minute Book and to notify all concerned parties of the adoption of this Resolution.",
+            'FINALLY BE IT FURTHER RESOLVED that we, the undersigned, hereby accept and agree to the foregoing resolutions. We have affixed our signatures on this ' . $meetingDate . ' at ' . $location . '.',
+            'All prior inconsistent resolutions or actions of the Board of Directors are hereby revoked and superseded. This resolution shall be effective immediately.',
+        ]));
+    }
+
+    private function companyResolutionAttendingSignatories(Resolution $resolution, ?GisRecord $gis): array
+    {
+        $governingBody = Str::lower((string) ($resolution->governing_body ?: $resolution->minute?->governing_body ?: $resolution->notice?->governing_body));
+        $minute = $resolution->minute;
+        $notice = $resolution->notice ?: $minute?->notice;
+
+        $absentNames = collect($this->companyParsePeopleRows($minute?->directors_absent))
+            ->pluck('name')
+            ->map(fn ($name) => $this->companyNormalizeName($name))
+            ->filter()
+            ->all();
+
+        $presentRows = collect($this->companyParsePeopleRows($minute?->directors_present));
+
+        if ($presentRows->isEmpty() && $notice) {
+            $notice->loadMissing('attendees');
+            $presentRows = $notice->attendees
+                ->where('is_selected', true)
+                ->map(fn ($attendee) => [
+                    'name' => $attendee->name,
+                    'position' => $attendee->position,
+                    'source_type' => $attendee->source_type,
+                    'source_id' => $attendee->source_id,
+                ])
+                ->values();
+        }
+
+        if ($presentRows->isEmpty() && $gis) {
+            $presentRows = $this->companyGisPeopleForGoverningBody($gis, $governingBody);
+        }
+
+        $noticeSourceMap = $notice
+            ? $notice->attendees
+                ->mapWithKeys(fn ($attendee) => [
+                    $this->companyNormalizeName($attendee->name) => [
+                        'source_type' => $attendee->source_type,
+                        'position' => $attendee->position,
+                        'source_id' => $attendee->source_id,
+                    ],
+                ])
+                ->all()
+            : [];
+
+        $gisSourceMap = $gis ? $this->companyGisSourceMap($gis) : [];
+
+        return $presentRows
+            ->map(function ($row) use ($governingBody, $noticeSourceMap, $gisSourceMap) {
+                $name = trim((string) ($row['name'] ?? ''));
+
+                if ($name === '') {
+                    return null;
+                }
+
+                $normalizedName = $this->companyNormalizeName($name);
+                $position = trim((string) ($row['position'] ?? ''));
+                $sourceType = $row['source_type'] ?? null;
+
+                if (!$sourceType && isset($noticeSourceMap[$normalizedName])) {
+                    $sourceType = $noticeSourceMap[$normalizedName]['source_type'] ?? null;
+                    $position = $position ?: (string) ($noticeSourceMap[$normalizedName]['position'] ?? '');
+                }
+
+                if (!$sourceType && isset($gisSourceMap[$normalizedName])) {
+                    $sourceType = $gisSourceMap[$normalizedName]['source_type'] ?? null;
+                    $position = $position ?: (string) ($gisSourceMap[$normalizedName]['position'] ?? '');
+                }
+
+                $role = $this->companyResolutionRoleLabel($governingBody, $sourceType, $position);
+
+                if (!$this->companyResolutionRoleAllowedForGoverningBody($governingBody, $role)) {
+                    return null;
+                }
+
+                return [
+                    'name' => $name,
+                    'position' => $position,
+                    'source_type' => $sourceType,
+                    'role' => $role,
+                ];
+            })
+            ->filter()
+            ->reject(fn ($row) => in_array($this->companyNormalizeName($row['name']), $absentNames, true))
+            ->unique(fn ($row) => $this->companyNormalizeName($row['name']))
+            ->values()
+            ->all();
+    }
+
+    private function companyGisPeopleForGoverningBody(GisRecord $gis, string $governingBody)
+    {
+        $people = collect();
+
+        if (Str::contains($governingBody, 'director') || Str::contains($governingBody, 'board') || Str::contains($governingBody, 'joint')) {
+            $people = $people->merge($gis->directors->map(fn (DirectorOfficer $person) => [
+                'name' => $person->officer_name,
+                'position' => $person->officer_type,
+                'source_type' => 'director',
+            ]));
+        }
+
+        if (Str::contains($governingBody, 'stockholder') || Str::contains($governingBody, 'joint')) {
+            $people = $people->merge($gis->stockholders->map(fn (Stockholder $person) => [
+                'name' => $person->stockholder_name,
+                'position' => 'Stockholder',
+                'source_type' => 'stockholder',
+            ]));
+        }
+
+        return $people->values();
+    }
+
+    private function companyGisSourceMap(GisRecord $gis): array
+    {
+        $directors = $gis->directors->mapWithKeys(fn (DirectorOfficer $person) => [
+            $this->companyNormalizeName($person->officer_name) => [
+                'source_type' => 'director',
+                'position' => $person->officer_type,
+            ],
+        ]);
+
+        $stockholders = $gis->stockholders->mapWithKeys(fn (Stockholder $person) => [
+            $this->companyNormalizeName($person->stockholder_name) => [
+                'source_type' => 'stockholder',
+                'position' => 'Stockholder',
+            ],
+        ]);
+
+        return $directors->merge($stockholders)->all();
+    }
+
+    private function companyParsePeopleRows($value): array
+    {
+        if (blank($value)) {
+            return [];
+        }
+
+        $decoded = json_decode((string) $value, true);
+
+        if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+            return collect($decoded)
+                ->map(function ($row) {
+                    if (is_string($row)) {
+                        return ['name' => trim($row), 'position' => '', 'source_type' => null];
+                    }
+
+                    return [
+                        'name' => trim((string) ($row['name'] ?? $row['person'] ?? '')),
+                        'position' => trim((string) ($row['position'] ?? $row['role'] ?? '')),
+                        'source_type' => $row['source_type'] ?? null,
+                        'source_id' => $row['source_id'] ?? null,
+                    ];
+                })
+                ->filter(fn ($row) => $row['name'] !== '')
+                ->values()
+                ->all();
+        }
+
+        return collect(preg_split('/[\r\n,;]+/', (string) $value))
+            ->map(fn ($name) => ['name' => trim($name), 'position' => '', 'source_type' => null])
+            ->filter(fn ($row) => $row['name'] !== '')
+            ->values()
+            ->all();
+    }
+
+    private function companyResolutionRoleLabel(string $governingBody, $sourceType = null, string $position = ''): string
+    {
+        $source = Str::lower((string) $sourceType . ' ' . $position);
+
+        if (Str::contains($source, 'chair')) {
+            return 'Chairman';
+        }
+
+        if ($this->companyIsStockholdersOnly($governingBody)) {
+            return 'Stockholder';
+        }
+
+        if ($this->companyIsBoardOnly($governingBody)) {
+            return 'Director';
+        }
+
+        if (Str::contains($source, 'stockholder')) {
+            return 'Stockholder';
+        }
+
+        if (Str::contains($source, 'director') || Str::contains($source, 'board')) {
+            return 'Director';
+        }
+
+        return 'Director';
+    }
+
+    private function companyResolutionRoleAllowedForGoverningBody(string $governingBody, string $role): bool
+    {
+        $role = Str::lower($role);
+
+        if (Str::contains($role, 'chair')) {
+            return true;
+        }
+
+        if ($this->companyIsStockholdersOnly($governingBody)) {
+            return Str::contains($role, 'stockholder');
+        }
+
+        if ($this->companyIsBoardOnly($governingBody)) {
+            return Str::contains($role, 'director');
+        }
+
+        return Str::contains($role, 'director') || Str::contains($role, 'stockholder');
+    }
+
+    private function companyIsStockholdersOnly(string $governingBody): bool
+    {
+        return Str::contains($governingBody, 'stockholder')
+            && !Str::contains($governingBody, 'director')
+            && !Str::contains($governingBody, 'board')
+            && !Str::contains($governingBody, 'joint');
+    }
+
+    private function companyIsBoardOnly(string $governingBody): bool
+    {
+        return (Str::contains($governingBody, 'director') || Str::contains($governingBody, 'board'))
+            && !Str::contains($governingBody, 'stockholder')
+            && !Str::contains($governingBody, 'joint');
+    }
+
+    private function companyResolutionNumberLabel(string $governingBody): string
+    {
+        $body = Str::lower($governingBody);
+
+        if ($this->companyIsStockholdersOnly($body)) {
+            return "Stockholders' Resolution No.";
+        }
+
+        if (Str::contains($body, 'joint')) {
+            return 'Joint Board and Stockholders Resolution No.';
+        }
+
+        return 'Board Resolution No.';
+    }
+
+    private function companyResolutionCertifyingBodyLabel(string $governingBody): string
+    {
+        $body = Str::lower($governingBody);
+
+        if ($this->companyIsStockholdersOnly($body)) {
+            return 'Stockholders';
+        }
+
+        if (Str::contains($body, 'joint')) {
+            return 'Stockholders and Board of Directors';
+        }
+
+        return 'Board of Directors';
+    }
+
+    private function companyNormalizeName($name): string
+    {
+        return Str::of((string) $name)->lower()->replaceMatches('/\s+/', ' ')->trim()->toString();
     }
 
     private function filterPersistableData(string $table, array $data): array
@@ -920,7 +1464,14 @@ class CompanyCorporateRecordController extends Controller
 
     private function syncGeneratedResolutionPdf(Resolution $resolution, bool $hasUploadedDraft): void
     {
-        if ($hasUploadedDraft || $resolution->draft_file_path) {
+        if ($hasUploadedDraft) {
+            return;
+        }
+
+        $existingPath = (string) ($resolution->draft_file_path ?? '');
+        $isGeneratedPath = $existingPath === '' || str_starts_with($existingPath, 'uploads/resolutions/') || str_contains($existingPath, 'generated-previews/resolutions/');
+
+        if ($resolution->draft_file_path && ! $isGeneratedPath) {
             return;
         }
 
@@ -939,7 +1490,52 @@ class CompanyCorporateRecordController extends Controller
             return null;
         }
 
-        $html = view('corporate.resolutions.pdf', ['resolution' => $resolution])->render();
+        $viewData = [];
+        if ($resolution->company_id) {
+            $companyRecord = Company::find($resolution->company_id);
+            $companyData = $companyRecord
+                ? $companyRecord->toArray()
+                : collect($this->defaultCompanies())->firstWhere('id', (int) $resolution->company_id);
+
+            if (is_array($companyData)) {
+                $viewData = $this->companyViewData($companyData, (int) $resolution->company_id);
+            }
+        }
+
+        $companyId = (int) ($resolution->company_id ?: 0);
+        $companyData = [];
+        if ($companyId > 0) {
+            $companyRecord = Company::find($companyId);
+            $companyData = $companyRecord
+                ? $companyRecord->toArray()
+                : (collect($this->defaultCompanies())->firstWhere('id', $companyId) ?: []);
+        }
+
+        $document = $companyId > 0
+            ? $this->companyResolutionDocumentData($resolution, $companyId, $companyData)
+            : ($viewData['document'] ?? []);
+
+        // Force complete body/signatories into the shared blade without saving
+        // them to DB, because the shared PDF may read from $resolution fields.
+        $originalBody = $resolution->resolution_body;
+        $originalDirectors = $resolution->directors ?? null;
+        $originalChairman = $resolution->chairman ?? null;
+
+        $resolution->setAttribute('resolution_body', $document['full_resolution_body'] ?? $originalBody);
+        $resolution->setAttribute('directors', collect($document['approval_rows'] ?? [])->pluck('name')->implode(', '));
+        if (!empty($document['chairman']['name'])) {
+            $resolution->setAttribute('chairman', $document['chairman']['name']);
+        }
+
+        $html = view('corporate.resolutions.pdf', [
+            'resolution' => $resolution,
+            'document' => $document,
+            ...$viewData,
+        ])->render();
+
+        $resolution->setAttribute('resolution_body', $originalBody);
+        $resolution->setAttribute('directors', $originalDirectors);
+        $resolution->setAttribute('chairman', $originalChairman);
         $tempDirectory = storage_path('app/temp');
         if (!is_dir($tempDirectory)) {
             mkdir($tempDirectory, 0777, true);
@@ -1072,15 +1668,98 @@ class CompanyCorporateRecordController extends Controller
 
     private function companyViewData(array $companyData, int $company): array
     {
-        $companyRegNo = $this->resolveCompanyRegNo($company);
+        $latestGis = $this->latestCompanyGisForDocuments($company);
+
+        $companyNameFromRecord = $companyData['company_name']
+            ?? $companyData['business_name']
+            ?? $companyData['name']
+            ?? 'JK&C INC.';
+
+        $companyName = $latestGis?->corporation_name
+            ?: $latestGis?->trade_name
+            ?: $companyNameFromRecord;
+
+        $companyRegNo = $latestGis?->company_reg_no
+            ?: $this->resolveCompanyRegNo($company)
+            ?: ($companyData['company_reg_no'] ?? null)
+            ?: ($companyData['sec_registration_no'] ?? null)
+            ?: '2025120230900-02';
+
+        $companyAddress = $latestGis?->principal_address
+            ?: $latestGis?->business_address
+            ?: ($companyData['address'] ?? null)
+            ?: ($companyData['business_address'] ?? null)
+            ?: ($companyData['company_address'] ?? null)
+            ?: 'Cebu City';
+
+        $corporateContext = [
+            'company_name' => $companyName,
+            'companyName' => $companyName,
+            'corporation_name' => $companyName,
+            'corporationName' => $companyName,
+            'company_reg_no' => $companyRegNo,
+            'companyRegNo' => $companyRegNo,
+            'company_address' => $companyAddress,
+            'companyAddress' => $companyAddress,
+            'logo_path' => $latestGis?->logo_path,
+            'logoPath' => $latestGis?->logo_path,
+            'gis' => $latestGis,
+        ];
 
         return [
             'company' => (object) $companyData,
             'companyRecord' => (object) $companyData,
-            'companyName' => $companyData['company_name'] ?? 'JK&C INC.',
-            'companyAddress' => $companyData['address'] ?? 'Cebu City',
-            'companyRegNo' => $companyRegNo ?: '2025120230900-02',
+            'companyName' => strtoupper($companyName),
+            'companyAddress' => $companyAddress,
+            'companyRegNo' => $companyRegNo,
+            'corporateContext' => $corporateContext,
+            'document' => [
+                'company_name' => $companyName,
+                'company_reg_no' => $companyRegNo,
+                'company_address' => $companyAddress,
+                'logo_path' => $latestGis?->logo_path,
+                'gis' => $latestGis,
+                'approval_rows' => [],
+                'chairman' => null,
+                'resolution_label' => 'BOARD RESOLUTION NO.',
+                'certifying_body' => 'Board of Directors',
+            ],
         ];
+    }
+
+    private function latestCompanyGisForDocuments(int $company): ?GisRecord
+    {
+        if (! Schema::hasTable('gis_records')) {
+            return null;
+        }
+
+        $baseQuery = GisRecord::query();
+
+        if (Schema::hasColumn('gis_records', 'company_id')) {
+            $baseQuery->where('company_id', $company);
+        }
+
+        $accepted = (clone $baseQuery)
+            ->where(function ($query) {
+                $query->where('workflow_status', 'Accepted')
+                    ->orWhere('approval_status', 'Approved')
+                    ->orWhere('submission_status', 'Accepted')
+                    ->orWhere('submission_status', 'Approved');
+            })
+            ->latest('updated_at')
+            ->latest('created_at')
+            ->latest('id')
+            ->first();
+
+        if ($accepted) {
+            return $accepted;
+        }
+
+        return $baseQuery
+            ->latest('updated_at')
+            ->latest('created_at')
+            ->latest('id')
+            ->first();
     }
 
     private function resolveCompanyRegNo(int $company): ?string
@@ -1150,4 +1829,63 @@ class CompanyCorporateRecordController extends Controller
             ['id' => 3, 'company_name' => 'Company 3', 'company_type' => 'Corporation', 'email' => 'company3@example.com', 'phone' => '09777345678', 'website' => 'https://bigin.example', 'description' => 'Sample company record', 'address' => 'Pasig City', 'owner_name' => 'Owner 3', 'created_at' => '2026-03-03 10:00:00'],
         ];
     }
+
+    private function syncNoticeAttendeesFromLatestGis(Notice $notice): void
+    {
+        $latestGisQuery = GisRecord::with(['directors', 'stockholders']);
+
+        if ($notice->company_id) {
+            $latestGisQuery->where('company_id', $notice->company_id);
+        }
+
+        $latestGis = $latestGisQuery->latest('id')->first();
+
+        if (!$latestGis) return;
+        $rows = collect();
+        $governingBody = strtolower((string) $notice->governing_body);
+        if (str_contains($governingBody, 'board') || str_contains($governingBody, 'director') || str_contains($governingBody, 'joint')) {
+            foreach ($latestGis->directors as $director) {
+                $rows->push(['name'=>$director->officer_name,'position'=>$director->officer_type ?: $director->board,'email'=>$director->email,'source_type'=>'director_officer','source_id'=>$director->id]);
+            }
+        }
+        if (str_contains($governingBody, 'stockholder') || str_contains($governingBody, 'joint')) {
+            foreach ($latestGis->stockholders as $stockholder) {
+                $rows->push(['name'=>$stockholder->stockholder_name,'position'=>'Stockholder','email'=>$stockholder->email,'source_type'=>'stockholder','source_id'=>$stockholder->id]);
+            }
+        }
+        if ($rows->isEmpty()) {
+            foreach ($latestGis->directors as $director) {
+                $rows->push(['name'=>$director->officer_name,'position'=>$director->officer_type ?: $director->board,'email'=>$director->email,'source_type'=>'director_officer','source_id'=>$director->id]);
+            }
+        }
+        $rows->unique(fn($row)=>strtolower(trim($row['source_type'].':'.$row['source_id'].':'.$row['name'])))->values()->each(function(array $row, int $index) use ($notice) {
+            if (blank($row['name'])) return;
+            NoticeAttendee::updateOrCreate(['notice_id'=>$notice->id,'source_type'=>$row['source_type'],'source_id'=>$row['source_id']], ['name'=>$row['name'],'position'=>$row['position'],'email'=>$row['email'],'is_selected'=>filled($row['email']),'sort_order'=>$index+1]);
+        });
+    }
+
+    private function noticePdfBinary(Notice $notice): string
+    {
+        $notice->loadMissing('attendees');
+
+        $viewData = [];
+
+        if ($notice->company_id) {
+            $companyRecord = Company::find($notice->company_id);
+            $companyData = $companyRecord
+                ? $companyRecord->toArray()
+                : collect($this->defaultCompanies())->firstWhere('id', (int) $notice->company_id);
+
+            if (is_array($companyData)) {
+                $viewData = $this->companyViewData($companyData, (int) $notice->company_id);
+            }
+        }
+
+        return Pdf::loadView('corporate.notices.pdf', [
+            'notice' => $notice,
+            'bodyHtml' => $notice->body_html,
+            ...$viewData,
+        ])->setPaper('a4')->output();
+    }
+
 }

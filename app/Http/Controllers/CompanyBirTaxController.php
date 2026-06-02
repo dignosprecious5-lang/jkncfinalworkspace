@@ -34,6 +34,8 @@ class CompanyBirTaxController extends Controller
 
         return view('company.bir-tax', [
             'company' => (object) $companyData,
+            'companyTin' => $this->companyTin($companyData),
+            'currentUserName' => $this->currentUserName($request),
             'records' => $records,
             'searchTin' => $searchTin,
             'searchTaxpayer' => $searchTaxpayer,
@@ -50,7 +52,7 @@ class CompanyBirTaxController extends Controller
         $records->push([
             'id' => $nextId,
             'company_id' => $company,
-            'tin' => $validated['tin'],
+            'tin' => $validated['tin'] ?: $this->companyTin($companyData),
             'tax_payer' => $validated['tax_payer'],
             'registering_office' => $validated['registering_office'],
             'registered_address' => $validated['registered_address'],
@@ -58,7 +60,7 @@ class CompanyBirTaxController extends Controller
             'form_type' => $validated['form_type'],
             'filing_frequency' => $validated['filing_frequency'],
             'due_date' => $validated['due_date'],
-            'uploaded_by' => $validated['uploaded_by'],
+            'uploaded_by' => $this->currentUserName($request),
             'date_uploaded' => $validated['date_uploaded'],
             'uploaded_file' => $validated['uploaded_file'] ?? '',
             'company_name' => $companyData['company_name'],
@@ -88,7 +90,7 @@ class CompanyBirTaxController extends Controller
             return [
                 ...$item,
                 'company_id' => $company,
-                'tin' => $validated['tin'],
+                'tin' => $validated['tin'] ?: $this->companyTin($companyData),
                 'tax_payer' => $validated['tax_payer'],
                 'registering_office' => $validated['registering_office'],
                 'registered_address' => $validated['registered_address'],
@@ -96,7 +98,7 @@ class CompanyBirTaxController extends Controller
                 'form_type' => $validated['form_type'],
                 'filing_frequency' => $validated['filing_frequency'],
                 'due_date' => $validated['due_date'],
-                'uploaded_by' => $validated['uploaded_by'],
+                'uploaded_by' => $this->currentUserName($request),
                 'date_uploaded' => $validated['date_uploaded'],
                 'uploaded_file' => $validated['uploaded_file'] ?? ($item['uploaded_file'] ?? ''),
                 'company_name' => $companyData['company_name'],
@@ -131,7 +133,7 @@ class CompanyBirTaxController extends Controller
     private function validateRecord(Request $request): array
     {
         return $request->validate([
-            'tin' => ['required', 'string', 'max:255'],
+            'tin' => ['nullable', 'string', 'max:255'],
             'tax_payer' => ['required', 'string', 'max:255'],
             'registering_office' => ['required', 'string', 'max:255'],
             'registered_address' => ['required', 'string', 'max:255'],
@@ -139,7 +141,7 @@ class CompanyBirTaxController extends Controller
             'form_type' => ['required', 'string', 'max:255'],
             'filing_frequency' => ['required', 'string', 'max:255'],
             'due_date' => ['required', 'date'],
-            'uploaded_by' => ['required', 'string', 'max:255'],
+            'uploaded_by' => ['nullable', 'string', 'max:255'],
             'date_uploaded' => ['required', 'date'],
             'uploaded_file' => ['nullable', 'string', 'max:255'],
         ]);
@@ -147,7 +149,7 @@ class CompanyBirTaxController extends Controller
 
     private function sessionKey(): string
     {
-        return 'mock_company_bir_tax_records';
+        return 'company_bir_tax_records_v2';
     }
 
     private function findCompany(Request $request, int $company): array
@@ -166,11 +168,25 @@ class CompanyBirTaxController extends Controller
 
     private function defaultRecords(): array
     {
-        return [
-            ['id' => 1, 'company_id' => 1, 'tin' => '123-456-789-000', 'tax_payer' => 'Company 1', 'registering_office' => 'BIR RDO 44', 'registered_address' => 'Makati City, PH', 'tax_types' => 'VAT, WHT', 'form_type' => '1701Q', 'filing_frequency' => 'Quarterly', 'due_date' => '2024-04-30', 'uploaded_by' => 'Admin User', 'date_uploaded' => '2024-02-06', 'uploaded_file' => 'bir-company-1-q1.pdf', 'company_name' => 'Company 1'],
-            ['id' => 2, 'company_id' => 1, 'tin' => '123-456-789-000', 'tax_payer' => 'Company 1', 'registering_office' => 'BIR RDO 44', 'registered_address' => 'Makati City, PH', 'tax_types' => 'Income Tax', 'form_type' => '1702', 'filing_frequency' => 'Annual', 'due_date' => '2024-04-15', 'uploaded_by' => 'Compliance Officer', 'date_uploaded' => '2024-02-18', 'uploaded_file' => 'bir-company-1-annual.pdf', 'company_name' => 'Company 1'],
-            ['id' => 3, 'company_id' => 2, 'tin' => '987-654-321-000', 'tax_payer' => 'Company 2', 'registering_office' => 'BIR RDO 51', 'registered_address' => 'Quezon City, PH', 'tax_types' => 'Percentage Tax', 'form_type' => '2551M', 'filing_frequency' => 'Monthly', 'due_date' => '2024-03-20', 'uploaded_by' => 'Finance Manager', 'date_uploaded' => '2024-02-12', 'uploaded_file' => 'bir-company-2-monthly.pdf', 'company_name' => 'Company 2'],
-            ['id' => 4, 'company_id' => 3, 'tin' => '555-222-333-000', 'tax_payer' => 'Company 3', 'registering_office' => 'BIR RDO 38', 'registered_address' => 'Cebu City, PH', 'tax_types' => 'VAT', 'form_type' => '2550Q', 'filing_frequency' => 'Quarterly', 'due_date' => '2024-05-15', 'uploaded_by' => 'Tax Specialist', 'date_uploaded' => '2024-03-12', 'uploaded_file' => 'bir-company-3-vat.pdf', 'company_name' => 'Company 3'],
-        ];
+        return [];
+    }
+
+    private function currentUserName(Request $request): string
+    {
+        $user = $request->user();
+
+        return trim((string) (
+            $user?->name
+            ?? $user?->full_name
+            ?? $user?->employee_name
+            ?? $user?->username
+            ?? $user?->email
+            ?? 'System User'
+        ));
+    }
+
+    private function companyTin(array $companyData): string
+    {
+        return trim((string) ($companyData['tin_no'] ?? $companyData['tin'] ?? $companyData['tin_number'] ?? $companyData['company_tin'] ?? $companyData['tax_identification_number'] ?? ''));
     }
 }

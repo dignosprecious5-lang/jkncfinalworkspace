@@ -23,6 +23,7 @@ class TownHallCommunication extends Model
         'priority',
         'status',
         'approval_status',
+        'workflow_status',
         'approved_by',
         'approved_at',
         'approval_notes',
@@ -32,6 +33,24 @@ class TownHallCommunication extends Model
         'additional',
         'attachment',
         'created_by',
+        'submitted_at',
+        'posted_at',
+        'posted_by',
+        'recipient_notified_at',
+        'management_approver_id',
+        'management_approver_user_id',
+        'management_approver_name',
+        'management_approver_position',
+        'management_approver_department',
+        'management_approval_status',
+        'management_approved_at',
+        'executive_approver_id',
+        'executive_approver_user_id',
+        'executive_approver_name',
+        'executive_approver_position',
+        'executive_approver_department',
+        'executive_approval_status',
+        'executive_approved_at',
         'ack_deadline_at',
         'expires_at',
         'is_archived',
@@ -41,6 +60,11 @@ class TownHallCommunication extends Model
     protected $casts = [
         'communication_date' => 'datetime',
         'approved_at' => 'datetime',
+        'submitted_at' => 'datetime',
+        'posted_at' => 'datetime',
+        'recipient_notified_at' => 'datetime',
+        'management_approved_at' => 'datetime',
+        'executive_approved_at' => 'datetime',
         'ack_deadline_at' => 'datetime',
         'expires_at' => 'datetime',
         'archived_at' => 'datetime',
@@ -87,6 +111,16 @@ class TownHallCommunication extends Model
     public function recipientUser()
     {
         return $this->belongsTo(User::class, 'recipient_user_id');
+    }
+
+    public function managementApprover()
+    {
+        return $this->belongsTo(\App\Models\DirectorOfficer::class, 'management_approver_id');
+    }
+
+    public function executiveApprover()
+    {
+        return $this->belongsTo(\App\Models\DirectorOfficer::class, 'executive_approver_id');
     }
 
     public function getRecipientNamesAttribute(): string
@@ -140,5 +174,4 @@ class TownHallCommunication extends Model
 
         return $this->recipientUser->name ?? $this->to_for ?? 'Selected Recipient';
     }
-
 }

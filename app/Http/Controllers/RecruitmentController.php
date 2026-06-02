@@ -21,6 +21,7 @@ use App\Models\PayrollLevel;
 use App\Models\OnboardingChecklist;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use App\Mail\AssessmentProceedingMail;
 use App\Mail\AssessmentTestMail;
@@ -30,6 +31,9 @@ use App\Mail\PdsInvitationMail;
 use App\Mail\ChecklistSubmissionMail;
 use App\Models\Training;
 use App\Models\User;
+use App\Models\AssessmentType;
+use App\Models\AssessmentQuestion;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class RecruitmentController extends Controller
 {
@@ -220,161 +224,454 @@ class RecruitmentController extends Controller
     }
 
     public function showPublicApplicationForm()
-{
-    $jobPostings = JobPosting::whereIn('status', ['Posted', 'Screening'])
-        ->orderBy('position')
-        ->get()
-        ->filter(fn ($jpf) => $this->jpfApprovalsAllApproved($jpf))
-        ->values();
+    {
+        $jobPostings = JobPosting::whereIn('status', ['Posted', 'Screening'])
+            ->orderBy('position')
+            ->get()
+            ->filter(fn($jpf) => $this->jpfApprovalsAllApproved($jpf))
+            ->map(fn ($job) => [
+                'id' => $job->id,
+                'job_id' => $job->job_id,
+                'position' => $job->position,
+                'department' => $job->department,
+                'department_unit' => $job->department_unit,
+                'employment_type' => $job->employment_type,
+                'work_arrangement' => $job->work_arrangement,
+                'work_schedule' => $job->work_schedule,
+                'location' => $job->location,
+                'office_branch_site' => $job->office_branch_site,
+                'applicable_area' => $job->applicable_area,
+                'target_hire_date' => optional($job->target_hire_date)->format('Y-m-d'),
+                'date_needed' => optional($job->date_needed)->format('Y-m-d'),
+            ])
+            ->values();
 
-    return view('careers.apply', compact('jobPostings'));
-}
-
-public function onboarding()
-{
-    $pdsData = \App\Models\PersonalDataSheet::latest()->get()->map(function ($pds) {
-        $data = is_array($pds->data) ? $pds->data : (json_decode($pds->data, true) ?: []);
-
-        return array_merge($data, [
-            'id' => $pds->id,
-            'db_id' => $pds->id,
-            'fullName' => $pds->full_name ?: ($data['fullName'] ?? ''),
-            'position' => $pds->position ?: ($data['position'] ?? ''),
-            'email' => $pds->email ?: ($data['email'] ?? ''),
-            'phone' => $pds->phone ?: ($data['phone'] ?? ''),
-            'status' => $pds->status,
-            'submittedDate' => optional($pds->created_at)->format('Y-m-d'),
-        ]);
-    });
-
-    $trainingPrograms = Training::orderBy('title')->get();
-
-    return view('human-capital.onboarding', compact('pdsData', 'trainingPrograms'));
-}
-
-
-public function showPublicPDSForm($token = null)
-{
-    $jobOffer = null;
-
-    if ($token) {
-        $jobOffer = JobOffer::where('accept_token', $token)->firstOrFail();
-
-        if ($jobOffer->status !== 'Accepted') {
-            abort(403, 'This PDS link is only available after accepting the job offer.');
-        }
+        return view('careers.apply', compact('jobPostings'));
     }
 
-    return view('careers.pds', [
-        'jobOffer' => $jobOffer,
-        'token' => $token,
-    ]);
-}
+    public function showPublicCareersPage()
+    {
+        $jobPostings = JobPosting::whereIn('status', ['Posted', 'Screening'])
+            ->orderBy('created_at', 'desc')
+            ->get()
+            ->filter(fn($jpf) => $this->jpfApprovalsAllApproved($jpf))
+            ->values();
+
+        return view('human-capital.homepage_public', compact('jobPostings'));
+    }
+
+    public function showJobDetail($id)
+    {
+        $job = JobPosting::findOrFail($id);
+
+        // Verify the job is approved and publicly available
+        if (!in_array($job->status, ['Posted', 'Screening'], true) || !$this->jpfApprovalsAllApproved($job)) {
+            abort(404, 'Job posting not found or is not currently available.');
+        }
+
+        return view('careers.job-detail', compact('job'));
+    }
+
+    public function onboarding()
+    {
+        $pdsData = \App\Models\PersonalDataSheet::latest()->get()->map(function ($pds) {
+            $data = is_array($pds->data) ? $pds->data : (json_decode($pds->data, true) ?: []);
+
+            return array_merge($data, [
+                'id' => $pds->id,
+                'db_id' => $pds->id,
+                'fullName' => $pds->full_name ?: ($data['fullName'] ?? ''),
+                'position' => $pds->position ?: ($data['position'] ?? ''),
+                'email' => $pds->email ?: ($data['email'] ?? ''),
+                'phone' => $pds->phone ?: ($data['phone'] ?? ''),
+                'status' => $pds->status,
+                'submittedDate' => optional($pds->created_at)->format('Y-m-d'),
+            ]);
+        });
+
+        $trainingPrograms = Training::orderBy('title')->get();
+
+        return view('human-capital.onboarding', compact('pdsData', 'trainingPrograms'));
+    }
 
 
-public function storePDS(Request $request)
-{
-    try {
+    public function showPublicPDSForm($token = null)
+    {
         $jobOffer = null;
+        $pdsPrefill = [];
 
-        if ($request->jobOfferToken) {
-            $jobOffer = JobOffer::where('accept_token', $request->jobOfferToken)->first();
-        }
+        if ($token) {
+            $jobOffer = JobOffer::where('accept_token', $token)->firstOrFail();
 
-        $fullName = $request->fullName;
-
-        if (!$fullName) {
-            $nameParts = array_filter([
-                $request->surname,
-                $request->firstName,
-                $request->middleName,
-            ]);
-
-            $fullName = implode(', ', array_filter([
-                $request->surname,
-                trim(implode(' ', array_filter([$request->firstName, $request->middleName]))),
-            ]));
-        }
-
-        $position = $request->position ?: optional($jobOffer)->position;
-        $email = $request->email ?: optional($jobOffer)->candidate_email;
-        $phone = $request->phone ?: $request->mobileNo;
-
-        $payload = $request->all();
-        $payload['fullName'] = $fullName;
-        $payload['position'] = $position;
-        $payload['email'] = $email;
-        $payload['phone'] = $phone;
-
-        $pds = \App\Models\PersonalDataSheet::updateOrCreate(
-            [
-                'job_offer_id' => optional($jobOffer)->id,
-                'email' => $email,
-            ],
-            [
-                'full_name' => $fullName,
-                'position' => $position,
-                'phone' => $phone,
-                'data' => $payload,
-                'status' => 'Submitted',
-            ]
-        );
-
-        $checklist = OnboardingChecklist::firstOrCreate(
-            ['personal_data_sheet_id' => $pds->id],
-            [
-                'employee_name' => $pds->full_name,
-                'employee_email' => $pds->email,
-                'position' => $pds->position,
-                'checked_documents' => [],
-                'docs_submitted' => 0,
-                'docs_approved' => 0,
-                'total_docs' => 11,
-                'status' => 'Pending Documents',
-                'upload_token' => (string) Str::uuid(),
-                'created_by' => null,
-            ]
-        );
-
-        if (!$checklist->upload_token) {
-            $checklist->update([
-                'upload_token' => (string) Str::uuid(),
-            ]);
-
-            $checklist->refresh();
-        }
-
-        if ($pds->email) {
-            try {
-                Mail::to($pds->email)->send(new ChecklistSubmissionMail(
-                    $checklist,
-                    route('careers.checklist.show', $checklist->upload_token)
-                ));
-            } catch (\Exception $mailError) {
-                Log::error('Failed to send checklist upload email: ' . $mailError->getMessage());
+            if ($jobOffer->status !== 'Accepted') {
+                abort(403, 'This PDS link is only available after accepting the job offer.');
             }
+
+            $pdsPrefill = $this->buildPdsPrefill($jobOffer);
         }
 
-        return response()->json([
-            'success' => true,
-            'message' => 'PDS Submitted Successfully. Please check your email for the checklist upload link.',
-            'data' => $pds,
-            'checklist' => $checklist,
+        return view('careers.pds', [
+            'jobOffer' => $jobOffer,
+            'token' => $token,
+            'pdsPrefill' => $pdsPrefill,
         ]);
-    } catch (\Exception $e) {
-        Log::error('PDS submission failed: ' . $e->getMessage());
-
-        return response()->json([
-            'success' => false,
-            'message' => $e->getMessage(),
-        ], 500);
     }
-}
 
+
+    public function storePDS(Request $request)
+    {
+        try {
+            $jobOffer = null;
+
+            if ($request->jobOfferToken) {
+                $jobOffer = JobOffer::where('accept_token', $request->jobOfferToken)->first();
+            }
+
+            $fullName = $request->fullName;
+
+            if (!$fullName) {
+                $nameParts = array_filter([
+                    $request->surname,
+                    $request->firstName,
+                    $request->middleName,
+                ]);
+
+                $fullName = implode(', ', array_filter([
+                    $request->surname,
+                    trim(implode(' ', array_filter([$request->firstName, $request->middleName]))),
+                ]));
+            }
+
+            $position = $request->position ?: optional($jobOffer)->position;
+            $email = $request->email ?: optional($jobOffer)->candidate_email;
+            $phone = $request->phone ?: $request->mobileNo;
+
+            $payload = $request->all();
+            $payload['fullName'] = $fullName;
+            $payload['position'] = $position;
+            $payload['email'] = $email;
+            $payload['phone'] = $phone;
+
+            $pds = \App\Models\PersonalDataSheet::updateOrCreate(
+                [
+                    'job_offer_id' => optional($jobOffer)->id,
+                    'email' => $email,
+                ],
+                [
+                    'full_name' => $fullName,
+                    'position' => $position,
+                    'phone' => $phone,
+                    'data' => $payload,
+                    'status' => 'Submitted',
+                ]
+            );
+
+            $checklist = OnboardingChecklist::firstOrCreate(
+                ['personal_data_sheet_id' => $pds->id],
+                [
+                    'employee_name' => $pds->full_name,
+                    'employee_email' => $pds->email,
+                    'position' => $pds->position,
+                    'checked_documents' => [],
+                    'docs_submitted' => 0,
+                    'docs_approved' => 0,
+                    'total_docs' => 11,
+                    'status' => 'Pending Documents',
+                    'upload_token' => (string) Str::uuid(),
+                    'created_by' => null,
+                ]
+            );
+
+            if (!$checklist->upload_token) {
+                $checklist->update([
+                    'upload_token' => (string) Str::uuid(),
+                ]);
+
+                $checklist->refresh();
+            }
+
+            if ($pds->email) {
+                try {
+                    Mail::to($pds->email)->send(new ChecklistSubmissionMail(
+                        $checklist,
+                        route('careers.checklist.show', $checklist->upload_token)
+                    ));
+                } catch (\Exception $mailError) {
+                    Log::error('Failed to send checklist upload email: ' . $mailError->getMessage());
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'PDS Submitted Successfully. Please check your email for the checklist upload link.',
+                'data' => $pds,
+                'checklist' => $checklist,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('PDS submission failed: ' . $e->getMessage());
+
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+
+    private function buildPdsPrefill(JobOffer $jobOffer): array
+    {
+        $prefill = [
+            'jobOfferToken' => $jobOffer->accept_token,
+            'fullName' => $jobOffer->name ?? '',
+            'position' => $jobOffer->position ?? '',
+            'email' => $jobOffer->candidate_email ?? '',
+            'phone' => '',
+        ];
+
+        $caf = $this->findCandidateApplicationForJobOffer($jobOffer);
+        $application = is_array($caf?->application_data) ? $caf->application_data : [];
+
+        if ($caf) {
+            $prefill = array_merge($prefill, [
+                'fullName' => $caf->name ?: ($prefill['fullName'] ?? ''),
+                'position' => $caf->position ?: ($prefill['position'] ?? ''),
+                'email' => $caf->email ?: ($prefill['email'] ?? ''),
+                'phone' => $caf->phone ?: ($prefill['phone'] ?? ''),
+                'surname' => $application['lastName'] ?? '',
+                'firstName' => $application['firstName'] ?? '',
+                'middleName' => $application['middleName'] ?? '',
+                'dob' => $application['dateOfBirth'] ?? '',
+                'citizenship' => $application['nationality'] ?? '',
+                'sex' => in_array(($application['gender'] ?? ''), ['Male', 'Female'], true) ? $application['gender'] : '',
+                'civilStatus' => $this->normalizePdsCivilStatus($application['civilStatus'] ?? ''),
+                'resHouse' => $application['currentAddress'] ?? '',
+                'permHouse' => $application['permanentAddress'] ?? '',
+                'permSameAsRes' => $this->truthyRecruitmentValue($application['sameAddress'] ?? false),
+                'mobileNo' => $caf->phone ?: ($application['phone'] ?? ''),
+                'email' => $caf->email ?: ($application['email'] ?? ($prefill['email'] ?? '')),
+            ]);
+
+            $prefill = array_merge($prefill, $this->mapPdsEducation($this->decodeRecruitmentArray($application['education'] ?? [])));
+            $prefill['lnd'] = $this->mapPdsLearningDevelopment($this->decodeRecruitmentArray($application['certifications'] ?? []));
+        }
+
+        $existingPds = \App\Models\PersonalDataSheet::where('job_offer_id', $jobOffer->id)
+            ->orWhere(function ($query) use ($jobOffer) {
+                $query->where('email', $jobOffer->candidate_email)
+                    ->whereNotNull('email');
+            })
+            ->latest()
+            ->first();
+
+        if ($existingPds && is_array($existingPds->data)) {
+            $prefill = array_merge($prefill, array_filter(
+                $existingPds->data,
+                fn ($value) => $value !== null && $value !== ''
+            ));
+        }
+
+        if (empty($prefill['phone']) && !empty($prefill['mobileNo'])) {
+            $prefill['phone'] = $prefill['mobileNo'];
+        }
+
+        return $prefill;
+    }
+
+    private function findCandidateApplicationForJobOffer(JobOffer $jobOffer): ?CandidateApplication
+    {
+        $email = strtolower((string) $jobOffer->candidate_email);
+        $name = strtolower((string) $jobOffer->name);
+
+        if ($email === '' && $name === '') {
+            return null;
+        }
+
+        return CandidateApplication::query()
+            ->when($jobOffer->job_posting_id, fn ($query) => $query->where('job_posting_id', $jobOffer->job_posting_id))
+            ->where(function ($query) use ($email, $name) {
+                if ($email !== '') {
+                    $query->orWhereRaw('LOWER(email) = ?', [$email]);
+                }
+
+                if ($name !== '') {
+                    $query->orWhereRaw('LOWER(name) = ?', [$name]);
+                }
+            })
+            ->latest()
+            ->first()
+            ?: CandidateApplication::query()
+                ->where(function ($query) use ($email, $name) {
+                    if ($email !== '') {
+                        $query->orWhereRaw('LOWER(email) = ?', [$email]);
+                    }
+
+                    if ($name !== '') {
+                        $query->orWhereRaw('LOWER(name) = ?', [$name]);
+                    }
+                })
+                ->latest()
+                ->first();
+    }
+
+    private function normalizePdsCivilStatus(?string $status): string
+    {
+        return match (strtolower(trim((string) $status))) {
+            'single' => 'Single',
+            'married' => 'Married',
+            'widowed' => 'Widowed',
+            'separated', 'legally separated' => 'Legally Separated',
+            default => '',
+        };
+    }
+
+    private function mapPdsEducation($education): array
+    {
+        $mapped = [];
+
+        foreach ((array) $education as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $level = strtolower((string) ($row['level'] ?? ''));
+            $target = null;
+
+            if (str_contains($level, 'elementary')) {
+                $target = 'Elem';
+            } elseif (str_contains($level, 'high school') || str_contains($level, 'secondary')) {
+                $target = 'Sec';
+            } elseif (str_contains($level, 'college') || str_contains($level, 'bachelor')) {
+                $target = 'Coll';
+            } elseif (str_contains($level, 'master')) {
+                $target = 'Mast';
+            } elseif (str_contains($level, 'doctor')) {
+                $target = 'Doct';
+            }
+
+            if (!$target) {
+                continue;
+            }
+
+            $mapped["educ{$target}School"] = $row['school'] ?? '';
+            $mapped["educ{$target}Degree"] = trim(implode(' - ', array_filter([
+                $row['degree'] ?? '',
+                $row['course'] ?? '',
+            ])));
+            $mapped["educ{$target}To"] = $row['year'] ?? '';
+        }
+
+        return $mapped;
+    }
+
+    private function decodeRecruitmentArray($value): array
+    {
+        if (is_array($value)) {
+            return $value;
+        }
+
+        if (is_string($value)) {
+            $decoded = json_decode($value, true);
+            return is_array($decoded) ? $decoded : [];
+        }
+
+        return [];
+    }
+
+    private function truthyRecruitmentValue($value): bool
+    {
+        if (is_bool($value)) {
+            return $value;
+        }
+
+        return in_array(strtolower((string) $value), ['1', 'true', 'yes', 'on'], true);
+    }
+
+    private function mapPdsLearningDevelopment($certifications): array
+    {
+        $rows = collect((array) $certifications)
+            ->filter(fn ($row) => is_array($row) && !empty($row['name']))
+            ->map(fn ($row) => [
+                'title' => $row['name'] ?? '',
+                'conductedBy' => $row['provider'] ?? '',
+                'date' => $row['dateTaken'] ?? ($row['datePlanned'] ?? ''),
+                'cert' => !empty($row['code']) ? 'Yes' : '',
+            ])
+            ->values()
+            ->all();
+
+        while (count($rows) < 3) {
+            $rows[] = ['title' => '', 'conductedBy' => '', 'date' => '', 'cert' => ''];
+        }
+
+        return $rows;
+    }
+
+
+    private function requestArray(Request $request, string $key): array
+    {
+        $value = $request->input($key, []);
+
+        if (is_string($value)) {
+            $decoded = json_decode($value, true);
+            return is_array($decoded) ? array_values(array_filter($decoded)) : array_values(array_filter([$value]));
+        }
+
+        return is_array($value) ? array_values(array_filter($value)) : [];
+    }
+
+    private function normalizeBulletText(?string $value): ?string
+    {
+        if (!$value) {
+            return null;
+        }
+
+        $items = preg_split('/\r\n|\r|\n|•/', $value);
+        $items = array_values(array_filter(array_map(function ($item) {
+            return trim(preg_replace('/^[-*]\s*/', '', $item));
+        }, $items)));
+
+        return count($items) ? implode("\n", array_map(fn ($item) => '• ' . $item, $items)) : null;
+    }
+
+    private function nextMrfReference(): string
+    {
+        $year = date('Y');
+        $last = ManpowerRequest::where('request_id', 'like', "MRF-{$year}-%")
+            ->orderByDesc('request_id')
+            ->value('request_id');
+
+        $sequence = 1;
+        if ($last && preg_match('/MRF-' . $year . '-(\d+)/', $last, $matches)) {
+            $sequence = ((int) $matches[1]) + 1;
+        }
+
+        return "MRF-{$year}-" . str_pad($sequence, 3, '0', STR_PAD_LEFT);
+    }
+
+    private function storeMrfAttachment(Request $request, string $inputName, ?string $existingPath = null): ?string
+    {
+        if (!$request->hasFile($inputName)) {
+            return $existingPath;
+        }
+
+        if ($existingPath) {
+            Storage::disk('public')->delete($existingPath);
+        }
+
+        return $request->file($inputName)->store('mrf-attachments', 'public');
+    }
 
     public function storeMRF(Request $request)
     {
+        if ($request->requestId && ManpowerRequest::where('request_id', $request->requestId)->exists()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'The MRF Reference Number already exists. Please use a unique reference number.',
+            ], 422);
+        }
+
         $data = [
+            'request_id'          => $request->requestId ?: $this->nextMrfReference(),
             'address_id'          => $request->orgAddressId,
             'branch_id'           => $request->orgBranchId,
             'office_id'           => $request->orgOfficeId,
@@ -388,6 +685,12 @@ public function storePDS(Request $request)
             'date_required'      => $request->dateRequired,
             'position'           => $request->position,
             'employment_type'    => $request->employmentType,
+            'immediate_supervisor' => $request->immediateSupervisor,
+            'target_start_date'   => $request->targetStartDate,
+            'job_level_rank'      => $request->jobLevelRank,
+            'work_classification' => $request->workClassification,
+            'work_arrangement'    => $request->workArrangement,
+            'work_schedule'       => $request->workSchedule,
             'duties'             => $request->duties,
             'nature_of_request'  => $request->natureOfRequest,
             'age_range'          => $request->ageRange,
@@ -396,6 +699,24 @@ public function storePDS(Request $request)
             'headcount'          => $request->headcount,
             'education'          => $request->education,
             'qualifications'     => $request->qualifications,
+            'required_skills'     => $this->normalizeBulletText($request->requiredSkills),
+            'benefits_checklist'  => $this->requestArray($request, 'benefitsChecklist'),
+            'required_licenses'   => $this->normalizeBulletText($request->requiredLicenses),
+            'required_documents'  => $this->requestArray($request, 'requiredDocuments'),
+            'salary_min'          => $request->salaryMin,
+            'salary_max'          => $request->salaryMax,
+            'contract_duration'   => $request->contractDuration,
+            'urgency_level'       => $request->urgencyLevel,
+            'candidate_profile_attached' => $request->boolean('candidateProfileAttached'),
+            'job_description_attached'   => $request->boolean('jobDescriptionAttached'),
+            'candidate_profile_path'     => $this->storeMrfAttachment($request, 'candidateProfileFile'),
+            'job_description_path'       => $this->storeMrfAttachment($request, 'jobDescriptionFile'),
+            'endorsements'        => [
+                'immediate_supervisor' => $request->immediateSupervisorEndorsement,
+                'department_head' => $request->departmentHeadEndorsement,
+                'hc_head' => $request->hcHeadValidation,
+                'finance_head' => $request->financeHeadClearance,
+            ],
             'requested_by'       => $request->requestedBy,
             'approved_by'        => $request->approvedBy,
             'remarks'            => $request->remarks,
@@ -407,12 +728,6 @@ public function storePDS(Request $request)
             'processed_by'       => $request->processedBy,
             'checked_by'         => $request->checkedBy,
         ];
-        
-        if (!isset($data['request_id'])) {
-            $year = date('Y');
-            $count = ManpowerRequest::whereYear('created_at', $year)->count() + 1;
-            $data['request_id'] = "MRF-{$year}-" . str_pad($count, 3, '0', STR_PAD_LEFT);
-        }
 
         $mrf = ManpowerRequest::create($data);
         return response()->json(['success' => true, 'data' => $mrf]);
@@ -421,7 +736,16 @@ public function storePDS(Request $request)
     public function updateMRF(Request $request, $id)
     {
         $mrf = ManpowerRequest::findOrFail($id);
+
+        if ($request->requestId && ManpowerRequest::where('request_id', $request->requestId)->whereKeyNot($mrf->id)->exists()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'The MRF Reference Number already exists. Please use a unique reference number.',
+            ], 422);
+        }
+
         $data = [
+            'request_id'          => $request->requestId ?: $mrf->request_id,
             'address_id'          => $request->orgAddressId,
             'branch_id'           => $request->orgBranchId,
             'office_id'           => $request->orgOfficeId,
@@ -435,6 +759,12 @@ public function storePDS(Request $request)
             'date_required'      => $request->dateRequired,
             'position'           => $request->position,
             'employment_type'    => $request->employmentType,
+            'immediate_supervisor' => $request->immediateSupervisor,
+            'target_start_date'   => $request->targetStartDate,
+            'job_level_rank'      => $request->jobLevelRank,
+            'work_classification' => $request->workClassification,
+            'work_arrangement'    => $request->workArrangement,
+            'work_schedule'       => $request->workSchedule,
             'duties'             => $request->duties,
             'nature_of_request'  => $request->natureOfRequest,
             'age_range'          => $request->ageRange,
@@ -443,6 +773,24 @@ public function storePDS(Request $request)
             'headcount'          => $request->headcount,
             'education'          => $request->education,
             'qualifications'     => $request->qualifications,
+            'required_skills'     => $this->normalizeBulletText($request->requiredSkills),
+            'benefits_checklist'  => $this->requestArray($request, 'benefitsChecklist'),
+            'required_licenses'   => $this->normalizeBulletText($request->requiredLicenses),
+            'required_documents'  => $this->requestArray($request, 'requiredDocuments'),
+            'salary_min'          => $request->salaryMin,
+            'salary_max'          => $request->salaryMax,
+            'contract_duration'   => $request->contractDuration,
+            'urgency_level'       => $request->urgencyLevel,
+            'candidate_profile_attached' => $request->boolean('candidateProfileAttached'),
+            'job_description_attached'   => $request->boolean('jobDescriptionAttached'),
+            'candidate_profile_path'     => $this->storeMrfAttachment($request, 'candidateProfileFile', $mrf->candidate_profile_path),
+            'job_description_path'       => $this->storeMrfAttachment($request, 'jobDescriptionFile', $mrf->job_description_path),
+            'endorsements'        => [
+                'immediate_supervisor' => $request->immediateSupervisorEndorsement,
+                'department_head' => $request->departmentHeadEndorsement,
+                'hc_head' => $request->hcHeadValidation,
+                'finance_head' => $request->financeHeadClearance,
+            ],
             'requested_by'       => $request->requestedBy,
             'approved_by'        => $request->approvedBy,
             'remarks'            => $request->remarks,
@@ -471,6 +819,50 @@ public function storePDS(Request $request)
         $mrf = ManpowerRequest::findOrFail($id);
         $mrf->update(['request_status' => 'Cancelled']);
         return response()->json(['success' => true, 'data' => $mrf]);
+    }
+
+
+    private function resolveJpfMrf(Request $request, ?JobPosting $jpf = null): ?ManpowerRequest
+    {
+        $mrfId = $request->input('mrfId')
+            ?: $request->input('mrf_id')
+            ?: optional($jpf)->mrf_id;
+
+        if ($mrfId) {
+            $mrf = ManpowerRequest::find($mrfId);
+
+            if ($mrf) {
+                return $mrf;
+            }
+        }
+
+        $relatedMrfNo = $request->input('relatedMrfNo')
+            ?: $request->input('related_mrf_no')
+            ?: optional($jpf)->related_mrf_no;
+
+        if ($relatedMrfNo) {
+            return ManpowerRequest::where('request_id', $relatedMrfNo)->first();
+        }
+
+        return null;
+    }
+
+    private function requestValue(Request $request, string $camelKey, string $snakeKey, $fallback = null)
+    {
+        if ($request->has($camelKey)) {
+            return $request->input($camelKey);
+        }
+
+        if ($request->has($snakeKey)) {
+            return $request->input($snakeKey);
+        }
+
+        return $fallback;
+    }
+
+    private function approvedMrfIsValid(?ManpowerRequest $mrf): bool
+    {
+        return $mrf && strtolower((string) $mrf->request_status) === 'approved';
     }
 
 
@@ -671,7 +1063,7 @@ public function storePDS(Request $request)
 
     public function storeJPF(Request $request)
     {
-        $mrf = ManpowerRequest::find($request->mrfId);
+        $mrf = $this->resolveJpfMrf($request);
 
         if (!$mrf) {
             return response()->json([
@@ -680,7 +1072,7 @@ public function storePDS(Request $request)
             ], 422);
         }
 
-        if (strtolower((string) $mrf->request_status) !== 'approved') {
+        if (!$this->approvedMrfIsValid($mrf)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Only approved MRF records can be used to create a JPF.'
@@ -689,13 +1081,13 @@ public function storePDS(Request $request)
 
         $approvalData = [
             'human_capital_approval' => $this->buildJpfApprovalPayload($request->humanCapitalApproval, 'Human Capital'),
-            'hiring_manager_approval'=> $this->buildJpfApprovalPayload($request->hiringManagerApproval, 'Hiring Manager'),
+            'hiring_manager_approval' => $this->buildJpfApprovalPayload($request->hiringManagerApproval, 'Hiring Manager'),
             'finance_approval'       => $this->buildJpfApprovalPayload($request->financeApproval, 'Finance'),
             'president_approval'     => $this->buildJpfApprovalPayload($request->presidentApproval, 'President / Final'),
         ];
 
         $data = [
-            'mrf_id'                 => $request->mrfId,
+            'mrf_id'                 => $mrf->id,
             'address_id'             => $request->orgAddressId,
             'branch_id'              => $request->orgBranchId,
             'office_id'              => $request->orgOfficeId,
@@ -740,15 +1132,15 @@ public function storePDS(Request $request)
             'experience_req'         => $request->experience,
             'skills_req'             => $request->skills,
             'licenses_req'           => $request->licenses,
-            'preferred_qualifications'=> $request->preferredQualifications,
-            'duties_responsibilities'=> $request->duties,
+            'preferred_qualifications' => $request->preferredQualifications,
+            'duties_responsibilities' => $request->duties,
             'recruitment_channels'   => $request->channels,
             'screening_flow'         => $request->screeningFlow,
             'date_needed'            => $request->dateNeeded,
             'posting_start_date'     => $request->postingStartDate,
             'target_hire_date'       => $request->targetHireDate,
             'human_capital_approval' => $approvalData['human_capital_approval'],
-            'hiring_manager_approval'=> $approvalData['hiring_manager_approval'],
+            'hiring_manager_approval' => $approvalData['hiring_manager_approval'],
             'finance_approval'       => $approvalData['finance_approval'],
             'president_approval'     => $approvalData['president_approval'],
         ];
@@ -766,7 +1158,7 @@ public function storePDS(Request $request)
     public function updateJPF(Request $request, $id)
     {
         $jpf = JobPosting::findOrFail($id);
-        $mrf = ManpowerRequest::find($request->mrfId);
+        $mrf = $this->resolveJpfMrf($request, $jpf);
 
         if (!$mrf) {
             return response()->json([
@@ -775,7 +1167,7 @@ public function storePDS(Request $request)
             ], 422);
         }
 
-        if (strtolower((string) $mrf->request_status) !== 'approved') {
+        if (!$this->approvedMrfIsValid($mrf)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Only approved MRF records can be linked to a JPF.'
@@ -783,75 +1175,108 @@ public function storePDS(Request $request)
         }
 
         $approvalData = [
-            'human_capital_approval' => $this->buildJpfApprovalPayload($request->humanCapitalApproval, 'Human Capital', $jpf->human_capital_approval),
-            'hiring_manager_approval'=> $this->buildJpfApprovalPayload($request->hiringManagerApproval, 'Hiring Manager', $jpf->hiring_manager_approval),
-            'finance_approval'       => $this->buildJpfApprovalPayload($request->financeApproval, 'Finance', $jpf->finance_approval),
-            'president_approval'     => $this->buildJpfApprovalPayload($request->presidentApproval, 'President / Final', $jpf->president_approval),
+            'human_capital_approval' => $this->buildJpfApprovalPayload(
+                $request->input('humanCapitalApproval', $request->input('human_capital_approval', $jpf->human_capital_approval)),
+                'Human Capital',
+                $jpf->human_capital_approval
+            ),
+            'hiring_manager_approval' => $this->buildJpfApprovalPayload(
+                $request->input('hiringManagerApproval', $request->input('hiring_manager_approval', $jpf->hiring_manager_approval)),
+                'Hiring Manager',
+                $jpf->hiring_manager_approval
+            ),
+            'finance_approval'       => $this->buildJpfApprovalPayload(
+                $request->input('financeApproval', $request->input('finance_approval', $jpf->finance_approval)),
+                'Finance',
+                $jpf->finance_approval
+            ),
+            'president_approval'     => $this->buildJpfApprovalPayload(
+                $request->input('presidentApproval', $request->input('president_approval', $jpf->president_approval)),
+                'President / Final',
+                $jpf->president_approval
+            ),
         ];
 
         $data = [
-            'mrf_id'                 => $request->mrfId,
-            'address_id'             => $request->orgAddressId,
-            'branch_id'              => $request->orgBranchId,
-            'office_id'              => $request->orgOfficeId,
-            'department_id'          => $request->orgDepartmentId,
-            'division_id'            => $request->orgDivisionId,
-            'unit_id'                => $request->orgUnitId,
-            'position_id'            => $request->orgPositionId,
-            'salary_grade_id'        => $request->salaryGradeId,
+            'mrf_id'                 => $mrf->id,
+            'address_id'             => $this->requestValue($request, 'orgAddressId', 'address_id', $jpf->address_id),
+            'branch_id'              => $this->requestValue($request, 'orgBranchId', 'branch_id', $jpf->branch_id),
+            'office_id'              => $this->requestValue($request, 'orgOfficeId', 'office_id', $jpf->office_id),
+            'department_id'          => $this->requestValue($request, 'orgDepartmentId', 'department_id', $jpf->department_id),
+            'division_id'            => $this->requestValue($request, 'orgDivisionId', 'division_id', $jpf->division_id),
+            'unit_id'                => $this->requestValue($request, 'orgUnitId', 'unit_id', $jpf->unit_id),
+            'position_id'            => $this->requestValue($request, 'orgPositionId', 'position_id', $jpf->position_id),
+            'salary_grade_id'        => $this->requestValue($request, 'salaryGradeId', 'salary_grade_id', $jpf->salary_grade_id),
 
-            'position'               => $request->position,
-            'employment_type'        => $request->employmentType,
-            'location'               => $request->workLocation,
-            'salary_range'           => $request->minSalary . ' - ' . $request->maxSalary,
-            'job_description'        => $request->duties,
-            'requirements'           => $request->education,
-            'status'                 => $this->normalizeJpfStatus($request->status ?: $jpf->status, $approvalData, $jpf),
+            'position'               => $this->requestValue($request, 'position', 'position', $jpf->position),
+            'employment_type'        => $this->requestValue($request, 'employmentType', 'employment_type', $jpf->employment_type),
+            'location'               => $this->requestValue($request, 'workLocation', 'location', $jpf->location),
+            'salary_range'           => trim((string) $this->requestValue($request, 'minSalary', 'min_salary_offer', $jpf->min_salary_offer)) . ' - ' . trim((string) $this->requestValue($request, 'maxSalary', 'max_salary_offer', $jpf->max_salary_offer)),
+            'job_description'        => $this->requestValue($request, 'duties', 'job_description', $jpf->job_description),
+            'requirements'           => $this->requestValue($request, 'education', 'requirements', $jpf->requirements),
+            'status'                 => $this->normalizeJpfStatus($this->requestValue($request, 'status', 'status', $jpf->status), $approvalData, $jpf),
 
             'related_mrf_no'         => $mrf->request_id,
-            'date_opened'            => $request->dateOpened,
-            'hiring_status'          => $request->hiringStatus,
-            'company_name'           => $request->companyName,
-            'office_branch_site'     => $request->officeBranchSite,
-            'department_unit'        => $request->departmentUnit,
-            'hiring_manager'         => $request->hiringManager,
-            'department_superior'    => $request->departmentSuperior,
-            'no_of_vacancies'        => $request->noOfVacancies,
-            'position_level'         => $request->positionLevel,
-            'reports_to'             => $request->reportsTo,
-            'min_salary_offer'       => $request->minSalary,
-            'max_salary_offer'       => $request->maxSalary,
-            'salary_grade'           => $request->salaryGrade,
-            'applicable_region'      => $request->applicableRegion,
-            'applicable_area'        => $request->applicableArea,
-            'current_daily_min_wage' => $request->dailyMinWage,
-            'monthly_equivalent'     => $request->monthlyEquivalent,
-            'wage_compliance'        => $request->wageCompliance,
-            'benefits_package'       => $request->benefits,
-            'work_schedule'          => $request->workSchedule,
-            'rest_days'              => $request->restDays,
-            'education_req'          => $request->education,
-            'experience_req'         => $request->experience,
-            'skills_req'             => $request->skills,
-            'licenses_req'           => $request->licenses,
-            'preferred_qualifications'=> $request->preferredQualifications,
-            'duties_responsibilities'=> $request->duties,
-            'recruitment_channels'   => $request->channels,
-            'screening_flow'         => $request->screeningFlow,
-            'date_needed'            => $request->dateNeeded,
-            'posting_start_date'     => $request->postingStartDate,
-            'target_hire_date'       => $request->targetHireDate,
-            'human_capital_approval' => $this->buildJpfApprovalPayload($request->humanCapitalApproval, 'Human Capital', $jpf->human_capital_approval),
-            'hiring_manager_approval'=> $this->buildJpfApprovalPayload($request->hiringManagerApproval, 'Hiring Manager', $jpf->hiring_manager_approval),
-            'finance_approval'       => $this->buildJpfApprovalPayload($request->financeApproval, 'Finance', $jpf->finance_approval),
-            'president_approval'     => $this->buildJpfApprovalPayload($request->presidentApproval, 'President / Final', $jpf->president_approval),
+            'date_opened'            => $this->requestValue($request, 'dateOpened', 'date_opened', $jpf->date_opened),
+            'hiring_status'          => $this->requestValue($request, 'hiringStatus', 'hiring_status', $jpf->hiring_status),
+            'company_name'           => $this->requestValue($request, 'companyName', 'company_name', $jpf->company_name),
+            'office_branch_site'     => $this->requestValue($request, 'officeBranchSite', 'office_branch_site', $jpf->office_branch_site),
+            'department_unit'        => $this->requestValue($request, 'departmentUnit', 'department_unit', $jpf->department_unit),
+            'hiring_manager'         => $this->requestValue($request, 'hiringManager', 'hiring_manager', $jpf->hiring_manager),
+            'department_superior'    => $this->requestValue($request, 'departmentSuperior', 'department_superior', $jpf->department_superior),
+            'no_of_vacancies'        => $this->requestValue($request, 'noOfVacancies', 'no_of_vacancies', $jpf->no_of_vacancies),
+            'position_level'         => $this->requestValue($request, 'positionLevel', 'position_level', $jpf->position_level),
+            'reports_to'             => $this->requestValue($request, 'reportsTo', 'reports_to', $jpf->reports_to),
+            'min_salary_offer'       => $this->requestValue($request, 'minSalary', 'min_salary_offer', $jpf->min_salary_offer),
+            'max_salary_offer'       => $this->requestValue($request, 'maxSalary', 'max_salary_offer', $jpf->max_salary_offer),
+            'salary_grade'           => $this->requestValue($request, 'salaryGrade', 'salary_grade', $jpf->salary_grade),
+            'applicable_region'      => $this->requestValue($request, 'applicableRegion', 'applicable_region', $jpf->applicable_region),
+            'applicable_area'        => $this->requestValue($request, 'applicableArea', 'applicable_area', $jpf->applicable_area),
+            'current_daily_min_wage' => $this->requestValue($request, 'dailyMinWage', 'current_daily_min_wage', $jpf->current_daily_min_wage),
+            'monthly_equivalent'     => $this->requestValue($request, 'monthlyEquivalent', 'monthly_equivalent', $jpf->monthly_equivalent),
+            'wage_compliance'        => $this->requestValue($request, 'wageCompliance', 'wage_compliance', $jpf->wage_compliance),
+            'benefits_package'       => $this->requestValue($request, 'benefits', 'benefits_package', $jpf->benefits_package),
+            'work_schedule'          => $this->requestValue($request, 'workSchedule', 'work_schedule', $jpf->work_schedule),
+            'rest_days'              => $this->requestValue($request, 'restDays', 'rest_days', $jpf->rest_days),
+            'education_req'          => $this->requestValue($request, 'education', 'education_req', $jpf->education_req),
+            'experience_req'         => $this->requestValue($request, 'experience', 'experience_req', $jpf->experience_req),
+            'skills_req'             => $this->requestValue($request, 'skills', 'skills_req', $jpf->skills_req),
+            'licenses_req'           => $this->requestValue($request, 'licenses', 'licenses_req', $jpf->licenses_req),
+            'preferred_qualifications' => $this->requestValue($request, 'preferredQualifications', 'preferred_qualifications', $jpf->preferred_qualifications),
+            'duties_responsibilities' => $this->requestValue($request, 'duties', 'duties_responsibilities', $jpf->duties_responsibilities),
+            'recruitment_channels'   => $this->requestValue($request, 'channels', 'recruitment_channels', $jpf->recruitment_channels),
+            'screening_flow'         => $this->requestValue($request, 'screeningFlow', 'screening_flow', $jpf->screening_flow),
+            'date_needed'            => $this->requestValue($request, 'dateNeeded', 'date_needed', $jpf->date_needed),
+            'posting_start_date'     => $this->requestValue($request, 'postingStartDate', 'posting_start_date', $jpf->posting_start_date),
+            'target_hire_date'       => $this->requestValue($request, 'targetHireDate', 'target_hire_date', $jpf->target_hire_date),
+            'posted_date'            => $this->requestValue($request, 'posted_date', 'posted_date', $jpf->posted_date),
+            'human_capital_approval' => $approvalData['human_capital_approval'],
+            'hiring_manager_approval' => $approvalData['hiring_manager_approval'],
+            'finance_approval'       => $approvalData['finance_approval'],
+            'president_approval'     => $approvalData['president_approval'],
         ];
+
         $jpf->update($data);
+        $jpf->refresh();
+
         return response()->json(['success' => true, 'data' => $jpf]);
     }
 
     public function storeCAF(Request $request)
     {
+        $isPublicSubmission = $request->routeIs('careers.apply.submit');
+
+        $request->validate([
+            'jobPostingId' => ['required', 'exists:job_postings,id'],
+            'firstName' => ['nullable', 'string', 'max:255'],
+            'lastName' => ['nullable', 'string', 'max:255'],
+            'fullName' => ['nullable', 'string', 'max:255'],
+            'email' => ['required', 'email', 'max:255'],
+            'phone' => ['required', 'string', 'max:100'],
+            'cv' => [$isPublicSubmission ? 'required' : 'nullable', 'file', 'max:4096'],
+            'consentAccepted' => [$isPublicSubmission ? 'accepted' : 'nullable'],
+        ]);
+
         $cvPath = null;
         if ($request->hasFile('cv')) {
             $cvPath = $request->file('cv')->store('resumes', 'public');
@@ -865,6 +1290,16 @@ public function storePDS(Request $request)
         $coverLetterPath = null;
         if ($request->hasFile('cover_letter_file')) {
             $coverLetterPath = $request->file('cover_letter_file')->store('cover_letters', 'public');
+        }
+
+        $portfolioPath = null;
+        if ($request->hasFile('portfolio_file')) {
+            $portfolioPath = $request->file('portfolio_file')->store('portfolios', 'public');
+        }
+
+        $governmentIdPath = null;
+        if ($request->hasFile('government_id')) {
+            $governmentIdPath = $request->file('government_id')->store('candidate_ids', 'public');
         }
 
         $jobPosting = JobPosting::find($request->jobPostingId);
@@ -884,10 +1319,41 @@ public function storePDS(Request $request)
         }
 
         $applicantType = $request->applicantType ?: 'New Applicant';
+        $fullName = $request->fullName ?: trim(implode(' ', array_filter([
+            $request->firstName,
+            $request->middleName,
+            $request->lastName,
+        ])));
+
+        $applicationData = $request->except([
+            '_token',
+            'photo',
+            'cv',
+            'cover_letter_file',
+            'portfolio_file',
+            'government_id',
+        ]);
+        $applicationData['job'] = [
+            'id' => $jobPosting->id,
+            'job_id' => $jobPosting->job_id,
+            'position' => $jobPosting->position,
+            'department_unit' => $jobPosting->department_unit,
+            'employment_type' => $jobPosting->employment_type,
+            'work_arrangement' => $jobPosting->work_arrangement ?? null,
+        ];
+
+        $attachmentPaths = [
+            'photo' => $photoPath,
+            'resume_cv' => $cvPath,
+            'cover_letter' => $coverLetterPath,
+            'portfolio' => $portfolioPath,
+            'government_id' => $governmentIdPath,
+        ];
 
         $caf = CandidateApplication::create([
+            'applicant_id' => $this->generateApplicantId(),
             'job_posting_id' => $jobPosting->id,
-            'name' => $request->fullName,
+            'name' => $fullName,
             'position' => $request->positionApplied ?: $jobPosting->position,
             'email' => $request->email,
             'phone' => $request->phone,
@@ -895,6 +1361,15 @@ public function storePDS(Request $request)
             'cv_path' => $cvPath,
             'cover_letter_path' => $coverLetterPath,
             'cover_letter' => $request->coverLetter,
+            'application_data' => $applicationData,
+            'attachment_paths' => $attachmentPaths,
+            'consent_accepted_at' => $request->boolean('consentAccepted') ? now() : null,
+            'consent_version' => $request->boolean('consentAccepted') ? '2026-05-28-v1' : null,
+            'submission_metadata' => [
+                'ip_address' => $request->ip(),
+                'user_agent' => $request->userAgent(),
+                'submitted_at' => now()->toDateTimeString(),
+            ],
             'applicant_type' => $applicantType,
             'internal_remarks' => $request->internalRemarks,
             'status' => 'Pending',
@@ -906,6 +1381,19 @@ public function storePDS(Request $request)
         }
 
         return response()->json(['success' => true, 'data' => $caf]);
+    }
+
+    private function generateApplicantId(): string
+    {
+        $year = date('Y');
+        $count = CandidateApplication::whereYear('created_at', $year)->count() + 1;
+
+        do {
+            $id = 'CAF-' . $year . '-' . str_pad($count, 4, '0', STR_PAD_LEFT);
+            $count++;
+        } while (CandidateApplication::where('applicant_id', $id)->exists());
+
+        return $id;
     }
 
     public function updateCAF(Request $request, $id)
@@ -1010,7 +1498,7 @@ public function storePDS(Request $request)
             $caf = CandidateApplication::find($request->caf_id);
             if ($caf) {
                 $caf->update(['status' => 'Assessment']);
-                
+
                 // Send email to the applicant
                 if ($caf->email) {
                     try {
@@ -1118,6 +1606,23 @@ public function storePDS(Request $request)
         ]);
     }
 
+    public function updateInterviewDetails(Request $request, $id)
+    {
+        $request->validate([
+            'application_details' => 'nullable|array',
+        ]);
+
+        $interview = CandidateInterview::findOrFail($id);
+        $interview->update([
+            'application_details' => $request->input('application_details', []),
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'data' => $interview,
+        ]);
+    }
+
     public function deleteInterview($id)
     {
         CandidateInterview::findOrFail($id)->delete();
@@ -1148,298 +1653,312 @@ public function storePDS(Request $request)
         return response()->json(['success' => true]);
     }
 
-public function storeJobOffer(Request $request)
-{
-    try {
-        $interview = CandidateInterview::find($request->interviewId);
+    public function storeJobOffer(Request $request)
+    {
+        try {
+            $interview = CandidateInterview::find($request->interviewId);
 
-        if (!$interview) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Please select a Completed/Passed Interview before creating a Job Offer.'
-            ], 422);
-        }
-
-        if (!in_array(strtolower((string) $interview->status), ['completed', 'passed'], true)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Interview must be Completed or Passed before creating a Job Offer.'
-            ], 422);
-        }
-
-        $jpf = JobPosting::find($request->jobPostingId);
-
-        if (!$jpf) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Please select a fully approved active JPF before creating a Job Offer.'
-            ], 422);
-        }
-
-        $status = strtolower((string) $jpf->status);
-
-        if (!$this->jpfCanProceedToJobOffer($jpf)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Only fully approved active JPF records can be used for Job Offer.'
-            ], 422);
-        }
-
-        $candidateEmail = $interview->email ?? $request->candidateEmail ?? null;
-
-        $jobOffer = JobOffer::create([
-            'interview_id'     => $interview->id,
-            'job_posting_id'   => $jpf->id,
-
-            'address_id'       => $request->orgAddressId ?: $jpf->address_id,
-            'branch_id'        => $request->orgBranchId ?: $jpf->branch_id,
-            'office_id'        => $request->orgOfficeId ?: $jpf->office_id,
-            'department_id'    => $request->orgDepartmentId ?: $jpf->department_id,
-            'division_id'      => $request->orgDivisionId ?: $jpf->division_id,
-            'unit_id'          => $request->orgUnitId ?: $jpf->unit_id,
-            'position_id'      => $request->orgPositionId ?: $jpf->position_id,
-            'salary_grade_id'  => $request->salaryGradeId ?: $jpf->salary_grade_id,
-
-            'candidate_email'  => $candidateEmail,
-            'name'             => $request->name ?: $interview->name,
-            'position'         => $request->position ?: $interview->position,
-            'salary'           => $request->salary,
-            'start_date'       => $request->startDate,
-            'employment_type'  => $request->employmentType ?: $jpf->employment_type,
-            'department'       => $request->department ?: ($jpf->department_unit ?? $jpf->department ?? null),
-            'company_address'  => $request->companyAddress ?: $jpf->location,
-            'benefits'         => $request->benefits,
-            'accept_token'     => $this->generateJobOfferToken(),
-            'status'           => 'Pending',
-        ]);
-
-        if (!in_array($jpf->status, ['Filled', 'Closed', 'Cancelled'], true)) {
-            $jpf->update(['status' => 'Offer Stage']);
-        }
-
-        if ($candidateEmail) {
-            try {
-                Mail::to($candidateEmail)->send(new JobOfferMail($jobOffer, $interview, $jpf));
-
-                $jobOffer->update([
-                    'status' => 'Sent',
-                ]);
-
-                $jobOffer->refresh();
-
+            if (!$interview) {
                 return response()->json([
-                    'success' => true,
-                    'message' => 'Job Offer created and emailed successfully.',
-                    'data' => $jobOffer
-                ]);
-            } catch (\Exception $mailError) {
-                Log::error("Failed to send job offer email to {$candidateEmail}: " . $mailError->getMessage());
-
-                return response()->json([
-                    'success' => true,
-                    'warning' => 'Job Offer was saved, but the email failed to send: ' . $mailError->getMessage(),
-                    'data' => $jobOffer
-                ]);
+                    'success' => false,
+                    'message' => 'Please select a Completed/Passed Interview before creating a Job Offer.'
+                ], 422);
             }
-        }
 
-        return response()->json([
-            'success' => true,
-            'warning' => 'Job Offer was saved, but no candidate email was found.',
-            'data' => $jobOffer
-        ]);
-    } catch (\Exception $e) {
-        Log::error('Error saving Job Offer: ' . $e->getMessage());
+            if (!in_array(strtolower((string) $interview->status), ['completed', 'passed'], true)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Interview must be Completed or Passed before creating a Job Offer.'
+                ], 422);
+            }
 
-        return response()->json([
-            'success' => false,
-            'message' => $e->getMessage()
-        ], 500);
-    }
-}
+            $jpf = JobPosting::find($request->jobPostingId);
 
+            if (!$jpf) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Please select a fully approved active JPF before creating a Job Offer.'
+                ], 422);
+            }
 
-public function resendJobOfferEmail($id)
-{
-    try {
-        $jobOffer = JobOffer::findOrFail($id);
-        $jobOffer = $this->ensureJobOfferToken($jobOffer);
+            $status = strtolower((string) $jpf->status);
 
-        if (!$jobOffer->candidate_email) {
+            if (!$this->jpfCanProceedToJobOffer($jpf)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Only fully approved active JPF records can be used for Job Offer.'
+                ], 422);
+            }
+
+            $candidateEmail = $interview->email ?? $request->candidateEmail ?? null;
+
+            $jobOffer = JobOffer::create([
+                'interview_id'     => $interview->id,
+                'job_posting_id'   => $jpf->id,
+
+                'address_id'       => $request->orgAddressId ?: $jpf->address_id,
+                'branch_id'        => $request->orgBranchId ?: $jpf->branch_id,
+                'office_id'        => $request->orgOfficeId ?: $jpf->office_id,
+                'department_id'    => $request->orgDepartmentId ?: $jpf->department_id,
+                'division_id'      => $request->orgDivisionId ?: $jpf->division_id,
+                'unit_id'          => $request->orgUnitId ?: $jpf->unit_id,
+                'position_id'      => $request->orgPositionId ?: $jpf->position_id,
+                'salary_grade_id'  => $request->salaryGradeId ?: $jpf->salary_grade_id,
+
+                'candidate_email'  => $candidateEmail,
+                'name'             => $request->name ?: $interview->name,
+                'position'         => $request->position ?: $interview->position,
+                'salary'           => $request->salary,
+                'start_date'       => $request->startDate,
+                'employment_type'  => $request->employmentType ?: $jpf->employment_type,
+                'department'       => $request->department ?: ($jpf->department_unit ?? $jpf->department ?? null),
+                'company_address'  => $request->companyAddress ?: $jpf->location,
+                'benefits'         => $request->benefits,
+                'offer_details'    => $request->input('offerDetails', []),
+                'accept_token'     => $this->generateJobOfferToken(),
+                'status'           => $request->status ?: 'Draft',
+            ]);
+
+            if (!in_array($jpf->status, ['Filled', 'Closed', 'Cancelled'], true)) {
+                $jpf->update(['status' => 'Offer Stage']);
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Job Offer saved as Draft. Review the details and click Send Job Offer when ready.',
+                'data' => $jobOffer
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error saving Job Offer: ' . $e->getMessage());
+
             return response()->json([
                 'success' => false,
-                'message' => 'Candidate email was not found for this job offer.'
-            ], 422);
+                'message' => $e->getMessage()
+            ], 500);
         }
+    }
 
-        $interview = $jobOffer->interview_id
-            ? CandidateInterview::find($jobOffer->interview_id)
-            : CandidateInterview::where('name', $jobOffer->name)
+
+    public function resendJobOfferEmail($id)
+    {
+        try {
+            $jobOffer = JobOffer::findOrFail($id);
+            $jobOffer = $this->ensureJobOfferToken($jobOffer);
+
+            if (!$jobOffer->candidate_email) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Candidate email was not found for this job offer.'
+                ], 422);
+            }
+
+            $interview = $jobOffer->interview_id
+                ? CandidateInterview::find($jobOffer->interview_id)
+                : CandidateInterview::where('name', $jobOffer->name)
                 ->where('position', $jobOffer->position)
                 ->latest()
                 ->first();
 
-        $jpf = $jobOffer->job_posting_id
-            ? JobPosting::find($jobOffer->job_posting_id)
-            : null;
+            $jpf = $jobOffer->job_posting_id
+                ? JobPosting::find($jobOffer->job_posting_id)
+                : null;
 
-        Mail::to($jobOffer->candidate_email)->send(new JobOfferMail($jobOffer, $interview, $jpf));
+            Mail::to($jobOffer->candidate_email)->send(new JobOfferMail($jobOffer, $interview, $jpf));
 
-        if (!in_array($jobOffer->status, ['Accepted', 'Declined'], true)) {
-            $jobOffer->update(['status' => 'Sent']);
-            $jobOffer->refresh();
+            if (!in_array($jobOffer->status, ['Accepted', 'Declined'], true)) {
+                $jobOffer->update(['status' => 'Sent']);
+                $jobOffer->refresh();
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Job Offer email resent successfully.',
+                'data' => $jobOffer
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error resending Job Offer email: ' . $e->getMessage());
+
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage()
+            ], 500);
         }
+    }
 
+
+
+    public function latestJobOffers()
+    {
         return response()->json([
             'success' => true,
-            'message' => 'Job Offer email resent successfully.',
-            'data' => $jobOffer
+            'data' => JobOffer::latest()->get(),
         ]);
-    } catch (\Exception $e) {
-        Log::error('Error resending Job Offer email: ' . $e->getMessage());
-
-        return response()->json([
-            'success' => false,
-            'message' => $e->getMessage()
-        ], 500);
     }
-}
 
+    public function showJobOfferReview($token)
+    {
+        $jobOffer = JobOffer::where('accept_token', $token)->firstOrFail();
 
-
-public function latestJobOffers()
-{
-    return response()->json([
-        'success' => true,
-        'data' => JobOffer::latest()->get(),
-    ]);
-}
-
-public function acceptJobOffer($token)
-{
-    $jobOffer = JobOffer::where('accept_token', $token)->firstOrFail();
-
-    if ($jobOffer->status === 'Accepted') {
-        return view('careers.job-offer-response', [
+        return view('careers.job-offer-review', [
             'jobOffer' => $jobOffer,
-            'decision' => 'accepted',
-            'title' => 'Job Offer Already Accepted',
-            'message' => 'You have already accepted this job offer. The Human Capital team will continue with your onboarding process.',
         ]);
     }
 
-    if ($jobOffer->status === 'Declined') {
-        return view('careers.job-offer-response', [
+    public function downloadJobOffer($token)
+    {
+        $jobOffer = JobOffer::where('accept_token', $token)->firstOrFail();
+        $filename = 'job-offer-' . Str::slug($jobOffer->name ?: 'applicant') . '.pdf';
+
+        return Pdf::loadView('careers.job-offer-download', [
             'jobOffer' => $jobOffer,
-            'decision' => 'declined',
-            'title' => 'Job Offer Already Declined',
-            'message' => 'This job offer has already been declined. If this was a mistake, please contact the Human Capital team.',
-        ]);
+        ])->setPaper('a4', 'portrait')->download($filename);
     }
 
-    $pdsMessage = 'Please check your email for the PDS form link.';
+    public function acceptJobOffer(Request $request, $token)
+    {
+        $jobOffer = JobOffer::where('accept_token', $token)->firstOrFail();
 
-    $jobOffer->update([
-        'status' => 'Accepted',
-        'accepted_at' => now(),
-        'declined_at' => null,
-    ]);
-
-    $jobOffer->refresh();
-
-    if ($jobOffer->job_posting_id) {
-        $jpf = JobPosting::find($jobOffer->job_posting_id);
-        if ($jpf) {
-            $jpf->update(['status' => 'Filled']);
-        }
-    }
-
-    if (!$jobOffer->pds_sent_at && $jobOffer->candidate_email) {
-        try {
-            Mail::to($jobOffer->candidate_email)->send(new PdsInvitationMail($jobOffer, route('careers.pds', ['token' => $jobOffer->accept_token])));
-
-            $jobOffer->update([
-                'pds_sent_at' => now(),
+        if ($jobOffer->status === 'Accepted') {
+            return view('careers.job-offer-response', [
+                'jobOffer' => $jobOffer,
+                'decision' => 'accepted',
+                'title' => 'Job Offer Already Accepted',
+                'message' => 'You have already accepted this job offer. The Human Capital team will continue with your onboarding process.',
             ]);
-
-            $jobOffer->refresh();
-        } catch (\Exception $e) {
-            Log::error('Failed to send PDS invitation after job offer acceptance: ' . $e->getMessage());
-            $pdsMessage = 'Your acceptance was recorded, but the PDS email failed to send. The Human Capital team will resend it.';
         }
-    } elseif (!$jobOffer->candidate_email) {
-        $pdsMessage = 'Your acceptance was recorded, but no candidate email was found for the PDS link.';
-    } elseif ($jobOffer->pds_sent_at) {
-        $pdsMessage = 'The PDS form link was already sent to your email.';
-    }
 
-    return view('careers.job-offer-response', [
-        'jobOffer' => $jobOffer,
-        'decision' => 'accepted',
-        'title' => 'Job Offer Accepted',
-        'message' => 'Thank you for accepting the job offer. ' . $pdsMessage,
-    ]);
-}
+        if ($jobOffer->status === 'Declined') {
+            return view('careers.job-offer-response', [
+                'jobOffer' => $jobOffer,
+                'decision' => 'declined',
+                'title' => 'Job Offer Already Declined',
+                'message' => 'This job offer has already been declined. If this was a mistake, please contact the Human Capital team.',
+            ]);
+        }
 
-public function declineJobOffer($token)
-{
-    $jobOffer = JobOffer::where('accept_token', $token)->firstOrFail();
+        $pdsMessage = 'Please check your email for the PDS form link.';
 
-    if ($jobOffer->status === 'Accepted') {
-        return view('careers.job-offer-response', [
-            'jobOffer' => $jobOffer,
-            'decision' => 'accepted',
-            'title' => 'Job Offer Already Accepted',
-            'message' => 'You have already accepted this job offer, so it can no longer be declined from this link. Please contact the Human Capital team if this was a mistake.',
+        if (!$request->isMethod('post')) {
+            return redirect()->route('job-offer.review', $jobOffer->accept_token);
+        }
+
+        $signedOfferPath = $jobOffer->signed_offer_path;
+
+        $request->validate([
+            'signed_offer' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:10240'],
         ]);
-    }
 
-    if ($jobOffer->status === 'Declined') {
-        return view('careers.job-offer-response', [
-            'jobOffer' => $jobOffer,
-            'decision' => 'declined',
-            'title' => 'Job Offer Already Declined',
-            'message' => 'You have already declined this job offer. If this was a mistake, please contact the Human Capital team.',
-        ]);
-    }
+        if ($request->hasFile('signed_offer')) {
+            if ($signedOfferPath) {
+                Storage::disk('public')->delete($signedOfferPath);
+            }
 
-    $jobOffer->update([
-        'status' => 'Declined',
-        'declined_at' => now(),
-        'accepted_at' => null,
-    ]);
+            $signedOfferPath = $request->file('signed_offer')->store('job-offers/signed', 'public');
+        }
 
-    $jobOffer->refresh();
-
-    return view('careers.job-offer-response', [
-        'jobOffer' => $jobOffer,
-        'decision' => 'declined',
-        'title' => 'Job Offer Declined',
-        'message' => 'Your response has been recorded. Thank you for informing John Kelly & Company.',
-    ]);
-}
-
-private function ensureJobOfferToken(JobOffer $jobOffer): JobOffer
-{
-    if (!$jobOffer->accept_token) {
         $jobOffer->update([
-            'accept_token' => $this->generateJobOfferToken(),
+            'status' => 'Accepted',
+            'accepted_at' => now(),
+            'declined_at' => null,
+            'signed_offer_path' => $signedOfferPath,
+            'signed_offer_uploaded_at' => $signedOfferPath ? now() : $jobOffer->signed_offer_uploaded_at,
         ]);
 
         $jobOffer->refresh();
+
+        if ($jobOffer->job_posting_id) {
+            $jpf = JobPosting::find($jobOffer->job_posting_id);
+            if ($jpf) {
+                $jpf->update(['status' => 'Filled']);
+            }
+        }
+
+        if (!$jobOffer->pds_sent_at && $jobOffer->candidate_email) {
+            try {
+                Mail::to($jobOffer->candidate_email)->send(new PdsInvitationMail($jobOffer, route('careers.pds', ['token' => $jobOffer->accept_token])));
+
+                $jobOffer->update([
+                    'pds_sent_at' => now(),
+                ]);
+
+                $jobOffer->refresh();
+            } catch (\Exception $e) {
+                Log::error('Failed to send PDS invitation after job offer acceptance: ' . $e->getMessage());
+                $pdsMessage = 'Your acceptance was recorded, but the PDS email failed to send. The Human Capital team will resend it.';
+            }
+        } elseif (!$jobOffer->candidate_email) {
+            $pdsMessage = 'Your acceptance was recorded, but no candidate email was found for the PDS link.';
+        } elseif ($jobOffer->pds_sent_at) {
+            $pdsMessage = 'The PDS form link was already sent to your email.';
+        }
+
+        return view('careers.job-offer-response', [
+            'jobOffer' => $jobOffer,
+            'decision' => 'accepted',
+            'title' => 'Job Offer Accepted',
+            'message' => 'Thank you for accepting the job offer. ' . $pdsMessage,
+        ]);
     }
 
-    return $jobOffer;
-}
+    public function declineJobOffer($token)
+    {
+        $jobOffer = JobOffer::where('accept_token', $token)->firstOrFail();
 
-private function generateJobOfferToken(): string
-{
-    do {
-        $token = Str::random(64);
-    } while (JobOffer::where('accept_token', $token)->exists());
+        if ($jobOffer->status === 'Accepted') {
+            return view('careers.job-offer-response', [
+                'jobOffer' => $jobOffer,
+                'decision' => 'accepted',
+                'title' => 'Job Offer Already Accepted',
+                'message' => 'You have already accepted this job offer, so it can no longer be declined from this link. Please contact the Human Capital team if this was a mistake.',
+            ]);
+        }
 
-    return $token;
-}
+        if ($jobOffer->status === 'Declined') {
+            return view('careers.job-offer-response', [
+                'jobOffer' => $jobOffer,
+                'decision' => 'declined',
+                'title' => 'Job Offer Already Declined',
+                'message' => 'You have already declined this job offer. If this was a mistake, please contact the Human Capital team.',
+            ]);
+        }
+
+        $jobOffer->update([
+            'status' => 'Declined',
+            'declined_at' => now(),
+            'accepted_at' => null,
+        ]);
+
+        $jobOffer->refresh();
+
+        return view('careers.job-offer-response', [
+            'jobOffer' => $jobOffer,
+            'decision' => 'declined',
+            'title' => 'Job Offer Declined',
+            'message' => 'Your response has been recorded. Thank you for informing John Kelly & Company.',
+        ]);
+    }
+
+    private function ensureJobOfferToken(JobOffer $jobOffer): JobOffer
+    {
+        if (!$jobOffer->accept_token) {
+            $jobOffer->update([
+                'accept_token' => $this->generateJobOfferToken(),
+            ]);
+
+            $jobOffer->refresh();
+        }
+
+        return $jobOffer;
+    }
+
+    private function generateJobOfferToken(): string
+    {
+        do {
+            $token = Str::random(64);
+        } while (JobOffer::where('accept_token', $token)->exists());
+
+        return $token;
+    }
 
     public function deleteJobOffer($id)
     {
@@ -1450,7 +1969,7 @@ private function generateJobOfferToken(): string
     public function sendAssessmentTest(Request $request, $id)
     {
         $assessment = CandidateAssessment::findOrFail($id);
-        
+
         // Update the test type if provided
         if ($request->has('test_type')) {
             $assessment->update(['test_type' => $request->test_type]);
@@ -1467,9 +1986,9 @@ private function generateJobOfferToken(): string
         if ($assessment->email) {
             try {
                 Mail::to($assessment->email)->send(new AssessmentTestMail($assessment->name, $assessment->test_type, $testUrl));
-                
+
                 // Status remains "Pending Assessment" until they click the link
-                
+
                 return response()->json(['success' => true, 'message' => 'Test invitation sent', 'assessment' => $assessment]);
             } catch (\Exception $e) {
                 \Log::error("Failed to send assessment test to {$assessment->email}: " . $e->getMessage());
@@ -1565,135 +2084,55 @@ private function generateJobOfferToken(): string
 
     private function getAssessmentQuestions($testType): array
     {
-        $type = strtolower((string) $testType);
+        $typeName = trim((string) $testType);
+        $typeLower = strtolower($typeName);
 
-        if (str_contains($type, 'personality')) {
-            return [
-                [
-                    'question' => 'How do you usually handle urgent tasks?',
-                    'choices' => [
-                        'I ignore them until later.',
-                        'I prioritize them and communicate with the team.',
-                        'I wait for others to decide.',
-                        'I stop all other work permanently.'
-                    ],
-                    'answer' => 1,
-                ],
-                [
-                    'question' => 'Which behavior best shows professionalism?',
-                    'choices' => [
-                        'Arriving late without notice.',
-                        'Keeping commitments and communicating clearly.',
-                        'Avoiding feedback.',
-                        'Not following instructions.'
-                    ],
-                    'answer' => 1,
-                ],
-                [
-                    'question' => 'When receiving feedback, what is the best response?',
-                    'choices' => [
-                        'Listen, clarify, and improve.',
-                        'Ignore the feedback.',
-                        'Argue immediately.',
-                        'Blame someone else.'
-                    ],
-                    'answer' => 0,
-                ],
-                [
-                    'question' => 'Which trait is important in a workplace?',
-                    'choices' => [
-                        'Accountability',
-                        'Dishonesty',
-                        'Carelessness',
-                        'Avoiding teamwork'
-                    ],
-                    'answer' => 0,
-                ],
-                [
-                    'question' => 'What should you do if you do not understand a task?',
-                    'choices' => [
-                        'Pretend you understand.',
-                        'Ask for clarification.',
-                        'Submit random work.',
-                        'Delay without informing anyone.'
-                    ],
-                    'answer' => 1,
-                ],
-            ];
+        $assessmentType = null;
+
+        if ($typeName !== '') {
+            $assessmentType = AssessmentType::where('name', $typeName)
+                ->orWhere('slug', Str::slug($typeName))
+                ->first();
         }
 
-        if (str_contains($type, 'aptitude') || str_contains($type, 'amplitude')) {
-            return [
-                [
-                    'question' => 'What is 15% of 200?',
-                    'choices' => ['15', '20', '30', '45'],
-                    'answer' => 2,
-                ],
-                [
-                    'question' => 'If A is greater than B, and B is greater than C, which is true?',
-                    'choices' => ['C is greatest', 'A is greatest', 'B is greatest', 'All are equal'],
-                    'answer' => 1,
-                ],
-                [
-                    'question' => 'Complete the pattern: 2, 4, 8, 16, ___',
-                    'choices' => ['18', '24', '30', '32'],
-                    'answer' => 3,
-                ],
-                [
-                    'question' => 'A task starts at 9:15 AM and ends at 10:45 AM. How long did it take?',
-                    'choices' => ['1 hour', '1 hour 15 minutes', '1 hour 30 minutes', '2 hours'],
-                    'answer' => 2,
-                ],
-                [
-                    'question' => 'Which word is closest in meaning to "reliable"?',
-                    'choices' => ['Dependable', 'Careless', 'Late', 'Weak'],
-                    'answer' => 0,
-                ],
-            ];
+        if (!$assessmentType) {
+            if (str_contains($typeLower, 'personality')) {
+                $assessmentType = AssessmentType::where('name', 'Personality Test')
+                    ->orWhere('slug', 'personality-test')
+                    ->first();
+            } elseif (str_contains($typeLower, 'aptitude') || str_contains($typeLower, 'amplitude')) {
+                $assessmentType = AssessmentType::where('name', 'Aptitude Test')
+                    ->orWhere('slug', 'aptitude-test')
+                    ->first();
+            } else {
+                $assessmentType = AssessmentType::where('name', 'Technical Test')
+                    ->orWhere('slug', 'technical-test')
+                    ->first();
+            }
         }
 
-        return [
-            [
-                'question' => 'What does HTML stand for?',
-                'choices' => [
-                    'HyperText Markup Language',
-                    'HighText Machine Language',
-                    'HyperTool Multi Language',
-                    'Home Tool Markup Language'
-                ],
-                'answer' => 0,
-            ],
-            [
-                'question' => 'Which SQL command is used to retrieve data?',
-                'choices' => ['INSERT', 'SELECT', 'UPDATE', 'DELETE'],
-                'answer' => 1,
-            ],
-            [
-                'question' => 'In Laravel, which folder usually contains controllers?',
-                'choices' => [
-                    'resources/views',
-                    'database/migrations',
-                    'app/Http/Controllers',
-                    'public/assets'
-                ],
-                'answer' => 2,
-            ],
-            [
-                'question' => 'Which HTTP method is commonly used to submit a form that creates a new record?',
-                'choices' => ['GET', 'POST', 'PUT', 'DELETE'],
-                'answer' => 1,
-            ],
-            [
-                'question' => 'What is the purpose of validation in a system?',
-                'choices' => [
-                    'To check and control user input',
-                    'To delete all records',
-                    'To slow down the system',
-                    'To remove authentication'
-                ],
-                'answer' => 0,
-            ],
-        ];
+        if (!$assessmentType || !$assessmentType->is_active) {
+            return [];
+        }
+
+        return AssessmentQuestion::where('assessment_type_id', $assessmentType->id)
+            ->where('is_active', true)
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->get()
+            ->map(function ($question) {
+                return [
+                    'question' => $question->question,
+                    'choices' => [
+                        $question->choice_a,
+                        $question->choice_b,
+                        $question->choice_c,
+                        $question->choice_d,
+                    ],
+                    'answer' => (int) $question->correct_answer,
+                ];
+            })
+            ->toArray();
     }
 
     public function updateAssessmentResult(Request $request, $id)

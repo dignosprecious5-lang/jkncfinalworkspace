@@ -112,8 +112,7 @@
 </head>
 <body>
     @php
-        $acceptUrl = $jobOffer->accept_token ? route('job-offer.accept', $jobOffer->accept_token) : '#';
-        $declineUrl = $jobOffer->accept_token ? route('job-offer.decline', $jobOffer->accept_token) : '#';
+        $reviewUrl = $jobOffer->accept_token ? route('job-offer.review', $jobOffer->accept_token) : '#';
     @endphp
 
     <div class="container">
@@ -154,16 +153,14 @@
                 <div class="value">{{ $jobOffer->benefits ?? 'N/A' }}</div>
             </div>
 
-            <p>Please review the offer details carefully and confirm your decision below.</p>
+            <p>Please review the complete Job Offer document through the secure link below.</p>
 
             <div class="actions">
-                <a href="{{ $acceptUrl }}" class="button accept">Accept Job Offer</a>
-                <a href="{{ $declineUrl }}" class="button decline">Decline Job Offer</a>
+                <a href="{{ $reviewUrl }}" class="button accept">View Job Offer</a>
             </div>
 
             <div class="note">
-                <strong>Important:</strong> Clicking Accept confirms your intent to accept the offer.
-                You may still be required to submit a physically signed copy of the Job Offer during onboarding.
+                <strong>Important:</strong> The secure page shows the full Job Offer and allows you to accept, decline, and upload your signed copy.
             </div>
 
             <p style="margin-top: 24px;">

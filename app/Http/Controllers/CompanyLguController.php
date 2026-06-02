@@ -38,6 +38,8 @@ class CompanyLguController extends Controller
 
         return view('company.lgu', [
             'company' => (object) $companyData,
+            'companyTin' => $this->companyTin($companyData),
+            'currentUserName' => $this->currentUserName($request),
             'permitTypes' => self::PERMIT_TYPES,
             'selectedPermit' => $permit,
             'selectedStatus' => $status,
@@ -57,9 +59,9 @@ class CompanyLguController extends Controller
             'company_id' => $company,
             'permit_type' => $validated['permit_type'],
             'date' => $validated['date'],
-            'user' => $validated['user'],
+            'user' => $this->currentUserName($request),
             'client' => $companyData['company_name'],
-            'tin' => $validated['tin'],
+            'tin' => $validated['tin'] ?: $this->companyTin($companyData),
             'reg' => $validated['reg'],
             'status' => $validated['status'],
         ]);
@@ -90,9 +92,9 @@ class CompanyLguController extends Controller
                 'company_id' => $company,
                 'permit_type' => $validated['permit_type'],
                 'date' => $validated['date'],
-                'user' => $validated['user'],
+                'user' => $this->currentUserName($request),
                 'client' => $companyData['company_name'],
-                'tin' => $validated['tin'],
+                'tin' => $validated['tin'] ?: $this->companyTin($companyData),
                 'reg' => $validated['reg'],
                 'status' => $validated['status'],
             ];
@@ -129,8 +131,8 @@ class CompanyLguController extends Controller
         return $request->validate([
             'permit_type' => ['required', 'string', 'in:' . implode(',', self::PERMIT_TYPES)],
             'date' => ['required', 'date'],
-            'user' => ['required', 'string', 'max:255'],
-            'tin' => ['required', 'string', 'max:255'],
+            'user' => ['nullable', 'string', 'max:255'],
+            'tin' => ['nullable', 'string', 'max:255'],
             'reg' => ['required', 'string', 'max:255'],
             'status' => ['required', 'string', 'in:Active,For Review,Overdue'],
         ]);
@@ -138,7 +140,7 @@ class CompanyLguController extends Controller
 
     private function sessionKey(): string
     {
-        return 'mock_company_lgu_records';
+        return 'company_lgu_records_v2';
     }
 
     private function findCompany(Request $request, int $company): array
@@ -190,15 +192,25 @@ class CompanyLguController extends Controller
 
     private function defaultRecords(): array
     {
-        return [
-            ['id' => 1, 'company_id' => 1, 'permit_type' => "Mayor's Permit", 'date' => '2023-10-24', 'user' => 'Admin_Sarah', 'client' => 'Company 1', 'tin' => '009-123', 'reg' => 'Renewed', 'status' => 'Active'],
-            ['id' => 2, 'company_id' => 1, 'permit_type' => "Mayor's Permit", 'date' => '2023-11-02', 'user' => 'User_John', 'client' => 'Company 1', 'tin' => '112-987', 'reg' => 'Pending', 'status' => 'For Review'],
-            ['id' => 3, 'company_id' => 1, 'permit_type' => "Fire Permit", 'date' => '2024-02-10', 'user' => 'Admin_Mark', 'client' => 'Company 1', 'tin' => '999-000', 'reg' => 'Active', 'status' => 'Active'],
-            ['id' => 4, 'company_id' => 2, 'permit_type' => "Mayor's Permit", 'date' => '2024-03-01', 'user' => 'Admin_Sarah', 'client' => 'Company 2', 'tin' => '222-333', 'reg' => 'Pending', 'status' => 'For Review'],
-            ['id' => 5, 'company_id' => 2, 'permit_type' => 'Barangay Business Permit', 'date' => '2022-12-15', 'user' => 'User_John', 'client' => 'Company 2', 'tin' => '777-888', 'reg' => 'Expired', 'status' => 'Overdue'],
-            ['id' => 6, 'company_id' => 3, 'permit_type' => "Mayor's Permit", 'date' => '2025-05-20', 'user' => 'Admin_Mark', 'client' => 'Company 3', 'tin' => '123-456', 'reg' => 'Active', 'status' => 'Active'],
-            ['id' => 7, 'company_id' => 3, 'permit_type' => 'Sanitary Permit', 'date' => '2024-08-14', 'user' => 'User_Anna', 'client' => 'Company 3', 'tin' => '555-111', 'reg' => 'Pending', 'status' => 'For Review'],
-            ['id' => 8, 'company_id' => 3, 'permit_type' => "Mayor's Permit", 'date' => '2023-06-30', 'user' => 'Admin_Sarah', 'client' => 'Company 3', 'tin' => '998-776', 'reg' => 'Expired', 'status' => 'Overdue'],
-        ];
+        return [];
+    }
+
+    private function currentUserName(Request $request): string
+    {
+        $user = $request->user();
+
+        return trim((string) (
+            $user?->name
+            ?? $user?->full_name
+            ?? $user?->employee_name
+            ?? $user?->username
+            ?? $user?->email
+            ?? 'System User'
+        ));
+    }
+
+    private function companyTin(array $companyData): string
+    {
+        return trim((string) ($companyData['tin_no'] ?? $companyData['tin'] ?? $companyData['tin_number'] ?? $companyData['company_tin'] ?? $companyData['tax_identification_number'] ?? ''));
     }
 }

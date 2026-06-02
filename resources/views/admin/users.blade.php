@@ -37,12 +37,16 @@
             'linked' => (bool) $contact->user_id,
         ];
     })->values();
+
+    $adminCount = collect($users->items())->filter(fn ($u) => strtolower((string) $u->role) === 'admin')->count();
+    $employeeCount = collect($users->items())->filter(fn ($u) => strtolower((string) $u->role) === 'employee')->count();
+    $clientCount = collect($users->items())->filter(fn ($u) => strtolower((string) $u->role) === 'client')->count();
 @endphp
 
 <div
-    class="w-full h-full px-6 py-5"
+    class="w-full min-h-screen bg-slate-50 px-6 py-5"
     x-data="usersPage({
-        showCreateUser: {{ $errors->any() ? 'true' : 'false' }},
+        showCreateUser: {{ $errors->getBag('default')->any() ? 'true' : 'false' }},
         accountSource: @js(old('account_source', 'manual')),
         selectedEmployeeId: @js((string) old('employee_id', '')),
         selectedContactId: @js((string) old('contact_id', '')),
@@ -53,13 +57,25 @@
         contacts: @js($contactAccountOptions),
     })"
 >
+    @if(session('success'))
+        <div class="mb-4 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-700">
+            <i class="fas fa-circle-check mr-2"></i>{{ session('success') }}
+        </div>
+    @endif
+
+    @if(session('error'))
+        <div class="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+            <i class="fas fa-circle-exclamation mr-2"></i>{{ session('error') }}
+        </div>
+    @endif
+
     {{-- CREATE USER SLIDE OVER --}}
     <div x-show="showCreateUser" x-cloak class="fixed inset-0 z-50 overflow-hidden">
         <div class="absolute inset-0 overflow-hidden">
             <div
                 x-show="showCreateUser"
                 @click="showCreateUser = false"
-                class="absolute inset-0 bg-black/40"
+                class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
             ></div>
 
             <div class="absolute inset-y-0 right-0 flex max-w-full">
@@ -73,101 +89,100 @@
                     x-transition:leave-end="translate-x-full"
                     class="w-screen max-w-xl bg-white shadow-2xl h-full flex flex-col"
                 >
-                    <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-                        <h2 class="text-lg font-semibold text-gray-800">Create User</h2>
+                    <div class="px-6 py-5 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+                        <div>
+                            <h2 class="text-lg font-bold text-slate-900">Create User</h2>
+                            <p class="text-sm text-slate-500">Create login access from employee, client, or manual entry.</p>
+                        </div>
                         <button
                             type="button"
                             @click="showCreateUser = false"
-                            class="text-gray-400 hover:text-gray-600 text-lg"
+                            class="flex h-9 w-9 items-center justify-center rounded-xl text-slate-400 hover:bg-white hover:text-slate-600 transition"
                         >
                             <i class="fas fa-times"></i>
                         </button>
                     </div>
 
-                    <form action="{{ route('admin.users.store') }}" method="POST" class="flex-1 overflow-y-auto px-6 py-5 space-y-4">
+                    <form action="{{ route('admin.users.store') }}" method="POST" class="flex-1 overflow-y-auto px-6 py-5 space-y-5">
                         @csrf
 
-                        <div>
-                            <label class="block text-xs font-semibold text-gray-500 mb-1">Account Source</label>
+                        <div class="rounded-2xl border border-slate-200 bg-white p-4">
+                            <label class="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wide">Account Source</label>
                             <select
                                 name="account_source"
                                 x-model="accountSource"
                                 @change="changeAccountSource()"
-                                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                                class="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
                             >
                                 <option value="manual">Manual Account</option>
                                 <option value="employee">Link to Employee Profile</option>
                                 <option value="client">Link to Client Contact</option>
                             </select>
-                            <p class="text-[11px] text-gray-400 mt-1">
+                            <p class="text-[11px] text-slate-400 mt-2">
                                 Employee accounts use the employee work email. Client accounts use the contact email.
                             </p>
                         </div>
 
                         <div x-show="accountSource === 'employee'" x-cloak>
-                            <label class="block text-xs font-semibold text-gray-500 mb-1">Employee Profile</label>
+                            <label class="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wide">Employee Profile</label>
                             <select
                                 name="employee_id"
                                 x-model="selectedEmployeeId"
                                 @change="applySelectedProfile()"
-                                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                                class="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
                             >
                                 <option value="">Select employee profile</option>
                                 <template x-for="employee in employees" :key="employee.id">
                                     <option :value="employee.id" x-text="employee.label"></option>
                                 </template>
                             </select>
-                            <p class="text-[11px] text-gray-400 mt-1">
-                                Selecting a profile will auto-fill the name and email below. Choose Employee or Admin manually for the role.
-                            </p>
                         </div>
 
                         <div x-show="accountSource === 'client'" x-cloak>
-                            <label class="block text-xs font-semibold text-gray-500 mb-1">Client Contact</label>
+                            <label class="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wide">Client Contact</label>
                             <select
                                 name="contact_id"
                                 x-model="selectedContactId"
                                 @change="applySelectedProfile()"
-                                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                                class="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
                             >
                                 <option value="">Select client contact</option>
                                 <template x-for="contact in contacts" :key="contact.id">
                                     <option :value="contact.id" x-text="contact.label"></option>
                                 </template>
                             </select>
-                            <p class="text-[11px] text-gray-400 mt-1">
-                                Only client contacts without linked accounts are shown. Selecting a contact will auto-fill the name and email below and set the role to Client.
-                            </p>
+                        </div>
+
+                        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wide">Full Name</label>
+                                <input
+                                    type="text"
+                                    name="name"
+                                    x-model="name"
+                                    placeholder="Full name"
+                                    class="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                                >
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wide">Email</label>
+                                <input
+                                    type="email"
+                                    name="email"
+                                    x-model="email"
+                                    placeholder="Email address"
+                                    class="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                                >
+                            </div>
                         </div>
 
                         <div>
-                            <label class="block text-xs font-semibold text-gray-500 mb-1">Full Name</label>
-                            <input
-                                type="text"
-                                name="name"
-                                x-model="name"
-                                placeholder="Auto-filled from selected employee/contact, or type manually"
-                                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                            >
-                        </div>
-
-                        <div>
-                            <label class="block text-xs font-semibold text-gray-500 mb-1">Email</label>
-                            <input
-                                type="email"
-                                name="email"
-                                x-model="email"
-                                placeholder="Auto-filled from employee work email or contact email"
-                                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                            >
-                        </div>
-
-                        <div>
-                            <label class="block text-xs font-semibold text-gray-500 mb-1">Role</label>
+                            <label class="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wide">Role</label>
                             <select
                                 name="role"
                                 x-model="role"
-                                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                                class="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
                                 :disabled="accountSource === 'client'"
                             >
                                 <option value="">Select role</option>
@@ -181,43 +196,42 @@
                                 value="Client"
                                 :disabled="accountSource !== 'client'"
                             >
-                            <p class="text-[11px] text-gray-400 mt-1">
-                                Client source will always create a Client account. Employee source can be Employee or Admin; choose manually.
-                            </p>
                         </div>
 
-                        <div>
-                            <label class="block text-xs font-semibold text-gray-500 mb-1">Password</label>
-                            <input
-                                type="password"
-                                name="password"
-                                placeholder="Enter password"
-                                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                            >
+                        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wide">Password</label>
+                                <input
+                                    type="password"
+                                    name="password"
+                                    placeholder="Enter password"
+                                    class="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                                >
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wide">Confirm Password</label>
+                                <input
+                                    type="password"
+                                    name="password_confirmation"
+                                    placeholder="Confirm password"
+                                    class="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                                >
+                            </div>
                         </div>
 
-                        <div>
-                            <label class="block text-xs font-semibold text-gray-500 mb-1">Confirm Password</label>
-                            <input
-                                type="password"
-                                name="password_confirmation"
-                                placeholder="Confirm password"
-                                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                            >
-                        </div>
-
-                        <div class="pt-4 border-t border-gray-200 flex gap-3">
+                        <div class="sticky bottom-0 -mx-6 border-t border-slate-200 bg-white px-6 py-4 flex gap-3">
                             <button
                                 type="button"
                                 @click="showCreateUser = false"
-                                class="flex-1 border border-gray-300 text-gray-700 rounded-lg py-2.5 text-sm font-medium hover:bg-gray-50 transition"
+                                class="flex-1 rounded-xl border border-slate-300 bg-white py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition"
                             >
                                 Cancel
                             </button>
 
                             <button
                                 type="submit"
-                                class="flex-1 bg-blue-600 text-white rounded-lg py-2.5 text-sm font-medium hover:bg-blue-700 transition"
+                                class="flex-1 rounded-xl bg-blue-600 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 transition"
                             >
                                 Save User
                             </button>
@@ -228,53 +242,119 @@
         </div>
     </div>
 
-    {{-- PAGE WRAPPER --}}
-    <div class="bg-white border border-gray-200 rounded-xl min-h-[calc(100vh-7rem)] flex flex-col">
-        <div class="px-5 py-4 border-b border-gray-200 flex items-center justify-between">
-            <div>
-                <h1 class="text-[30px] font-semibold text-gray-800 leading-none">Users</h1>
-                <p class="text-sm text-gray-500 mt-1">Manage login credentials, permissions, and roles</p>
-            </div>
+    <div class="space-y-5">
+        <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div class="relative px-6 py-6">
+                <div class="absolute inset-0 bg-gradient-to-r from-blue-50 via-white to-sky-50"></div>
 
-            <button
-                @click="openCreateModal()"
-                class="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-            >
-                + Create User
-            </button>
+                <div class="relative flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                    <div>
+                        <div class="inline-flex items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-700">
+                            <i class="fas fa-users-gear text-[10px]"></i>
+                            Account Administration
+                        </div>
+
+                        <h1 class="mt-3 text-3xl font-bold tracking-tight text-slate-900">Users</h1>
+                        <p class="mt-1 text-sm text-slate-500">Manage login credentials, linked profiles, roles, and account controls.</p>
+                    </div>
+
+                    <button
+                        @click="openCreateModal()"
+                        class="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
+                    >
+                        <i class="fas fa-plus text-xs"></i>
+                        Create User
+                    </button>
+                </div>
+            </div>
         </div>
 
-        <div class="px-5 py-5 flex-1 flex flex-col">
-            <div class="border border-gray-200 rounded-xl overflow-hidden flex-1">
-                <table class="w-full text-sm text-left border-collapse">
-                    <thead class="bg-gray-100 text-gray-700">
-                        <tr>
-                            <th class="px-4 py-3 border-r border-gray-200 font-semibold">ID</th>
-                            <th class="px-4 py-3 border-r border-gray-200 font-semibold">Name</th>
-                            <th class="px-4 py-3 border-r border-gray-200 font-semibold">Email</th>
-                            <th class="px-4 py-3 border-r border-gray-200 font-semibold">Role</th>
-                            <th class="px-4 py-3 border-r border-gray-200 font-semibold">Linked Profile</th>
-                            <th class="px-4 py-3 border-r border-gray-200 font-semibold">Permissions</th>
-                            <th class="px-4 py-3 border-r border-gray-200 font-semibold">Created At</th>
-                            <th class="px-4 py-3 font-semibold">Actions</th>
+        <div class="grid grid-cols-1 gap-4 md:grid-cols-4">
+            <div class="rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
+                <p class="text-xs font-bold uppercase tracking-wide text-slate-400">Total Users</p>
+                <p class="mt-2 text-2xl font-bold text-slate-900">{{ $users->total() }}</p>
+            </div>
+            <div class="rounded-2xl border border-blue-100 bg-blue-50 px-5 py-4">
+                <p class="text-xs font-bold uppercase tracking-wide text-blue-500">Admins</p>
+                <p class="mt-2 text-2xl font-bold text-blue-700">{{ $adminCount }}</p>
+            </div>
+            <div class="rounded-2xl border border-green-100 bg-green-50 px-5 py-4">
+                <p class="text-xs font-bold uppercase tracking-wide text-green-500">Employees</p>
+                <p class="mt-2 text-2xl font-bold text-green-700">{{ $employeeCount }}</p>
+            </div>
+            <div class="rounded-2xl border border-amber-100 bg-amber-50 px-5 py-4">
+                <p class="text-xs font-bold uppercase tracking-wide text-amber-500">Clients</p>
+                <p class="mt-2 text-2xl font-bold text-amber-700">{{ $clientCount }}</p>
+            </div>
+        </div>
+
+        <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div class="flex flex-col gap-3 border-b border-slate-200 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                    <h2 class="text-base font-semibold text-slate-900">User Directory</h2>
+                    <p class="mt-1 text-sm text-slate-500">Update roles, review linked profiles, and manage user actions.</p>
+                </div>
+
+                <div class="relative w-full lg:w-96">
+                    <i class="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-sm text-slate-400"></i>
+                    <input
+                        type="text"
+                        placeholder="Search name, email, role..."
+                        class="w-full rounded-xl border border-slate-300 bg-white py-2.5 pl-11 pr-4 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                        oninput="filterUsersTable(this.value)"
+                    >
+                </div>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="min-w-[1250px] w-full border-collapse text-sm text-slate-700">
+                    <thead>
+                        <tr class="border-b border-slate-200 bg-slate-50">
+                            <th class="px-5 py-4 text-left text-xs font-bold uppercase tracking-wide text-slate-500">User</th>
+                            <th class="px-5 py-4 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Role</th>
+                            <th class="px-5 py-4 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Linked Profile</th>
+                            <th class="px-5 py-4 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Account Status</th>
+                            <th class="px-5 py-4 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Admin Controls</th>
+                            <th class="px-5 py-4 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Created</th>
+                            <th class="px-5 py-4 text-right text-xs font-bold uppercase tracking-wide text-slate-500">Actions</th>
                         </tr>
                     </thead>
 
-                    <tbody class="bg-white text-gray-700">
+                    <tbody class="divide-y divide-slate-100 bg-white">
                         @forelse($users as $user)
-                            <tr class="border-t border-gray-200 hover:bg-gray-50 align-top">
-                                <td class="px-4 py-3 border-r border-gray-200">{{ $user->id }}</td>
-                                <td class="px-4 py-3 border-r border-gray-200">{{ $user->name }}</td>
-                                <td class="px-4 py-3 border-r border-gray-200">{{ $user->email }}</td>
+                            @php
+                                $roleClass = match(strtolower((string) $user->role)) {
+                                    'superadmin', 'super admin', 'system super admin' => 'bg-purple-50 text-purple-700 ring-purple-100',
+                                    'admin' => 'bg-blue-50 text-blue-700 ring-blue-100',
+                                    'employee' => 'bg-green-50 text-green-700 ring-green-100',
+                                    'client' => 'bg-amber-50 text-amber-700 ring-amber-100',
+                                    default => 'bg-slate-100 text-slate-700 ring-slate-200',
+                                };
+                            @endphp
 
-                                <td class="px-4 py-3 border-r border-gray-200">
+                            <tr class="user-row align-top transition hover:bg-slate-50"
+                                data-search="{{ strtolower($user->name.' '.$user->email.' '.$user->role.' '.$user->id) }}">
+                                <td class="px-5 py-4">
+                                    <div class="flex items-center gap-3">
+                                        <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-sm font-bold text-slate-600">
+                                            {{ strtoupper(substr($user->name, 0, 1)) }}
+                                        </div>
+                                        <div>
+                                            <p class="font-semibold text-slate-900">{{ $user->name }}</p>
+                                            <p class="text-xs text-slate-500">{{ $user->email }}</p>
+                                            <p class="mt-1 font-mono text-[11px] text-slate-400">ID #{{ $user->id }}</p>
+                                        </div>
+                                    </div>
+                                </td>
+
+                                <td class="px-5 py-4">
                                     @if($authUser->canManageRoles() && !$user->isSuperAdmin())
-                                        <form action="{{ route('admin.users.update', $user->id) }}" method="POST" class="space-y-2">
+                                        <form action="{{ route('admin.users.update', $user->id) }}" method="POST" class="space-y-3">
                                             @csrf
 
                                             <select
                                                 name="role"
-                                                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                                                class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
                                             >
                                                 <option value="Admin" {{ $user->role === 'Admin' ? 'selected' : '' }}>Admin</option>
                                                 <option value="Employee" {{ $user->role === 'Employee' ? 'selected' : '' }}>Employee</option>
@@ -282,24 +362,14 @@
                                             </select>
 
                                             @if($authUser->isSuperAdmin())
-                                                <div class="space-y-1 text-xs">
+                                                <div class="space-y-2 rounded-xl bg-slate-50 p-3 text-xs">
                                                     <label class="flex items-center gap-2">
-                                                        <input
-                                                            type="checkbox"
-                                                            name="can_edit_user_roles"
-                                                            value="1"
-                                                            {{ $user->can_edit_user_roles ? 'checked' : '' }}
-                                                        >
+                                                        <input type="checkbox" name="can_edit_user_roles" value="1" {{ $user->can_edit_user_roles ? 'checked' : '' }}>
                                                         <span>Can edit user roles</span>
                                                     </label>
 
                                                     <label class="flex items-center gap-2">
-                                                        <input
-                                                            type="checkbox"
-                                                            name="can_delete_users"
-                                                            value="1"
-                                                            {{ $user->can_delete_users ? 'checked' : '' }}
-                                                        >
+                                                        <input type="checkbox" name="can_delete_users" value="1" {{ $user->can_delete_users ? 'checked' : '' }}>
                                                         <span>Can delete users</span>
                                                     </label>
                                                 </div>
@@ -307,62 +377,293 @@
 
                                             <button
                                                 type="submit"
-                                                class="inline-flex items-center rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 transition"
+                                                class="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 transition"
                                             >
+                                                <i class="fas fa-save text-[10px]"></i>
                                                 Update
                                             </button>
                                         </form>
                                     @else
-                                        @php
-                                            $roleClasses = $user->role === 'Admin'
-                                                ? 'bg-blue-50 text-blue-700'
-                                                : ($user->role === 'Superadmin'
-                                                    ? 'bg-purple-50 text-purple-700'
-                                                    : 'bg-gray-100 text-gray-700');
-                                        @endphp
-
-                                        <span class="px-2 py-1 text-xs rounded-full font-medium {{ $roleClasses }}">
+                                        <span class="inline-flex rounded-full px-3 py-1 text-xs font-semibold ring-1 {{ $roleClass }}">
                                             {{ $user->role }}
                                         </span>
                                     @endif
                                 </td>
 
-                                <td class="px-4 py-3 border-r border-gray-200 text-xs text-gray-700">
+                                <td class="px-5 py-4 text-xs text-slate-700">
                                     @if($user->employeeProfile)
-                                        <div class="font-semibold text-gray-900">{{ $user->employeeProfile->full_name }}</div>
-                                        <div class="text-gray-500">Employee • {{ $user->employeeProfile->employee_code }}</div>
+                                        <div class="rounded-xl bg-green-50 px-3 py-2 text-green-800">
+                                            <div class="font-semibold">{{ $user->employeeProfile->full_name }}</div>
+                                            <div class="text-green-600">Employee • {{ $user->employeeProfile->employee_code }}</div>
+                                        </div>
                                     @elseif($user->contactProfile)
-                                        <div class="font-semibold text-gray-900">{{ $user->contactProfile->full_name ?: trim(($user->contactProfile->first_name ?? '').' '.($user->contactProfile->last_name ?? '')) }}</div>
-                                        <div class="text-gray-500">Client Contact</div>
+                                        <div class="rounded-xl bg-amber-50 px-3 py-2 text-amber-800">
+                                            <div class="font-semibold">{{ $user->contactProfile->full_name ?: trim(($user->contactProfile->first_name ?? '').' '.($user->contactProfile->last_name ?? '')) }}</div>
+                                            <div class="text-amber-600">Client Contact</div>
+                                        </div>
                                     @else
-                                        <span class="text-gray-400">Manual account</span>
+                                        <span class="inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-500">Manual account</span>
                                     @endif
                                 </td>
 
-                                <td class="px-4 py-3 border-r border-gray-200 text-xs">
-                                    <div class="space-y-1">
-                                        <div>
-                                            <span class="font-medium text-gray-600">Edit Roles:</span>
-                                            <span class="{{ $user->can_edit_user_roles ? 'text-green-600' : 'text-gray-400' }}">
-                                                {{ $user->can_edit_user_roles ? 'Yes' : 'No' }}
-                                            </span>
-                                        </div>
+                                <td class="px-5 py-4">
+                                    @php
+                                        $isActiveAccount = !isset($user->is_active) || (bool) $user->is_active;
+                                    @endphp
 
-                                        <div>
-                                            <span class="font-medium text-gray-600">Delete Users:</span>
-                                            <span class="{{ $user->can_delete_users ? 'text-green-600' : 'text-gray-400' }}">
-                                                {{ $user->can_delete_users ? 'Yes' : 'No' }}
+                                    <div class="space-y-2">
+                                        @if($isActiveAccount)
+                                            <span class="inline-flex items-center gap-2 rounded-full bg-green-50 px-3 py-1 text-xs font-semibold text-green-700 ring-1 ring-green-100">
+                                                <span class="h-1.5 w-1.5 rounded-full bg-green-500"></span>
+                                                Enabled
                                             </span>
-                                        </div>
+                                        @else
+                                            <span class="inline-flex items-center gap-2 rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-red-700 ring-1 ring-red-100">
+                                                <span class="h-1.5 w-1.5 rounded-full bg-red-500"></span>
+                                                Disabled
+                                            </span>
+
+                                            @if(!empty($user->disabled_at))
+                                                <p class="text-[11px] text-slate-400">
+                                                    {{ \Carbon\Carbon::parse($user->disabled_at)->format('M d, Y h:i A') }}
+                                                </p>
+                                            @endif
+                                        @endif
                                     </div>
                                 </td>
 
-                                <td class="px-4 py-3 border-r border-gray-200">
-                                    {{ $user->created_at?->format('Y-m-d') }}
+                                <td class="px-5 py-4 text-xs">
+                                    <div class="space-y-2">
+                                        <span class="inline-flex rounded-full px-3 py-1 font-semibold {{ $user->can_edit_user_roles ? 'bg-green-50 text-green-700' : 'bg-slate-100 text-slate-500' }}">
+                                            Edit Roles: {{ $user->can_edit_user_roles ? 'Yes' : 'No' }}
+                                        </span>
+                                        <span class="inline-flex rounded-full px-3 py-1 font-semibold {{ $user->can_delete_users ? 'bg-red-50 text-red-700' : 'bg-slate-100 text-slate-500' }}">
+                                            Delete Users: {{ $user->can_delete_users ? 'Yes' : 'No' }}
+                                        </span>
+                                    </div>
                                 </td>
 
-                                <td class="px-4 py-3">
-                                    <div class="flex flex-wrap gap-2">
+                                <td class="px-5 py-4 text-slate-600">
+                                    {{ $user->created_at?->format('M d, Y') }}
+                                </td>
+
+                                <td class="px-5 py-4 text-right">
+                                    <div class="flex flex-col items-end gap-2">
+                                        @if($authUser->isSuperAdmin() && !$user->isSuperAdmin())
+                                            <div x-data="{ accountOpen: @js((int) session('edit_account_user_id') === (int) $user->id || (int) session('edit_account_success_user_id') === (int) $user->id), showPassword: false }" class="w-full">
+                                                <button
+                                                    type="button"
+                                                    @click="accountOpen = !accountOpen"
+                                                    class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-indigo-700"
+                                                >
+                                                    <i class="fas fa-user-pen text-[10px]"></i>
+                                                    Edit Account
+                                                </button>
+
+                                                <div
+                                                    x-cloak
+                                                    x-show="accountOpen"
+                                                    x-transition
+                                                    class="mt-3 w-[360px] rounded-2xl border border-indigo-200 bg-indigo-50 p-4 text-left shadow-sm"
+                                                >
+                                                    <div class="mb-3">
+                                                        <p class="text-sm font-bold text-slate-900">Edit Account</p>
+                                                        <p class="mt-1 text-xs text-slate-600">
+                                                            Update login account details for <span class="font-semibold">{{ $user->name }}</span>.
+                                                        </p>
+                                                    </div>
+
+                                                    @if((int) session('edit_account_user_id') === (int) $user->id && $errors->editAccount->any())
+                                                        <div class="mb-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                                                            <ul class="list-disc pl-4">
+                                                                @foreach($errors->editAccount->all() as $error)
+                                                                    <li>{{ $error }}</li>
+                                                                @endforeach
+                                                            </ul>
+                                                        </div>
+                                                    @endif
+
+                                                    @if((int) session('edit_account_success_user_id') === (int) $user->id)
+                                                        <div class="mb-3 rounded-xl border border-green-200 bg-green-50 px-3 py-2 text-xs font-medium text-green-700">
+                                                            <i class="fas fa-circle-check mr-1"></i>
+                                                            Account updated successfully for {{ $user->name }}.
+                                                        </div>
+                                                    @endif
+
+                                                    <form
+                                                        action="{{ route('admin.users.account.update', $user->id) }}"
+                                                        method="POST"
+                                                        class="space-y-3"
+                                                        onsubmit="return confirm('Save account changes for {{ addslashes($user->name) }}?')"
+                                                    >
+                                                        @csrf
+
+                                                        <div>
+                                                            <label class="mb-1 block text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                                                                Full Name
+                                                            </label>
+                                                            <input
+                                                                type="text"
+                                                                name="name"
+                                                                required
+                                                                value="{{ (int) session('edit_account_user_id') === (int) $user->id ? old('name', $user->name) : $user->name }}"
+                                                                autocomplete="off"
+                                                                class="w-full rounded-xl border border-indigo-200 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100"
+                                                            >
+                                                        </div>
+
+                                                        <div>
+                                                            <label class="mb-1 block text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                                                                Email
+                                                            </label>
+                                                            <input
+                                                                type="email"
+                                                                name="email"
+                                                                required
+                                                                value="{{ (int) session('edit_account_user_id') === (int) $user->id ? old('email', $user->email) : $user->email }}"
+                                                                autocomplete="off"
+                                                                class="w-full rounded-xl border border-indigo-200 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100"
+                                                            >
+                                                        </div>
+
+                                                        <div>
+                                                            <label class="mb-1 block text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                                                                Role
+                                                            </label>
+                                                            <select
+                                                                name="role"
+                                                                class="w-full rounded-xl border border-indigo-200 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100"
+                                                            >
+                                                                <option value="Admin" {{ old('role', $user->role) === 'Admin' ? 'selected' : '' }}>Admin</option>
+                                                                <option value="Employee" {{ old('role', $user->role) === 'Employee' ? 'selected' : '' }}>Employee</option>
+                                                                <option value="Client" {{ old('role', $user->role) === 'Client' ? 'selected' : '' }}>Client</option>
+                                                            </select>
+                                                        </div>
+
+                                                        <div class="rounded-xl border border-indigo-100 bg-white/70 p-3">
+                                                            <p class="mb-2 text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                                                                Account Controls
+                                                            </p>
+
+                                                            <label class="flex items-center gap-2 text-xs text-slate-700">
+                                                                <input
+                                                                    type="checkbox"
+                                                                    name="can_edit_user_roles"
+                                                                    value="1"
+                                                                    {{ old('can_edit_user_roles', $user->can_edit_user_roles) ? 'checked' : '' }}
+                                                                    class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                                                >
+                                                                Can edit user roles
+                                                            </label>
+
+                                                            <label class="mt-2 flex items-center gap-2 text-xs text-slate-700">
+                                                                <input
+                                                                    type="checkbox"
+                                                                    name="can_delete_users"
+                                                                    value="1"
+                                                                    {{ old('can_delete_users', $user->can_delete_users) ? 'checked' : '' }}
+                                                                    class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                                                >
+                                                                Can delete users
+                                                            </label>
+                                                        </div>
+
+                                                        <div class="rounded-xl border border-amber-100 bg-amber-50 p-3">
+                                                            <label class="mb-1 block text-[11px] font-bold uppercase tracking-wide text-amber-700">
+                                                                Optional New Password
+                                                            </label>
+
+                                                            <div class="relative">
+                                                                <input
+                                                                    :type="showPassword ? 'text' : 'password'"
+                                                                    name="password"
+                                                                    autocomplete="new-password"
+                                                                    placeholder="Leave blank to keep current password"
+                                                                    class="w-full rounded-xl border border-amber-200 bg-white py-2 pl-3 pr-10 text-sm outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-100"
+                                                                >
+                                                                <button
+                                                                    type="button"
+                                                                    @click="showPassword = !showPassword"
+                                                                    class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                                                                >
+                                                                    <i class="fas" :class="showPassword ? 'fa-eye-slash' : 'fa-eye'"></i>
+                                                                </button>
+                                                            </div>
+
+                                                            <input
+                                                                :type="showPassword ? 'text' : 'password'"
+                                                                name="password_confirmation"
+                                                                autocomplete="new-password"
+                                                                placeholder="Confirm new password"
+                                                                class="mt-2 w-full rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-100"
+                                                            >
+
+                                                            <p class="mt-2 text-[11px] text-amber-700">
+                                                                Minimum 8 characters only. No uppercase/lowercase/number requirement.
+                                                            </p>
+                                                        </div>
+
+                                                        <div class="flex items-center justify-end gap-2 pt-1">
+                                                            <button
+                                                                type="button"
+                                                                @click="accountOpen = false"
+                                                                class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                                                            >
+                                                                Cancel
+                                                            </button>
+
+                                                            <button
+                                                                type="submit"
+                                                                class="rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-700"
+                                                            >
+                                                                Save Account
+                                                            </button>
+                                                        </div>
+                                                    </form>
+                                                </div>
+                                            </div>
+                                        @endif
+
+                                        @if(
+                                            ($authUser->isSuperAdmin() || $authUser->isAdmin() || $authUser->hasPermission('manage_users'))
+                                            && $authUser->id !== $user->id
+                                            && !$user->isSuperAdmin()
+                                        )
+                                            @if(!isset($user->is_active) || (bool) $user->is_active)
+                                                <form
+                                                    action="{{ route('admin.users.disable', $user->id) }}"
+                                                    method="POST"
+                                                    onsubmit="return confirm('Disable this account? The user will no longer be able to log in.')"
+                                                >
+                                                    @csrf
+
+                                                    <button
+                                                        type="submit"
+                                                        class="inline-flex items-center gap-2 rounded-lg bg-slate-700 px-3 py-2 text-xs font-semibold text-white transition hover:bg-slate-800"
+                                                    >
+                                                        <i class="fas fa-ban text-[10px]"></i>
+                                                        Disable
+                                                    </button>
+                                                </form>
+                                            @else
+                                                <form
+                                                    action="{{ route('admin.users.enable', $user->id) }}"
+                                                    method="POST"
+                                                    onsubmit="return confirm('Enable this account? The user will be allowed to log in again.')"
+                                                >
+                                                    @csrf
+
+                                                    <button
+                                                        type="submit"
+                                                        class="inline-flex items-center gap-2 rounded-lg bg-green-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-green-700"
+                                                    >
+                                                        <i class="fas fa-circle-check text-[10px]"></i>
+                                                        Enable
+                                                    </button>
+                                                </form>
+                                            @endif
+                                        @endif
+
                                         @if($authUser->canDeleteUsers() && $authUser->id !== $user->id && !$user->isSuperAdmin())
                                             <form
                                                 action="{{ route('admin.users.destroy', $user->id) }}"
@@ -374,13 +675,14 @@
 
                                                 <button
                                                     type="submit"
-                                                    class="inline-flex items-center rounded-lg bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700 transition"
+                                                    class="inline-flex items-center gap-2 rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold text-white hover:bg-red-700 transition"
                                                 >
+                                                    <i class="fas fa-trash text-[10px]"></i>
                                                     Delete
                                                 </button>
                                             </form>
-                                        @else
-                                            <span class="text-xs text-gray-400">
+                                        @elseif(!($authUser->isSuperAdmin() && !$user->isSuperAdmin()))
+                                            <span class="text-xs text-slate-400">
                                                 {{ $authUser->id === $user->id ? 'Current user' : 'No action' }}
                                             </span>
                                         @endif
@@ -389,7 +691,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="8" class="px-4 py-8 text-center text-gray-500">
+                                <td colspan="7" class="px-6 py-14 text-center text-slate-500">
                                     No users found.
                                 </td>
                             </tr>
@@ -398,17 +700,7 @@
                 </table>
             </div>
 
-            <div class="mt-3 flex items-center justify-between text-[11px] text-gray-500 px-1">
-                <div>
-                    Total Users <span class="text-gray-800 font-semibold">{{ $users->total() }}</span>
-                </div>
-
-                <div class="flex items-center gap-4">
-                    <span>{{ $users->firstItem() ?? 0 }} to {{ $users->lastItem() ?? 0 }}</span>
-                </div>
-            </div>
-
-            <div class="mt-4">
+            <div class="border-t border-slate-200 px-5 py-4">
                 {{ $users->links() }}
             </div>
         </div>
@@ -416,6 +708,13 @@
 </div>
 
 <script>
+    function filterUsersTable(query) {
+        const search = String(query || '').toLowerCase().trim();
+        document.querySelectorAll('.user-row').forEach(row => {
+            row.style.display = row.dataset.search.includes(search) ? '' : 'none';
+        });
+    }
+
     function usersPage(config) {
         return {
             showCreateUser: config.showCreateUser || false,
@@ -469,10 +768,6 @@
 
                     this.name = employee.name || '';
                     this.email = employee.email || '';
-
-                    // Do not auto-select a role for employee profiles.
-                    // Employee Profile can belong to staff, admin, HR, president, etc.
-                    // Admin must choose the correct role manually.
                 }
 
                 if (this.accountSource === 'client') {
@@ -495,5 +790,4 @@
         };
     }
 </script>
-
 @endsection

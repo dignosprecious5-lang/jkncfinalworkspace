@@ -6,9 +6,23 @@
     $selected = $notice;
     $sectionRibbonPartial = $sectionRibbonPartial ?? 'corporate.partials.section-ribbon';
     $backRoute = $backRoute ?? route('notices');
-    $companyName = $companyName ?? strtoupper($selected->corporation_name ?: 'JOHN KELLY & COMPANY');
-    $companyRegNo = $companyRegNo ?? ($selected->company_reg_no ?: '2025120230900-02');
-    $companyAddress = $companyAddress ?? ($selected->company_address ?: '3RD FLOOR, UNIT 305 CEBU HOLDINGS CENTER CARDINAL ROSALES AVE., CEBU BUSINESS PARK HIPPODROMO, CEBU CITY, 6000');
+    $companyName = $companyName ?? strtoupper((data_get($corporateContext ?? [], 'company_name') ?: data_get($corporateContext ?? [], 'companyName')) ?: ($selected->corporation_name ?: 'JOHN KELLY & COMPANY'));
+    $companyRegNo = $companyRegNo ?? ((data_get($corporateContext ?? [], 'company_reg_no') ?: data_get($corporateContext ?? [], 'companyRegNo')) ?: ($selected->company_reg_no ?: '2025120230900-02'));
+    $companyAddress = $companyAddress ?? ((data_get($corporateContext ?? [], 'company_address') ?: data_get($corporateContext ?? [], 'companyAddress')) ?: ($selected->company_address ?: '3RD FLOOR, UNIT 305 CEBU HOLDINGS CENTER CARDINAL ROSALES AVE., CEBU BUSINESS PARK HIPPODROMO, CEBU CITY, 6000'));
+
+    $gisLogoPath = (data_get($corporateContext ?? [], 'logo_path') ?: data_get($corporateContext ?? [], 'logoPath')) ?: data_get($document ?? [], 'logo_path') ?: data_get($corporateContext['gis'] ?? null, 'logo_path');
+    $gisLogoUrl = null;
+    $gisLogoDataUri = null;
+    if ($gisLogoPath) {
+        $normalizedLogoPath = preg_replace('#^/?storage/#', '', (string) $gisLogoPath);
+        try { $gisLogoUrl = route('uploads.show', ['path' => $normalizedLogoPath]); } catch (\Throwable $e) { $gisLogoUrl = asset('storage/' . $normalizedLogoPath); }
+        $absoluteLogoPath = storage_path('app/public/' . $normalizedLogoPath);
+        if (is_file($absoluteLogoPath)) {
+            $mime = function_exists('mime_content_type') ? (mime_content_type($absoluteLogoPath) ?: 'image/png') : 'image/png';
+            $gisLogoDataUri = 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($absoluteLogoPath));
+        }
+    }
+
     $documentPathCandidates = collect([
         $selected->document_path,
         preg_replace('#^/?storage/#', '', (string) $selected->document_path),
@@ -24,6 +38,62 @@
     $documentUrl = $resolvedDocumentPath
         ? route('uploads.show', ['path' => $resolvedDocumentPath])
         : null;
+
+    $originalNoticePath = data_get($selected, 'original_notice_path');
+    $originalNoticePath = $originalNoticePath ? preg_replace('#^/?storage/#', '', (string) $originalNoticePath) : null;
+    $originalNoticeUrl = ($originalNoticePath && \Illuminate\Support\Facades\Storage::disk('public')->exists($originalNoticePath))
+        ? route('uploads.show', ['path' => $originalNoticePath])
+        : null;
+    $originalNoticeDownloadUrl = $originalNoticeUrl ? route('uploads.show', ['path' => $originalNoticePath, 'download' => 1]) : null;
+
+    /*
+     |--------------------------------------------------------------------------
+     | Draft / Original PDF URLs
+     |--------------------------------------------------------------------------
+     | This blade is shared by:
+     | - Corporate Notice Preview: /corporate/notices/{notice}
+     | - Company Notice Preview:   /company/{company}/corporate-formation/notices/{notice}
+     |
+     | The old code always used route('notices.download'), which points to the
+     | Corporate NoticeController. Company notices can 404 there because they
+     | belong to a company_id. So we first use URLs passed by the company
+     | controller, then safely fall back to company routes when the current
+     | request has a company route parameter, then finally fall back to the
+     | normal corporate routes.
+     */
+
+    $routeCompany = request()->route('company');
+    $routeCompanyId = is_object($routeCompany) ? data_get($routeCompany, 'id') : $routeCompany;
+    $hasCompanyNoticeContext = filled($routeCompanyId)
+        && \Illuminate\Support\Facades\Route::has('company.corporate-formation.notices.download');
+
+    $noticePreviewRoute = $previewRoute
+        ?? ($hasCompanyNoticeContext && \Illuminate\Support\Facades\Route::has('company.corporate-formation.notices.preview')
+            ? route('company.corporate-formation.notices.preview', [$routeCompanyId, $selected->id])
+            : route('notices.preview', $selected));
+
+    $livePdfUrl = $draftPdfUrl
+        ?? $downloadRoute
+        ?? ($hasCompanyNoticeContext
+            ? route('company.corporate-formation.notices.download', [$routeCompanyId, $selected->id])
+            : route('notices.download', $selected));
+
+    $livePdfDownloadUrl = $draftPdfDownloadUrl
+        ?? ($hasCompanyNoticeContext
+            ? route('company.corporate-formation.notices.download', [$routeCompanyId, $selected->id, 'download' => 1])
+            : route('notices.download', $selected));
+
+    $uploadOriginalAction = $uploadOriginalRoute
+        ?? ($hasCompanyNoticeContext && \Illuminate\Support\Facades\Route::has('company.corporate-formation.notices.upload-original')
+            ? route('company.corporate-formation.notices.upload-original', [$routeCompanyId, $selected->id])
+            : route('notices.upload-original', $selected));
+
+    $noticePreviewDraftUrl = $noticePreviewRoute . (str_contains($noticePreviewRoute, '?') ? '&' : '?') . 'version=draft';
+    $noticePreviewOriginalUrl = $noticePreviewRoute . (str_contains($noticePreviewRoute, '?') ? '&' : '?') . 'version=original';
+
+    $activePdfVersion = request('version') === 'original' && $originalNoticeUrl ? 'original' : 'draft';
+    $previewPdfUrl = $activePdfVersion === 'original' ? $originalNoticeUrl : $livePdfUrl;
+    $previewPdfDownloadUrl = $activePdfVersion === 'original' ? $originalNoticeDownloadUrl : $livePdfDownloadUrl;
 
     $meetingTitle = strtoupper(trim(($selected->type_of_meeting ?: 'Special') . ' ' . ($selected->governing_body ?: 'Board of Directors') . ' Meeting'));
     $noticeDate = optional($selected->date_of_notice)->format('F d, Y')
@@ -47,6 +117,23 @@
     $meetingLocation = $selected->location ?: '________________';
     $secretaryName = $selected->secretary ?: 'Corporate Secretary';
     $agendaHtml = $selected->body_html ?: '<p>&nbsp;</p>';
+    $selectedMode = $selected->meeting_mode ?: '________________';
+    $meetingPlatform = $selected->meeting_platform ?: '________________';
+    $meetingLinkDetails = $selected->meeting_link_details ?: '________________';
+    $accessDetails = trim($meetingPlatform . (($meetingLinkDetails && $meetingLinkDetails !== '________________') ? ' - ' . $meetingLinkDetails : ''));
+    $chairmanName = $selected->chairman ?: '________________';
+    $meetingOfficer = $selected->authorized_meeting_officer ?: ($selected->secretary ?: 'Corporate Secretary');
+    $confirmationEmail = $selected->confirmation_email ?: '________________';
+    $confirmationPhone = $selected->confirmation_phone ?: '________________';
+    $officeAddress = $selected->office_address ?: '________________';
+    $emailDeadline = $selected->email_phone_confirmation_deadline ?: 'forty-eight (48) hours';
+    $physicalDeadline = $selected->physical_submission_deadline ?: 'three (3) days';
+    $authorityCalling = $selected->authority_calling_meeting ?: '________________';
+
+    // President-requested cleanup: do not show internal meeting officer/contact/deadline block in the notice output.
+
+    $gisLogoHtml = $gisLogoUrl ? '<img src="' . e($gisLogoUrl) . '" style="max-height:58px;max-width:210px;object-fit:contain;margin:0 auto 6px;display:block;" alt="Company Logo">' : '';
+
 
     $generatedNoticePane = <<<HTML
 <!DOCTYPE html>
@@ -79,7 +166,6 @@
             padding: 48px;
             font-size: 15px;
             line-height: 1.85;
-            overflow: hidden;
             overflow-wrap: anywhere;
             word-wrap: break-word;
             word-break: break-word;
@@ -181,8 +267,30 @@
             overflow-wrap: anywhere !important;
         }
 
+
+        .procedure-text {
+            margin-top: 24px;
+            text-align: justify;
+            break-inside: auto;
+            page-break-inside: auto;
+        }
+
+        .procedure-details {
+            margin-top: 18px;
+            font-size: 13px;
+            line-height: 1.65;
+            break-inside: avoid;
+            page-break-inside: avoid;
+        }
+
+        .procedure-details div {
+            margin-bottom: 4px;
+        }
+
         .signature {
-            margin-top: 64px;
+            margin-top: 48px;
+            break-inside: avoid;
+            page-break-inside: avoid;
         }
 
         .signature .name {
@@ -209,6 +317,7 @@
 <body>
     <div class="page">
         <div class="center">
+            {$gisLogoHtml}
             <div style="font-size:1.1rem;font-weight:700;text-transform:uppercase;">{$companyName}</div>
             <div style="font-size:0.95rem;font-weight:700;">COMPANY REG. NO.: {$companyRegNo}</div>
             <div style="margin-top:4px;font-size:0.95rem;">{$companyAddress}</div>
@@ -229,10 +338,18 @@
                 </strong>
             </p>
 
+            <p>
+                The meeting shall proceed through {$selectedMode}. For virtual or hybrid meetings, access shall be through {$accessDetails}. Only confirmed persons with proper identity, authority, and right to attend, vote, approve, or submit documents shall be allowed or recognized, in accordance with applicable law, the By-Laws, SEC rules, approved procedures, and duly adopted internal policies.
+            </p>
+
             <div class="agenda">
                 <div><strong>Agenda:</strong></div>
                 <div>{$agendaHtml}</div>
             </div>
+
+            <p class="procedure-text">
+                The meeting shall be presided over by {$chairmanName}, or by another duly authorized person, and shall be conducted in accordance with the Revised Corporation Code of the Philippines, the Corporation’s Articles of Incorporation, By-Laws, approved rules of procedure, applicable SEC rules and issuances, and duly adopted internal policies. Only confirmed persons with proper identity, authority, and right to attend, vote, approve, or submit documents shall be allowed or recognized, subject to applicable law and the Corporation’s approved procedures.
+            </p>
         </div>
 
         <div class="signature">
@@ -248,7 +365,7 @@
                 <div>Company Reg. No.: {$companyRegNo}</div>
                 <div>{$companyAddress}</div>
             </div>
-            <div style="font-weight:700;">Page 1 of 1</div>
+            <div style="font-weight:700;">Page</div>
         </div>
     </div>
 </body>
@@ -306,6 +423,15 @@ HTML;
 
             <div class="flex-1"></div>
 
+            <div class="inline-flex rounded-full bg-gray-100 p-1 text-xs font-semibold">
+                <a href="{{ $noticePreviewDraftUrl }}" class="rounded-full px-3 py-1 {{ $activePdfVersion === 'draft' ? 'bg-white text-blue-700 shadow' : 'text-gray-600 hover:text-gray-900' }}">Draft</a>
+                <a href="{{ $originalNoticeUrl ? $noticePreviewOriginalUrl : '#' }}" class="rounded-full px-3 py-1 {{ $activePdfVersion === 'original' ? 'bg-white text-blue-700 shadow' : 'text-gray-600 hover:text-gray-900' }} {{ $originalNoticeUrl ? '' : 'pointer-events-none opacity-50' }}">Original / Signed</a>
+            </div>
+
+            <a href="{{ $previewPdfDownloadUrl }}" target="_blank" class="px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium">
+                <i class="fas fa-file-pdf mr-1"></i> Open / Download {{ $activePdfVersion === 'original' ? 'Original / Signed' : 'Draft' }} PDF
+            </a>
+
             <span class="px-3 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-700">
                 {{ $selected->type_of_meeting }}
             </span>
@@ -313,17 +439,10 @@ HTML;
 
         <div class="grid grid-cols-1 lg:grid-cols-5 gap-6 p-6">
             <div class="lg:col-span-3 space-y-4">
-                @if ($documentUrl)
-                    <iframe
-                        src="{{ $documentUrl }}"
-                        class="w-full h-[700px] border rounded bg-white">
-                    </iframe>
-                @else
-                    <iframe
-                        src="{{ $generatedNoticePaneUrl }}"
-                        class="w-full h-[700px] border rounded bg-white">
-                    </iframe>
-                @endif
+                <iframe
+                    src="{{ $previewPdfUrl }}#view=FitH&zoom=page-fit"
+                    class="w-full h-[calc(100vh-16rem)] min-h-[780px] border rounded bg-white">
+                </iframe>
             </div>
 
             <div class="lg:col-span-2 space-y-4">
@@ -371,6 +490,29 @@ HTML;
                     </div>
                 </div>
 
+
+                <div class="bg-white border border-gray-200 rounded-xl p-4">
+                    <div class="text-sm font-semibold text-gray-900">Original / Signed Notice</div>
+                    <div class="mt-1 text-xs text-gray-500">Upload the scanned signed/notarized notice here after printing the Draft PDF. This is separate from the draft/source PDF uploaded during Add Notice.</div>
+
+                    @if($originalNoticeUrl)
+                        <div class="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+                            <span>Original / signed copy uploaded.</span>
+                            <a href="{{ $originalNoticeDownloadUrl }}" target="_blank" class="font-semibold text-emerald-700 hover:underline">Open</a>
+                        </div>
+                    @else
+                        <div class="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">No original / signed copy uploaded yet.</div>
+                    @endif
+
+                    <form method="POST" action="{{ $uploadOriginalAction }}" enctype="multipart/form-data" class="mt-3 space-y-3">
+                        @csrf
+                        <input type="file" name="original_notice_path" accept="application/pdf" required class="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                        <button type="submit" class="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
+                            Upload Original / Signed Notice
+                        </button>
+                    </form>
+                </div>
+
                 <div class="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
                     <div class="text-sm font-semibold text-gray-900 mb-3">Connected Records</div>
                     <div class="space-y-3 text-sm">
@@ -387,6 +529,58 @@ HTML;
                             <div class="font-medium text-gray-900">{{ $selected->secretaryCertificates->count() }} linked</div>
                         </div>
                     </div>
+                </div>
+
+                <div class="bg-white border border-gray-200 rounded-xl p-4">
+                    <div class="flex items-start justify-between gap-3 mb-3">
+                        <div>
+                            <div class="text-sm font-semibold text-gray-900">Expected Attendees</div>
+                            <div class="text-xs text-gray-500">Auto-loaded from the latest GIS. Add/edit emails in GIS Directors/Officers or Stockholders.</div>
+                        </div>
+                        <span class="px-2 py-1 rounded-full bg-blue-50 text-blue-700 text-[11px] font-semibold">{{ $selected->attendees->count() }} listed</span>
+                    </div>
+
+                    @if (session('success'))
+                        <div class="mb-3 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-700">{{ session('success') }}</div>
+                    @endif
+                    @if (session('error'))
+                        <div class="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{{ session('error') }}</div>
+                    @endif
+
+                    @php
+                        $noticeSendRoute = $sendRoute ?? route('notices.send', $selected);
+                    @endphp
+
+                    @if ($selected->attendees->isNotEmpty())
+                        <form method="POST" action="{{ $noticeSendRoute }}" class="space-y-3">
+                            @csrf
+                            <div class="max-h-72 overflow-y-auto divide-y divide-gray-100 border border-gray-100 rounded-lg">
+                                @foreach ($selected->attendees->sortBy('sort_order') as $attendee)
+                                    <label class="flex items-start gap-3 p-3 hover:bg-gray-50">
+                                        <input type="checkbox" name="attendee_ids[]" value="{{ $attendee->id }}" class="mt-1 rounded border-gray-300 text-blue-600 focus:ring-blue-500" @checked($attendee->is_selected && $attendee->email) @disabled(blank($attendee->email))>
+                                        <div class="min-w-0 flex-1">
+                                            <div class="text-sm font-semibold text-gray-900">{{ $attendee->name }}</div>
+                                            <div class="text-xs text-gray-500">{{ $attendee->position ?: ucfirst(str_replace('_', ' ', $attendee->source_type)) }}</div>
+                                            <div class="text-xs {{ $attendee->email ? 'text-gray-700' : 'text-red-600' }} break-all">
+                                                {{ $attendee->email ?: 'No email yet. Add email in the latest GIS record.' }}
+                                            </div>
+                                            @if ($attendee->sent_at)
+                                                <div class="mt-1 text-[11px] text-green-700">Sent {{ optional($attendee->sent_at)->format('M d, Y h:i A') }}</div>
+                                            @endif
+                                        </div>
+                                    </label>
+                                @endforeach
+                            </div>
+
+                            <button type="submit" class="w-full px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold">
+                                <i class="fas fa-paper-plane mr-1"></i> Send Notice with PDF
+                            </button>
+                        </form>
+                    @else
+                        <div class="rounded-lg border border-yellow-200 bg-yellow-50 px-3 py-3 text-xs text-yellow-800">
+                            No expected attendees were found. For company notices, add Directors/Officers or Stockholders with email addresses in the latest GIS first.
+                        </div>
+                    @endif
                 </div>
 
                 <div class="bg-white border border-gray-200 rounded-xl p-4">

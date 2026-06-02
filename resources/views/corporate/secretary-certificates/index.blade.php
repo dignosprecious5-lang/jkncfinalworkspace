@@ -19,8 +19,10 @@
         'date_of_meeting' => optional($resolution->date_of_meeting)->toDateString(),
         'location' => $resolution->location,
         'board_resolution' => $resolution->board_resolution,
+        'resolution_body' => $resolution->full_resolution_body ?? $resolution->resolution_body,
         'secretary' => $resolution->secretary,
         'notary_public' => $resolution->notary_public,
+        'notarial_place' => $resolution->notarized_at ?: $resolution->location,
         'notary_doc_no' => $resolution->notary_doc_no,
         'notary_page_no' => $resolution->notary_page_no,
         'notary_book_no' => $resolution->notary_book_no,
@@ -250,7 +252,7 @@
                                 <button type="button" @click="applyBodyFormat('justifyRight')" class="rounded-lg border border-gray-300 px-2.5 py-1 text-xs">Right</button>
                                 <button type="button" @click="applyBodyFormat('removeFormat')" class="rounded-lg border border-gray-300 px-2.5 py-1 text-xs">Clear</button>
                             </div>
-                            <div x-ref="resolutionBodyEditor" @input="syncBody()" class="secretary-rich-editor min-h-[260px] px-4 py-3 text-sm leading-7 text-gray-900 outline-none" contenteditable="true" data-placeholder="Write the certified body here..."></div>
+                            <div x-ref="resolutionBodyEditor" @input="syncBody()" class="secretary-rich-editor min-h-[260px] px-4 py-3 text-sm leading-7 text-gray-900 outline-none" contenteditable="true" data-placeholder="Auto-filled from the linked Resolution. Add details only if needed..."></div>
                         </div>
                     </div>
                     <div>
@@ -264,6 +266,18 @@
                     <div>
                         <label class="text-xs text-gray-600">Secretary</label>
                         <input type="text" name="secretary" x-ref="secretary" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
+                    </div>
+                    <div>
+                        <label class="text-xs text-gray-600">Secretary Address</label>
+                        <input type="text" name="secretary_address" x-ref="secretaryAddress" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm" placeholder="Auto-filled from GIS if available">
+                    </div>
+                    <div>
+                        <label class="text-xs text-gray-600">Secretary TIN</label>
+                        <input type="text" name="secretary_tin" x-ref="secretaryTin" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm" placeholder="Auto-filled from GIS if available">
+                    </div>
+                    <div>
+                        <label class="text-xs text-gray-600">Notarial Place / City</label>
+                        <input type="text" name="notarial_place" x-ref="notarialPlace" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm" placeholder="Cebu City, Philippines">
                     </div>
                     <div>
                         <label class="text-xs text-gray-600">Notary Public</label>
@@ -409,9 +423,12 @@
                 this.$refs.location.value = selected.location || '';
                 this.$refs.purpose.value = selected.board_resolution || '';
                 if (this.$refs.resolutionBodyEditor) {
-                    this.$refs.resolutionBodyEditor.innerHTML = selected.board_resolution || '';
+                    this.$refs.resolutionBodyEditor.innerHTML = selected.resolution_body || selected.board_resolution || '';
                 }
                 this.$refs.secretary.value = selected.secretary || '';
+                if (this.$refs.secretaryAddress) this.$refs.secretaryAddress.value = '';
+                if (this.$refs.secretaryTin) this.$refs.secretaryTin.value = '';
+                if (this.$refs.notarialPlace) this.$refs.notarialPlace.value = selected.notarial_place || selected.location || 'Cebu City, Philippines';
                 this.$refs.notaryPublic.value = selected.notary_public || '';
                 this.$refs.docNo.value = selected.notary_doc_no || '';
                 this.$refs.pageNo.value = selected.notary_page_no || '';
@@ -441,6 +458,9 @@
                     }
                 }
                 this.$refs.secretary.value = selected.secretary || '';
+                if (this.$refs.secretaryAddress) this.$refs.secretaryAddress.value = '';
+                if (this.$refs.secretaryTin) this.$refs.secretaryTin.value = '';
+                if (this.$refs.notarialPlace) this.$refs.notarialPlace.value = selected.location || 'Cebu City, Philippines';
                 if (this.sourceType === 'minutes') {
                     this.$refs.notaryPublic.value = '';
                     this.$refs.docNo.value = '';

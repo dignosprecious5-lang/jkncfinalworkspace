@@ -23,13 +23,96 @@
         'download_url' => route('uploads.show', ['path' => $path, 'download' => 1]),
         'saved' => true,
     ])->values();
-    $canApproveMinutes = auth()->user()?->role === 'Admin';
+    $canApproveMinutes = in_array(auth()->user()?->role, ['Admin', 'Super Admin', 'superadmin'], true);
     $minutesDocumentTitle = strtoupper(trim('Minutes of the ' . ($minute->type_of_meeting ?: 'Special') . ' ' . ($minute->governing_body ?: 'Meeting')));
     $templatePreviewUrl = $templatePreviewUrl ?? null;
     $templatePreviewDownloadUrl = $templatePreviewDownloadUrl ?? null;
     $workspaceSaveUrl = $workspaceSaveUrl ?? route('minutes.workspace-save', $minute);
     $finalAudioSaveUrl = $finalAudioSaveUrl ?? route('minutes.final-audio', $minute);
     $finalSaveUrl = $finalSaveUrl ?? route('minutes.final-save', $minute);
+
+    $activeMinutesPdfVersion = request('version') === 'original' && $approvedMinutesUrl ? 'original' : 'draft';
+    $activeMinutesPdfUrl = $activeMinutesPdfVersion === 'original' ? $approvedMinutesUrl : $templatePreviewUrl;
+    $activeMinutesPdfDownloadUrl = $activeMinutesPdfVersion === 'original' ? $approvedMinutesDownloadUrl : $templatePreviewDownloadUrl;
+
+    $parseAttendanceRows = function ($value, array $fallback = []) {
+        $rows = [];
+
+        if (is_string($value) && trim($value) !== '') {
+            $decoded = json_decode($value, true);
+
+            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                $rows = $decoded;
+            } else {
+                $rows = collect(preg_split('/\r\n|\r|\n/', $value))
+                    ->map(function ($line) {
+                        $parts = array_map('trim', explode('|', $line, 2));
+
+                        return [
+                            'name' => $parts[0] ?? '',
+                            'position' => $parts[1] ?? '',
+                        ];
+                    })
+                    ->filter(fn ($row) => ($row['name'] ?? '') !== '' || ($row['position'] ?? '') !== '')
+                    ->values()
+                    ->all();
+            }
+        } elseif (is_array($value)) {
+            $rows = $value;
+        }
+
+        $rows = collect($rows)
+            ->map(function ($row) {
+                return [
+                    'name' => trim((string) ($row['name'] ?? '')),
+                    'position' => trim((string) ($row['position'] ?? $row['role'] ?? '')),
+                ];
+            })
+            ->filter(fn ($row) => $row['name'] !== '' || $row['position'] !== '')
+            ->values()
+            ->all();
+
+        return !empty($rows) ? $rows : $fallback;
+    };
+
+    $directorsPresentRows = $parseAttendanceRows($minute->directors_present ?? null, array_values(array_filter([
+        $minute->chairman ? ['name' => $minute->chairman, 'position' => 'President/Chairman'] : null,
+        $minute->secretary ? ['name' => $minute->secretary, 'position' => 'Corporate Secretary'] : null,
+    ])));
+    $directorsAbsentRows = $parseAttendanceRows($minute->directors_absent ?? null);
+    $secretariatRows = $parseAttendanceRows($minute->secretariat ?? null, $minute->secretary ? [
+        ['name' => $minute->secretary, 'position' => 'Corporate Secretary'],
+    ] : []);
+    $guestRows = $parseAttendanceRows($minute->guests ?? null);
+    $governingBodyLower = strtolower((string) ($minute->governing_body ?? ''));
+    if (str_contains($governingBodyLower, 'joint')) {
+        $attendanceBaseLabel = 'Directors and Stockholders';
+    } elseif (str_contains($governingBodyLower, 'stockholder') && !str_contains($governingBodyLower, 'board')) {
+        $attendanceBaseLabel = 'Stockholders';
+    } else {
+        $attendanceBaseLabel = 'Directors';
+    }
+    $presentHeading = $attendanceBaseLabel . ' Present';
+    $absentHeading = $attendanceBaseLabel . ' Absent';
+    $jkCompanyName = strtoupper((data_get($corporateContext ?? [], 'company_name') ?: data_get($corporateContext ?? [], 'companyName')) ?: 'JOHN KELLY & COMPANY');
+    $jkCompanyAddress = (data_get($corporateContext ?? [], 'company_address') ?: data_get($corporateContext ?? [], 'companyAddress')) ?: '3F, Cebu Holdings Center, Cebu Business Park, Cebu City, Philippines 6000';
+
+    $gisLogoPath = (data_get($corporateContext ?? [], 'logo_path') ?: data_get($corporateContext ?? [], 'logoPath'));
+    $gisLogoUrl = null;
+    $gisLogoDataUri = null;
+    if ($gisLogoPath) {
+        $normalizedLogoPath = preg_replace('#^/?storage/#', '', (string) $gisLogoPath);
+        try { $gisLogoUrl = route('uploads.show', ['path' => $normalizedLogoPath]); } catch (\Throwable $e) { $gisLogoUrl = asset('storage/' . $normalizedLogoPath); }
+        $absoluteLogoPath = storage_path('app/public/' . $normalizedLogoPath);
+        if (is_file($absoluteLogoPath)) {
+            $mime = function_exists('mime_content_type') ? (mime_content_type($absoluteLogoPath) ?: 'image/png') : 'image/png';
+            $gisLogoDataUri = 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($absoluteLogoPath));
+        }
+    }
+
+    $meetingTitleLine = trim(($minute->type_of_meeting ?: 'Regular') . ' ' . ($minute->governing_body ?: 'Board of Directors') . ' Meeting');
+    $meetingDateLine = optional($minute->date_of_meeting)->format('F d, Y') ?: '________________';
+    $meetingTimeLine = $minute->time_started ? \Carbon\Carbon::parse($minute->time_started)->format('g:i A') : '________________';
 @endphp
 
 <div class="w-full px-4 sm:px-6 lg:px-8 mt-4">
@@ -55,6 +138,67 @@
         content: attr(data-placeholder);
         color: #94a3b8;
         pointer-events: none;
+    }
+
+    #minutes-template-editor {
+        min-height: 0 !important;
+        line-height: 1.45 !important;
+        padding-bottom: 0 !important;
+        margin-bottom: 0 !important;
+    }
+
+    #minutes-template-editor p,
+    #minutes-template-editor div {
+        margin-top: 0 !important;
+        margin-bottom: 4px !important;
+        min-height: 0 !important;
+    }
+
+    #minutes-print-signatures {
+        margin-top: 14px !important;
+    }
+
+
+    .minutes-template-workspace {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 16px;
+        align-items: start;
+    }
+
+    @media (min-width: 1280px) {
+        .minutes-template-workspace {
+            grid-template-columns: minmax(0, 840px) minmax(380px, 1fr);
+        }
+    }
+
+    .minutes-preview-scroller {
+        max-height: calc(100vh - 235px);
+        overflow: auto;
+    }
+
+    .minutes-builder-sticky {
+        position: sticky;
+        top: 96px;
+        max-height: calc(100vh - 130px);
+        overflow: auto;
+    }
+
+    .minutes-a4-sheet {
+        width: 794px;
+        min-height: 1123px;
+        max-width: none;
+    }
+
+    @media (max-width: 1279px) {
+        .minutes-builder-sticky {
+            position: static;
+            max-height: none;
+        }
+
+        .minutes-a4-sheet {
+            max-width: 100%;
+        }
     }
 </style>
 
@@ -234,120 +378,220 @@
                 </section>
 
                 <section data-preview-tab="template" class="hidden space-y-4">
-                    <div class="grid grid-cols-1 xl:grid-cols-[minmax(0,1.7fr)_minmax(420px,0.95fr)] gap-6 min-h-[calc(100vh-15rem)]">
-                        <div class="rounded-2xl border border-slate-200 overflow-hidden bg-[#f8fafc] flex flex-col">
+                    <div class="minutes-template-workspace">
+                        {{-- LEFT SIDE: A4 TEMPLATE PREVIEW --}}
+                        <div class="min-w-0 rounded-2xl border border-slate-200 overflow-hidden bg-[#f8fafc] flex flex-col self-start">
                             <div class="px-4 py-3 border-b border-gray-100 flex flex-wrap items-center gap-2 bg-white">
                                 <div>
-                                    <div class="text-sm font-semibold text-gray-900">Template Builder Page</div>
-                                    <div class="text-xs text-gray-500">This page follows the `resources/doc_templates/[TEMPLATE-SKBL] Minutes of Special Meeting_ (Title).docx` structure and updates in real time.</div>
+                                    <div class="text-sm font-semibold text-gray-900">Minutes Template Preview</div>
+                                    <div class="text-xs text-gray-500">Preview the minutes format before saving the final minutes.</div>
                                 </div>
                                 <div class="flex-1"></div>
-                                <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">Live Template</span>
+                                <div class="inline-flex rounded-full bg-slate-100 p-1 text-xs font-semibold">
+                                    <a href="{{ route('minutes.preview', $minute) }}?version=draft" class="rounded-full px-3 py-1 {{ $activeMinutesPdfVersion === 'draft' ? 'bg-white text-blue-700 shadow' : 'text-slate-600 hover:text-slate-900' }}">Draft</a>
+                                    <a href="{{ $approvedMinutesUrl ? route('minutes.preview', $minute) . '?version=original' : '#' }}" class="rounded-full px-3 py-1 {{ $activeMinutesPdfVersion === 'original' ? 'bg-white text-blue-700 shadow' : 'text-slate-600 hover:text-slate-900' }} {{ $approvedMinutesUrl ? '' : 'pointer-events-none opacity-50' }}">Approved / Signed</a>
+                                </div>
+                                <a
+                                    id="minutes-template-download-btn"
+                                    href="{{ $activeMinutesPdfDownloadUrl ?: '#' }}"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    class="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700 {{ $activeMinutesPdfDownloadUrl ? '' : 'pointer-events-none opacity-50' }}"
+                                >
+                                    <i class="fas fa-download"></i>
+                                    Download {{ $activeMinutesPdfVersion === 'original' ? 'Approved / Signed' : 'Draft' }} PDF
+                                </a>
                             </div>
-                            <div class="flex-1 overflow-auto p-6">
-                                <div class="mx-auto max-w-[860px] rounded-sm bg-white px-14 py-12 shadow-[0_18px_50px_rgba(15,23,42,0.08)]" style="font-family: Georgia, 'Times New Roman', serif;">
+
+                            <div class="minutes-preview-scroller p-4">
+                                <div
+                                    class="minutes-a4-sheet mx-auto rounded-sm bg-white shadow-[0_18px_50px_rgba(15,23,42,0.08)]"
+                                    style="font-family: Georgia, 'Times New Roman', serif; padding: 56px 64px;"
+                                >
                                     <div class="text-center">
-                                        <div class="text-[22px] font-bold uppercase tracking-[0.03em]">JOHN KELLY &amp; COMPANY</div>
-                                        <div class="mt-1 text-[15px]">COMPANY REG. NO.: 2025120230900-02</div>
-                                        <div class="mt-1 text-[15px]">3RD FLOOR, UNIT 305 CEBU HOLDINGS CENTER CARDINAL ROSALES AVE., CEBU BUSINESS PARK HIPPODROMO, CEBU CITY, 6000</div>
-                                        <div class="mt-10 text-[20px] font-bold">{{ $minute->type_of_meeting ?: 'Special' }} {{ $minute->governing_body ?: 'Directors' }} Meeting</div>
-                                        <div class="mt-2 text-[18px]">of</div>
-                                        <div class="mt-2 text-[20px] font-bold uppercase">JOHN KELLY &amp; COMPANY</div>
-                                        <div class="mt-8 text-[16px] italic">Held at</div>
-                                        <div class="mt-1 text-[16px] italic">{{ $minute->location ?: '________________' }}</div>
-                                        <div class="mt-5 text-[16px] italic">On</div>
-                                        <div class="mt-1 text-[16px] italic">{{ optional($minute->date_of_meeting)->format('F d, Y') ?: '________________' }}</div>
+                                        @if($gisLogoUrl)
+                                            <img src="{{ $gisLogoUrl }}" alt="Company Logo" class="mx-auto mb-2 h-16 w-auto object-contain">
+                                        @else
+                                            <div class="text-[32px] leading-tight font-semibold uppercase" style="font-family: Georgia, 'Times New Roman', serif;">{{ $jkCompanyName }}</div>
+                                        @endif
+                                        <div class="mt-4 text-[15px]">{{ $jkCompanyAddress }}</div>
+
+                                        <div class="mt-8 text-[18px] font-bold uppercase">MINUTES OF THE</div>
+                                        <div class="text-[17px]">{{ $meetingTitleLine }}</div>
+                                        <div class="text-[17px]">of</div>
+                                        <div class="text-[18px] uppercase">{{ $jkCompanyName }}</div>
+
+                                        <div class="mt-8 text-[16px]">held at</div>
+                                        <div class="mt-3 text-[16px] leading-6">{{ $minute->location ?: '________________' }}</div>
+                                        @if($minute->meeting_mode)
+                                            <div class="mt-2 text-[16px] leading-6">and Mode of Meeting: {{ $minute->meeting_mode }}</div>
+                                        @endif
+                                        @if($minute->call_link && !str_contains(strtolower((string) $minute->meeting_mode), 'physical'))
+                                            <div class="mt-1 text-[16px] leading-6">
+                                                Meeting Link:<br>
+                                                <span style="color:#2563eb;text-decoration:underline;word-break:break-all;">{{ $minute->call_link }}</span>
+                                            </div>
+                                        @endif
+
+                                        <div class="mt-5 text-[16px]">on</div>
+                                        <div class="text-[16px]">{{ $meetingDateLine }}</div>
+                                        <div class="text-[16px]">at {{ $meetingTimeLine }}</div>
                                     </div>
 
-                                    <div class="mt-10">
-                                        <div class="text-[15px] font-bold">Attending:</div>
-                                        <table class="mt-3 w-full table-fixed border-collapse text-[14px] leading-6">
+                                    <div class="mt-5 text-[15px] leading-7">
+                                        <div class="font-bold text-[16px]">{{ $presentHeading }}</div>
+                                        <table class="mt-1 w-full table-fixed border-collapse">
+                                            <thead>
+                                                <tr>
+                                                    <th class="w-[45%] py-1 text-left font-bold">Name</th>
+                                                    <th class="py-1 text-left font-bold">Position</th>
+                                                </tr>
+                                            </thead>
                                             <tbody>
+                                                @forelse($directorsPresentRows as $row)
+                                                    <tr>
+                                                        <td class="py-1 pr-4">{{ $row['name'] ?: '________________' }}</td>
+                                                        <td class="py-1">{{ $row['position'] ?: '________________' }}</td>
+                                                    </tr>
+                                                @empty
+                                                    <tr>
+                                                        <td class="py-1 pr-4">________________</td>
+                                                        <td class="py-1">________________</td>
+                                                    </tr>
+                                                @endforelse
+                                            </tbody>
+                                        </table>
+
+                                        <div class="mt-2 font-bold text-[16px]">{{ $absentHeading }}</div>
+                                        <table class="mt-1 w-full table-fixed border-collapse">
+                                            <thead>
                                                 <tr>
-                                                    <td class="w-[24%] py-1 font-semibold">Directors:</td>
-                                                    <td class="w-[40%] py-1">{{ $minute->chairman ?: '________________' }}</td>
-                                                    <td class="py-1">President/Chairman</td>
+                                                    <th class="w-[45%] py-1 text-left font-bold">Name</th>
+                                                    <th class="py-1 text-left font-bold">Position</th>
                                                 </tr>
+                                            </thead>
+                                            <tbody>
+                                                @forelse($directorsAbsentRows as $row)
+                                                    <tr>
+                                                        <td class="py-1 pr-4">{{ $row['name'] ?: '________________' }}</td>
+                                                        <td class="py-1">{{ $row['position'] ?: '________________' }}</td>
+                                                    </tr>
+                                                @empty
+                                                    <tr>
+                                                        <td class="py-1 pr-4 font-bold" colspan="2">NO ABSENT</td>
+                                                    </tr>
+                                                @endforelse
+                                            </tbody>
+                                        </table>
+
+                                        <div class="mt-6 font-bold text-[16px]">Corporate Secretary</div>
+                                        <table class="mt-1 w-full table-fixed border-collapse">
+                                            <thead>
                                                 <tr>
-                                                    <td class="py-1"></td>
-                                                    <td class="py-1">{{ $minute->secretary ?: '________________' }}</td>
-                                                    <td class="py-1">Corporate Secretary</td>
+                                                    <th class="w-[45%] py-1 text-left font-bold">Name</th>
+                                                    <th class="py-1 text-left font-bold">Role</th>
                                                 </tr>
+                                            </thead>
+                                            <tbody>
+                                                @forelse($secretariatRows as $row)
+                                                    <tr>
+                                                        <td class="py-1 pr-4">{{ $row['name'] ?: '________________' }}</td>
+                                                        <td class="py-1">{{ $row['position'] ?: '________________' }}</td>
+                                                    </tr>
+                                                @empty
+                                                    <tr>
+                                                        <td class="py-1 pr-4">________________</td>
+                                                        <td class="py-1">Corporate Secretary</td>
+                                                    </tr>
+                                                @endforelse
+                                            </tbody>
+                                        </table>
+
+                                        <div class="mt-2 font-bold text-[16px]">Guests</div>
+                                        <table class="mt-1 w-full table-fixed border-collapse">
+                                            <thead>
                                                 <tr>
-                                                    <td class="py-1 font-semibold">Other Attendee:</td>
-                                                    <td class="py-1">{{ $minute->uploaded_by ?: '________________' }}</td>
-                                                    <td class="py-1">Recorder</td>
+                                                    <th class="w-[45%] py-1 text-left font-bold">Name</th>
+                                                    <th class="py-1 text-left font-bold">Role</th>
                                                 </tr>
+                                            </thead>
+                                            <tbody>
+                                                @forelse($guestRows as $row)
+                                                    <tr>
+                                                        <td class="py-1 pr-4">{{ $row['name'] ?: '________________' }}</td>
+                                                        <td class="py-1">{{ $row['position'] ?: '________________' }}</td>
+                                                    </tr>
+                                                @empty
+                                                    <tr>
+                                                        <td class="py-1 pr-4 font-bold" colspan="2">NO GUESTS</td>
+                                                    </tr>
+                                                @endforelse
                                             </tbody>
                                         </table>
                                     </div>
 
-                                    <div class="mt-10">
+                                    <div class="mt-3">
                                         <div class="text-[15px] font-bold">Minutes Proper:</div>
-                                        <div id="minutes-template-editor" class="minutes-rich-editor mt-4 min-h-[360px] whitespace-pre-wrap text-[15px] leading-8 text-slate-900 outline-none" contenteditable="true" data-placeholder="Type the minutes following the template here..."></div>
+                                        <div id="minutes-template-editor" class="minutes-rich-editor mt-1 min-h-0 whitespace-pre-wrap text-[15px] leading-6 text-slate-900 outline-none" contenteditable="true" data-placeholder="Type the minutes following the template here..."></div>
                                     </div>
 
-                                    <table class="mt-12 w-full table-fixed border-collapse text-[14px] leading-6">
-                                        <tbody>
-                                            <tr>
-                                                <td class="w-[20%] font-semibold">Prepared by:</td>
-                                                <td class="w-[32%] border-b border-slate-300">{{ $minute->secretary ?: '________________' }}</td>
-                                                <td class="w-[16%]"></td>
-                                                <td class="w-[32%] border-b border-slate-300">{{ $minute->chairman ?: '________________' }}</td>
-                                            </tr>
-                                            <tr>
-                                                <td></td>
-                                                <td class="pt-2 text-center">Corporate Secretary</td>
-                                                <td></td>
-                                                <td class="pt-2 text-center">President/Chairman</td>
-                                            </tr>
-                                        </tbody>
-                                    </table>
+                                    <div id="minutes-print-signatures" class="mt-3 text-[15px] leading-6">
+                                        <div class="font-bold">Prepared by:</div>
+                                        <div class="mt-1 font-bold uppercase">{{ $minute->secretary ?: '________________' }}</div>
+                                        <div class="font-bold">Corporate Secretary</div>
+
+                                        <div class="mt-5 font-bold">Attested by:</div>
+                                        <div class="mt-1 font-bold uppercase">{{ $minute->chairman ?: '________________' }}</div>
+                                        <div class="font-bold">Chairman of the Meeting</div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
-                        <div class="rounded-2xl border border-gray-200 bg-white overflow-hidden flex flex-col">
-                            <div class="flex-1 overflow-y-auto">
-                                <div class="px-6 py-5 space-y-5">
-                                    <div class="rounded-2xl border border-gray-200 overflow-hidden sticky top-0 bg-white z-10 shadow-sm">
-                                        <div class="px-4 py-3 border-b border-gray-100 bg-gray-50">
-                                            <div class="text-sm font-semibold text-gray-900">Minutes Body Builder</div>
-                                            <div class="mt-1 text-xs text-gray-500">Write the minutes here with formatting tools. The template and final preview use this exact content.</div>
-                                        </div>
-                                        <div class="flex flex-wrap items-center gap-2 border-b border-gray-100 px-4 py-3 bg-white">
-                                            <select id="notes-font" class="rounded-lg border border-gray-300 px-2 py-1 text-xs">
-                                                <option value="Arial">Arial</option>
-                                                <option value="Times New Roman">Times New Roman</option>
-                                                <option value="Georgia">Georgia</option>
-                                                <option value="Verdana">Verdana</option>
-                                                <option value="Courier New">Courier New</option>
-                                            </select>
-                                            <select id="notes-size" class="rounded-lg border border-gray-300 px-2 py-1 text-xs">
-                                                <option value="1">10</option>
-                                                <option value="2">12</option>
-                                                <option value="3" selected>14</option>
-                                                <option value="4">16</option>
-                                                <option value="5">18</option>
-                                            </select>
-                                            <button type="button" class="px-2 py-1 border border-gray-300 rounded-lg text-xs" data-cmd="bold">Bold</button>
-                                            <button type="button" class="px-2 py-1 border border-gray-300 rounded-lg text-xs" data-cmd="italic">Italic</button>
-                                            <button type="button" class="px-2 py-1 border border-gray-300 rounded-lg text-xs" data-cmd="underline">Underline</button>
-                                            <button type="button" class="px-2 py-1 border border-gray-300 rounded-lg text-xs" data-cmd="insertUnorderedList">Bullets</button>
-                                            <button type="button" class="px-2 py-1 border border-gray-300 rounded-lg text-xs" data-cmd="insertOrderedList">Numbering</button>
-                                            <button type="button" class="px-2 py-1 border border-gray-300 rounded-lg text-xs" data-cmd="justifyLeft">Left</button>
-                                            <button type="button" class="px-2 py-1 border border-gray-300 rounded-lg text-xs" data-cmd="justifyCenter">Center</button>
-                                            <button type="button" class="px-2 py-1 border border-gray-300 rounded-lg text-xs" data-cmd="justifyRight">Right</button>
-                                            <button type="button" class="px-2 py-1 border border-gray-300 rounded-lg text-xs" data-cmd="hiliteColor" data-value="yellow">Highlight</button>
-                                            <button type="button" class="px-2 py-1 border border-gray-300 rounded-lg text-xs" data-cmd="removeFormat">Clear</button>
-                                        </div>
-                                        <div id="notes-editor" class="minutes-rich-editor min-h-[360px] p-4 text-sm leading-7 outline-none" contenteditable="true" data-placeholder="Type the minutes of meeting here...">{!! $minute->recording_notes ?: '' !!}</div>
-                                    </div>
 
-                                    <div class="rounded-xl border border-gray-200 bg-gray-50 p-4">
-                                        <div class="text-sm font-semibold text-gray-900">Template Notes</div>
-                                        <div class="mt-1 text-xs text-gray-500">This builder page mirrors the minutes template arrangement: centered heading, `Held at`, `On`, attendance section, minutes proper, and sign-off area.</div>
+                        {{-- RIGHT SIDE: BODY BUILDER --}}
+                        <div class="minutes-builder-sticky min-w-0 rounded-2xl border border-gray-200 bg-white overflow-hidden self-start">
+                            <div class="px-4 py-3 border-b border-gray-100 bg-gray-50">
+                                <div class="flex items-start justify-between gap-3">
+                                    <div>
+                                        <div class="text-sm font-semibold text-gray-900">Minutes Body Builder</div>
+                                        <div class="mt-1 text-xs text-gray-500">Write the minutes here with formatting tools. The template and final preview use this exact content.</div>
                                     </div>
+                                    <button id="minutes-save-body" type="button" class="shrink-0 rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700">Save Changes</button>
                                 </div>
+                            </div>
+
+                            <div class="flex flex-wrap items-center gap-2 border-b border-gray-100 px-4 py-3 bg-white">
+                                <select id="notes-font" class="rounded-lg border border-gray-300 px-2 py-1 text-xs">
+                                    <option value="Arial">Arial</option>
+                                    <option value="Times New Roman">Times New Roman</option>
+                                    <option value="Georgia">Georgia</option>
+                                    <option value="Verdana">Verdana</option>
+                                    <option value="Courier New">Courier New</option>
+                                </select>
+                                <select id="notes-size" class="rounded-lg border border-gray-300 px-2 py-1 text-xs">
+                                    <option value="1">10</option>
+                                    <option value="2">12</option>
+                                    <option value="3" selected>14</option>
+                                    <option value="4">16</option>
+                                    <option value="5">18</option>
+                                </select>
+                                <button type="button" class="px-2 py-1 border border-gray-300 rounded-lg text-xs" data-cmd="bold">Bold</button>
+                                <button type="button" class="px-2 py-1 border border-gray-300 rounded-lg text-xs" data-cmd="italic">Italic</button>
+                                <button type="button" class="px-2 py-1 border border-gray-300 rounded-lg text-xs" data-cmd="underline">Underline</button>
+                                <button type="button" class="px-2 py-1 border border-gray-300 rounded-lg text-xs" data-cmd="insertUnorderedList">Bullets</button>
+                                <button type="button" class="px-2 py-1 border border-gray-300 rounded-lg text-xs" data-cmd="insertOrderedList">Numbering</button>
+                                <button type="button" class="px-2 py-1 border border-gray-300 rounded-lg text-xs" data-cmd="justifyLeft">Left</button>
+                                <button type="button" class="px-2 py-1 border border-gray-300 rounded-lg text-xs" data-cmd="justifyCenter">Center</button>
+                                <button type="button" class="px-2 py-1 border border-gray-300 rounded-lg text-xs" data-cmd="justifyRight">Right</button>
+                                <button type="button" class="px-2 py-1 border border-gray-300 rounded-lg text-xs" data-cmd="hiliteColor" data-value="yellow">Highlight</button>
+                                <button type="button" class="px-2 py-1 border border-gray-300 rounded-lg text-xs" data-cmd="removeFormat">Clear</button>
+                            </div>
+
+                            <div id="notes-editor" class="minutes-rich-editor min-h-[420px] p-4 text-sm leading-7 outline-none" contenteditable="true" data-placeholder="Type the minutes of meeting here...">{!! $minute->recording_notes ?: '' !!}</div>
+
+                            <div class="border-t border-gray-100 bg-gray-50 p-4">
+                                <div class="text-sm font-semibold text-gray-900">Template Notes</div>
+                                <div class="mt-1 text-xs text-gray-500">This builder page mirrors the minutes template arrangement: centered heading, held at, on, attendance section, minutes proper, and sign-off area.</div>
                             </div>
                         </div>
                     </div>
@@ -401,6 +645,14 @@
                                             <span class="shrink-0 text-xs text-slate-400">No approved file uploaded</span>
                                         @endif
                                     </div>
+                                    @if($canApproveMinutes)
+                                        <form id="minutes-approval-card" method="POST" action="{{ route('minutes.approve', $minute) }}" enctype="multipart/form-data" class="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+                                            @csrf
+                                            <div class="text-xs font-semibold text-emerald-800">Upload Approved / Signed Minutes</div>
+                                            <input type="file" name="approved_minutes_path" accept="application/pdf" class="mt-2 block w-full rounded-lg border border-emerald-200 bg-white px-3 py-2 text-xs" {{ $approvedMinutesDownloadUrl ? '' : 'required' }}>
+                                            <button type="submit" class="mt-2 w-full rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700">Save Approved / Signed Copy</button>
+                                        </form>
+                                    @endif
                                     <div id="final-script-file-row" class="hidden flex flex-wrap items-center justify-between gap-3">
                                         <span id="final-script-file-label" class="min-w-0 flex-1 break-all">Attached Script</span>
                                         <a id="final-script-file-download" href="#" class="shrink-0 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-700">Download</a>
@@ -454,8 +706,8 @@
                                     </div>
                                 </div>
                                 <div class="mt-5 rounded-2xl border border-slate-200 bg-slate-50 overflow-hidden">
-                                    @if($templatePreviewUrl)
-                                        <iframe id="minutes-template-pdf-frame" src="{{ $templatePreviewUrl }}" class="h-[720px] w-full bg-white"></iframe>
+                                    @if($activeMinutesPdfUrl)
+                                        <iframe id="minutes-template-pdf-frame" src="{{ $activeMinutesPdfUrl }}" class="h-[720px] w-full bg-white"></iframe>
                                         <div id="minutes-template-pdf-empty" class="hidden px-6 py-10 text-sm text-slate-500">The PDF preview will appear here after the final preview is generated.</div>
                                     @else
                                         <iframe id="minutes-template-pdf-frame" src="" class="hidden h-[720px] w-full bg-white"></iframe>
@@ -532,8 +784,23 @@
     const finalScriptEmpty = document.getElementById('final-script-empty');
     const templatePdfFrame = document.getElementById('minutes-template-pdf-frame');
     const templatePdfEmpty = document.getElementById('minutes-template-pdf-empty');
+    const templateDownloadButton = document.getElementById('minutes-template-download-btn');
 
     let activeMinutesEditor = editor;
+
+    const compactMinutesHtml = (html = '') => {
+        let output = String(html || '').trim();
+
+        // Remove empty trailing editor blocks that create a huge blank gap before Prepared by / Attested by.
+        const emptyTailPattern = /(?:\s|&nbsp;|<br\s*\/?>(?:\s|&nbsp;)*|<p[^>]*>(?:\s|&nbsp;|<br\s*\/?\s*)*<\/p>|<div[^>]*>(?:\s|&nbsp;|<br\s*\/?\s*)*<\/div>)+$/gi;
+        let previous;
+        do {
+            previous = output;
+            output = output.replace(emptyTailPattern, '').trim();
+        } while (output !== previous);
+
+        return output;
+    };
 
     const updateMinutesEditors = (html, source = 'builder') => {
         if (source !== 'builder' && editor) {
@@ -541,7 +808,7 @@
         }
 
         if (source !== 'template' && templateEditor) {
-            templateEditor.innerHTML = html;
+            templateEditor.innerHTML = compactMinutesHtml(html);
         }
     };
 
@@ -564,6 +831,16 @@
     };
 
     const syncTemplatePdfPreview = (url = null, downloadUrl = null) => {
+        if (templateDownloadButton) {
+            if (downloadUrl) {
+                templateDownloadButton.href = downloadUrl;
+                templateDownloadButton.classList.remove('pointer-events-none', 'opacity-50');
+            } else {
+                templateDownloadButton.href = '#';
+                templateDownloadButton.classList.add('pointer-events-none', 'opacity-50');
+            }
+        }
+
         if (!templatePdfFrame || !templatePdfEmpty) {
             return;
         }
@@ -658,6 +935,7 @@
         const saveScriptButton = document.getElementById('minutes-save-script');
         const removeScriptButton = document.getElementById('minutes-remove-script');
         const finalSaveButton = document.getElementById('minutes-final-save');
+        const bodySaveButton = document.getElementById('minutes-save-body');
         const finalVideoPlayer = document.getElementById('final-video-player');
         const finalVideoEmpty = document.getElementById('final-video-empty');
         const finalVideoBadge = document.getElementById('final-video-badge');
@@ -1689,6 +1967,25 @@
 
         if (editor) {
             editor.addEventListener('input', queueDraftSave);
+        }
+
+        if (templateEditor) {
+            templateEditor.addEventListener('input', queueDraftSave);
+        }
+
+        if (bodySaveButton) {
+            bodySaveButton.addEventListener('click', async () => {
+                try {
+                    syncFinalNotes(activeMinutesEditor === templateEditor ? 'template' : 'builder');
+                    setSaveStatus('Saving minutes body to server...', 'blue');
+                    const payload = await persistWorkspaceFiles({ includeNotes: true, includeScriptText: true });
+                    applyWorkspaceResponse(payload);
+                    await saveTentativeDraft('manual');
+                    setSaveStatus('Minutes body saved. Download PDF is now updated.', 'emerald');
+                } catch (error) {
+                    setSaveStatus(error?.message || 'Could not save minutes body', 'red');
+                }
+            });
         }
 
         if (scriptEditor) {

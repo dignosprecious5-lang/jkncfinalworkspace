@@ -23,11 +23,128 @@
         ->values();
     $resolvedNotarizedPath = $notarizedPathCandidates->first(fn ($path) => \Illuminate\Support\Facades\Storage::disk('public')->exists($path));
     $notarizedUrl = $resolvedNotarizedPath ? route('uploads.show', ['path' => $resolvedNotarizedPath]) : null;
+    $document = $document ?? [];
+    $approvalRows = collect($document['approval_rows'] ?? []);
+    $documentChairman = $document['chairman'] ?? null;
     $clauseText = trim((string) $resolution->resolution_body);
-    $companyName = config('app.name', 'JK&C INC.');
+    $standardResolutionClauses = trim((string) ($document['standard_resolution_clauses'] ?? ''));
+    $companyName = $document['company_name'] ?? config('app.name', 'JK&C INC.');
+    $companyRegNo = $document['company_reg_no'] ?? '2025120230900-02';
+    $companyAddress = $document['company_address'] ?? '3RD FLOOR, UNIT 305 CEBU HOLDINGS CENTER CARDINAL ROSALES AVE., CEBU BUSINESS PARK HIPPODROMO, CEBU CITY, 6000';
     $meetingDate = optional($resolution->date_of_meeting)->format('F d, Y') ?: '________________';
+    $meetingLocation = trim((string) ($resolution->location ?: ($document['meeting_location'] ?? '________________')));
+    $meetingDay = optional($resolution->date_of_meeting)->day;
+    $meetingDaySuffix = $meetingDay ? ($meetingDay . (in_array(($meetingDay % 100), [11, 12, 13], true) ? 'th' : match ($meetingDay % 10) { 1 => 'st', 2 => 'nd', 3 => 'rd', default => 'th' })) : '____';
+    $meetingMonthYear = optional($resolution->date_of_meeting)->format('F Y') ?: '____________ 20__';
+    if ($standardResolutionClauses === '') {
+        $standardResolutionClauses = trim("WHEREAS RESOLVED; that the foregoing resolutions are hereby approved and adopted.
+
+"
+            . "WHEREAS FINALLY RESOLVED, that the foregoing resolution is valid and existing until withdrawn, revoked, or modified by the Corporation.
+
+"
+            . "BE IT FURTHER RESOLVED, that the Corporate Secretary is hereby authorized and directed to include this Resolution in the Company's Minute Book and to notify all concerned parties of the adoption of this Resolution.
+
+"
+            . "FINALLY BE IT FURTHER RESOLVED that we, the undersigned, hereby accept and agree to the foregoing resolutions. We have affixed our signatures on this {$meetingDaySuffix} day of {$meetingMonthYear} at {$meetingLocation}.
+
+"
+            . "All prior inconsistent resolutions or actions of the Board of Directors are hereby revoked and superseded. This resolution shall be effective immediately.");
+    }
+    $fullResolutionBody = trim((string) ($document['full_resolution_body'] ?? trim((string) $resolution->resolution_body . "
+
+" . $standardResolutionClauses)));
     $notaryYear = optional($resolution->notarized_on)->format('Y') ?: now()->year;
-    $initialDraftPane = $draftUrl ? 'attachment' : 'live';
+    $initialDraftPane = 'live';
+    $secretaryName = $resolution->secretary ?: 'Corporate Secretary';
+    $resolutionTitle = $resolution->board_resolution ?: 'Resolution Title';
+    $chairmanName = $documentChairman['name'] ?? null;
+    $certifyingBody = $document['certifying_body'] ?? ($resolution->governing_body ?: 'Board of Directors');
+    $resolutionNumberLabel = $document['resolution_label'] ?? 'Board Resolution No.';
+    $meetingTypeText = $resolution->type_of_meeting ?: 'Regular';
+
+    $gisLogoPath = data_get($document ?? [], 'logo_path');
+    $gisLogoUrl = null;
+    $gisLogoDataUri = null;
+    if ($gisLogoPath) {
+        $normalizedLogoPath = preg_replace('#^/?storage/#', '', (string) $gisLogoPath);
+        try { $gisLogoUrl = route('uploads.show', ['path' => $normalizedLogoPath]); } catch (\Throwable $e) { $gisLogoUrl = asset('storage/' . $normalizedLogoPath); }
+        $absoluteLogoPath = storage_path('app/public/' . $normalizedLogoPath);
+        if (is_file($absoluteLogoPath)) {
+            $mime = function_exists('mime_content_type') ? (mime_content_type($absoluteLogoPath) ?: 'image/png') : 'image/png';
+            $gisLogoDataUri = 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($absoluteLogoPath));
+        }
+    }
+
+    $formatResolutionBodyForDisplay = function ($body) {
+        $text = html_entity_decode((string) $body, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $text = preg_replace('#<br\s*/?>#i', "\n", $text);
+        $text = strip_tags($text);
+        $text = str_replace(["\r\n", "\r"], "\n", $text);
+        $text = preg_replace('/[ \t]+/', ' ', $text);
+        $text = trim($text);
+
+        if ($text === '') {
+            return '';
+        }
+
+        // Some saved certificate bodies came from a textarea and became one long
+        // paragraph. Force the standard resolution clauses back into separate
+        // paragraphs so the Secretary Certificate matches the Resolution format.
+        $clauseBreaks = [
+            '/\s+(WHEREAS\s+RESOLVED[;,]\s+)/iu',
+            '/\s+(WHEREAS\s+FINALLY\s+RESOLVED[;,]\s+)/iu',
+            '/\s+(BE\s+IT\s+FURTHER\s+RESOLVED[;,]\s+)/iu',
+            '/\s+(FINALLY\s+BE\s+IT\s+FURTHER\s+RESOLVED\s+)/iu',
+            '/\s+(All\s+prior\s+inconsistent\s+resolutions\s+or\s+actions\s+of\s+the\s+Board\s+of\s+Directors\s+)/iu',
+        ];
+
+        foreach ($clauseBreaks as $pattern) {
+            $text = preg_replace($pattern, "\n\n$1", $text);
+        }
+
+        $paragraphs = preg_split('/\n\s*\n+/', $text);
+        $html = [];
+
+        foreach ($paragraphs as $paragraph) {
+            $paragraph = trim(preg_replace('/[ \t]+/', ' ', $paragraph));
+            if ($paragraph === '') {
+                continue;
+            }
+
+            $escaped = e($paragraph);
+
+            // Bold only the required clause heading, not the full sentence.
+            $patterns = [
+                '/^(WHEREAS\s+RESOLVED[;,]?)(\s*)/iu',
+                '/^(WHEREAS\s+FINALLY\s+RESOLVED[;,]?)(\s*)/iu',
+                '/^(BE\s+IT\s+FURTHER\s+RESOLVED[;,]?)(\s*)/iu',
+                '/^(FINALLY\s+BE\s+IT\s+FURTHER\s+RESOLVED)(\s*)/iu',
+                '/^(Whereas[;,]?)(\s*)/iu',
+            ];
+
+            foreach ($patterns as $pattern) {
+                $new = preg_replace($pattern, '<strong>$1</strong> ', $escaped, 1);
+                if ($new !== $escaped) {
+                    $escaped = $new;
+                    break;
+                }
+            }
+
+            // Emphasize the auto-filled signing date and place in the FINAL clause.
+            $escaped = preg_replace(
+                '/(We have affixed our signatures on this\s+)(.*?)(\s+at\s+)(.*?)(\.)$/iu',
+                '$1<strong><u>$2</u></strong>$3<strong><u>$4</u></strong>$5',
+                $escaped,
+                1
+            );
+
+            $html[] = '<p>' . $escaped . '</p>';
+        }
+
+        return implode("\n", $html);
+    };
+
 @endphp
 
 <div class="w-full px-4 sm:px-6 lg:px-8 mt-4">
@@ -85,9 +202,39 @@
     .resolution-workspace-card {
         min-height: calc(100vh - 15rem);
     }
+
+    .resolution-page-separator {
+        height: 42px;
+        margin: 42px -48px;
+        background: #f1f5f9;
+        border-top: 1px solid #e2e8f0;
+        border-bottom: 1px solid #e2e8f0;
+        page-break-before: always;
+        break-before: page;
+    }
+
+    .resolution-secretary-signature .signature-name-no-line {
+        font-weight: 700;
+        text-transform: uppercase;
+        text-decoration: underline;
+    }
+
+    .corporate-resolution-body,
+    .corporate-resolution-body * {
+        max-width: 100%;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+        white-space: normal;
+    }
+
+    .corporate-resolution-body p {
+        margin: 0 0 16px 0;
+        text-align: justify;
+    }
+
 </style>
 
-<div class="w-full px-4 sm:px-6 lg:px-8 mt-4" x-data="{ activeVersion: 'draft', activeDraftPane: '{{ $initialDraftPane }}' }">
+<div class="w-full px-4 sm:px-6 lg:px-8 mt-4" x-data="{ activeVersion: 'draft', activeDraftPane: 'live' }">
     <div class="bg-white border border-gray-100 rounded-xl overflow-hidden">
         <div class="flex items-center gap-3 px-4 py-4 border-b border-gray-100">
             <a href="{{ $backRoute }}" class="text-gray-500 hover:text-gray-700">
@@ -105,8 +252,8 @@
         </div>
 
         <div class="space-y-6 p-6">
-            <div x-show="activeVersion === 'draft'" class="grid grid-cols-1 xl:grid-cols-[minmax(0,1.7fr)_minmax(420px,0.95fr)] gap-6 min-h-[calc(100vh-15rem)]">
-                <div>
+            <div x-show="activeVersion === 'draft'" class="grid grid-cols-1 lg:grid-cols-[minmax(0,1.35fr)_420px] gap-6 items-start min-h-[calc(100vh-15rem)]">
+                <div class="min-w-0">
                     <div class="rounded-2xl border border-slate-200 overflow-hidden bg-[#f8fafc] flex flex-col resolution-workspace-card">
                         <div class="px-4 py-3 border-b border-gray-100 flex flex-wrap items-center gap-3 bg-white">
                             <div>
@@ -115,131 +262,144 @@
                             </div>
                             <div class="flex-1"></div>
                             <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">Live Template</span>
-                            @if ($draftUrl)
-                                <button
-                                    type="button"
-                                    class="rounded-full px-3 py-1 text-xs font-semibold transition"
-                                    :class="activeDraftPane === 'attachment' ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600'"
-                                    @click="activeDraftPane = activeDraftPane === 'attachment' ? 'live' : 'attachment'">
-                                    <span x-text="activeDraftPane === 'attachment' ? 'Back To Live Template' : 'Open Attached Draft PDF'"></span>
-                                </button>
+                            @if ($downloadRoute ?? null)
+                                <a href="{{ $downloadRoute }}" target="_blank" class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-200">
+                                    Open Built PDF in New Tab
+                                </a>
                             @endif
                         </div>
                         <div class="flex-1 overflow-auto p-6">
-                            @if ($generatedBodyPreviewUrl)
+                            @if ($generatedBodyPreviewUrl || ($downloadRoute ?? null))
                                 <div class="mb-4 flex flex-wrap items-center justify-end gap-2">
-                                    <a href="{{ $generatedBodyPreviewUrl }}" target="_blank" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg">
-                                        Download Built PDF
-                                    </a>
-                                    <button type="button" class="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-900 text-sm font-medium rounded-lg" onclick="printResolutionBuiltPdf('{{ $generatedBodyPreviewUrl }}')">
-                                        Print Built PDF
-                                    </button>
+                                    @if ($downloadRoute ?? null)
+                                        <a href="{{ $downloadRoute }}" target="_blank" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg">
+                                            Download Built PDF
+                                        </a>
+                                    @elseif ($generatedBodyPreviewUrl)
+                                        <a href="{{ $generatedBodyPreviewUrl }}" target="_blank" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg">
+                                            Download Built PDF
+                                        </a>
+                                    @endif
+
+                                    @if ($generatedBodyPreviewUrl)
+                                        <button type="button" class="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-900 text-sm font-medium rounded-lg" onclick="printResolutionBuiltPdf('{{ $generatedBodyPreviewUrl }}')">
+                                            Print Built PDF
+                                        </button>
+                                    @endif
                                 </div>
                             @endif
 
                             <div x-show="activeDraftPane === 'live'">
-                                <div id="resolution-print" class="mx-auto max-w-[860px] rounded-sm bg-white px-14 py-12 shadow-[0_18px_50px_rgba(15,23,42,0.08)] min-h-[920px] text-[13px] leading-6 text-gray-900" style="font-family: Georgia, 'Times New Roman', serif;">
-                            <div class="text-center text-black">
-                                <div class="leading-none tracking-tight">
-                                    <div class="text-[4.25rem] font-normal">John Kelly</div>
-                                    <div class="flex items-end justify-center gap-3">
-                                        <span class="text-[3.25rem] leading-none font-semibold text-blue-600">&amp;</span>
-                                        <span class="text-[4.25rem] leading-none font-normal">Company</span>
+                                <div id="resolution-print" class="mx-auto max-w-[820px] rounded-sm bg-white px-12 py-10 shadow-[0_18px_50px_rgba(15,23,42,0.08)] text-[13px] leading-6 text-gray-900" style="font-family: Georgia, 'Times New Roman', serif;">
+                                    <div class="text-center text-black leading-tight">
+                                        @if($gisLogoUrl)
+                                            <img src="{{ $gisLogoUrl }}" alt="Company Logo" class="mx-auto mb-2 h-20 w-auto object-contain">
+                                        @else
+                                            <div class="leading-none tracking-tight">
+                                                <div class="text-[4rem] font-normal">John Kelly</div>
+                                                <div class="flex items-end justify-center gap-3">
+                                                    <span class="text-[3.1rem] leading-none font-semibold text-blue-600">&amp;</span>
+                                                    <span class="text-[4rem] leading-none font-normal">Company</span>
+                                                </div>
+                                            </div>
+                                        @endif
+                                        <div class="mt-2 text-[1.8rem] font-medium tracking-tight">{{ strtoupper($companyName) }}</div>
+                                        <div class="mt-2 text-sm font-semibold">COMPANY REG. NO.: {{ $companyRegNo }}</div>
+                                        <div class="mx-auto mt-1 max-w-[680px] text-sm uppercase">{{ $companyAddress }}</div>
+                                    </div>
+
+                                    <div class="mt-10 text-center border-b border-black pb-2">
+                                        <div class="text-base font-semibold uppercase underline">{{ $resolutionNumberLabel }} <span data-preview="resolution-no">{{ $resolution->resolution_no ?: 'Auto Number' }}</span></div>
+                                    </div>
+                                    <div class="mt-4 text-center border-b border-black pb-3">
+                                        <div class="text-base font-bold uppercase" data-preview="board-resolution">{{ $resolutionTitle }}</div>
+                                    </div>
+
+                                    <div class="mt-8 corporate-resolution-body text-justify" data-preview-wrapper="resolution-body">
+                                        <div data-preview="resolution-body" id="resolution-body-preview-editor" class="min-h-[70px] corporate-resolution-body">{!! $formatResolutionBodyForDisplay($resolution->resolution_body ?: '') !!}</div>
+                                        @if($standardResolutionClauses !== '')
+                                            <div class="corporate-resolution-body">{!! $formatResolutionBodyForDisplay($standardResolutionClauses) !!}</div>
+                                        @endif
+                                    </div>
+
+                                    <div class="mt-8 text-center font-bold uppercase">CERTIFICATION</div>
+
+                                    <div class="mt-4 text-justify">
+                                        <p>
+                                            I, <strong><u>{{ $secretaryName }}</u></strong>, the duly appointed Corporate Secretary of
+                                            <strong><u>{{ $companyName }}</u></strong>, do hereby certify that the
+                                            <span data-preview="governing-body">{{ $certifyingBody }}</span> in a
+                                            <span data-preview="meeting-type-lower">{{ strtolower($meetingTypeText) }}</span> meeting held on
+                                            <strong><u data-preview="meeting-date">{{ $meetingDate }}</u></strong>, approved the foregoing Resolution in favor hereof.
+                                        </p>
+                                    </div>
+
+                                    <div class="resolution-page-separator"></div>
+
+                                    <div class="mt-2 mb-8 text-center resolution-secretary-signature">
+                                        <div class="inline-block min-w-[260px]">
+                                            <div class="signature-name-no-line">{{ $secretaryName }}</div>
+                                            <div class="font-semibold">Corporate Secretary</div>
+                                        </div>
+                                    </div>
+
+                                    @if ($approvalRows->isNotEmpty() || $chairmanName)
+                                        <div class="font-bold uppercase">Approved:</div>
+                                        <div class="mt-6 grid grid-cols-2 gap-x-12 gap-y-8 text-center">
+                                            @foreach ($approvalRows as $row)
+                                                <div>
+                                                    <div class="font-bold uppercase underline">{{ $row['name'] }}</div>
+                                                    <div class="mt-1 font-bold uppercase">{{ $row['role'] ?? 'Director' }}</div>
+                                                </div>
+                                            @endforeach
+                                        </div>
+
+                                        @if ($chairmanName)
+                                            <div class="mt-8 text-center">
+                                                <div class="font-bold uppercase underline">{{ $chairmanName }}</div>
+                                                <div class="mt-1 font-bold">Chairman</div>
+                                            </div>
+                                        @endif
+                                    @endif
+
+                                    @if ($chairmanName)
+                                        <div class="mt-10 text-justify">
+                                            <p>
+                                                IN WITNESS WHEREOF, I, <strong><u>{{ $chairmanName }}</u></strong>, in my capacity as the chairman of the board have signed these presents this ______ day of __________ at ____________________.
+                                            </p>
+                                        </div>
+
+                                        <div class="mt-10 text-center">
+                                            <div class="inline-block min-w-[280px] border-t border-black pt-2">
+                                                <div class="font-bold uppercase underline">{{ $chairmanName }}</div>
+                                                <div>Chairman</div>
+                                            </div>
+                                        </div>
+                                    @endif
+
+                                    <div class="mt-10 text-sm text-justify">
+                                        <p>
+                                            <strong>SUBSCRIBED AND SWORN TO BEFORE ME,</strong> a Notary Public for and in
+                                            <span data-preview="notarized-at">{{ $resolution->notarized_at ?: '____________________' }}</span> this ___ day of __________, 20.
+                                            Affiant presented to me __________________________ issued at __________________________.
+                                        </p>
+                                        <div class="mt-8 text-right font-bold uppercase">NOTARY PUBLIC</div>
+                                        <div class="mt-8 leading-5">
+                                            <div>Doc. No. <span data-preview="notary-doc-no">{{ $resolution->notary_doc_no ?: '_____' }}</span>;</div>
+                                            <div>Page No. <span data-preview="notary-page-no">{{ $resolution->notary_page_no ?: '_____' }}</span>;</div>
+                                            <div>Book No. <span data-preview="notary-book-no">{{ $resolution->notary_book_no ?: '_____' }}</span>;</div>
+                                            <div>Series of <span data-preview="notary-series-no" data-fallback-year="{{ $notaryYear }}">{{ $resolution->notary_series_no ?: $notaryYear }}</span>.</div>
+                                        </div>
                                     </div>
                                 </div>
-                                <div class="mt-2 text-[2rem] font-medium tracking-tight">JK&amp;C INC.</div>
-                                <div class="mt-3 text-sm">COMPANY REG. NO.: 2025120230900-02</div>
-                                <div class="mt-1 text-sm">3RD FLOOR, UNIT 305 CEBU HOLDINGS CENTER CARDINAL ROSALES AVE CEBU</div>
-                                <div class="text-sm">BUSINESS PARK HIPPODROMO, CEBU CITY (Capital), CEBU, REGION VII</div>
-                                <div class="text-sm">(CENTRAL VISAYAS), 6000;</div>
                             </div>
 
-                            <div class="mt-12 text-center border-b border-black pb-2">
-                                <div class="text-lg font-semibold uppercase underline">Board Resolution No. <span data-preview="resolution-no">{{ $resolution->resolution_no ?: '25-002' }}</span></div>
-                            </div>
-
-                            <div class="mt-8 space-y-5 text-justify">
-                                <p>
-                                    <span class="font-semibold">WHEREAS,</span> during the <span data-preview="meeting-type-lower">{{ strtolower($resolution->type_of_meeting ?: 'special') }}</span>
-                                    meeting of the <span data-preview="governing-body">{{ $resolution->governing_body ?: 'Board of Directors' }}</span> of
-                                    <span class="font-semibold underline">{{ $companyName }}</span> held on
-                                    <span class="font-semibold underline" data-preview="meeting-date">{{ $meetingDate }}</span>, where a quorum was present and acted all throughout,
-                                    the body approved the following action:
-                                </p>
-
-                                <div
-                                    data-preview="resolution-body"
-                                    id="resolution-body-preview-editor"
-                                    class="min-h-[180px] whitespace-pre-wrap"
-                                >{!! $resolution->resolution_body ?: ($resolution->board_resolution ?: 'No board resolution text has been encoded yet.') !!}</div>
-
-                                <p>
-                                    <span class="font-semibold">WHEREAS RESOLVED;</span> that the foregoing resolutions are hereby approved and adopted.
-                                </p>
-
-                                <p>
-                                    <span class="font-semibold">WHEREAS FINALLY RESOLVED,</span> that the foregoing resolution is valid and existing
-                                    until withdrawn, revoked, or modified by the Corporation.
-                                </p>
-
-                                <p>
-                                    <span class="font-semibold">BE IT FURTHER RESOLVED,</span> that the Corporate Secretary is hereby authorized and directed
-                                    to include this Resolution in the Company's Minute Book and to notify all concerned parties of the adoption of this Resolution.
-                                </p>
-
-                                <p>
-                                    <span class="font-semibold underline">FINALLY BE IT FURTHER RESOLVED</span> that the undersigned affirm the foregoing resolution
-                                    and adopt it on this <span class="font-semibold underline" data-preview="meeting-date">{{ $meetingDate }}</span>.
-                                </p>
-                            </div>
-
-                            <div class="mt-16 text-right">
-                                <div class="inline-block min-w-[240px] border-t border-black pt-2 text-center">
-                                    <div class="font-semibold uppercase" data-preview="chairman">{{ $resolution->chairman ?: 'JOSE BAYBAYANON OGANG' }}</div>
-                                    <div>Chairman</div>
-                                </div>
-                            </div>
-
-                            <div class="mt-16 space-y-5 text-justify">
-                                <p>
-                                    IN WITNESS WHEREOF, I, <span class="font-semibold underline" data-preview="chairman">{{ $resolution->chairman ?: '____________________' }}</span>,
-                                    in my capacity as chairman of the board, have signed these presents this ______ day of __________ at
-                                    <span data-preview="notarized-at">{{ $resolution->notarized_at ?: '______________' }}</span>.
-                                </p>
-                            </div>
-
-                            <div class="mt-12 text-right">
-                                <div class="inline-block min-w-[260px] border-t border-black pt-2 text-center">
-                                    <div class="font-semibold uppercase" data-preview="chairman">{{ $resolution->chairman ?: 'JOSE BAYBAYANON OGANG' }}</div>
-                                    <div>Chairman</div>
-                                </div>
-                            </div>
-
-                            <div class="mt-16 space-y-4 text-sm">
-                                <p>
-                                    <span class="font-semibold uppercase">Subscribed and sworn to before me,</span> a Notary Public for and in
-                                    <span data-preview="notarized-at">{{ $resolution->notarized_at ?: '______________' }}</span> this day of __________, affiant presented to me __________ issued at __________.
-                                </p>
-                                <div class="text-right mt-10">
-                                    <div class="inline-block min-w-[220px] border-t border-black pt-2 text-center font-semibold uppercase">
-                                        <span data-preview="notary-public">{{ $resolution->notary_public ?: 'Notary Public' }}</span>
-                                    </div>
-                                </div>
-                                <div class="mt-8 space-y-1">
-                                    <div>Doc. No. <span data-preview="notary-doc-no">{{ $resolution->notary_doc_no ?: '_____' }}</span>;</div>
-                                    <div>Page No. <span data-preview="notary-page-no">{{ $resolution->notary_page_no ?: '_____' }}</span>;</div>
-                                    <div>Book No. <span data-preview="notary-book-no">{{ $resolution->notary_book_no ?: '_____' }}</span>;</div>
-                                    <div>Series of <span data-preview="notary-series-no" data-fallback-year="{{ $notaryYear }}">{{ $resolution->notary_series_no ?: $notaryYear }}</span>.</div>
-                                </div>
-                            </div>
-                        </div>
-                            </div>
                             @if ($draftUrl)
                                 <div x-show="activeDraftPane === 'attachment'" class="rounded-2xl border border-slate-200 bg-white overflow-hidden">
                                     <div class="px-4 py-3 border-b border-gray-100 flex flex-wrap items-center justify-between gap-3">
                                         <div>
                                             <div class="text-sm font-semibold text-gray-900">Attached Draft PDF</div>
-                                            <div class="text-xs text-gray-500">This is the uploaded draft file saved with the resolution.</div>
+                                            <div class="text-xs text-gray-500">This is the uploaded/saved draft file. Use Download Built PDF for the system-generated corporate format.</div>
                                         </div>
                                         <a href="{{ $draftUrl }}" target="_blank" class="inline-flex rounded-lg bg-slate-800 px-4 py-2 text-sm font-medium text-white hover:bg-black">
                                             Open in New Tab
@@ -255,7 +415,7 @@
                     </div>
                 </div>
 
-                <div class="rounded-2xl border border-gray-200 bg-white overflow-hidden flex flex-col resolution-workspace-card">
+                <div class="min-w-0 rounded-2xl border border-gray-200 bg-white overflow-hidden flex flex-col resolution-workspace-card">
                     <div class="flex-1 overflow-y-auto">
                         <div class="px-6 py-5 space-y-5">
                             <div class="rounded-2xl border border-gray-200 overflow-hidden sticky top-0 bg-white z-10 shadow-sm">
@@ -295,7 +455,7 @@
                             </select>
                         </div>
                         <div class="md:col-span-2">
-                            <label class="text-xs text-gray-600">Board Resolution</label>
+                            <label class="text-xs text-gray-600">Resolution Title</label>
                             <input type="text" name="board_resolution" value="{{ $resolution->board_resolution }}" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm" data-live-target="board-resolution">
                         </div>
                         <div class="md:col-span-2">
@@ -326,10 +486,10 @@
                                 <div
                                     id="resolution-body-editor"
                                     contenteditable="true"
-                                    data-placeholder="Write the full resolved clauses here."
+                                    data-placeholder="Type only the custom WHEREAS / resolution details here. The standard RESOLVED clauses are automatically added below."
                                     class="resolution-rich-editor min-h-[360px] p-4 text-sm leading-7 text-gray-900 outline-none"
                                 >{!! $resolution->resolution_body ?: '' !!}</div>
-                                <input type="hidden" name="resolution_body" id="resolution-body-input" value="{{ $resolution->resolution_body }}" data-live-target="resolution-body" data-live-format="multiline" data-live-empty="No board resolution text has been encoded yet.">
+                                <input type="hidden" name="resolution_body" id="resolution-body-input" value="{{ $resolution->resolution_body }}" data-live-target="resolution-body" data-live-format="multiline" data-live-empty="">
                             </div>
                         </div>
                         <div>
@@ -347,7 +507,7 @@
                     </div>
                     <div class="rounded-xl border border-gray-200 bg-gray-50 p-4 space-y-4">
                         <div class="text-sm font-semibold text-gray-900">Template Notes</div>
-                        <div class="text-xs text-gray-500">This builder mirrors the resolution template arrangement: company heading, board resolution title, whereas clause, resolution body, and sign-off sections.</div>
+                        <div class="text-xs text-gray-500">Type only the custom WHEREAS / resolution details. The system automatically adds the standard RESOLVED clauses, certification, approval, and notarial sections.</div>
                     </div>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
@@ -415,17 +575,32 @@
                                     <div><span class="text-xs text-gray-600 uppercase tracking-wide">Governing Body</span><div class="font-medium text-gray-900" data-preview="governing-body">{{ $resolution->governing_body }}</div></div>
                                     <div><span class="text-xs text-gray-600 uppercase tracking-wide">Meeting Type</span><div class="font-medium text-gray-900" data-preview="meeting-type">{{ $resolution->type_of_meeting }}</div></div>
                                     <div><span class="text-xs text-gray-600 uppercase tracking-wide">Meeting Date</span><div class="font-medium text-gray-900" data-preview="meeting-date-short">{{ optional($resolution->date_of_meeting)->format('M d, Y') }}</div></div>
-                                    <div><span class="text-xs text-gray-600 uppercase tracking-wide">Board Resolution</span><div class="font-medium text-gray-900" data-preview="board-resolution">{{ $resolution->board_resolution }}</div></div>
+                                    <div><span class="text-xs text-gray-600 uppercase tracking-wide">Resolution Title</span><div class="font-medium text-gray-900" data-preview="board-resolution">{{ $resolution->board_resolution }}</div></div>
                                     <div><span class="text-xs text-gray-600 uppercase tracking-wide">Secretary Certificates</span><div class="font-medium text-gray-900">{{ $resolution->secretaryCertificates->count() }} linked</div></div>
                                 </div>
                             </div>
 
                             <div class="rounded-xl border border-yellow-200 bg-yellow-50 p-4">
                                 <div class="text-sm font-semibold text-gray-900 mb-3">Signatories</div>
-                                <div class="space-y-2 text-sm">
-                                    <div><span class="text-xs text-gray-600 uppercase tracking-wide">Chairman</span><div class="font-medium text-gray-900">{{ $resolution->chairman }}</div></div>
-                                    <div><span class="text-xs text-gray-600 uppercase tracking-wide">Secretary</span><div class="font-medium text-gray-900">{{ $resolution->secretary }}</div></div>
-                                    <div><span class="text-xs text-gray-600 uppercase tracking-wide">Directors</span><div class="font-medium text-gray-900">{{ $resolution->directors }}</div></div>
+                                <div class="space-y-3 text-sm">
+                                    <div>
+                                        <span class="text-xs text-gray-600 uppercase tracking-wide">Chairman</span>
+                                        <div class="font-medium text-gray-900">{{ $chairmanName ?: 'Not shown unless attended' }}</div>
+                                    </div>
+                                    <div>
+                                        <span class="text-xs text-gray-600 uppercase tracking-wide">Secretary</span>
+                                        <div class="font-medium text-gray-900">{{ $secretaryName }}</div>
+                                    </div>
+                                    <div>
+                                        <span class="text-xs text-gray-600 uppercase tracking-wide">Approval Signatories</span>
+                                        <div class="font-medium text-gray-900">
+                                            @forelse ($approvalRows as $row)
+                                                <div><span class="font-semibold">{{ $row['name'] }}</span><span class="text-gray-500"> - {{ $row['role'] ?? 'Director' }}</span></div>
+                                            @empty
+                                                <div class="text-gray-500">No attended signatories found</div>
+                                            @endforelse
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -545,7 +720,7 @@
             }
 
             if (input.dataset.liveFormat === 'multiline') {
-                const finalHtml = value || 'No board resolution text has been encoded yet.';
+                const finalHtml = value || '';
 
                 targets.forEach((target) => {
                     target.innerHTML = finalHtml;
@@ -580,7 +755,7 @@
         if (resolutionBodyEditor && resolutionBodyInput) {
             const syncResolutionBody = () => {
                 const html = String(resolutionBodyEditor.innerHTML || '').trim();
-                const fallbackHtml = 'No board resolution text has been encoded yet.';
+                const fallbackHtml = '';
 
                 resolutionBodyInput.value = html;
                 applyValue(resolutionBodyInput);

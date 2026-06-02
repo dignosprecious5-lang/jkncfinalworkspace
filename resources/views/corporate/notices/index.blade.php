@@ -11,9 +11,11 @@
     $noticeStoreUrl = $noticeStoreUrl ?? route('notices.store');
 
     // President requested company name
-    $companyName = $companyName ?? 'JK&C INC.';
-    $companyRegNo = $companyRegNo ?? '2025120230900-02';
-    $companyAddress = $companyAddress ?? '3RD FLOOR, UNIT 305 CEBU HOLDINGS CENTER CARDINAL ROSALES AVE., CEBU BUSINESS PARK HIPPODROMO, CEBU CITY, 6000';
+    $companyName = $companyName ?? ((data_get($corporateContext ?? [], 'company_name') ?: data_get($corporateContext ?? [], 'companyName')) ?: 'JK&C INC.');
+    $companyRegNo = $companyRegNo ?? ((data_get($corporateContext ?? [], 'company_reg_no') ?: data_get($corporateContext ?? [], 'companyRegNo')) ?: '2025120230900-02');
+    $gisLogoPath = (data_get($corporateContext ?? [], 'logo_path') ?: data_get($corporateContext ?? [], 'logoPath'));
+    $gisLogoUrl = $gisLogoPath ? route('uploads.show', ['path' => preg_replace('#^/?storage/#', '', (string) $gisLogoPath)]) : null;
+    $companyAddress = $companyAddress ?? ((data_get($corporateContext ?? [], 'company_address') ?: data_get($corporateContext ?? [], 'companyAddress')) ?: '3RD FLOOR, UNIT 305 CEBU HOLDINGS CENTER CARDINAL ROSALES AVE., CEBU BUSINESS PARK HIPPODROMO, CEBU CITY, 6000');
 @endphp
 
 <div class="w-full px-4 sm:px-6 lg:px-8 mt-4">
@@ -226,7 +228,7 @@
             <div class="px-6 py-4 border-b border-gray-100 flex items-center gap-3">
                 <div>
                     <div class="text-lg font-semibold">Add Notice</div>
-                    <div class="text-xs text-gray-500">Upload the original PDF or compose the notice body here.</div>
+                    <div class="text-xs text-gray-500">Create a draft notice using the builder, or upload an existing draft PDF. Upload the signed/original copy after saving the notice.</div>
                 </div>
                 <div class="flex-1"></div>
                 <button class="text-gray-500 hover:text-gray-700" @click="showAddPanel = false" type="button">
@@ -234,19 +236,22 @@
                 </button>
             </div>
 
-            <form method="POST" action="{{ $noticeStoreUrl }}" enctype="multipart/form-data" class="flex-1 overflow-y-auto p-6" @submit="prepareSubmit()">
+            <form method="POST" action="{{ $noticeStoreUrl }}" enctype="multipart/form-data" class="flex-1 min-h-0 flex flex-col overflow-hidden" @submit="prepareSubmit()">
                 @csrf
 
-                <div class="grid grid-cols-1 xl:grid-cols-[minmax(0,1.7fr)_minmax(420px,0.95fr)] gap-6 min-h-[calc(100vh-12rem)]">
-                    <div class="rounded-2xl border border-slate-200 overflow-hidden bg-[#f7f7fb] flex flex-col">
-                        <div class="px-5 py-4 border-b border-slate-200 bg-white">
+                <div class="grid grid-cols-1 xl:grid-cols-[minmax(0,1.35fr)_minmax(420px,0.95fr)] gap-6 flex-1 min-h-0 overflow-hidden p-6">
+                    <div class="rounded-2xl border border-slate-200 overflow-hidden bg-[#f7f7fb] flex flex-col min-h-0">
+                        <div class="px-5 py-4 border-b border-slate-200 bg-white shrink-0">
                             <div class="text-sm font-semibold text-slate-900">Live Notice Preview</div>
-                            <div class="mt-1 text-xs text-slate-500">This updates in real time from the slider and uses the same company notice layout as the saved preview.</div>
+                            <div class="mt-1 text-xs text-slate-500">This updates in real time from the builder and uses the same GIS-based notice layout as the saved draft preview.</div>
                         </div>
 
-                        <div class="flex-1 overflow-auto p-10">
-                            <div class="mx-auto min-h-full max-w-[920px] bg-white px-16 py-14 text-[15px] leading-8 text-slate-900 shadow-[0_18px_50px_rgba(15,23,42,0.08)] overflow-hidden">
+                        <div class="min-h-0 flex-1 overflow-auto p-6">
+                            <div class="mx-auto bg-white px-12 py-12 text-[14px] leading-7 text-slate-900 shadow-[0_18px_50px_rgba(15,23,42,0.08)]" style="width:min(100%, 794px); min-height:1123px; display:flex; flex-direction:column; overflow:visible;">
                                 <div class="text-center leading-6">
+                                    @if($gisLogoUrl)
+                                        <img src="{{ $gisLogoUrl }}" alt="Company Logo" class="mx-auto mb-2 h-14 w-auto object-contain">
+                                    @endif
                                     <div class="text-[17px] font-bold uppercase tracking-[0.04em]">{{ $companyName }}</div>
                                     <div class="text-[14px] font-bold">COMPANY REG. NO.: {{ $companyRegNo }}</div>
                                     <div class="mt-1 text-[14px]">{{ $companyAddress }}</div>
@@ -261,33 +266,42 @@
 
                                 <div class="mt-10 text-[15px] leading-8">
                                     <p class="font-bold" x-text="livePreviewIntro"></p>
+
+                                    <p class="mt-5 text-justify" x-text="livePreviewProceedText"></p>
+
                                     <div class="mt-5">
                                         <div class="font-semibold">Agenda:</div>
                                         <div class="mt-2 notice-preview-body" x-html="livePreviewBody"></div>
                                     </div>
+
+                                    <p class="mt-8 text-justify" x-text="livePreviewProcedureText"></p>
+
+                                    {{-- Internal meeting officer/contact/deadline details intentionally hidden from the issued notice. --}}
                                 </div>
 
-                                <div class="mt-20">
+                                <div class="mt-12">
                                     <div>Very truly yours,</div>
-                                    <div class="mt-12 text-[18px] font-bold" x-text="livePreviewSecretary"></div>
+                                    <div class="mt-10 text-[18px] font-bold" x-text="livePreviewSecretary"></div>
                                     <div class="text-sm text-slate-600">Corporate Secretary</div>
                                 </div>
 
-                                <div class="mt-16 flex items-end justify-between gap-6 border-t border-slate-200 pt-4 text-[11px] leading-4 text-slate-600">
-                                    <div class="min-w-0">
-                                        <div class="font-bold uppercase break-words" x-text="livePreviewFooterTitle"></div>
-                                        <div>{{ $companyName }}</div>
-                                        <div>Company Reg. No.: {{ $companyRegNo }}</div>
-                                        <div>{{ $companyAddress }}</div>
+                                <div class="mt-auto pt-10">
+                                    <div class="flex items-end justify-between gap-6 border-t border-slate-200 pt-4 text-[11px] leading-4 text-slate-600">
+                                        <div class="min-w-0">
+                                            <div class="font-bold uppercase break-words" x-text="livePreviewFooterTitle"></div>
+                                            <div>{{ $companyName }}</div>
+                                            <div>Company Reg. No.: {{ $companyRegNo }}</div>
+                                            <div>{{ $companyAddress }}</div>
+                                        </div>
+                                        <div class="font-bold shrink-0">Page 1 of 1</div>
                                     </div>
-                                    <div class="font-bold shrink-0">Page 1 of 1</div>
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <div class="rounded-2xl border border-gray-200 bg-white overflow-hidden flex flex-col">
-                        <div class="flex-1 overflow-y-auto">
+                    <div class="rounded-2xl border border-gray-200 bg-white overflow-hidden flex flex-col min-h-0">
+                        <div class="min-h-0 flex-1 overflow-y-auto">
                             <div class="px-6 py-5 space-y-5">
                                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
@@ -303,7 +317,7 @@
                                         <input type="date" name="date_updated" value="{{ $today }}" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
                                     </div>
                                     <div>
-                                        <label class="text-xs text-gray-600">Upload Notice (PDF)</label>
+                                        <label class="text-xs text-gray-600">Upload Existing Draft Notice PDF</label>
                                         <input type="file" name="document_path" accept="application/pdf" class="mt-1 block w-full text-sm text-gray-600 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-blue-600 file:text-white hover:file:bg-blue-700" @change="bodyMode = 'upload'">
                                     </div>
                                 </div>
@@ -311,15 +325,15 @@
                                 <div>
                                     <label class="text-xs text-gray-600">Body Source</label>
                                     <select name="body_mode" x-model="bodyMode" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
-                                        <option value="builder">Create in slider</option>
-                                        <option value="upload">Use uploaded PDF</option>
+                                        <option value="builder">Create draft in builder</option>
+                                        <option value="upload">Use uploaded draft PDF</option>
                                     </select>
                                 </div>
 
-                                <div class="rounded-2xl border border-gray-200 overflow-hidden sticky top-0 bg-white z-10 shadow-sm">
+                                <div class="rounded-2xl border border-gray-200 overflow-hidden bg-white shadow-sm">
                                     <div class="px-4 py-3 border-b border-gray-100 bg-gray-50">
                                         <div class="text-sm font-semibold text-gray-900">Notice Body Builder</div>
-                                        <div class="mt-1 text-xs text-gray-500">Write the body here with formatting tools. The saved notice preview will use this exact builder content.</div>
+                                        <div class="mt-1 text-xs text-gray-500">Write the draft notice body here. After saving, print/sign/notarize the draft, then upload the Original / Signed copy from the Notice Preview page.</div>
                                     </div>
 
                                     <div class="flex flex-wrap items-center gap-2 border-b border-gray-100 px-4 py-3 bg-white">
@@ -392,8 +406,8 @@
                                         <input type="text" name="meeting_no" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm" placeholder="25th Annual Meeting">
                                     </div>
                                     <div>
-                                        <label class="text-xs text-gray-600">Chairman</label>
-                                        <input type="text" name="chairman" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm" placeholder="Chairman">
+                                        <label class="text-xs text-gray-600">Chairman / Presiding Officer</label>
+                                        <input type="text" name="chairman" @input="syncLivePreview()" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm" placeholder="Chairman / Presiding Officer">
                                     </div>
                                     <div>
                                         <label class="text-xs text-gray-600">Secretary</label>
@@ -402,6 +416,81 @@
                                     <div>
                                         <label class="text-xs text-gray-600">Uploaded By</label>
                                         <input type="text" name="uploaded_by" value="{{ $currentUser }}" data-default-field="current_user" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm" placeholder="Uploader">
+                                    </div>
+                                </div>
+
+                                <div class="rounded-xl border border-blue-100 bg-blue-50/60 p-4 space-y-4">
+                                    <div>
+                                        <div class="text-sm font-semibold text-blue-900">Meeting Mode and Submission Details</div>
+                                        <p class="mt-1 text-xs text-blue-700">These fields will appear in the notice before Agenda and before Very truly yours.</p>
+                                    </div>
+
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label class="text-xs text-gray-600">Selected Mode</label>
+                                            <select name="meeting_mode" @change="syncLivePreview()" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
+                                                <option value="Physical">Physical</option>
+                                                <option value="Virtual">Virtual</option>
+                                                <option value="Hybrid">Hybrid</option>
+                                                <option value="In Absentia">In Absentia</option>
+                                                <option value="Proxy">Proxy</option>
+                                                <option value="Written Consent">Written Consent</option>
+                                                <option value="Resolution by Circulation">Resolution by Circulation</option>
+                                                <option value="Email Approval">Email Approval</option>
+                                                <option value="Other">Other</option>
+                                            </select>
+                                        </div>
+
+                                        <div>
+                                            <label class="text-xs text-gray-600">Platform</label>
+                                            <select name="meeting_platform" @change="syncLivePreview()" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
+                                                <option value="Physical Venue">Physical Venue</option>
+                                                <option value="Google Meet">Google Meet</option>
+                                                <option value="Zoom">Zoom</option>
+                                                <option value="Microsoft Teams">Microsoft Teams</option>
+                                                <option value="Other">Other</option>
+                                            </select>
+                                        </div>
+
+                                        <div class="md:col-span-2">
+                                            <label class="text-xs text-gray-600">Meeting Link / Details</label>
+                                            <textarea name="meeting_link_details" rows="2" @input="syncLivePreview()" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm" placeholder="Insert link, meeting ID, room details, or venue instructions"></textarea>
+                                        </div>
+
+                                        <div>
+                                            <label class="text-xs text-gray-600">Corporate Secretary / Authorized Meeting Officer</label>
+                                            <input type="text" name="authorized_meeting_officer" @input="syncLivePreview()" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm" placeholder="Authorized meeting officer">
+                                        </div>
+
+                                        <div>
+                                            <label class="text-xs text-gray-600">Authority Calling the Meeting</label>
+                                            <input type="text" name="authority_calling_meeting" @input="syncLivePreview()" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm" placeholder="Board of Directors / President / Corporate Secretary">
+                                        </div>
+
+                                        <div>
+                                            <label class="text-xs text-gray-600">Email Address</label>
+                                            <input type="email" name="confirmation_email" @input="syncLivePreview()" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm" placeholder="email@example.com">
+                                        </div>
+
+                                        <div>
+                                            <label class="text-xs text-gray-600">Phone Number</label>
+                                            <input type="text" name="confirmation_phone" @input="syncLivePreview()" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm" placeholder="09xx xxx xxxx">
+                                        </div>
+
+                                        <div class="md:col-span-2">
+                                            <label class="text-xs text-gray-600">Office Address</label>
+                                            <textarea name="office_address" rows="2" @input="syncLivePreview()" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm" placeholder="Office address for physical submissions"></textarea>
+                                        </div>
+
+                                        <div>
+                                            <label class="text-xs text-gray-600">Email / Phone Confirmation Deadline</label>
+                                            <input type="text" name="email_phone_confirmation_deadline" value="forty-eight (48) hours" @input="syncLivePreview()" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
+                                        </div>
+
+                                        <div>
+                                            <label class="text-xs text-gray-600">Physical Submission Deadline</label>
+                                            <input type="text" name="physical_submission_deadline" value="three (3) days" @input="syncLivePreview()" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
+                                        </div>
                                     </div>
                                 </div>
 
@@ -445,12 +534,42 @@
                                         <div class="mt-1 rounded-md border border-dashed border-gray-300 bg-white px-3 py-2 text-sm text-gray-700" x-text="locationPreview || 'Location will be generated from the fields above.'"></div>
                                     </div>
                                 </div>
+
+                                <div class="rounded-xl border border-purple-200 bg-purple-50 p-4 space-y-4">
+                                    <div class="flex items-start justify-between gap-3">
+                                        <div>
+                                            <div class="text-sm font-semibold text-purple-900">Guest Invitees</div>
+                                            <p class="mt-1 text-xs text-purple-700">Optional. Guests will receive a guest invitation email and will auto-fill in Minutes as editable guests.</p>
+                                        </div>
+                                        <button type="button" @click="addGuest()" class="rounded-lg bg-purple-600 px-3 py-2 text-xs font-semibold text-white hover:bg-purple-700">+ Add Guest</button>
+                                    </div>
+
+                                    <template x-for="(guest, index) in noticeGuests" :key="`notice-guest-${index}`">
+                                        <div class="grid grid-cols-1 md:grid-cols-12 gap-3 rounded-lg border border-purple-100 bg-white p-3">
+                                            <div class="md:col-span-4">
+                                                <label class="text-xs text-gray-600">Guest Name</label>
+                                                <input type="text" x-model="guest.name" :name="`guests[${index}][name]`" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm" placeholder="Guest full name">
+                                            </div>
+                                            <div class="md:col-span-4">
+                                                <label class="text-xs text-gray-600">Guest Email</label>
+                                                <input type="email" x-model="guest.email" :name="`guests[${index}][email]`" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm" placeholder="guest@email.com">
+                                            </div>
+                                            <div class="md:col-span-3">
+                                                <label class="text-xs text-gray-600">Role / Note</label>
+                                                <input type="text" x-model="guest.position" :name="`guests[${index}][position]`" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm" placeholder="Guest">
+                                            </div>
+                                            <div class="md:col-span-1 flex items-end">
+                                                <button type="button" @click="removeGuest(index)" class="w-full rounded-md border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50" x-show="noticeGuests.length > 1">Remove</button>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <div class="px-6 py-4 border-t border-gray-100 flex items-center gap-2 -mx-6 -mb-6">
+                <div class="shrink-0 sticky bottom-0 z-50 px-6 py-4 border-t border-gray-100 bg-white flex items-center gap-2 shadow-[0_-10px_30px_rgba(15,23,42,0.06)]">
                     <button class="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-900 text-sm font-medium rounded-lg" @click="showAddPanel = false" type="button">
                         Cancel
                     </button>
@@ -482,6 +601,16 @@
             livePreviewIntro: @js("NOTICE is hereby given that a Special Board of Directors Meeting of {$companyName} will be held at __________________ on __________________ at __________________."),
             livePreviewBody: '<p style="color:#94a3b8;">Start typing the notice body to preview it here.</p>',
             livePreviewSecretary: 'Corporate Secretary',
+            livePreviewProceedText: '',
+            livePreviewProcedureText: '',
+            livePreviewChairman: '________________',
+            livePreviewOfficer: 'Corporate Secretary',
+            livePreviewEmail: '________________',
+            livePreviewPhone: '________________',
+            livePreviewOfficeAddress: '________________',
+            livePreviewEmailDeadline: 'forty-eight (48) hours',
+            livePreviewPhysicalDeadline: 'three (3) days',
+            livePreviewAuthority: '________________',
             locationParts: {
                 venue: '',
                 room: '',
@@ -492,6 +621,7 @@
             },
             locationPreview: '',
             defaultBodyText: @js($defaultNoticeBodyText),
+            noticeGuests: [{ name: '', email: '', position: 'Guest' }],
 
             openPanel() {
                 this.showAddPanel = true;
@@ -502,6 +632,7 @@
 
                     this.bodyMode = 'builder';
                     this.bodyHtml = '';
+                    this.noticeGuests = [{ name: '', email: '', position: 'Guest' }];
 
                     if (this.$refs.editor) {
                         this.$refs.editor.innerHTML = '<p><br></p>';
@@ -563,7 +694,22 @@
             },
 
             prepareSubmit() {
+                this.noticeGuests = this.noticeGuests.filter((guest) => String(guest.name || '').trim() !== '' || String(guest.email || '').trim() !== '');
+                if (!this.noticeGuests.length) {
+                    this.noticeGuests = [{ name: '', email: '', position: 'Guest' }];
+                }
                 this.syncBody();
+            },
+
+            addGuest() {
+                this.noticeGuests.push({ name: '', email: '', position: 'Guest' });
+            },
+
+            removeGuest(index) {
+                this.noticeGuests.splice(index, 1);
+                if (!this.noticeGuests.length) {
+                    this.noticeGuests.push({ name: '', email: '', position: 'Guest' });
+                }
             },
 
             applyFormat(command, value = null) {
@@ -669,17 +815,25 @@
             },
 
             syncLivePreview() {
-                const governingBodyField = document.querySelector('select[name="governing_body"]');
-                const meetingTypeField = document.querySelector('select[name="type_of_meeting"]');
-                const meetingDateField = document.querySelector('input[name="date_of_meeting"]');
-                const meetingTimeField = document.querySelector('input[name="time_started"]');
-                const secretaryField = document.querySelector('input[name="secretary"]');
+                const field = (selector, fallback = '') => document.querySelector(selector)?.value || fallback;
 
-                const governingBody = governingBodyField?.value || 'Board of Directors';
-                const meetingType = meetingTypeField?.value || 'Special';
-                const meetingDate = meetingDateField?.value || '';
-                const meetingTime = meetingTimeField?.value || '';
-                const secretary = secretaryField?.value || 'Corporate Secretary';
+                const governingBody = field('select[name="governing_body"]', 'Board of Directors');
+                const meetingType = field('select[name="type_of_meeting"]', 'Special');
+                const meetingDate = field('input[name="date_of_meeting"]');
+                const meetingTime = field('input[name="time_started"]');
+                const chairman = field('input[name="chairman"]', '________________');
+                const secretary = field('input[name="secretary"]', 'Corporate Secretary');
+
+                const selectedMode = field('select[name="meeting_mode"]', 'Physical');
+                const platform = field('select[name="meeting_platform"]', 'Physical Venue');
+                const meetingDetails = field('textarea[name="meeting_link_details"]', '________________');
+                const authorizedOfficer = field('input[name="authorized_meeting_officer"]', secretary || 'Corporate Secretary');
+                const emailAddress = field('input[name="confirmation_email"]', '________________');
+                const phoneNumber = field('input[name="confirmation_phone"]', '________________');
+                const officeAddress = field('textarea[name="office_address"]', '________________');
+                const emailDeadline = field('input[name="email_phone_confirmation_deadline"]', 'forty-eight (48) hours');
+                const physicalDeadline = field('input[name="physical_submission_deadline"]', 'three (3) days');
+                const authorityCalling = field('input[name="authority_calling_meeting"]', '________________');
 
                 const recipientLabel = governingBody === 'Stockholders'
                     ? 'ALL STOCKHOLDERS'
@@ -693,16 +847,26 @@
 
                 const formattedTime = meetingTime || '________________';
                 const meetingTitle = `${meetingType} ${governingBody} Meeting`.toUpperCase();
+                const accessDetails = `${platform}${meetingDetails && meetingDetails !== '________________' ? ' - ' + meetingDetails : ''}`;
 
                 this.livePreviewTitle = `NOTICE AND AGENDA OF THE ${meetingTitle}`;
                 this.livePreviewFooterTitle = `NOTICE FOR ${meetingTitle}`;
                 this.livePreviewRecipient = recipientLabel;
                 this.livePreviewDate = formattedDate;
                 this.livePreviewIntro = `NOTICE is hereby given that a ${meetingType} ${governingBody} Meeting of ${this.companyName} will be held at ${this.locationPreview || '________________'} on ${formattedDate} at ${formattedTime}.`;
+                this.livePreviewProceedText = `The meeting shall proceed through ${selectedMode}. For virtual or hybrid meetings, access shall be through ${accessDetails}. Only confirmed persons with proper identity, authority, and right to attend, vote, approve, or submit documents shall be allowed or recognized, in accordance with applicable law, the By-Laws, SEC rules, approved procedures, and duly adopted internal policies.`;
+                this.livePreviewProcedureText = `The meeting shall be presided over by ${chairman || 'Chairman / Presiding Officer'}, or by another duly authorized person, and shall be conducted in accordance with the Revised Corporation Code of the Philippines, the Corporationâ€™s Articles of Incorporation, By-Laws, approved rules of procedure, applicable SEC rules and issuances, and duly adopted internal policies. Only confirmed persons with proper identity, authority, and right to attend, vote, approve, or submit documents shall be allowed or recognized, subject to applicable law and the Corporationâ€™s approved procedures.`;
                 this.livePreviewBody = this.bodyHtml || '<p style="color:#94a3b8;">Start typing the notice body to preview it here.</p>';
                 this.livePreviewSecretary = secretary;
+                this.livePreviewChairman = chairman || '________________';
+                this.livePreviewOfficer = authorizedOfficer || 'Corporate Secretary';
+                this.livePreviewEmail = emailAddress || '________________';
+                this.livePreviewPhone = phoneNumber || '________________';
+                this.livePreviewOfficeAddress = officeAddress || '________________';
+                this.livePreviewEmailDeadline = emailDeadline || 'forty-eight (48) hours';
+                this.livePreviewPhysicalDeadline = physicalDeadline || 'three (3) days';
+                this.livePreviewAuthority = authorityCalling || '________________';
             },
-
             syncLocation() {
                 const parts = [
                     this.locationParts.venue,
@@ -720,7 +884,7 @@
                 if (this.$refs.locationField) {
                     this.$refs.locationField.value = this.locationPreview;
                 }
-
+                
                 this.syncLivePreview();
             },
         };

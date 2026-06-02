@@ -22,6 +22,8 @@ class CompanyCorrespondenceController extends Controller
 
         return view('company.correspondence', [
             'company' => (object) $companyData,
+            'companyTin' => $this->companyTin($companyData),
+            'currentUserName' => $this->currentUserName($request),
             'records' => $records,
             'stats' => [
                 'total' => $records->count(),
@@ -43,9 +45,9 @@ class CompanyCorrespondenceController extends Controller
             'id' => $nextId,
             'company_id' => $company,
             'date_uploaded' => $validated['date_uploaded'],
-            'uploaded_by' => $validated['uploaded_by'],
+            'uploaded_by' => $this->currentUserName($request),
             'client' => $companyData['company_name'],
-            'tin' => $validated['tin'],
+            'tin' => $validated['tin'] ?: $this->companyTin($companyData),
             'correspondence_type' => $validated['correspondence_type'],
             'document_title' => $validated['document_title'],
             'status' => $validated['status'],
@@ -76,9 +78,9 @@ class CompanyCorrespondenceController extends Controller
                 ...$item,
                 'company_id' => $company,
                 'date_uploaded' => $validated['date_uploaded'],
-                'uploaded_by' => $validated['uploaded_by'],
+                'uploaded_by' => $this->currentUserName($request),
                 'client' => $companyData['company_name'],
-                'tin' => $validated['tin'],
+                'tin' => $validated['tin'] ?: $this->companyTin($companyData),
                 'correspondence_type' => $validated['correspondence_type'],
                 'document_title' => $validated['document_title'],
                 'status' => $validated['status'],
@@ -114,8 +116,8 @@ class CompanyCorrespondenceController extends Controller
     {
         return $request->validate([
             'date_uploaded' => ['required', 'date'],
-            'uploaded_by' => ['required', 'string', 'max:255'],
-            'tin' => ['required', 'string', 'max:255'],
+            'uploaded_by' => ['nullable', 'string', 'max:255'],
+            'tin' => ['nullable', 'string', 'max:255'],
             'correspondence_type' => ['required', 'string', 'max:255'],
             'document_title' => ['required', 'string', 'max:255'],
             'status' => ['required', 'string', 'in:' . implode(',', self::STATUSES)],
@@ -124,7 +126,7 @@ class CompanyCorrespondenceController extends Controller
 
     private function sessionKey(): string
     {
-        return 'mock_company_correspondence_records';
+        return 'company_correspondence_records_v2';
     }
 
     private function findCompany(Request $request, int $company): array
@@ -143,11 +145,25 @@ class CompanyCorrespondenceController extends Controller
 
     private function defaultRecords(): array
     {
-        return [
-            ['id' => 1, 'company_id' => 1, 'date_uploaded' => '2024-04-22', 'uploaded_by' => 'Jasper Bulac', 'client' => 'Company 1', 'tin' => '123-456-756', 'correspondence_type' => 'Internal Memo', 'document_title' => 'Policy Update', 'status' => 'Completed'],
-            ['id' => 2, 'company_id' => 1, 'date_uploaded' => '2024-05-03', 'uploaded_by' => 'Lara Cruz', 'client' => 'Company 1', 'tin' => '123-456-756', 'correspondence_type' => 'Letter', 'document_title' => 'Vendor Notice', 'status' => 'Open'],
-            ['id' => 3, 'company_id' => 2, 'date_uploaded' => '2024-06-12', 'uploaded_by' => 'Jasper Bulac', 'client' => 'Company 2', 'tin' => '222-333-444', 'correspondence_type' => 'Email', 'document_title' => 'Renewal Reminder', 'status' => 'Overdue'],
-            ['id' => 4, 'company_id' => 3, 'date_uploaded' => '2024-07-18', 'uploaded_by' => 'Ana Reyes', 'client' => 'Company 3', 'tin' => '555-111-000', 'correspondence_type' => 'Transmittal', 'document_title' => 'Contract Package', 'status' => 'Open'],
-        ];
+        return [];
+    }
+
+    private function currentUserName(Request $request): string
+    {
+        $user = $request->user();
+
+        return trim((string) (
+            $user?->name
+            ?? $user?->full_name
+            ?? $user?->employee_name
+            ?? $user?->username
+            ?? $user?->email
+            ?? 'System User'
+        ));
+    }
+
+    private function companyTin(array $companyData): string
+    {
+        return trim((string) ($companyData['tin_no'] ?? $companyData['tin'] ?? $companyData['tin_number'] ?? $companyData['company_tin'] ?? $companyData['tax_identification_number'] ?? ''));
     }
 }

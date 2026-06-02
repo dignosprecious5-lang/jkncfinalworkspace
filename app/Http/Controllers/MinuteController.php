@@ -7,6 +7,8 @@ use App\Http\Controllers\Concerns\GeneratesCorporateDocumentNumbers;
 use App\Http\Controllers\Concerns\HandlesUploads;
 use App\Models\Minute;
 use App\Models\Notice;
+use App\Models\GisRecord;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
@@ -19,13 +21,21 @@ class MinuteController extends Controller
 
     public function index()
     {
-        $minutes = Minute::with('notice')->latest()->get();
-        $notices = Notice::orderBy('date_of_meeting')->get();
+        $minutes = Minute::whereNull('company_id')
+            ->with('notice')
+            ->latest()
+            ->get();
+
+        $notices = Notice::whereNull('company_id')
+            ->with('attendees')
+            ->orderBy('date_of_meeting')
+            ->get();
 
         return view('corporate.minutes.index', [
             'minutes' => $minutes,
             'notices' => $notices,
             'nextMinutesRef' => $this->nextMinutesRef(),
+            'corporateContext' => $this->corporateContextForMinute(new Minute()),
         ]);
     }
 
@@ -38,6 +48,7 @@ class MinuteController extends Controller
             'cancelRoute' => route('minutes'),
             'fields' => $this->fields(),
             'item' => new Minute([
+                'company_id' => null,
                 'minutes_ref' => $this->nextMinutesRef(),
                 'date_uploaded' => now()->toDateString(),
                 'uploaded_by' => auth()->user()?->name ?? '',
@@ -49,6 +60,8 @@ class MinuteController extends Controller
     {
         $data = $this->validateData($request);
         $data = $this->mergeNoticeData($data);
+        $data = $this->syncAttendanceFromNotice($data);
+        $data['company_id'] = null;
         $data['document_path'] = $this->handleUpload($request, 'document_path');
         $data['minutes_ref'] = $data['minutes_ref'] ?: $this->nextMinutesRef();
         $data = $this->filterPersistableData($data);
@@ -60,6 +73,8 @@ class MinuteController extends Controller
 
     public function show(Minute $minute)
     {
+        abort_if($minute->company_id !== null, 404);
+
         $minute->load('notice');
         $templatePreviewPath = $this->generateTemplatePreviewPdf($minute);
 
@@ -70,11 +85,14 @@ class MinuteController extends Controller
             'deleteRoute' => route('minutes.destroy', $minute),
             'templatePreviewUrl' => $templatePreviewPath ? route('uploads.show', ['path' => $templatePreviewPath]) : null,
             'templatePreviewDownloadUrl' => $templatePreviewPath ? route('uploads.show', ['path' => $templatePreviewPath, 'download' => 1]) : null,
+            'corporateContext' => $this->corporateContextForMinute($minute),
         ]);
     }
 
     public function edit(Minute $minute)
     {
+        abort_if($minute->company_id !== null, 404);
+
         return view('corporate.common.form', [
             'title' => 'Edit Minutes of Meeting',
             'action' => route('minutes.update', $minute),
@@ -87,8 +105,12 @@ class MinuteController extends Controller
 
     public function update(Request $request, Minute $minute)
     {
+        abort_if($minute->company_id !== null, 404);
+
         $data = $this->validateData($request);
         $data = $this->mergeNoticeData($data);
+        $data = $this->syncAttendanceFromNotice($data);
+        $data['company_id'] = null;
         $data['document_path'] = $this->handleUpload($request, 'document_path', $minute->document_path);
         $data = $this->filterPersistableData($data);
 
@@ -99,6 +121,7 @@ class MinuteController extends Controller
 
     public function approve(Request $request, Minute $minute)
     {
+        abort_if($minute->company_id !== null, 404);
         abort_unless($this->userCanApprove(), 403);
 
         $validated = $request->validate([
@@ -115,6 +138,8 @@ class MinuteController extends Controller
 
     public function saveWorkspace(Request $request, Minute $minute)
     {
+        abort_if($minute->company_id !== null, 404);
+
         $request->validate([
             'tentative_audio' => ['nullable', 'file', 'max:51200'],
             'remove_tentative_audio' => ['nullable', 'boolean'],
@@ -145,6 +170,8 @@ class MinuteController extends Controller
 
     public function saveFinalRecording(Request $request, Minute $minute)
     {
+        abort_if($minute->company_id !== null, 404);
+
         $request->validate([
             'final_audio' => ['nullable', 'file', 'max:51200'],
             'remove_final_audio' => ['nullable', 'boolean'],
@@ -152,30 +179,23 @@ class MinuteController extends Controller
 
         $finalPath = $this->handleUpload($request, 'final_audio', $minute->final_audio_path);
 
-        if (
-            !$request->hasFile('final_audio')
-            && !$request->boolean('remove_final_audio')
-            && !$finalPath
-            && $minute->tentative_audio_path
-        ) {
+        if (!$request->hasFile('final_audio') && !$request->boolean('remove_final_audio') && !$finalPath && $minute->tentative_audio_path) {
             $finalPath = $this->duplicateUpload($minute->tentative_audio_path);
         }
 
         if (!$finalPath) {
-            return response()->json([
-                'message' => 'No tentative audio is available to save to the final preview.',
-            ], 422);
+            return response()->json(['message' => 'No tentative audio is available to save to the final preview.'], 422);
         }
 
-        $this->updateExistingColumns($minute, [
-            'final_audio_path' => $finalPath,
-        ]);
+        $this->updateExistingColumns($minute, ['final_audio_path' => $finalPath]);
 
         return response()->json($this->workspacePayload($minute->fresh()));
     }
 
     public function saveFinalPreview(Request $request, Minute $minute)
     {
+        abort_if($minute->company_id !== null, 404);
+
         $request->validate([
             'tentative_audio' => ['nullable', 'file', 'max:51200'],
             'remove_tentative_audio' => ['nullable', 'boolean'],
@@ -196,12 +216,7 @@ class MinuteController extends Controller
 
         $finalPath = $this->handleUpload($request, 'final_audio', $minute->final_audio_path);
 
-        if (
-            ! $request->hasFile('final_audio')
-            && ! $request->boolean('remove_final_audio')
-            && ! $finalPath
-            && $minute->tentative_audio_path
-        ) {
+        if (! $request->hasFile('final_audio') && ! $request->boolean('remove_final_audio') && ! $finalPath && $minute->tentative_audio_path) {
             $finalPath = $this->duplicateUpload($minute->tentative_audio_path);
         }
 
@@ -220,6 +235,8 @@ class MinuteController extends Controller
 
     public function destroy(Minute $minute)
     {
+        abort_if($minute->company_id !== null, 404);
+
         $minute->delete();
 
         return redirect()->route('minutes')->with('success', 'Minutes deleted.');
@@ -240,12 +257,16 @@ class MinuteController extends Controller
             ['name' => 'time_started', 'label' => 'Time Started', 'type' => 'time'],
             ['name' => 'time_ended', 'label' => 'Time Ended', 'type' => 'time'],
             ['name' => 'location', 'label' => 'Location', 'type' => 'text'],
-            ['name' => 'call_link', 'label' => 'Call Link', 'type' => 'text'],
-            ['name' => 'recording_notes', 'label' => 'Recording Notes', 'type' => 'textarea'],
+            ['name' => 'call_link', 'label' => 'Call Link / Video Meeting Link', 'type' => 'text'],
+            ['name' => 'recording_notes', 'label' => 'Recording Notes / Minutes Proper', 'type' => 'textarea'],
             ['name' => 'script_text', 'label' => 'Script Text', 'type' => 'textarea'],
             ['name' => 'meeting_no', 'label' => 'Meeting Number', 'type' => 'text'],
             ['name' => 'chairman', 'label' => 'Chairman', 'type' => 'text'],
             ['name' => 'secretary', 'label' => 'Secretary', 'type' => 'text'],
+            ['name' => 'directors_present', 'label' => 'Directors Present', 'type' => 'textarea'],
+            ['name' => 'directors_absent', 'label' => 'Directors Absent', 'type' => 'textarea'],
+            ['name' => 'secretariat', 'label' => 'Secretariat', 'type' => 'textarea'],
+            ['name' => 'guests', 'label' => 'Guests', 'type' => 'textarea'],
             ['name' => 'document_path', 'label' => 'Upload Minutes (PDF)', 'type' => 'file'],
         ];
     }
@@ -271,13 +292,17 @@ class MinuteController extends Controller
             'meeting_no' => ['nullable', 'string', 'max:255'],
             'chairman' => ['nullable', 'string', 'max:255'],
             'secretary' => ['nullable', 'string', 'max:255'],
+            'directors_present' => ['nullable', 'string'],
+            'directors_absent' => ['nullable', 'string'],
+            'secretariat' => ['nullable', 'string'],
+            'guests' => ['nullable', 'string'],
             'document_path' => ['nullable', 'file', 'mimes:pdf', 'max:5120'],
         ]);
     }
 
     private function mergeNoticeData(array $data): array
     {
-        $notice = Notice::find($data['notice_id']);
+        $notice = Notice::whereNull('company_id')->find($data['notice_id']);
         if (!$notice) {
             return $data;
         }
@@ -291,6 +316,66 @@ class MinuteController extends Controller
         $data['meeting_no'] = $data['meeting_no'] ?: $notice->meeting_no;
         $data['chairman'] = $data['chairman'] ?: $notice->chairman;
         $data['secretary'] = $data['secretary'] ?: $notice->secretary;
+        $data['meeting_mode'] = $data['meeting_mode'] ?: ($notice->meeting_mode ?: $notice->meeting_platform);
+        $data['call_link'] = $data['call_link'] ?: $notice->meeting_link_details;
+
+        return $data;
+    }
+
+
+    private function syncAttendanceFromNotice(array $data): array
+    {
+        if (empty($data['notice_id'])) {
+            return $data;
+        }
+
+        $notice = Notice::whereNull('company_id')->with('attendees')->find($data['notice_id']);
+        if (!$notice) {
+            return $data;
+        }
+
+        if (empty($data['directors_present'])) {
+            $expectedRows = $notice->attendees
+                ->filter(fn ($attendee) => (bool) ($attendee->is_selected ?? true))
+                ->filter(fn ($attendee) => strtolower((string) ($attendee->source_type ?? '')) !== 'guest')
+                ->map(fn ($attendee) => [
+                    'name' => trim((string) $attendee->name),
+                    'position' => trim((string) ($attendee->position ?: 'Attendee')),
+                ])
+                ->filter(fn ($row) => $row['name'] !== '')
+                ->values()
+                ->all();
+
+            if (!empty($expectedRows)) {
+                $data['directors_present'] = json_encode($expectedRows);
+            }
+        }
+
+        if (empty($data['guests'])) {
+            $guestRows = $notice->attendees
+                ->filter(fn ($attendee) => (bool) ($attendee->is_selected ?? true))
+                ->filter(fn ($attendee) => strtolower((string) ($attendee->source_type ?? '')) === 'guest')
+                ->map(fn ($attendee) => [
+                    'name' => trim((string) $attendee->name),
+                    'position' => trim((string) ($attendee->position ?: 'Guest')),
+                ])
+                ->filter(fn ($row) => $row['name'] !== '')
+                ->values()
+                ->all();
+
+            if (!empty($guestRows)) {
+                $data['guests'] = json_encode($guestRows);
+            }
+        }
+
+        if (empty($data['secretariat'])) {
+            $secretaryName = trim((string) ($data['secretary'] ?? $notice->secretary ?? ''));
+            if ($secretaryName !== '') {
+                $data['secretariat'] = json_encode([
+                    ['name' => $secretaryName, 'position' => 'Corporate Secretary'],
+                ]);
+            }
+        }
 
         return $data;
     }
@@ -325,7 +410,7 @@ class MinuteController extends Controller
 
     private function userCanApprove(): bool
     {
-        return auth()->check() && auth()->user()?->role === 'Admin';
+        return auth()->check() && in_array(auth()->user()?->role, ['Admin', 'Super Admin', 'superadmin'], true);
     }
 
     private function workspacePayload(Minute $minute): array
@@ -359,6 +444,87 @@ class MinuteController extends Controller
         ];
     }
 
+
+    private function latestAcceptedGis(): ?GisRecord
+    {
+        $acceptedQuery = GisRecord::query()
+            ->whereNull('company_id')
+            ->where(function ($query) {
+                $query->where('workflow_status', 'Accepted')
+                    ->orWhere('approval_status', 'Accepted')
+                    ->orWhere('approval_status', 'Approved')
+                    ->orWhere('submission_status', 'Accepted');
+            });
+
+        // Prefer the latest accepted GIS with an uploaded logo, because this is the
+        // corporate header source requested for Notices and Minutes.
+        $withLogo = (clone $acceptedQuery)
+            ->whereNotNull('logo_path')
+            ->where('logo_path', '<>', '')
+            ->latest('updated_at')
+            ->latest('id')
+            ->first();
+
+        if ($withLogo) {
+            return $withLogo;
+        }
+
+        return $acceptedQuery
+            ->latest('updated_at')
+            ->latest('id')
+            ->first();
+    }
+
+    private function corporateContextForMinute(?Minute $minute = null): array
+    {
+        $gis = $this->latestAcceptedGis();
+
+        $companyName = $gis?->corporation_name ?: 'John Kelly & Company';
+        $companyRegNo = $gis?->company_reg_no;
+        $companyAddress = $gis?->principal_address
+            ?: $gis?->business_address
+            ?: $minute?->location
+            ?: null;
+
+        $logoPath = $gis?->logo_path;
+        $logoUrl = null;
+
+        if ($logoPath) {
+            $logoUrl = str_starts_with($logoPath, 'http://') || str_starts_with($logoPath, 'https://')
+                ? $logoPath
+                : Storage::disk('public')->url($logoPath);
+        }
+
+        return [
+            'gis' => $gis,
+            'companyName' => $companyName,
+            'companyRegNo' => $companyRegNo,
+            'companyAddress' => $companyAddress,
+            'logoPath' => $logoPath,
+            'logoUrl' => $logoUrl,
+
+            // Snake-case aliases used by existing Blade templates.
+            'company_name' => $companyName,
+            'company_reg_no' => $companyRegNo,
+            'company_address' => $companyAddress,
+            'logo_path' => $logoPath,
+            'logo_url' => $logoUrl,
+        ];
+    }
+
+
+    private function generatePdfPreview(string $view, array $data, string $targetPath): ?string
+    {
+        $pdf = Pdf::loadView($view, $data)
+            ->setPaper('a4')
+            ->setOptions(['isPhpEnabled' => true]);
+
+        Storage::disk('public')->delete($targetPath);
+        Storage::disk('public')->put($targetPath, $pdf->output());
+
+        return $targetPath;
+    }
+
     private function generateTemplatePreviewPdf(Minute $minute): ?string
     {
         $targetPath = 'uploads/minutes/template-preview-' . $minute->id . '.pdf';
@@ -366,6 +532,7 @@ class MinuteController extends Controller
         return $this->generatePdfPreview('corporate.minutes.pdf', [
             'minute' => $minute,
             'minutesDocumentTitle' => strtoupper(trim('Minutes of the ' . ($minute->type_of_meeting ?: 'Special') . ' ' . ($minute->governing_body ?: 'Meeting'))),
+            'corporateContext' => $this->corporateContextForMinute($minute),
         ], $targetPath);
     }
 

@@ -6,14 +6,14 @@
     <style>
         @page {
             size: A4 portrait;
-            margin: 18mm 12mm 28mm 12mm;
+            margin: 18mm 12mm 46mm 12mm;
         }
 
         body {
             margin: 0;
             font-family: "Times New Roman", DejaVu Serif, serif;
             font-size: 13px;
-            line-height: 1.55;
+            line-height: 1.45;
             color: #222;
         }
 
@@ -40,59 +40,54 @@
         }
 
         .logo-cell {
-    width: 42mm;
-    vertical-align: top;
-}
+            width: 42mm;
+            vertical-align: top;
+            padding-left: 5.5mm;
+        }
 
-.logo-cell {
-    width: 42mm;
-    vertical-align: top;
-    padding-left: 5.5mm;
-}
+        .logo {
+            width: 34mm;
+            height: auto;
+            display: block;
+            margin-top: 1mm;
+        }
 
-.logo {
-    width: 36mm;
-    height: auto;
-    display: block;
-    margin-top: 1mm;
-}
-
-.partners {
-    font-size: 11px;
-    line-height: 1.35;
-    color: #444;
-    padding-top: 0;
-}
+        .partners {
+            font-size: 11px;
+            line-height: 1.22;
+            color: #0447a7;
+            padding-top: 0;
+        }
 
         .title {
             text-align: center;
-            font-size: 26px;
+            font-size: 23px;
             font-weight: bold;
-            color: #555;
-            letter-spacing: 1px;
-            margin: 6mm 0 8mm 0;
+            color: #111;
+            letter-spacing: 0;
+            margin: 8mm 0 7mm 0;
         }
 
         .meta {
-            margin-bottom: 4mm;
+            margin-bottom: 3mm;
             font-size: 13px;
         }
 
         .meta p {
-            margin: 1.2mm 0;
+            margin: 0.8mm 0;
         }
 
         .divider {
             border-bottom: 1px solid #666;
-            margin-top: 4mm;
-            margin-bottom: 7mm;
+            margin-top: 2mm;
+            margin-bottom: 5mm;
         }
 
         .body-content {
             font-size: 13px;
-            line-height: 1.3;
+            line-height: 1.18;
             text-align: justify;
-            padding-bottom: 6mm;
+            padding-bottom: 4mm;
         }
 
         .body-content,
@@ -134,36 +129,73 @@
             word-wrap: break-word;
         }
 
-        .closing-section {
-            margin-top: 8mm;
-            page-break-inside: avoid;
+        .effectivity {
+            margin: 3mm 0 5mm 0;
+            text-align: justify;
         }
 
         .issued {
-            margin: 0 0 6mm 0;
+            margin: 0 0 7mm 0;
         }
 
-        .prepared-by {
-            margin: 0 0 5mm 0;
-        }
-
-        .approved-by {
-            margin: 8mm 0 5mm 0;
-        }
-
-        .signature-block {
-            width: 70mm;
+        .approval-section {
             page-break-inside: avoid;
+            font-size: 12.5px;
+            line-height: 1.18;
         }
 
+        .approval-block {
+            margin-bottom: 5mm;
+        }
+
+        .approval-block p {
+            margin: 0 0 0.8mm 0;
+        }
+
+        .approval-title {
+            font-weight: bold;
+            margin-bottom: 3mm !important;
+        }
+
+        .computer-generated {
+            margin-top: 1mm;
+            font-weight: bold;
+        }
+
+
+        .acknowledgement-section {
+            page-break-inside: auto;
+            margin-top: 5mm;
+            padding: 3mm 5mm;
+            border: 1px solid #999;
+            font-size: 12.5px;
+            line-height: 1.22;
+        }
+
+        .acknowledgement-section-title {
+            font-weight: bold;
+            margin: 0 0 3mm 0;
+            text-transform: uppercase;
+        }
+
+        .acknowledgement-section p {
+            margin: 0 0 1.2mm 0;
+        }
+
+        .acknowledgement-entry {
+            page-break-inside: avoid;
+            margin-top: 2mm;
+            padding-top: 2mm;
+            border-top: 1px solid #cccccc;
+        }
 
         .footer-fixed {
             position: fixed;
-            bottom: -16mm;
+            bottom: -39mm;
             left: 0;
             right: 0;
-            font-size: 10px;
-            line-height: 1.25;
+            font-size: 8px;
+            line-height: 1.18;
             color: #333;
             box-sizing: border-box;
         }
@@ -173,23 +205,118 @@
             margin-right: 10mm;
         }
 
-        .footer-note {
+        .footer-meta {
+            border-top: 1px solid #999;
+            padding-top: 1.2mm;
+            margin-bottom: 2.2mm;
+            text-align: center;
+            font-size: 9px;
+            min-height: 16px;
+        }
+
+        .page-number:before {
+            content: counter(page);
+        }
+.footer-note {
             margin: 0 0 3mm 0;
             text-align: justify;
-            line-height: 1.4;
+            line-height: 1.22;
         }
 
         .footer-address {
             margin: 0;
             text-align: left;
-            line-height: 1.4;
+            line-height: 1.22;
         }
     </style>
 </head>
 <body>
+    @php
+        $logoCandidates = [
+            public_path('images/jk-logo.png'),
+            public_path('images/jk-logo.jpg'),
+            public_path('images/jk-logo.jpeg'),
+            public_path('images/jk-logo.webp'),
+            public_path('images/jk_logo.png'),
+            public_path('images/jk_logo.jpg'),
+            public_path('images/jk-logo-final.png'),
+            public_path('images/john-kelly-logo.png'),
+            public_path('images/john-kelly-logo.jpg'),
+            public_path('images/logo.png'),
+            public_path('images/logo.jpg'),
+            public_path('images/logo.jpeg'),
+            public_path('storage/images/jk-logo.png'),
+            public_path('storage/images/logo.png'),
+        ];
 
-    <div class="footer-fixed">
+        foreach ([
+            public_path('images'),
+            public_path('storage/images'),
+            storage_path('app/public/images'),
+        ] as $logoDirectory) {
+            if (is_dir($logoDirectory)) {
+                foreach (glob($logoDirectory . '/*.{png,jpg,jpeg,webp}', GLOB_BRACE) ?: [] as $logoFile) {
+                    $name = strtolower(basename($logoFile));
+
+                    if (str_contains($name, 'logo') || str_contains($name, 'john') || str_contains($name, 'kelly') || str_contains($name, 'jk')) {
+                        $logoCandidates[] = $logoFile;
+                    }
+                }
+            }
+        }
+
+        $logoDataUri = null;
+
+        foreach (array_unique($logoCandidates) as $candidate) {
+            if ($candidate && file_exists($candidate) && is_readable($candidate)) {
+                $extension = strtolower(pathinfo($candidate, PATHINFO_EXTENSION));
+                $mime = match ($extension) {
+                    'jpg', 'jpeg' => 'image/jpeg',
+                    'gif' => 'image/gif',
+                    'webp' => 'image/webp',
+                    default => 'image/png',
+                };
+
+                $logoDataUri = 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($candidate));
+                break;
+            }
+        }
+
+        $acknowledgedRecords = \App\Models\TownHallAcknowledgement::where('townhall_communication_id', $communication->id)
+            ->whereNotNull('acknowledged_at')
+            ->orderBy('acknowledged_at')
+            ->get();
+
+        $acknowledgmentRequired = false;
+        $recipientType = $communication->recipient_type ?? 'all';
+
+        if (($communication->approval_status ?? null) === 'Approved' && !($communication->is_archived ?? false)) {
+            $acknowledgmentRequired = in_array($recipientType, [
+                'all',
+                'all_users',
+                'all_admins',
+                'employee',
+            ], true);
+
+            if (!empty($communication->recipient_user_id)
+                || !empty($communication->recipient_user_ids)
+                || !empty($communication->recipient_contact_ids)
+            ) {
+                $acknowledgmentRequired = true;
+            }
+        }
+    @endphp
+
+<div class="footer-fixed">
         <div class="footer-inner">
+            <div class="footer-meta">
+                Page <span class="page-number"></span> of {{ $totalPages ?? 1 }}
+                &nbsp; | &nbsp;
+                Document Reference Number: {{ $communication->ref_no }}
+                &nbsp; | &nbsp;
+                Date Generated: {{ $dateGenerated ?? now()->format('F d, Y h:i A') }}
+            </div>
+
             <div class="footer-note">
                 This Memorandum is an official corporate record of JK&amp;C INC. Unauthorized reproduction,
                 alteration, disclosure, or misuse of this Memorandum, in whole or in part, is strictly prohibited
@@ -208,17 +335,21 @@
     <div class="page">
         <div class="header">
             <table class="header-table">
-    <tr>
-        <td class="logo-cell">
-            <img src="{{ public_path('images/jk-logo.png') }}" alt="JK Logo" class="logo">
-        </td>
-        <td class="partners">
-            Atty. Jose B. Ogang, CPA, MMPSM · Jose Tamayo Rio,<br>
-            MM-BM, CPA · Lyndon Earl P. Rio, RN, CB · John Kelly Abalde,<br>
-            CLSSBB, CPM
-        </td>
-    </tr>
-</table>
+                <tr>
+                    <td class="logo-cell">
+                        @if($logoDataUri)
+                            <img src="{{ $logoDataUri }}" alt="" class="logo">
+                        @else
+                            <div style="width:34mm;height:16mm;text-align:center;font-size:12px;line-height:16mm;color:#111;font-weight:bold;">John Kelly &amp; Company</div>
+                        @endif
+                    </td>
+                    <td class="partners">
+                        Atty. Jose B. Ogang, CPA, MMPSM · Jose Tamayo Rio,<br>
+                        MM-BM, CPA · Lyndon Earl P. Rio, RN, CB · John Kelly Abalde,<br>
+                        CLSSBB, CPM
+                    </td>
+                </tr>
+            </table>
         </div>
 
         <div class="title">MEMORANDUM</div>
@@ -246,29 +377,85 @@
             {!! $communication->message ?: '<p>No memorandum body provided.</p>' !!}
         </div>
 
-        <div class="closing-section content-inset">
+        <div class="content-inset">
+            <div class="effectivity">
+                This Memorandum shall take effect immediately and shall remain in force until amended,
+                superseded, or revoked by a subsequent issuance.
+            </div>
+
             <div class="issued">
                 Issued this
                 <strong>
-                    {{ $communication->communication_date ? \Carbon\Carbon::parse($communication->communication_date)->format('jS \\d\\a\\y \\o\\f F, Y') : '______________' }}
+                    {{ $communication->communication_date ? \Carbon\Carbon::parse($communication->communication_date)->format('jS') : '______________' }}
+                </strong>
+                day of
+                <strong>
+                    {{ $communication->communication_date ? \Carbon\Carbon::parse($communication->communication_date)->format('F, Y') : '______________' }}
                 </strong>
                 in Cebu City, Philippines.
             </div>
 
-            <div class="prepared-by">Prepared by:</div>
+            <div class="approval-section">
+                <div class="approval-block">
+                    <p class="approval-title">Prepared By:</p>
+                    <p>{{ $communication->from_name ?: 'Name' }}</p>
+                    <p>{{ $communication->uploader?->employee?->position ?? 'Position' }}</p>
+                    <p>{{ $communication->department_stakeholder ?: 'Department' }}</p>
+                    <p>
+                        Prepared on:
+                        {{ $communication->submitted_at ? \Carbon\Carbon::parse($communication->submitted_at)->format('F d, Y h:i A') : optional($communication->created_at)->format('F d, Y h:i A') }}
+                    </p>
+                </div>
 
-            <div class="signature-block">
-                <div><strong>{{ $communication->from_name ?: '—' }}</strong></div>
+                <div class="approval-block">
+                    <p class="approval-title">From Management</p>
+                    <p>{{ $communication->management_approver_name ?: 'Name' }}</p>
+                    <p>{{ $communication->management_approver_position ?: 'Position' }}</p>
+                    <p>{{ $communication->management_approver_department ?: 'Department' }}</p>
+                    <p>
+                        Approved on:
+                        {{ $communication->management_approved_at ? \Carbon\Carbon::parse($communication->management_approved_at)->format('F d, Y h:i A') : 'Date and Time' }}
+                    </p>
+                </div>
+
+                <div class="approval-block">
+                    <p class="approval-title">From Executive Management</p>
+                    <p>{{ $communication->executive_approver_name ?: 'John Kelly D. Abalde' }}</p>
+                    <p>{{ $communication->executive_approver_position ?: 'President and CEO' }}</p>
+                    <p>{{ $communication->executive_approver_department ?: 'Executive Management' }}</p>
+                    <p>
+                        Approved on:
+                        {{ $communication->executive_approved_at ? \Carbon\Carbon::parse($communication->executive_approved_at)->format('F d, Y h:i A') : 'Date and Time' }}
+                    </p>
+                </div>
+
+                <p class="computer-generated">
+                    This is a computer-generated document. Signature is not required.
+                </p>
             </div>
 
-            <div class="approved-by">Approved by:</div>
+            @if($acknowledgmentRequired)
+                <div class="acknowledgement-section">
+                    <p class="acknowledgement-section-title">Acknowledgment Tracking</p>
+                    <p><strong>Acknowledgment Required:</strong> YES</p>
 
-            <div class="signature-block">
-                <div><strong>John Kelly D. Abalde</strong></div>
-                <div>President and CEO</div>
-            </div>
+                    @if($acknowledgedRecords->count() > 0)
+                        @foreach($acknowledgedRecords as $acknowledgementRecord)
+                            <div class="acknowledgement-entry">
+                                <p><strong>Acknowledged By:</strong> {{ $acknowledgementRecord->recipient_name ?: optional($acknowledgementRecord->user)->name ?: '—' }}</p>
+                                <p><strong>Position:</strong> {{ $acknowledgementRecord->recipient_position ?: '—' }}</p>
+                                <p><strong>Department:</strong> {{ $acknowledgementRecord->recipient_department ?: '—' }}</p>
+                                <p><strong>Date and Time Acknowledged:</strong> {{ \Carbon\Carbon::parse($acknowledgementRecord->acknowledged_at)->format('F d, Y h:i A') }}</p>
+                                <p><strong>IP Address:</strong> {{ $acknowledgementRecord->ip_address ?: '—' }}</p>
+                                <p><strong>User Account ID:</strong> {{ $acknowledgementRecord->user_account_id ?: $acknowledgementRecord->user_id }}</p>
+                            </div>
+                        @endforeach
+                    @else
+                        <p><strong>Status:</strong> Pending acknowledgment</p>
+                    @endif
+</div>
+            @endif
         </div>
     </div>
-
 </body>
 </html>

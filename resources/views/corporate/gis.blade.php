@@ -276,6 +276,18 @@
                     <option>Special Meeting</option>
                 </select>
 
+
+
+                <div class="pt-2">
+                    <label class="block text-[13px] font-medium text-gray-700 mb-2">Corporation Logo</label>
+                    <label class="w-full min-h-[84px] border border-dashed border-gray-300 rounded-lg bg-gray-50 hover:bg-gray-100 flex flex-col items-center justify-center gap-2 px-4 cursor-pointer transition">
+                        <i class="far fa-image text-[26px] text-gray-500"></i>
+                        <span class="text-[14px] text-blue-600 font-medium">Choose logo image</span>
+                        <span class="text-[11px] text-gray-400">Optional • JPG, PNG, WEBP</span>
+                        <input type="file" name="logo_upload" accept="image/*" class="hidden">
+                    </label>
+                </div>
+
                 <div class="pt-2">
                     <label class="block text-[13px] font-medium text-gray-700 mb-2">Draft File Upload</label>
 

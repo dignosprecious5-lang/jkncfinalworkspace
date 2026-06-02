@@ -7,6 +7,7 @@ use App\Models\Company;
 use App\Models\Contact;
 use App\Models\Deal;
 use App\Models\DealStage;
+use App\Models\Employee;
 use App\Models\Product;
 use App\Models\Project;
 use App\Models\ProjectNtp;
@@ -149,6 +150,8 @@ class ProjectController extends Controller
             'contactRecords' => $contactRecords,
             'companyRecords' => $companyRecords,
             'dealRecords' => $dealRecords,
+            'employeeRecords' => $this->employeeLookupRecords(),
+            'defaultApprovalPreparedBy' => $this->currentEmployeeDisplayName($request),
             'sowTemplates' => $sowTemplates,
             'serviceAreaOptions' => $serviceCatalog['serviceAreaOptions'],
             'serviceGroups' => $serviceCatalog['serviceGroups'],
@@ -203,6 +206,7 @@ class ProjectController extends Controller
                 })]
                 : ['nullable'],
         ]);
+        $validated['prepared_by_default'] = $this->currentEmployeeDisplayName($request);
 
         $validated['service_area'] = $this->stringifySelectedValues(
             $validated['service_area_options'] ?? [],
@@ -586,6 +590,48 @@ class ProjectController extends Controller
             ->with('success', 'Scope of Work updated successfully.');
     }
 
+    public function manualApproveSow(Request $request, Project $project): RedirectResponse
+    {
+        $this->abortIfProjectCompleted($project);
+
+        $validated = $request->validate([
+            'signed_document' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png,doc,docx', 'max:10240'],
+            'approval_name' => ['nullable', 'string', 'max:255'],
+            'approval_note' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $sow = $project->sows()->latest()->first() ?: new ProjectSow(['project_id' => $project->id]);
+        $sow->project_id = $project->id;
+        $sow->approval_status = 'approved';
+        $sow->approved_at = now();
+        $sow->approved_by_name = $this->currentEmployeeDisplayName($request) ?: 'Manual Override';
+
+        if ($request->hasFile('signed_document')) {
+            if ($sow->client_signed_attachment_path && Storage::disk('public')->exists($sow->client_signed_attachment_path)) {
+                Storage::disk('public')->delete($sow->client_signed_attachment_path);
+            }
+
+            $sow->client_signed_attachment_path = $request->file('signed_document')->store("projects/{$project->id}/sow", 'public');
+        }
+
+        $metadata = (array) ($sow->metadata ?? []);
+        data_set($metadata, 'manual_approval.note', trim((string) ($validated['approval_note'] ?? '')));
+        data_set($metadata, 'manual_approval.approved_at', now()->toDateTimeString());
+        data_set($metadata, 'manual_approval.approved_by_name', $sow->approved_by_name);
+        $sow->metadata = $metadata;
+        $sow->save();
+
+        $project->forceFill([
+            'status' => 'For NTP Approval',
+            'current_phase' => 'For NTP Approval',
+            'current_step' => 'SOW manually approved',
+        ])->save();
+
+        return redirect()
+            ->route('project.show', ['project' => $project->id, 'tab' => 'sow'])
+            ->with('success', 'SOW manually approved successfully.');
+    }
+
     public function downloadSowPdf(Project $project)
     {
         $project->loadMissing([
@@ -764,7 +810,8 @@ class ProjectController extends Controller
     {
         $this->abortIfProjectCompleted($project);
 
-        $ntpRecord = $project->ntps()->latest()->firstOrFail();
+        $ntpRecord = $project->ntps()->latest()->first()
+            ?: $this->generateAndSendProjectNtp($project, false);
         $validated = $this->validateSignedApprovalUpload($request);
 
         $this->replaceClientAttachment(
@@ -776,7 +823,7 @@ class ProjectController extends Controller
         $ntpRecord->fill([
             'client_response_status' => 'approved_to_proceed',
             'client_approved_at' => now(),
-            'client_approved_name' => $validated['approval_name'] ?: ($request->user()?->name ?? 'Manual Override'),
+            'client_approved_name' => $this->currentEmployeeDisplayName($request) ?: 'Manual Override',
             'client_response_notes' => trim((string) ($validated['approval_note'] ?? '')) ?: 'Approved by manual override using uploaded signed NTP.',
         ]);
         $ntpRecord->save();
@@ -1005,9 +1052,9 @@ class ProjectController extends Controller
         $report->fill([
             'client_response_status' => 'approved',
             'client_approved_at' => now(),
-            'client_approved_name' => $validated['approval_name'] ?: ($request->user()?->name ?? 'Manual Override'),
+            'client_approved_name' => $this->currentEmployeeDisplayName($request) ?: 'Manual Override',
             'client_response_notes' => trim((string) ($validated['approval_note'] ?? '')) ?: 'Approved by manual override using uploaded signed report.',
-            'client_confirmation_name' => $validated['approval_name'] ?: ($report->client_confirmation_name ?: $project->client_name),
+            'client_confirmation_name' => $report->client_confirmation_name ?: $project->client_name,
         ]);
         $report->save();
         $this->markProjectReadyForCompletion($project, 'Signed SOW report uploaded manually');
@@ -1769,13 +1816,13 @@ class ProjectController extends Controller
             'is_approved' => (bool) $isApproved,
             'status_label' => $isApproved
                 ? 'Client approved NTP'
-                : ($ntpRecord?->client_form_sent_at ? 'Waiting for client signed NTP upload' : 'NTP not generated'),
-            'button_label' => $isApproved ? 'View Approved NTP' : 'Generate NTP',
-            'button_icon' => $isApproved ? 'fas fa-check-circle' : 'fas fa-file-signature',
+                : ($ntpRecord ? 'NTP generated, waiting for signed upload' : 'NTP not generated'),
+            'button_label' => $ntpRecord ? 'View NTP' : 'Generate NTP',
+            'button_icon' => $isApproved ? 'fas fa-check-circle' : '',
             'button_class' => $isApproved
                 ? 'project-doc-action project-doc-action-approved'
                 : 'project-doc-action',
-            'action_url' => $isApproved
+            'action_url' => $ntpRecord
                 ? route('project.ntp.submission', $project)
                 : route('project.ntp.download', $project),
             'approved_at' => optional($ntpRecord?->client_approved_at)->format('M d, Y h:i A'),
@@ -1788,7 +1835,8 @@ class ProjectController extends Controller
         $fallback = $this->manualInternalApprovalPayload(
             $validated['assigned_project_manager'] ?? null,
             $validated['assigned_consultant'] ?? null,
-            $validated['assigned_associate'] ?? null
+            $validated['assigned_associate'] ?? null,
+            $validated['prepared_by_default'] ?? null
         );
 
         return array_replace_recursive($fallback, array_filter($templateApproval, fn ($value) => $value !== null));
@@ -2134,11 +2182,11 @@ class ProjectController extends Controller
         ];
     }
 
-    private function manualInternalApprovalPayload(?string $assignedProjectManager, ?string $assignedConsultant, ?string $assignedAssociate): array
+    private function manualInternalApprovalPayload(?string $assignedProjectManager, ?string $assignedConsultant, ?string $assignedAssociate, ?string $preparedByDefault = null): array
     {
         return [
-            'prepared_by' => $assignedProjectManager ?: $assignedConsultant,
-            'reviewed_by' => 'Admin',
+            'prepared_by' => $preparedByDefault ?: ($assignedProjectManager ?: $assignedConsultant),
+            'reviewed_by' => $assignedProjectManager ?: ($assignedConsultant ?: 'Admin'),
             'referred_by_closed_by' => null,
             'sales_marketing' => 'Sales & Marketing',
             'lead_consultant' => $assignedConsultant,
@@ -2437,15 +2485,25 @@ class ProjectController extends Controller
                 return ['productOptionsByServiceArea' => []];
             }
 
+            $select = ['product_name', 'status'];
+            foreach (['linked_service_id', 'linked_service_ids'] as $column) {
+                if (Schema::hasColumn('products', $column)) {
+                    $select[] = $column;
+                }
+            }
+
+            $serviceAreasById = $this->projectLinkedServiceAreasById();
             $products = Product::query()
-                ->select(['product_name', 'product_area', 'status'])
+                ->select($select)
                 ->whereNotNull('product_name')
                 ->where('product_name', '!=', '')
                 ->when(Schema::hasColumn('products', 'status'), fn ($query) => $query->whereIn('status', ['Pending Approval', 'Active']))
                 ->orderBy('product_name')
                 ->get();
 
-            $groups = [];
+            $groups = [
+                'Products Without Service Area' => [],
+            ];
 
             foreach ($products as $product) {
                 $productName = trim((string) $product->product_name);
@@ -2453,11 +2511,12 @@ class ProjectController extends Controller
                     continue;
                 }
 
-                $areas = collect($product->product_area ?? [])
-                    ->filter(fn ($value): bool => is_string($value) && trim($value) !== '')
-                    ->map(fn ($value): string => trim((string) $value))
-                    ->reject(fn (string $value): bool => $value === 'Others' || $value === 'None')
-                    ->values();
+                $areas = $this->normalizeProductServiceAreas($product, $serviceAreasById);
+
+                if ($areas === []) {
+                    $groups['Products Without Service Area'][] = $productName;
+                    continue;
+                }
 
                 foreach ($areas as $area) {
                     $groups[$area] ??= [];
@@ -2466,8 +2525,8 @@ class ProjectController extends Controller
             }
 
             $groups = collect($groups)
-                ->map(fn (array $items): array => collect($items)->filter()->unique()->sort()->values()->all())
-                ->filter(fn (array $items): bool => $items !== [])
+                ->map(fn (array $group): array => collect($group)->filter()->unique()->sort()->values()->all())
+                ->filter(fn (array $group): bool => $group !== [])
                 ->sortKeys()
                 ->all();
 
@@ -2475,6 +2534,72 @@ class ProjectController extends Controller
         } catch (Throwable) {
             return ['productOptionsByServiceArea' => []];
         }
+    }
+
+    private function normalizeProductServiceAreas(Product $product, array $serviceAreasById): array
+    {
+        $linkedServiceIds = $this->normalizeProductLinkedServiceIds($product);
+
+        return $linkedServiceIds === []
+            ? []
+            : collect($serviceAreasById)
+                ->only($linkedServiceIds)
+                ->flatten()
+                ->filter()
+                ->unique()
+                ->values()
+                ->all();
+    }
+
+    private function normalizeProductLinkedServiceIds(Product $product): array
+    {
+        $ids = collect($product->linked_service_ids ?? [])
+            ->merge(filled($product->linked_service_id) ? [$product->linked_service_id] : [])
+            ->map(fn ($id): int => (int) $id)
+            ->filter(fn (int $id): bool => $id > 0)
+            ->unique()
+            ->values()
+            ->all();
+
+        return $ids;
+    }
+
+    private function projectLinkedServiceAreasById(): array
+    {
+        if (! Schema::hasTable('services')) {
+            return [];
+        }
+
+        return Service::query()
+            ->select(['id', 'service_area', 'service_area_other'])
+            ->get()
+            ->mapWithKeys(fn (Service $service): array => [
+                $service->id => $this->normalizeServiceAreas($service),
+            ])
+            ->filter(fn (array $areas): bool => $areas !== [])
+            ->all();
+    }
+
+    private function normalizeServiceAreas(Service $service): array
+    {
+        $areas = collect($service->service_area ?? [])
+            ->filter(fn ($value): bool => is_string($value) && trim($value) !== '')
+            ->map(fn ($value): string => trim((string) $value))
+            ->reject(fn (string $value): bool => Str::lower($value) === 'none')
+            ->values();
+
+        if ($areas->contains('Others') && filled($service->service_area_other)) {
+            $areas = $areas
+                ->reject(fn (string $value): bool => $value === 'Others')
+                ->push(trim((string) $service->service_area_other))
+                ->values();
+        }
+
+        if ($areas->isEmpty() && filled($service->service_area_other)) {
+            $areas = collect([trim((string) $service->service_area_other)]);
+        }
+
+        return $areas->unique()->values()->all();
     }
 
     private function resolveProjectClientEmail(Project $project): ?string
@@ -2593,7 +2718,7 @@ class ProjectController extends Controller
         ];
     }
 
-    private function generateAndSendProjectNtp(Project $project): ProjectNtp
+    private function generateAndSendProjectNtp(Project $project, bool $sendClientLink = true): ProjectNtp
     {
         $ntpPayload = $this->buildProjectNtpPayload($project);
         $sow = $project->sows()->latest()->first();
@@ -2614,7 +2739,7 @@ class ProjectController extends Controller
         $ntpRecord->save();
 
         $recipientEmail = $this->resolveProjectClientEmail($project);
-        if ($recipientEmail !== null) {
+        if ($sendClientLink && $recipientEmail !== null) {
             $this->sendNtpClientLink($project, $ntpRecord, $recipientEmail);
         }
 
@@ -2699,6 +2824,52 @@ class ProjectController extends Controller
             ->implode(', ');
 
         return $value !== '' ? Str::limit($value, 1000, '') : null;
+    }
+
+    private function employeeLookupRecords(): array
+    {
+        if (! Schema::hasTable('employees')) {
+            return [];
+        }
+
+        return Employee::query()
+            ->select(['id', 'employee_code', 'first_name', 'last_name', 'position', 'email', 'work_email'])
+            ->orderBy('first_name')
+            ->orderBy('last_name')
+            ->get()
+            ->map(function (Employee $employee): array {
+                $label = trim((string) $employee->full_name);
+
+                return [
+                    'id' => $employee->id,
+                    'label' => $label,
+                    'position' => $employee->position,
+                    'employee_code' => $employee->employee_code,
+                    'email' => $employee->work_email ?: $employee->email,
+                    'search_blob' => Str::lower(implode(' ', array_filter([
+                        $label,
+                        $employee->employee_code,
+                        $employee->position,
+                        $employee->work_email,
+                        $employee->email,
+                    ]))),
+                ];
+            })
+            ->filter(fn (array $employee): bool => $employee['label'] !== '')
+            ->values()
+            ->all();
+    }
+
+    private function currentEmployeeDisplayName(Request $request): ?string
+    {
+        $user = $request->user();
+        if (! $user) {
+            return null;
+        }
+
+        $employee = $user->employeeProfile;
+
+        return filled($employee?->full_name) ? $employee->full_name : ($user->name ?: null);
     }
 
     private function canReviewStart(Request $request): bool

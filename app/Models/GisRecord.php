@@ -6,7 +6,11 @@ use Illuminate\Database\Eloquent\Model;
 
 class GisRecord extends Model
 {
+    protected $table = 'gis_records';
+
     protected $fillable = [
+        'company_id',
+
         'uploaded_by',
         'submission_status',
         'receive_on',
@@ -17,6 +21,7 @@ class GisRecord extends Model
         'meeting_type',
         'file',
         'notary_file_path',
+        'logo_path',
 
         'date_registered',
         'trade_name',
@@ -47,7 +52,24 @@ class GisRecord extends Model
         'review_note',
     ];
 
+    protected $casts = [
+        'receive_on' => 'date',
+        'annual_meeting' => 'date',
+        'date_registered' => 'date',
+        'approved_at' => 'datetime',
+    ];
+
+    public function company()
+    {
+        return $this->belongsTo(Company::class, 'company_id');
+    }
+
     public function authorizedCapital()
+    {
+        return $this->hasMany(AuthorizedCapitalStock::class, 'gis_id');
+    }
+
+    public function authorizedCapitalStocks()
     {
         return $this->hasMany(AuthorizedCapitalStock::class, 'gis_id');
     }
@@ -57,12 +79,27 @@ class GisRecord extends Model
         return $this->hasMany(SubscribedCapital::class, 'gis_id');
     }
 
+    public function subscribedCapitals()
+    {
+        return $this->hasMany(SubscribedCapital::class, 'gis_id');
+    }
+
     public function paidUpCapital()
     {
         return $this->hasMany(PaidUpCapital::class, 'gis_id');
     }
 
+    public function paidUpCapitals()
+    {
+        return $this->hasMany(PaidUpCapital::class, 'gis_id');
+    }
+
     public function directors()
+    {
+        return $this->hasMany(DirectorOfficer::class, 'gis_id');
+    }
+
+    public function directorsOfficers()
     {
         return $this->hasMany(DirectorOfficer::class, 'gis_id');
     }
@@ -73,6 +110,11 @@ class GisRecord extends Model
     }
 
     public function ubos()
+    {
+        return $this->hasMany(UltimateBeneficialOwner::class, 'gis_id');
+    }
+
+    public function ultimateBeneficialOwners()
     {
         return $this->hasMany(UltimateBeneficialOwner::class, 'gis_id');
     }

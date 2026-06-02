@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Concerns;
 
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Symfony\Component\Process\Process;
@@ -17,7 +18,7 @@ trait GeneratesPdfPreview
         $browserBinary = $this->previewBrowserBinary();
 
         if (!$browserBinary) {
-            return null;
+            return $this->generatePdfPreviewWithDompdf($view, $data, $targetPath);
         }
 
         $html = view($view, $data)->render();
@@ -69,7 +70,7 @@ trait GeneratesPdfPreview
         if (!file_exists($pdfPath) || filesize($pdfPath) === 0) {
             @unlink($pdfPath);
 
-            return null;
+            return $this->generatePdfPreviewWithDompdf($view, $data, $targetPath);
         }
 
         Storage::disk('public')->delete($targetPath);
@@ -77,6 +78,19 @@ trait GeneratesPdfPreview
         @unlink($pdfPath);
 
         return $targetPath;
+    }
+
+    protected function generatePdfPreviewWithDompdf(string $view, array $data, string $targetPath): ?string
+    {
+        try {
+            $pdf = Pdf::loadView($view, $data)->setPaper('a4', 'portrait');
+            Storage::disk('public')->delete($targetPath);
+            Storage::disk('public')->put($targetPath, $pdf->output());
+
+            return $targetPath;
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     protected function previewBrowserBinary(): ?string

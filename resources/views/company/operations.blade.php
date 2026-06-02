@@ -2,6 +2,10 @@
 @section('title', 'Company Operations')
 
 @section('content')
+@php
+    $companyTinValue = old('tin', $companyTin ?? ($company->tin_no ?? $company->tin ?? ''));
+    $currentUserNameValue = old('uploaded_by', old('user', $currentUserName ?? (auth()->user()->name ?? auth()->user()->email ?? 'System User')));
+@endphp
 <div class="w-full px-4 sm:px-6 lg:px-8 mt-4 pb-8">
     <div class="bg-white border border-gray-100 rounded-md overflow-hidden">
         @include('company.partials.company-header', ['company' => $company])
@@ -40,7 +44,7 @@
                                         </div>
                                         <div>
                                             <label class="block text-sm font-medium mb-1">TIN *</label>
-                                            <input id="operationsTinInput" name="tin" type="text" placeholder="Enter TIN" class="w-full border rounded-md p-2" required>
+                                            <input id="operationsTinInput" name="tin" type="text" value="{{ $companyTinValue }}" placeholder="Enter TIN" class="w-full border rounded-md p-2 bg-gray-50" required>
                                         </div>
                                         <div>
                                             <label class="block text-sm font-medium mb-1">Date Uploaded *</label>
@@ -48,7 +52,7 @@
                                         </div>
                                         <div>
                                             <label class="block text-sm font-medium mb-1">Uploaded By *</label>
-                                            <input id="operationsUploadedByInput" name="uploaded_by" type="text" placeholder="Enter uploader" class="w-full border rounded-md p-2" required>
+                                            <input id="operationsUploadedByInput" name="uploaded_by" type="text" value="{{ $currentUserNameValue }}" class="w-full border rounded-md p-2 bg-gray-100 text-gray-600" readonly required>
                                         </div>
                                         <div>
                                             <label class="block text-sm font-medium mb-1">Record Name *</label>
@@ -188,6 +192,8 @@
         document.getElementById('operationsFormMethod').value = 'POST';
         document.getElementById('operationsDrawerTitle').textContent = 'Add Operations Entry';
         document.getElementById('operationsSubmitButton').textContent = 'Save';
+        document.getElementById('operationsTinInput').value = @json($companyTinValue);
+        document.getElementById('operationsUploadedByInput').value = @json($currentUserNameValue);
     }
 
     function editOperationsRecord(record) {
@@ -199,7 +205,7 @@
         document.getElementById('operationsSubmitButton').textContent = 'Update';
         document.getElementById('operationsTinInput').value = record.tin;
         document.getElementById('operationsDateInput').value = record.date_uploaded;
-        document.getElementById('operationsUploadedByInput').value = record.uploaded_by;
+        document.getElementById('operationsUploadedByInput').value = @json($currentUserNameValue);
         document.getElementById('operationsRecordNameInput').value = record.record_name;
         document.getElementById('operationsDocsInput').value = record.supporting_docs;
         document.getElementById('operationsStatusInput').value = record.status;

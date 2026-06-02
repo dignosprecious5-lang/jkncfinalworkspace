@@ -20,9 +20,11 @@ class CandidateInterview extends Model
         'duration',
         'meeting_link',
         'status',
+        'application_details',
     ];
 
     protected $casts = [
         'interview_date' => 'datetime',
+        'application_details' => 'array',
     ];
 }

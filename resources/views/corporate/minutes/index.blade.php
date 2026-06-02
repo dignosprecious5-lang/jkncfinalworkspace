@@ -15,6 +15,26 @@
         'governing_body' => $notice->governing_body,
         'type_of_meeting' => $notice->type_of_meeting,
         'meeting_no' => $notice->meeting_no,
+        'meeting_mode' => $notice->meeting_mode,
+        'meeting_platform' => $notice->meeting_platform,
+        'meeting_link_details' => $notice->meeting_link_details,
+        'attendees' => $notice->relationLoaded('attendees') ? $notice->attendees
+            ->filter(fn ($attendee) => strtolower((string) $attendee->source_type) !== 'guest')
+            ->map(fn ($attendee) => [
+                'name' => $attendee->name,
+                'position' => $attendee->position,
+                'email' => $attendee->email,
+                'source_type' => $attendee->source_type,
+                'is_selected' => (bool) $attendee->is_selected,
+            ])->values() : [],
+        'guests' => $notice->relationLoaded('attendees') ? $notice->attendees
+            ->filter(fn ($attendee) => strtolower((string) $attendee->source_type) === 'guest')
+            ->map(fn ($attendee) => [
+                'name' => $attendee->name,
+                'position' => $attendee->position ?: 'Guest',
+                'email' => $attendee->email,
+                'is_selected' => (bool) $attendee->is_selected,
+            ])->values() : [],
         'date_of_meeting' => optional($notice->date_of_meeting)->toDateString(),
         'time_started' => $notice->time_started,
         'location' => $notice->location,
@@ -183,7 +203,7 @@
                     </div>
                     <div>
                         <label class="text-xs text-gray-600">Governing Body</label>
-                        <select name="governing_body" x-ref="governingBody" class="mt-1 block w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2 text-sm">
+                        <select name="governing_body" x-ref="governingBody" x-model="governingBodyValue" @change="$nextTick(() => syncAttendees())" class="mt-1 block w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2 text-sm">
                             <option value="Stockholders">Stockholders</option>
                             <option value="Board of Directors">Board of Directors</option>
                             <option value="Joint Stockholders and Board of Directors">Joint Stockholders and Board of Directors</option>
@@ -200,10 +220,13 @@
                     </div>
                     <div>
                         <label class="text-xs text-gray-600">Meeting Mode</label>
-                        <select name="meeting_mode" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
+                        <select name="meeting_mode" x-ref="meetingMode" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
+                            <option value="Physical">Physical</option>
                             <option value="In-Person">In-Person</option>
                             <option value="Virtual">Virtual</option>
                             <option value="Hybrid">Hybrid</option>
+                            <option value="Online">Online</option>
+                            <option value="Email Approval">Email Approval</option>
                         </select>
                     </div>
                     <div>
@@ -228,7 +251,7 @@
                     </div>
                     <div>
                         <label class="text-xs text-gray-600">Call Link</label>
-                        <input type="text" name="call_link" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
+                        <input type="text" name="call_link" x-ref="callLink" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
                     </div>
                     <div>
                         <label class="text-xs text-gray-600">Meeting #</label>
@@ -242,6 +265,99 @@
                         <label class="text-xs text-gray-600">Secretary</label>
                         <input type="text" name="secretary" x-ref="secretary" class="mt-1 block w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2 text-sm">
                     </div>
+
+                    <div class="md:col-span-2 rounded-xl border border-gray-200 bg-gray-50 p-4">
+                        <div class="flex items-start justify-between gap-3">
+                            <div>
+                                <div class="text-sm font-semibold text-gray-900">Attendees</div>
+                                <div class="mt-1 text-xs text-gray-500">Expected attendees are auto-loaded from the linked Notice. Move names to Absent only when needed; leave Absent or Guests blank to show NO ABSENT / NO GUESTS.</div>
+                            </div>
+                        </div>
+
+                        <input type="hidden" name="directors_present" x-ref="directorsPresentInput">
+                        <input type="hidden" name="directors_absent" x-ref="directorsAbsentInput">
+                        <input type="hidden" name="secretariat" x-ref="secretariatInput">
+                        <input type="hidden" name="guests" x-ref="guestsInput">
+
+                        <div class="mt-4 space-y-5">
+                            <div class="rounded-xl border border-gray-200 bg-white p-4">
+                                <div class="flex items-center justify-between gap-3">
+                                    <div>
+                                        <div class="text-xs font-semibold uppercase tracking-wide text-gray-700" x-text="presentLabel()">Present</div>
+                                        <div class="mt-1 text-xs text-gray-500">Auto-loaded from the selected Notice expected attendees. You may still edit names or positions.</div>
+                                    </div>
+                                    <button type="button" @click="addAttendee('directors_present')" class="rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700">+ Add</button>
+                                </div>
+                                <div class="mt-3 space-y-2">
+                                    <template x-for="(person, index) in attendees.directors_present" :key="`directors-present-${index}`">
+                                        <div class="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2">
+                                            <input type="text" x-model="person.name" class="rounded-md border border-gray-300 px-3 py-2 text-sm" placeholder="Name">
+                                            <input type="text" x-model="person.position" class="rounded-md border border-gray-300 px-3 py-2 text-sm" placeholder="Position">
+                                            <button type="button" @click="removeAttendee('directors_present', index)" class="rounded-md border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50" x-show="attendees.directors_present.length > 1">Remove</button>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+
+                            <div class="rounded-xl border border-gray-200 bg-white p-4">
+                                <div class="flex items-center justify-between gap-3">
+                                    <div>
+                                        <div class="text-xs font-semibold uppercase tracking-wide text-gray-700" x-text="absentLabel()">Absent</div>
+                                        <div class="mt-1 text-xs text-gray-500">Leave blank if no one is absent. The minutes will show NO ABSENT.</div>
+                                    </div>
+                                    <button type="button" @click="addAttendee('directors_absent')" class="rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700">+ Add</button>
+                                </div>
+                                <div class="mt-3 space-y-2">
+                                    <template x-for="(person, index) in attendees.directors_absent" :key="`directors-absent-${index}`">
+                                        <div class="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2">
+                                            <input type="text" x-model="person.name" class="rounded-md border border-gray-300 px-3 py-2 text-sm" placeholder="Name">
+                                            <input type="text" x-model="person.position" class="rounded-md border border-gray-300 px-3 py-2 text-sm" placeholder="Position">
+                                            <button type="button" @click="removeAttendee('directors_absent', index)" class="rounded-md border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50" x-show="attendees.directors_absent.length > 1">Remove</button>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+
+                            <div class="rounded-xl border border-gray-200 bg-white p-4">
+                                <div class="flex items-center justify-between gap-3">
+                                    <div>
+                                        <div class="text-xs font-semibold uppercase tracking-wide text-gray-700">Corporate Secretary</div>
+                                        <div class="mt-1 text-xs text-gray-500">This should be Corporate Secretary, not Secretariat. You can edit the name/role if needed.</div>
+                                    </div>
+                                    <button type="button" @click="addAttendee('secretariat')" class="rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700">+ Add</button>
+                                </div>
+                                <div class="mt-3 space-y-2">
+                                    <template x-for="(person, index) in attendees.secretariat" :key="`secretariat-${index}`">
+                                        <div class="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2">
+                                            <input type="text" x-model="person.name" class="rounded-md border border-gray-300 px-3 py-2 text-sm" placeholder="Name">
+                                            <input type="text" x-model="person.position" class="rounded-md border border-gray-300 px-3 py-2 text-sm" placeholder="Role">
+                                            <button type="button" @click="removeAttendee('secretariat', index)" class="rounded-md border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50" x-show="attendees.secretariat.length > 1">Remove</button>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+
+                            <div class="rounded-xl border border-gray-200 bg-white p-4">
+                                <div class="flex items-center justify-between gap-3">
+                                    <div>
+                                        <div class="text-xs font-semibold uppercase tracking-wide text-gray-700">Guests</div>
+                                        <div class="mt-1 text-xs text-gray-500">Leave blank if there are no guests. The minutes will show NO GUESTS.</div>
+                                    </div>
+                                    <button type="button" @click="addAttendee('guests')" class="rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700">+ Add</button>
+                                </div>
+                                <div class="mt-3 space-y-2">
+                                    <template x-for="(person, index) in attendees.guests" :key="`guests-${index}`">
+                                        <div class="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2">
+                                            <input type="text" x-model="person.name" class="rounded-md border border-gray-300 px-3 py-2 text-sm" placeholder="Name">
+                                            <input type="text" x-model="person.position" class="rounded-md border border-gray-300 px-3 py-2 text-sm" placeholder="Role">
+                                            <button type="button" @click="removeAttendee('guests', index)" class="rounded-md border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50" x-show="attendees.guests.length > 1">Remove</button>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <div>
                         <label class="text-xs text-gray-600">Upload Minutes (PDF)</label>
                         <input type="file" name="document_path" accept="application/pdf" class="mt-1 block w-full text-sm text-gray-600 file:mr-4 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-blue-600 file:text-white hover:file:bg-blue-700">
@@ -305,7 +421,14 @@
             defaultsEndpoint,
             initialMinutesRef,
             selectedNoticeId: '',
+            governingBodyValue: 'Board of Directors',
             minutesBodyHtml: '',
+            attendees: {
+                directors_present: [{ name: '', position: '' }],
+                directors_absent: [{ name: '', position: '' }],
+                secretariat: [{ name: '', position: '' }],
+                guests: [{ name: '', position: '' }],
+            },
             get hasNotices() {
                 return this.notices.length > 0;
             },
@@ -327,7 +450,6 @@
                     this.selectedNoticeId = String(this.notices[0].id);
                 }
 
-                this.$nextTick(() => this.applyNotice());
                 this.$nextTick(() => {
                     this.minutesBodyHtml = '';
                     if (this.$refs.minutesEditor) {
@@ -335,6 +457,62 @@
                     }
                     if (this.$refs.recordingNotesInput) {
                         this.$refs.recordingNotesInput.value = '';
+                    }
+                    this.resetAttendees();
+                    this.applyNotice();
+                });
+            },
+            emptyAttendeeRow() {
+                return { name: '', position: '' };
+            },
+            resetAttendees() {
+                this.attendees = {
+                    directors_present: [this.emptyAttendeeRow()],
+                    directors_absent: [this.emptyAttendeeRow()],
+                    secretariat: [this.emptyAttendeeRow()],
+                    guests: [this.emptyAttendeeRow()],
+                };
+            },
+            addAttendee(group) {
+                if (!this.attendees[group]) {
+                    return;
+                }
+
+                this.attendees[group].push(this.emptyAttendeeRow());
+                this.$nextTick(() => this.syncAttendees());
+            },
+            removeAttendee(group, index) {
+                if (!this.attendees[group]) {
+                    return;
+                }
+
+                this.attendees[group].splice(index, 1);
+
+                if (!this.attendees[group].length) {
+                    this.attendees[group].push(this.emptyAttendeeRow());
+                }
+
+                this.$nextTick(() => this.syncAttendees());
+            },
+            cleanAttendees(group) {
+                return (this.attendees[group] || [])
+                    .map((person) => ({
+                        name: String(person.name || '').trim(),
+                        position: String(person.position || '').trim(),
+                    }))
+                    .filter((person) => person.name !== '' || person.position !== '');
+            },
+            syncAttendees() {
+                const mapping = {
+                    directors_present: 'directorsPresentInput',
+                    directors_absent: 'directorsAbsentInput',
+                    secretariat: 'secretariatInput',
+                    guests: 'guestsInput',
+                };
+
+                Object.entries(mapping).forEach(([group, refName]) => {
+                    if (this.$refs[refName]) {
+                        this.$refs[refName].value = JSON.stringify(this.cleanAttendees(group));
                     }
                 });
             },
@@ -361,6 +539,7 @@
             },
             prepareSubmit() {
                 this.syncMinutesBody();
+                this.syncAttendees();
             },
             async loadDefaults() {
                 if (!this.defaultsEndpoint) {
@@ -381,30 +560,91 @@
                     // ignore defaults errors
                 }
             },
+
+            attendanceBaseLabel() {
+                const selected = this.notices.find((notice) => String(notice.id) === String(this.selectedNoticeId));
+                const body = String(this.governingBodyValue || this.$refs.governingBody?.value || selected?.governing_body || '').toLowerCase();
+
+                if (body.includes('joint')) {
+                    return 'Directors and Stockholders';
+                }
+
+                if (body.includes('stockholder') && !body.includes('board')) {
+                    return 'Stockholders';
+                }
+
+                return 'Directors';
+            },
+            presentLabel() {
+                return `${this.attendanceBaseLabel()} Present`;
+            },
+            absentLabel() {
+                return `${this.attendanceBaseLabel()} Absent`;
+            },
+            expectedAttendeeRows(selected) {
+                return (Array.isArray(selected?.attendees) ? selected.attendees : [])
+                    .filter((attendee) => attendee && attendee.is_selected !== false && String(attendee.source_type || '').toLowerCase() !== 'guest')
+                    .map((attendee) => ({
+                        name: String(attendee.name || '').trim(),
+                        position: String(attendee.position || attendee.role || 'Attendee').trim(),
+                    }))
+                    .filter((attendee) => attendee.name !== '');
+            },
+            guestRows(selected) {
+                return (Array.isArray(selected?.guests) ? selected.guests : [])
+                    .filter((guest) => guest && guest.is_selected !== false)
+                    .map((guest) => ({
+                        name: String(guest.name || '').trim(),
+                        position: String(guest.position || guest.role || 'Guest').trim(),
+                    }))
+                    .filter((guest) => guest.name !== '');
+            },
             applyNotice() {
                 const selected = this.notices.find((notice) => String(notice.id) === String(this.selectedNoticeId));
                 if (!selected) {
                     this.$refs.noticeRef.value = '';
-                    this.$refs.governingBody.value = 'Board of Directors';
+                    this.governingBodyValue = 'Board of Directors';
+                    this.$refs.governingBody.value = this.governingBodyValue;
                     this.$refs.meetingType.value = 'Regular';
                     this.$refs.meetingDate.value = this.today || '';
                     this.$refs.timeStarted.value = '';
                     this.$refs.location.value = '';
+                    if (this.$refs.meetingMode) this.$refs.meetingMode.value = 'Physical';
+                    if (this.$refs.callLink) this.$refs.callLink.value = '';
                     this.$refs.meetingNo.value = '';
                     this.$refs.chairman.value = '';
                     this.$refs.secretary.value = '';
+                    this.resetAttendees();
+                    this.syncAttendees();
                     return;
                 }
 
                 this.$refs.noticeRef.value = selected.notice_number || '';
-                this.$refs.governingBody.value = selected.governing_body || 'Board of Directors';
+                this.governingBodyValue = selected.governing_body || 'Board of Directors';
+                this.$refs.governingBody.value = this.governingBodyValue;
                 this.$refs.meetingType.value = selected.type_of_meeting || 'Regular';
                 this.$refs.meetingDate.value = selected.date_of_meeting || '';
                 this.$refs.timeStarted.value = selected.time_started || '';
                 this.$refs.location.value = selected.location || '';
+                if (this.$refs.meetingMode) {
+                    this.$refs.meetingMode.value = selected.meeting_mode || selected.meeting_platform || 'Physical';
+                }
+                if (this.$refs.callLink) {
+                    this.$refs.callLink.value = selected.meeting_link_details || '';
+                }
                 this.$refs.meetingNo.value = selected.meeting_no || '';
                 this.$refs.chairman.value = selected.chairman || '';
                 this.$refs.secretary.value = selected.secretary || '';
+
+                const expectedRows = this.expectedAttendeeRows(selected);
+                this.attendees.directors_present = expectedRows.length ? expectedRows : [this.emptyAttendeeRow()];
+                this.attendees.directors_absent = [this.emptyAttendeeRow()];
+                this.attendees.secretariat = selected.secretary
+                    ? [{ name: selected.secretary, position: 'Corporate Secretary' }]
+                    : [this.emptyAttendeeRow()];
+                const guestRows = this.guestRows(selected);
+                this.attendees.guests = guestRows.length ? guestRows : [this.emptyAttendeeRow()];
+                this.$nextTick(() => this.syncAttendees());
             },
         };
     }

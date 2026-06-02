@@ -267,7 +267,11 @@
                                     <span class="mx-2">•</span>
                                     <span x-text="selectedEmployee.position ?? '-'"></span>
                                 </p>
-                                <p class="text-sm text-indigo-100 mt-1" x-text="selectedEmployee.email ?? '-'"></p>
+                                <p class="text-sm text-indigo-100 mt-1" x-text="selectedEmployee.company_email || selectedEmployee.work_email || selectedEmployee.email || '-'"></p>
+                                <div class="mt-3 flex flex-wrap gap-2">
+                                    <span class="px-3 py-1 rounded-full text-xs font-bold bg-white/15 border border-white/20" x-text="selectedEmployee.department_name || 'No Department'"></span>
+                                    <span class="px-3 py-1 rounded-full text-xs font-bold bg-white text-indigo-700" x-text="selectedEmployee.employment_status || 'Active'"></span>
+                                </div>
                             </div>
 
                             <button type="button" @click="closeDetails()" class="text-indigo-100 hover:text-white text-2xl leading-none">&times;</button>
@@ -275,11 +279,17 @@
                     </div>
 
                     <div class="px-6 py-4 border-b bg-white">
-                        <div class="grid grid-cols-5 gap-3">
+                        <div class="grid grid-cols-4 lg:grid-cols-7 gap-2">
                             <button type="button" @click="profileTab = 'overview'" :class="tabClass('overview')">Overview</button>
                             <button type="button" @click="profileTab = 'personal'" :class="tabClass('personal')">Personal</button>
                             <button type="button" @click="profileTab = 'organization'" :class="tabClass('organization')">Organization</button>
                             <button type="button" @click="profileTab = 'payroll'" :class="tabClass('payroll')">Payroll</button>
+                            <button type="button" @click="profileTab = 'government'" :class="tabClass('government')">Government</button>
+                            <button type="button" @click="profileTab = 'history'" :class="tabClass('history')">History</button>
+                            <button type="button" @click="profileTab = 'documents'" :class="tabClass('documents')">Documents</button>
+                            <button type="button" @click="profileTab = 'access'" :class="tabClass('access')">Access</button>
+                            <button type="button" @click="profileTab = 'digital-id'" :class="tabClass('digital-id')">Digital ID</button>
+                            <button type="button" @click="profileTab = 'audit'" :class="tabClass('audit')">Audit</button>
                             <button type="button" @click="profileTab = 'records'" :class="tabClass('records')">Related Records</button>
                         </div>
                     </div>
@@ -309,13 +319,18 @@
                                 <div class="profile-card"><p class="profile-label">Department</p><p class="profile-value" x-text="selectedEmployee.department_name ?? '-'"></p></div>
                                 <div class="profile-card"><p class="profile-label">Branch</p><p class="profile-value" x-text="selectedEmployee.branch_name ?? '-'"></p></div>
                                 <div class="profile-card"><p class="profile-label">Office</p><p class="profile-value" x-text="selectedEmployee.office_name ?? '-'"></p></div>
-                                <div class="profile-card"><p class="profile-label">Payroll Type</p><p class="profile-value" x-text="selectedEmployee.payroll_type ?? '-'"></p></div>
+                                <div class="profile-card"><p class="profile-label">Employment Status</p><p class="profile-value" x-text="selectedEmployee.employment_status ?? 'Active'"></p></div>
                             </div>
 
                             <div class="grid grid-cols-3 gap-4">
                                 <div class="profile-card"><p class="profile-label">Basic Salary</p><p class="profile-value text-green-700" x-text="formatMoney(selectedEmployee.basic_salary)"></p></div>
                                 <div class="profile-card"><p class="profile-label">Hourly Rate</p><p class="profile-value" x-text="formatMoney(selectedEmployee.hourly_rate)"></p></div>
                                 <div class="profile-card"><p class="profile-label">Work Schedule</p><p class="profile-value" x-text="scheduleLabel(selectedEmployee)"></p></div>
+                            </div>
+                            <div class="grid grid-cols-3 gap-4">
+                                <div class="profile-card"><p class="profile-label">Date Hired</p><p class="profile-value" x-text="selectedEmployee.date_hired || selectedEmployee.start_date || '-'"></p></div>
+                                <div class="profile-card"><p class="profile-label">Immediate Supervisor</p><p class="profile-value" x-text="selectedEmployee.immediate_supervisor || '-'"></p></div>
+                                <div class="profile-card"><p class="profile-label">Reporting To</p><p class="profile-value" x-text="selectedEmployee.reporting_to || '-'"></p></div>
                             </div>
                         </div>
 
@@ -325,11 +340,22 @@
                                 <div class="profile-card"><p class="profile-label">Employee ID</p><p class="profile-value" x-text="selectedEmployee.employee_code ?? '-'"></p></div>
                                 <div class="profile-card"><p class="profile-label">Full Name</p><p class="profile-value" x-text="selectedEmployee.full_name ?? '-'"></p></div>
                                 <div class="profile-card"><p class="profile-label">First Name</p><p class="profile-value" x-text="selectedEmployee.first_name ?? '-'"></p></div>
+                                <div class="profile-card"><p class="profile-label">Middle Name</p><p class="profile-value" x-text="selectedEmployee.middle_name ?? '-'"></p></div>
                                 <div class="profile-card"><p class="profile-label">Last Name</p><p class="profile-value" x-text="selectedEmployee.last_name ?? '-'"></p></div>
+                                <div class="profile-card"><p class="profile-label">Suffix</p><p class="profile-value" x-text="selectedEmployee.suffix ?? '-'"></p></div>
+                                <div class="profile-card"><p class="profile-label">Nickname</p><p class="profile-value" x-text="selectedEmployee.nickname ?? '-'"></p></div>
+                                <div class="profile-card"><p class="profile-label">Gender</p><p class="profile-value" x-text="selectedEmployee.gender ?? '-'"></p></div>
+                                <div class="profile-card"><p class="profile-label">Civil Status</p><p class="profile-value" x-text="selectedEmployee.civil_status ?? '-'"></p></div>
+                                <div class="profile-card"><p class="profile-label">Date of Birth</p><p class="profile-value" x-text="selectedEmployee.date_of_birth ?? '-'"></p></div>
                                 <div class="profile-card"><p class="profile-label">Age</p><p class="profile-value" x-text="selectedEmployee.age ?? '-'"></p></div>
+                                <div class="profile-card"><p class="profile-label">Blood Type</p><p class="profile-value" x-text="selectedEmployee.blood_type ?? '-'"></p></div>
                                 <div class="profile-card"><p class="profile-label">Phone Number</p><p class="profile-value" x-text="selectedEmployee.phone_number ?? '-'"></p></div>
-                                <div class="profile-card col-span-2"><p class="profile-label">Email Address</p><p class="profile-value" x-text="selectedEmployee.email ?? '-'"></p></div>
-                                <div class="profile-card col-span-2"><p class="profile-label">Address</p><p class="profile-value" x-text="selectedEmployee.address ?? '-'"></p></div>
+                                <div class="profile-card"><p class="profile-label">Alternate Mobile</p><p class="profile-value" x-text="selectedEmployee.alternate_phone_number ?? '-'"></p></div>
+                                <div class="profile-card col-span-2"><p class="profile-label">Email Address</p><p class="profile-value" x-text="selectedEmployee.personal_email ?? selectedEmployee.email ?? '-'"></p></div>
+                                <div class="profile-card col-span-2"><p class="profile-label">Company Email</p><p class="profile-value" x-text="selectedEmployee.company_email ?? selectedEmployee.work_email ?? '-'"></p></div>
+                                <div class="profile-card col-span-2"><p class="profile-label">Current Address</p><p class="profile-value" x-text="selectedEmployee.current_address ?? selectedEmployee.address ?? '-'"></p></div>
+                                <div class="profile-card col-span-2"><p class="profile-label">Permanent Address</p><p class="profile-value" x-text="selectedEmployee.permanent_address ?? '-'"></p></div>
+                                <div class="profile-card col-span-2"><p class="profile-label">Emergency Contact</p><p class="profile-value" x-text="[selectedEmployee.emergency_contact_name, selectedEmployee.emergency_contact_relationship, selectedEmployee.emergency_contact_number].filter(Boolean).join(' | ') || '-'"></p></div>
                             </div>
                         </div>
 
@@ -342,6 +368,12 @@
                                 <div class="profile-card"><p class="profile-label">Division</p><p class="profile-value" x-text="selectedEmployee.division_name ?? '-'"></p></div>
                                 <div class="profile-card"><p class="profile-label">Unit</p><p class="profile-value" x-text="selectedEmployee.unit_name ?? '-'"></p></div>
                                 <div class="profile-card"><p class="profile-label">Position</p><p class="profile-value" x-text="selectedEmployee.position ?? '-'"></p></div>
+                                <div class="profile-card"><p class="profile-label">Job Level / Rank</p><p class="profile-value" x-text="selectedEmployee.job_level_rank ?? '-'"></p></div>
+                                <div class="profile-card"><p class="profile-label">Employment Type</p><p class="profile-value" x-text="selectedEmployee.employment_type ?? '-'"></p></div>
+                                <div class="profile-card"><p class="profile-label">Work Classification</p><p class="profile-value" x-text="selectedEmployee.work_classification ?? '-'"></p></div>
+                                <div class="profile-card"><p class="profile-label">Work Arrangement</p><p class="profile-value" x-text="selectedEmployee.work_arrangement ?? '-'"></p></div>
+                                <div class="profile-card"><p class="profile-label">Work Location</p><p class="profile-value" x-text="selectedEmployee.work_location ?? '-'"></p></div>
+                                <div class="profile-card"><p class="profile-label">Company Assigned To</p><p class="profile-value" x-text="selectedEmployee.company_assigned_to ?? '-'"></p></div>
                             </div>
                         </div>
 
@@ -349,14 +381,87 @@
                             <h3 class="section-heading">Payroll Details</h3>
                             <div class="grid grid-cols-3 gap-4">
                                 <div class="profile-card"><p class="profile-label">Payroll Type</p><p class="profile-value" x-text="selectedEmployee.payroll_type ?? '-'"></p></div>
+                                <div class="profile-card"><p class="profile-label">Salary Grade</p><p class="profile-value" x-text="selectedEmployee.salary_grade ?? '-'"></p></div>
                                 <div class="profile-card"><p class="profile-label">Basic Salary</p><p class="profile-value text-green-700" x-text="formatMoney(selectedEmployee.basic_salary)"></p></div>
                                 <div class="profile-card"><p class="profile-label">Hourly Rate</p><p class="profile-value" x-text="formatMoney(selectedEmployee.hourly_rate)"></p></div>
                             </div>
                             <div class="grid grid-cols-1 gap-4">
                                 <div class="profile-card"><p class="profile-label">Work Schedule</p><p class="profile-value" x-text="scheduleLabel(selectedEmployee)"></p></div>
                             </div>
-                            <div class="rounded-xl border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-800">
-                                Payroll profile, payslip records, deductions, and payroll summaries can be connected here later.
+                            <div class="profile-card"><p class="profile-label">Benefits Checklist</p><p class="profile-value whitespace-pre-line" x-text="bulletList(selectedEmployee.benefits_checklist)"></p></div>
+                        </div>
+
+                        <div x-show="profileTab === 'government'" class="space-y-5">
+                            <h3 class="section-heading">Government Information</h3>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div class="profile-card"><p class="profile-label">TIN</p><p class="profile-value" x-text="selectedEmployee.tin_number ?? '-'"></p></div>
+                                <div class="profile-card"><p class="profile-label">SSS</p><p class="profile-value" x-text="selectedEmployee.sss_number ?? '-'"></p></div>
+                                <div class="profile-card"><p class="profile-label">PhilHealth</p><p class="profile-value" x-text="selectedEmployee.philhealth_number ?? '-'"></p></div>
+                                <div class="profile-card"><p class="profile-label">Pag-IBIG</p><p class="profile-value" x-text="selectedEmployee.pagibig_number ?? '-'"></p></div>
+                                <div class="profile-card"><p class="profile-label">Passport</p><p class="profile-value" x-text="selectedEmployee.passport_number ?? '-'"></p></div>
+                                <div class="profile-card"><p class="profile-label">Driver's License</p><p class="profile-value" x-text="selectedEmployee.drivers_license_number ?? '-'"></p></div>
+                                <div class="profile-card"><p class="profile-label">PRC License</p><p class="profile-value" x-text="selectedEmployee.prc_license_number ?? '-'"></p></div>
+                            </div>
+                        </div>
+
+                        <div x-show="profileTab === 'history'" class="space-y-5">
+                            <h3 class="section-heading">Education, Employment, Certifications, Skills</h3>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div class="profile-card"><p class="profile-label">Educational Background</p><p class="profile-value whitespace-pre-line" x-text="bulletList(selectedEmployee.educational_background)"></p></div>
+                                <div class="profile-card"><p class="profile-label">Employment History</p><p class="profile-value whitespace-pre-line" x-text="bulletList(selectedEmployee.employment_history)"></p></div>
+                                <div class="profile-card"><p class="profile-label">Certifications & Trainings</p><p class="profile-value whitespace-pre-line" x-text="bulletList(selectedEmployee.certifications_trainings)"></p></div>
+                                <div class="profile-card"><p class="profile-label">Skills & Competencies</p><p class="profile-value whitespace-pre-line" x-text="bulletList(selectedEmployee.skills_competencies)"></p></div>
+                            </div>
+                        </div>
+
+                        <div x-show="profileTab === 'documents'" class="space-y-5">
+                            <h3 class="section-heading">Attachments</h3>
+                            <template x-if="!(selectedEmployee.employee_attachments || []).length">
+                                <div class="profile-card text-sm text-gray-500">No attachments uploaded yet.</div>
+                            </template>
+                            <div class="grid grid-cols-2 gap-4">
+                                <template x-for="file in selectedEmployee.employee_attachments || []" :key="file.path">
+                                    <div class="profile-card">
+                                        <p class="profile-label" x-text="file.category || 'Attachment'"></p>
+                                        <p class="profile-value" x-text="file.file_name"></p>
+                                        <p class="text-xs text-gray-500 mt-1" x-text="[file.file_type, formatFileSize(file.file_size), file.uploaded_at].filter(Boolean).join(' | ')"></p>
+                                        <a :href="file.url" target="_blank" class="inline-flex mt-3 text-xs font-bold text-blue-600">Preview / Download</a>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+
+                        <div x-show="profileTab === 'access'" class="space-y-5">
+                            <h3 class="section-heading">System Access & Assigned Platforms</h3>
+                            <div class="profile-card"><p class="profile-value whitespace-pre-line" x-text="bulletList(selectedEmployee.system_access)"></p></div>
+                        </div>
+
+                        <div x-show="profileTab === 'digital-id'" class="space-y-5">
+                            <h3 class="section-heading">Digital Employee ID</h3>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div class="id-card">
+                                    <div class="text-xs font-black uppercase tracking-widest text-blue-700">John Kelly & Company</div>
+                                    <div class="mt-4 flex items-center gap-4">
+                                        <template x-if="selectedEmployee.profile_photo_url"><img :src="selectedEmployee.profile_photo_url" class="h-20 w-20 rounded-xl object-cover border"></template>
+                                        <template x-if="!selectedEmployee.profile_photo_url"><div class="h-20 w-20 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center text-2xl font-black" x-text="initials(selectedEmployee)"></div></template>
+                                        <div><p class="text-lg font-black" x-text="selectedEmployee.full_name"></p><p class="text-sm font-bold text-gray-500" x-text="selectedEmployee.position || '-'"></p><p class="text-xs mt-1" x-text="'ID No. ' + (selectedEmployee.employee_code || '-')"></p></div>
+                                    </div>
+                                </div>
+                                <div class="id-card">
+                                    <div class="text-xs font-black uppercase tracking-widest text-gray-500">Verification</div>
+                                    <img :src="qrUrl(selectedEmployee.verification_url)" class="h-28 w-28 mt-3" alt="Verification QR">
+                                    <p class="text-xs text-gray-500 mt-2">Scan to verify limited employment details.</p>
+                                    <a :href="selectedEmployee.verification_url" target="_blank" class="text-xs font-bold text-blue-600 break-all" x-text="selectedEmployee.verification_url"></a>
+                                </div>
+                            </div>
+                            <button type="button" @click="window.print()" class="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg font-semibold">Print / Save PDF</button>
+                        </div>
+
+                        <div x-show="profileTab === 'audit'" class="space-y-5">
+                            <h3 class="section-heading">Audit Trail & Salary / Employment History</h3>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div class="profile-card"><p class="profile-label">Activity Audit</p><p class="profile-value whitespace-pre-line" x-text="historyText(selectedEmployee.activity_audit)"></p></div>
+                                <div class="profile-card"><p class="profile-label">Salary & Employment History</p><p class="profile-value whitespace-pre-line" x-text="historyText(selectedEmployee.salary_employment_history)"></p></div>
                             </div>
                         </div>
 
@@ -428,21 +533,44 @@
 
                         <div class="flex-1">
                             <label class="form-label">Upload Profile Photo</label>
-                            <input type="file" name="profile_photo" accept="image/*" class="form-input">
+                            <input type="file" name="profile_photo" accept="image/*" class="form-input" @change="previewUpload($event)">
+                            <input type="hidden" name="captured_photo" x-model="capturedPhoto">
                             <p class="text-[11px] text-gray-500 mt-1">
                                 Accepted: JPG, PNG, WEBP. Max 4MB. Leave empty if you do not want to change the current photo.
                             </p>
+                            <div class="mt-3 flex flex-wrap gap-2">
+                                <button type="button" @click="startCamera()" class="px-3 py-1.5 rounded-lg bg-gray-900 text-white text-xs font-bold">Take Photo</button>
+                                <button type="button" x-show="cameraActive" @click="capturePhoto()" class="px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-bold">Capture</button>
+                                <button type="button" x-show="cameraActive" @click="stopCamera()" class="px-3 py-1.5 rounded-lg border text-xs font-bold">Close Camera</button>
+                            </div>
                         </div>
                     </div>
+                    <video x-ref="camera" x-show="cameraActive" autoplay playsinline class="mt-4 w-full rounded-xl border border-gray-200 bg-black"></video>
                 </div>
 
                 <div class="rounded-xl border border-gray-200 p-4">
                     <h3 class="text-sm font-bold text-gray-900 mb-4">Personal Details</h3>
                     <div class="grid grid-cols-2 gap-3">
                         <div><label class="form-label">First Name <span class="text-red-500">*</span></label><input type="text" name="first_name" x-model="form.first_name" required class="form-input"></div>
+                        <div><label class="form-label">Middle Name</label><input type="text" name="middle_name" x-model="form.middle_name" class="form-input"></div>
                         <div><label class="form-label">Last Name <span class="text-red-500">*</span></label><input type="text" name="last_name" x-model="form.last_name" required class="form-input"></div>
-                        <div><label class="form-label">Age</label><input type="number" name="age" x-model="form.age" class="form-input"></div>
+                        <div><label class="form-label">Suffix</label><input type="text" name="suffix" x-model="form.suffix" class="form-input"></div>
+                        <div><label class="form-label">Nickname / Preferred Name</label><input type="text" name="nickname" x-model="form.nickname" class="form-input"></div>
+                        <div><label class="form-label">Gender</label><select name="gender" x-model="form.gender" class="form-input"><option value="">Select</option><option>Male</option><option>Female</option><option>Prefer not to say</option></select></div>
+                        <div><label class="form-label">Civil Status</label><select name="civil_status" x-model="form.civil_status" class="form-input"><option value="">Select</option><option>Single</option><option>Married</option><option>Widowed</option><option>Separated</option><option>Others</option></select></div>
+                        <div><label class="form-label">Date of Birth</label><input type="date" name="date_of_birth" x-model="form.date_of_birth" class="form-input"></div>
+                        <div><label class="form-label">Age</label><input type="number" name="age" :value="computedAge" readonly class="form-input bg-gray-50"></div>
+                        <div><label class="form-label">Nationality</label><input type="text" name="nationality" x-model="form.nationality" class="form-input"></div>
+                        <div><label class="form-label">Religion</label><input type="text" name="religion" x-model="form.religion" class="form-input"></div>
+                        <div><label class="form-label">Place of Birth</label><input type="text" name="place_of_birth" x-model="form.place_of_birth" class="form-input"></div>
+                        <div><label class="form-label">Blood Type</label><input type="text" name="blood_type" x-model="form.blood_type" class="form-input"></div>
+                        <div><label class="form-label">Height</label><input type="text" name="height" x-model="form.height" class="form-input"></div>
+                        <div><label class="form-label">Weight</label><input type="text" name="weight" x-model="form.weight" class="form-input"></div>
+                        <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="is_pwd" value="1" x-model="form.is_pwd"> PWD</label>
+                        <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="is_solo_parent" value="1" x-model="form.is_solo_parent"> Solo Parent</label>
+                        <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="is_senior_citizen" value="1" x-model="form.is_senior_citizen"> Senior Citizen</label>
                         <div><label class="form-label">Phone Number</label><input type="text" name="phone_number" x-model="form.phone_number" class="form-input"></div>
+                        <div><label class="form-label">Alternate Mobile Number</label><input type="text" name="alternate_phone_number" x-model="form.alternate_phone_number" class="form-input"></div>
                         <div class="col-span-2">
                             <label class="form-label">Personal Email</label>
                             <input type="email" name="personal_email" x-model="form.personal_email" class="form-input" placeholder="Personal/applicant email">
@@ -451,8 +579,15 @@
                             <label class="form-label">Work Email <span class="text-red-500">*</span></label>
                             <input type="email" name="work_email" x-model="form.work_email" required class="form-input" placeholder="Official company email">
                             <input type="hidden" name="email" :value="form.work_email || form.personal_email || form.email">
+                            <input type="hidden" name="company_email" :value="form.work_email || form.company_email">
                         </div>
-                        <div class="col-span-2"><label class="form-label">Address</label><textarea name="address" x-model="form.address" rows="3" class="form-input"></textarea></div>
+                        <div class="col-span-2"><label class="form-label">Current Address</label><textarea name="current_address" x-model="form.current_address" rows="2" class="form-input"></textarea></div>
+                        <div class="col-span-2"><label class="form-label">Permanent Address</label><textarea name="permanent_address" x-model="form.permanent_address" rows="2" class="form-input"></textarea></div>
+                        <input type="hidden" name="address" :value="form.current_address || form.address">
+                        <div><label class="form-label">Emergency Contact Name</label><input type="text" name="emergency_contact_name" x-model="form.emergency_contact_name" class="form-input"></div>
+                        <div><label class="form-label">Relationship</label><input type="text" name="emergency_contact_relationship" x-model="form.emergency_contact_relationship" class="form-input"></div>
+                        <div><label class="form-label">Emergency Contact Number</label><input type="text" name="emergency_contact_number" x-model="form.emergency_contact_number" class="form-input"></div>
+                        <div><label class="form-label">Emergency Contact Address</label><input type="text" name="emergency_contact_address" x-model="form.emergency_contact_address" class="form-input"></div>
                     </div>
                 </div>
 
@@ -464,16 +599,56 @@
                         <div><label class="form-label">Department</label><select name="department_id" x-model="form.department_id" @change="onDepartmentChange()" class="form-input"><option value="">Select Department</option><template x-for="department in filteredDepartments" :key="department.id"><option :value="department.id" x-text="department.department_name"></option></template></select></div>
                         <div><label class="form-label">Division</label><select name="division_id" x-model="form.division_id" @change="onDivisionChange()" class="form-input"><option value="">Select Division</option><template x-for="division in filteredDivisions" :key="division.id"><option :value="division.id" x-text="division.division_name"></option></template></select></div>
                         <div><label class="form-label">Unit</label><select name="unit_id" x-model="form.unit_id" class="form-input"><option value="">Select Unit</option><template x-for="unit in filteredUnits" :key="unit.id"><option :value="unit.id" x-text="unit.unit_name"></option></template></select></div>
+                        <div><label class="form-label">Applicant ID</label><input type="text" name="applicant_id" x-model="form.applicant_id" class="form-input"></div>
+                        <div><label class="form-label">Job ID</label><input type="text" name="job_id" x-model="form.job_id" class="form-input"></div>
+                        <div><label class="form-label">MRF Reference Number</label><input type="text" name="mrf_reference" x-model="form.mrf_reference" class="form-input"></div>
+                        <div><label class="form-label">JPF Reference Number</label><input type="text" name="jpf_reference" x-model="form.jpf_reference" class="form-input"></div>
+                        <div><label class="form-label">Position / Title</label><input type="text" name="position" x-model="form.position" class="form-input"></div>
+                        <div><label class="form-label">Job Level / Rank</label><input type="text" name="job_level_rank" x-model="form.job_level_rank" class="form-input"></div>
+                        <div><label class="form-label">Employment Type</label><select name="employment_type" x-model="form.employment_type" class="form-input"><option value="">Select</option><template x-for="type in employmentTypeOptions" :key="type"><option :value="type" x-text="type"></option></template></select></div>
+                        <div><label class="form-label">Employment Status</label><select name="employment_status" x-model="form.employment_status" class="form-input"><template x-for="status in employmentStatusOptions" :key="status"><option :value="status" x-text="status"></option></template></select></div>
+                        <div x-show="form.employment_status === 'Others'"><label class="form-label">Other Employment Status</label><input type="text" name="employment_status_other" x-model="form.employment_status_other" class="form-input"></div>
+                        <div><label class="form-label">Work Classification</label><input type="text" name="work_classification" x-model="form.work_classification" class="form-input"></div>
+                        <div><label class="form-label">Work Arrangement</label><input type="text" name="work_arrangement" x-model="form.work_arrangement" class="form-input"></div>
+                        <div><label class="form-label">Date Hired</label><input type="date" name="date_hired" x-model="form.date_hired" class="form-input"></div>
+                        <div><label class="form-label">Start Date</label><input type="date" name="start_date" x-model="form.start_date" class="form-input"></div>
+                        <div><label class="form-label">Probationary End Date</label><input type="date" name="probationary_end_date" x-model="form.probationary_end_date" class="form-input"></div>
+                        <div><label class="form-label">Regularization Date</label><input type="date" name="regularization_date" x-model="form.regularization_date" class="form-input"></div>
+                        <div><label class="form-label">Contract Duration</label><input type="text" name="contract_duration" x-model="form.contract_duration" class="form-input"></div>
+                        <div><label class="form-label">Immediate Supervisor</label><input type="text" name="immediate_supervisor" x-model="form.immediate_supervisor" class="form-input"></div>
+                        <div><label class="form-label">Reporting To</label><input type="text" name="reporting_to" x-model="form.reporting_to" class="form-input"></div>
+                        <div><label class="form-label">Payroll Group</label><input type="text" name="payroll_group" x-model="form.payroll_group" class="form-input"></div>
+                        <div><label class="form-label">Work Location</label><input type="text" name="work_location" x-model="form.work_location" class="form-input"></div>
+                        <div><label class="form-label">Company Assigned To</label><input type="text" name="company_assigned_to" x-model="form.company_assigned_to" class="form-input"></div>
                     </div>
                 </div>
 
                 <div class="rounded-xl border border-gray-200 p-4">
                     <h3 class="text-sm font-bold text-gray-900 mb-4">Compensation Details</h3>
                     <div class="space-y-3">
-                        <div><label class="form-label">Position</label><input type="text" name="position" x-model="form.position" class="form-input"></div>
+                        <div><label class="form-label">Salary Grade</label><select name="salary_grade" x-model="form.salary_grade" class="form-input"><option value="">Select</option><option>SG-01</option><option>SG-02</option><option>SG-03</option><option>SG-04</option><option>SG-05</option><option>Others</option></select></div>
+                        <div x-show="form.salary_grade === 'Others'"><label class="form-label">Other Salary Grade</label><input type="text" name="salary_grade_other" x-model="form.salary_grade_other" class="form-input"></div>
                         <div><label class="form-label">Payroll Type <span class="text-red-500">*</span></label><select name="payroll_type" x-model="form.payroll_type" required class="form-input"><option value="">Select Payroll Type</option><option value="Monthly Paid">Monthly Paid</option><option value="Daily Paid">Daily Paid</option></select></div>
+                        <div><label class="form-label">Payroll Frequency</label><input type="text" name="payroll_frequency" x-model="form.payroll_frequency" class="form-input"></div>
                         <div><label class="form-label">Basic Salary <span class="text-red-500">*</span></label><input type="number" step="0.01" name="basic_salary" x-model="form.basic_salary" required class="form-input"></div>
                         <div><label class="form-label">Computed Hourly Rate</label><input type="text" :value="hourlyRate" readonly class="form-input bg-gray-50 text-gray-700"></div>
+                        <div><label class="form-label">Allowances</label><textarea name="allowances" x-model="form.allowances_text" rows="2" class="form-input" placeholder="One per line"></textarea></div>
+                        <div><label class="form-label">Incentives</label><textarea name="incentives" x-model="form.incentives_text" rows="2" class="form-input" placeholder="One per line"></textarea></div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="bonus_eligibility" value="1" x-model="form.bonus_eligibility"> Bonus</label>
+                            <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="overtime_eligibility" value="1" x-model="form.overtime_eligibility"> Overtime</label>
+                            <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="night_differential_eligibility" value="1" x-model="form.night_differential_eligibility"> Night Differential</label>
+                            <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="holiday_pay_eligibility" value="1" x-model="form.holiday_pay_eligibility"> Holiday Pay</label>
+                        </div>
+                        <div>
+                            <label class="form-label">Benefits Checklist</label>
+                            <div class="max-h-40 overflow-auto border rounded-lg p-2 space-y-1">
+                                <template x-for="benefit in benefitsOptions" :key="benefit">
+                                    <label class="flex items-start gap-2 text-xs"><input type="checkbox" name="benefits_checklist[]" :value="benefit" x-model="form.benefits_checklist"> <span x-text="benefit"></span></label>
+                                </template>
+                            </div>
+                            <input x-show="form.benefits_checklist.includes('Others')" type="text" name="benefits_other" x-model="form.benefits_other" class="form-input mt-2" placeholder="Specify other benefit">
+                        </div>
                     </div>
                 </div>
 
@@ -484,6 +659,48 @@
                         <div><label class="form-label">Shift End</label><input type="time" name="schedule_end_time" x-model="form.schedule_end_time" class="form-input"></div>
                     </div>
                     <p class="mt-2 text-xs text-gray-500">Employees can clock in starting 10 minutes before shift start. Active shifts auto close 4 hours after shift end.</p>
+                </div>
+
+                <div class="rounded-xl border border-gray-200 p-4">
+                    <h3 class="text-sm font-bold text-gray-900 mb-4">Government, History, Access & Documents</h3>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div><label class="form-label">TIN Number</label><input type="text" name="tin_number" x-model="form.tin_number" class="form-input"></div>
+                        <div><label class="form-label">SSS Number</label><input type="text" name="sss_number" x-model="form.sss_number" class="form-input"></div>
+                        <div><label class="form-label">PhilHealth Number</label><input type="text" name="philhealth_number" x-model="form.philhealth_number" class="form-input"></div>
+                        <div><label class="form-label">Pag-IBIG Number</label><input type="text" name="pagibig_number" x-model="form.pagibig_number" class="form-input"></div>
+                        <div><label class="form-label">Passport Number</label><input type="text" name="passport_number" x-model="form.passport_number" class="form-input"></div>
+                        <div><label class="form-label">Driver's License Number</label><input type="text" name="drivers_license_number" x-model="form.drivers_license_number" class="form-input"></div>
+                        <div><label class="form-label">PRC License Number</label><input type="text" name="prc_license_number" x-model="form.prc_license_number" class="form-input"></div>
+                        <div><label class="form-label">PRC Expiry Date</label><input type="date" name="prc_license_expiry_date" x-model="form.prc_license_expiry_date" class="form-input"></div>
+                        <div class="col-span-2"><label class="form-label">Educational Background</label><textarea name="educational_background" x-model="form.educational_background_text" rows="3" class="form-input" placeholder="One entry per line or JSON"></textarea></div>
+                        <div class="col-span-2"><label class="form-label">Employment History</label><textarea name="employment_history" x-model="form.employment_history_text" rows="3" class="form-input" placeholder="One entry per line or JSON"></textarea></div>
+                        <div class="col-span-2"><label class="form-label">Certifications & Trainings</label><textarea name="certifications_trainings" x-model="form.certifications_trainings_text" rows="3" class="form-input" placeholder="One entry per line or JSON"></textarea></div>
+                        <div class="col-span-2"><label class="form-label">Skills & Competencies</label><textarea name="skills_competencies" x-model="form.skills_competencies_text" rows="3" class="form-input" placeholder="One skill per line"></textarea></div>
+                        <div class="col-span-2"><label class="form-label">System Access & Platforms</label><textarea name="system_access" x-model="form.system_access_text" rows="3" class="form-input" placeholder="ORDO - Admin - Active"></textarea></div>
+                        <div><label class="form-label">Attachment Category</label><select name="attachment_category" class="form-input"><option>Resume / CV</option><option>Portfolio</option><option>Government IDs</option><option>Educational Documents</option><option>Employment Documents</option><option>Clearances</option><option>Medical Records</option><option>Contracts & Agreements</option><option>Certifications</option><option>Other Attachments</option></select></div>
+                        <div><label class="form-label">Upload Attachments</label><input type="file" name="attachments[]" multiple class="form-input"></div>
+                        <div class="col-span-2"><label class="form-label">Attachment Remarks</label><input type="text" name="attachment_remarks" class="form-input"></div>
+                    </div>
+                </div>
+
+                <div class="rounded-xl border border-gray-200 p-4" x-show="['Resigned','Terminated','End of Contract','Retired','Deceased','Inactive'].includes(form.employment_status)">
+                    <h3 class="text-sm font-bold text-gray-900 mb-4">Inactive / Separation Requirements</h3>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div><label class="form-label">Effective Date</label><input type="date" name="status_effective_date" x-model="form.status_effective_date" class="form-input"></div>
+                        <div><label class="form-label">Approved By</label><input type="text" name="status_approved_by" x-model="form.status_approved_by" class="form-input"></div>
+                        <div><label class="form-label">Reason</label><input type="text" name="status_reason" x-model="form.status_reason" class="form-input"></div>
+                        <div><label class="form-label">Supporting Attachment</label><input type="file" name="status_attachment" class="form-input"></div>
+                        <div class="col-span-2"><label class="form-label">Remarks</label><textarea name="status_remarks" x-model="form.status_remarks" rows="2" class="form-input"></textarea></div>
+                    </div>
+                </div>
+
+                <div class="rounded-xl border border-gray-200 p-4">
+                    <h3 class="text-sm font-bold text-gray-900 mb-4">Legal, Compliance & Consent</h3>
+                    <div class="grid grid-cols-2 gap-2">
+                        <template x-for="consent in consentOptions" :key="consent">
+                            <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="compliance_consents[]" :value="consent" x-model="form.compliance_consents_selected"> <span x-text="consent"></span></label>
+                        </template>
+                    </div>
                 </div>
 
                 <div class="sticky bottom-0 bg-white border-t py-4">
@@ -502,6 +719,7 @@
 .profile-value { margin-top: 0.35rem; font-size: 0.95rem; font-weight: 700; color: rgb(17 24 39); word-break: break-word; }
 .section-heading { font-size: 0.9rem; font-weight: 800; color: rgb(17 24 39); }
 .related-card { border: 1px solid rgb(229 231 235); background: white; border-radius: 0.75rem; padding: 1rem; }
+.id-card { border: 1px solid rgb(191 219 254); background: linear-gradient(135deg, #ffffff, #eff6ff); border-radius: 0.75rem; padding: 1rem; min-height: 190px; }
 .form-label { display: block; font-size: 0.82rem; font-weight: 600; color: rgb(55 65 81); margin-bottom: 0.25rem; }
 .form-input { width: 100%; border: 1px solid rgb(209 213 219); border-radius: 0.5rem; padding: 0.5rem 0.75rem; font-size: 0.875rem; outline: none; }
 .form-input:focus { border-color: rgb(59 130 246); box-shadow: 0 0 0 2px rgb(191 219 254); }
@@ -518,6 +736,10 @@ function employeePage(config) {
         unitOptions: config.unitOptions ?? [],
         storeUrl: config.storeUrl,
         updateBaseUrl: config.updateBaseUrl,
+        employmentTypeOptions: ['Intern / OJT', 'Probationary', 'Regular', 'Project-Based', 'Fixed-Term', 'Part-Time', 'Casual / Temporary', 'Consultant / Independent Contractor', 'Others'],
+        employmentStatusOptions: ['Active', 'Probationary', 'Regular', 'Project-Based', 'Fixed-Term', 'Part-Time', 'Casual / Temporary', 'Consultant / Independent Contractor', 'Resigned', 'Terminated', 'End of Contract', 'Retired', 'Deceased', 'Inactive', 'Others'],
+        benefitsOptions: ['Social Security System (SSS)', 'PhilHealth', 'Pag-IBIG Fund (HDMF)', 'Bonus', 'Overtime Pay', 'Night Differential Pay', 'Rest Day / Special Holiday Premium Pay', 'Maternity Benefits', 'Paternity Benefits', 'Solo Parent Benefits', 'Retirement Benefits', 'Other statutory labor benefits', 'Performance Incentive Schemes', 'Merit-Based Rewards', 'Healthcare / Insurance', 'Investment Benefit Plans', 'Leave Benefits', 'Day Shift + Weekends Off', 'No Work on Philippine Holidays', 'Structured Professional Work Environment', 'Exposure to Corporate Advisory and Governance Practice', 'Opportunity for Long-Term Growth', 'Others'],
+        consentOptions: ['Data Privacy Consent', 'NDA Acknowledgment', 'Policy Acceptance', 'Handbook Acknowledgment', 'Code of Conduct Acceptance'],
 
         search: '',
         filterDepartment: '',
@@ -526,6 +748,9 @@ function employeePage(config) {
 
         showSlider: false,
         showDetails: false,
+        cameraActive: false,
+        cameraStream: null,
+        capturedPhoto: '',
         selectedEmployee: null,
         profileTab: 'overview',
         isEdit: false,
@@ -550,6 +775,9 @@ function employeePage(config) {
             position: '',
             payroll_type: 'Monthly Paid',
             basic_salary: 0,
+            employment_status: 'Active',
+            benefits_checklist: [],
+            compliance_consents_selected: [],
             schedule_start_time: '',
             schedule_end_time: ''
         },
@@ -631,6 +859,17 @@ function employeePage(config) {
             return (salary / 8).toFixed(2);
         },
 
+        get computedAge() {
+            if (!this.form.date_of_birth) return this.form.age || '';
+            const birth = new Date(this.form.date_of_birth);
+            if (Number.isNaN(birth.getTime())) return this.form.age || '';
+            const today = new Date();
+            let age = today.getFullYear() - birth.getFullYear();
+            const monthDiff = today.getMonth() - birth.getMonth();
+            if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) age--;
+            return age;
+        },
+
         get formInitials() {
             const first = this.form.first_name?.charAt(0) ?? '';
             const last = this.form.last_name?.charAt(0) ?? '';
@@ -682,6 +921,23 @@ function employeePage(config) {
                 schedule_start_time: employee.schedule_start_time ?? '',
                 schedule_end_time: employee.schedule_end_time ?? ''
             };
+            this.form = {
+                ...this.defaultForm(),
+                ...this.form,
+                ...employee,
+                current_address: employee.current_address ?? employee.address ?? '',
+                company_email: employee.company_email ?? employee.work_email ?? '',
+                allowances_text: this.arrayToLines(employee.allowances),
+                incentives_text: this.arrayToLines(employee.incentives),
+                benefits_checklist: employee.benefits_checklist ?? [],
+                educational_background_text: this.arrayToLines(employee.educational_background),
+                employment_history_text: this.arrayToLines(employee.employment_history),
+                certifications_trainings_text: this.arrayToLines(employee.certifications_trainings),
+                skills_competencies_text: this.arrayToLines(employee.skills_competencies),
+                system_access_text: this.arrayToLines(employee.system_access),
+                compliance_consents_selected: (employee.compliance_consents || []).map(item => item.label || item),
+            };
+            this.capturedPhoto = '';
 
             this.showSlider = true;
         },
@@ -691,25 +947,104 @@ function employeePage(config) {
         },
 
         resetForm() {
-            this.form = {
+            this.form = this.defaultForm();
+            this.capturedPhoto = '';
+        },
+
+        defaultForm() {
+            return {
                 id: null,
                 first_name: '',
+                middle_name: '',
                 last_name: '',
+                suffix: '',
+                nickname: '',
+                gender: '',
+                civil_status: '',
+                nationality: 'Filipino',
+                religion: '',
+                date_of_birth: '',
                 age: '',
+                place_of_birth: '',
+                blood_type: '',
+                height: '',
+                weight: '',
+                is_pwd: false,
+                is_solo_parent: false,
+                is_senior_citizen: false,
                 address: '',
+                current_address: '',
+                permanent_address: '',
                 phone_number: '',
+                alternate_phone_number: '',
                 email: '',
                 personal_email: '',
                 work_email: '',
+                company_email: '',
+                emergency_contact_name: '',
+                emergency_contact_relationship: '',
+                emergency_contact_number: '',
+                emergency_contact_address: '',
                 profile_photo_url: '',
                 office_id: '',
                 branch_id: '',
                 department_id: '',
                 division_id: '',
                 unit_id: '',
+                applicant_id: '',
+                job_id: '',
+                mrf_reference: '',
+                jpf_reference: '',
                 position: '',
+                job_level_rank: '',
+                employment_type: '',
+                employment_status: 'Active',
+                employment_status_other: '',
+                work_classification: '',
+                work_arrangement: '',
+                date_hired: '',
+                start_date: '',
+                probationary_end_date: '',
+                regularization_date: '',
+                contract_duration: '',
+                immediate_supervisor: '',
+                reporting_to: '',
+                payroll_group: '',
+                work_location: '',
+                company_assigned_to: '',
+                recruitment_status: '',
+                onboarding_status: '',
                 payroll_type: 'Monthly Paid',
+                payroll_frequency: '',
+                salary_grade: '',
+                salary_grade_other: '',
                 basic_salary: 0,
+                allowances_text: '',
+                incentives_text: '',
+                benefits_checklist: [],
+                benefits_other: '',
+                bonus_eligibility: false,
+                overtime_eligibility: false,
+                night_differential_eligibility: false,
+                holiday_pay_eligibility: false,
+                tin_number: '',
+                sss_number: '',
+                philhealth_number: '',
+                pagibig_number: '',
+                passport_number: '',
+                drivers_license_number: '',
+                prc_license_number: '',
+                prc_license_expiry_date: '',
+                educational_background_text: '',
+                employment_history_text: '',
+                certifications_trainings_text: '',
+                skills_competencies_text: '',
+                system_access_text: '',
+                compliance_consents_selected: [],
+                status_effective_date: '',
+                status_reason: '',
+                status_remarks: '',
+                status_approved_by: '',
                 schedule_start_time: '',
                 schedule_end_time: ''
             };
@@ -771,10 +1106,79 @@ function employeePage(config) {
 
         formatMoney(value) {
             const number = parseFloat(value || 0);
-            return '₱' + number.toLocaleString(undefined, {
+            return 'PHP ' + number.toLocaleString(undefined, {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2
             });
+        },
+
+        arrayToLines(value) {
+            if (!value) return '';
+            if (Array.isArray(value)) {
+                return value.map(item => typeof item === 'string' ? item.replace(/^•\s*/, '') : Object.values(item).filter(Boolean).join(' - ')).join('\n');
+            }
+            return String(value);
+        },
+
+        bulletList(value) {
+            if (!value || (Array.isArray(value) && value.length === 0)) return '-';
+            const items = Array.isArray(value) ? value : String(value).split(/\r?\n/);
+            return items.filter(Boolean).map(item => String(item).startsWith('•') ? item : `• ${item}`).join('\n');
+        },
+
+        historyText(value) {
+            if (!Array.isArray(value) || !value.length) return 'No history recorded yet.';
+            return value.slice().reverse().map(item => `${item.timestamp || ''} | ${item.field || 'Update'}: ${item.previous_value ?? '-'} -> ${item.new_value ?? '-'}${item.updated_by ? ' | ' + item.updated_by : ''}`).join('\n');
+        },
+
+        formatFileSize(size) {
+            const number = Number(size || 0);
+            if (!number) return '';
+            if (number < 1024 * 1024) return `${Math.round(number / 1024)} KB`;
+            return `${(number / 1024 / 1024).toFixed(2)} MB`;
+        },
+
+        qrUrl(url) {
+            return `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(url || '')}`;
+        },
+
+        previewUpload(event) {
+            const file = event.target.files?.[0];
+            if (!file) return;
+            this.capturedPhoto = '';
+            this.form.profile_photo_url = URL.createObjectURL(file);
+        },
+
+        async startCamera() {
+            try {
+                this.cameraStream = await navigator.mediaDevices.getUserMedia({ video: true });
+                this.cameraActive = true;
+                this.$nextTick(() => {
+                    this.$refs.camera.srcObject = this.cameraStream;
+                });
+            } catch (error) {
+                alert('Camera permission was not granted or no camera is available.');
+            }
+        },
+
+        capturePhoto() {
+            const video = this.$refs.camera;
+            if (!video) return;
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth || 640;
+            canvas.height = video.videoHeight || 480;
+            canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+            this.capturedPhoto = canvas.toDataURL('image/png');
+            this.form.profile_photo_url = this.capturedPhoto;
+            this.stopCamera();
+        },
+
+        stopCamera() {
+            if (this.cameraStream) {
+                this.cameraStream.getTracks().forEach(track => track.stop());
+            }
+            this.cameraStream = null;
+            this.cameraActive = false;
         }
     }
 }

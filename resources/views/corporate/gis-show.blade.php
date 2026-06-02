@@ -26,12 +26,28 @@
     $draftUrl = !empty($gis->file) ? asset('storage/' . ltrim($gis->file, '/')) : null;
     $notaryUrl = !empty($gis->notary_file_path) ? asset('storage/' . ltrim($gis->notary_file_path, '/')) : null;
     $canEditRecord = in_array($gis->workflow_status, ['Uploaded', 'Reverted']);
+    $authorizedShareTypes = $gis->authorizedCapital->pluck('share_type')->unique()->values();
+    $authorizedParValues = $gis->authorizedCapital->pluck('par_value', 'share_type')->toArray();
 @endphp
 
 <div class="w-full px-6 py-6"
      x-data="{
         tab:null,
         panel:null,
+        editAction: '',
+        editForm: {},
+        form: {
+            subscribed: { share_type: '', shares: '' },
+            paidup: { share_type: '', shares: '' },
+            stockholder: { share_type: '', shares: '' }
+        },
+        authorizedParValues: @js($authorizedParValues),
+        parOf(shareType) {
+            return Number(this.authorizedParValues?.[shareType] ?? 0);
+        },
+        amountFor(shares, shareType) {
+            return (Number(shares || 0) * this.parOf(shareType)).toFixed(2);
+        },
         fileTab: '{{ $draftUrl ? 'draft' : ($notaryUrl ? 'notary' : 'draft') }}',
         editDraft: false,
         editNotary: false
@@ -44,6 +60,12 @@
     @if(session('success'))
         <div class="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-green-700">
             {{ session('success') }}
+        </div>
+    @endif
+
+    @if($errors->any())
+        <div class="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-700">
+            {{ $errors->first() }}
         </div>
     @endif
 
@@ -100,6 +122,7 @@
                             <th class="border px-4 py-3 text-left">Number of Shares</th>
                             <th class="border px-4 py-3 text-left">Par/Stated Value</th>
                             <th class="border px-4 py-3 text-left">Amount (Php)</th>
+                            <th class="border px-4 py-3 text-center">Actions</th>
                         </tr>
                     </thead>
 
@@ -110,10 +133,22 @@
                                 <td class="border px-4 py-3">{{ number_format($row->number_of_shares, 0) }}</td>
                                 <td class="border px-4 py-3">{{ number_format($row->par_value, 2) }}</td>
                                 <td class="border px-4 py-3">{{ number_format($row->amount, 2) }}</td>
+                                <td class="border px-4 py-3 text-center">
+                                    <div class="flex items-center justify-center gap-2">
+                                        <button type="button"
+                                            @click="panel='authorizedEdit'; editAction='{{ route('authorized.update', $row->id) }}'; editForm={ share_type: @js($row->share_type), number_of_shares: @js($row->number_of_shares), par_value: @js($row->par_value) }"
+                                            class="text-blue-600 hover:underline text-xs">Edit</button>
+                                        <form action="{{ route('authorized.destroy', $row->id) }}" method="POST" onsubmit="return confirm('Delete this authorized capital record?')">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit" class="text-red-600 hover:underline text-xs">Delete</button>
+                                        </form>
+                                    </div>
+                                </td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="4" class="border px-4 py-6 text-center text-gray-400">No records found</td>
+                                <td colspan="5" class="border px-4 py-6 text-center text-gray-400">No records found</td>
                             </tr>
                         @endforelse
                     </tbody>
@@ -124,6 +159,7 @@
                             <td class="border px-4 py-3">{{ number_format($authorizedTotalShares, 0) }}</td>
                             <td class="border px-4 py-3">—</td>
                             <td class="border px-4 py-3">{{ number_format($authorizedTotalAmount, 2) }}</td>
+                            <td class="border px-4 py-3">—</td>
                         </tr>
                     </tfoot>
                 </table>
@@ -154,6 +190,7 @@
                             <th class="border px-4 py-3">Par Value</th>
                             <th class="border px-4 py-3">Amount (Php)</th>
                             <th class="border px-4 py-3">% Ownership</th>
+                            <th class="border px-4 py-3 text-center">Actions</th>
                         </tr>
                     </thead>
 
@@ -167,10 +204,22 @@
                                 <td class="border px-4 py-3">{{ number_format($row->par_value, 2) }}</td>
                                 <td class="border px-4 py-3">{{ number_format($row->amount, 2) }}</td>
                                 <td class="border px-4 py-3">{{ number_format($row->ownership_percentage, 2) }}%</td>
+                                <td class="border px-4 py-3 text-center">
+                                    <div class="flex items-center justify-center gap-2">
+                                        <button type="button"
+                                            @click="panel='subscribedEdit'; editAction='{{ route('subscribed.update', $row->id) }}'; editForm={ nationality: @js($row->nationality), stockholders: @js($row->no_of_stockholders), share_type: @js($row->share_type), shares: @js($row->number_of_shares), par_value: @js($row->par_value) }"
+                                            class="text-blue-600 hover:underline text-xs">Edit</button>
+                                        <form action="{{ route('subscribed.destroy', $row->id) }}" method="POST" onsubmit="return confirm('Delete this subscribed capital record?')">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit" class="text-red-600 hover:underline text-xs">Delete</button>
+                                        </form>
+                                    </div>
+                                </td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="7" class="border px-4 py-6 text-center text-gray-400">No records found</td>
+                                <td colspan="9" class="border px-4 py-6 text-center text-gray-400">No records found</td>
                             </tr>
                         @endforelse
                     </tbody>
@@ -184,6 +233,7 @@
                             <td class="border px-4 py-3">—</td>
                             <td class="border px-4 py-3">{{ number_format($subscribedTotalAmount, 2) }}</td>
                             <td class="border px-4 py-3">{{ number_format($subscribedTotalOwnership, 2) }}%</td>
+                            <td class="border px-4 py-3">—</td>
                         </tr>
                     </tfoot>
                 </table>
@@ -214,6 +264,7 @@
                             <th class="border px-4 py-3">Par Value</th>
                             <th class="border px-4 py-3">Amount (Php)</th>
                             <th class="border px-4 py-3">% Ownership</th>
+                            <th class="border px-4 py-3 text-center">Actions</th>
                         </tr>
                     </thead>
 
@@ -227,10 +278,22 @@
                                 <td class="border px-4 py-3">{{ number_format($row->par_value, 2) }}</td>
                                 <td class="border px-4 py-3">{{ number_format($row->amount, 2) }}</td>
                                 <td class="border px-4 py-3">{{ number_format($row->ownership_percentage, 2) }}%</td>
+                                <td class="border px-4 py-3 text-center">
+                                    <div class="flex items-center justify-center gap-2">
+                                        <button type="button"
+                                            @click="panel='paidupEdit'; editAction='{{ route('paidup.update', $row->id) }}'; editForm={ nationality: @js($row->nationality), stockholders: @js($row->no_of_stockholders), share_type: @js($row->share_type), shares: @js($row->number_of_shares), par_value: @js($row->par_value) }"
+                                            class="text-blue-600 hover:underline text-xs">Edit</button>
+                                        <form action="{{ route('paidup.destroy', $row->id) }}" method="POST" onsubmit="return confirm('Delete this paid-up capital record?')">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit" class="text-red-600 hover:underline text-xs">Delete</button>
+                                        </form>
+                                    </div>
+                                </td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="7" class="border px-4 py-6 text-center text-gray-400">No records found</td>
+                                <td colspan="9" class="border px-4 py-6 text-center text-gray-400">No records found</td>
                             </tr>
                         @endforelse
                     </tbody>
@@ -244,6 +307,7 @@
                             <td class="border px-4 py-3">—</td>
                             <td class="border px-4 py-3">{{ number_format($paidupTotalAmount, 2) }}</td>
                             <td class="border px-4 py-3">{{ number_format($paidupTotalOwnership, 2) }}%</td>
+                            <td class="border px-4 py-3">—</td>
                         </tr>
                     </tfoot>
                 </table>
@@ -269,6 +333,7 @@
                 <thead class="bg-gray-50 text-xs uppercase">
                     <tr>
                         <th class="border px-4 py-3">Officer Name</th>
+                        <th class="border px-4 py-3">Email</th>
                         <th class="border px-4 py-3">Address</th>
                         <th class="border px-4 py-3">Nationality</th>
                         <th class="border px-4 py-3">INCR</th>
@@ -278,6 +343,7 @@
                         <th class="border px-4 py-3">Officer</th>
                         <th class="border px-4 py-3">Exec. Comm.</th>
                         <th class="border px-4 py-3">TIN</th>
+                        <th class="border px-4 py-3 text-center">Actions</th>
                     </tr>
                 </thead>
 
@@ -285,6 +351,7 @@
                     @forelse($gis->directors as $row)
                         <tr class="hover:bg-blue-50">
                             <td class="border px-4 py-3">{{ $row->officer_name }}</td>
+                            <td class="border px-4 py-3">{{ $row->email ?: '-' }}</td>
                             <td class="border px-4 py-3">{{ $row->address }}</td>
                             <td class="border px-4 py-3">{{ $row->nationality }}</td>
                             <td class="border px-4 py-3">{{ $row->incr ? 'Y' : 'N' }}</td>
@@ -294,10 +361,22 @@
                             <td class="border px-4 py-3">{{ $row->officer_type }}</td>
                             <td class="border px-4 py-3">{{ $row->committee }}</td>
                             <td class="border px-4 py-3">{{ $row->tin }}</td>
+                            <td class="border px-4 py-3 text-center">
+                                <div class="flex items-center justify-center gap-2">
+                                    <button type="button"
+                                        @click="panel='directorEdit'; editAction='{{ route('director.update', $row->id) }}'; editForm={ officer_name:@js($row->officer_name), email:@js($row->email), address:@js($row->address), nationality:@js($row->nationality), incr:@js($row->incr ? 'Y' : 'N'), board:@js($row->board), gender:@js($row->gender), stockholder:@js($row->stockholder ? 'Y' : 'N'), officer_type:@js($row->officer_type), committee:@js($row->committee), tin:@js($row->tin) }"
+                                        class="text-blue-600 hover:underline text-xs">Edit</button>
+                                    <form action="{{ route('director.destroy', $row->id) }}" method="POST" onsubmit="return confirm('Delete this director/officer record?')">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" class="text-red-600 hover:underline text-xs">Delete</button>
+                                    </form>
+                                </div>
+                            </td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="10" class="border px-4 py-6 text-center text-gray-400">No records found</td>
+                            <td colspan="12" class="border px-4 py-6 text-center text-gray-400">No records found</td>
                         </tr>
                     @endforelse
                 </tbody>
@@ -323,6 +402,7 @@
                 <thead class="bg-gray-50 text-xs uppercase">
                     <tr>
                         <th class="border px-4 py-3">Stockholder Name</th>
+                        <th class="border px-4 py-3">Email</th>
                         <th class="border px-4 py-3">Address</th>
                         <th class="border px-4 py-3">Gender</th>
                         <th class="border px-4 py-3">Nationality</th>
@@ -333,6 +413,7 @@
                         <th class="border px-4 py-3">% Ownership</th>
                         <th class="border px-4 py-3">Amount Paid</th>
                         <th class="border px-4 py-3">TIN</th>
+                        <th class="border px-4 py-3 text-center">Actions</th>
                     </tr>
                 </thead>
 
@@ -340,6 +421,7 @@
                     @forelse($gis->stockholders as $row)
                         <tr class="hover:bg-blue-50">
                             <td class="border px-4 py-3">{{ $row->stockholder_name }}</td>
+                            <td class="border px-4 py-3">{{ $row->email ?: '-' }}</td>
                             <td class="border px-4 py-3">{{ $row->address }}</td>
                             <td class="border px-4 py-3">{{ $row->gender }}</td>
                             <td class="border px-4 py-3">{{ $row->nationality }}</td>
@@ -350,6 +432,18 @@
                             <td class="border px-4 py-3">{{ number_format($row->ownership_percentage, 2) }}%</td>
                             <td class="border px-4 py-3">{{ number_format($row->amount_paid, 2) }}</td>
                             <td class="border px-4 py-3">{{ $row->tin }}</td>
+                            <td class="border px-4 py-3 text-center">
+                                <div class="flex items-center justify-center gap-2">
+                                    <button type="button"
+                                        @click="panel='stockholderEdit'; editAction='{{ route('stockholder.update', $row->id) }}'; editForm={ stockholder_name:@js($row->stockholder_name), email:@js($row->email), address:@js($row->address), gender:@js($row->gender), nationality:@js($row->nationality), incr:@js($row->incr ? 'Y' : 'N'), share_type:@js($row->share_type), shares:@js($row->shares), amount_paid:@js($row->amount_paid), tin:@js($row->tin) }"
+                                        class="text-blue-600 hover:underline text-xs">Edit</button>
+                                    <form action="{{ route('stockholder.destroy', $row->id) }}" method="POST" onsubmit="return confirm('Delete this stockholder record?')">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" class="text-red-600 hover:underline text-xs">Delete</button>
+                                    </form>
+                                </div>
+                            </td>
                         </tr>
                     @empty
                         <tr>
@@ -365,6 +459,7 @@
                         <td class="border px-4 py-3">{{ number_format($stockholderTotalAmount, 2) }}</td>
                         <td class="border px-4 py-3">{{ number_format($stockholderTotalOwnership, 2) }}%</td>
                         <td class="border px-4 py-3">{{ number_format($stockholderTotalPaid, 2) }}</td>
+                        <td class="border px-4 py-3">—</td>
                         <td class="border px-4 py-3">—</td>
                     </tr>
                 </tfoot>
@@ -397,6 +492,7 @@
                         <th class="border px-4 py-3">% Ownership / % Voting Rights</th>
                         <th class="border px-4 py-3">Type of Beneficial Owner</th>
                         <th class="border px-4 py-3">Category of Beneficial Ownership</th>
+                        <th class="border px-4 py-3 text-center">Actions</th>
                     </tr>
                 </thead>
 
@@ -417,10 +513,22 @@
                                 {{ $row->beneficial_owner_type === 'D' ? 'Direct (D)' : ($row->beneficial_owner_type === 'I' ? 'Indirect (I)' : '—') }}
                             </td>
                             <td class="border px-4 py-3">{{ $row->beneficial_ownership_category ?: '—' }}</td>
+                            <td class="border px-4 py-3 text-center">
+                                <div class="flex items-center justify-center gap-2">
+                                    <button type="button"
+                                        @click="panel='uboEdit'; editAction='{{ route('ubo.update', $row->id) }}'; editForm={ complete_name:@js($row->complete_name), specific_residential_address:@js($row->specific_residential_address), nationality:@js($row->nationality), date_of_birth:@js(optional($row->date_of_birth)->format('Y-m-d')), tax_identification_no:@js($row->tax_identification_no), ownership_voting_rights:@js($row->ownership_voting_rights), beneficial_owner_type:@js($row->beneficial_owner_type), beneficial_ownership_category:@js($row->beneficial_ownership_category) }"
+                                        class="text-blue-600 hover:underline text-xs">Edit</button>
+                                    <form action="{{ route('ubo.destroy', $row->id) }}" method="POST" onsubmit="return confirm('Delete this UBO record?')">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" class="text-red-600 hover:underline text-xs">Delete</button>
+                                    </form>
+                                </div>
+                            </td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="8" class="border px-4 py-6 text-center text-gray-400">No records found</td>
+                            <td colspan="9" class="border px-4 py-6 text-center text-gray-400">No records found</td>
                         </tr>
                     @endforelse
                 </tbody>
@@ -430,6 +538,7 @@
                         <td colspan="5" class="border px-4 py-3 text-right">TOTAL</td>
                         <td class="border px-4 py-3">{{ number_format($uboTotalOwnership, 2) }}%</td>
                         <td colspan="2" class="border px-4 py-3">—</td>
+                        <td class="border px-4 py-3">—</td>
                     </tr>
                 </tfoot>
             </table>
@@ -441,9 +550,235 @@
             @click.away="panel=null"
             class="absolute right-0 top-0 h-full w-[460px] bg-white shadow-xl p-6 overflow-y-auto">
 
-            <h2 class="text-lg font-semibold mb-6">
-                Add Record
+            <h2 class="text-lg font-semibold mb-2">
+                Add / Edit Record
             </h2>
+
+            <div class="mb-6 rounded-lg bg-blue-50 border border-blue-100 px-3 py-3 text-xs text-blue-700 leading-relaxed">
+                Amounts and ownership percentages are calculated by the system when saved:
+                <br>Amount = Shares × Par Value.
+                <br>% Ownership = Shares ÷ Total Shares × 100.
+            </div>
+
+            {{-- EDIT FORMS --}}
+            <form x-show="panel=='authorizedEdit'" :action="editAction" method="POST" class="space-y-4">
+                @csrf
+                @method('PUT')
+
+                <select name="share_type" x-model="editForm.share_type" class="border w-full p-2 rounded" required>
+                    <option value="">Type of Shares</option>
+                    <option value="Common Stock">Common Stock</option>
+                    <option value="Preferred Stock">Preferred Stock</option>
+                </select>
+
+                <input name="number_of_shares" x-model="editForm.number_of_shares" type="number" min="1" step="1" placeholder="Number of Shares" class="border w-full p-2 rounded" required>
+                <input name="par_value" x-model="editForm.par_value" type="number" min="0" step="0.01" placeholder="Par / Stated Value" class="border w-full p-2 rounded" required>
+
+                <div class="flex gap-2">
+                    <button class="bg-blue-600 text-white px-4 py-2 rounded">Update</button>
+                    <button type="button" @click="panel=null; editAction=''; editForm={}" class="border px-4 py-2 rounded">Cancel</button>
+                </div>
+            </form>
+
+            <form x-show="panel=='subscribedEdit'" :action="editAction" method="POST" class="space-y-4">
+                @csrf
+                @method('PUT')
+
+                <select name="nationality" x-model="editForm.nationality" class="border w-full p-2 rounded" required>
+                    <option value="">Nationality</option>
+                    <option value="Filipino">Filipino</option>
+                    <option value="Foreign">Foreign</option>
+                    <option value="N.A.">N.A.</option>
+                </select>
+
+                <input name="stockholders" x-model="editForm.stockholders" type="number" min="0" step="1" placeholder="No. of Stockholders" class="border w-full p-2 rounded" required>
+
+                <select name="share_type" x-model="editForm.share_type" class="border w-full p-2 rounded" required>
+                    <option value="">Type of Shares from Authorized Capital</option>
+                    @foreach($authorizedShareTypes as $shareType)
+                        <option value="{{ $shareType }}">{{ $shareType }}</option>
+                    @endforeach
+                </select>
+
+                <input name="shares" x-model="editForm.shares" type="number" min="0" step="1" placeholder="Number of Shares" class="border w-full p-2 rounded" required>
+                <input type="hidden" name="par_value" :value="parOf(editForm.share_type)">
+                <input type="text" :value="parOf(editForm.share_type).toFixed(2)" placeholder="Par Value from Authorized Capital" readonly class="border w-full p-2 rounded bg-gray-50 text-gray-600">
+                <input type="text" :value="amountFor(editForm.shares, editForm.share_type)" placeholder="Amount (auto-calculated on update)" readonly class="border w-full p-2 rounded bg-gray-50 text-gray-500">
+
+                <div class="flex gap-2">
+                    <button class="bg-blue-600 text-white px-4 py-2 rounded">Update</button>
+                    <button type="button" @click="panel=null; editAction=''; editForm={}" class="border px-4 py-2 rounded">Cancel</button>
+                </div>
+            </form>
+
+            <form x-show="panel=='paidupEdit'" :action="editAction" method="POST" class="space-y-4">
+                @csrf
+                @method('PUT')
+
+                <select name="nationality" x-model="editForm.nationality" class="border w-full p-2 rounded" required>
+                    <option value="">Nationality</option>
+                    <option value="Filipino">Filipino</option>
+                    <option value="Foreign">Foreign</option>
+                    <option value="N.A.">N.A.</option>
+                </select>
+
+                <input name="stockholders" x-model="editForm.stockholders" type="number" min="0" step="1" placeholder="No. of Stockholders" class="border w-full p-2 rounded" required>
+
+                <select name="share_type" x-model="editForm.share_type" class="border w-full p-2 rounded" required>
+                    <option value="">Type of Shares from Authorized Capital</option>
+                    @foreach($authorizedShareTypes as $shareType)
+                        <option value="{{ $shareType }}">{{ $shareType }}</option>
+                    @endforeach
+                </select>
+
+                <input name="shares" x-model="editForm.shares" type="number" min="0" step="1" placeholder="Number of Shares" class="border w-full p-2 rounded" required>
+                <input type="hidden" name="par_value" :value="parOf(editForm.share_type)">
+                <input type="text" :value="parOf(editForm.share_type).toFixed(2)" placeholder="Par Value from Authorized Capital" readonly class="border w-full p-2 rounded bg-gray-50 text-gray-600">
+                <input type="text" :value="amountFor(editForm.shares, editForm.share_type)" placeholder="Amount (auto-calculated on update)" readonly class="border w-full p-2 rounded bg-gray-50 text-gray-500">
+
+                <div class="flex gap-2">
+                    <button class="bg-blue-600 text-white px-4 py-2 rounded">Update</button>
+                    <button type="button" @click="panel=null; editAction=''; editForm={}" class="border px-4 py-2 rounded">Cancel</button>
+                </div>
+            </form>
+
+            <form x-show="panel=='directorEdit'" :action="editAction" method="POST" class="space-y-4">
+                @csrf
+                @method('PUT')
+
+                <input name="officer_name" x-model="editForm.officer_name" placeholder="Officer Name" class="border w-full p-2 rounded" required>
+                <input type="email" name="email" x-model="editForm.email" placeholder="Email Address" class="border w-full p-2 rounded">
+                <input name="address" x-model="editForm.address" placeholder="Address" class="border w-full p-2 rounded" required>
+
+                <select name="nationality" x-model="editForm.nationality" class="border w-full p-2 rounded" required>
+                    <option value="">Nationality</option>
+                    <option value="Filipino">Filipino</option>
+                    <option value="Foreign">Foreign</option>
+                </select>
+
+                <select name="incr" x-model="editForm.incr" class="border w-full p-2 rounded" required>
+                    <option value="">INCR</option>
+                    <option value="Y">Y</option>
+                    <option value="N">N</option>
+                </select>
+
+                <select name="board" x-model="editForm.board" class="border w-full p-2 rounded" required>
+                    <option value="">Board</option>
+                    <option value="C">C</option>
+                    <option value="M">M</option>
+                </select>
+
+                <select name="gender" x-model="editForm.gender" class="border w-full p-2 rounded" required>
+                    <option value="">Gender</option>
+                    <option value="M">M</option>
+                    <option value="F">F</option>
+                </select>
+
+                <select name="stockholder" x-model="editForm.stockholder" class="border w-full p-2 rounded" required>
+                    <option value="">Stockholder</option>
+                    <option value="Y">Y</option>
+                    <option value="N">N</option>
+                </select>
+
+                <input name="officer_type" x-model="editForm.officer_type" placeholder="Officer / Position" class="border w-full p-2 rounded" required>
+                <input name="committee" x-model="editForm.committee" placeholder="Exec. Comm. / Committee" class="border w-full p-2 rounded">
+                <input name="tin" x-model="editForm.tin" placeholder="TIN" class="border w-full p-2 rounded">
+
+                <div class="flex gap-2">
+                    <button class="bg-blue-600 text-white px-4 py-2 rounded">Update</button>
+                    <button type="button" @click="panel=null; editAction=''; editForm={}" class="border px-4 py-2 rounded">Cancel</button>
+                </div>
+            </form>
+
+            <form x-show="panel=='stockholderEdit'" :action="editAction" method="POST" class="space-y-4">
+                @csrf
+                @method('PUT')
+
+                <input name="stockholder_name" x-model="editForm.stockholder_name" placeholder="Stockholder Name" class="border w-full p-2 rounded" required>
+                <input type="email" name="email" x-model="editForm.email" placeholder="Email Address" class="border w-full p-2 rounded">
+                <input name="address" x-model="editForm.address" placeholder="Address" class="border w-full p-2 rounded" required>
+
+                <select name="gender" x-model="editForm.gender" class="border w-full p-2 rounded" required>
+                    <option value="">Gender</option>
+                    <option value="M">M</option>
+                    <option value="F">F</option>
+                </select>
+
+                <select name="nationality" x-model="editForm.nationality" class="border w-full p-2 rounded" required>
+                    <option value="">Nationality</option>
+                    <option value="Filipino">Filipino</option>
+                    <option value="Foreign">Foreign</option>
+                </select>
+
+                <select name="incr" x-model="editForm.incr" class="border w-full p-2 rounded" required>
+                    <option value="">INCR</option>
+                    <option value="Y">Y</option>
+                    <option value="N">N</option>
+                </select>
+
+                <select name="share_type" x-model="editForm.share_type" class="border w-full p-2 rounded" required>
+                    <option value="">Type of Shares from Authorized Capital</option>
+                    @foreach($authorizedShareTypes as $shareType)
+                        <option value="{{ $shareType }}">{{ $shareType }}</option>
+                    @endforeach
+                </select>
+
+                <input name="shares" x-model="editForm.shares" type="number" min="0" step="1" placeholder="Shares" class="border w-full p-2 rounded" required>
+                <input type="text" :value="parOf(editForm.share_type).toFixed(2)" placeholder="Par Value from Authorized Capital" readonly class="border w-full p-2 rounded bg-gray-50 text-gray-600">
+                <input type="text" :value="amountFor(editForm.shares, editForm.share_type)" placeholder="Amount (auto-calculated on update)" readonly class="border w-full p-2 rounded bg-gray-50 text-gray-500">
+                <input name="amount_paid" x-model="editForm.amount_paid" type="number" min="0" step="0.01" placeholder="Amount Paid" class="border w-full p-2 rounded">
+                <input name="tin" x-model="editForm.tin" placeholder="TIN" class="border w-full p-2 rounded">
+
+                <p class="text-xs text-gray-500">Stockholder amount uses the matching Authorized Capital par value when available.</p>
+
+                <div class="flex gap-2">
+                    <button class="bg-blue-600 text-white px-4 py-2 rounded">Update</button>
+                    <button type="button" @click="panel=null; editAction=''; editForm={}" class="border px-4 py-2 rounded">Cancel</button>
+                </div>
+            </form>
+
+            <form x-show="panel=='uboEdit'" :action="editAction" method="POST" class="space-y-4">
+                @csrf
+                @method('PUT')
+
+                <input name="complete_name" x-model="editForm.complete_name" placeholder="Complete Name" class="border w-full p-2 rounded" required>
+                <input name="specific_residential_address" x-model="editForm.specific_residential_address" placeholder="Specific Residential Address" class="border w-full p-2 rounded">
+
+                <select name="nationality" x-model="editForm.nationality" class="border w-full p-2 rounded">
+                    <option value="">Nationality</option>
+                    <option value="Filipino">Filipino</option>
+                    <option value="Foreign">Foreign</option>
+                </select>
+
+                <input name="date_of_birth" x-model="editForm.date_of_birth" type="date" class="border w-full p-2 rounded">
+                <input name="tax_identification_no" x-model="editForm.tax_identification_no" placeholder="Tax Identification No." class="border w-full p-2 rounded">
+                <input name="ownership_voting_rights" x-model="editForm.ownership_voting_rights" type="number" min="0" max="100" step="0.01" placeholder="% Ownership / % Voting Rights" class="border w-full p-2 rounded">
+
+                <select name="beneficial_owner_type" x-model="editForm.beneficial_owner_type" class="border w-full p-2 rounded">
+                    <option value="">Type of Beneficial Owner</option>
+                    <option value="D">Direct (D)</option>
+                    <option value="I">Indirect (I)</option>
+                </select>
+
+                <select name="beneficial_ownership_category" x-model="editForm.beneficial_ownership_category" class="border w-full p-2 rounded">
+                    <option value="">Category of Beneficial Ownership</option>
+                    <option value="A">A</option>
+                    <option value="B">B</option>
+                    <option value="C">C</option>
+                    <option value="D">D</option>
+                    <option value="E">E</option>
+                    <option value="F">F</option>
+                    <option value="G">G</option>
+                    <option value="H">H</option>
+                    <option value="I">I</option>
+                </select>
+
+                <div class="flex gap-2">
+                    <button class="bg-blue-600 text-white px-4 py-2 rounded">Update</button>
+                    <button type="button" @click="panel=null; editAction=''; editForm={}" class="border px-4 py-2 rounded">Cancel</button>
+                </div>
+            </form>
+
 
             <form x-show="panel=='authorized'" action="{{ route('authorized.store') }}" method="POST" class="space-y-4">
                 @csrf
@@ -457,7 +792,7 @@
 
                 <input name="number_of_shares" type="number" min="1" step="1" placeholder="Number of Shares" class="border w-full p-2 rounded" required>
                 <input name="par_value" type="number" min="0" step="0.01" placeholder="Par / Stated Value" class="border w-full p-2 rounded" required>
-                <input name="amount" type="number" min="0" step="0.01" placeholder="Amount" class="border w-full p-2 rounded" required>
+                <input name="amount" type="number" min="0" step="0.01" placeholder="Amount (auto-calculated on save)" value="0" readonly class="border w-full p-2 rounded bg-gray-50 text-gray-500">
 
                 <button class="bg-blue-600 text-white px-4 py-2 rounded">Save</button>
             </form>
@@ -475,16 +810,18 @@
 
                 <input name="stockholders" type="number" min="0" step="1" placeholder="No. of Stockholders" class="border w-full p-2 rounded" required>
 
-                <select name="share_type" class="border w-full p-2 rounded" required>
-                    <option value="">Type of Shares</option>
-                    <option value="Common Stock">Common Stock</option>
-                    <option value="Preferred Stock">Preferred Stock</option>
+                <select name="share_type" x-model="form.subscribed.share_type" class="border w-full p-2 rounded" required>
+                    <option value="">Type of Shares from Authorized Capital</option>
+                    @foreach($authorizedShareTypes as $shareType)
+                        <option value="{{ $shareType }}">{{ $shareType }}</option>
+                    @endforeach
                 </select>
 
-                <input name="shares" type="number" min="0" step="1" placeholder="Number of Shares" class="border w-full p-2 rounded" required>
-                <input name="par_value" type="number" min="0" step="0.01" placeholder="Par Value" class="border w-full p-2 rounded" required>
-                <input name="amount" type="number" min="0" step="0.01" placeholder="Amount" class="border w-full p-2 rounded" required>
-                <input name="ownership" type="number" min="0" step="0.01" placeholder="% Ownership" class="border w-full p-2 rounded" required>
+                <input name="shares" x-model="form.subscribed.shares" type="number" min="0" step="1" placeholder="Number of Shares" class="border w-full p-2 rounded" required>
+                <input type="hidden" name="par_value" :value="parOf(form.subscribed.share_type)">
+                <input type="text" :value="parOf(form.subscribed.share_type).toFixed(2)" placeholder="Par Value from Authorized Capital" readonly class="border w-full p-2 rounded bg-gray-50 text-gray-600">
+                <input type="text" :value="amountFor(form.subscribed.shares, form.subscribed.share_type)" placeholder="Amount (auto-calculated on save)" readonly class="border w-full p-2 rounded bg-gray-50 text-gray-500">
+                <input name="ownership" type="number" min="0" step="0.01" placeholder="% Ownership (auto-calculated on save)" value="0" readonly class="border w-full p-2 rounded bg-gray-50 text-gray-500">
 
                 <button class="bg-blue-600 text-white px-4 py-2 rounded">Save</button>
             </form>
@@ -502,16 +839,18 @@
 
                 <input name="stockholders" type="number" min="0" step="1" placeholder="No. of Stockholders" class="border w-full p-2 rounded" required>
 
-                <select name="share_type" class="border w-full p-2 rounded" required>
-                    <option value="">Type of Shares</option>
-                    <option value="Common Stock">Common Stock</option>
-                    <option value="Preferred Stock">Preferred Stock</option>
+                <select name="share_type" x-model="form.paidup.share_type" class="border w-full p-2 rounded" required>
+                    <option value="">Type of Shares from Authorized Capital</option>
+                    @foreach($authorizedShareTypes as $shareType)
+                        <option value="{{ $shareType }}">{{ $shareType }}</option>
+                    @endforeach
                 </select>
 
-                <input name="shares" type="number" min="0" step="1" placeholder="Number of Shares" class="border w-full p-2 rounded" required>
-                <input name="par_value" type="number" min="0" step="0.01" placeholder="Par Value" class="border w-full p-2 rounded" required>
-                <input name="amount" type="number" min="0" step="0.01" placeholder="Amount" class="border w-full p-2 rounded" required>
-                <input name="ownership" type="number" min="0" step="0.01" placeholder="% Ownership" class="border w-full p-2 rounded" required>
+                <input name="shares" x-model="form.paidup.shares" type="number" min="0" step="1" placeholder="Number of Shares" class="border w-full p-2 rounded" required>
+                <input type="hidden" name="par_value" :value="parOf(form.paidup.share_type)">
+                <input type="text" :value="parOf(form.paidup.share_type).toFixed(2)" placeholder="Par Value from Authorized Capital" readonly class="border w-full p-2 rounded bg-gray-50 text-gray-600">
+                <input type="text" :value="amountFor(form.paidup.shares, form.paidup.share_type)" placeholder="Amount (auto-calculated on save)" readonly class="border w-full p-2 rounded bg-gray-50 text-gray-500">
+                <input name="ownership" type="number" min="0" step="0.01" placeholder="% Ownership (auto-calculated on save)" value="0" readonly class="border w-full p-2 rounded bg-gray-50 text-gray-500">
 
                 <button class="bg-blue-600 text-white px-4 py-2 rounded">Save</button>
             </form>
@@ -521,6 +860,7 @@
                 <input type="hidden" name="gis_id" value="{{ $gis->id }}">
 
                 <input name="officer_name" placeholder="Officer Name" class="border w-full p-2 rounded" required>
+                <input type="email" name="email" placeholder="Email Address" class="border w-full p-2 rounded">
                 <input name="address" placeholder="Address" class="border w-full p-2 rounded" required>
 
                 <select name="nationality" class="border w-full p-2 rounded" required>
@@ -565,6 +905,7 @@
                 <input type="hidden" name="gis_id" value="{{ $gis->id }}">
 
                 <input name="stockholder_name" placeholder="Stockholder Name" class="border w-full p-2 rounded" required>
+                <input type="email" name="email" placeholder="Email Address" class="border w-full p-2 rounded">
                 <input name="address" placeholder="Address" class="border w-full p-2 rounded" required>
 
                 <select name="gender" class="border w-full p-2 rounded" required>
@@ -585,15 +926,18 @@
                     <option value="N">N</option>
                 </select>
 
-                <select name="share_type" class="border w-full p-2 rounded" required>
-                    <option value="">Type of Shares</option>
-                    <option value="Common Stock">Common Stock</option>
-                    <option value="Preferred Stock">Preferred Stock</option>
+                <select name="share_type" x-model="form.stockholder.share_type" class="border w-full p-2 rounded" required>
+                    <option value="">Type of Shares from Authorized Capital</option>
+                    @foreach($authorizedShareTypes as $shareType)
+                        <option value="{{ $shareType }}">{{ $shareType }}</option>
+                    @endforeach
                 </select>
 
-                <input name="shares" type="number" min="0" step="1" placeholder="Shares" class="border w-full p-2 rounded" required>
-                <input name="amount" type="number" min="0" step="0.01" placeholder="Amount" class="border w-full p-2 rounded" required>
-                <input name="ownership_percentage" type="number" min="0" step="0.01" placeholder="% Ownership" class="border w-full p-2 rounded" required>
+                <input name="shares" x-model="form.stockholder.shares" type="number" min="0" step="1" placeholder="Shares" class="border w-full p-2 rounded" required>
+                <input name="amount" type="hidden" :value="amountFor(form.stockholder.shares, form.stockholder.share_type)">
+                <input type="text" :value="parOf(form.stockholder.share_type).toFixed(2)" placeholder="Par Value from Authorized Capital" readonly class="border w-full p-2 rounded bg-gray-50 text-gray-600">
+                <input type="text" :value="amountFor(form.stockholder.shares, form.stockholder.share_type)" placeholder="Amount (auto-calculated on save)" readonly class="border w-full p-2 rounded bg-gray-50 text-gray-500">
+                <input name="ownership_percentage" type="number" min="0" step="0.01" placeholder="% Ownership (auto-calculated on save)" value="0" readonly class="border w-full p-2 rounded bg-gray-50 text-gray-500">
                 <input name="amount_paid" type="number" min="0" step="0.01" placeholder="Amount Paid" class="border w-full p-2 rounded" required>
                 <input name="tin" placeholder="TIN" class="border w-full p-2 rounded" required>
 
@@ -639,7 +983,7 @@
                 <button class="bg-blue-600 text-white px-4 py-2 rounded">Save</button>
             </form>
 
-            <form x-show="panel=='completegis'" action="{{ route('gis.company.update', $gis->id) }}" method="POST" class="space-y-4">
+            <form x-show="panel=='completegis'" action="{{ route('gis.company.update', $gis->id) }}" method="POST" enctype="multipart/form-data" class="space-y-4">
                 @csrf
                 @method('PUT')
 
@@ -653,6 +997,15 @@
                 <input type="email" name="email" placeholder="Email" class="border w-full p-2 rounded" value="{{ $gis->email }}">
                 <input name="principal_address" placeholder="Principal Address" class="border w-full p-2 rounded" value="{{ $gis->principal_address }}">
                 <input name="business_address" placeholder="Business Address" class="border w-full p-2 rounded" value="{{ $gis->business_address }}">
+
+                <div class="border rounded p-3 bg-gray-50">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Corporation Logo</label>
+                    @if($gis->logo_path)
+                        <img src="{{ route('uploads.show', ['path' => $gis->logo_path]) }}" alt="Corporation Logo" class="h-16 w-auto object-contain mb-2">
+                    @endif
+                    <input type="file" name="logo_upload" accept="image/*" class="border w-full p-2 rounded bg-white">
+                    <p class="mt-1 text-xs text-gray-500">This logo will be used in Notices, Minutes, Resolutions, and Secretary Certificates.</p>
+                </div>
                 <input name="official_mobile" placeholder="Official Mobile" class="border w-full p-2 rounded" value="{{ $gis->official_mobile }}">
                 <input name="alternate_mobile" placeholder="Alternate Mobile" class="border w-full p-2 rounded" value="{{ $gis->alternate_mobile }}">
                 <input name="auditor" placeholder="Auditor" class="border w-full p-2 rounded" value="{{ $gis->auditor }}">
@@ -892,6 +1245,17 @@
                 Completed GIS Details
             </h3>
 
+            <div class="flex justify-between items-center gap-3">
+                <span class="text-gray-500">Corporation Logo</span>
+                <span>
+                    @if($gis->logo_path)
+                        <img src="{{ route('uploads.show', ['path' => $gis->logo_path]) }}" alt="Corporation Logo" class="h-12 w-auto object-contain">
+                    @else
+                        —
+                    @endif
+                </span>
+            </div>
+
             <div class="flex justify-between">
                 <span class="text-gray-500">Date Registered</span>
                 <span>{{ $gis->date_registered ? \Carbon\Carbon::parse($gis->date_registered)->format('F d, Y') : '—' }}</span>
@@ -948,7 +1312,7 @@
             </div>
 
             <div class="flex justify-between">
-                <span class="text-gray-500">Industry</span>
+                <span class="text-gray-500">PRIMARY PURPOSE/ACTIVITY/INDUSTRY PRESENTLY ENGAGED IN</span>
                 <span class="text-right max-w-[180px]">{{ $gis->industry ?: '—' }}</span>
             </div>
 

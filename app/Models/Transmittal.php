@@ -115,4 +115,9 @@ class Transmittal extends Model
     {
         return $this->hasOne(TransmittalReceipt::class);
     }
+
+    public function attachments()
+    {
+        return $this->hasMany(TransmittalAttachment::class)->latest();
+    }
 }

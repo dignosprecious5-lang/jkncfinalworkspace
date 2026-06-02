@@ -1,6 +1,9 @@
 <?php
 
 use App\Http\Controllers\ActivityController;
+use App\Http\Controllers\AdminUserPasswordController;
+use App\Http\Controllers\AdminUserStatusController;
+use App\Http\Controllers\AdminUserAccountController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\ChangePasswordController;
 use App\Http\Controllers\BylawController;
@@ -74,6 +77,7 @@ use App\Http\Controllers\OnboardingRecordController;
 use App\Http\Controllers\PayrollController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\EmployeeRequestController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PhilippineLocationController;
 use App\Http\Controllers\SalesMarketingPayoutController;
 use Illuminate\Support\Facades\Auth;
@@ -86,6 +90,7 @@ use App\Http\Controllers\EmployeeRelationController;
 use App\Http\Controllers\AwardController;
 use App\Http\Controllers\PerformanceController;
 use App\Http\Controllers\OffboardingController;
+use App\Http\Controllers\AssessmentQuestionController;
 
 /*
 |--------------------------------------------------------------------------
@@ -110,6 +115,9 @@ Route::get('/', function () {
 
     return redirect()->route('login');
 });
+
+Route::get('/employee-verification/{employee?}', [EmployeeController::class, 'verificationForm'])->name('employee.verify.form');
+Route::post('/employee-verification', [EmployeeController::class, 'verify'])->name('employee.verify.submit');
 
 /*
 |--------------------------------------------------------------------------
@@ -213,10 +221,8 @@ $adminOrSuperAdmin = \App\Http\Middleware\AdminOrSuperAdmin::class;
 |--------------------------------------------------------------------------
 */
 
-Route::get('/careers', function () {
-    return view('human-capital.homepage_public');
-})->name('homepage.public');
-
+Route::get('/careers', [RecruitmentController::class, 'showPublicCareersPage'])->name('homepage.public');
+Route::get('/careers/job/{id}', [RecruitmentController::class, 'showJobDetail'])->name('careers.job-detail');
 Route::get('/careers/apply', [RecruitmentController::class, 'showPublicApplicationForm'])->name('careers.apply');
 Route::post('/careers/apply', [RecruitmentController::class, 'storeCAF'])->name('careers.apply.submit');
 Route::get('/careers/pds/{token?}', [RecruitmentController::class, 'showPublicPDSForm'])->name('careers.pds');
@@ -234,8 +240,17 @@ Route::get('/assessment/start/{uuid}', [RecruitmentController::class, 'startAsse
 Route::post('/assessment/start/{uuid}/submit', [RecruitmentController::class, 'submitAssessmentTest'])
     ->name('recruitment.assessment.submit');
 
+Route::get('/job-offer/{token}', [RecruitmentController::class, 'showJobOfferReview'])
+    ->name('job-offer.review');
+
+Route::get('/job-offer/{token}/download', [RecruitmentController::class, 'downloadJobOffer'])
+    ->name('job-offer.download');
+
 Route::get('/job-offer/{token}/accept', [RecruitmentController::class, 'acceptJobOffer'])
     ->name('job-offer.accept');
+
+Route::post('/job-offer/{token}/accept', [RecruitmentController::class, 'acceptJobOffer'])
+    ->name('job-offer.accept.submit');
 
 Route::get('/job-offer/{token}/decline', [RecruitmentController::class, 'declineJobOffer'])
     ->name('job-offer.decline');
@@ -286,6 +301,18 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
         ->where('path', '.*')
         ->name('uploads.show');
 
+
+    /*
+    |--------------------------------------------------------------------------
+    | REAL-TIME NOTIFICATIONS
+    |--------------------------------------------------------------------------
+    */
+    Route::post('/notifications/{notification}/read', [NotificationController::class, 'markAsRead'])
+        ->name('notifications.read');
+
+    Route::post('/notifications/read-all', [NotificationController::class, 'markAllAsRead'])
+        ->name('notifications.read-all');
+
     /*
     |--------------------------------------------------------------------------
     | ADMIN MODULE
@@ -298,7 +325,15 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::get('/admin/users', [AdminUserController::class, 'index'])->name('admin.users');
     Route::post('/admin/users', [AdminUserController::class, 'store'])->name('admin.users.store');
     Route::post('/admin/users/{id}', [AdminUserController::class, 'update'])->name('admin.users.update');
+    Route::post('/admin/users/{id}/reset-password', [AdminUserPasswordController::class, 'update'])
+        ->name('admin.users.reset-password');
+    Route::post('/admin/users/{id}/account', [AdminUserAccountController::class, 'update'])
+        ->name('admin.users.account.update');
     Route::delete('/admin/users/{id}', [AdminUserController::class, 'destroy'])->name('admin.users.destroy');
+    Route::post('/admin/users/{id}/disable', [AdminUserStatusController::class, 'disable'])
+        ->name('admin.users.disable');
+    Route::post('/admin/users/{id}/enable', [AdminUserStatusController::class, 'enable'])
+        ->name('admin.users.enable');
 
     Route::get('/admin/role-permissions', [RolePermissionController::class, 'index'])->name('admin.role-permissions');
     Route::post('/admin/role-permissions/{id}', [RolePermissionController::class, 'update'])->name('admin.role-permissions.update');
@@ -352,10 +387,21 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::post('/townhall/{id}/approve', [TownHallController::class, 'approve'])->name('townhall.approve');
     Route::post('/townhall/{id}/reject', [TownHallController::class, 'reject'])->name('townhall.reject');
     Route::post('/townhall/{id}/revise', [TownHallController::class, 'revise'])->name('townhall.revise');
+    Route::post('/townhall/{id}/archive', [TownHallController::class, 'archive'])->name('townhall.archive');
+    Route::post('/townhall/{id}/unarchive', [TownHallController::class, 'unarchive'])->name('townhall.unarchive');
     Route::post('/townhall/{id}/acknowledge', [TownHallController::class, 'acknowledge'])->name('townhall.acknowledge');
     Route::get('/townhall/recipients/search', [TownHallController::class, 'searchRecipients'])
         ->name('townhall.recipients.search');
-
+    Route::get('/townhall/{id}/email-approve', [TownHallController::class, 'approveFromEmail'])
+        ->name('townhall.email.approve')
+        ->middleware('signed');
+    Route::get('/townhall/{id}/email-reject', [TownHallController::class, 'rejectFromEmail'])
+        ->name('townhall.email.reject')
+        ->middleware('signed');
+    Route::get('/admin/town-hall/audit-trail', [TownHallController::class, 'auditTrail'])
+        ->name('admin.townhall.audit-trail');
+    Route::get('/admin/town-hall/acknowledgement-report', [TownHallController::class, 'acknowledgementReport'])
+        ->name('admin.townhall.acknowledgement-report');
 
     /*
     |--------------------------------------------------------------------------
@@ -452,6 +498,7 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::post('/project/{project}/start/approve', [ProjectController::class, 'approveStart'])->name('project.start.approve');
     Route::post('/project/{project}/start/reject', [ProjectController::class, 'rejectStart'])->name('project.start.reject');
     Route::post('/project/{project}/sow', [ProjectController::class, 'updateSow'])->name('project.sow.update');
+    Route::post('/project/{project}/sow/manual-approve', [ProjectController::class, 'manualApproveSow'])->name('project.sow.manual-approve');
     Route::post('/project/{project}/sow/auto-report-settings', [ProjectController::class, 'updateSowAutoReportSettings'])->name('project.sow.auto-settings');
     Route::post('/project/{project}/sow/templates', [ProjectController::class, 'storeSowTemplate'])->name('project.sow.templates.store');
     Route::get('/project/{project}/sow/download', [ProjectController::class, 'downloadSowPdf'])->name('project.sow.download');
@@ -473,6 +520,7 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::post('/regular/manual', [RegularController::class, 'storeManual'])->name('regular.manual.store');
     Route::get('/regular/{regular}', [RegularController::class, 'show'])->name('regular.show');
     Route::post('/regular/{regular}/rsat', [RegularController::class, 'updateRsat'])->name('regular.rsat.update');
+    Route::post('/regular/{regular}/rsat/manual-approve', [RegularController::class, 'manualApproveRsat'])->name('regular.rsat.manual-approve');
     Route::post('/regular/{regular}/rsat/auto-report-settings', [RegularController::class, 'updateRsatAutoReportSettings'])->name('regular.rsat.auto-settings');
     Route::post('/regular/{regular}/rsat/templates', [RegularController::class, 'storeRsatTemplate'])->name('regular.rsat.templates.store');
     Route::post('/regular/{regular}/report/generate', [RegularController::class, 'generateReport'])->name('regular.report.generate');
@@ -483,6 +531,7 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::post('/regular/{regular}/report', [RegularController::class, 'updateReport'])->name('regular.report.update');
     Route::get('/regular/{regular}/rsat/download', [RegularController::class, 'downloadRsatPdf'])->name('regular.rsat.download');
     Route::get('/regular/{regular}/ntp/download', [RegularController::class, 'downloadNtpPdf'])->name('regular.ntp.download');
+    Route::get('/regular/{regular}/ntp/submission', [RegularController::class, 'showNtpSubmission'])->name('regular.ntp.submission');
     Route::post('/regular/{regular}/ntp/manual-approve', [RegularController::class, 'manualApproveNtp'])->name('regular.ntp.manual-approve');
 
     Route::get('/products', [ProductController::class, 'index'])->name('products.index');
@@ -514,11 +563,18 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::get('/policies/preview-pdf', [PolicyController::class, 'previewPdf'])->name('policies.preview');
     Route::get('/policies/{id}', [PolicyController::class, 'show'])->name('policies.show');
     Route::get('/policies/{id}/edit', [PolicyController::class, 'edit'])->name('policies.edit');
+    Route::get('/policies/{id}/edit', [PolicyController::class, 'edit'])
+        ->name('policies.edit');
+
+    Route::put('/policies/{id}', [PolicyController::class, 'update'])
+        ->name('policies.update');
 
     Route::get('/admin/policies', [PolicyController::class, 'submitted'])->name('admin.policies.index');
     Route::post('/admin/policies/{id}/approve', [PolicyController::class, 'approve'])->name('admin.policies.approve');
     Route::post('/admin/policies/{id}/reject', [PolicyController::class, 'reject'])->name('admin.policies.reject');
     Route::post('/admin/policies/{id}/revise', [PolicyController::class, 'revise'])->name('admin.policies.revise');
+    Route::post('/admin/policies/{id}/review', [PolicyController::class, 'review'])
+        ->name('admin.policies.review');
     Route::get('/admin/policies/{id}', [PolicyController::class, 'showAdmin'])->name('admin.policies.show');
     Route::post('/admin/policies/{id}/archive', [PolicyController::class, 'archive'])->name('admin.policies.archive');
     Route::post('/admin/policies/{id}/unarchive', [PolicyController::class, 'unarchive'])->name('admin.policies.unarchive');
@@ -529,6 +585,7 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     |--------------------------------------------------------------------------
     */
     Route::get('/company', [CompanyController::class, 'index'])->name('company.index');
+    Route::get('/company/contacts/search', [CompanyController::class, 'searchRoleContacts'])->name('company.contacts.search');
     Route::post('/company', [CompanyController::class, 'store'])->name('company.store');
     Route::post('/company/custom-fields', [CompanyController::class, 'storeCustomField'])->name('company.custom-fields.store');
     Route::delete('/company/bulk-delete', [CompanyController::class, 'bulkDelete'])->name('company.bulk-delete');
@@ -642,8 +699,11 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::get('/company/{company}/corporate-formation/notices', [CompanyCorporateRecordController::class, 'notices'])->name('company.corporate-formation.notices');
     Route::post('/company/{company}/corporate-formation/notices', [CompanyCorporateRecordController::class, 'storeNotice'])->name('company.corporate-formation.notices.store');
     Route::get('/company/{company}/corporate-formation/notices/{notice}', [CompanyCorporateRecordController::class, 'showNotice'])->name('company.corporate-formation.notices.preview');
+    Route::get('/company/{company}/corporate-formation/notices/{notice}/download', [CompanyCorporateRecordController::class, 'downloadNoticePdf'])->name('company.corporate-formation.notices.download');
+    Route::post('/company/{company}/corporate-formation/notices/{notice}/upload-original', [CompanyCorporateRecordController::class, 'uploadOriginalNotice'])->name('company.corporate-formation.notices.upload-original');
     Route::match(['put', 'patch'], '/company/{company}/corporate-formation/notices/{notice}', [CompanyCorporateRecordController::class, 'updateNotice'])->name('company.corporate-formation.notices.update');
     Route::delete('/company/{company}/corporate-formation/notices/{notice}', [CompanyCorporateRecordController::class, 'destroyNotice'])->name('company.corporate-formation.notices.destroy');
+    Route::post('/company/{company}/corporate-formation/notices/{notice}/send', [CompanyCorporateRecordController::class, 'sendNotice'])->name('company.corporate-formation.notices.send');
     Route::get('/company/{company}/corporate-formation/minutes', [CompanyCorporateRecordController::class, 'minutes'])->name('company.corporate-formation.minutes');
     Route::post('/company/{company}/corporate-formation/minutes', [CompanyCorporateRecordController::class, 'storeMinute'])->name('company.corporate-formation.minutes.store');
     Route::get('/company/{company}/corporate-formation/minutes/{minute}', [CompanyCorporateRecordController::class, 'showMinute'])->name('company.corporate-formation.minutes.preview');
@@ -666,7 +726,7 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::post('/company/{company}/corporate-formation/gis', [CompanyCorporateFormationController::class, 'storeGis'])->name('company.corporate-formation.gis.store');
     Route::match(['put', 'patch'], '/company/{company}/corporate-formation/gis/{record}', [CompanyCorporateFormationController::class, 'updateGis'])->name('company.corporate-formation.gis.update');
 
-    // Company corporate-formation — show / upload-draft / upload-notary / submit (all 4 document types)
+    // Company corporate-formation â€” show / upload-draft / upload-notary / submit (all 4 document types)
     Route::get('/company/{company}/corporate-formation/sec-coi/{record}', [CompanyCorporateFormationController::class, 'showSecCoi'])->name('company.corporate-formation.sec-coi.show');
     Route::post('/company/{company}/corporate-formation/sec-coi/{record}/upload-draft', [CompanyCorporateFormationController::class, 'uploadDraftSecCoi'])->name('company.corporate-formation.sec-coi.upload-draft');
     Route::post('/company/{company}/corporate-formation/sec-coi/{record}/upload-notary', [CompanyCorporateFormationController::class, 'uploadNotarySecCoi'])->name('company.corporate-formation.sec-coi.upload-notary');
@@ -710,6 +770,25 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::post('/gis/director/store', [DirectorOfficerController::class, 'store'])->name('director.store');
     Route::post('/gis/stockholder/store', [StockholderController::class, 'store'])->name('stockholder.store');
     Route::post('/gis/ubo/store', [UltimateBeneficialOwnerController::class, 'store'])->name('ubo.store');
+
+    Route::put('/gis/authorized/{record}', [CapitalStructureController::class, 'updateAuthorized'])->name('authorized.update');
+    Route::delete('/gis/authorized/{record}', [CapitalStructureController::class, 'destroyAuthorized'])->name('authorized.destroy');
+
+    Route::put('/gis/subscribed/{record}', [CapitalStructureController::class, 'updateSubscribed'])->name('subscribed.update');
+    Route::delete('/gis/subscribed/{record}', [CapitalStructureController::class, 'destroySubscribed'])->name('subscribed.destroy');
+
+    Route::put('/gis/paidup/{record}', [CapitalStructureController::class, 'updatePaidup'])->name('paidup.update');
+    Route::delete('/gis/paidup/{record}', [CapitalStructureController::class, 'destroyPaidup'])->name('paidup.destroy');
+
+    Route::put('/gis/director/{record}', [DirectorOfficerController::class, 'update'])->name('director.update');
+    Route::delete('/gis/director/{record}', [DirectorOfficerController::class, 'destroy'])->name('director.destroy');
+
+    Route::put('/gis/stockholder/{record}', [StockholderController::class, 'update'])->name('stockholder.update');
+    Route::delete('/gis/stockholder/{record}', [StockholderController::class, 'destroy'])->name('stockholder.destroy');
+
+    Route::put('/gis/ubo/{record}', [UltimateBeneficialOwnerController::class, 'update'])->name('ubo.update');
+    Route::delete('/gis/ubo/{record}', [UltimateBeneficialOwnerController::class, 'destroy'])->name('ubo.destroy');
+
 
     Route::post('/corporate/gis/{id}/upload-draft-file', [GisController::class, 'uploadDraftFile'])->name('corporate.gis.upload.draft');
     Route::post('/corporate/gis/{id}/upload-notary-file', [GisController::class, 'uploadNotaryFile'])->name('corporate.gis.upload.notary');
@@ -844,10 +923,13 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::get('/corporate/notices', [NoticeController::class, 'index'])->name('notices');
     Route::get('/corporate/notices/create', [NoticeController::class, 'create'])->name('notices.create');
     Route::post('/corporate/notices', [NoticeController::class, 'store'])->name('notices.store');
+    Route::get('/corporate/notices/{notice}/download', [NoticeController::class, 'downloadPdf'])->name('notices.download');
     Route::get('/corporate/notices/{notice}', [NoticeController::class, 'show'])->name('notices.preview');
     Route::get('/corporate/notices/{notice}/edit', [NoticeController::class, 'edit'])->name('notices.edit');
     Route::put('/corporate/notices/{notice}', [NoticeController::class, 'update'])->name('notices.update');
     Route::delete('/corporate/notices/{notice}', [NoticeController::class, 'destroy'])->name('notices.destroy');
+    Route::post('/corporate/notices/{notice}/send', [NoticeController::class, 'sendNotice'])->name('notices.send');
+    Route::post('/corporate/notices/{notice}/upload-original', [NoticeController::class, 'uploadOriginal'])->name('notices.upload-original');
 
     Route::get('/corporate/minutes', [MinuteController::class, 'index'])->name('minutes');
     Route::get('/corporate/minutes/create', [MinuteController::class, 'create'])->name('minutes.create');
@@ -864,6 +946,7 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::get('/corporate/resolutions', [ResolutionController::class, 'index'])->name('resolutions');
     Route::get('/corporate/resolutions/create', [ResolutionController::class, 'create'])->name('resolutions.create');
     Route::post('/corporate/resolutions', [ResolutionController::class, 'store'])->name('resolutions.store');
+    Route::get('/corporate/resolutions/{resolution}/download', [ResolutionController::class, 'downloadPdf'])->name('resolutions.download');
     Route::get('/corporate/resolutions/{resolution}', [ResolutionController::class, 'show'])->name('resolutions.preview');
     Route::get('/corporate/resolutions/{resolution}/edit', [ResolutionController::class, 'edit'])->name('resolutions.edit');
     Route::put('/corporate/resolutions/{resolution}', [ResolutionController::class, 'update'])->name('resolutions.update');
@@ -985,6 +1068,7 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::get('/transmittal-receipts/{id}', [TransmittalReceiptController::class, 'show'])->name('transmittal.receipts.show');
     Route::get('/transmittal/{transmittal}/preview', [TransmittalController::class, 'preview'])->name('transmittal.preview');
     Route::get('/transmittal/{transmittal}/preview-pdf', [TransmittalController::class, 'previewPdf'])->name('transmittal.preview.pdf');
+    Route::post('/transmittal/{transmittal}/send-email', [TransmittalController::class, 'sendEmail'])->name('transmittal.send-email');
     Route::get('/transmittal/{transmittal}/receipt-pdf', [TransmittalController::class, 'receiptPdf'])->name('transmittal.receipt.pdf');
 
     /*
@@ -1022,6 +1106,46 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
         ->name('sales-marketing.payouts.index');
     Route::patch('/sales-marketing/payouts/{allocation}/mark-paid', [SalesMarketingPayoutController::class, 'markPaid'])
         ->name('sales-marketing.payouts.mark-paid');
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | ASSESSMENT QUESTIONNAIRE EDITOR
+    |--------------------------------------------------------------------------
+    */
+    Route::middleware($adminOrSuperAdmin)
+        ->prefix('human-capital/recruitment/assessment-questionnaire-editor')
+        ->group(function () {
+            Route::get('/', [AssessmentQuestionController::class, 'index'])
+                ->name('assessment-questions.index');
+
+            Route::post('/types', [AssessmentQuestionController::class, 'storeType'])
+                ->name('assessment-types.store');
+
+            Route::put('/types/{type}', [AssessmentQuestionController::class, 'updateType'])
+                ->name('assessment-types.update');
+
+            Route::delete('/types/{type}', [AssessmentQuestionController::class, 'destroyType'])
+                ->name('assessment-types.destroy');
+
+            Route::post('/questions', [AssessmentQuestionController::class, 'store'])
+                ->name('assessment-questions.store');
+
+            Route::post('/questions/reorder', [AssessmentQuestionController::class, 'reorder'])
+                ->name('assessment-questions.reorder');
+
+            Route::post('/questions/{question}/move-up', [AssessmentQuestionController::class, 'moveUp'])
+                ->name('assessment-questions.move-up');
+
+            Route::post('/questions/{question}/move-down', [AssessmentQuestionController::class, 'moveDown'])
+                ->name('assessment-questions.move-down');
+
+            Route::put('/questions/{question}', [AssessmentQuestionController::class, 'update'])
+                ->name('assessment-questions.update');
+
+            Route::delete('/questions/{question}', [AssessmentQuestionController::class, 'destroy'])
+                ->name('assessment-questions.destroy');
+        });
 
     /*
     |--------------------------------------------------------------------------
@@ -1120,6 +1244,8 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
             Route::delete('/recruitment/interview/{id}', [RecruitmentController::class, 'deleteInterview'])->name('recruitment.delete_interview');
             Route::post('/recruitment/interview/{id}/status', [RecruitmentController::class, 'updateInterviewStatus'])
                 ->name('recruitment.interview_status');
+            Route::post('/recruitment/interview/{id}/details', [RecruitmentController::class, 'updateInterviewDetails'])
+                ->name('recruitment.interview_details');
 
             Route::get('/recruitment/job-offer/latest', [RecruitmentController::class, 'latestJobOffers'])->name('recruitment.job_offer.latest');
             Route::post('/recruitment/job-offer', [RecruitmentController::class, 'storeJobOffer'])->name('recruitment.store_job_offer');

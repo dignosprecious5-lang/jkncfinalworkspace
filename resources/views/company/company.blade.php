@@ -522,6 +522,8 @@ document.addEventListener('DOMContentLoaded', function () {
         @else
             openModal();
         @endif
+    @elseif (request()->boolean('open_create_company') || request()->has('company_contact_created'))
+        openModal();
     @endif
 });
 </script>

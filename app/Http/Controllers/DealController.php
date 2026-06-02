@@ -560,6 +560,8 @@ class DealController extends Controller
 
     private function dealProductCatalog(): array
     {
+        $unlinkedProductsGroup = 'Unlinked Products';
+
         try {
             if (! Schema::hasTable('products')) {
                 return [
@@ -593,6 +595,10 @@ class DealController extends Controller
                     ->map(fn ($value): string => trim((string) $value))
                     ->reject(fn (string $value): bool => $value === 'Others' || $value === 'None')
                     ->values();
+
+                if ($areas->isEmpty()) {
+                    $areas = collect([$unlinkedProductsGroup]);
+                }
 
                 foreach ($areas as $area) {
                     $groups[$area] ??= [];
