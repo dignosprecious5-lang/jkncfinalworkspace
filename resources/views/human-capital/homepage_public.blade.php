@@ -615,7 +615,7 @@
 
             <div class="footer-divider">
                 <div class="footer-bottom">
-                    <p>&copy; 2019 - {{ date('Y') }} John Kelly & Company (JK&C Inc.). All rights reserved. | Careers Portal</p>
+                    <p>&copy; 2025 - {{ date('Y') }} John Kelly & Company (JK&C Inc.). All rights reserved. | Careers Portal</p>
                 </div>
             </div>
         </div>
