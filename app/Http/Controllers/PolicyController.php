@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Policy;
+use App\Models\PolicyAudit;
 use App\Models\GisRecord;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -100,6 +101,47 @@ class PolicyController extends Controller
     }
 
 
+
+    private function logPolicyAudit(
+        Policy $policy,
+        string $action,
+        ?string $description = null,
+        ?array $oldValues = null,
+        ?array $newValues = null
+    ): void {
+        PolicyAudit::create([
+            'policy_id' => $policy->id,
+            'user_id' => Auth::id(),
+            'action' => $action,
+            'description' => $description,
+            'old_values' => $oldValues,
+            'new_values' => $newValues,
+            'ip_address' => request()?->ip(),
+            'user_agent' => request()?->userAgent(),
+        ]);
+    }
+
+    private function policyAuditSnapshot(Policy $policy): array
+    {
+        return [
+            'code' => $policy->code,
+            'policy' => $policy->policy,
+            'policy_subtitle' => $policy->policy_subtitle,
+            'version' => $policy->version,
+            'effectivity_date' => optional($policy->effectivity_date)->format('Y-m-d'),
+            'prepared_by' => $policy->prepared_by,
+            'reviewed_by' => $policy->reviewed_by,
+            'approved_by' => $policy->approved_by,
+            'review_cycle' => $policy->review_cycle,
+            'classification' => $policy->classification,
+            'approval_status' => $policy->approval_status,
+            'workflow_status' => $policy->workflow_status,
+            'is_archived' => (bool) $policy->is_archived,
+            'review_note' => $policy->review_note,
+        ];
+    }
+
+
     public function index(Request $request)
     {
         $query = Policy::where('workflow_status', 'Accepted')
@@ -171,6 +213,14 @@ class PolicyController extends Controller
 
         $this->storePolicyAttachments($request, $policy);
         $this->syncLegacyPolicyAttachment($policy);
+
+        $this->logPolicyAudit(
+            $policy,
+            'submitted',
+            'Policy created and submitted for admin review.',
+            null,
+            $this->policyAuditSnapshot($policy->fresh())
+        );
 
         return redirect()
             ->route('policies.index')
@@ -353,6 +403,14 @@ class PolicyController extends Controller
          */
         $policy->touch();
 
+        $this->logPolicyAudit(
+            $policy,
+            'reviewed',
+            'Policy review action recorded by admin.',
+            null,
+            $this->policyAuditSnapshot($policy->fresh())
+        );
+
         return redirect()
             ->route('admin.policies.show', $policy->id)
             ->with('success', 'Policy review action recorded. Reviewed By field was preserved.');
@@ -382,6 +440,14 @@ class PolicyController extends Controller
             'archived_at' => null,
         ]);
 
+        $this->logPolicyAudit(
+            $policy,
+            'approved',
+            'Policy approved and accepted.',
+            null,
+            $this->policyAuditSnapshot($policy->fresh())
+        );
+
         return redirect()->back()->with('success', 'Policy approved successfully.');
     }
 
@@ -407,6 +473,14 @@ class PolicyController extends Controller
             'is_archived' => false,
             'archived_at' => null,
         ]);
+
+        $this->logPolicyAudit(
+            $policy,
+            'rejected',
+            'Policy rejected by admin.',
+            null,
+            $this->policyAuditSnapshot($policy->fresh())
+        );
 
         return redirect()->back()->with('success', 'Policy rejected successfully.');
     }
@@ -434,6 +508,14 @@ class PolicyController extends Controller
             'archived_at' => null,
         ]);
 
+        $this->logPolicyAudit(
+            $policy,
+            'revision_requested',
+            'Policy marked as needing revision.',
+            null,
+            $this->policyAuditSnapshot($policy->fresh())
+        );
+
         return redirect()->back()->with('success', 'Policy marked for revision.');
     }
 
@@ -450,6 +532,14 @@ class PolicyController extends Controller
             'is_archived' => true,
             'archived_at' => Carbon::now(),
         ]);
+
+        $this->logPolicyAudit(
+            $policy,
+            'archived',
+            'Policy archived.',
+            null,
+            $this->policyAuditSnapshot($policy->fresh())
+        );
 
         return redirect()->back()->with('success', 'Policy archived successfully.');
     }
@@ -470,6 +560,14 @@ class PolicyController extends Controller
             'archived_at' => null,
         ]);
 
+        $this->logPolicyAudit(
+            $policy,
+            'unarchived',
+            'Policy unarchived.',
+            null,
+            $this->policyAuditSnapshot($policy->fresh())
+        );
+
         return redirect()->back()->with('success', 'Policy unarchived successfully.');
     }
 
@@ -484,7 +582,12 @@ class PolicyController extends Controller
         $latestGisRecord = $this->latestGisWithLogo();
         $policyLogoUrl = $this->gisLogoUrl($latestGisRecord);
 
-        return view('admin.policy-show', compact('policy', 'latestGisRecord', 'policyLogoUrl'));
+        $policyAudits = PolicyAudit::with('user')
+            ->where('policy_id', $policy->id)
+            ->latest()
+            ->get();
+
+        return view('admin.policy-show', compact('policy', 'latestGisRecord', 'policyLogoUrl', 'policyAudits'));
     }
 
     public function show(Request $request, $id)
@@ -590,6 +693,8 @@ class PolicyController extends Controller
     {
         $policy = Policy::with('attachments')->findOrFail($id);
 
+        $oldSnapshot = $this->policyAuditSnapshot($policy);
+
         $validated = $request->validate([
             'code' => 'nullable|string|max:255',
             'policy' => 'nullable|string|max:255',
@@ -635,6 +740,14 @@ class PolicyController extends Controller
         $this->removeSelectedPolicyAttachments($request, $policy);
         $this->storePolicyAttachments($request, $policy);
         $this->syncLegacyPolicyAttachment($policy);
+
+        $this->logPolicyAudit(
+            $policy,
+            'updated',
+            'Policy details updated.',
+            $oldSnapshot,
+            $this->policyAuditSnapshot($policy->fresh())
+        );
 
         $redirect = $request->input('redirect_to') === 'admin'
             ? route('admin.policies.show', $policy->id)
