@@ -392,15 +392,29 @@
                         </div>
 
                         <div x-show="profileTab === 'government'" class="space-y-5">
-                            <h3 class="section-heading">Government Information</h3>
+                            <div class="flex items-center justify-between gap-3">
+                                <h3 class="section-heading">Government Information</h3>
+                                <button type="button" @click="openEdit(selectedEmployee, 'government'); closeDetails()" class="px-4 py-2 rounded-lg bg-blue-600 text-white text-xs font-bold hover:bg-blue-700">
+                                    Update Government Info
+                                </button>
+                            </div>
                             <div class="grid grid-cols-2 gap-4">
                                 <div class="profile-card"><p class="profile-label">TIN</p><p class="profile-value" x-text="selectedEmployee.tin_number ?? '-'"></p></div>
                                 <div class="profile-card"><p class="profile-label">SSS</p><p class="profile-value" x-text="selectedEmployee.sss_number ?? '-'"></p></div>
                                 <div class="profile-card"><p class="profile-label">PhilHealth</p><p class="profile-value" x-text="selectedEmployee.philhealth_number ?? '-'"></p></div>
                                 <div class="profile-card"><p class="profile-label">Pag-IBIG</p><p class="profile-value" x-text="selectedEmployee.pagibig_number ?? '-'"></p></div>
                                 <div class="profile-card"><p class="profile-label">Passport</p><p class="profile-value" x-text="selectedEmployee.passport_number ?? '-'"></p></div>
+                                <div class="profile-card"><p class="profile-label">Passport Expiry Date</p><p class="profile-value" x-text="selectedEmployee.passport_expiry_date ?? '-'"></p></div>
                                 <div class="profile-card"><p class="profile-label">Driver's License</p><p class="profile-value" x-text="selectedEmployee.drivers_license_number ?? '-'"></p></div>
+                                <div class="profile-card"><p class="profile-label">Driver's License Expiry Date</p><p class="profile-value" x-text="selectedEmployee.drivers_license_expiry_date ?? '-'"></p></div>
                                 <div class="profile-card"><p class="profile-label">PRC License</p><p class="profile-value" x-text="selectedEmployee.prc_license_number ?? '-'"></p></div>
+                                <div class="profile-card"><p class="profile-label">PRC Expiry Date</p><p class="profile-value" x-text="selectedEmployee.prc_license_expiry_date ?? '-'"></p></div>
+                                <template x-for="(item, index) in governmentInfoEntries(selectedEmployee.other_government_information).filter(item => item.name || item.number)" :key="index">
+                                    <div class="profile-card">
+                                        <p class="profile-label" x-text="item.name || 'Government ID'"></p>
+                                        <p class="profile-value" x-text="item.number || '-'"></p>
+                                    </div>
+                                </template>
                             </div>
                         </div>
 
@@ -415,7 +429,12 @@
                         </div>
 
                         <div x-show="profileTab === 'documents'" class="space-y-5">
-                            <h3 class="section-heading">Attachments</h3>
+                            <div class="flex items-center justify-between gap-3">
+                                <h3 class="section-heading">Attachments</h3>
+                                <button type="button" @click="openEdit(selectedEmployee, 'documents'); closeDetails()" class="px-4 py-2 rounded-lg bg-blue-600 text-white text-xs font-bold hover:bg-blue-700">
+                                    Add Document
+                                </button>
+                            </div>
                             <template x-if="!(selectedEmployee.employee_attachments || []).length">
                                 <div class="profile-card text-sm text-gray-500">No attachments uploaded yet.</div>
                             </template>
@@ -423,8 +442,10 @@
                                 <template x-for="file in selectedEmployee.employee_attachments || []" :key="file.path">
                                     <div class="profile-card">
                                         <p class="profile-label" x-text="file.category || 'Attachment'"></p>
-                                        <p class="profile-value" x-text="file.file_name"></p>
+                                        <p class="profile-value" x-text="file.title || file.file_name"></p>
+                                        <p class="text-xs text-gray-500 mt-1" x-show="file.title" x-text="file.file_name"></p>
                                         <p class="text-xs text-gray-500 mt-1" x-text="[file.file_type, formatFileSize(file.file_size), file.uploaded_at].filter(Boolean).join(' | ')"></p>
+                                        <p class="text-xs text-gray-500 mt-1" x-show="file.remarks" x-text="file.remarks"></p>
                                         <a :href="file.url" target="_blank" class="inline-flex mt-3 text-xs font-bold text-blue-600">Preview / Download</a>
                                     </div>
                                 </template>
@@ -437,24 +458,99 @@
                         </div>
 
                         <div x-show="profileTab === 'digital-id'" class="space-y-5">
-                            <h3 class="section-heading">Digital Employee ID</h3>
-                            <div class="grid grid-cols-2 gap-4">
-                                <div class="id-card">
-                                    <div class="text-xs font-black uppercase tracking-widest text-blue-700">John Kelly & Company</div>
-                                    <div class="mt-4 flex items-center gap-4">
-                                        <template x-if="selectedEmployee.profile_photo_url"><img :src="selectedEmployee.profile_photo_url" class="h-20 w-20 rounded-xl object-cover border"></template>
-                                        <template x-if="!selectedEmployee.profile_photo_url"><div class="h-20 w-20 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center text-2xl font-black" x-text="initials(selectedEmployee)"></div></template>
-                                        <div><p class="text-lg font-black" x-text="selectedEmployee.full_name"></p><p class="text-sm font-bold text-gray-500" x-text="selectedEmployee.position || '-'"></p><p class="text-xs mt-1" x-text="'ID No. ' + (selectedEmployee.employee_code || '-')"></p></div>
-                                    </div>
+                            <div class="flex flex-wrap items-center justify-between gap-3">
+                                <div>
+                                    <h3 class="section-heading">Digital Employee ID</h3>
+                                    <p class="text-xs text-gray-500 mt-1">CR80 / PVC standard: 85.6mm x 54mm, landscape, front and back.</p>
                                 </div>
-                                <div class="id-card">
-                                    <div class="text-xs font-black uppercase tracking-widest text-gray-500">Verification</div>
-                                    <img :src="qrUrl(selectedEmployee.verification_url)" class="h-28 w-28 mt-3" alt="Verification QR">
-                                    <p class="text-xs text-gray-500 mt-2">Scan to verify limited employment details.</p>
-                                    <a :href="selectedEmployee.verification_url" target="_blank" class="text-xs font-bold text-blue-600 break-all" x-text="selectedEmployee.verification_url"></a>
+                                <div class="flex flex-wrap gap-2">
+                                    <button type="button" @click="digitalIdSide = 'front'" :class="digitalIdSide === 'front' ? 'bg-blue-700 text-white' : 'bg-white text-blue-700 border border-blue-200'" class="px-3 py-2 rounded-lg text-xs font-black uppercase tracking-widest">Front</button>
+                                    <button type="button" @click="digitalIdSide = 'back'" :class="digitalIdSide === 'back' ? 'bg-blue-700 text-white' : 'bg-white text-blue-700 border border-blue-200'" class="px-3 py-2 rounded-lg text-xs font-black uppercase tracking-widest">Back</button>
                                 </div>
                             </div>
-                            <button type="button" @click="window.print()" class="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg font-semibold">Print / Save PDF</button>
+
+                            <div class="rounded-2xl border border-blue-100 bg-slate-50 p-5">
+                                <div class="digital-id-stage">
+                                    <div id="digital-id-export" x-ref="digitalIdExport" class="digital-id-export">
+                                        <div class="digital-id-card digital-id-front" x-show="digitalIdSide === 'front'">
+                                            <div class="id-brand-row">
+                                                <img src="{{ asset('images/FINAL_LOGO.jpg') }}" onerror="this.src='{{ asset('images/imaglogo.png') }}'" alt="John Kelly & Company" class="id-logo">
+                                                <div class="id-company-block">
+                                                    <p class="id-company">John Kelly &amp; Company</p>
+                                                    <p class="id-subcompany">JK&amp;C Inc.</p>
+                                                </div>
+                                            </div>
+
+                                            <div class="id-front-body">
+                                                <div class="id-photo-frame">
+                                                    <template x-if="selectedEmployee.profile_photo_url">
+                                                        <img :src="selectedEmployee.profile_photo_url" class="id-photo" alt="Employee photo">
+                                                    </template>
+                                                    <template x-if="!selectedEmployee.profile_photo_url">
+                                                        <div class="id-photo-fallback" x-text="initials(selectedEmployee)"></div>
+                                                    </template>
+                                                </div>
+
+                                                <div class="id-person-block">
+                                                    <p class="id-name" x-text="selectedEmployee.full_name || '-'"></p>
+                                                    <p class="id-position" x-text="selectedEmployee.position || '-'"></p>
+                                                    <div class="id-chip-row">
+                                                        <span class="id-chip">Employee ID</span>
+                                                        <span class="id-code" x-text="selectedEmployee.employee_code || '-'"></span>
+                                                    </div>
+                                                    <p class="id-department" x-text="[selectedEmployee.department_name, selectedEmployee.employment_status || 'Active'].filter(Boolean).join(' | ')"></p>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="digital-id-card digital-id-back" x-show="digitalIdSide === 'back'">
+                                            <div class="id-back-grid">
+                                                <div>
+                                                    <p class="id-back-company">John Kelly &amp; Company</p>
+                                                    <p class="id-back-label">Employee ID Number</p>
+                                                    <p class="id-back-code" x-text="selectedEmployee.employee_code || '-'"></p>
+
+                                                    <div class="id-back-section">
+                                                        <p class="id-back-label">Emergency Contact Person</p>
+                                                        <p class="id-back-value" x-text="selectedEmployee.emergency_contact_name || 'Not provided'"></p>
+                                                        <p class="id-back-label mt-2">Emergency Contact Number</p>
+                                                        <p class="id-back-value" x-text="selectedEmployee.emergency_contact_number || 'Not provided'"></p>
+                                                    </div>
+                                                </div>
+
+                                                <div class="id-qr-panel">
+                                                    <img :src="qrUrl(selectedEmployee.verification_url)" class="id-qr" alt="Verification QR">
+                                                    <p class="id-qr-note">Scan to verify this employee ID.</p>
+                                                </div>
+                                            </div>
+
+                                            <div class="id-back-footer">
+                                                <div>
+                                                    <p class="id-back-label">Company Address</p>
+                                                    <p class="id-back-value" x-text="companyAddress(selectedEmployee)"></p>
+                                                    <p class="id-back-label mt-2">Company Contact Details</p>
+                                                    <p class="id-back-value" x-text="companyContactDetails(selectedEmployee)"></p>
+                                                    <p class="id-return-note">If found, please return this ID to John Kelly &amp; Company / JK&amp;C Inc. This ID remains the property of the Company.</p>
+                                                </div>
+                                                <div class="id-signature-box">
+                                                    <div class="id-signature-line"></div>
+                                                    <p>Authorized Signature</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="mt-5 flex flex-wrap items-center justify-between gap-3">
+                                    <a :href="selectedEmployee.verification_url" target="_blank" class="text-xs font-bold text-blue-700 break-all" x-text="selectedEmployee.verification_url"></a>
+                                    <div class="flex flex-wrap gap-2">
+                                        <button type="button" @click="showDigitalIdFullscreen = true" class="px-4 py-2 rounded-lg border border-slate-300 bg-white text-xs font-black uppercase tracking-widest text-slate-700">Fullscreen</button>
+                                        <button type="button" @click="previewDigitalIdPdf()" class="px-4 py-2 rounded-lg border border-blue-200 bg-white text-xs font-black uppercase tracking-widest text-blue-700">PDF Preview</button>
+                                        <button type="button" @click="downloadDigitalId()" class="px-4 py-2 rounded-lg bg-blue-700 text-white text-xs font-black uppercase tracking-widest">Download</button>
+                                        <button type="button" @click="printDigitalId()" class="px-4 py-2 rounded-lg bg-slate-900 text-white text-xs font-black uppercase tracking-widest">Print</button>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
                         <div x-show="profileTab === 'audit'" class="space-y-5">
@@ -487,6 +583,80 @@
         </div>
     </div>
 
+    <div x-show="showDigitalIdFullscreen" x-transition.opacity class="fixed inset-0 z-[70] bg-slate-950/90 p-6" style="display:none;">
+        <div class="mx-auto flex h-full max-w-6xl flex-col">
+            <div class="mb-5 flex items-center justify-between text-white">
+                <div>
+                    <p class="text-[10px] font-black uppercase tracking-[0.3em] text-blue-200">Digital Employee ID</p>
+                    <h2 class="text-xl font-black" x-text="selectedEmployee?.full_name || 'Employee ID'"></h2>
+                </div>
+                <button type="button" @click="showDigitalIdFullscreen = false" class="rounded-full bg-white/10 px-4 py-2 text-sm font-bold hover:bg-white/20">Close</button>
+            </div>
+
+            <div class="flex-1 overflow-auto rounded-2xl bg-slate-100 p-8">
+                <div class="grid gap-8 xl:grid-cols-2">
+                    <div>
+                        <p class="mb-3 text-xs font-black uppercase tracking-widest text-slate-500">Front Side</p>
+                        <div class="digital-id-card digital-id-front">
+                            <div class="id-brand-row">
+                                <img src="{{ asset('images/FINAL_LOGO.jpg') }}" onerror="this.src='{{ asset('images/imaglogo.png') }}'" alt="John Kelly & Company" class="id-logo">
+                                <div class="id-company-block">
+                                    <p class="id-company">John Kelly &amp; Company</p>
+                                    <p class="id-subcompany">JK&amp;C Inc.</p>
+                                </div>
+                            </div>
+                            <div class="id-front-body">
+                                <div class="id-photo-frame">
+                                    <template x-if="selectedEmployee?.profile_photo_url"><img :src="selectedEmployee.profile_photo_url" class="id-photo" alt="Employee photo"></template>
+                                    <template x-if="!selectedEmployee?.profile_photo_url"><div class="id-photo-fallback" x-text="initials(selectedEmployee)"></div></template>
+                                </div>
+                                <div class="id-person-block">
+                                    <p class="id-name" x-text="selectedEmployee?.full_name || '-'"></p>
+                                    <p class="id-position" x-text="selectedEmployee?.position || '-'"></p>
+                                    <div class="id-chip-row"><span class="id-chip">Employee ID</span><span class="id-code" x-text="selectedEmployee?.employee_code || '-'"></span></div>
+                                    <p class="id-department" x-text="[selectedEmployee?.department_name, selectedEmployee?.employment_status || 'Active'].filter(Boolean).join(' | ')"></p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <p class="mb-3 text-xs font-black uppercase tracking-widest text-slate-500">Back Side</p>
+                        <div class="digital-id-card digital-id-back">
+                            <div class="id-back-grid">
+                                <div>
+                                    <p class="id-back-company">John Kelly &amp; Company</p>
+                                    <p class="id-back-label">Employee ID Number</p>
+                                    <p class="id-back-code" x-text="selectedEmployee?.employee_code || '-'"></p>
+                                    <div class="id-back-section">
+                                        <p class="id-back-label">Emergency Contact Person</p>
+                                        <p class="id-back-value" x-text="selectedEmployee?.emergency_contact_name || 'Not provided'"></p>
+                                        <p class="id-back-label mt-2">Emergency Contact Number</p>
+                                        <p class="id-back-value" x-text="selectedEmployee?.emergency_contact_number || 'Not provided'"></p>
+                                    </div>
+                                </div>
+                                <div class="id-qr-panel">
+                                    <img :src="qrUrl(selectedEmployee?.verification_url)" class="id-qr" alt="Verification QR">
+                                    <p class="id-qr-note">Scan to verify this employee ID.</p>
+                                </div>
+                            </div>
+                            <div class="id-back-footer">
+                                <div>
+                                    <p class="id-back-label">Company Address</p>
+                                    <p class="id-back-value" x-text="companyAddress(selectedEmployee)"></p>
+                                    <p class="id-back-label mt-2">Company Contact Details</p>
+                                    <p class="id-back-value" x-text="companyContactDetails(selectedEmployee)"></p>
+                                    <p class="id-return-note">If found, please return this ID to John Kelly &amp; Company / JK&amp;C Inc. This ID remains the property of the Company.</p>
+                                </div>
+                                <div class="id-signature-box"><div class="id-signature-line"></div><p>Authorized Signature</p></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     {{-- ADD / EDIT SLIDER --}}
     <div
         x-show="showSlider"
@@ -503,7 +673,7 @@
             x-transition:leave="transform transition ease-in-out duration-300"
             x-transition:leave-start="translate-x-0"
             x-transition:leave-end="translate-x-full"
-            class="absolute right-0 top-0 h-full w-full max-w-[650px] bg-white shadow-xl flex flex-col"
+            class="absolute right-0 top-0 h-full w-full max-w-[860px] bg-white shadow-xl flex flex-col"
         >
             <div class="px-5 py-4 border-b flex items-center justify-between bg-blue-700">
                 <div>
@@ -519,7 +689,19 @@
                     <input type="hidden" name="_method" value="PUT">
                 </template>
 
-                <div class="rounded-xl border border-gray-200 p-4">
+                <div class="sticky top-0 z-20 -mx-5 -mt-5 px-5 py-3 bg-white border-b border-gray-200">
+                    <div class="flex flex-wrap gap-2">
+                        <button type="button" @click="editTab = 'personal'" :class="editTabClass('personal')">Personal</button>
+                        <button type="button" @click="editTab = 'organization'" :class="editTabClass('organization')">Organization</button>
+                        <button type="button" @click="editTab = 'payroll'" :class="editTabClass('payroll')">Pay & Schedule</button>
+                        <button type="button" @click="editTab = 'government'" :class="editTabClass('government')">Government</button>
+                        <button type="button" @click="editTab = 'records'" :class="editTabClass('records')">Records</button>
+                        <button type="button" @click="editTab = 'documents'" :class="editTabClass('documents')">Documents</button>
+                        <button type="button" @click="editTab = 'status'" :class="editTabClass('status')">Status & Compliance</button>
+                    </div>
+                </div>
+
+                <div x-show="editTab === 'personal'" class="rounded-xl border border-gray-200 p-4">
                     <h3 class="text-sm font-bold text-gray-900 mb-4">Profile Photo</h3>
 
                     <div class="flex items-center gap-4">
@@ -548,8 +730,8 @@
                     <video x-ref="camera" x-show="cameraActive" autoplay playsinline class="mt-4 w-full rounded-xl border border-gray-200 bg-black"></video>
                 </div>
 
-                <div class="rounded-xl border border-gray-200 p-4">
-                    <h3 class="text-sm font-bold text-gray-900 mb-4">Personal Details</h3>
+                <div x-show="editTab === 'personal'" class="rounded-xl border border-gray-200 p-4">
+                    <h3 class="text-sm font-bold text-gray-900 mb-4">Basic Personal Details</h3>
                     <div class="grid grid-cols-2 gap-3">
                         <div><label class="form-label">First Name <span class="text-red-500">*</span></label><input type="text" name="first_name" x-model="form.first_name" required class="form-input"></div>
                         <div><label class="form-label">Middle Name</label><input type="text" name="middle_name" x-model="form.middle_name" class="form-input"></div>
@@ -569,6 +751,12 @@
                         <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="is_pwd" value="1" x-model="form.is_pwd"> PWD</label>
                         <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="is_solo_parent" value="1" x-model="form.is_solo_parent"> Solo Parent</label>
                         <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="is_senior_citizen" value="1" x-model="form.is_senior_citizen"> Senior Citizen</label>
+                    </div>
+                </div>
+
+                <div x-show="editTab === 'personal'" class="rounded-xl border border-gray-200 p-4">
+                    <h3 class="text-sm font-bold text-gray-900 mb-4">Contact, Address & Emergency Contact</h3>
+                    <div class="grid grid-cols-2 gap-3">
                         <div><label class="form-label">Phone Number</label><input type="text" name="phone_number" x-model="form.phone_number" class="form-input"></div>
                         <div><label class="form-label">Alternate Mobile Number</label><input type="text" name="alternate_phone_number" x-model="form.alternate_phone_number" class="form-input"></div>
                         <div class="col-span-2">
@@ -591,9 +779,9 @@
                     </div>
                 </div>
 
-                <div class="rounded-xl border border-gray-200 p-4">
+                <div x-show="editTab === 'organization'" class="rounded-xl border border-gray-200 p-4">
                     <h3 class="text-sm font-bold text-gray-900 mb-4">Organizational Assignment</h3>
-                    <div class="space-y-3">
+                    <div class="grid grid-cols-2 gap-3">
                         <div><label class="form-label">Office</label><select name="office_id" x-model="form.office_id" @change="onOfficeChange()" class="form-input"><option value="">Select Office</option><template x-for="office in officeOptions" :key="office.id"><option :value="office.id" x-text="office.office_name"></option></template></select></div>
                         <div><label class="form-label">Branch</label><select name="branch_id" x-model="form.branch_id" @change="onBranchChange()" class="form-input"><option value="">Select Branch</option><template x-for="branch in filteredBranches" :key="branch.id"><option :value="branch.id" x-text="branch.branch_name"></option></template></select></div>
                         <div><label class="form-label">Department</label><select name="department_id" x-model="form.department_id" @change="onDepartmentChange()" class="form-input"><option value="">Select Department</option><template x-for="department in filteredDepartments" :key="department.id"><option :value="department.id" x-text="department.department_name"></option></template></select></div>
@@ -623,9 +811,9 @@
                     </div>
                 </div>
 
-                <div class="rounded-xl border border-gray-200 p-4">
+                <div x-show="editTab === 'payroll'" class="rounded-xl border border-gray-200 p-4">
                     <h3 class="text-sm font-bold text-gray-900 mb-4">Compensation Details</h3>
-                    <div class="space-y-3">
+                    <div class="grid grid-cols-2 gap-3">
                         <div><label class="form-label">Salary Grade</label><select name="salary_grade" x-model="form.salary_grade" class="form-input"><option value="">Select</option><option>SG-01</option><option>SG-02</option><option>SG-03</option><option>SG-04</option><option>SG-05</option><option>Others</option></select></div>
                         <div x-show="form.salary_grade === 'Others'"><label class="form-label">Other Salary Grade</label><input type="text" name="salary_grade_other" x-model="form.salary_grade_other" class="form-input"></div>
                         <div><label class="form-label">Payroll Type <span class="text-red-500">*</span></label><select name="payroll_type" x-model="form.payroll_type" required class="form-input"><option value="">Select Payroll Type</option><option value="Monthly Paid">Monthly Paid</option><option value="Daily Paid">Daily Paid</option></select></div>
@@ -634,13 +822,13 @@
                         <div><label class="form-label">Computed Hourly Rate</label><input type="text" :value="hourlyRate" readonly class="form-input bg-gray-50 text-gray-700"></div>
                         <div><label class="form-label">Allowances</label><textarea name="allowances" x-model="form.allowances_text" rows="2" class="form-input" placeholder="One per line"></textarea></div>
                         <div><label class="form-label">Incentives</label><textarea name="incentives" x-model="form.incentives_text" rows="2" class="form-input" placeholder="One per line"></textarea></div>
-                        <div class="grid grid-cols-2 gap-2">
+                        <div class="col-span-2 grid grid-cols-2 gap-2">
                             <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="bonus_eligibility" value="1" x-model="form.bonus_eligibility"> Bonus</label>
                             <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="overtime_eligibility" value="1" x-model="form.overtime_eligibility"> Overtime</label>
                             <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="night_differential_eligibility" value="1" x-model="form.night_differential_eligibility"> Night Differential</label>
                             <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="holiday_pay_eligibility" value="1" x-model="form.holiday_pay_eligibility"> Holiday Pay</label>
                         </div>
-                        <div>
+                        <div class="col-span-2">
                             <label class="form-label">Benefits Checklist</label>
                             <div class="max-h-40 overflow-auto border rounded-lg p-2 space-y-1">
                                 <template x-for="benefit in benefitsOptions" :key="benefit">
@@ -652,7 +840,7 @@
                     </div>
                 </div>
 
-                <div class="rounded-xl border border-gray-200 p-4">
+                <div x-show="editTab === 'payroll'" class="rounded-xl border border-gray-200 p-4">
                     <h3 class="text-sm font-bold text-gray-900 mb-4">Work Schedule</h3>
                     <div class="grid grid-cols-2 gap-3">
                         <div><label class="form-label">Shift Start</label><input type="time" name="schedule_start_time" x-model="form.schedule_start_time" class="form-input"></div>
@@ -661,29 +849,66 @@
                     <p class="mt-2 text-xs text-gray-500">Employees can clock in starting 10 minutes before shift start. Active shifts auto close 4 hours after shift end.</p>
                 </div>
 
-                <div class="rounded-xl border border-gray-200 p-4">
-                    <h3 class="text-sm font-bold text-gray-900 mb-4">Government, History, Access & Documents</h3>
+                <div x-show="editTab === 'government'" class="rounded-xl border border-gray-200 p-4">
+                    <h3 class="text-sm font-bold text-gray-900 mb-4">Government Information</h3>
                     <div class="grid grid-cols-2 gap-3">
                         <div><label class="form-label">TIN Number</label><input type="text" name="tin_number" x-model="form.tin_number" class="form-input"></div>
                         <div><label class="form-label">SSS Number</label><input type="text" name="sss_number" x-model="form.sss_number" class="form-input"></div>
                         <div><label class="form-label">PhilHealth Number</label><input type="text" name="philhealth_number" x-model="form.philhealth_number" class="form-input"></div>
                         <div><label class="form-label">Pag-IBIG Number</label><input type="text" name="pagibig_number" x-model="form.pagibig_number" class="form-input"></div>
                         <div><label class="form-label">Passport Number</label><input type="text" name="passport_number" x-model="form.passport_number" class="form-input"></div>
+                        <div><label class="form-label">Passport Expiry Date</label><input type="date" name="passport_expiry_date" x-model="form.passport_expiry_date" class="form-input"></div>
                         <div><label class="form-label">Driver's License Number</label><input type="text" name="drivers_license_number" x-model="form.drivers_license_number" class="form-input"></div>
+                        <div><label class="form-label">Driver's License Expiry Date</label><input type="date" name="drivers_license_expiry_date" x-model="form.drivers_license_expiry_date" class="form-input"></div>
                         <div><label class="form-label">PRC License Number</label><input type="text" name="prc_license_number" x-model="form.prc_license_number" class="form-input"></div>
                         <div><label class="form-label">PRC Expiry Date</label><input type="date" name="prc_license_expiry_date" x-model="form.prc_license_expiry_date" class="form-input"></div>
+                        <div class="col-span-2">
+                            <div class="flex items-center justify-between gap-3 mb-2">
+                                <label class="form-label mb-0">Other Government IDs</label>
+                                <button type="button" @click="addGovernmentInfo()" class="px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-bold hover:bg-blue-700">Add ID</button>
+                            </div>
+                            <input type="hidden" name="other_government_information" :value="governmentInfoPayload()">
+                            <div class="space-y-2">
+                                <template x-for="(item, index) in form.other_government_information_entries" :key="index">
+                                    <div class="grid grid-cols-[1fr_1fr_auto] gap-2 items-start">
+                                        <div>
+                                            <label class="form-label">ID Name</label>
+                                            <input type="text" x-model="item.name" class="form-input" placeholder="Example: National ID">
+                                        </div>
+                                        <div>
+                                            <label class="form-label">ID Number</label>
+                                            <input type="text" x-model="item.number" class="form-input" placeholder="Example: 1234-5678-9012">
+                                        </div>
+                                        <button type="button" @click="removeGovernmentInfo(index)" class="mt-6 px-3 py-2 rounded-lg border border-gray-300 text-xs font-bold text-gray-600 hover:bg-gray-50">Remove</button>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div x-show="editTab === 'records'" class="rounded-xl border border-gray-200 p-4">
+                    <h3 class="text-sm font-bold text-gray-900 mb-4">Education, Employment, Certifications & Skills</h3>
+                    <div class="grid grid-cols-2 gap-3">
                         <div class="col-span-2"><label class="form-label">Educational Background</label><textarea name="educational_background" x-model="form.educational_background_text" rows="3" class="form-input" placeholder="One entry per line or JSON"></textarea></div>
                         <div class="col-span-2"><label class="form-label">Employment History</label><textarea name="employment_history" x-model="form.employment_history_text" rows="3" class="form-input" placeholder="One entry per line or JSON"></textarea></div>
                         <div class="col-span-2"><label class="form-label">Certifications & Trainings</label><textarea name="certifications_trainings" x-model="form.certifications_trainings_text" rows="3" class="form-input" placeholder="One entry per line or JSON"></textarea></div>
                         <div class="col-span-2"><label class="form-label">Skills & Competencies</label><textarea name="skills_competencies" x-model="form.skills_competencies_text" rows="3" class="form-input" placeholder="One skill per line"></textarea></div>
                         <div class="col-span-2"><label class="form-label">System Access & Platforms</label><textarea name="system_access" x-model="form.system_access_text" rows="3" class="form-input" placeholder="ORDO - Admin - Active"></textarea></div>
-                        <div><label class="form-label">Attachment Category</label><select name="attachment_category" class="form-input"><option>Resume / CV</option><option>Portfolio</option><option>Government IDs</option><option>Educational Documents</option><option>Employment Documents</option><option>Clearances</option><option>Medical Records</option><option>Contracts & Agreements</option><option>Certifications</option><option>Other Attachments</option></select></div>
+                    </div>
+                </div>
+
+                <div x-show="editTab === 'documents'" class="rounded-xl border border-gray-200 p-4">
+                    <h3 class="text-sm font-bold text-gray-900 mb-4">Upload Employee Documents</h3>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div><label class="form-label">Attachment Category</label><select name="attachment_category" x-model="form.attachment_category" class="form-input"><option>Resume / CV</option><option>Portfolio</option><option>Government IDs</option><option>Educational Documents</option><option>Employment Documents</option><option>Clearances</option><option>Medical Records</option><option>Contracts & Agreements</option><option>Certifications</option><option>Other Attachments</option></select></div>
+                        <div x-show="form.attachment_category === 'Other Attachments'"><label class="form-label">Document Name</label><input type="text" name="attachment_title" x-model="form.attachment_title" class="form-input" placeholder="Example: Company Memo, Training Proof"></div>
                         <div><label class="form-label">Upload Attachments</label><input type="file" name="attachments[]" multiple class="form-input"></div>
                         <div class="col-span-2"><label class="form-label">Attachment Remarks</label><input type="text" name="attachment_remarks" class="form-input"></div>
                     </div>
                 </div>
 
-                <div class="rounded-xl border border-gray-200 p-4" x-show="['Resigned','Terminated','End of Contract','Retired','Deceased','Inactive'].includes(form.employment_status)">
+                <div class="rounded-xl border border-gray-200 p-4" x-show="editTab === 'status' && ['Resigned','Terminated','End of Contract','Retired','Deceased','Inactive'].includes(form.employment_status)">
                     <h3 class="text-sm font-bold text-gray-900 mb-4">Inactive / Separation Requirements</h3>
                     <div class="grid grid-cols-2 gap-3">
                         <div><label class="form-label">Effective Date</label><input type="date" name="status_effective_date" x-model="form.status_effective_date" class="form-input"></div>
@@ -694,7 +919,7 @@
                     </div>
                 </div>
 
-                <div class="rounded-xl border border-gray-200 p-4">
+                <div x-show="editTab === 'status'" class="rounded-xl border border-gray-200 p-4">
                     <h3 class="text-sm font-bold text-gray-900 mb-4">Legal, Compliance & Consent</h3>
                     <div class="grid grid-cols-2 gap-2">
                         <template x-for="consent in consentOptions" :key="consent">
@@ -719,12 +944,52 @@
 .profile-value { margin-top: 0.35rem; font-size: 0.95rem; font-weight: 700; color: rgb(17 24 39); word-break: break-word; }
 .section-heading { font-size: 0.9rem; font-weight: 800; color: rgb(17 24 39); }
 .related-card { border: 1px solid rgb(229 231 235); background: white; border-radius: 0.75rem; padding: 1rem; }
-.id-card { border: 1px solid rgb(191 219 254); background: linear-gradient(135deg, #ffffff, #eff6ff); border-radius: 0.75rem; padding: 1rem; min-height: 190px; }
+.digital-id-stage { display: flex; justify-content: center; align-items: center; min-height: 340px; overflow-x: auto; }
+.digital-id-export { display: inline-block; }
+.digital-id-card { width: 85.6mm; height: 54mm; border-radius: 3mm; overflow: hidden; position: relative; background: #ffffff; color: #061533; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; box-shadow: 0 22px 48px rgba(15, 23, 42, 0.18); border: 1px solid #d7deea; }
+.digital-id-front { padding: 5mm; background: linear-gradient(135deg, #ffffff 0%, #f7faff 58%, #eaf1ff 100%); }
+.digital-id-front::after { content: ""; position: absolute; right: -18mm; bottom: -24mm; width: 58mm; height: 58mm; border-radius: 999px; background: rgba(30, 58, 138, 0.12); }
+.digital-id-back { padding: 4.5mm; background: #ffffff; }
+.id-brand-row { display: flex; align-items: center; gap: 3mm; position: relative; z-index: 1; }
+.id-logo { height: 10mm; width: auto; max-width: 28mm; object-fit: contain; }
+.id-company { color: #12398f; font-weight: 900; font-size: 3.6mm; line-height: 1.05; text-transform: uppercase; letter-spacing: .2mm; }
+.id-subcompany { margin-top: .6mm; color: #64748b; font-weight: 800; font-size: 2.2mm; text-transform: uppercase; letter-spacing: .55mm; }
+.id-front-body { display: grid; grid-template-columns: 23mm 1fr; gap: 4mm; align-items: center; margin-top: 5mm; position: relative; z-index: 1; }
+.id-photo-frame { width: 23mm; height: 27mm; border-radius: 2.5mm; border: 1px solid #cbd5e1; background: #f8fafc; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+.id-photo { width: 100%; height: 100%; object-fit: cover; }
+.id-photo-fallback { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: #dbeafe; color: #12398f; font-size: 8mm; font-weight: 900; }
+.id-person-block { min-width: 0; }
+.id-name { color: #061533; font-size: 5.3mm; font-weight: 900; line-height: 1.02; text-transform: uppercase; overflow-wrap: anywhere; }
+.id-position { margin-top: 1.4mm; color: #334155; font-size: 3mm; font-weight: 800; line-height: 1.15; }
+.id-chip-row { display: inline-flex; align-items: center; margin-top: 4mm; border: 1px solid #12398f; border-radius: 999px; overflow: hidden; background: #ffffff; }
+.id-chip { background: #12398f; color: #ffffff; font-size: 2.1mm; font-weight: 900; text-transform: uppercase; letter-spacing: .35mm; padding: 1.3mm 2.2mm; }
+.id-code { color: #12398f; font-size: 3.3mm; font-weight: 900; padding: 1.1mm 2.5mm; letter-spacing: .45mm; }
+.id-department { margin-top: 2.2mm; color: #64748b; font-size: 2.4mm; font-weight: 700; line-height: 1.2; }
+.id-back-grid { display: grid; grid-template-columns: 1fr 23mm; gap: 4mm; }
+.id-back-company { color: #12398f; font-size: 3.4mm; font-weight: 900; text-transform: uppercase; letter-spacing: .18mm; }
+.id-back-label { color: #64748b; font-size: 2mm; font-weight: 900; text-transform: uppercase; letter-spacing: .35mm; }
+.id-back-code { color: #061533; font-size: 4.4mm; font-weight: 900; letter-spacing: .7mm; margin: .8mm 0 3mm; }
+.id-back-section { border-top: 1px solid #d7deea; padding-top: 2.4mm; margin-top: 1mm; }
+.id-back-value { color: #061533; font-size: 2.7mm; font-weight: 800; line-height: 1.2; overflow-wrap: anywhere; }
+.id-qr-panel { text-align: center; border: 1px solid #d7deea; border-radius: 2mm; padding: 2mm; background: #f8fafc; }
+.id-qr { width: 18mm; height: 18mm; object-fit: contain; margin: 0 auto; }
+.id-qr-note { color: #334155; font-size: 1.9mm; font-weight: 800; line-height: 1.15; margin-top: 1mm; }
+.id-back-footer { display: grid; grid-template-columns: 1fr 25mm; gap: 4mm; align-items: end; border-top: 1px solid #d7deea; margin-top: 3.2mm; padding-top: 2.8mm; }
+.id-return-note { color: #334155; font-size: 2mm; line-height: 1.25; margin-top: 1.5mm; }
+.id-signature-box { text-align: center; color: #64748b; font-size: 1.9mm; font-weight: 800; text-transform: uppercase; }
+.id-signature-line { border-top: 1px solid #061533; margin-bottom: 1.5mm; }
 .form-label { display: block; font-size: 0.82rem; font-weight: 600; color: rgb(55 65 81); margin-bottom: 0.25rem; }
 .form-input { width: 100%; border: 1px solid rgb(209 213 219); border-radius: 0.5rem; padding: 0.5rem 0.75rem; font-size: 0.875rem; outline: none; }
 .form-input:focus { border-color: rgb(59 130 246); box-shadow: 0 0 0 2px rgb(191 219 254); }
+@media print {
+    body * { visibility: hidden !important; }
+    .digital-id-print-page, .digital-id-print-page * { visibility: visible !important; }
+    .digital-id-print-page { position: fixed; inset: 0; display: flex !important; align-items: center; justify-content: center; gap: 12mm; background: #ffffff; }
+    .digital-id-card { box-shadow: none; }
+}
 </style>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <script>
 function employeePage(config) {
     return {
@@ -738,7 +1003,7 @@ function employeePage(config) {
         updateBaseUrl: config.updateBaseUrl,
         employmentTypeOptions: ['Intern / OJT', 'Probationary', 'Regular', 'Project-Based', 'Fixed-Term', 'Part-Time', 'Casual / Temporary', 'Consultant / Independent Contractor', 'Others'],
         employmentStatusOptions: ['Active', 'Probationary', 'Regular', 'Project-Based', 'Fixed-Term', 'Part-Time', 'Casual / Temporary', 'Consultant / Independent Contractor', 'Resigned', 'Terminated', 'End of Contract', 'Retired', 'Deceased', 'Inactive', 'Others'],
-        benefitsOptions: ['Social Security System (SSS)', 'PhilHealth', 'Pag-IBIG Fund (HDMF)', 'Bonus', 'Overtime Pay', 'Night Differential Pay', 'Rest Day / Special Holiday Premium Pay', 'Maternity Benefits', 'Paternity Benefits', 'Solo Parent Benefits', 'Retirement Benefits', 'Other statutory labor benefits', 'Performance Incentive Schemes', 'Merit-Based Rewards', 'Healthcare / Insurance', 'Investment Benefit Plans', 'Leave Benefits', 'Day Shift + Weekends Off', 'No Work on Philippine Holidays', 'Structured Professional Work Environment', 'Exposure to Corporate Advisory and Governance Practice', 'Opportunity for Long-Term Growth', 'Others'],
+        benefitsOptions: ['Social Security System (SSS)', 'PhilHealth', 'Pag-IBIG Fund (HDMF)', '13th Month Pay', 'Overtime Pay', 'Night Differential Pay, if applicable', 'Rest Day / Special Holiday Premium Pay, if applicable', 'Maternity Benefits, per law', 'Paternity Benefits, per law', 'Solo Parent and other statutory leave benefits, if applicable', 'Retirement Benefits as required by law or policy, if applicable', 'Other benefits mandated under Philippine labor laws', 'Bonus, Performance Incentive Schemes and Merit-Based Rewards', 'Healthcare, Insurance, and Investment Benefit Plan after 6 months of employment, subject to company policy and eligibility', 'Service Incentive Leave', 'Incentives / Commission', 'Holiday Pay', 'HMO', 'Day Shift + Weekends Off', 'No Work on Philippine Holidays, subject to operations', 'Structured and Professional Work Environment', 'Exposure to Corporate Advisory and Governance Practice', 'Opportunity for Long-Term Growth Based on Performance', 'Others'],
         consentOptions: ['Data Privacy Consent', 'NDA Acknowledgment', 'Policy Acceptance', 'Handbook Acknowledgment', 'Code of Conduct Acceptance'],
 
         search: '',
@@ -753,6 +1018,9 @@ function employeePage(config) {
         capturedPhoto: '',
         selectedEmployee: null,
         profileTab: 'overview',
+        editTab: 'personal',
+        digitalIdSide: 'front',
+        showDigitalIdFullscreen: false,
         isEdit: false,
         formAction: config.storeUrl,
 
@@ -829,7 +1097,11 @@ function employeePage(config) {
 
 
         get filteredBranches() {
-            if (!this.form.office_id) return [];
+            if (!this.form.office_id) {
+                return this.form.branch_id
+                    ? this.branchOptions.filter(item => String(item.id) === String(this.form.branch_id))
+                    : [];
+            }
 
             const selectedOffice = this.officeOptions.find(item => String(item.id) === String(this.form.office_id));
             if (!selectedOffice) return [];
@@ -838,17 +1110,29 @@ function employeePage(config) {
         },
 
         get filteredDepartments() {
-            if (!this.form.office_id) return [];
+            if (!this.form.office_id) {
+                return this.form.department_id
+                    ? this.departmentOptions.filter(item => String(item.id) === String(this.form.department_id))
+                    : [];
+            }
             return this.departmentOptions.filter(item => String(item.office_id) === String(this.form.office_id));
         },
 
         get filteredDivisions() {
-            if (!this.form.department_id) return [];
+            if (!this.form.department_id) {
+                return this.form.division_id
+                    ? this.divisionOptions.filter(item => String(item.id) === String(this.form.division_id))
+                    : [];
+            }
             return this.divisionOptions.filter(item => String(item.department_id) === String(this.form.department_id));
         },
 
         get filteredUnits() {
-            if (!this.form.division_id) return [];
+            if (!this.form.division_id) {
+                return this.form.unit_id
+                    ? this.unitOptions.filter(item => String(item.id) === String(this.form.unit_id))
+                    : [];
+            }
             return this.unitOptions.filter(item => String(item.division_id) === String(this.form.division_id));
         },
 
@@ -879,63 +1163,79 @@ function employeePage(config) {
         openView(employee) {
             this.selectedEmployee = employee;
             this.profileTab = 'overview';
+            this.digitalIdSide = 'front';
             this.showDetails = true;
         },
 
         closeDetails() {
             this.showDetails = false;
+            this.showDigitalIdFullscreen = false;
             this.selectedEmployee = null;
             this.profileTab = 'overview';
+            this.digitalIdSide = 'front';
         },
 
         openAdd() {
             this.isEdit = false;
             this.formAction = this.storeUrl;
             this.resetForm();
+            this.editTab = 'personal';
             this.showSlider = true;
         },
 
-        openEdit(employee) {
+        openEdit(employee, tab = 'personal') {
             this.isEdit = true;
             this.formAction = `${this.updateBaseUrl}/${employee.id}`;
+            this.editTab = tab;
+
+            const normalizedBenefits = this.normalizeBenefitSelection(employee.benefits_checklist);
+            const employmentStatus = this.employmentStatusOptions.includes(employee.employment_status)
+                ? employee.employment_status
+                : (employee.employment_status ? 'Others' : 'Active');
+            const salaryGrade = ['SG-01', 'SG-02', 'SG-03', 'SG-04', 'SG-05', 'Others'].includes(employee.salary_grade)
+                ? employee.salary_grade
+                : (employee.salary_grade ? 'Others' : '');
+            const selectedDepartment = this.departmentOptions.find(item => String(item.id) === String(employee.department_id));
+            const resolvedOfficeId = employee.office_id ?? selectedDepartment?.office_id ?? '';
+            const selectedOffice = this.officeOptions.find(item => String(item.id) === String(resolvedOfficeId));
+            const resolvedBranchId = employee.branch_id ?? selectedOffice?.branch_id ?? '';
 
             this.form = {
-                id: employee.id,
-                first_name: employee.first_name ?? '',
-                last_name: employee.last_name ?? '',
-                age: employee.age ?? '',
-                address: employee.address ?? '',
-                phone_number: employee.phone_number ?? '',
-                email: employee.email ?? '',
-                personal_email: employee.personal_email ?? '',
-                work_email: employee.work_email ?? employee.email ?? '',
-                profile_photo_url: employee.profile_photo_url ?? '',
-                office_id: employee.office_id ?? '',
-                branch_id: employee.branch_id ?? '',
+                ...this.defaultForm(),
+                ...employee,
+                office_id: resolvedOfficeId,
+                branch_id: resolvedBranchId,
                 department_id: employee.department_id ?? '',
                 division_id: employee.division_id ?? '',
                 unit_id: employee.unit_id ?? '',
-                position: employee.position ?? '',
-                payroll_type: employee.payroll_type ?? 'Monthly Paid',
-                basic_salary: employee.basic_salary ?? 0,
-                schedule_start_time: employee.schedule_start_time ?? '',
-                schedule_end_time: employee.schedule_end_time ?? ''
-            };
-            this.form = {
-                ...this.defaultForm(),
-                ...this.form,
-                ...employee,
                 current_address: employee.current_address ?? employee.address ?? '',
+                email: employee.email ?? employee.work_email ?? employee.personal_email ?? '',
+                work_email: employee.work_email ?? employee.email ?? '',
                 company_email: employee.company_email ?? employee.work_email ?? '',
+                employment_status: employmentStatus,
+                employment_status_other: employmentStatus === 'Others' ? employee.employment_status : '',
+                salary_grade: salaryGrade,
+                salary_grade_other: salaryGrade === 'Others' ? employee.salary_grade : '',
                 allowances_text: this.arrayToLines(employee.allowances),
                 incentives_text: this.arrayToLines(employee.incentives),
-                benefits_checklist: employee.benefits_checklist ?? [],
+                benefits_checklist: normalizedBenefits.selected,
+                benefits_other: normalizedBenefits.other,
                 educational_background_text: this.arrayToLines(employee.educational_background),
                 employment_history_text: this.arrayToLines(employee.employment_history),
                 certifications_trainings_text: this.arrayToLines(employee.certifications_trainings),
                 skills_competencies_text: this.arrayToLines(employee.skills_competencies),
+                other_government_information_entries: this.governmentInfoEntries(employee.other_government_information),
                 system_access_text: this.arrayToLines(employee.system_access),
-                compliance_consents_selected: (employee.compliance_consents || []).map(item => item.label || item),
+                compliance_consents_selected: this.arrayValues(employee.compliance_consents).map(item => item.label || item),
+                is_pwd: Boolean(employee.is_pwd),
+                is_solo_parent: Boolean(employee.is_solo_parent),
+                is_senior_citizen: Boolean(employee.is_senior_citizen),
+                bonus_eligibility: Boolean(employee.bonus_eligibility),
+                overtime_eligibility: Boolean(employee.overtime_eligibility),
+                night_differential_eligibility: Boolean(employee.night_differential_eligibility),
+                holiday_pay_eligibility: Boolean(employee.holiday_pay_eligibility),
+                schedule_start_time: employee.schedule_start_time ?? '',
+                schedule_end_time: employee.schedule_end_time ?? '',
             };
             this.capturedPhoto = '';
 
@@ -1032,9 +1332,12 @@ function employeePage(config) {
                 philhealth_number: '',
                 pagibig_number: '',
                 passport_number: '',
+                passport_expiry_date: '',
                 drivers_license_number: '',
+                drivers_license_expiry_date: '',
                 prc_license_number: '',
                 prc_license_expiry_date: '',
+                other_government_information_entries: [{ name: '', number: '' }],
                 educational_background_text: '',
                 employment_history_text: '',
                 certifications_trainings_text: '',
@@ -1045,8 +1348,11 @@ function employeePage(config) {
                 status_reason: '',
                 status_remarks: '',
                 status_approved_by: '',
+                attachment_category: 'Resume / CV',
+                attachment_title: '',
                 schedule_start_time: '',
-                schedule_end_time: ''
+                schedule_end_time: '',
+                employee_attachments: []
             };
         },
 
@@ -1077,6 +1383,14 @@ function employeePage(config) {
             if (this.profileTab === tab) {
                 return 'px-3 py-2 rounded-lg text-xs font-bold bg-indigo-700 text-white';
             }
+            return 'px-3 py-2 rounded-lg text-xs font-bold bg-gray-100 text-gray-600 hover:bg-gray-200';
+        },
+
+        editTabClass(tab) {
+            if (this.editTab === tab) {
+                return 'px-3 py-2 rounded-lg text-xs font-bold bg-blue-700 text-white';
+            }
+
             return 'px-3 py-2 rounded-lg text-xs font-bold bg-gray-100 text-gray-600 hover:bg-gray-200';
         },
 
@@ -1120,6 +1434,144 @@ function employeePage(config) {
             return String(value);
         },
 
+        arrayValues(value) {
+            if (!value) return [];
+            if (Array.isArray(value)) return value;
+
+            if (typeof value === 'string') {
+                try {
+                    const decoded = JSON.parse(value);
+                    if (Array.isArray(decoded)) return decoded;
+                } catch (error) {
+                    // Plain text lists are handled below.
+                }
+
+                return value.split(/\r?\n|,/).map(item => item.trim()).filter(Boolean);
+            }
+
+            return [value];
+        },
+
+        normalizeBenefitSelection(value) {
+            const selected = [];
+            const others = [];
+
+            this.arrayValues(value)
+                .map(item => typeof item === 'string' ? item : (item.label ?? String(item)))
+                .map(item => item.trim())
+                .filter(Boolean)
+                .forEach(item => {
+                    if (this.ignoredBenefitFragment(item)) return;
+
+                    if (item.startsWith('Others: ')) {
+                        const other = item.replace('Others: ', '').trim();
+                        if (other) others.push(other);
+                        return;
+                    }
+
+                    const normalized = this.matchBenefitOption(item);
+                    if (normalized) {
+                        if (!selected.includes(normalized)) selected.push(normalized);
+                    } else if (!others.includes(item)) {
+                        others.push(item);
+                    }
+                });
+
+            if (others.length && !selected.includes('Others')) {
+                selected.push('Others');
+            }
+
+            return {
+                selected,
+                other: others.join(', '),
+            };
+        },
+
+        matchBenefitOption(value) {
+            const normalizedValue = this.normalizeComparable(value);
+            const aliases = {
+                sss: 'Social Security System (SSS)',
+                socialsecuritysystem: 'Social Security System (SSS)',
+                philhealth: 'PhilHealth',
+                pagibig: 'Pag-IBIG Fund (HDMF)',
+                pagibigfundhdmf: 'Pag-IBIG Fund (HDMF)',
+                hdmf: 'Pag-IBIG Fund (HDMF)',
+                bonus: 'Bonus, Performance Incentive Schemes and Merit-Based Rewards',
+                performanceincentiveschemes: 'Bonus, Performance Incentive Schemes and Merit-Based Rewards',
+                meritbasedrewards: 'Bonus, Performance Incentive Schemes and Merit-Based Rewards',
+                maternitybenefits: 'Maternity Benefits, per law',
+                paternitybenefits: 'Paternity Benefits, per law',
+                soloparentbenefits: 'Solo Parent and other statutory leave benefits, if applicable',
+                retirementbenefits: 'Retirement Benefits as required by law or policy, if applicable',
+                otherstatutorylaborbenefits: 'Other benefits mandated under Philippine labor laws',
+                healthcareinsurance: 'Healthcare, Insurance, and Investment Benefit Plan after 6 months of employment, subject to company policy and eligibility',
+                healthcareinsuranceinvestmentbenefitplan: 'Healthcare, Insurance, and Investment Benefit Plan after 6 months of employment, subject to company policy and eligibility',
+                investmentbenefitplans: 'Healthcare, Insurance, and Investment Benefit Plan after 6 months of employment, subject to company policy and eligibility',
+                leavebenefits: 'Service Incentive Leave',
+                noworkonphilippineholidays: 'No Work on Philippine Holidays, subject to operations',
+                structuredprofessionalworkenvironment: 'Structured and Professional Work Environment',
+                opportunityforlongtermgrowth: 'Opportunity for Long-Term Growth Based on Performance',
+            };
+
+            if (aliases[normalizedValue]) return aliases[normalizedValue];
+
+            return this.benefitsOptions.find(option => this.normalizeComparable(option) === normalizedValue) || null;
+        },
+
+        normalizeComparable(value) {
+            return String(value || '').toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]/g, '');
+        },
+
+        ignoredBenefitFragment(value) {
+            return ['ifapplicable', 'perlaw', 'subjecttooperations'].includes(this.normalizeComparable(value));
+        },
+
+        governmentInfoEntries(value) {
+            const items = this.arrayValues(value).map(item => {
+                if (typeof item === 'object' && item !== null) {
+                    return {
+                        name: item.name ?? item.id_name ?? item.label ?? '',
+                        number: item.number ?? item.id_number ?? item.value ?? '',
+                    };
+                }
+
+                const [name, ...numberParts] = String(item).split(' - ');
+                return {
+                    name: name?.trim() ?? '',
+                    number: numberParts.join(' - ').trim(),
+                };
+            }).filter(item => item.name || item.number);
+
+            return items.length ? items : [{ name: '', number: '' }];
+        },
+
+        addGovernmentInfo() {
+            this.form.other_government_information_entries.push({ name: '', number: '' });
+        },
+
+        removeGovernmentInfo(index) {
+            this.form.other_government_information_entries.splice(index, 1);
+            if (!this.form.other_government_information_entries.length) {
+                this.addGovernmentInfo();
+            }
+        },
+
+        governmentInfoPayload() {
+            return JSON.stringify((this.form.other_government_information_entries || [])
+                .map(item => ({
+                    name: (item.name || '').trim(),
+                    number: (item.number || '').trim(),
+                }))
+                .filter(item => item.name || item.number));
+        },
+
+        governmentInfoList(value) {
+            const items = this.governmentInfoEntries(value).filter(item => item.name || item.number);
+            if (!items.length) return '-';
+
+            return items.map(item => `• ${[item.name, item.number].filter(Boolean).join(' - ')}`).join('\n');
+        },
+
         bulletList(value) {
             if (!value || (Array.isArray(value) && value.length === 0)) return '-';
             const items = Array.isArray(value) ? value : String(value).split(/\r?\n/);
@@ -1140,6 +1592,114 @@ function employeePage(config) {
 
         qrUrl(url) {
             return `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(url || '')}`;
+        },
+
+        companyAddress(employee) {
+            return employee?.company_address
+                || employee?.work_location
+                || employee?.office_name
+                || 'John Kelly & Company / JK&C Inc.';
+        },
+
+        companyContactDetails(employee) {
+            return employee?.office_contact
+                || employee?.branch_contact
+                || 'Human Capital Department';
+        },
+
+        cloneDigitalIdCard(side) {
+            const previousSide = this.digitalIdSide;
+            this.digitalIdSide = side;
+
+            return new Promise(resolve => {
+                this.$nextTick(() => {
+                    const source = this.$refs.digitalIdExport?.querySelector('.digital-id-card:not([style*="display: none"])');
+                    const clone = source ? source.cloneNode(true) : null;
+                    this.digitalIdSide = previousSide;
+                    this.$nextTick(() => resolve(clone));
+                });
+            });
+        },
+
+        async buildDigitalIdSheet() {
+            const sheet = document.createElement('div');
+            sheet.className = 'digital-id-print-page';
+            sheet.style.display = 'flex';
+            sheet.style.gap = '12mm';
+            sheet.style.alignItems = 'center';
+            sheet.style.justifyContent = 'center';
+            sheet.style.padding = '12mm';
+            sheet.style.background = '#ffffff';
+
+            const front = await this.cloneDigitalIdCard('front');
+            const back = await this.cloneDigitalIdCard('back');
+
+            if (front) sheet.appendChild(front);
+            if (back) sheet.appendChild(back);
+
+            return sheet;
+        },
+
+        async previewDigitalIdPdf() {
+            if (typeof html2pdf === 'undefined') {
+                alert('PDF generator is still loading. Please try again in a moment.');
+                return;
+            }
+
+            const sheet = await this.buildDigitalIdSheet();
+            sheet.style.position = 'fixed';
+            sheet.style.left = '0';
+            sheet.style.top = '0';
+            sheet.style.zIndex = '-1';
+            document.body.appendChild(sheet);
+
+            try {
+                const worker = html2pdf().set({
+                    margin: 0,
+                    image: { type: 'jpeg', quality: 0.98 },
+                    html2canvas: { scale: 3, useCORS: true, scrollY: 0 },
+                    jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
+                }).from(sheet);
+
+                const blob = await worker.outputPdf('blob');
+                window.open(URL.createObjectURL(blob), '_blank');
+            } finally {
+                sheet.remove();
+            }
+        },
+
+        async downloadDigitalId() {
+            if (typeof html2pdf === 'undefined') {
+                alert('PDF generator is still loading. Please try again in a moment.');
+                return;
+            }
+
+            const sheet = await this.buildDigitalIdSheet();
+            const code = this.selectedEmployee?.employee_code || 'employee';
+            sheet.style.position = 'fixed';
+            sheet.style.left = '0';
+            sheet.style.top = '0';
+            sheet.style.zIndex = '-1';
+            document.body.appendChild(sheet);
+
+            try {
+                await html2pdf().set({
+                    margin: 0,
+                    filename: `digital-employee-id-${code}.pdf`,
+                    image: { type: 'jpeg', quality: 0.98 },
+                    html2canvas: { scale: 3, useCORS: true, scrollY: 0 },
+                    jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
+                }).from(sheet).save();
+            } finally {
+                sheet.remove();
+            }
+        },
+
+        async printDigitalId() {
+            const sheet = await this.buildDigitalIdSheet();
+            document.body.appendChild(sheet);
+            window.print();
+            setTimeout(() => sheet.remove(), 500);
         },
 
         previewUpload(event) {

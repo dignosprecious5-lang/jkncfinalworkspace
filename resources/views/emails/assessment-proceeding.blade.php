@@ -66,7 +66,7 @@
         <div class="content">
             <p>Dear <span class="name">{{ $candidateName }}</span>,</p>
             
-            <p>We are pleased to inform you that your application for the position of <strong>{{ $position }}</strong> at John Kelly & Company has successfully passed our initial screening.</p>
+            <p>We are pleased to inform you that your application for the position of <strong>{{ $position }}</strong> at John Kelly &amp; Company (JK&amp;C Inc.) has successfully passed our initial screening.</p>
             
             <div class="highlight">
                 "We are now inviting you to proceed to the <strong>Assessment Stage</strong> of our recruitment process."
@@ -78,10 +78,10 @@
             
             <p>Best regards,<br>
             <strong>Human Capital Team</strong><br>
-            John Kelly & Company</p>
+            John Kelly &amp; Company (JK&amp;C Inc.)</p>
         </div>
         <div class="footer">
-            &copy; {{ date('Y') }} John Kelly & Company. All rights reserved.<br>
+            &copy; {{ date('Y') }} John Kelly &amp; Company (JK&amp;C Inc.). All rights reserved.<br>
             This is an automated message, please do not reply directly to this email.
         </div>
     </div>

@@ -1934,7 +1934,7 @@ class RecruitmentController extends Controller
             'jobOffer' => $jobOffer,
             'decision' => 'declined',
             'title' => 'Job Offer Declined',
-            'message' => 'Your response has been recorded. Thank you for informing John Kelly & Company.',
+            'message' => 'Your response has been recorded. Thank you for informing John Kelly & Company (JK&C Inc.).',
         ]);
     }
 

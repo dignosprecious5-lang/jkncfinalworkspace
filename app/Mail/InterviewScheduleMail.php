@@ -23,7 +23,7 @@ class InterviewScheduleMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Interview Schedule - John Kelly & Company',
+            subject: 'Interview Schedule - John Kelly & Company (JK&C Inc.)',
         );
     }
 

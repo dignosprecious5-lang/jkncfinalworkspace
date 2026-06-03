@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Candidate Application | John Kelly &amp; Company</title>
+    <title>Candidate Application | John Kelly &amp; Company (JK&amp;C Inc.)</title>
     <link rel="icon" type="image/png" href="{{ asset('images/image.png') }}">
     <script src="https://cdn.tailwindcss.com"></script>
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
@@ -50,7 +50,7 @@
         <div class="nav-container">
             <div class="logo">
                 <a href="{{ route('homepage.public') }}">
-                    <img src="{{ asset('images/FINAL_LOGO.jpg') }}" alt="John Kelly &amp; Company Logo">
+                    <img src="{{ asset('images/FINAL_LOGO.jpg') }}" alt="John Kelly &amp; Company (JK&amp;C Inc.) Logo">
                 </a>
             </div>
             <a class="nav-link" href="{{ route('homepage.public') }}#careers">Back to Careers</a>
@@ -230,7 +230,7 @@
                     <div class="sm:col-span-2 rounded-lg border border-blue-100 bg-blue-50 p-4 text-sm leading-6 text-slate-700">
                         <label class="flex items-start gap-3">
                             <input type="checkbox" class="mt-1" x-model="form.consentAccepted" required>
-                            <span>I certify, consent, authorize, acknowledge, and agree that all information and documents submitted are true, correct, complete, authentic, and updated; and that John Kelly &amp; Company, JK&amp;C Inc., and authorized representatives may lawfully process my personal and sensitive personal information for recruitment, verification, onboarding, compliance, legal, audit, and employment-related purposes. I understand that false statements or omissions may result in rejection, withdrawal of offer, termination if hired, and/or legal action where applicable.</span>
+                            <span>I certify, consent, authorize, acknowledge, and agree that all information and documents submitted are true, correct, complete, authentic, and updated; and that John Kelly &amp; Company (JK&amp;C Inc.) and authorized representatives may lawfully process my personal and sensitive personal information for recruitment, verification, onboarding, compliance, legal, audit, and employment-related purposes. I understand that false statements or omissions may result in rejection, withdrawal of offer, termination if hired, and/or legal action where applicable.</span>
                         </label>
                     </div>
                 </div>

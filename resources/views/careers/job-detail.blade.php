@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{{ $job->position ?: 'Job Opening' }} | John Kelly &amp; Company</title>
+    <title>{{ $job->position ?: 'Job Opening' }} | John Kelly &amp; Company (JK&amp;C Inc.)</title>
 
     <link rel="icon" type="image/png" href="{{ asset('images/image.png') }}">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -425,7 +425,7 @@
         <div class="nav-brand">
             <div class="logo">
                 <a href="{{ route('homepage.public') }}">
-                    <img src="{{ asset('images/FINAL_LOGO.jpg') }}" onerror="this.src='{{ asset('images/imaglogo.png') }}'" alt="John Kelly &amp; Company Logo">
+                    <img src="{{ asset('images/FINAL_LOGO.jpg') }}" onerror="this.src='{{ asset('images/imaglogo.png') }}'" alt="John Kelly &amp; Company (JK&amp;C Inc.) Logo">
                 </a>
             </div>
             <div class="nav-title">Career Opportunity</div>
@@ -626,7 +626,7 @@
 <footer class="footer">
     <div class="footer-inner">
         <span><strong>JK&amp;C Careers Portal</strong></span>
-        <span>John Kelly &amp; Company</span>
+        <span>John Kelly &amp; Company (JK&amp;C Inc.)</span>
     </div>
 </footer>
 
