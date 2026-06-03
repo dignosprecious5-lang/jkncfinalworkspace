@@ -12592,7 +12592,9 @@
                 currentPreviewAttachmentUrl = firstPdf ? (firstPdf.url || normalizeAttachmentUrl(firstPdf.path || '')) : '';
                 currentPreviewAttachmentToken = 0;
             } else {
+                currentPreviewAttachmentToken = (currentPreviewAttachmentToken || 0) + 1;
                 currentPreviewAttachmentUrl = '';
+                revokeCurrentPreviewAttachmentObjectUrl();
             }
             renderPreviewTabContent(currentPreviewRecord);
             renderPreviewDocument(currentPreviewRecord);
@@ -12646,7 +12648,7 @@
 
         if (record.module_key === 'ca' && !isFinalWorkflow) {
             const canOpenDisbursementVoucher = matchesAny(nextAction, ['create disbursement voucher'])
-                || matchesAny(relationshipStatus, ['awaiting disbursement', 'pending disbursement', 'approved for release']);
+                || matchesAny(relationshipStatus, ['awaiting disbursement', 'pending disbursement', 'approved for release', 'partially disbursed']);
             const canOpenLiquidationReport = matchesAny(nextAction, ['submit liquidation report'])
                 || matchesAny(relationshipStatus, ['awaiting liquidation', 'awaiting liquidation approval', 'disbursed']);
             if (canOpenDisbursementVoucher) {
@@ -12700,7 +12702,7 @@
             && !isFinalWorkflow
             && (
                 disbursementButtonStatus === 'Create Disbursement Voucher'
-                || matchesAny(disbursementRelationshipStatus.toLowerCase(), ['awaiting disbursement voucher', 'awaiting disbursement', 'pending disbursement', 'approved for payment'])
+                || matchesAny(disbursementRelationshipStatus.toLowerCase(), ['awaiting disbursement voucher', 'awaiting disbursement', 'pending disbursement', 'approved for payment', 'partially disbursed'])
                 || isApprovedWorkflow
             );
 
@@ -13083,13 +13085,15 @@
                     renderPreviewTabContent(currentPreviewRecord);
                     renderPreviewActions(currentPreviewRecord);
                     updatePreviewTabButtons();
-                    const frame = $('financePreviewPdfFrame');
-                    if (frame && currentPreviewAttachmentObjectUrl) {
-                        frame.src = currentPreviewAttachmentObjectUrl;
-                    }
-                    const openLink = $('financePreviewOpenLink');
-                    if (openLink && currentPreviewAttachmentObjectUrl) {
-                        openLink.href = currentPreviewAttachmentObjectUrl;
+                    if (currentPreviewTab === 'attachments' && currentPreviewAttachmentObjectUrl) {
+                        const frame = $('financePreviewPdfFrame');
+                        if (frame) {
+                            frame.src = currentPreviewAttachmentObjectUrl;
+                        }
+                        const openLink = $('financePreviewOpenLink');
+                        if (openLink) {
+                            openLink.href = currentPreviewAttachmentObjectUrl;
+                        }
                     }
                 }
             }

@@ -3000,7 +3000,7 @@ SVG;
             $relationshipStatus === 'Cancelled' => 'No further action',
             $relationshipStatus === 'Correction Requested' => 'Review Correction Request',
             $relationshipStatus === 'Completed' => 'No further action',
-            $relationshipStatus === 'Partially Disbursed' => in_array($moduleKey, ['ca'], true) ? 'Continue Liquidation' : 'Release Remaining Balance',
+            $relationshipStatus === 'Partially Disbursed' => 'Create Disbursement Voucher',
             in_array($relationshipStatus, ['Fully Disbursed', 'Disbursed'], true) => match ($moduleKey) {
                 'ca' => 'Submit Liquidation Report',
                 'po', 'pr' => 'No further action',
@@ -3965,6 +3965,7 @@ SVG;
         $recordTitleLabel = $this->moduleRecordTitleLabel($record->module_key);
         $approvalActorNames = $this->financeApprovalActorNames($record);
         $ownershipCards = $this->financeOwnershipSummary($record);
+        $isTemplatePreview = $forceSupplierTemplate;
         $companyName = 'John Kelly & Company';
         $companyLegalName = 'JK&C INC.';
         $companyLogo = $includeLogo ? $this->financePdfImageDataUri('images/imaglogo.png') : null;
