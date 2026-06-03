@@ -14,6 +14,9 @@ class AdminUserPermissionController extends Controller
         'access_finance',
         'create_finance',
         'approve_finance',
+        'finance_treasurer',
+        'finance_president',
+        'finance_approver',
         'access_finance_supplier',
         'access_finance_service',
         'access_finance_product',
@@ -143,6 +146,9 @@ class AdminUserPermissionController extends Controller
                 'access_sales_marketing',
 
                 'access_human_capital',
+                'finance_treasurer',
+                'finance_president',
+                'finance_approver',
             ], $this->financePermissionColumns) as $column
         ) {
             if (Schema::hasColumn('user_permissions', $column)) {

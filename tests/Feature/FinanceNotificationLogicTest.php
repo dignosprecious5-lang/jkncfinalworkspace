@@ -5,6 +5,7 @@ use App\Models\Employee;
 use App\Models\FinanceRecord;
 use App\Models\GisRecord;
 use App\Models\User;
+use App\Models\UserPermission;
 use App\Notifications\FinanceRecordWorkflowNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Notification;
@@ -18,20 +19,38 @@ function financeNotificationLogicFixtures(): array
         'email' => 'notification.owner@example.com',
         'role' => 'employee',
     ]);
+    UserPermission::query()->updateOrCreate(
+        ['user_id' => $owner->id],
+        [
+            'access_finance' => true,
+            'access_finance_chart_account' => true,
+            'access_finance_ca' => true,
+            'access_finance_dv' => true,
+            'access_finance_lr' => true,
+            'access_finance_arf' => true,
+        ]
+    );
 
     $president = User::factory()->create([
-        'name' => 'Notification President',
-        'email' => 'notification.president@example.com',
+        'name' => 'Rhyss Account',
+        'email' => 'rhyss-notification@example.com',
         'role' => 'admin',
     ]);
     Employee::query()->create([
         'user_id' => $president->id,
-        'first_name' => 'Notification',
-        'last_name' => 'President',
-        'email' => 'notification.president@example.com',
+        'first_name' => 'Rhyss',
+        'last_name' => 'Account',
+        'email' => 'rhyss-notification@example.com',
         'position' => 'President',
         'payroll_type' => 'Monthly Paid',
     ]);
+    UserPermission::query()->updateOrCreate(
+        ['user_id' => $president->id],
+        [
+            'finance_president' => true,
+            'finance_approver' => true,
+        ]
+    );
 
     $treasurer = User::factory()->create([
         'name' => 'Notification Treasurer',
@@ -46,6 +65,13 @@ function financeNotificationLogicFixtures(): array
         'position' => 'Treasurer',
         'payroll_type' => 'Monthly Paid',
     ]);
+    UserPermission::query()->updateOrCreate(
+        ['user_id' => $treasurer->id],
+        [
+            'finance_treasurer' => true,
+            'finance_approver' => true,
+        ]
+    );
 
     $gisRecord = GisRecord::query()->create([
         'uploaded_by' => $owner->name,
@@ -224,6 +250,10 @@ test('workflow notifications are sent for submission approval hold and revert', 
         return $notification->action === 'submitted' && $notification->recordId === $submittedRecord->id;
     });
 
+    Notification::assertSentTo($fixtures['treasurer'], FinanceRecordWorkflowNotification::class, function (FinanceRecordWorkflowNotification $notification) use ($submittedRecord): bool {
+        return $notification->action === 'submitted' && $notification->recordId === $submittedRecord->id;
+    });
+
     $approvedRecord = financeNotificationCreateAndApproveRecord($this, [
         'module_key' => 'chart_account',
         'record_number' => 'COA-51002',
@@ -238,6 +268,10 @@ test('workflow notifications are sent for submission approval hold and revert', 
     ], $fixtures['owner'], $fixtures['president'], $fixtures['treasurer']);
 
     Notification::assertSentTo($fixtures['owner'], FinanceRecordWorkflowNotification::class, function (FinanceRecordWorkflowNotification $notification) use ($approvedRecord): bool {
+        return $notification->action === 'approved' && $notification->recordId === $approvedRecord->id;
+    });
+
+    Notification::assertSentTo($fixtures['president'], FinanceRecordWorkflowNotification::class, function (FinanceRecordWorkflowNotification $notification) use ($approvedRecord): bool {
         return $notification->action === 'approved' && $notification->recordId === $approvedRecord->id;
     });
 
@@ -268,12 +302,20 @@ test('workflow notifications are sent for submission approval hold and revert', 
         return $notification->action === 'held' && $notification->recordId === $holdRecord->id;
     });
 
+    Notification::assertSentTo($fixtures['treasurer'], FinanceRecordWorkflowNotification::class, function (FinanceRecordWorkflowNotification $notification) use ($holdRecord): bool {
+        return $notification->action === 'held' && $notification->recordId === $holdRecord->id;
+    });
+
     $revertResponse = $this->actingAs($fixtures['president'])->postJson(route('finance.revert', $holdRecord), [
         'reason' => 'Please revise the backup documents.',
     ]);
     $revertResponse->assertOk();
 
     Notification::assertSentTo($fixtures['owner'], FinanceRecordWorkflowNotification::class, function (FinanceRecordWorkflowNotification $notification) use ($holdRecord): bool {
+        return $notification->action === 'reverted' && $notification->recordId === $holdRecord->id;
+    });
+
+    Notification::assertSentTo($fixtures['treasurer'], FinanceRecordWorkflowNotification::class, function (FinanceRecordWorkflowNotification $notification) use ($holdRecord): bool {
         return $notification->action === 'reverted' && $notification->recordId === $holdRecord->id;
     });
 });
@@ -360,20 +402,20 @@ it('notifies supplier approvers and admins when a supplier completion form is su
 
     $response->assertRedirect();
 
-    Notification::assertSentTo($fixtures['treasurer'], FinanceRecordWorkflowNotification::class, function (FinanceRecordWorkflowNotification $notification) use ($supplierRecord): bool {
+    Notification::assertSentTo($fixtures['treasurer'], FinanceRecordWorkflowNotification::class, function (FinanceRecordWorkflowNotification $notification) use ($supplierRecord, $fixtures): bool {
         return $notification->action === 'supplier_submitted'
             && $notification->recordId === $supplierRecord->id
-            && in_array('database', $notification->via($notification), true)
-            && in_array('broadcast', $notification->via($notification), true)
-            && in_array('mail', $notification->via($notification), true);
+            && in_array('database', $notification->via($fixtures['treasurer']), true)
+            && in_array('broadcast', $notification->via($fixtures['treasurer']), true)
+            && in_array('mail', $notification->via($fixtures['treasurer']), true);
     });
 
-    Notification::assertSentTo($fixtures['president'], FinanceRecordWorkflowNotification::class, function (FinanceRecordWorkflowNotification $notification) use ($supplierRecord): bool {
+    Notification::assertSentTo($fixtures['president'], FinanceRecordWorkflowNotification::class, function (FinanceRecordWorkflowNotification $notification) use ($supplierRecord, $fixtures): bool {
         return $notification->action === 'supplier_submitted'
             && $notification->recordId === $supplierRecord->id
-            && in_array('database', $notification->via($notification), true)
-            && in_array('broadcast', $notification->via($notification), true)
-            && in_array('mail', $notification->via($notification), true);
+            && in_array('database', $notification->via($fixtures['president']), true)
+            && in_array('broadcast', $notification->via($fixtures['president']), true)
+            && in_array('mail', $notification->via($fixtures['president']), true);
     });
 
     Notification::assertNotSentTo($fixtures['owner'], FinanceRecordWorkflowNotification::class, function (FinanceRecordWorkflowNotification $notification) use ($supplierRecord): bool {
@@ -456,6 +498,10 @@ test('liquidation due asset assignment and inventory alerts are notified automat
         return $notification->action === 'liquidation_due' && $notification->recordId === $ca->id;
     });
 
+    Notification::assertSentTo($fixtures['treasurer'], FinanceRecordWorkflowNotification::class, function (FinanceRecordWorkflowNotification $notification) use ($ca): bool {
+        return $notification->action === 'liquidation_due' && $notification->recordId === $ca->id;
+    });
+
     $lrResponse = $this->actingAs($fixtures['owner'])->post(route('finance.store'), [
         'module_key' => 'lr',
         'record_number' => 'LR-51001',
@@ -524,6 +570,14 @@ test('liquidation due asset assignment and inventory alerts are notified automat
     });
 
     Notification::assertSentTo($fixtures['custodianUser'], FinanceRecordWorkflowNotification::class, function (FinanceRecordWorkflowNotification $notification) use ($arf): bool {
+        return $notification->action === 'inventory_alert' && $notification->recordId === $arf->id;
+    });
+
+    Notification::assertSentTo($fixtures['president'], FinanceRecordWorkflowNotification::class, function (FinanceRecordWorkflowNotification $notification) use ($arf): bool {
+        return $notification->action === 'inventory_alert' && $notification->recordId === $arf->id;
+    });
+
+    Notification::assertSentTo($fixtures['treasurer'], FinanceRecordWorkflowNotification::class, function (FinanceRecordWorkflowNotification $notification) use ($arf): bool {
         return $notification->action === 'inventory_alert' && $notification->recordId === $arf->id;
     });
 });

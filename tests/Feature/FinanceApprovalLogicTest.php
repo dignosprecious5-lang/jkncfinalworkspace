@@ -5,6 +5,7 @@ use App\Models\Employee;
 use App\Models\FinanceRecord;
 use App\Models\GisRecord;
 use App\Models\User;
+use App\Models\UserPermission;
 use App\Notifications\FinanceRecordWorkflowNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Notification;
@@ -17,6 +18,10 @@ function financeApprovalDirectoryFixtures(): array
         'name' => 'Finance Requester',
         'email' => 'requester@example.com',
         'role' => 'employee',
+    ]);
+    UserPermission::query()->create([
+        'user_id' => $owner->id,
+        'access_finance_chart_account' => true,
     ]);
 
     $president = User::factory()->create([
@@ -34,6 +39,13 @@ function financeApprovalDirectoryFixtures(): array
         'basic_salary' => 0,
         'hourly_rate' => 0,
     ]);
+    UserPermission::query()->updateOrCreate(
+        ['user_id' => $president->id],
+        [
+            'finance_president' => true,
+            'finance_approver' => true,
+        ]
+    );
 
     $treasurer = User::factory()->create([
         'name' => 'Corporate Treasurer',
@@ -50,6 +62,13 @@ function financeApprovalDirectoryFixtures(): array
         'basic_salary' => 0,
         'hourly_rate' => 0,
     ]);
+    UserPermission::query()->updateOrCreate(
+        ['user_id' => $treasurer->id],
+        [
+            'finance_treasurer' => true,
+            'finance_approver' => true,
+        ]
+    );
 
     $employeeApproverOne = User::factory()->create([
         'name' => 'Employee Approver One',
@@ -135,8 +154,9 @@ function financeApprovalDirectoryFixtures(): array
     );
 }
 
-test('finance approval routing defaults to officers and allows employee approvers on request modules', function () {
+test('finance approval routing defaults to officers and allows the president approver to approve submitted records', function () {
     $fixtures = financeApprovalDirectoryFixtures();
+    Notification::fake();
 
     $defaultResponse = $this->actingAs($fixtures['owner'])->post(route('finance.store'), [
         'module_key' => 'chart_account',
@@ -154,33 +174,114 @@ test('finance approval routing defaults to officers and allows employee approver
     $defaultResponse->assertCreated();
 
     $defaultRecord = FinanceRecord::query()->findOrFail($defaultResponse->json('data.id'));
-    expect(data_get($defaultRecord->data, 'first_approver_user_id'))->toBe($fixtures['president']->id);
-    expect(data_get($defaultRecord->data, 'second_approver_user_id'))->toBe($fixtures['treasurer']->id);
-    expect(data_get($defaultRecord->data, 'approval_steps.0.user_id'))->toBe($fixtures['president']->id);
-    expect(data_get($defaultRecord->data, 'approval_steps.1.user_id'))->toBe($fixtures['treasurer']->id);
+    expect(data_get($defaultRecord->data, 'first_approver_user_id'))->toBe($fixtures['treasurer']->id);
+    expect(data_get($defaultRecord->data, 'second_approver_user_id'))->toBe($fixtures['president']->id);
+    expect(data_get($defaultRecord->data, 'approval_steps.0.user_id'))->toBe($fixtures['treasurer']->id);
+    expect(data_get($defaultRecord->data, 'approval_steps.1.user_id'))->toBe($fixtures['president']->id);
 
-    $employeeResponse = $this->actingAs($fixtures['owner'])->post(route('finance.store'), [
+    $this->actingAs($fixtures['owner'])
+        ->postJson(route('finance.submit', $defaultRecord))
+        ->assertOk();
+
+    $defaultRecord->refresh();
+    expect($defaultRecord->workflow_status)->toBe('Submitted');
+    expect($defaultRecord->approval_status)->toBe('Pending');
+
+    $this->actingAs($fixtures['president'])
+        ->postJson(route('finance.approve', $defaultRecord))
+        ->assertOk();
+
+    $defaultRecord->refresh();
+    expect(data_get($defaultRecord->data, 'approval_actions'))
+        ->toBeArray()
+        ->toHaveCount(1);
+    expect(data_get($defaultRecord->data, 'approval_actions.0.approved_by'))->toBe($fixtures['president']->id);
+
+});
+
+test('finance approval routing can use user permission role flags and still notify approvers by bell and email', function () {
+    Notification::fake();
+
+    $owner = User::factory()->create([
+        'name' => 'Permission Requester',
+        'email' => 'permission.requester@example.com',
+        'role' => 'employee',
+    ]);
+    UserPermission::query()->updateOrCreate(
+        ['user_id' => $owner->id],
+        [
+            'access_finance_chart_account' => true,
+        ]
+    );
+
+    $treasurer = User::factory()->create([
+        'name' => 'Permission Treasurer',
+        'email' => 'permission.treasurer@example.com',
+        'role' => 'employee',
+    ]);
+    UserPermission::query()->updateOrCreate(
+        ['user_id' => $treasurer->id],
+        [
+            'finance_treasurer' => true,
+            'finance_approver' => true,
+        ]
+    );
+
+    $president = User::factory()->create([
+        'name' => 'Permission President',
+        'email' => 'permission.president@example.com',
+        'role' => 'employee',
+    ]);
+    UserPermission::query()->updateOrCreate(
+        ['user_id' => $president->id],
+        [
+            'finance_president' => true,
+            'finance_approver' => true,
+        ]
+    );
+
+    $storeResponse = $this->actingAs($owner)->post(route('finance.store'), [
         'module_key' => 'chart_account',
         'record_number' => 'CA-90002',
-        'record_title' => 'Employee-Routed Account',
+        'record_title' => 'Permission Routed Account',
         'record_date' => now()->toDateString(),
         'amount' => 0,
         'status' => 'Active',
         'data' => [
             'account_type' => 'Expense',
             'normal_balance' => 'Debit',
-            'first_approver_user_id' => $fixtures['employeeApproverOne']->id,
-            'second_approver_user_id' => $fixtures['employeeApproverTwo']->id,
         ],
     ]);
 
-    $employeeResponse->assertCreated();
+    $storeResponse->assertCreated();
 
-    $employeeRecord = FinanceRecord::query()->findOrFail($employeeResponse->json('data.id'));
-    expect(data_get($employeeRecord->data, 'approval_steps.0.user_id'))->toBe($fixtures['employeeApproverOne']->id);
-    expect(data_get($employeeRecord->data, 'approval_steps.1.user_id'))->toBe($fixtures['employeeApproverTwo']->id);
-    expect(data_get($employeeRecord->data, 'approval_steps.0.source'))->toBe('Employee');
-    expect(data_get($employeeRecord->data, 'approval_steps.1.source'))->toBe('Employee');
+    $record = FinanceRecord::query()->findOrFail($storeResponse->json('data.id'));
+    expect(data_get($record->data, 'first_approver_user_id'))->toBe($treasurer->id);
+    expect(data_get($record->data, 'second_approver_user_id'))->toBe($president->id);
+    expect(data_get($record->data, 'approval_steps.0.user_id'))->toBe($treasurer->id);
+    expect(data_get($record->data, 'approval_steps.1.user_id'))->toBe($president->id);
+
+    $submitResponse = $this->actingAs($owner)->postJson(route('finance.submit', $record));
+    $submitResponse->assertOk();
+
+    Notification::assertSentTo($treasurer, FinanceRecordWorkflowNotification::class, function (FinanceRecordWorkflowNotification $notification) use ($record, $treasurer): bool {
+        return $notification->action === 'submitted'
+            && $notification->recordId === $record->id
+            && in_array('database', $notification->via($treasurer), true)
+            && in_array('broadcast', $notification->via($treasurer), true)
+            && in_array('mail', $notification->via($treasurer), true);
+    });
+
+    Notification::assertSentTo($president, FinanceRecordWorkflowNotification::class, function (FinanceRecordWorkflowNotification $notification) use ($record, $president): bool {
+        return $notification->action === 'submitted'
+            && $notification->recordId === $record->id
+            && in_array('database', $notification->via($president), true)
+            && in_array('broadcast', $notification->via($president), true)
+            && in_array('mail', $notification->via($president), true);
+    });
+
+    $this->actingAs($treasurer)->postJson(route('finance.approve', $record))->assertOk();
+    $this->actingAs($president)->postJson(route('finance.approve', $record))->assertOk();
 });
 
 test('finance approval actions stay manual when requester is also an approver and hold or revert reasons are audited', function () {
@@ -209,7 +310,7 @@ test('finance approval actions stay manual when requester is also an approver an
     $storeResponse->assertCreated();
 
     $record = FinanceRecord::query()->findOrFail($storeResponse->json('data.id'));
-    expect(data_get($record->data, 'first_approver_user_id'))->toBe($fixtures['president']->id);
+    expect(data_get($record->data, 'first_approver_user_id'))->toBe($fixtures['treasurer']->id);
     expect(data_get($record->data, 'approval_actions'))->toBeArray()->toHaveCount(0);
 
     $submitResponse = $this->actingAs($fixtures['president'])->postJson(route('finance.submit', $record));

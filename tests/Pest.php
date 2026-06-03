@@ -4,6 +4,7 @@ use App\Models\DirectorOfficer;
 use App\Models\Employee;
 use App\Models\GisRecord;
 use App\Models\User;
+use App\Models\UserPermission;
 
 /*
 |--------------------------------------------------------------------------
@@ -54,20 +55,27 @@ function something()
 function seedFinanceOfficialApprovers(User $owner): array
 {
     $president = User::factory()->create([
-        'name' => 'Finance President',
-        'email' => 'finance-president-' . $owner->id . '@example.com',
+        'name' => 'Rhyss Account',
+        'email' => 'rhyss-' . $owner->id . '@example.com',
         'role' => 'admin',
     ]);
     Employee::query()->create([
         'user_id' => $president->id,
-        'first_name' => 'Finance',
-        'last_name' => 'President',
+        'first_name' => 'Rhyss',
+        'last_name' => 'Account',
         'email' => $president->email,
         'position' => 'President',
         'payroll_type' => 'Monthly Paid',
         'basic_salary' => 0,
         'hourly_rate' => 0,
     ]);
+    UserPermission::query()->updateOrCreate(
+        ['user_id' => $president->id],
+        [
+            'finance_president' => true,
+            'finance_approver' => true,
+        ]
+    );
 
     $treasurer = User::factory()->create([
         'name' => 'Finance Treasurer',
@@ -84,6 +92,13 @@ function seedFinanceOfficialApprovers(User $owner): array
         'basic_salary' => 0,
         'hourly_rate' => 0,
     ]);
+    UserPermission::query()->updateOrCreate(
+        ['user_id' => $treasurer->id],
+        [
+            'finance_treasurer' => true,
+            'finance_approver' => true,
+        ]
+    );
 
     $gisRecord = GisRecord::query()->create([
         'uploaded_by' => $owner->name,

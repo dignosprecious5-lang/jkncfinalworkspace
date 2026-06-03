@@ -2,7 +2,30 @@
 @section('title', 'NatGov Preview')
 
 @section('content')
-<div class="w-full px-4 sm:px-6 lg:px-8 mt-4" x-data="{ activeVersion: '{{ $approvedUrl ? 'approved' : 'draft' }}', selectedDraftUrl: @js($selectedDraftUrl), showApproveModal: false }" @keydown.escape.window="showApproveModal = false">
+<div class="w-full px-4 sm:px-6 lg:px-8 mt-4" x-data="{
+    activeVersion: '{{ $approvedUrl ? 'approved' : 'draft' }}',
+    selectedDraftUrl: @js($selectedDraftUrl),
+    selectedApprovedUrl: @js($approvedUrl),
+    showApproveModal: false,
+    selectDraft(url) {
+        this.selectedDraftUrl = url;
+        this.activeVersion = 'draft';
+        this.$nextTick(() => {
+            if (this.$refs.draftFrame) {
+                this.$refs.draftFrame.src = url || '';
+            }
+        });
+    },
+    selectApproved(url) {
+        this.selectedApprovedUrl = url;
+        this.activeVersion = 'approved';
+        this.$nextTick(() => {
+            if (this.$refs.approvedFrame) {
+                this.$refs.approvedFrame.src = url || '';
+            }
+        });
+    }
+}" @keydown.escape.window="showApproveModal = false">
     <div class="bg-white border border-gray-100 rounded-xl overflow-hidden">
         <div class="flex items-center gap-3 px-4 py-4 border-b border-gray-100">
             <a href="{{ $backRoute }}" class="text-gray-500 hover:text-gray-700">
@@ -38,7 +61,7 @@
                     @if (!empty($draftOptions) && count($draftOptions) > 1)
                         <div class="mt-3">
                             <label class="text-xs font-semibold uppercase tracking-wide text-slate-500">Draft Revision Selector</label>
-                            <select x-model="selectedDraftUrl" class="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700">
+                            <select x-model="selectedDraftUrl" @change="selectDraft($event.target.value)" class="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700">
                                 @foreach ($draftOptions as $option)
                                     <option value="{{ $option['url'] }}">
                                         {{ $option['label'] }}@if(!empty($option['uploaded_at'])) • {{ $option['uploaded_at'] }}@endif
@@ -57,7 +80,7 @@
                                         type="button"
                                         class="flex w-full items-center justify-between rounded-lg border px-3 py-2 text-left text-sm transition"
                                         :class="selectedDraftUrl === @js($option['url']) ? 'border-blue-300 bg-blue-50 text-blue-900' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50'"
-                                        @click="selectedDraftUrl = @js($option['url']); activeVersion = 'draft'"
+                                        @click.prevent="selectDraft(@js($option['url']))"
                                     >
                                         <span class="min-w-0">
                                             <span class="block truncate font-medium">{{ $option['label'] }}</span>
@@ -82,7 +105,7 @@
                     @endif
 
                     @if ($draftUrl)
-                        <iframe :src="selectedDraftUrl" class="mt-4 w-full h-[700px] border rounded bg-white"></iframe>
+                        <iframe x-ref="draftFrame" :src="selectedDraftUrl || ''" class="mt-4 w-full h-[700px] border rounded bg-white"></iframe>
                     @else
                         <div class="mt-4 w-full h-[700px] border rounded flex items-center justify-center bg-gray-50 text-gray-400 text-sm">No draft file available yet.</div>
                     @endif
@@ -104,7 +127,7 @@
                         </div>
                     @endif
                     @if ($approvedUrl)
-                        <iframe src="{{ $approvedUrl }}" class="mt-4 w-full h-[700px] border rounded bg-white"></iframe>
+                        <iframe x-ref="approvedFrame" :src="selectedApprovedUrl || @js($approvedUrl) || ''" class="mt-4 w-full h-[700px] border rounded bg-white"></iframe>
                     @else
                         <div class="mt-4 w-full h-[700px] border rounded flex items-center justify-center bg-gray-50 text-gray-400 text-sm">No approved file uploaded yet.</div>
                     @endif

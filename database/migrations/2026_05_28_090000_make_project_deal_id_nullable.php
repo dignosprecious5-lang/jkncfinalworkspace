@@ -12,6 +12,10 @@ return new class extends Migration
             return;
         }
 
+        if (DB::getDriverName() === 'sqlite') {
+            return;
+        }
+
         try {
             DB::statement('ALTER TABLE `projects` DROP FOREIGN KEY `projects_deal_id_foreign`');
         } catch (Throwable) {
@@ -25,6 +29,10 @@ return new class extends Migration
     public function down(): void
     {
         if (! Schema::hasTable('projects') || ! Schema::hasColumn('projects', 'deal_id')) {
+            return;
+        }
+
+        if (DB::getDriverName() === 'sqlite') {
             return;
         }
 

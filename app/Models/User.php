@@ -92,6 +92,21 @@ class User extends Authenticatable
         return $this->isSuperAdmin() || ($this->isAdmin() && $this->can_delete_users);
     }
 
+    public function isFinanceTreasurer(): bool
+    {
+        return (bool) data_get($this->userPermission, 'finance_treasurer', false);
+    }
+
+    public function isFinancePresident(): bool
+    {
+        return (bool) data_get($this->userPermission, 'finance_president', false);
+    }
+
+    public function isFinanceApprover(): bool
+    {
+        return (bool) data_get($this->userPermission, 'finance_approver', false);
+    }
+
     public function hasPermission(string $permission): bool
     {
         if (strtolower((string) $this->role) === 'superadmin') {

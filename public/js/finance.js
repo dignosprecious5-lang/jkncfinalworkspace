@@ -5914,6 +5914,31 @@
         const data = record?.data || {};
         const lineItems = getNormalizedLineItems(record);
         const firstLineItem = lineItems[0] || {};
+        const sourceQuantity = numericAmount(data.current_quantity || data.accepted_quantity || data.beginning_quantity || data.delivered_quantity || data.ordered_quantity || 0);
+        const acquisitionCost = numericAmount(data.acquisition_cost || data.grand_total || data.total_amount || data.amount || record?.amount || 0);
+        let unitCost = numericAmount(data.unit_cost || 0);
+        let averageCost = numericAmount(data.average_cost || 0);
+        let lastPurchaseCost = numericAmount(data.last_purchase_cost || 0);
+
+        if (unitCost <= 0 && sourceQuantity > 0 && acquisitionCost > 0) {
+            unitCost = acquisitionCost / sourceQuantity;
+        }
+
+        if (unitCost <= 0 && averageCost > 0) {
+            unitCost = averageCost;
+        }
+
+        if (unitCost <= 0 && lastPurchaseCost > 0) {
+            unitCost = lastPurchaseCost;
+        }
+
+        if (averageCost <= 0 && unitCost > 0) {
+            averageCost = unitCost;
+        }
+
+        if (lastPurchaseCost <= 0 && unitCost > 0) {
+            lastPurchaseCost = unitCost;
+        }
 
         return {
             supplier_id: data.supplier_id || '',
@@ -5921,7 +5946,14 @@
             asset_category: firstLineItem.category || data.asset_category || data.linked_item_type || '',
             serial_number: data.serial_number || '',
             model: data.model || '',
-            acquisition_cost: data.grand_total || data.total_amount || data.amount || record?.amount || '',
+            beginning_quantity: data.beginning_quantity || sourceQuantity || '',
+            current_quantity: data.current_quantity || data.accepted_quantity || data.beginning_quantity || data.delivered_quantity || data.ordered_quantity || '',
+            reserved_quantity: data.reserved_quantity || 0,
+            unit_cost: unitCost || acquisitionCost || '',
+            acquisition_cost: acquisitionCost || '',
+            total_cost: sourceQuantity > 0 && unitCost > 0 ? (sourceQuantity * unitCost) : acquisitionCost || '',
+            average_cost: averageCost || unitCost || '',
+            last_purchase_cost: lastPurchaseCost || unitCost || '',
             acquisition_date: data.payment_date || record?.record_date || '',
             asset_coa_id: data.asset_coa_id || data.coa_id || '',
             remarks: data.remarks || '',
@@ -5955,7 +5987,7 @@
             financeFormValues['data[linked_po_id]'] = linkedDvRecord.data.source_document_id;
         }
 
-        ['supplier_id', 'asset_description', 'asset_category', 'serial_number', 'model', 'acquisition_cost', 'acquisition_date', 'asset_coa_id', 'remarks'].forEach((fieldName) => {
+        ['supplier_id', 'asset_description', 'asset_category', 'serial_number', 'model', 'beginning_quantity', 'current_quantity', 'reserved_quantity', 'unit_cost', 'average_cost', 'last_purchase_cost', 'acquisition_cost', 'total_cost', 'acquisition_date', 'asset_coa_id', 'remarks'].forEach((fieldName) => {
             const input = form.querySelector(`[name="data[${fieldName}]"]`);
             const currentValue = String(input?.value || '').trim();
             if (!input) return;
@@ -5993,14 +6025,35 @@
         const isFixedAsset = classification === 'Fixed Asset';
         const currentQuantity = valueFor('current_quantity') || valueFor('accepted_quantity') || valueFor('beginning_quantity');
         const reservedQuantity = valueFor('reserved_quantity');
-        const unitCost = valueFor('unit_cost');
         const acquisitionCost = valueFor('acquisition_cost');
+        let unitCost = valueFor('unit_cost');
         const residualValue = valueFor('residual_value');
         const usefulLife = valueFor('useful_life');
         const acquisitionDateValue = String(form.querySelector('[name="data[acquisition_date]"]')?.value || '').trim();
 
+        if (classification === 'Consumable Inventory') {
+            const existingAverageCost = valueFor('average_cost');
+            const existingLastPurchaseCost = valueFor('last_purchase_cost');
+
+            if (unitCost <= 0 && currentQuantity > 0 && acquisitionCost > 0) {
+                unitCost = acquisitionCost / currentQuantity;
+            }
+
+            if (unitCost <= 0 && existingAverageCost > 0) {
+                unitCost = existingAverageCost;
+            }
+
+            if (unitCost <= 0 && existingLastPurchaseCost > 0) {
+                unitCost = existingLastPurchaseCost;
+            }
+
+            setValue('unit_cost', unitCost);
+            setValue('average_cost', unitCost > 0 ? unitCost : existingAverageCost);
+            setValue('last_purchase_cost', unitCost > 0 ? unitCost : existingLastPurchaseCost);
+        }
+
         setValue('available_quantity', Math.max(currentQuantity - reservedQuantity, 0));
-        setValue('total_cost', currentQuantity * unitCost);
+        setValue('total_cost', currentQuantity * (unitCost > 0 ? unitCost : valueFor('unit_cost')));
 
         const depreciationFields = ['useful_life', 'residual_value', 'depreciable_amount', 'annual_depreciation', 'monthly_depreciation', 'accumulated_depreciation', 'net_book_value'];
         depreciationFields.forEach((fieldName) => {
@@ -11097,7 +11150,14 @@
             asset_category: sourceData.asset_category || sourceData.linked_item_type || linkedAutofill.asset_category || '',
             serial_number: sourceData.serial_number || '',
             model: sourceData.model || '',
+            beginning_quantity: sourceData.beginning_quantity || linkedAutofill.beginning_quantity || '',
+            current_quantity: sourceData.current_quantity || sourceData.accepted_quantity || linkedAutofill.current_quantity || '',
+            reserved_quantity: sourceData.reserved_quantity || linkedAutofill.reserved_quantity || '',
             acquisition_cost: sourceData.grand_total || sourceData.total_amount || sourceData.amount || linkedAutofill.acquisition_cost || resolvedSourceRecord.amount || '',
+            unit_cost: sourceData.unit_cost || linkedAutofill.unit_cost || '',
+            average_cost: sourceData.average_cost || linkedAutofill.average_cost || '',
+            last_purchase_cost: sourceData.last_purchase_cost || linkedAutofill.last_purchase_cost || '',
+            total_cost: sourceData.total_cost || linkedAutofill.total_cost || '',
             acquisition_date: sourceData.payment_date || linkedAutofill.acquisition_date || resolvedSourceRecord.record_date || '',
             asset_coa_id: sourceData.asset_coa_id || sourceData.coa_id || linkedAutofill.asset_coa_id || '',
             location: sourceData.location || '',
@@ -12242,10 +12302,11 @@
                             const url = attachment.url || normalizeAttachmentUrl(attachment.path || '');
                             const active = currentPreviewAttachmentUrl === url;
                             return `
-                                <button
-                                    type="button"
-                                    onclick="window.financeModule.previewAttachment(${JSON.stringify(url)}, ${JSON.stringify(attachment.name || `Attachment ${index + 1}`)})"
-                                    class="w-full rounded-xl border px-4 py-3 text-left transition ${active ? 'border-blue-200 bg-white shadow-sm' : 'border-gray-200 bg-white hover:bg-gray-50'}">
+                                  <button
+                                      type="button"
+                                      data-preview-attachment-url="${escapeHtml(url)}"
+                                      data-preview-attachment-name="${escapeHtml(attachment.name || `Attachment ${index + 1}`)}"
+                                      class="w-full rounded-xl border px-4 py-3 text-left transition ${active ? 'border-blue-200 bg-white shadow-sm' : 'border-gray-200 bg-white hover:bg-gray-50'}">
                                     <div class="flex items-center justify-between gap-3">
                                         <div class="min-w-0">
                                             <p class="font-semibold text-gray-900 break-all">${escapeHtml(attachment.name || `Attachment ${index + 1}`)}</p>
@@ -12316,11 +12377,32 @@
             })
             .join('');
 
-        $('previewTabContent').innerHTML = currentPreviewTab === 'attachments'
+          $('previewTabContent').innerHTML = currentPreviewTab === 'attachments'
             ? attachmentsHtml
             : (currentPreviewTab === 'template'
                 ? templateHtml
                 : `<div class="space-y-4">${detailContent}</div>`);
+
+        bindPreviewAttachmentCardClicks();
+      }
+
+    function bindPreviewAttachmentCardClicks() {
+        const container = $('previewTabContent');
+        if (!container) return;
+
+        container.querySelectorAll('[data-preview-attachment-url]').forEach((button) => {
+            if (button.dataset.previewAttachmentBound === 'true') {
+                return;
+            }
+
+            button.dataset.previewAttachmentBound = 'true';
+            button.addEventListener('click', () => {
+                const url = button.getAttribute('data-preview-attachment-url') || '';
+                if (url) {
+                    previewAttachment(url);
+                }
+            });
+        });
     }
 
     function updatePreviewTabButtons() {
@@ -12779,6 +12861,7 @@
         currentPreviewTab = 'attachments';
         revokeCurrentPreviewPdfObjectUrl();
         revokeCurrentPreviewAttachmentObjectUrl();
+        renderPreviewDocument(currentPreviewRecord);
 
         const requestToken = currentPreviewAttachmentToken;
         const loadPreviewAttachment = async () => {
@@ -12821,7 +12904,6 @@
             }
         };
 
-        renderPreviewDocument(currentPreviewRecord);
         loadPreviewAttachment();
     }
 

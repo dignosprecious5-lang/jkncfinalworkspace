@@ -346,12 +346,6 @@ class FinanceController extends Controller
 
     private function financeOfficialApproverDirectory(): array
     {
-        static $directory = null;
-
-        if (is_array($directory)) {
-            return $directory;
-        }
-
         $officialRows = collect();
         $gisRecord = $this->financeLatestApprovedGisRecord();
         $bifRecord = $this->financeLatestOfficialBif();
@@ -386,6 +380,11 @@ class FinanceController extends Controller
                     'source' => 'BIF',
                 ],
             ])->filter(fn (array $row) => filled($row['official_name'])));
+        }
+
+        $permissionRows = $this->financePermissionApproverRows();
+        if ($permissionRows->isNotEmpty()) {
+            $officialRows = $officialRows->merge($permissionRows);
         }
 
         $officialRows = $officialRows
@@ -427,7 +426,7 @@ class FinanceController extends Controller
             ->filter()
             ->values();
 
-        return $directory = [
+        return [
             'options' => $options->all(),
             'default_steps' => $defaults->map(fn (array $option, int $index) => [
                 'step' => $index + 1,
@@ -445,6 +444,73 @@ class FinanceController extends Controller
                 ->values()
                 ->all(),
         ];
+    }
+
+    private function financePermissionApproverRows()
+    {
+        if (
+            !Schema::hasTable('user_permissions')
+            || !Schema::hasColumn('user_permissions', 'finance_treasurer')
+            || !Schema::hasColumn('user_permissions', 'finance_president')
+            || !Schema::hasColumn('user_permissions', 'finance_approver')
+        ) {
+            return collect();
+        }
+
+        return User::query()
+            ->with(['userPermission', 'employeeProfile', 'contactProfile'])
+            ->whereHas('userPermission', function ($query) {
+                $query->where('finance_treasurer', true)
+                    ->orWhere('finance_president', true)
+                    ->orWhere('finance_approver', true);
+            })
+            ->get()
+            ->flatMap(function (User $user) {
+                $permission = $user->userPermission;
+                if (! $permission) {
+                    return [];
+                }
+
+                $officialName = trim((string) (
+                    $user->name
+                    ?: optional($user->employeeProfile)->full_name
+                    ?: optional($user->contactProfile)->full_name
+                    ?: $user->email
+                    ?: 'Finance Approver'
+                ));
+
+                $rows = [];
+
+                if ((bool) data_get($permission, 'finance_treasurer')) {
+                    $rows[] = [
+                        'official_name' => $officialName,
+                        'role' => 'Treasurer',
+                        'email' => trim((string) $user->email),
+                        'source' => 'User Permission',
+                    ];
+                }
+
+                if ((bool) data_get($permission, 'finance_president')) {
+                    $rows[] = [
+                        'official_name' => $officialName,
+                        'role' => 'President',
+                        'email' => trim((string) $user->email),
+                        'source' => 'User Permission',
+                    ];
+                }
+
+                if ((bool) data_get($permission, 'finance_approver')) {
+                    $rows[] = [
+                        'official_name' => $officialName,
+                        'role' => 'Approver',
+                        'email' => trim((string) $user->email),
+                        'source' => 'User Permission',
+                    ];
+                }
+
+                return $rows;
+            })
+            ->values();
     }
 
     private function financeOfficialApproverOptionByUserId(mixed $userId): ?array
@@ -668,7 +734,30 @@ class FinanceController extends Controller
 
     private function currentUserIsFinanceApprover(FinanceRecord $record): bool
     {
-        return in_array((int) Auth::id(), $this->financeRecordApproverUserIds($record), true);
+        $user = Auth::user();
+
+        if (! $user) {
+            return false;
+        }
+
+        $userId = (int) $user->id;
+        $email = Str::lower(trim((string) $user->email));
+        $approverIds = $this->financeRecordApproverUserIds($record);
+
+        if (in_array($userId, $approverIds, true)) {
+            return true;
+        }
+
+        return collect($this->financeOfficialApproverDirectory()['options'])
+            ->contains(function (array $option) use ($userId, $email): bool {
+                $role = Str::lower(trim((string) data_get($option, 'role', '')));
+
+                return in_array($role, ['treasurer', 'president', 'approver'], true)
+                    && (
+                        (int) data_get($option, 'user_id', 0) === $userId
+                        || ($email !== '' && Str::lower(trim((string) data_get($option, 'user_email', ''))) === $email)
+                    );
+            });
     }
 
     private function currentUserIsDefaultFinanceApprover(): bool
@@ -4257,6 +4346,23 @@ SVG;
     {
         $owner = $record->submitted_by ? User::query()->find($record->submitted_by) : null;
         $approvers = $this->financeApproverUsersForRecord($record);
+
+        if ($approvers->isEmpty()) {
+            $fallbackApproverIds = collect($this->financeOfficialApproverDirectory()['default_steps'] ?? [])
+                ->pluck('user_id')
+                ->map(fn ($id) => (int) $id)
+                ->filter(fn (int $id) => $id > 0)
+                ->unique()
+                ->values();
+
+            if ($fallbackApproverIds->isNotEmpty()) {
+                $approvers = User::query()
+                    ->whereIn('id', $fallbackApproverIds->all())
+                    ->get()
+                    ->values();
+            }
+        }
+
         $adminRecipients = $this->financeAdminNotificationUsers();
         $pendingApprovers = $approvers->reject(fn (User $user) => collect($this->financeApprovalActions($record))
             ->contains(fn (array $actionRow) => (int) data_get($actionRow, 'approved_by') === (int) $user->id));
@@ -4273,22 +4379,23 @@ SVG;
         }
 
         $recipients = match ($action) {
-            'submitted', 'supplier_submitted' => $approvers,
+            'submitted', 'supplier_submitted' => $approvers->merge($owner ? [$owner] : []),
             'updated' => in_array($record->workflow_status ?? 'Uploaded', ['Submitted', 'On Hold', 'Shared'], true)
                 || $record->module_key === 'crf'
                 ? $approvers->merge($owner ? [$owner] : [])
                 : collect($owner ? [$owner] : []),
             'partially_approved' => $pendingApprovers->merge($owner ? [$owner] : []),
-            'liquidation_due' => collect($owner ? [$owner] : [])->merge($adminRecipients),
-            'inventory_alert' => $inventoryAlertRecipients,
-            'insufficient_funds' => $approvers->merge($adminRecipients),
-            'accounting_imbalance' => $approvers->merge($adminRecipients),
-            'approved', 'reverted', 'held' => collect($owner ? [$owner] : []),
-            'delete_requested' => $adminRecipients->merge($owner ? [$owner] : []),
+            'liquidation_due' => collect($owner ? [$owner] : [])->merge($adminRecipients)->merge($approvers),
+            'inventory_alert' => $inventoryAlertRecipients->merge($approvers),
+            'insufficient_funds' => $approvers->merge($adminRecipients)->merge($owner ? [$owner] : []),
+            'accounting_imbalance' => $approvers->merge($adminRecipients)->merge($owner ? [$owner] : []),
+            'approved', 'reverted', 'held' => collect($owner ? [$owner] : [])->merge($approvers),
+            'delete_requested' => $adminRecipients->merge($owner ? [$owner] : [])->merge($approvers),
             default => collect($owner ? [$owner] : [])->merge($approvers),
         };
 
         $recipients = $recipients
+            ->merge($approvers)
             ->filter()
             ->unique('id')
             ->values();
@@ -5444,6 +5551,52 @@ SVG;
         $data['asset_last_event_by'] = Auth::user()?->name ?: 'System';
         if ($note !== null) {
             $data['asset_last_event_note'] = trim($note);
+        }
+
+        return $data;
+    }
+
+    private function financeSyncConsumableInventoryCosts(array $data): array
+    {
+        if (Str::lower((string) data_get($data, 'item_classification')) !== 'consumable inventory') {
+            return $data;
+        }
+
+        $currentQuantity = max((float) data_get($data, 'current_quantity', data_get($data, 'accepted_quantity', data_get($data, 'beginning_quantity', 0))), 0);
+        $reservedQuantity = max((float) data_get($data, 'reserved_quantity', 0), 0);
+        $unitCost = max((float) data_get($data, 'unit_cost', 0), 0);
+        $averageCost = max((float) data_get($data, 'average_cost', 0), 0);
+        $lastPurchaseCost = max((float) data_get($data, 'last_purchase_cost', 0), 0);
+        $acquisitionCost = max((float) data_get($data, 'acquisition_cost', 0), 0);
+
+        if ($unitCost <= 0 && $currentQuantity > 0 && $acquisitionCost > 0) {
+            $unitCost = $acquisitionCost / $currentQuantity;
+        }
+
+        if ($unitCost <= 0 && $averageCost > 0) {
+            $unitCost = $averageCost;
+        }
+
+        if ($unitCost <= 0 && $lastPurchaseCost > 0) {
+            $unitCost = $lastPurchaseCost;
+        }
+
+        if ($averageCost <= 0 && $unitCost > 0) {
+            $averageCost = $unitCost;
+        }
+
+        if ($lastPurchaseCost <= 0 && $unitCost > 0) {
+            $lastPurchaseCost = $unitCost;
+        }
+
+        data_set($data, 'unit_cost', number_format($unitCost, 2, '.', ''));
+        data_set($data, 'average_cost', number_format($averageCost, 2, '.', ''));
+        data_set($data, 'last_purchase_cost', number_format($lastPurchaseCost, 2, '.', ''));
+        data_set($data, 'available_quantity', number_format(max($currentQuantity - $reservedQuantity, 0), 2, '.', ''));
+        data_set($data, 'total_cost', number_format($currentQuantity * $unitCost, 2, '.', ''));
+
+        if (blank(data_get($data, 'acquisition_cost')) && $currentQuantity > 0 && $unitCost > 0) {
+            data_set($data, 'acquisition_cost', number_format($currentQuantity * $unitCost, 2, '.', ''));
         }
 
         return $data;
@@ -7594,6 +7747,8 @@ SVG;
                     unset($data[$field]);
                 }
             }
+
+            $data = $this->financeSyncConsumableInventoryCosts($data);
         }
 
         if (in_array($moduleKey, ['err', 'crf'], true) && !filter_var(data_get($data, 'manual_liquidation_entry'), FILTER_VALIDATE_BOOLEAN)) {
@@ -8681,6 +8836,10 @@ SVG;
             'asset_last_event' => data_get($data, 'asset_last_event'),
             'current_quantity' => data_get($data, 'current_quantity'),
             'available_quantity' => data_get($data, 'available_quantity'),
+            'unit_cost' => data_get($data, 'unit_cost'),
+            'average_cost' => data_get($data, 'average_cost'),
+            'last_purchase_cost' => data_get($data, 'last_purchase_cost'),
+            'total_cost' => data_get($data, 'total_cost'),
             'location' => data_get($data, 'location'),
             'department' => data_get($data, 'department'),
             'custodian' => data_get($data, 'custodian'),
@@ -8719,12 +8878,20 @@ SVG;
             }
         }
 
+        if (Str::lower((string) data_get($data, 'item_classification')) === 'consumable inventory') {
+            $data = $this->financeSyncConsumableInventoryCosts($data);
+        }
+
         $data = $this->financeAppendAssetEventHistory($financeRecord, $validated['event_type'], $oldValues, [
             'asset_status' => data_get($data, 'asset_status'),
             'asset_last_event' => data_get($data, 'asset_last_event'),
             'asset_last_event_note' => data_get($data, 'asset_last_event_note'),
             'current_quantity' => data_get($data, 'current_quantity'),
             'available_quantity' => data_get($data, 'available_quantity'),
+            'unit_cost' => data_get($data, 'unit_cost'),
+            'average_cost' => data_get($data, 'average_cost'),
+            'last_purchase_cost' => data_get($data, 'last_purchase_cost'),
+            'total_cost' => data_get($data, 'total_cost'),
             'location' => data_get($data, 'location'),
             'department' => data_get($data, 'department'),
             'custodian' => data_get($data, 'custodian'),

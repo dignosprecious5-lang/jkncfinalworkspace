@@ -3,6 +3,7 @@
 use App\Models\Employee;
 use App\Models\FinanceRecord;
 use App\Models\User;
+use App\Models\UserPermission;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
@@ -85,6 +86,10 @@ it('records goods receiving quantities and supplier details for consumable inven
         'email' => 'goods-receiving@example.com',
         'role' => 'employee',
     ]);
+    UserPermission::query()->create([
+        'user_id' => $owner->id,
+        'access_finance_arf' => true,
+    ]);
 
     $deps = financeGoodsReceivingDependencies($owner);
 
@@ -140,6 +145,9 @@ it('records goods receiving quantities and supplier details for consumable inven
     expect(data_get($data, 'minimum_stock_level'))->toBe(20);
     expect(data_get($data, 'maximum_stock_level'))->toBe(200);
     expect(data_get($data, 'safety_stock_level'))->toBe(15);
+    expect(data_get($data, 'unit_cost'))->toBe('25.00');
+    expect(data_get($data, 'average_cost'))->toBe('25.00');
+    expect(data_get($data, 'last_purchase_cost'))->toBe('25.00');
     expect(data_get($data, 'depreciable_amount'))->toBeNull();
     expect(data_get($data, 'annual_depreciation'))->toBeNull();
     expect(data_get($data, 'monthly_depreciation'))->toBeNull();

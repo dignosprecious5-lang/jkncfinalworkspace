@@ -3,6 +3,7 @@
 use App\Models\Employee;
 use App\Models\FinanceRecord;
 use App\Models\User;
+use App\Models\UserPermission;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
@@ -93,6 +94,10 @@ it('supports inventory movements and keeps the available quantity and total cost
         'email' => 'inventory-owner@example.com',
         'role' => 'employee',
     ]);
+    UserPermission::query()->create([
+        'user_id' => $owner->id,
+        'access_finance_arf' => true,
+    ]);
 
     $deps = financeInventoryLogicDependencies($owner);
 
@@ -134,6 +139,9 @@ it('supports inventory movements and keeps the available quantity and total cost
 
     $record = FinanceRecord::query()->findOrFail($createResponse->json('data.id'));
     expect(data_get($record->data, 'available_quantity'))->toBe('42.00');
+    expect(data_get($record->data, 'unit_cost'))->toBe('4.50');
+    expect(data_get($record->data, 'average_cost'))->toBe('4.50');
+    expect(data_get($record->data, 'last_purchase_cost'))->toBe('4.50');
     expect(data_get($record->data, 'total_cost'))->toBe('225.00');
 
     $stockInResponse = $this->actingAs($owner)->postJson(route('finance.asset.event', $record), [
@@ -147,6 +155,9 @@ it('supports inventory movements and keeps the available quantity and total cost
     $record = $record->fresh();
     expect(data_get($record->data, 'current_quantity'))->toBe('60.00');
     expect(data_get($record->data, 'available_quantity'))->toBe('52.00');
+    expect(data_get($record->data, 'unit_cost'))->toBe('4.50');
+    expect(data_get($record->data, 'average_cost'))->toBe('4.50');
+    expect(data_get($record->data, 'last_purchase_cost'))->toBe('4.50');
     expect(data_get($record->data, 'total_cost'))->toBe('270.00');
     expect(data_get($record->data, 'asset_last_event'))->toBe('Stock In');
 
@@ -160,6 +171,9 @@ it('supports inventory movements and keeps the available quantity and total cost
     $record = $record->fresh();
     expect(data_get($record->data, 'current_quantity'))->toBe('48.00');
     expect(data_get($record->data, 'available_quantity'))->toBe('40.00');
+    expect(data_get($record->data, 'unit_cost'))->toBe('4.50');
+    expect(data_get($record->data, 'average_cost'))->toBe('4.50');
+    expect(data_get($record->data, 'last_purchase_cost'))->toBe('4.50');
     expect(data_get($record->data, 'total_cost'))->toBe('216.00');
     expect(data_get($record->data, 'asset_last_event'))->toBe('Stock Out');
 
@@ -190,6 +204,9 @@ it('supports inventory movements and keeps the available quantity and total cost
     $record = $record->fresh();
     expect(data_get($record->data, 'current_quantity'))->toBe('55.00');
     expect(data_get($record->data, 'available_quantity'))->toBe('47.00');
+    expect(data_get($record->data, 'unit_cost'))->toBe('4.50');
+    expect(data_get($record->data, 'average_cost'))->toBe('4.50');
+    expect(data_get($record->data, 'last_purchase_cost'))->toBe('4.50');
     expect(data_get($record->data, 'total_cost'))->toBe('247.50');
     expect(data_get($record->data, 'asset_last_event'))->toBe('Stock Return');
 
@@ -203,6 +220,9 @@ it('supports inventory movements and keeps the available quantity and total cost
     $record = $record->fresh();
     expect(data_get($record->data, 'current_quantity'))->toBe('42.00');
     expect(data_get($record->data, 'available_quantity'))->toBe('34.00');
+    expect(data_get($record->data, 'unit_cost'))->toBe('4.50');
+    expect(data_get($record->data, 'average_cost'))->toBe('4.50');
+    expect(data_get($record->data, 'last_purchase_cost'))->toBe('4.50');
     expect(data_get($record->data, 'total_cost'))->toBe('189.00');
     expect(data_get($record->data, 'asset_last_event'))->toBe('Stock Adjustment');
 
