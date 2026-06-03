@@ -168,7 +168,15 @@
 
     const config = JSON.parse(root.dataset.config || '{}');
     const csrf = @json(csrf_token());
-    const state = { rows: [], workflow: 'uploaded', editingId: null };
+    const params = new URLSearchParams(window.location.search);
+    const autoOpenRecordId = params.get('record');
+    const autoOpenTab = (params.get('tab') || '').toLowerCase();
+    const state = {
+        rows: [],
+        workflow: ['uploaded', 'submitted', 'accepted', 'reverted', 'archived'].includes(autoOpenTab) ? autoOpenTab : 'uploaded',
+        editingId: null,
+        autoOpened: false
+    };
     const qs = (selector) => root.querySelector(selector);
     const qsa = (selector) => Array.from(root.querySelectorAll(selector));
 
@@ -265,6 +273,7 @@
         const res = await fetch(url.toString(), { headers: { Accept: 'application/json' } });
         state.rows = await res.json();
         renderTable();
+        openRequestedRecord();
     };
 
     const renderTable = () => {
@@ -292,7 +301,10 @@
                 <td class="p-3 whitespace-nowrap">${escapeHtml(row.workflow_status || '-')}</td>
                 <td class="p-3 whitespace-nowrap">${escapeHtml(row.approval_status || '-')}</td>
                 <td class="p-3 whitespace-nowrap">
-                    <button type="button" data-preview-index="${index}" class="text-blue-600 hover:underline">Open</button>
+                    <div class="flex items-center gap-2">
+                        <button type="button" data-preview-index="${index}" class="text-blue-600 hover:underline">Open</button>
+                        ${row.can_submit ? `<button type="button" data-submit-id="${row.id}" class="rounded-md bg-blue-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-blue-700">Submit</button>` : ''}
+                    </div>
                 </td>
             </tr>
         `).join('');
@@ -327,6 +339,16 @@
             ${row.can_edit ? `<button type="button" data-edit-index="${index}" class="w-full border border-blue-200 text-blue-700 rounded-md py-2 text-sm hover:bg-blue-50">Edit Details</button>` : ''}
             ${row.can_submit ? `<button type="button" data-submit-id="${row.id}" class="w-full bg-blue-600 text-white rounded-md py-2 text-sm hover:bg-blue-700">Submit for Approval</button>` : ''}
         `;
+    };
+
+    const openRequestedRecord = () => {
+        if (state.autoOpened || !autoOpenRecordId) return;
+
+        const index = state.rows.findIndex((row) => String(row.id) === String(autoOpenRecordId));
+        if (index === -1) return;
+
+        state.autoOpened = true;
+        openPreview(index);
     };
 
     const renderFields = (row = {}) => {
