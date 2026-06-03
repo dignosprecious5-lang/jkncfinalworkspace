@@ -822,7 +822,7 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::get('/admin/correspondence', [CorrespondenceController::class, 'submittedDashboard'])->name('admin.correspondence.dashboard');
     Route::get('/admin/correspondence/{id}', [CorrespondenceController::class, 'showAdmin'])->name('admin.correspondence.show');
 
-    Route::view('/corporate/ubo', 'corporate.ubo-form')->name('corporate.ubo');
+Route::view('/corporate/ubo', 'corporate.ubo-form')->name('corporate.ubo');
 
     /*
     |--------------------------------------------------------------------------
@@ -934,7 +934,6 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::get('/corporate/minutes', [MinuteController::class, 'index'])->name('minutes');
     Route::get('/corporate/minutes/create', [MinuteController::class, 'create'])->name('minutes.create');
     Route::post('/corporate/minutes', [MinuteController::class, 'store'])->name('minutes.store');
-    Route::get('/corporate/minutes/{minute}/download', [MinuteController::class, 'downloadPdf'])->name('minutes.download');
     Route::get('/corporate/minutes/{minute}', [MinuteController::class, 'show'])->name('minutes.preview');
     Route::get('/corporate/minutes/{minute}/edit', [MinuteController::class, 'edit'])->name('minutes.edit');
     Route::put('/corporate/minutes/{minute}', [MinuteController::class, 'update'])->name('minutes.update');
@@ -1055,18 +1054,6 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     |--------------------------------------------------------------------------
     */
     Route::get('/transmittal', [TransmittalController::class, 'index'])->name('transmittal.index');
-
-    Route::get('/admin/transmittal-dashboard', [TransmittalController::class, 'dashboard'])
-        ->name('admin.transmittal.dashboard');
-
-    Route::post('/transmittal/{transmittal}/dashboard-approve', [TransmittalController::class, 'dashboardApprove'])
-        ->name('transmittal.dashboard.approve');
-
-    Route::post('/transmittal/{transmittal}/dashboard-revise', [TransmittalController::class, 'dashboardRevise'])
-        ->name('transmittal.dashboard.revise');
-
-    Route::post('/transmittal/{transmittal}/dashboard-reject', [TransmittalController::class, 'dashboardReject'])
-        ->name('transmittal.dashboard.reject');
     Route::get('/transmittal/create/project/{project}', [TransmittalController::class, 'createFromProject'])->name('transmittal.create.project');
     Route::get('/transmittal/create/regular/{regular}', [TransmittalController::class, 'createFromRegular'])->name('transmittal.create.regular');
     Route::get('/transmittal/data', [TransmittalController::class, 'data'])->name('transmittal.data');
