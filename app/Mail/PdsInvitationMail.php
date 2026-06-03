@@ -25,7 +25,7 @@ class PdsInvitationMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'PDS Form Invitation - John Kelly & Company',
+            subject: 'PDS Form Invitation - John Kelly & Company (JK&C Inc.)',
         );
     }
 

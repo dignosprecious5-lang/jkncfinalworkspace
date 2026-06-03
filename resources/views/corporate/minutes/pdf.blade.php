@@ -194,13 +194,20 @@
 
         .minutes-body {
             margin-top: 5px;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+            white-space: normal;
             min-height: 0;
             line-height: 1.32;
         }
 
         .minutes-body p,
-        .minutes-body div {
+        .minutes-body div,
+        .minutes-body span {
             margin: 0 0 5px;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+            white-space: normal;
         }
 
         .minutes-body ol,
@@ -210,18 +217,25 @@
         }
 
         .signature-section {
-            margin-top: 30px;
-            line-height: 1.55;
+            margin-top: 42px;
+            line-height: 1.5;
         }
 
         .signature-name {
-            margin-top: 7px;
+            margin-top: 42px;
             font-weight: 700;
             text-transform: uppercase;
         }
 
         .attested-block {
-            margin-top: 28px;
+            margin-top: 46px;
+        }
+
+        .minutes-body pre,
+        .minutes-body code {
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+            word-break: break-word;
         }
 
         .avoid-break {

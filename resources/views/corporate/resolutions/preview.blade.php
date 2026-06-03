@@ -380,7 +380,7 @@
                                     <div class="mt-10 text-sm text-justify">
                                         <p>
                                             <strong>SUBSCRIBED AND SWORN TO BEFORE ME,</strong> a Notary Public for and in
-                                            <span data-preview="notarized-at">{{ $resolution->notarized_at ?: '____________________' }}</span> this ___ day of __________, 20.
+                                            <span data-preview="notarized-at">{{ $resolution->notarized_at ?: '____________________' }}</span> this ___ day of __________, 20__.
                                             Affiant presented to me __________________________ issued at __________________________.
                                         </p>
                                         <div class="mt-8 text-right font-bold uppercase">NOTARY PUBLIC</div>

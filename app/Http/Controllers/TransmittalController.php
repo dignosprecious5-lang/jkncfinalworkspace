@@ -35,6 +35,45 @@ class TransmittalController extends Controller
         ]);
     }
 
+    public function dashboard(Request $request)
+    {
+        $user = Auth::user();
+
+        if (! $user || ! $user->hasPermission('approve_corporate')) {
+            abort(403, 'Unauthorized');
+        }
+
+        $activeTab = strtolower((string) $request->query('status', 'submitted'));
+        $statusMap = [
+            'submitted' => 'Submitted',
+            'accepted' => 'Accepted',
+            'reverted' => 'Reverted',
+            'archived' => 'Archived',
+        ];
+
+        $workflowStatus = $statusMap[$activeTab] ?? 'Submitted';
+        $activeTab = array_key_exists($activeTab, $statusMap) ? $activeTab : 'submitted';
+
+        $counts = [
+            'submitted' => Transmittal::where('workflow_status', 'Submitted')->count(),
+            'accepted' => Transmittal::where('workflow_status', 'Accepted')->count(),
+            'reverted' => Transmittal::where('workflow_status', 'Reverted')->count(),
+            'archived' => Transmittal::where('workflow_status', 'Archived')->count(),
+        ];
+
+        $transmittals = Transmittal::with(['items', 'receipt', 'attachments'])
+            ->where('workflow_status', $workflowStatus)
+            ->latest()
+            ->paginate(10)
+            ->withQueryString();
+
+        return view('transmittal.dashboard', [
+            'transmittals' => $transmittals,
+            'counts' => $counts,
+            'activeTab' => $activeTab,
+        ]);
+    }
+
     public function createFromProject(Project $project): RedirectResponse
     {
         $project->loadMissing([
@@ -741,19 +780,6 @@ class TransmittalController extends Controller
         $buildCorporateGisQuery = function () {
             $query = DB::table('gis_records');
 
-            /*
-            |--------------------------------------------------------------------------
-            | IMPORTANT FIX
-            |--------------------------------------------------------------------------
-            | Transmittal belongs to the internal Corporate/Operations module.
-            |
-            | Corporate GIS records = company_id IS NULL
-            | Company module GIS records = company_id = selected company ID
-            |
-            | This prevents Transmittal from using Company GIS logos/names/address
-            | like AWEAWRREAWR.
-            |--------------------------------------------------------------------------
-            */
             if (Schema::hasColumn('gis_records', 'company_id')) {
                 $query->whereNull('company_id');
             }
@@ -790,14 +816,6 @@ class TransmittalController extends Controller
             ->latest('id')
             ->first();
 
-        /*
-        |--------------------------------------------------------------------------
-        | Fallback, but still Corporate only.
-        |--------------------------------------------------------------------------
-        | Do NOT fallback to all GIS records. That is what caused Transmittal to
-        | accidentally use the latest Company GIS.
-        |--------------------------------------------------------------------------
-        */
         if (! $gis) {
             $gis = $buildCorporateGisQuery()
                 ->latest('updated_at')

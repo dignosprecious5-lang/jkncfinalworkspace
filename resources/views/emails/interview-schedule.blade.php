@@ -97,7 +97,7 @@
     <div class="container">
         <div class="header">
             <h1>Interview Schedule</h1>
-            <p style="margin: 8px 0 0; color: #dbeafe;">John Kelly & Company</p>
+            <p style="margin: 8px 0 0; color: #dbeafe;">John Kelly &amp; Company (JK&amp;C Inc.)</p>
         </div>
 
         <div class="content">
@@ -172,12 +172,12 @@
             <p>
                 Best regards,<br>
                 <strong>Human Capital Team</strong><br>
-                John Kelly & Company
+                John Kelly &amp; Company (JK&amp;C Inc.)
             </p>
         </div>
 
         <div class="footer">
-            &copy; {{ date('Y') }} John Kelly & Company. This is an automated message.
+            &copy; {{ date('Y') }} John Kelly &amp; Company (JK&amp;C Inc.). This is an automated message.
         </div>
     </div>
 </body>

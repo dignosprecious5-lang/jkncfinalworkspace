@@ -49,7 +49,18 @@
     $defaultGeoCode = old('geo_code', $formationDefaults['geo_code'] ?? '');
 @endphp
 <div class="w-full px-4 sm:px-6 lg:px-8 mt-4 pb-8"
-     x-data="{ openPanel: false, statusTab: null }">
+     x-data="{
+        openPanel: false,
+        statusTab: null,
+        logoFileName: '',
+        draftFileName: '',
+        notaryFileName: '',
+        resetFileNames() {
+            this.logoFileName = '';
+            this.draftFileName = '';
+            this.notaryFileName = '';
+        }
+     }">
 
     <div class="bg-white border border-gray-100 rounded-md overflow-hidden">
         @include('company.partials.company-header', ['company' => $company])
@@ -105,7 +116,7 @@
 
                         @if (!empty($topButtonLabel))
                             <div class="flex items-center gap-2 shrink-0">
-                                <button type="button" @click="openPanel = true"
+                                <button type="button" @click="resetFileNames(); openPanel = true"
                                         class="px-5 h-9 rounded-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium flex items-center gap-2 shadow-sm">
                                     <span class="text-base leading-none">+</span>
                                     {{ $topButtonLabel }}
@@ -508,20 +519,30 @@
                 </div>
                 <div class="pt-2">
                     <label class="block text-[13px] font-medium text-gray-700 mb-2">Draft File Upload</label>
-                    <label class="w-full min-h-[84px] border border-dashed border-gray-300 rounded-lg bg-gray-50 hover:bg-gray-100 flex flex-col items-center justify-center gap-2 px-4 cursor-pointer transition">
-                        <i class="far fa-file-alt text-[26px] text-gray-500"></i>
-                        <span class="text-[14px] text-blue-600 font-medium">Choose draft file</span>
-                        <span class="text-[11px] text-gray-400">Optional • PDF, DOC, DOCX supported</span>
-                        <input type="file" name="draft_file_upload" class="hidden">
+                    <label class="w-full min-h-[84px] border border-dashed rounded-lg flex flex-col items-center justify-center gap-2 px-4 cursor-pointer transition"
+                           :class="draftFileName ? 'border-green-400 bg-green-50' : 'border-gray-300 bg-gray-50 hover:bg-gray-100'">
+                        <i class="far fa-file-alt text-[26px]" :class="draftFileName ? 'text-green-600' : 'text-gray-500'"></i>
+                        <span class="text-[14px] font-medium" :class="draftFileName ? 'text-green-700' : 'text-blue-600'">
+                            <span x-text="draftFileName ? 'Draft file selected' : 'Choose draft file'"></span>
+                        </span>
+                        <span class="text-[12px] text-gray-700 max-w-full truncate" x-show="draftFileName" x-text="draftFileName"></span>
+                        <span class="text-[11px] text-gray-400" x-show="!draftFileName">Optional • PDF, DOC, DOCX supported</span>
+                        <input type="file" name="draft_file_upload" class="hidden"
+                               @change="draftFileName = $event.target.files.length ? $event.target.files[0].name : ''">
                     </label>
                 </div>
                 <div class="pt-2">
                     <label class="block text-[13px] font-medium text-gray-700 mb-2">Notary File Upload</label>
-                    <label class="w-full min-h-[84px] border border-dashed border-gray-300 rounded-lg bg-gray-50 hover:bg-gray-100 flex flex-col items-center justify-center gap-2 px-4 cursor-pointer transition">
-                        <i class="far fa-file-alt text-[26px] text-gray-500"></i>
-                        <span class="text-[14px] text-blue-600 font-medium">Choose notary file</span>
-                        <span class="text-[11px] text-gray-400">Optional • PDF, DOC, DOCX supported</span>
-                        <input type="file" name="notary_file_upload" class="hidden">
+                    <label class="w-full min-h-[84px] border border-dashed rounded-lg flex flex-col items-center justify-center gap-2 px-4 cursor-pointer transition"
+                           :class="notaryFileName ? 'border-green-400 bg-green-50' : 'border-gray-300 bg-gray-50 hover:bg-gray-100'">
+                        <i class="far fa-file-alt text-[26px]" :class="notaryFileName ? 'text-green-600' : 'text-gray-500'"></i>
+                        <span class="text-[14px] font-medium" :class="notaryFileName ? 'text-green-700' : 'text-blue-600'">
+                            <span x-text="notaryFileName ? 'Notary file selected' : 'Choose notary file'"></span>
+                        </span>
+                        <span class="text-[12px] text-gray-700 max-w-full truncate" x-show="notaryFileName" x-text="notaryFileName"></span>
+                        <span class="text-[11px] text-gray-400" x-show="!notaryFileName">Optional • PDF, DOC, DOCX supported</span>
+                        <input type="file" name="notary_file_upload" class="hidden"
+                               @change="notaryFileName = $event.target.files.length ? $event.target.files[0].name : ''">
                     </label>
                 </div>
             </div>
@@ -610,20 +631,30 @@
                 </div>
                 <div class="pt-2">
                     <label class="block text-[13px] font-medium text-gray-700 mb-2">Draft File Upload</label>
-                    <label class="w-full min-h-[84px] border border-dashed border-gray-300 rounded-lg bg-gray-50 hover:bg-gray-100 flex flex-col items-center justify-center gap-2 px-4 cursor-pointer transition">
-                        <i class="far fa-file-alt text-[26px] text-gray-500"></i>
-                        <span class="text-[14px] text-blue-600 font-medium">Choose draft file</span>
-                        <span class="text-[11px] text-gray-400">Optional • PDF, DOC, DOCX supported</span>
-                        <input type="file" name="draft_file_upload" class="hidden">
+                    <label class="w-full min-h-[84px] border border-dashed rounded-lg flex flex-col items-center justify-center gap-2 px-4 cursor-pointer transition"
+                           :class="draftFileName ? 'border-green-400 bg-green-50' : 'border-gray-300 bg-gray-50 hover:bg-gray-100'">
+                        <i class="far fa-file-alt text-[26px]" :class="draftFileName ? 'text-green-600' : 'text-gray-500'"></i>
+                        <span class="text-[14px] font-medium" :class="draftFileName ? 'text-green-700' : 'text-blue-600'">
+                            <span x-text="draftFileName ? 'Draft file selected' : 'Choose draft file'"></span>
+                        </span>
+                        <span class="text-[12px] text-gray-700 max-w-full truncate" x-show="draftFileName" x-text="draftFileName"></span>
+                        <span class="text-[11px] text-gray-400" x-show="!draftFileName">Optional • PDF, DOC, DOCX supported</span>
+                        <input type="file" name="draft_file_upload" class="hidden"
+                               @change="draftFileName = $event.target.files.length ? $event.target.files[0].name : ''">
                     </label>
                 </div>
                 <div class="pt-2">
                     <label class="block text-[13px] font-medium text-gray-700 mb-2">Notary File Upload</label>
-                    <label class="w-full min-h-[84px] border border-dashed border-gray-300 rounded-lg bg-gray-50 hover:bg-gray-100 flex flex-col items-center justify-center gap-2 px-4 cursor-pointer transition">
-                        <i class="far fa-file-alt text-[26px] text-gray-500"></i>
-                        <span class="text-[14px] text-blue-600 font-medium">Choose notary file</span>
-                        <span class="text-[11px] text-gray-400">Optional • PDF, DOC, DOCX supported</span>
-                        <input type="file" name="notary_file_upload" class="hidden">
+                    <label class="w-full min-h-[84px] border border-dashed rounded-lg flex flex-col items-center justify-center gap-2 px-4 cursor-pointer transition"
+                           :class="notaryFileName ? 'border-green-400 bg-green-50' : 'border-gray-300 bg-gray-50 hover:bg-gray-100'">
+                        <i class="far fa-file-alt text-[26px]" :class="notaryFileName ? 'text-green-600' : 'text-gray-500'"></i>
+                        <span class="text-[14px] font-medium" :class="notaryFileName ? 'text-green-700' : 'text-blue-600'">
+                            <span x-text="notaryFileName ? 'Notary file selected' : 'Choose notary file'"></span>
+                        </span>
+                        <span class="text-[12px] text-gray-700 max-w-full truncate" x-show="notaryFileName" x-text="notaryFileName"></span>
+                        <span class="text-[11px] text-gray-400" x-show="!notaryFileName">Optional • PDF, DOC, DOCX supported</span>
+                        <input type="file" name="notary_file_upload" class="hidden"
+                               @change="notaryFileName = $event.target.files.length ? $event.target.files[0].name : ''">
                     </label>
                 </div>
             </div>
@@ -703,20 +734,30 @@
                 </div>
                 <div class="pt-2">
                     <label class="block text-[13px] font-medium text-gray-700 mb-2">Draft File Upload</label>
-                    <label class="w-full min-h-[84px] border border-dashed border-gray-300 rounded-lg bg-gray-50 hover:bg-gray-100 flex flex-col items-center justify-center gap-2 px-4 cursor-pointer transition">
-                        <i class="far fa-file-alt text-[26px] text-gray-500"></i>
-                        <span class="text-[14px] text-blue-600 font-medium">Choose draft file</span>
-                        <span class="text-[11px] text-gray-400">Optional • PDF, DOC, DOCX supported</span>
-                        <input type="file" name="draft_file_upload" class="hidden">
+                    <label class="w-full min-h-[84px] border border-dashed rounded-lg flex flex-col items-center justify-center gap-2 px-4 cursor-pointer transition"
+                           :class="draftFileName ? 'border-green-400 bg-green-50' : 'border-gray-300 bg-gray-50 hover:bg-gray-100'">
+                        <i class="far fa-file-alt text-[26px]" :class="draftFileName ? 'text-green-600' : 'text-gray-500'"></i>
+                        <span class="text-[14px] font-medium" :class="draftFileName ? 'text-green-700' : 'text-blue-600'">
+                            <span x-text="draftFileName ? 'Draft file selected' : 'Choose draft file'"></span>
+                        </span>
+                        <span class="text-[12px] text-gray-700 max-w-full truncate" x-show="draftFileName" x-text="draftFileName"></span>
+                        <span class="text-[11px] text-gray-400" x-show="!draftFileName">Optional • PDF, DOC, DOCX supported</span>
+                        <input type="file" name="draft_file_upload" class="hidden"
+                               @change="draftFileName = $event.target.files.length ? $event.target.files[0].name : ''">
                     </label>
                 </div>
                 <div class="pt-2">
                     <label class="block text-[13px] font-medium text-gray-700 mb-2">Notary File Upload</label>
-                    <label class="w-full min-h-[84px] border border-dashed border-gray-300 rounded-lg bg-gray-50 hover:bg-gray-100 flex flex-col items-center justify-center gap-2 px-4 cursor-pointer transition">
-                        <i class="far fa-file-alt text-[26px] text-gray-500"></i>
-                        <span class="text-[14px] text-blue-600 font-medium">Choose notary file</span>
-                        <span class="text-[11px] text-gray-400">Optional • PDF, DOC, DOCX supported</span>
-                        <input type="file" name="notary_file_upload" class="hidden">
+                    <label class="w-full min-h-[84px] border border-dashed rounded-lg flex flex-col items-center justify-center gap-2 px-4 cursor-pointer transition"
+                           :class="notaryFileName ? 'border-green-400 bg-green-50' : 'border-gray-300 bg-gray-50 hover:bg-gray-100'">
+                        <i class="far fa-file-alt text-[26px]" :class="notaryFileName ? 'text-green-600' : 'text-gray-500'"></i>
+                        <span class="text-[14px] font-medium" :class="notaryFileName ? 'text-green-700' : 'text-blue-600'">
+                            <span x-text="notaryFileName ? 'Notary file selected' : 'Choose notary file'"></span>
+                        </span>
+                        <span class="text-[12px] text-gray-700 max-w-full truncate" x-show="notaryFileName" x-text="notaryFileName"></span>
+                        <span class="text-[11px] text-gray-400" x-show="!notaryFileName">Optional • PDF, DOC, DOCX supported</span>
+                        <input type="file" name="notary_file_upload" class="hidden"
+                               @change="notaryFileName = $event.target.files.length ? $event.target.files[0].name : ''">
                     </label>
                 </div>
             </div>
@@ -896,20 +937,30 @@
                 </div>
                 <div class="pt-2">
                     <label class="block text-[13px] font-medium text-gray-700 mb-2">Draft File Upload</label>
-                    <label class="w-full min-h-[84px] border border-dashed border-gray-300 rounded-lg bg-gray-50 hover:bg-gray-100 flex flex-col items-center justify-center gap-2 px-4 cursor-pointer transition">
-                        <i class="far fa-file-alt text-[26px] text-gray-500"></i>
-                        <span class="text-[14px] text-blue-600 font-medium">Choose draft file</span>
-                        <span class="text-[11px] text-gray-400">Optional • PDF, DOC, DOCX supported</span>
-                        <input type="file" name="draft_file_upload" class="hidden">
+                    <label class="w-full min-h-[84px] border border-dashed rounded-lg flex flex-col items-center justify-center gap-2 px-4 cursor-pointer transition"
+                           :class="draftFileName ? 'border-green-400 bg-green-50' : 'border-gray-300 bg-gray-50 hover:bg-gray-100'">
+                        <i class="far fa-file-alt text-[26px]" :class="draftFileName ? 'text-green-600' : 'text-gray-500'"></i>
+                        <span class="text-[14px] font-medium" :class="draftFileName ? 'text-green-700' : 'text-blue-600'">
+                            <span x-text="draftFileName ? 'Draft file selected' : 'Choose draft file'"></span>
+                        </span>
+                        <span class="text-[12px] text-gray-700 max-w-full truncate" x-show="draftFileName" x-text="draftFileName"></span>
+                        <span class="text-[11px] text-gray-400" x-show="!draftFileName">Optional • PDF, DOC, DOCX supported</span>
+                        <input type="file" name="draft_file_upload" class="hidden"
+                               @change="draftFileName = $event.target.files.length ? $event.target.files[0].name : ''">
                     </label>
                 </div>
                 <div class="pt-2">
                     <label class="block text-[13px] font-medium text-gray-700 mb-2">Notary File Upload</label>
-                    <label class="w-full min-h-[84px] border border-dashed border-gray-300 rounded-lg bg-gray-50 hover:bg-gray-100 flex flex-col items-center justify-center gap-2 px-4 cursor-pointer transition">
-                        <i class="far fa-file-alt text-[26px] text-gray-500"></i>
-                        <span class="text-[14px] text-blue-600 font-medium">Choose notary file</span>
-                        <span class="text-[11px] text-gray-400">Optional • PDF, DOC, DOCX supported</span>
-                        <input type="file" name="notary_file_upload" class="hidden">
+                    <label class="w-full min-h-[84px] border border-dashed rounded-lg flex flex-col items-center justify-center gap-2 px-4 cursor-pointer transition"
+                           :class="notaryFileName ? 'border-green-400 bg-green-50' : 'border-gray-300 bg-gray-50 hover:bg-gray-100'">
+                        <i class="far fa-file-alt text-[26px]" :class="notaryFileName ? 'text-green-600' : 'text-gray-500'"></i>
+                        <span class="text-[14px] font-medium" :class="notaryFileName ? 'text-green-700' : 'text-blue-600'">
+                            <span x-text="notaryFileName ? 'Notary file selected' : 'Choose notary file'"></span>
+                        </span>
+                        <span class="text-[12px] text-gray-700 max-w-full truncate" x-show="notaryFileName" x-text="notaryFileName"></span>
+                        <span class="text-[11px] text-gray-400" x-show="!notaryFileName">Optional • PDF, DOC, DOCX supported</span>
+                        <input type="file" name="notary_file_upload" class="hidden"
+                               @change="notaryFileName = $event.target.files.length ? $event.target.files[0].name : ''">
                     </label>
                 </div>
             </div>

@@ -501,6 +501,14 @@ class CompanyCorporateFormationController extends Controller
             }
         }
 
+        // MySQL date columns cannot accept an empty string ('').
+        // Convert blank date inputs/defaults to NULL before saving.
+        $this->normalizeNullableDates($payload, [
+            'receive_on',
+            'annual_meeting',
+            'date_registered',
+        ]);
+
         $this->createCompanyScopedRecord(new GisRecord(), $payload, $company);
 
         return redirect()
@@ -521,6 +529,14 @@ class CompanyCorporateFormationController extends Controller
         if ($request->hasFile('logo_upload')) {
             $payload['logo_path'] = $this->storeGisLogoUpload($request, $model);
         }
+
+        // MySQL date columns cannot accept an empty string ('').
+        // Convert blank date inputs/defaults to NULL before updating.
+        $this->normalizeNullableDates($payload, [
+            'receive_on',
+            'annual_meeting',
+            'date_registered',
+        ]);
 
         $model->update($payload);
 
@@ -829,13 +845,37 @@ class CompanyCorporateFormationController extends Controller
             return null;
         };
 
-        $companyRegNo = $latestGis?->company_reg_no
-            ?: $latestAoi?->company_reg_no
-            ?: $latestCoi?->company_reg_no
-            ?: $valueFromBif(['company_reg_no', 'sec_registration_no', 'sec_reg_no', 'registration_no', 'business_registration_no', 'bif_no'])
-            ?: ($companyData['company_reg_no'] ?? null)
-            ?: ($companyData['sec_registration_no'] ?? null)
-            ?: ($companyData['bif_no'] ?? null)
+        $officialRegNo = function ($value): ?string {
+            $value = trim((string) ($value ?? ''));
+
+            if ($value === '') {
+                return null;
+            }
+
+            // BIF is an internal company/client reference number.
+            // It must never be saved as the SEC / Company Registration Number.
+            if (str_starts_with(strtoupper($value), 'BIF-')) {
+                return null;
+            }
+
+            return $value;
+        };
+
+        $companyRegNo = $officialRegNo($latestGis?->company_reg_no)
+            ?: $officialRegNo($latestAoi?->company_reg_no)
+            ?: $officialRegNo($latestCoi?->company_reg_no)
+            ?: $officialRegNo($valueFromBif([
+                'company_reg_no',
+                'sec_registration_no',
+                'sec_reg_no',
+                'registration_no',
+                'business_registration_no',
+            ]))
+            ?: $officialRegNo($companyData['company_reg_no'] ?? null)
+            ?: $officialRegNo($companyData['sec_registration_no'] ?? null)
+            ?: $officialRegNo($companyData['sec_reg_no'] ?? null)
+            ?: $officialRegNo($companyData['registration_no'] ?? null)
+            ?: $officialRegNo($companyData['business_registration_no'] ?? null)
             ?: '';
 
         $principalAddress = $latestGis?->principal_address
@@ -864,7 +904,7 @@ class CompanyCorporateFormationController extends Controller
             'alternate_mobile' => $latestGis?->alternate_mobile ?: '',
             'tin' => $latestGis?->tin ?: $valueFromBif(['tin_no', 'tin']) ?: ($companyData['tin_no'] ?? ''),
             'trade_name' => $latestGis?->trade_name ?: $valueFromBif(['business_name', 'trade_name']) ?: ($companyData['company_name'] ?? ''),
-            'date_registered' => optional($latestGis?->date_registered)->format('Y-m-d') ?: '',
+            'date_registered' => optional($latestGis?->date_registered)->format('Y-m-d') ?: null,
             'fiscal_year_end' => $latestGis?->fiscal_year_end ?: '',
             'website' => $latestGis?->website ?: '',
             'auditor' => $latestGis?->auditor ?: '',
@@ -906,34 +946,49 @@ class CompanyCorporateFormationController extends Controller
     private function validateGis(Request $request): array
     {
         return $request->validate([
-            'submission_status' => ['nullable', 'string', 'max:255'],
-            'receive_on'        => ['nullable', 'date'],
-            'period_date'       => ['nullable', 'string', 'max:255'],
-            'company_reg_no'    => ['required', 'string', 'max:255'],
-            'corporation_name'  => ['required', 'string', 'max:255'],
-            'annual_meeting'      => ['nullable', 'date'],
-            'meeting_type'        => ['nullable', 'string', 'max:255'],
-            'date_registered'     => ['nullable', 'date'],
-            'trade_name'          => ['nullable', 'string', 'max:255'],
-            'fiscal_year_end'     => ['nullable', 'string', 'max:255'],
-            'tin'                 => ['nullable', 'string', 'max:255'],
-            'website'             => ['nullable', 'string', 'max:255'],
-            'email'               => ['nullable', 'email', 'max:255'],
-            'principal_address'   => ['nullable', 'string'],
-            'business_address'    => ['nullable', 'string'],
-            'official_mobile'     => ['nullable', 'string', 'max:255'],
-            'alternate_mobile'    => ['nullable', 'string', 'max:255'],
-            'auditor'             => ['nullable', 'string', 'max:255'],
-            'industry'            => ['nullable', 'string', 'max:255'],
-            'geo_code'            => ['nullable', 'string', 'max:255'],
-            'parent_company_name' => ['nullable', 'string', 'max:255'],
-            'parent_company_sec_no' => ['nullable', 'string', 'max:255'],
-            'parent_company_address' => ['nullable', 'string', 'max:255'],
-            'subsidiary_name' => ['nullable', 'string', 'max:255'],
-            'subsidiary_sec_no' => ['nullable', 'string', 'max:255'],
-            'subsidiary_address' => ['nullable', 'string', 'max:255'],
-            'logo_upload' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
+            'submission_status'       => ['nullable', 'string', 'max:255'],
+            'receive_on'              => ['nullable', 'date'],
+            'period_date'             => ['nullable', 'string', 'max:255'],
+            'company_reg_no'          => ['required', 'string', 'max:255'],
+            'corporation_name'        => ['required', 'string', 'max:255'],
+            'annual_meeting'          => ['nullable', 'date'],
+            'meeting_type'            => ['nullable', 'string', 'max:255'],
+            'date_registered'         => ['required', 'date'],
+            'trade_name'              => ['nullable', 'string', 'max:255'],
+            'fiscal_year_end'         => ['nullable', 'string', 'max:255'],
+            'tin'                     => ['nullable', 'string', 'max:255'],
+            'website'                 => ['nullable', 'string', 'max:255'],
+            'email'                   => ['nullable', 'email', 'max:255'],
+            'principal_address'       => ['nullable', 'string'],
+            'business_address'        => ['nullable', 'string'],
+            'official_mobile'         => ['nullable', 'string', 'max:255'],
+            'alternate_mobile'        => ['nullable', 'string', 'max:255'],
+            'auditor'                 => ['nullable', 'string', 'max:255'],
+            'industry'                => ['nullable', 'string', 'max:255'],
+            'geo_code'                => ['nullable', 'string', 'max:255'],
+            'parent_company_name'     => ['nullable', 'string', 'max:255'],
+            'parent_company_sec_no'   => ['nullable', 'string', 'max:255'],
+            'parent_company_address'  => ['nullable', 'string', 'max:255'],
+            'subsidiary_name'         => ['nullable', 'string', 'max:255'],
+            'subsidiary_sec_no'       => ['nullable', 'string', 'max:255'],
+            'subsidiary_address'      => ['nullable', 'string', 'max:255'],
+            'logo_upload'             => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
+        ], [
+            'company_reg_no.required'  => 'Please fill up the Company Reg No. before saving the GIS.',
+            'corporation_name.required' => 'Please fill up the Corporation Name before saving the GIS.',
+            'date_registered.required' => 'Please fill up the Date Registered field before saving the GIS.',
+            'date_registered.date'     => 'Please enter a valid Date Registered.',
+            'email.email'              => 'Please enter a valid email address.',
         ]);
+    }
+
+    private function normalizeNullableDates(array &$payload, array $fields): void
+    {
+        foreach ($fields as $field) {
+            if (array_key_exists($field, $payload) && blank($payload[$field])) {
+                $payload[$field] = null;
+            }
+        }
     }
 
     private function renderComingSoonTab(Request $request, int $company, string $activeTab, string $title): View

@@ -30,11 +30,11 @@
     $workspaceSaveUrl = $workspaceSaveUrl ?? route('minutes.workspace-save', $minute);
     $finalAudioSaveUrl = $finalAudioSaveUrl ?? route('minutes.final-audio', $minute);
     $finalSaveUrl = $finalSaveUrl ?? route('minutes.final-save', $minute);
-    $minutePreviewRoute = $editRoute ?? route('minutes.preview', $minute);
 
     $activeMinutesPdfVersion = request('version') === 'original' && $approvedMinutesUrl ? 'original' : 'draft';
     $activeMinutesPdfUrl = $activeMinutesPdfVersion === 'original' ? $approvedMinutesUrl : $templatePreviewUrl;
     $activeMinutesPdfDownloadUrl = $activeMinutesPdfVersion === 'original' ? $approvedMinutesDownloadUrl : $templatePreviewDownloadUrl;
+    $minutesPdfDownloadName = 'minutes-' . preg_replace('/[^A-Za-z0-9._-]+/', '-', trim((string) ($minute->minutes_ref ?: $minute->id ?: 'document'))) . '.pdf';
 
     $parseAttendanceRows = function ($value, array $fallback = []) {
         $rows = [];
@@ -135,6 +135,12 @@
         #minutes-print { position: absolute; left: 0; top: 0; width: 100%; }
     }
 
+    .minutes-rich-editor {
+        overflow-wrap: anywhere !important;
+        word-break: break-word !important;
+        white-space: pre-wrap;
+    }
+
     .minutes-rich-editor[contenteditable="true"][data-placeholder]:empty::before {
         content: attr(data-placeholder);
         color: #94a3b8;
@@ -156,16 +162,7 @@
     }
 
     #minutes-print-signatures {
-        margin-top: 30px !important;
-        line-height: 1.65 !important;
-    }
-
-    .minutes-signoff-block {
-        margin-top: 18px !important;
-    }
-
-    .minutes-signoff-block:first-child {
-        margin-top: 0 !important;
+        margin-top: 14px !important;
     }
 
 
@@ -398,12 +395,13 @@
                                 </div>
                                 <div class="flex-1"></div>
                                 <div class="inline-flex rounded-full bg-slate-100 p-1 text-xs font-semibold">
-                                    <a href="{{ $minutePreviewRoute }}?version=draft" class="rounded-full px-3 py-1 {{ $activeMinutesPdfVersion === 'draft' ? 'bg-white text-blue-700 shadow' : 'text-slate-600 hover:text-slate-900' }}">Draft</a>
-                                    <a href="{{ $approvedMinutesUrl ? $minutePreviewRoute . '?version=original' : '#' }}" class="rounded-full px-3 py-1 {{ $activeMinutesPdfVersion === 'original' ? 'bg-white text-blue-700 shadow' : 'text-slate-600 hover:text-slate-900' }} {{ $approvedMinutesUrl ? '' : 'pointer-events-none opacity-50' }}">Approved / Signed</a>
+                                    <a href="{{ route('minutes.preview', $minute) }}?version=draft" class="rounded-full px-3 py-1 {{ $activeMinutesPdfVersion === 'draft' ? 'bg-white text-blue-700 shadow' : 'text-slate-600 hover:text-slate-900' }}">Draft</a>
+                                    <a href="{{ $approvedMinutesUrl ? route('minutes.preview', $minute) . '?version=original' : '#' }}" class="rounded-full px-3 py-1 {{ $activeMinutesPdfVersion === 'original' ? 'bg-white text-blue-700 shadow' : 'text-slate-600 hover:text-slate-900' }} {{ $approvedMinutesUrl ? '' : 'pointer-events-none opacity-50' }}">Approved / Signed</a>
                                 </div>
                                 <a
                                     id="minutes-template-download-btn"
                                     href="{{ $activeMinutesPdfDownloadUrl ?: '#' }}"
+                                    download="{{ $minutesPdfDownloadName }}"
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     class="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700 {{ $activeMinutesPdfDownloadUrl ? '' : 'pointer-events-none opacity-50' }}"
@@ -542,19 +540,19 @@
 
                                     <div class="mt-3">
                                         <div class="text-[15px] font-bold">Minutes Proper:</div>
-                                        <div id="minutes-template-editor" class="minutes-rich-editor mt-1 min-h-0 whitespace-pre-wrap text-[15px] leading-6 text-slate-900 outline-none" contenteditable="true" data-placeholder="Type the minutes following the template here..."></div>
+                                        <div id="minutes-template-editor" class="minutes-rich-editor mt-1 min-h-0 whitespace-pre-wrap break-words text-[15px] leading-6 text-slate-900 outline-none" contenteditable="true" data-placeholder="Type the minutes following the template here..."></div>
                                     </div>
 
-                                    <div id="minutes-print-signatures" class="mt-8 text-[15px] leading-7">
+                                    <div id="minutes-print-signatures" class="mt-10 text-[15px] leading-7">
                                         <div class="minutes-signoff-block">
                                             <div class="font-bold">Prepared by:</div>
-                                            <div class="mt-2 font-bold uppercase">{{ $minute->secretary ?: '________________' }}</div>
+                                            <div class="mt-12 font-bold uppercase">{{ $minute->secretary ?: '________________' }}</div>
                                             <div class="font-bold">Corporate Secretary</div>
                                         </div>
 
-                                        <div class="minutes-signoff-block mt-8">
+                                        <div class="minutes-signoff-block mt-12">
                                             <div class="font-bold">Attested by:</div>
-                                            <div class="mt-2 font-bold uppercase">{{ $minute->chairman ?: '________________' }}</div>
+                                            <div class="mt-12 font-bold uppercase">{{ $minute->chairman ?: '________________' }}</div>
                                             <div class="font-bold">Chairman of the Meeting</div>
                                         </div>
                                     </div>
@@ -570,7 +568,10 @@
                                         <div class="text-sm font-semibold text-gray-900">Minutes Body Builder</div>
                                         <div class="mt-1 text-xs text-gray-500">Write the minutes here with formatting tools. The template and final preview use this exact content.</div>
                                     </div>
-                                    <button id="minutes-save-body" type="button" class="shrink-0 rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700">Save Changes</button>
+                                    <div class="flex flex-col items-end gap-1">
+                                        <button id="minutes-save-body" type="button" class="shrink-0 rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700">Save Changes</button>
+                                        <div id="minutes-body-save-status" class="hidden rounded-full bg-slate-100 px-3 py-1 text-[11px] font-semibold text-slate-600">Ready</div>
+                                    </div>
                                 </div>
                             </div>
 
@@ -601,7 +602,7 @@
                                 <button type="button" class="px-2 py-1 border border-gray-300 rounded-lg text-xs" data-cmd="removeFormat">Clear</button>
                             </div>
 
-                            <div id="notes-editor" class="minutes-rich-editor min-h-[420px] p-4 text-sm leading-7 outline-none" contenteditable="true" data-placeholder="Type the minutes of meeting here...">{!! $minute->recording_notes ?: '' !!}</div>
+                            <div id="notes-editor" class="minutes-rich-editor min-h-[420px] p-4 text-sm leading-7 break-words outline-none" contenteditable="true" data-placeholder="Type the minutes of meeting here...">{!! $minute->recording_notes ?: '' !!}</div>
 
                             <div class="border-t border-gray-100 bg-gray-50 p-4">
                                 <div class="text-sm font-semibold text-gray-900">Template Notes</div>
@@ -848,6 +849,7 @@
         if (templateDownloadButton) {
             if (downloadUrl) {
                 templateDownloadButton.href = downloadUrl;
+                templateDownloadButton.setAttribute('download', @js($minutesPdfDownloadName));
                 templateDownloadButton.classList.remove('pointer-events-none', 'opacity-50');
             } else {
                 templateDownloadButton.href = '#';
@@ -866,7 +868,8 @@
             return;
         }
 
-        templatePdfFrame.src = url;
+        const cacheBustedUrl = url + (url.includes('?') ? '&' : '?') + '_=' + Date.now();
+        templatePdfFrame.src = cacheBustedUrl;
         templatePdfFrame.classList.remove('hidden');
         templatePdfEmpty.classList.add('hidden');
     };
@@ -2168,6 +2171,126 @@
             );
         }
         restoreTentativeDraft();
+    })();
+
+
+    (() => {
+        const bodyButton = document.getElementById('minutes-save-body');
+        const bodyEditor = document.getElementById('notes-editor');
+        const templateEditorFallback = document.getElementById('minutes-template-editor');
+        const statusPill = document.getElementById('minutes-save-status');
+        const bodyStatusPill = document.getElementById('minutes-body-save-status');
+        const originalBodyButtonText = bodyButton ? bodyButton.textContent : 'Save Changes';
+        const pdfFrame = document.getElementById('minutes-template-pdf-frame');
+        const pdfEmpty = document.getElementById('minutes-template-pdf-empty');
+        const pdfButton = document.getElementById('minutes-template-download-btn');
+
+        if (!bodyButton || !bodyEditor) {
+            return;
+        }
+
+        const setStatus = (message, tone = 'slate') => {
+            const tones = {
+                slate: 'bg-slate-100 text-slate-600',
+                blue: 'bg-blue-100 text-blue-700',
+                emerald: 'bg-emerald-100 text-emerald-700',
+                red: 'bg-red-100 text-red-700',
+            };
+
+            if (statusPill) {
+                statusPill.className = `inline-flex items-center rounded-full px-3 py-2 text-xs font-medium ${tones[tone] || tones.slate}`;
+                statusPill.textContent = message;
+            }
+
+            if (bodyStatusPill) {
+                bodyStatusPill.className = `rounded-full px-3 py-1 text-[11px] font-semibold ${tones[tone] || tones.slate}`;
+                bodyStatusPill.textContent = message;
+                bodyStatusPill.classList.remove('hidden');
+            }
+        };
+
+        const extractError = async (response) => {
+            try {
+                const payload = await response.json();
+                return payload?.message || Object.values(payload?.errors || {})?.[0]?.[0] || 'Minutes body save failed.';
+            } catch (error) {
+                return 'Minutes body save failed.';
+            }
+        };
+
+        bodyButton.addEventListener('click', async (event) => {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+
+            const sourceHtml = bodyEditor.innerHTML || templateEditorFallback?.innerHTML || '';
+            const formData = new FormData();
+            formData.append('recording_notes', sourceHtml);
+            const scriptInput = document.getElementById('minutes-script-editor');
+            if (scriptInput) {
+                formData.append('script_text', scriptInput.value || '');
+            }
+
+            setStatus('Saving minutes body to server...', 'blue');
+            bodyButton.textContent = 'Saving...';
+            bodyButton.disabled = true;
+            bodyButton.classList.add('opacity-60', 'cursor-not-allowed');
+
+            try {
+                const response = await fetch(@js($workspaceSaveUrl), {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': @js(csrf_token()),
+                        'Accept': 'application/json',
+                    },
+                    body: formData,
+                });
+
+                if (!response.ok) {
+                    throw new Error(await extractError(response));
+                }
+
+                const payload = await response.json();
+                const previewUrl = payload.template_preview_url || @js($templatePreviewUrl);
+                const downloadUrl = payload.template_preview_download_url || @js($templatePreviewDownloadUrl) || previewUrl;
+                const stampedPreviewUrl = previewUrl ? previewUrl + (previewUrl.includes('?') ? '&' : '?') + '_=' + Date.now() : null;
+
+                if (templateEditorFallback) {
+                    templateEditorFallback.innerHTML = payload.recording_notes || sourceHtml;
+                }
+
+                if (pdfButton && downloadUrl) {
+                    pdfButton.href = downloadUrl;
+                    pdfButton.setAttribute('download', @js($minutesPdfDownloadName));
+                    pdfButton.classList.remove('pointer-events-none', 'opacity-50');
+                }
+
+                if (pdfFrame && stampedPreviewUrl) {
+                    pdfFrame.src = stampedPreviewUrl;
+                    pdfFrame.classList.remove('hidden');
+                }
+
+                if (pdfEmpty && stampedPreviewUrl) {
+                    pdfEmpty.classList.add('hidden');
+                }
+
+                setStatus('Saved successfully. Preview and PDF are updated.', 'emerald');
+                bodyButton.textContent = 'Saved!';
+
+                setTimeout(() => {
+                    bodyButton.textContent = originalBodyButtonText;
+                }, 1800);
+            } catch (error) {
+                setStatus(error?.message || 'Could not save minutes body', 'red');
+                bodyButton.textContent = 'Save Failed';
+
+                setTimeout(() => {
+                    bodyButton.textContent = originalBodyButtonText;
+                }, 2200);
+            } finally {
+                bodyButton.disabled = false;
+                bodyButton.classList.remove('opacity-60', 'cursor-not-allowed');
+            }
+        }, true);
     })();
 </script>
 @endsection

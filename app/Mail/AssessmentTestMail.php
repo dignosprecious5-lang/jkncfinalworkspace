@@ -33,7 +33,7 @@ class AssessmentTestMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Assessment Test Invitation - John Kelly & Company',
+            subject: 'Assessment Test Invitation - John Kelly & Company (JK&C Inc.)',
         );
     }
 

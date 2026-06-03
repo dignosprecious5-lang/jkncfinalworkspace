@@ -129,6 +129,7 @@ class EmployeeController extends Controller
                     'drivers_license_expiry_date' => optional($item->drivers_license_expiry_date)->format('Y-m-d'),
                     'prc_license_number' => $item->prc_license_number,
                     'prc_license_expiry_date' => optional($item->prc_license_expiry_date)->format('Y-m-d'),
+                    'other_government_information' => $item->other_government_information ?? [],
                     'educational_background' => $item->educational_background ?? [],
                     'employment_history' => $item->employment_history ?? [],
                     'certifications_trainings' => $item->certifications_trainings ?? [],
@@ -291,7 +292,9 @@ class EmployeeController extends Controller
             'attachments' => ['nullable', 'array'],
             'attachments.*' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png,doc,docx,webp', 'max:10240'],
             'attachment_category' => ['nullable', 'string', 'max:255'],
+            'attachment_title' => ['nullable', 'string', 'max:255'],
             'attachment_remarks' => ['nullable', 'string', 'max:1000'],
+            'other_government_information' => ['nullable', 'string'],
             'status_effective_date' => ['nullable', 'date'],
             'status_reason' => ['nullable', 'string', 'max:255'],
             'status_remarks' => ['nullable', 'string'],
@@ -358,6 +361,7 @@ class EmployeeController extends Controller
         $validated['employment_history'] = $this->jsonField($request->employment_history);
         $validated['certifications_trainings'] = $this->jsonField($request->certifications_trainings);
         $validated['skills_competencies'] = $this->skillsField($request->skills_competencies);
+        $validated['other_government_information'] = $this->jsonField($request->other_government_information);
         $validated['system_access'] = $this->jsonField($request->system_access);
         $validated['compliance_consents'] = $this->consentPayload($request);
         $validated['employee_attachments'] = $this->storeEmployeeAttachments($request, $employee);
@@ -381,7 +385,7 @@ class EmployeeController extends Controller
         $validated['activity_audit'] = $this->auditTrail($employee, $validated, $request);
         $validated['salary_employment_history'] = $this->salaryEmploymentHistory($employee, $validated, $request);
 
-        unset($validated['captured_photo'], $validated['employment_status_other'], $validated['salary_grade_other'], $validated['benefits_other'], $validated['attachments'], $validated['attachment_category'], $validated['attachment_remarks'], $validated['status_attachment']);
+        unset($validated['captured_photo'], $validated['employment_status_other'], $validated['salary_grade_other'], $validated['benefits_other'], $validated['attachments'], $validated['attachment_category'], $validated['attachment_title'], $validated['attachment_remarks'], $validated['status_attachment']);
 
         $employee->update($validated);
 
@@ -514,7 +518,11 @@ class EmployeeController extends Controller
     private function selectionWithOther(array|string|null $values, ?string $other): array
     {
         $items = is_array($values) ? $values : $this->linesToArray($values);
-        $items = collect($items)->filter()->reject(fn ($item) => $item === 'Others')->values();
+        $items = collect($items)
+            ->map(fn ($item) => trim((string) $item))
+            ->filter()
+            ->reject(fn ($item) => $item === 'Others')
+            ->values();
 
         if (in_array('Others', (array) $values, true) && filled($other)) {
             $items->push('Others: ' . trim($other));
@@ -548,6 +556,7 @@ class EmployeeController extends Controller
             $path = $file->store('employee-attachments/' . $employee->id, 'public');
             $attachments[] = [
                 'category' => $request->attachment_category ?: 'Other Attachments',
+                'title' => $request->attachment_title ?: $this->defaultAttachmentTitle($request->attachment_category, $file->getClientOriginalName()),
                 'file_name' => $file->getClientOriginalName(),
                 'file_type' => $file->getClientMimeType(),
                 'file_size' => $file->getSize(),
@@ -561,6 +570,15 @@ class EmployeeController extends Controller
         }
 
         return $attachments;
+    }
+
+    private function defaultAttachmentTitle(?string $category, string $fileName): string
+    {
+        if (filled($category) && $category !== 'Other Attachments') {
+            return $category;
+        }
+
+        return pathinfo($fileName, PATHINFO_FILENAME);
     }
 
     private function auditTrail(Employee $employee, array $validated, Request $request): array

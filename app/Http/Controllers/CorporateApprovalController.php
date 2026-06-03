@@ -503,26 +503,7 @@ class CorporateApprovalController extends Controller
             ]);
         }
 
-        foreach (Transmittal::latest()->get() as $row) {
-            $workflow = $this->normalizeWorkflow($row);
-            if (!$this->canAppearInAdminDashboard($workflow)) continue;
-
-            $items->push((object) [
-                'id' => $row->id,
-                'module' => 'Transmittal',
-                'title' => ($row->mode ?? 'Transmittal') . ' - ' . ($row->transmittal_no ?? ('TRN-' . $row->id)),
-                'company_reg_no' => $row->transmittal_no ?? '',
-                'uploaded_by' => $row->submitted_by,
-                'date_uploaded' => $row->transmittal_date ? \Carbon\Carbon::parse($row->transmittal_date)->format('Y-m-d') : '',
-                'status' => $workflow,
-                'approval_status' => $row->approval_status,
-                'show_route' => route('transmittal.index'),
-                'approve_route' => route('corporate.approvals.approve', ['module' => 'transmittal', 'id' => $row->id]),
-                'reject_route' => route('corporate.approvals.reject', ['module' => 'transmittal', 'id' => $row->id]),
-                'revise_route' => route('corporate.approvals.revise', ['module' => 'transmittal', 'id' => $row->id]),
-                'archive_route' => route('corporate.approvals.archive', ['module' => 'transmittal', 'id' => $row->id]),
-            ]);
-        }
+        
 
         foreach (Notice::latest()->get() as $row) {
             if (empty($row->document_path)) {
