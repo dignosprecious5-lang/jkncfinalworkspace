@@ -911,6 +911,7 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::get('/corporate/minutes', [MinuteController::class, 'index'])->name('minutes');
     Route::get('/corporate/minutes/create', [MinuteController::class, 'create'])->name('minutes.create');
     Route::post('/corporate/minutes', [MinuteController::class, 'store'])->name('minutes.store');
+    Route::get('/corporate/minutes/{minute}/download', [MinuteController::class, 'downloadPdf'])->name('minutes.download');
     Route::get('/corporate/minutes/{minute}', [MinuteController::class, 'show'])->name('minutes.preview');
     Route::get('/corporate/minutes/{minute}/edit', [MinuteController::class, 'edit'])->name('minutes.edit');
     Route::put('/corporate/minutes/{minute}', [MinuteController::class, 'update'])->name('minutes.update');

@@ -370,7 +370,7 @@
     <div class="notary-page">
         @if ($chairmanName)
             <p>
-                IN WITNESS WHEREOF, I, <strong><u>{{ $chairmanName }}</u></strong>, in my capacity as Chairman of the Board, have signed these presents this ___ day of _______, 20 at _____________________.
+                IN WITNESS WHEREOF, I, <strong><u>{{ $chairmanName }}</u></strong>, in my capacity as Chairman of the Board, have signed these presents this ___ day of _______, 20__ at _____________________.
             </p>
 
             <div class="signature-center" style="margin-top: 34px;">
@@ -379,7 +379,7 @@
             </div>
         @else
             <p>
-                IN WITNESS WHEREOF, I, __________________________, in my capacity as Chairman of the Board, have signed these presents this ___ day of _______, 20 at _____________________.
+                IN WITNESS WHEREOF, I, __________________________, in my capacity as Chairman of the Board, have signed these presents this ___ day of _______, 20__ at _____________________.
             </p>
 
             <div class="signature-center" style="margin-top: 34px;">
@@ -389,7 +389,7 @@
         @endif
 
         <p style="margin-top: 34px;">
-            <strong>SUBSCRIBED AND SWORN TO BEFORE ME,</strong> a Notary Public for and in ______________________ this ___ day of _______, 20.
+            <strong>SUBSCRIBED AND SWORN TO BEFORE ME,</strong> a Notary Public for and in ______________________ this ___ day of _______, 20__.
             Affiant presented to me __________________________ issued at __________________________.
         </p>
 
