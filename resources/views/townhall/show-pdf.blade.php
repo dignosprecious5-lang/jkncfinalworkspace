@@ -228,6 +228,72 @@
             text-align: left;
             line-height: 1.22;
         }
+
+        /* Stable Quill document body support */
+        .body-content {
+            overflow-wrap: break-word;
+            word-break: normal;
+        }
+
+        .body-content .ql-align-left { text-align: left !important; }
+        .body-content .ql-align-center { text-align: center !important; }
+        .body-content .ql-align-right { text-align: right !important; }
+        .body-content .ql-align-justify {
+            text-align: justify !important;
+            text-justify: inter-word;
+        }
+
+        .body-content .ql-indent-1 { margin-left: 3em !important; padding-left: 0 !important; text-indent: 0 !important; }
+        .body-content .ql-indent-2 { margin-left: 6em !important; padding-left: 0 !important; text-indent: 0 !important; }
+        .body-content .ql-indent-3 { margin-left: 9em !important; padding-left: 0 !important; text-indent: 0 !important; }
+        .body-content .ql-indent-4 { margin-left: 12em !important; padding-left: 0 !important; text-indent: 0 !important; }
+        .body-content .ql-indent-5 { margin-left: 15em !important; padding-left: 0 !important; text-indent: 0 !important; }
+        .body-content .ql-indent-6 { margin-left: 18em !important; padding-left: 0 !important; text-indent: 0 !important; }
+        .body-content .ql-indent-7 { margin-left: 21em !important; padding-left: 0 !important; text-indent: 0 !important; }
+        .body-content .ql-indent-8 { margin-left: 24em !important; padding-left: 0 !important; text-indent: 0 !important; }
+
+        .body-content table,
+        .townhall-pdf-table {
+            width: 100% !important;
+            max-width: 100% !important;
+            border-collapse: collapse !important;
+            table-layout: fixed !important;
+            margin: 3mm 0 4mm 0 !important;
+            page-break-inside: auto !important;
+        }
+
+        .body-content tr,
+        .townhall-pdf-table tr {
+            page-break-inside: avoid !important;
+            page-break-after: auto !important;
+        }
+
+        .body-content th,
+        .body-content td,
+        .townhall-pdf-table th,
+        .townhall-pdf-table td {
+            border: 1px solid #888 !important;
+            padding: 2.2mm 2.8mm !important;
+            vertical-align: top !important;
+            white-space: normal !important;
+            word-break: normal !important;
+            overflow-wrap: break-word !important;
+            text-align: left !important;
+        }
+
+        .body-content td p,
+        .body-content th p,
+        .body-content td div,
+        .body-content th div,
+        .body-content td span,
+        .body-content th span {
+            margin: 0 !important;
+            padding: 0 !important;
+            white-space: normal !important;
+            word-break: normal !important;
+            overflow-wrap: break-word !important;
+        }
+
     </style>
 </head>
 <body>

@@ -1104,6 +1104,123 @@ class TownHallController extends Controller
 
 
 
+
+    private function normalizeTownHallPdfTables(string $html): string
+    {
+        return preg_replace_callback('/<table\b[^>]*>.*?<\/table>/is', function ($matches) {
+            $tableHtml = $matches[0];
+            $rows = [];
+
+            if (preg_match_all('/<tr\b[^>]*>(.*?)<\/tr>/is', $tableHtml, $rowMatches)) {
+                foreach ($rowMatches[1] as $rowHtml) {
+                    $cells = [];
+
+                    if (preg_match_all('/<(td|th)\b[^>]*>(.*?)<\/\1>/is', $rowHtml, $cellMatches, PREG_SET_ORDER)) {
+                        foreach ($cellMatches as $cellMatch) {
+                            $tag = strtolower($cellMatch[1]) === 'th' ? 'th' : 'td';
+                            $content = $cellMatch[2];
+
+                            $content = preg_replace('/<colgroup\b[^>]*>.*?<\/colgroup>/is', '', $content);
+                            $content = preg_replace('/<col\b[^>]*\/?>/is', '', $content);
+                            $content = preg_replace('/<span\b[^>]*(qlbt|table-better|quill-better-table|ql-table)[^>]*>.*?<\/span>/is', '', $content);
+                            $content = preg_replace('/<div\b[^>]*(qlbt|table-better|quill-better-table|ql-table)[^>]*>.*?<\/div>/is', '', $content);
+
+                            $content = preg_replace('/\sstyle=("|\')(.*?)\1/is', '', $content);
+                            $content = str_replace(['&amp;nbsp;', '&nbsp;', "\u{00A0}"], ' ', $content);
+                            $content = preg_replace('/[ \t]{2,}/u', ' ', $content);
+
+                            if (trim(strip_tags($content)) === '') {
+                                $content = '&nbsp;';
+                            }
+
+                            $cells[] = [
+                                'tag' => $tag,
+                                'content' => $content,
+                            ];
+                        }
+                    }
+
+                    if (!empty($cells)) {
+                        $rows[] = $cells;
+                    }
+                }
+            }
+
+            if (empty($rows)) {
+                return $tableHtml;
+            }
+
+            $maxColumns = max(array_map('count', $rows));
+            $maxColumns = max(1, min($maxColumns, 12));
+            $cellWidth = round(100 / $maxColumns, 4);
+
+            $safeTable = '<table class="townhall-pdf-table" style="width:100%;border-collapse:collapse;table-layout:fixed;">';
+
+            foreach ($rows as $row) {
+                $safeTable .= '<tr>';
+
+                for ($i = 0; $i < $maxColumns; $i++) {
+                    $cell = $row[$i] ?? ['tag' => 'td', 'content' => '&nbsp;'];
+                    $tag = $cell['tag'];
+
+                    $safeTable .= '<' . $tag . ' style="width:' . $cellWidth . '%;border:1px solid #888;padding:2.2mm 2.8mm;vertical-align:top;text-align:left;">'
+                        . $cell['content']
+                        . '</' . $tag . '>';
+                }
+
+                $safeTable .= '</tr>';
+            }
+
+            $safeTable .= '</table>';
+
+            return $safeTable;
+        }, $html);
+    }
+
+    private function inlineTownHallPdfIndentStyles(string $html): string
+    {
+        return preg_replace_callback('/<([a-z0-9]+)\b([^>]*)class=("|\')([^"\']*\bql-indent-([1-8])\b[^"\']*)\3([^>]*)>/i', function ($matches) {
+            $tag = $matches[1];
+            $beforeClass = $matches[2];
+            $quote = $matches[3];
+            $classes = $matches[4];
+            $level = (int) $matches[5];
+            $afterClass = $matches[6];
+
+            $indentEm = $level * 3;
+            $attrs = $beforeClass . 'class=' . $quote . $classes . $quote . $afterClass;
+
+            if (preg_match('/\sstyle=("|\')(.*?)\1/is', $attrs, $styleMatch)) {
+                $existingStyle = rtrim($styleMatch[2], ';');
+                $newStyle = $existingStyle . '; margin-left:' . $indentEm . 'em; padding-left:0; text-indent:0;';
+                $attrs = preg_replace('/\sstyle=("|\')(.*?)\1/is', ' style="' . e($newStyle) . '"', $attrs, 1);
+            } else {
+                $attrs .= ' style="margin-left:' . $indentEm . 'em; padding-left:0; text-indent:0;"';
+            }
+
+            return '<' . $tag . $attrs . '>';
+        }, $html);
+    }
+
+    private function prepareTownHallMessageForPdf(?string $html): string
+    {
+        $html = (string) ($html ?: '<p style="color:#9ca3af;">No memorandum body provided.</p>');
+
+        // Normalize spacing without manually splitting words.
+        $html = str_replace(['&amp;nbsp;', '&nbsp;', "\u{00A0}"], ' ', $html);
+        $html = preg_replace('/[ \t]{2,}/u', ' ', $html);
+
+        // Remove Quill/table-better sizing so DomPDF uses stable CSS.
+        $html = preg_replace('/<colgroup\b[^>]*>.*?<\/colgroup>/is', '', $html);
+        $html = preg_replace('/<col\b[^>]*\/?>/is', '', $html);
+
+        $html = $this->normalizeTownHallPdfTables($html);
+        $html = $this->inlineTownHallPdfIndentStyles($html);
+
+        return $html;
+    }
+
+
     private function buildTownHallPdf(
         TownHallCommunication $communication,
         ?int $totalPages = null,
@@ -1111,12 +1228,15 @@ class TownHallController extends Controller
     ) {
         $dateGenerated = $dateGenerated ?: now()->format('F d, Y h:i A');
 
+        $communication = clone $communication;
+        $communication->message = $this->prepareTownHallMessageForPdf($communication->message);
+
         return Pdf::loadView('townhall.show-pdf', compact('communication', 'totalPages', 'dateGenerated'))
             ->setPaper('a4', 'portrait')
             ->setOptions([
                 'isHtml5ParserEnabled' => true,
                 'isRemoteEnabled' => true,
-                'defaultFont' => 'DejaVu Sans',
+                'defaultFont' => 'DejaVu Serif',
             ]);
     }
 

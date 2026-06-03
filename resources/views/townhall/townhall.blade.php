@@ -1139,6 +1139,83 @@
         font-size: 12px;
     }
 
+
+    /* Stable document editor/body support */
+    #editor .ql-editor,
+    .preview-body,
+    .memo-page-body,
+    .memo-body-block {
+        font-family: "Times New Roman", Georgia, serif !important;
+    }
+
+    #editor .ql-editor .ql-indent-1,
+    .preview-body .ql-indent-1,
+    .memo-page-body .ql-indent-1,
+    .memo-body-block .ql-indent-1 { padding-left: 3em !important; }
+
+    #editor .ql-editor .ql-indent-2,
+    .preview-body .ql-indent-2,
+    .memo-page-body .ql-indent-2,
+    .memo-body-block .ql-indent-2 { padding-left: 6em !important; }
+
+    #editor .ql-editor .ql-indent-3,
+    .preview-body .ql-indent-3,
+    .memo-page-body .ql-indent-3,
+    .memo-body-block .ql-indent-3 { padding-left: 9em !important; }
+
+    #editor .ql-editor .ql-indent-4,
+    .preview-body .ql-indent-4,
+    .memo-page-body .ql-indent-4,
+    .memo-body-block .ql-indent-4 { padding-left: 12em !important; }
+
+    #editor .ql-editor .ql-indent-5,
+    .preview-body .ql-indent-5,
+    .memo-page-body .ql-indent-5,
+    .memo-body-block .ql-indent-5 { padding-left: 15em !important; }
+
+    #editor .ql-editor .ql-indent-6,
+    .preview-body .ql-indent-6,
+    .memo-page-body .ql-indent-6,
+    .memo-body-block .ql-indent-6 { padding-left: 18em !important; }
+
+    #editor .ql-editor .ql-indent-7,
+    .preview-body .ql-indent-7,
+    .memo-page-body .ql-indent-7,
+    .memo-body-block .ql-indent-7 { padding-left: 21em !important; }
+
+    #editor .ql-editor .ql-indent-8,
+    .preview-body .ql-indent-8,
+    .memo-page-body .ql-indent-8,
+    .memo-body-block .ql-indent-8 { padding-left: 24em !important; }
+
+    #editor .ql-editor table,
+    .preview-body table,
+    .memo-page-body table,
+    .memo-body-block table {
+        width: 100% !important;
+        max-width: 100% !important;
+        table-layout: fixed !important;
+        border-collapse: collapse !important;
+        border-spacing: 0 !important;
+        margin: 12px 0 !important;
+    }
+
+    #editor .ql-editor th,
+    #editor .ql-editor td,
+    .preview-body th,
+    .preview-body td,
+    .memo-page-body th,
+    .memo-page-body td,
+    .memo-body-block th,
+    .memo-body-block td {
+        border: 1px solid #94a3b8 !important;
+        padding: 10px 12px !important;
+        vertical-align: top !important;
+        white-space: normal !important;
+        word-break: normal !important;
+        overflow-wrap: break-word !important;
+    }
+
 </style>
 @endpush
 
@@ -1740,7 +1817,62 @@ document.addEventListener('DOMContentLoaded', function () {
                     toolbarTable: true
                 },
                 keyboard: {
-                    bindings: QuillTableBetter.keyboardBindings
+                    bindings: {
+                        ...QuillTableBetter.keyboardBindings,
+
+                        townhallTabIndent: {
+                            key: 9,
+                            handler: function(range, context) {
+                                if (range) {
+                                    this.quill.format('indent', '+1', Quill.sources.USER);
+                                }
+                                return false;
+                            }
+                        },
+
+                        townhallShiftTabOutdent: {
+                            key: 9,
+                            shiftKey: true,
+                            handler: function(range, context) {
+                                if (range) {
+                                    this.quill.format('indent', '-1', Quill.sources.USER);
+                                }
+                                return false;
+                            }
+                        }
+                    }
+                },
+                table: false,
+                'table-better': {
+                    language: 'en_US',
+                    menus: ['column', 'row', 'merge', 'table', 'cell', 'wrap', 'copy', 'delete'],
+                    toolbarTable: true
+                },
+                keyboard: {
+                    bindings: {
+                        ...QuillTableBetter.keyboardBindings,
+
+                        townhallTabIndent: {
+                            key: 9,
+                            handler: function(range, context) {
+                                if (range) {
+                                    this.quill.format('indent', '+1', Quill.sources.USER);
+                                }
+                                return false;
+                            }
+                        },
+
+                        townhallShiftTabOutdent: {
+                            key: 9,
+                            shiftKey: true,
+                            handler: function(range, context) {
+                                if (range) {
+                                    this.quill.format('indent', '-1', Quill.sources.USER);
+                                }
+                                return false;
+                            }
+                        }
+                    }
                 }
             }
         });
@@ -1761,9 +1893,9 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         if (oldMessage) {
-            const delta = quill.clipboard.convert({ html: oldMessage });
-            quill.setContents(delta);
-            hiddenInput.value = oldMessage;
+            quill.root.innerHTML = oldMessage;
+            quill.update('silent');
+            hiddenInput.value = quill.root.innerHTML;
 
             if (alpineData) {
                 alpineData.previewBody = oldMessage;

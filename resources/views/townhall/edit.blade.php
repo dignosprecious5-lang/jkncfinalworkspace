@@ -674,6 +674,8 @@
 
 
 @push('styles')
+<link href="https://cdn.jsdelivr.net/npm/quill@2/dist/quill.snow.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/quill-table-better@1/dist/quill-table-better.css" rel="stylesheet">
 <style>
     .memo-edit-preview {
         font-family: "Times New Roman", Georgia, serif;
@@ -835,10 +837,89 @@
     #editor .ql-editor {
         min-height: 260px;
     }
+
+    /* Stable document editor/body support */
+    #editor .ql-editor,
+    .preview-body,
+    .memo-page-body,
+    .memo-body-block {
+        font-family: "Times New Roman", Georgia, serif !important;
+    }
+
+    #editor .ql-editor .ql-indent-1,
+    .preview-body .ql-indent-1,
+    .memo-page-body .ql-indent-1,
+    .memo-body-block .ql-indent-1 { padding-left: 3em !important; }
+
+    #editor .ql-editor .ql-indent-2,
+    .preview-body .ql-indent-2,
+    .memo-page-body .ql-indent-2,
+    .memo-body-block .ql-indent-2 { padding-left: 6em !important; }
+
+    #editor .ql-editor .ql-indent-3,
+    .preview-body .ql-indent-3,
+    .memo-page-body .ql-indent-3,
+    .memo-body-block .ql-indent-3 { padding-left: 9em !important; }
+
+    #editor .ql-editor .ql-indent-4,
+    .preview-body .ql-indent-4,
+    .memo-page-body .ql-indent-4,
+    .memo-body-block .ql-indent-4 { padding-left: 12em !important; }
+
+    #editor .ql-editor .ql-indent-5,
+    .preview-body .ql-indent-5,
+    .memo-page-body .ql-indent-5,
+    .memo-body-block .ql-indent-5 { padding-left: 15em !important; }
+
+    #editor .ql-editor .ql-indent-6,
+    .preview-body .ql-indent-6,
+    .memo-page-body .ql-indent-6,
+    .memo-body-block .ql-indent-6 { padding-left: 18em !important; }
+
+    #editor .ql-editor .ql-indent-7,
+    .preview-body .ql-indent-7,
+    .memo-page-body .ql-indent-7,
+    .memo-body-block .ql-indent-7 { padding-left: 21em !important; }
+
+    #editor .ql-editor .ql-indent-8,
+    .preview-body .ql-indent-8,
+    .memo-page-body .ql-indent-8,
+    .memo-body-block .ql-indent-8 { padding-left: 24em !important; }
+
+    #editor .ql-editor table,
+    .preview-body table,
+    .memo-page-body table,
+    .memo-body-block table {
+        width: 100% !important;
+        max-width: 100% !important;
+        table-layout: fixed !important;
+        border-collapse: collapse !important;
+        border-spacing: 0 !important;
+        margin: 12px 0 !important;
+    }
+
+    #editor .ql-editor th,
+    #editor .ql-editor td,
+    .preview-body th,
+    .preview-body td,
+    .memo-page-body th,
+    .memo-page-body td,
+    .memo-body-block th,
+    .memo-body-block td {
+        border: 1px solid #94a3b8 !important;
+        padding: 10px 12px !important;
+        vertical-align: top !important;
+        white-space: normal !important;
+        word-break: normal !important;
+        overflow-wrap: break-word !important;
+    }
+
 </style>
 @endpush
 
 @push('scripts')
+<script src="https://cdn.jsdelivr.net/npm/quill@2/dist/quill.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/quill-table-better@1/dist/quill-table-better.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
 <script>
@@ -847,20 +928,59 @@ document.addEventListener('DOMContentLoaded', function () {
     const hiddenInput = document.getElementById('message');
     const form = document.getElementById('townhall-edit-form');
 
-    if (editorEl && hiddenInput && form) {
+    if (editorEl && hiddenInput && form && window.Quill && window.QuillTableBetter) {
+        Quill.register({
+            'modules/table-better': QuillTableBetter
+        }, true);
         const quill = new Quill('#editor', {
             theme: 'snow',
             placeholder: 'Write the formal communication here...',
             modules: {
                 toolbar: [
                     [{ font: [] }, { size: ['small', false, 'large', 'huge'] }],
-                    ['bold', 'italic', 'underline'],
+                    [{ header: [1, 2, 3, false] }],
+                    ['bold', 'italic', 'underline', 'strike'],
+                    [{ script: 'sub' }, { script: 'super' }],
                     [{ color: [] }, { background: [] }],
                     [{ list: 'ordered' }, { list: 'bullet' }],
+                    [{ indent: '-1' }, { indent: '+1' }],
                     [{ align: [] }],
-                    ['link'],
+                    ['blockquote', 'link'],
+                    ['table-better'],
                     ['clean']
-                ]
+                ],
+                table: false,
+                'table-better': {
+                    language: 'en_US',
+                    menus: ['column', 'row', 'merge', 'table', 'cell', 'wrap', 'copy', 'delete'],
+                    toolbarTable: true
+                },
+                keyboard: {
+                    bindings: {
+                        ...QuillTableBetter.keyboardBindings,
+
+                        townhallTabIndent: {
+                            key: 9,
+                            handler: function(range, context) {
+                                if (range) {
+                                    this.quill.format('indent', '+1', Quill.sources.USER);
+                                }
+                                return false;
+                            }
+                        },
+
+                        townhallShiftTabOutdent: {
+                            key: 9,
+                            shiftKey: true,
+                            handler: function(range, context) {
+                                if (range) {
+                                    this.quill.format('indent', '-1', Quill.sources.USER);
+                                }
+                                return false;
+                            }
+                        }
+                    }
+                }
             }
         });
 
@@ -890,7 +1010,9 @@ document.addEventListener('DOMContentLoaded', function () {
             hiddenInput.value = html;
 
             if (alpineData) {
-                alpineData.previewBody = quill.getText().trim()
+                const hasText = quill.getText().trim().length > 0;
+                const hasTable = !!quill.root.querySelector('table');
+                alpineData.previewBody = (hasText || hasTable)
                     ? html
                     : '<p style="color:#9ca3af;">Write the formal communication here...</p>';
             }
