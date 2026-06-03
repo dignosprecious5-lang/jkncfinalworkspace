@@ -34,18 +34,49 @@
                             <div class="text-xs text-slate-500">Choose any saved draft revision to review it here.</div>
                         </div>
                     </div>
+
                     @if (!empty($draftOptions) && count($draftOptions) > 1)
                         <div class="mt-3">
                             <label class="text-xs font-semibold uppercase tracking-wide text-slate-500">Draft Revision Selector</label>
                             <select x-model="selectedDraftUrl" class="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700">
                                 @foreach ($draftOptions as $option)
                                     <option value="{{ $option['url'] }}">
-                                        {{ $option['label'] }}@if($option['uploaded_at']) • {{ $option['uploaded_at'] }}@endif
+                                        {{ $option['label'] }}@if(!empty($option['uploaded_at'])) • {{ $option['uploaded_at'] }}@endif
                                     </option>
                                 @endforeach
                             </select>
                         </div>
                     @endif
+
+                    @if (!empty($draftOptions))
+                        <div class="mt-3">
+                            <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">Saved Draft Files</div>
+                            <div class="mt-2 space-y-2">
+                                @foreach ($draftOptions as $option)
+                                    <button
+                                        type="button"
+                                        class="flex w-full items-center justify-between rounded-lg border px-3 py-2 text-left text-sm transition"
+                                        :class="selectedDraftUrl === @js($option['url']) ? 'border-blue-300 bg-blue-50 text-blue-900' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50'"
+                                        @click="selectedDraftUrl = @js($option['url']); activeVersion = 'draft'"
+                                    >
+                                        <span class="min-w-0">
+                                            <span class="block truncate font-medium">{{ $option['label'] }}</span>
+                                            @if (!empty($option['uploaded_at']))
+                                                <span class="mt-0.5 block text-xs text-slate-500">{{ $option['uploaded_at'] }}</span>
+                                            @endif
+                                        </span>
+                                        <span
+                                            class="ml-3 shrink-0 rounded-full px-2 py-1 text-[11px] font-semibold"
+                                            :class="selectedDraftUrl === @js($option['url']) ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600'"
+                                        >
+                                            Load
+                                        </span>
+                                    </button>
+                                @endforeach
+                            </div>
+                        </div>
+                    @endif
+
                     @if ($latestDraft)
                         <div class="mt-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600">
                             Latest draft: <span class="font-semibold text-slate-900">{{ $latestDraft['name'] ?? basename($latestDraft['path']) }}</span>
@@ -54,6 +85,7 @@
                             @endif
                         </div>
                     @endif
+
                     @if ($draftUrl)
                         <iframe :src="selectedDraftUrl" class="mt-4 w-full h-[700px] border rounded bg-white"></iframe>
                     @else
@@ -89,21 +121,25 @@
                     <div class="text-sm font-semibold text-gray-900 mb-3">BIR & Tax Details</div>
                     <div class="space-y-2 text-sm">
                         <div><span class="text-xs text-gray-600 uppercase tracking-wide">TIN</span><div class="font-medium text-gray-900">{{ $tax->tin ?? '-' }}</div></div>
-                        <div><span class="text-xs text-gray-600 uppercase tracking-wide">Tax Payer</span><div class="font-medium text-gray-900">{{ $tax->tax_payer ?? '-' }}</div></div>
-                        <div><span class="text-xs text-gray-600 uppercase tracking-wide">Registering Office</span><div class="font-medium text-gray-900">{{ $tax->registering_office ?? '-' }}</div></div>
+                        <div><span class="text-xs text-gray-600 uppercase tracking-wide">Taxpayer</span><div class="font-medium text-gray-900">{{ $tax->tax_payer ?? '-' }}</div></div>
+                        <div><span class="text-xs text-gray-600 uppercase tracking-wide">RDO</span><div class="font-medium text-gray-900">{{ $tax->rdo ?? $tax->registering_office ?? '-' }}</div></div>
                         <div><span class="text-xs text-gray-600 uppercase tracking-wide">Registered Address</span><div class="font-medium text-gray-900">{{ $tax->registered_address ?? '-' }}</div></div>
+                        <div><span class="text-xs text-gray-600 uppercase tracking-wide">Tax Type/s</span><div class="font-medium text-gray-900">{{ $tax->tax_types ?? '-' }}</div></div>
                         <div><span class="text-xs text-gray-600 uppercase tracking-wide">Form Type</span><div class="font-medium text-gray-900">{{ $tax->form_type ?? '-' }}</div></div>
-                        <div><span class="text-xs text-gray-600 uppercase tracking-wide">Deadline</span><div class="font-medium text-gray-900">{{ optional($tax->due_date)->format('M d, Y') ?? '-' }}</div></div>
+                        <div><span class="text-xs text-gray-600 uppercase tracking-wide">Tax Due</span><div class="font-medium text-gray-900">{{ $tax->tax_due !== null ? number_format((float) $tax->tax_due, 2) : '-' }}</div></div>
+                        <div><span class="text-xs text-gray-600 uppercase tracking-wide">Filing Frequency</span><div class="font-medium text-gray-900">{{ $tax->filing_frequency ?? '-' }}</div></div>
+                        <div><span class="text-xs text-gray-600 uppercase tracking-wide">Due Date</span><div class="font-medium text-gray-900">{{ optional($tax->due_date)->format('M d, Y') ?? '-' }}</div></div>
                         <div><span class="text-xs text-gray-600 uppercase tracking-wide">Status</span><div class="font-medium text-gray-900">{{ $tax->display_status }}</div></div>
                     </div>
                 </div>
 
                 <div class="bg-white border border-slate-200 rounded-xl p-4">
                     <div class="text-sm font-semibold text-gray-900">Add More Draft Files</div>
-                    <div class="mt-1 text-xs text-gray-500">You can keep uploading more draft revisions. Users can switch between them from the selector above.</div>
+                    <div class="mt-1 text-xs text-gray-500">You can keep uploading more draft revisions. Click any saved draft file and it will load in the preview immediately.</div>
                     <form method="POST" action="{{ $updateRoute }}" enctype="multipart/form-data" class="mt-4 space-y-3">
                         @csrf
                         @method('PUT')
+                        <input type="hidden" name="redirect_to" value="preview">
                         <input type="file" name="document_paths[]" accept="application/pdf" multiple class="block w-full text-sm text-gray-600 file:mr-4 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-slate-700 file:text-white hover:file:bg-slate-800">
                         <button type="submit" class="w-full rounded-lg bg-slate-700 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800">
                             Upload Draft Revision{{ $draftDocuments->count() === 1 ? '' : 's' }}
@@ -120,6 +156,7 @@
                     <form method="POST" action="{{ $updateRoute }}" enctype="multipart/form-data" class="mt-4 space-y-3">
                         @csrf
                         @method('PUT')
+                        <input type="hidden" name="redirect_to" value="preview">
                         <input type="file" name="approved_document_paths[]" accept="application/pdf" multiple class="block w-full text-sm text-gray-600 file:mr-4 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-emerald-600 file:text-white hover:file:bg-emerald-700">
                         <button type="submit" class="w-full rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700">
                             {{ $tax->approved_document_path ? 'Upload Approved Revision' : 'Upload Approved File' }}
@@ -170,7 +207,6 @@
                         @endforelse
                     </div>
                 </div>
-
             </div>
         </div>
     </div>

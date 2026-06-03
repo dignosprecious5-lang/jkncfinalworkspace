@@ -91,6 +91,30 @@
             ? route('human-capital.organizational')
             : route('human-capital.attendance');
 
+        $canSeeFinance =
+            $user->isAdmin() ||
+            $user->isSuperAdmin() ||
+            $user->hasPermission('access_finance') ||
+            $user->hasPermission('create_finance') ||
+            $user->hasPermission('approve_finance') ||
+            collect([
+                'access_finance_supplier',
+                'access_finance_service',
+                'access_finance_product',
+                'access_finance_chart_account',
+                'access_finance_bank_account',
+                'access_finance_pr',
+                'access_finance_po',
+                'access_finance_ca',
+                'access_finance_lr',
+                'access_finance_err',
+                'access_finance_dv',
+                'access_finance_pda',
+                'access_finance_crf',
+                'access_finance_ibtf',
+                'access_finance_arf',
+            ])->contains(fn ($permission) => $user->hasPermission($permission));
+
 
         $activeSidebarGroup = match (true) {
             request()->routeIs('products*'), request()->routeIs('services*') => 'marketing',
@@ -342,7 +366,7 @@
                         </a>
                     @endif
 
-                    @if(Auth::user()->hasPermission('access_corporate'))
+                    @if($canSeeFinance)
                         <a href="{{ route('finance') }}"
                            title="Finance"
                            :class="expanded ? 'justify-start px-3' : 'justify-center px-0'"

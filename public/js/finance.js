@@ -61,6 +61,7 @@
         'data.linked_lr_id': 'Linked LR',
         'data.linked_po_id': 'Linked PO',
         'data.linked_dv_id': 'Linked DV',
+        'data.linked_crf_id': 'Linked CRF',
         'data.cash_receiver_name': 'Name of receiver',
         'data.recipient_bank_account': 'Bank account',
         'data.recipient_bank_number': 'Bank number',
@@ -771,6 +772,97 @@
         return isSendToSupplierMode() && !isSupplierCompletionFinished(record);
     }
 
+    function shouldShowSpecifyOtherField(fieldName, formValues = {}) {
+        const cleanName = String(fieldName || '').trim();
+        if (!cleanName.endsWith('_other')) {
+            if (cleanName === 'other_business_purpose_specify') {
+                return String(formValues['data[cash_advance_type]'] || '').trim() === 'Other Business Purpose';
+            }
+
+            if (cleanName === 'other_expense_specify') {
+                const selectedUsageCategories = Array.isArray(formValues['data[usage_categories][]'])
+                    ? formValues['data[usage_categories][]']
+                    : (Array.isArray(formValues['data[usage_categories]']) ? formValues['data[usage_categories]'] : []);
+                return selectedUsageCategories.map((item) => String(item).trim()).includes('Other Expense');
+            }
+
+            return true;
+        }
+
+        const baseFieldName = cleanName.replace(/_other$/, '');
+        const selectValue = String(formValues[`data[${baseFieldName}]`] ?? formValues[baseFieldName] ?? '').trim();
+        const checkboxValues = Array.isArray(formValues[`data[${baseFieldName}][]`])
+            ? formValues[`data[${baseFieldName}][]`]
+            : (Array.isArray(formValues[baseFieldName]) ? formValues[baseFieldName] : null);
+
+        if (checkboxValues) {
+            return checkboxValues.map((item) => String(item).trim()).includes('Others');
+        }
+
+        return selectValue === 'Others';
+    }
+
+    function getFinanceSourceFieldValue(source = {}, fieldName) {
+        const directValue = source?.[fieldName];
+        if (directValue !== undefined) {
+            return directValue;
+        }
+
+        const bracketValue = source?.[`data[${fieldName}]`];
+        if (bracketValue !== undefined) {
+            return bracketValue;
+        }
+
+        const arrayValue = source?.[`${fieldName}[]`];
+        if (arrayValue !== undefined) {
+            return arrayValue;
+        }
+
+        const bracketArrayValue = source?.[`data[${fieldName}][]`];
+        if (bracketArrayValue !== undefined) {
+            return bracketArrayValue;
+        }
+
+        return '';
+    }
+
+    function shouldShowSupplierPreviewField(fieldName, source = {}) {
+        const cleanName = String(fieldName || '').trim();
+        if (!cleanName) return true;
+
+        if (cleanName === 'entity_type_other') {
+            return String(getFinanceSourceFieldValue(source, 'entity_type') || '').trim() === 'Others';
+        }
+
+        if (cleanName === 'corporation_type') {
+            return ['Corporation', 'One Person Corporation (OPC)', 'Foreign Company'].includes(String(getFinanceSourceFieldValue(source, 'entity_type') || '').trim());
+        }
+
+        if (cleanName === 'supplier_category_other') {
+            const value = getFinanceSourceFieldValue(source, 'supplier_category');
+            const categories = Array.isArray(value) ? value : (Array.isArray(source?.['data[supplier_category][]']) ? source['data[supplier_category][]'] : []);
+            return categories.map((item) => String(item).trim()).includes('Others');
+        }
+
+        if (cleanName === 'payment_terms_other') {
+            return String(getFinanceSourceFieldValue(source, 'payment_terms') || '').trim() === 'Others';
+        }
+
+        if (cleanName === 'preferred_payment_method_other') {
+            return String(getFinanceSourceFieldValue(source, 'preferred_payment_method') || '').trim() === 'Others';
+        }
+
+        if (cleanName === 'online_payment_details') {
+            return String(getFinanceSourceFieldValue(source, 'preferred_payment_method') || '').trim() === 'Online Payment';
+        }
+
+        if (cleanName === 'id_type_other') {
+            return String(getFinanceSourceFieldValue(source, 'id_type') || '').trim() === 'Others';
+        }
+
+        return true;
+    }
+
     function renderSupplierModeTabs() {
         const target = $('supplierModeTabs');
         if (!target) return;
@@ -855,7 +947,6 @@
                 selectField('corporation_type', 'If Corporation, Specify Corporation Type', { options: supplierCorporationTypeOptions }),
                 textField('registration_number', 'Registration Number'),
                 textField('tin', 'Tax Identification Number (TIN)'),
-                textField('bir_tin', 'BIR TIN'),
                 selectField('vat_status', 'VAT Status', {
                     options: [
                         { value: 'VAT Registered', label: 'VAT Registered' },
@@ -1594,7 +1685,8 @@
         },
     };
 
-    const moduleKeys = Object.keys(financeModules);
+    const moduleKeys = Object.keys(bootstrap.moduleLabels || {})
+        .filter((key) => financeModules[key]);
     const canManageFinanceSettings = Boolean(bootstrap.canManageFinanceSettings);
     let financeRecords = Array.isArray(bootstrap.records) ? bootstrap.records.slice() : [];
     let financeSourceRecords = Array.isArray(bootstrap.sourceRecords) ? bootstrap.sourceRecords.slice() : [];
@@ -1602,11 +1694,23 @@
     let financeDropdownOptions = normalizeDropdownSettings(bootstrap.financeDropdownOptions || {});
     let financeAttachmentTypes = normalizeAttachmentTypeSettings(bootstrap.financeAttachmentTypes || []);
     let financeLabelOverrides = normalizeLabelOverrides(bootstrap.financeLabelOverrides || {});
+    const financeNoteVisibilityOptions = Array.isArray(bootstrap.financeNoteVisibilityOptions)
+        ? bootstrap.financeNoteVisibilityOptions.slice()
+        : [
+            { value: 'all', label: 'All Finance Viewers' },
+            { value: 'approvers', label: 'All Approvers' },
+            { value: 'president', label: 'President Only' },
+            { value: 'treasurer', label: 'Treasurer Only' },
+            { value: 'president_treasurer', label: 'President + Treasurer' },
+            { value: 'admins', label: 'Admins Only' },
+        ];
     const officialApproverOptions = Array.isArray(bootstrap.officialApproverOptions) ? bootstrap.officialApproverOptions.slice() : [];
     const defaultApprovalSteps = Array.isArray(bootstrap.defaultApprovalSteps) ? bootstrap.defaultApprovalSteps.slice() : [];
     const requestTypeModules = new Set(Array.isArray(bootstrap.requestTypeModules) ? bootstrap.requestTypeModules : []);
     const currentUserEmployeeId = Number(bootstrap.currentUserEmployeeId || 0) || 0;
-    let currentModuleKey = financeModules[bootstrap.currentModule] ? bootstrap.currentModule : 'supplier';
+    let currentModuleKey = moduleKeys.includes(bootstrap.currentModule)
+        ? bootstrap.currentModule
+        : (moduleKeys[0] || 'supplier');
     let currentWorkflowFilter = workflowFilters.includes(bootstrap.currentWorkflowFilter) ? bootstrap.currentWorkflowFilter : 'all';
     let currentPreviewRecord = null;
     let currentPreviewTab = 'details';
@@ -1616,6 +1720,7 @@
     let currentPreviewPdfObjectUrl = '';
     let currentPreviewPdfGeneration = 0;
     let currentPreviewRefreshTimer = null;
+    let currentPreviewRefreshSignature = '';
     let currentEditRecordId = null;
     let financeFormLockedReadOnly = false;
     let activeLookupSelector = null;
@@ -2322,53 +2427,85 @@
         };
     }
 
-    function formatLabelOverridesForTextarea(moduleKey) {
+    function getModuleLabelEntries(moduleKey) {
+        const baseConfig = financeModules[moduleKey] || financeModules.supplier;
         const overrides = getModuleLabelOverrides(moduleKey);
-        const lines = [];
+        const fieldLabels = overrides.field_labels || {};
+        const entries = [
+            {
+                key: 'record_number_label',
+                label: 'Record Number',
+                current: String(baseConfig.recordNumberLabel || '').trim(),
+                override: String(overrides.record_number_label || '').trim(),
+                helper: 'Changes the label shown for the record number across forms, previews, and PDFs.',
+            },
+            {
+                key: 'record_title_label',
+                label: 'Record Title',
+                current: String(baseConfig.recordTitleLabel || '').trim(),
+                override: String(overrides.record_title_label || '').trim(),
+                helper: 'Changes the label shown for the main title or payee name on this module.',
+            },
+            {
+                key: 'record_date_label',
+                label: 'Record Date',
+                current: String(baseConfig.recordDateLabel || '').trim(),
+                override: String(overrides.record_date_label || '').trim(),
+                helper: 'Changes the label shown for the date field in forms, previews, and PDFs.',
+            },
+        ];
 
-        if (overrides.record_number_label) {
-            lines.push(`record_number_label | ${overrides.record_number_label}`);
-        }
-        if (overrides.record_title_label) {
-            lines.push(`record_title_label | ${overrides.record_title_label}`);
-        }
-        if (overrides.record_date_label) {
-            lines.push(`record_date_label | ${overrides.record_date_label}`);
-        }
-
-        Object.entries(overrides.field_labels || {}).forEach(([fieldName, label]) => {
-            lines.push(`${fieldName} | ${label}`);
+        (baseConfig.fields || []).forEach((field) => {
+            if (!field || !field.name) return;
+            entries.push({
+                key: field.name,
+                label: field.label || field.name,
+                current: String(field.label || '').trim(),
+                override: String(fieldLabels[field.name] || '').trim(),
+                helper: field.help || 'Changes the label shown for this field without changing stored record values.',
+                isField: true,
+            });
         });
 
-        return lines.join('\n');
+        return entries;
     }
 
-    function parseLabelOverridesTextarea(value) {
-        const result = {};
+    function buildLabelOverridesFromInputs(moduleKey) {
+        const overrides = {};
         const fieldLabels = {};
+        const entries = getModuleLabelEntries(moduleKey);
 
-        String(value || '').split(/\r?\n/).forEach((line) => {
-            const trimmed = line.trim();
-            if (!trimmed) return;
+        entries.forEach((entry) => {
+            const input = document.querySelector(`[data-finance-label-input][data-module-key="${cssIdentifier(moduleKey)}"][data-label-key="${cssIdentifier(entry.key)}"]`);
+            if (!input) return;
 
-            const separatorIndex = trimmed.indexOf('|');
-            const key = separatorIndex >= 0 ? trimmed.slice(0, separatorIndex).trim() : trimmed;
-            const label = separatorIndex >= 0 ? trimmed.slice(separatorIndex + 1).trim() : '';
-            if (!key || !label) return;
+            const value = String(input.value || '').trim();
+            if (!value) return;
 
-            if (['record_number_label', 'record_title_label', 'record_date_label'].includes(key)) {
-                result[key] = label;
+            if (entry.key === 'record_number_label' || entry.key === 'record_title_label' || entry.key === 'record_date_label') {
+                overrides[entry.key] = value;
                 return;
             }
 
-            fieldLabels[key] = label;
+            fieldLabels[entry.key] = value;
         });
 
         if (Object.keys(fieldLabels).length) {
-            result.field_labels = fieldLabels;
+            overrides.field_labels = fieldLabels;
         }
 
-        return result;
+        return overrides;
+    }
+
+    function countLabelOverrides(moduleKey) {
+        const overrides = getModuleLabelOverrides(moduleKey);
+        const fieldLabelCount = Object.keys(overrides.field_labels || {}).length;
+
+        return [
+            overrides.record_number_label,
+            overrides.record_title_label,
+            overrides.record_date_label,
+        ].filter(Boolean).length + fieldLabelCount;
     }
 
     function isEditableDropdownField(field) {
@@ -2508,6 +2645,7 @@
             ${moduleKeys.map((moduleKey) => {
             const active = moduleKey === activeDropdownSettingsModuleKey;
             const fieldsCount = getEditableDropdownFields(moduleKey).length;
+            const labelCount = countLabelOverrides(moduleKey);
 
             return `
                 <button
@@ -2516,7 +2654,7 @@
                     class="w-full rounded-lg px-3 py-2 text-left text-sm transition ${active ? 'bg-white text-blue-700 shadow-sm border border-blue-100 font-semibold' : 'text-gray-600 hover:bg-white'}"
                 >
                     <span class="block truncate">${escapeHtml(getModuleConfig(moduleKey).label)}</span>
-                    <span class="mt-0.5 block text-[11px] text-gray-400">${fieldsCount} editable dropdown${fieldsCount === 1 ? '' : 's'}</span>
+                    <span class="mt-0.5 block text-[11px] text-gray-400">${labelCount} label override${labelCount === 1 ? '' : 's'} • ${fieldsCount} choice set${fieldsCount === 1 ? '' : 's'}</span>
                 </button>
             `;
         }).join('')}
@@ -2545,42 +2683,142 @@
         }
 
         const fields = getEditableDropdownFields(activeDropdownSettingsModuleKey);
-        title.textContent = `${getModuleConfig(activeDropdownSettingsModuleKey).label} Dropdowns`;
-        const labelTextareaId = `financeLabelOverrides_${cssIdentifier(activeDropdownSettingsModuleKey)}`;
+        title.textContent = `${getModuleConfig(activeDropdownSettingsModuleKey).label} Editor`;
+        const labelOverridesCount = countLabelOverrides(activeDropdownSettingsModuleKey);
+        const dropdownFieldsCount = fields.length;
+        const labelEntries = getModuleLabelEntries(activeDropdownSettingsModuleKey);
         const labelCardHtml = `
-            <div class="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-4 shadow-sm">
-                <div class="flex items-start justify-between gap-3">
-                    <div>
-                        <p class="text-[11px] uppercase tracking-[0.18em] text-slate-600">Field Labels</p>
-                        <h4 class="mt-1 text-sm font-semibold text-gray-900">Rename visible labels globally</h4>
-                        <p class="mt-2 text-xs text-gray-500">Use <span class="font-mono">record_title_label | Custom Title</span> for core labels, and <span class="font-mono">field_name | Custom Label</span> for form fields. Leave blank to keep the default wording.</p>
+            <div id="financeFieldLabelsSection" class="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-5 shadow-sm">
+                <div class="flex items-start justify-between gap-4">
+                    <div class="space-y-1">
+                        <p class="text-[11px] uppercase tracking-[0.2em] text-slate-600">Field Labels</p>
+                        <h4 class="text-sm font-semibold text-gray-900">Edit visible labels and save them globally</h4>
+                        <p class="text-xs leading-5 text-gray-500">
+                            Use this editor when you want the label text shown to users to be clearer or more consistent.
+                            The change is saved in the database and updates the finance UI everywhere, but it does not rewrite any existing record values.
+                        </p>
                     </div>
-                    <button type="button" onclick="window.financeModule.resetLabelOverrides('${escapeHtml(activeDropdownSettingsModuleKey)}')" class="shrink-0 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50">Reset Labels</button>
+                    <div class="flex shrink-0 flex-wrap gap-2">
+                        <button type="button" onclick="window.financeModule.focusDropdownSettingsSection('dropdown')" class="rounded-full border border-indigo-200 bg-white px-3 py-1.5 text-xs font-medium text-indigo-700 hover:bg-indigo-50">Go to Dropdown Choices</button>
+                        <button type="button" onclick="window.financeModule.resetLabelOverrides('${escapeHtml(activeDropdownSettingsModuleKey)}')" class="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50">Reset to defaults</button>
+                    </div>
                 </div>
-                <textarea
-                    id="${escapeHtml(labelTextareaId)}"
-                    data-finance-label-setting
-                    data-module-key="${escapeHtml(activeDropdownSettingsModuleKey)}"
-                    rows="8"
-                    class="mt-3 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-mono leading-6 outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
-                    placeholder="record_title_label | Custom title label&#10;field_name | Custom field label"
-                >${escapeHtml(formatLabelOverridesForTextarea(activeDropdownSettingsModuleKey))}</textarea>
+                <div class="mt-4 grid gap-3 md:grid-cols-3">
+                    <div class="rounded-xl border border-slate-200 bg-white p-3">
+                        <p class="text-[11px] uppercase tracking-[0.16em] text-slate-500">How it works</p>
+                        <p class="mt-1 text-xs leading-5 text-slate-700">Change only the words displayed in the UI, previews, and PDFs. Existing records keep their stored values.</p>
+                    </div>
+                    <div class="rounded-xl border border-slate-200 bg-white p-3">
+                        <p class="text-[11px] uppercase tracking-[0.16em] text-slate-500">Saved to database</p>
+                        <p class="mt-1 text-xs leading-5 text-slate-700">The new label is stored as a finance label override and applied globally for connected modules.</p>
+                    </div>
+                    <div class="rounded-xl border border-slate-200 bg-white p-3">
+                        <p class="text-[11px] uppercase tracking-[0.16em] text-slate-500">Current overrides</p>
+                        <p class="mt-1 text-xs text-slate-700">${labelOverridesCount} saved</p>
+                    </div>
+                </div>
+                <div class="mt-4 rounded-xl border border-slate-200 bg-white px-4 py-3">
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                            <p class="text-[11px] uppercase tracking-[0.16em] text-slate-500">Quick tip</p>
+                            <p class="mt-1 text-sm text-slate-800">Edit the rows below. Leave a value blank to keep the default label. This only changes the display label, not the saved record data.</p>
+                        </div>
+                        <div class="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">Editable rows below</div>
+                    </div>
+                </div>
+                <div class="mt-4 space-y-3">
+                    ${labelEntries.map((entry) => {
+                        const inputId = `financeLabelInput_${cssIdentifier(activeDropdownSettingsModuleKey)}_${cssIdentifier(entry.key)}`;
+                        const currentLabel = entry.current || 'Untitled';
+                        const overrideValue = entry.override || '';
+                        const isCustom = Boolean(overrideValue);
+                        return `
+                            <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                                <div class="flex flex-wrap items-start justify-between gap-3">
+                                    <div class="min-w-0 space-y-1">
+                                        <p class="text-[11px] uppercase tracking-[0.18em] text-slate-500">${escapeHtml(entry.label)}</p>
+                                        <div class="flex flex-wrap items-center gap-2 text-xs">
+                                            <span class="rounded-full bg-slate-100 px-2 py-1 font-medium text-slate-600">Current: ${escapeHtml(currentLabel)}</span>
+                                            ${isCustom ? '<span class="rounded-full bg-emerald-50 px-2 py-1 font-medium text-emerald-700">Saved in database</span>' : '<span class="rounded-full bg-gray-100 px-2 py-1 font-medium text-gray-500">Using default</span>'}
+                                        </div>
+                                        <p class="text-xs leading-5 text-gray-500">${escapeHtml(entry.helper || 'Change the label without changing stored values.')}</p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onclick="window.financeModule.resetSingleLabelOverride('${escapeHtml(activeDropdownSettingsModuleKey)}', '${escapeHtml(entry.key)}')"
+                                        class="shrink-0 rounded-md border border-gray-200 px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-50"
+                                    >
+                                        Reset
+                                    </button>
+                                </div>
+                                <div class="mt-4 grid gap-3 md:grid-cols-[1fr_1.3fr]">
+                                    <div class="rounded-lg border border-slate-100 bg-slate-50 p-3">
+                                        <p class="text-[11px] uppercase tracking-[0.16em] text-slate-500">What users currently see</p>
+                                        <p class="mt-1 text-sm font-medium text-slate-800">${escapeHtml(currentLabel)}</p>
+                                    </div>
+                                    <div>
+                                        <label class="block text-[11px] uppercase tracking-[0.16em] text-slate-500" for="${escapeHtml(inputId)}">New label to save</label>
+                                        <input
+                                            id="${escapeHtml(inputId)}"
+                                            type="text"
+                                            data-finance-label-input
+                                            data-module-key="${escapeHtml(activeDropdownSettingsModuleKey)}"
+                                            data-label-key="${escapeHtml(entry.key)}"
+                                            value="${escapeHtml(overrideValue)}"
+                                            placeholder="${escapeHtml(currentLabel)}"
+                                            class="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none transition focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
+                                        >
+                                        <p class="mt-2 text-xs text-gray-500">Leave blank to keep the default label. Saving stores only the new label, not the old record values.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            </div>
+        `;
+
+        const dropdownHelpHtml = `
+            <div id="financeDropdownChoicesSection" class="rounded-2xl border border-indigo-200 bg-indigo-50/70 p-5 shadow-sm">
+                <p class="text-[11px] uppercase tracking-[0.2em] text-indigo-700">Dropdown Choices</p>
+                <h4 class="mt-1 text-sm font-semibold text-gray-900">Edit the options in a dropdown list</h4>
+                <p class="mt-2 text-xs leading-5 text-gray-600">
+                    One line equals one option. Use <span class="font-mono">Label | value</span> when the saved value should be different from the display text.
+                    Add new lines to add choices, rename the label to update what users see, hide or deactivate choices from the attachment settings area, and save when you are done.
+                </p>
+                <div class="mt-3">
+                    <button type="button" onclick="window.financeModule.focusDropdownSettingsSection('labels')" class="rounded-full border border-indigo-200 bg-white px-3 py-1.5 text-xs font-medium text-indigo-700 hover:bg-indigo-100">Back to Field Labels</button>
+                </div>
+                <div class="mt-4 grid gap-3 md:grid-cols-3">
+                    <div class="rounded-xl border border-indigo-100 bg-white p-3">
+                        <p class="text-[11px] uppercase tracking-[0.16em] text-indigo-600">Add</p>
+                        <p class="mt-1 text-xs text-gray-700">Add a new line with the new option text.</p>
+                    </div>
+                    <div class="rounded-xl border border-indigo-100 bg-white p-3">
+                        <p class="text-[11px] uppercase tracking-[0.16em] text-indigo-600">Rename</p>
+                        <p class="mt-1 text-xs text-gray-700">Change the label to update the visible wording.</p>
+                    </div>
+                    <div class="rounded-xl border border-indigo-100 bg-white p-3">
+                        <p class="text-[11px] uppercase tracking-[0.16em] text-indigo-600">Saved value</p>
+                        <p class="mt-1 text-xs text-gray-700">Use <code>Label | value</code> if the stored value must differ.</p>
+                    </div>
+                </div>
             </div>
         `;
 
         const fieldCardsHtml = fields.length ? fields.map((field) => `
-            <div class="rounded-xl border border-gray-200 bg-white p-4">
+            <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
                 <div class="flex items-start justify-between gap-3">
                     <div>
                         <label class="block text-sm font-semibold text-gray-900" for="financeDropdownField_${escapeHtml(activeDropdownSettingsModuleKey)}_${escapeHtml(field.name)}">${escapeHtml(field.label)}</label>
-                        <p class="mt-1 text-xs text-gray-500">One option per line. Use <span class="font-mono">Label | value</span> when the saved value should differ from the label.</p>
+                        <p class="mt-1 text-xs text-gray-500">This controls the choices shown for this field across all connected finance screens.</p>
                     </div>
                     <button
                         type="button"
                         onclick="window.financeModule.resetDropdownSettingsField('${escapeHtml(activeDropdownSettingsModuleKey)}', '${escapeHtml(field.name)}')"
                         class="shrink-0 rounded-md border border-gray-200 px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-50"
                     >
-                        Reset
+                        Reset choices
                     </button>
                 </div>
                 <textarea
@@ -2588,18 +2826,18 @@
                     data-finance-dropdown-setting
                     data-module-key="${escapeHtml(activeDropdownSettingsModuleKey)}"
                     data-field-name="${escapeHtml(field.name)}"
-                    rows="5"
+                    rows="6"
                     class="mt-3 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm font-mono leading-6 outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
                 >${escapeHtml(formatOptionsForTextarea(activeDropdownSettingsModuleKey, field))}</textarea>
             </div>
         `).join('') : `
             <div class="rounded-xl border border-gray-200 bg-gray-50 p-8 text-center">
-                <p class="text-sm font-medium text-gray-700">No standalone dropdowns in this finance tab.</p>
-                <p class="mt-1 text-xs text-gray-500">Linked lookup dropdowns are managed by their source records. Use the label editor above to rename visible field labels.</p>
+                <p class="text-sm font-medium text-gray-700">No editable dropdown choices on this tab.</p>
+                <p class="mt-1 text-xs text-gray-500">Use the field label section above to rename the visible text for this module.</p>
             </div>
         `;
 
-        fieldsHost.innerHTML = `${labelCardHtml}<div class="space-y-4">${fieldCardsHtml}</div>`;
+        fieldsHost.innerHTML = `${labelCardHtml}${dropdownFieldsCount ? dropdownHelpHtml : ''}<div class="space-y-4">${fieldCardsHtml}</div>`;
     }
 
     function openDropdownSettings() {
@@ -2623,6 +2861,17 @@
         renderDropdownSettingsModal();
     }
 
+    function focusDropdownSettingsSection(section) {
+        const targetId = section === 'dropdown'
+            ? 'financeDropdownChoicesSection'
+            : 'financeFieldLabelsSection';
+        const element = document.getElementById(targetId);
+
+        if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    }
+
     function resetAttachmentTypesSettings() {
         financeAttachmentTypes = normalizeAttachmentTypeSettings([
             { label: 'Supporting Document', value: 'Supporting Document', active: true, hidden: false },
@@ -2636,17 +2885,43 @@
     }
 
     function resetLabelOverrides(moduleKey) {
-        const textarea = document.querySelector(`[data-finance-label-setting][data-module-key="${cssIdentifier(moduleKey)}"]`);
-
-        if (textarea) {
-            textarea.value = '';
-        }
-
         financeLabelOverrides = {
             ...financeLabelOverrides,
         };
         delete financeLabelOverrides[moduleKey];
 
+        renderDropdownSettingsModal();
+    }
+
+    function resetSingleLabelOverride(moduleKey, labelKey) {
+        const input = document.querySelector(`[data-finance-label-input][data-module-key="${cssIdentifier(moduleKey)}"][data-label-key="${cssIdentifier(labelKey)}"]`);
+
+        if (input) {
+            input.value = '';
+        }
+
+        const normalized = normalizeLabelOverrides(financeLabelOverrides);
+        const moduleOverrides = { ...(normalized[moduleKey] || {}) };
+
+        if (labelKey === 'record_number_label' || labelKey === 'record_title_label' || labelKey === 'record_date_label') {
+            delete moduleOverrides[labelKey];
+        } else {
+            const fieldLabels = { ...(moduleOverrides.field_labels || {}) };
+            delete fieldLabels[labelKey];
+            if (Object.keys(fieldLabels).length) {
+                moduleOverrides.field_labels = fieldLabels;
+            } else {
+                delete moduleOverrides.field_labels;
+            }
+        }
+
+        if (Object.keys(moduleOverrides).length) {
+            normalized[moduleKey] = moduleOverrides;
+        } else {
+            delete normalized[moduleKey];
+        }
+
+        financeLabelOverrides = normalized;
         renderDropdownSettingsModal();
     }
 
@@ -2680,10 +2955,7 @@
         payload[activeDropdownSettingsModuleKey] = activeModuleOptions;
         const attachmentTextarea = document.querySelector('[data-finance-attachment-setting]');
         const attachmentTypes = attachmentTextarea ? parseAttachmentTypesTextarea(attachmentTextarea.value) : financeAttachmentTypes;
-        const labelTextarea = document.querySelector(`[data-finance-label-setting][data-module-key="${cssIdentifier(activeDropdownSettingsModuleKey)}"]`);
-        const labelOverrides = labelTextarea
-            ? parseLabelOverridesTextarea(labelTextarea.value)
-            : getModuleLabelOverrides(activeDropdownSettingsModuleKey);
+        const labelOverrides = buildLabelOverridesFromInputs(activeDropdownSettingsModuleKey);
         const mergedLabelOverrides = {
             ...normalizeLabelOverrides(financeLabelOverrides),
         };
@@ -2734,13 +3006,45 @@
     function getLookupLabel(moduleKey, id) {
         const options = financeLookupOptions[moduleKey] || [];
         const match = options.find((item) => String(item.id) === String(id));
-        return match ? match.label : '';
+        if (match) {
+            return match.label;
+        }
+
+        const visibleRecord = financeRecords.find((record) => String(record.id) === String(id) && String(record.module_key) === String(moduleKey));
+        if (visibleRecord) {
+            return visibleRecord.display_label
+                || [visibleRecord.record_number || '', visibleRecord.record_title || ''].filter(Boolean).join(' - ')
+                || visibleRecord.record_number
+                || visibleRecord.record_title
+                || '';
+        }
+
+        const sourceRecord = financeSourceRecords.find((record) => String(record.id) === String(id) && String(record.module_key) === String(moduleKey));
+        if (sourceRecord) {
+            return sourceRecord.display_label
+                || [sourceRecord.record_number || '', sourceRecord.record_title || ''].filter(Boolean).join(' - ')
+                || sourceRecord.record_number
+                || sourceRecord.record_title
+                || '';
+        }
+
+        return '';
+    }
+
+    function getApprovalRoutingRoleLabels(record) {
+        const isSupplierSendMode = record?.module_key === 'supplier'
+            && String(record?.data?.completion_mode || '').trim() === 'send_to_supplier';
+
+        return isSupplierSendMode
+            ? ['Treasurer', 'President']
+            : ['President', 'Treasurer'];
     }
 
     function getApproverRoutingDisplayValue(record, index) {
         const data = record?.data || {};
         const step = Array.isArray(data.approval_steps) ? data.approval_steps[index] || {} : {};
-        const role = index === 0 ? 'President' : 'Treasurer';
+        const roleLabels = getApprovalRoutingRoleLabels(record);
+        const role = roleLabels[index] || (index === 0 ? 'President' : 'Treasurer');
         const userId = step.user_id || getFieldValue(record, index === 0 ? 'first_approver_user_id' : 'second_approver_user_id');
         const match = officialApproverOptions.find((option) => String(option.user_id || '') === String(userId || ''));
         const name = match?.user_name || match?.official_name || String(userId || '');
@@ -2806,6 +3110,7 @@
             linked_ca_id: 'ca',
             linked_dv_id: 'dv',
             linked_lr_id: 'lr',
+            linked_crf_id: 'crf',
             master_item_id: (record.data && record.data.master_item_type) ? record.data.master_item_type : null,
             source_document_id: (record.data && record.data.source_document_type) ? record.data.source_document_type : null,
         };
@@ -3083,7 +3388,11 @@
     function syncFinanceSidebarState() {
         const sidebarLinks = document.querySelectorAll('[data-finance-module]');
         sidebarLinks.forEach((link) => {
-            const isActive = link.getAttribute('data-finance-module') === currentModuleKey;
+            const moduleKey = link.getAttribute('data-finance-module');
+            const isAllowed = moduleKeys.includes(moduleKey);
+            const isActive = moduleKey === currentModuleKey;
+            link.hidden = !isAllowed;
+            link.classList.toggle('hidden', !isAllowed);
             link.classList.toggle('bg-blue-50', isActive);
             link.classList.toggle('text-blue-700', isActive);
             link.classList.toggle('border', isActive);
@@ -3095,6 +3404,21 @@
     }
 
     function getFieldOptions(field, formValues = {}, moduleKey = currentModuleKey) {
+        const injectSelectedLookupOption = (options, lookupModuleKey, selectedValue) => {
+            const normalizedValue = String(selectedValue || '').trim();
+            if (!normalizedValue) {
+                return options;
+            }
+
+            const exists = options.some((option) => String(option.id ?? option.value ?? '') === normalizedValue);
+            if (exists) {
+                return options;
+            }
+
+            const selectedLabel = getLookupLabel(lookupModuleKey, normalizedValue) || normalizedValue;
+            return [{ id: normalizedValue, label: selectedLabel }, ...options];
+        };
+
         if (isEditableDropdownField(field)) {
             const customOptions = getCustomFieldOptions(moduleKey, field.name);
             if (customOptions !== null) {
@@ -3107,13 +3431,18 @@
         }
 
         if (field.source) {
-            return financeLookupOptions[field.source] || [];
+            const selectedValue = formValues[`data[${field.name}]`] || formValues[field.name];
+            return injectSelectedLookupOption(financeLookupOptions[field.source] || [], field.source, selectedValue);
         }
 
         if (field.sourceMap && field.sourceKey) {
             const keyValue = formValues[`data[${field.sourceKey}]`] || formValues[field.sourceKey];
             const mappedModule = field.sourceMap[keyValue];
-            return mappedModule ? (financeLookupOptions[mappedModule] || []) : [];
+            const options = mappedModule ? (financeLookupOptions[mappedModule] || []) : [];
+            const selectedValue = formValues[`data[${field.name}]`] || formValues[field.name];
+            return mappedModule
+                ? injectSelectedLookupOption(options, mappedModule, selectedValue)
+                : options;
         }
 
         return [];
@@ -3180,6 +3509,7 @@
 
     function buildLiquidationBranchDraft(linkedLrRecord) {
         const variance = parseFloat(linkedLrRecord?.data?.variance || '0') || 0;
+        const linkedLrData = linkedLrRecord?.data || {};
         const linkedCaLabel = getLookupLabel('ca', linkedLrRecord?.data?.linked_ca_id) || linkedLrRecord?.data?.linked_ca_id || 'N/A';
         const detailsText = Array.isArray(linkedLrRecord?.data?.line_items) && linkedLrRecord.data.line_items.length
             ? linkedLrRecord.data.line_items
@@ -3187,6 +3517,18 @@
                 .filter(Boolean)
                 .join(', ')
             : (linkedLrRecord?.data?.expense_line_items || linkedLrRecord?.data?.purpose || linkedLrRecord?.record_title || '');
+        const requesterPrefill = {
+            requester_employee_id: linkedLrData.requester_employee_id || '',
+            requestor: linkedLrData.requestor || linkedLrData.employee_name || bootstrap.currentUserName || '',
+            employee_id: linkedLrData.employee_id || '',
+            employee_name: linkedLrData.employee_name || linkedLrData.requestor || bootstrap.currentUserName || '',
+            employee_email: linkedLrData.employee_email || '',
+            contact_number: linkedLrData.contact_number || '',
+            position: linkedLrData.position || '',
+            department: linkedLrData.department || '',
+            superior: linkedLrData.superior || '',
+            superior_email: linkedLrData.superior_email || '',
+        };
 
         if (variance < 0) {
             const amount = Math.abs(variance).toFixed(2);
@@ -3196,7 +3538,7 @@
                 prefill: {
                     linked_lr_id: linkedLrRecord.id,
                     requester_mode: 'own_request',
-                    requestor: linkedLrRecord?.data?.employee_name || bootstrap.currentUserName || '',
+                    ...requesterPrefill,
                     expense_details: detailsText || `Shortage from ${linkedCaLabel}`,
                     amount,
                     reimbursement_mode: linkedLrRecord?.data?.mode_of_release || 'Bank Transfer',
@@ -3215,7 +3557,7 @@
                 prefill: {
                     linked_lr_id: linkedLrRecord.id,
                     requester_mode: 'own_request',
-                    requestor: linkedLrRecord?.data?.employee_name || bootstrap.currentUserName || '',
+                    ...requesterPrefill,
                     amount_returned: amount,
                     mode_of_return: linkedLrRecord?.data?.mode_of_return || 'Cash',
                     receiving_bank_account_id: linkedLrRecord?.data?.bank_account_id || '',
@@ -4426,6 +4768,12 @@
         financeFormValues[`data[${controllerName}]`] = controllerValue;
 
         document.querySelectorAll(`[data-depends-on-checkbox="${cssIdentifier(controllerName)}"]`).forEach((dependentInput) => {
+            const wrapper = dependentInput.closest('[data-finance-field]');
+            if (wrapper) {
+                wrapper.hidden = !enabled;
+                wrapper.classList.toggle('hidden', !enabled);
+            }
+
             dependentInput.disabled = !enabled;
             dependentInput.classList.toggle('bg-gray-100', !enabled);
             dependentInput.classList.toggle('cursor-not-allowed', !enabled);
@@ -4436,6 +4784,15 @@
                 financeFormValues[dependentName] = '';
                 financeFormValues[`data[${dependentName}]`] = '';
             }
+        });
+    }
+
+    function syncAllDependentFieldStates() {
+        const form = $('financeForm');
+        if (!form) return;
+
+        form.querySelectorAll('[data-checkbox-field]').forEach((input) => {
+            syncDependentFieldState(input);
         });
     }
 
@@ -4470,12 +4827,14 @@
         const hint = field.help ? `<p class="mt-1 text-xs text-gray-500">${escapeHtml(field.help)}</p>` : '';
         const fieldName = `data[${field.name}]`;
         const dependencyValue = field.dependsOnCheckbox ? formValues[`data[${field.dependsOnCheckbox}]`] : null;
-        const dependencyEnabled = !field.dependsOnCheckbox || isTruthyFormValue(dependencyValue);
+        const specifyOtherVisible = shouldShowSpecifyOtherField(field.name, formValues);
+        const dependencyEnabled = (!field.dependsOnCheckbox || isTruthyFormValue(dependencyValue)) && specifyOtherVisible;
         const forceReadOnly = financeFormLockedReadOnly;
         const disabledAttr = (field.dependsOnCheckbox && !dependencyEnabled) || forceReadOnly ? 'disabled' : '';
         const emptyOption = field.placeholder || `Select ${field.label}`;
         const readOnlyAttr = field.readOnly || forceReadOnly ? 'readonly' : '';
         const readOnlyClass = field.readOnly || (field.dependsOnCheckbox && !dependencyEnabled) || forceReadOnly ? 'bg-gray-100 cursor-not-allowed' : '';
+        const wrapperHidden = (field.dependsOnCheckbox && !dependencyEnabled) || !specifyOtherVisible;
 
         let control = '';
 
@@ -4588,11 +4947,11 @@
         }
 
         return `
-            <div class="${field.fullWidth ? 'md:col-span-2' : ''}" data-finance-field="${escapeHtml(field.name)}">
+            <div class="${field.fullWidth ? 'md:col-span-2' : ''} ${wrapperHidden ? 'hidden' : ''}" data-finance-field="${escapeHtml(field.name)}">
                 <label class="block text-sm font-medium mb-1">${label}${field.required ? ' <span class="text-red-500">*</span>' : ''}</label>
                 ${control}
             ${hint}
-        </div>
+            </div>
         `;
     }
 
@@ -5075,9 +5434,11 @@
 
     function renderApprovalSelectionPanel(record, values = {}) {
         if (!moduleRequiresDualApproval()) return '';
+        if (currentModuleKey === 'supplier' && isSupplierDispatchLayout(record)) return '';
 
         const firstApproverValue = approverStepValue(record, 'first_approver_user_id', 0);
         const secondApproverValue = approverStepValue(record, 'second_approver_user_id', 1);
+        const roleLabels = getApprovalRoutingRoleLabels(record);
         const employeeApproverOptions = (financeLookupOptions.employee || [])
             .map((option) => ({
                 value: String(option.user_id || ''),
@@ -5107,8 +5468,8 @@
                     ? 'Disbursement Vouchers require two approvers from the official company officer / corporate record list.'
                     : 'Request-type records require two approvers. Defaults come from the official company officer records, and authorized users may choose approvers from the employee list when needed.'}</p>
                 <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                    ${renderDynamicField(selectField('first_approver_user_id', 'First Approver', { required: true, options: approverOptions }), firstApproverValue, values)}
-                    ${renderDynamicField(selectField('second_approver_user_id', 'Second Approver', { required: true, options: approverOptions }), secondApproverValue, values)}
+                    ${renderDynamicField(selectField('first_approver_user_id', roleLabels[0] || 'First Approver', { required: true, options: approverOptions }), firstApproverValue, values)}
+                    ${renderDynamicField(selectField('second_approver_user_id', roleLabels[1] || 'Second Approver', { required: true, options: approverOptions }), secondApproverValue, values)}
                 </div>
             </div>
         `;
@@ -5450,6 +5811,17 @@
         });
 
         return Array.from(counts.values());
+    }
+
+    function getPoAutofillValuesFromLinkedRecord(linkedPrRecord) {
+        const data = linkedPrRecord?.data || {};
+        const supplierCounts = getPoLinkedPrSupplierCounts(linkedPrRecord);
+
+        return {
+            supplier_id: data.supplier_id || supplierCounts[0]?.id || '',
+            coa_id: data.coa_id || '',
+            linked_pr_supplier_summary: linkedPrRecord?.record_number || '',
+        };
     }
 
     function renderPoLinkedPrSupplierSummary(linkedPrRecord = null) {
@@ -6051,6 +6423,7 @@
     function getFinancePreviewSummaryRows(record) {
         const moduleConfig = getModuleConfig(record.module_key);
         const data = record.data || {};
+        const roleLabels = getApprovalRoutingRoleLabels(record);
         if (record.module_key === 'pr') {
             return [
                 ['Request Number', record.record_number || ''],
@@ -6101,6 +6474,8 @@
                 ['Workflow', record.workflow_status || ''],
                 ['Approval', previewApprovalLabel(record) || ''],
                 ['Completion Mode', data.completion_mode === 'send_to_supplier' ? 'Send to Supplier' : 'Complete Internally'],
+                ['Approver 1', getApproverRoutingDisplayValue(record, 0)],
+                ['Approver 2', getApproverRoutingDisplayValue(record, 1)],
                 ['Supplier Completion', record.supplier_completed_at ? formatDate(record.supplier_completed_at) : 'Pending'],
             ],
             service: [
@@ -6151,6 +6526,8 @@
                 ['Priority', data.priority || ''],
                 ['Needed Date', data.needed_date || ''],
                 ['Requester Option', data.requester_mode || ''],
+                ['Linked PO', getLookupLabel('po', data.linked_po_id) || ''],
+                ['Linked DV', getLookupLabel('dv', data.linked_dv_id) || ''],
                 ['For Client', data.for_client || ''],
                 ['Purpose', data.purpose || ''],
             ],
@@ -6166,10 +6543,13 @@
             ca: [
                 ['Workflow', record.workflow_status || ''],
                 ['Approval', previewApprovalLabel(record) || ''],
-                ['President', getApproverRoutingDisplayValue(record, 0)],
-                ['Treasurer', getApproverRoutingDisplayValue(record, 1)],
+                [roleLabels[0] || 'President', getApproverRoutingDisplayValue(record, 0)],
+                [roleLabels[1] || 'Treasurer', getApproverRoutingDisplayValue(record, 1)],
                 ['Requester Option', data.requester_mode || ''],
                 ['Requested By', data.requestor || getLookupLabel('employee', data.requester_employee_id) || ''],
+                ['Linked DV', getLookupLabel('dv', data.linked_dv_id) || ''],
+                ['Linked LR', getLookupLabel('lr', data.linked_lr_id) || ''],
+                ['Linked CRF', getLookupLabel('crf', data.linked_crf_id) || ''],
                 ['Department', data.department || ''],
                 ['Purpose', data.purpose || ''],
                 ['Amount Requested', data.amount_requested ? formatCurrency(data.amount_requested) : ''],
@@ -6183,6 +6563,8 @@
                 ['Approval', previewApprovalLabel(record) || ''],
                 ['Requester Option', data.requester_mode || ''],
                 ['Linked CA', getLookupLabel('ca', data.linked_ca_id) || ''],
+                ['Linked DV', getLookupLabel('dv', data.linked_dv_id) || ''],
+                ['Linked CRF', getLookupLabel('crf', data.linked_crf_id) || ''],
                 ['Total Cash Advance', data.total_cash_advance ? formatCurrency(data.total_cash_advance) : ''],
                 ['Attachments', getAttachmentSummaryValue(record)],
                 ['Purpose', data.purpose || ''],
@@ -6193,6 +6575,7 @@
                 ['Requester Option', data.requester_mode || ''],
                 ['Requested By', data.requestor || getLookupLabel('employee', data.requester_employee_id) || ''],
                 ['Linked LR', getLookupLabel('lr', data.linked_lr_id) || ''],
+                ['Linked DV', getLookupLabel('dv', data.linked_dv_id) || ''],
                 ['Amount', data.amount ? formatCurrency(data.amount) : ''],
                 ['Reimbursement Mode', data.reimbursement_mode || ''],
             ],
@@ -6201,6 +6584,10 @@
                 ['Approval', previewApprovalLabel(record) || ''],
                 ['Source Document Type', data.source_document_type || ''],
                 ['Source Document', getLookupLabel(data.source_document_type || '', data.source_document_id) || ''],
+                ['Linked PO', getLookupLabel('po', data.linked_po_id) || ''],
+                ['Linked CA', getLookupLabel('ca', data.linked_ca_id) || ''],
+                ['Linked LR', getLookupLabel('lr', data.linked_lr_id) || ''],
+                ['Linked CRF', getLookupLabel('crf', data.linked_crf_id) || ''],
                 ['Supplier', getLookupLabel('supplier', data.supplier_id) || ''],
                 ['Amount', data.amount ? formatCurrency(data.amount) : ''],
                 ['Payment Type', data.payment_type || ''],
@@ -6209,9 +6596,10 @@
             pda: [
                 ['Workflow', record.workflow_status || ''],
                 ['Approval', previewApprovalLabel(record) || ''],
-                ['President', getApproverRoutingDisplayValue(record, 0)],
-                ['Treasurer', getApproverRoutingDisplayValue(record, 1)],
+                [roleLabels[0] || 'President', getApproverRoutingDisplayValue(record, 0)],
+                [roleLabels[1] || 'Treasurer', getApproverRoutingDisplayValue(record, 1)],
                 ['Payroll Period', getLookupLabel('payroll_period', data.payroll_period_id) || ''],
+                ['Linked DV', getLookupLabel('dv', data.linked_dv_id) || ''],
                 ['Pay Date', data.pay_date || ''],
                 ['Employee Count', data.employee_count || ''],
                 ['Total Payroll Amount', data.total_payroll_amount ? formatCurrency(data.total_payroll_amount) : ''],
@@ -6222,6 +6610,7 @@
                 ['Requester Option', data.requester_mode || ''],
                 ['Requested By', data.requestor || getLookupLabel('employee', data.requester_employee_id) || ''],
                 ['Linked LR', getLookupLabel('lr', data.linked_lr_id) || ''],
+                ['Linked DV', getLookupLabel('dv', data.linked_dv_id) || ''],
                 ['Amount Returned', data.amount_returned ? formatCurrency(data.amount_returned) : ''],
                 ['Mode of Return', data.mode_of_return || ''],
             ],
@@ -6230,6 +6619,7 @@
                 ['Approval', previewApprovalLabel(record) || ''],
                 ['Source Bank Account', getLookupLabel('bank_account', data.source_bank_account_id) || ''],
                 ['Destination Bank Account', getLookupLabel('bank_account', data.destination_bank_account_id) || ''],
+                ['Linked DV', getLookupLabel('dv', data.linked_dv_id) || ''],
                 ['Amount', data.amount ? formatCurrency(data.amount) : ''],
                 ['Reason', data.reason || ''],
             ],
@@ -6517,32 +6907,84 @@
         return renderPreviewSectionTable(record, moduleConfig, section.title, section.fieldNames || []);
     }
 
-    function renderFinanceReviewNotesSection(record) {
-        const note = String(record.review_note || '').trim();
-        const reviewer = record.approved_by || record.submitted_by || record.user || 'Finance Team';
-        const noteDate = formatDate(record.approved_at || record.submitted_at || record.updated_at || '');
+    function getFinanceNoteVisibilityLabel(value) {
+        const normalized = String(value || 'all').trim().toLowerCase();
+        const option = financeNoteVisibilityOptions.find((entry) => String(entry.value || '').trim().toLowerCase() === normalized);
+        return option ? option.label : 'Finance Viewers';
+    }
+
+    function getFinanceVisibleNotes(record) {
+        const visible = Array.isArray(record?.visible_finance_notes) ? record.visible_finance_notes.slice() : [];
+        if (visible.length) return visible;
+
+        const fallbackNote = String(record?.review_note || '').trim();
+        if (!fallbackNote) return [];
+
+        return [{
+            id: 'workflow-note',
+            note: fallbackNote,
+            visibility: 'all',
+            visibility_label: 'Workflow Note',
+            author_name: record?.approved_by || record?.submitted_by || record?.user || 'Finance Team',
+            author_email: '',
+            created_at: record?.approved_at || record?.submitted_at || record?.updated_at || '',
+            source: 'workflow',
+        }];
+    }
+
+    function canAddFinanceNote(record) {
+        return Boolean(record?.can_add_note || record?.can_edit || record?.can_review || record?.can_approve || record?.can_hold || record?.can_revert || record?.can_archive || record?.can_request_delete);
+    }
+
+    function renderFinanceNotesCard(record, options = {}) {
+        const context = options.context || 'details';
+        const notes = getFinanceVisibleNotes(record);
+        const canAddNote = canAddFinanceNote(record);
+        const emptyMessage = context === 'template'
+            ? 'No template notes have been added yet.'
+            : 'No notes are visible to you yet.';
 
         return `
-            <div class="finance-preview-box">
-                <div class="finance-preview-section-title">Review Notes</div>
-                <div class="finance-preview-inner">
-                    ${note ? `
-                        <div class="rounded-lg border border-amber-100 bg-amber-50 px-3 py-3">
-                            <div class="flex items-center justify-between gap-3 text-[11px] text-gray-500">
-                                <div>
-                                    <span class="font-semibold text-gray-800">${escapeHtml(reviewer)}</span>
-                                </div>
-                                <div>${escapeHtml(noteDate && noteDate !== 'N/A' ? noteDate : '')}</div>
+            <div class="rounded-2xl border border-amber-100 bg-amber-50/70 p-4">
+                <div class="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                        <h4 class="text-[15px] font-semibold text-gray-900">Notes</h4>
+                        <p class="mt-1 text-xs text-gray-500">Add a note and choose which authority can see it.</p>
+                    </div>
+                    ${canAddNote ? `
+                        <button
+                            type="button"
+                            onclick="window.financeModule.openFinanceNoteDialog(${record.id})"
+                            class="rounded-full border border-amber-200 bg-white px-4 py-2 text-xs font-semibold text-amber-700 hover:bg-amber-50">
+                            Add Note
+                        </button>
+                    ` : ''}
+                </div>
+                <div class="mt-4 space-y-3">
+                    ${notes.length ? notes.map((note) => `
+                        <div class="rounded-xl border border-amber-100 bg-white px-4 py-3 shadow-sm">
+                            <div class="flex flex-wrap items-center justify-between gap-3 text-[11px] text-gray-500">
+                                <div class="font-semibold text-gray-800">${escapeHtml(note.author_name || 'Finance Team')}</div>
+                                <div>${escapeHtml(note.created_at || '')}</div>
                             </div>
-                            <div class="mt-1 text-[11px] uppercase tracking-wide text-amber-700">Review Note</div>
-                            <div class="mt-2 whitespace-pre-line text-sm text-gray-900">${escapeHtml(note)}</div>
+                            <div class="mt-1 flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-amber-700">
+                                <span>${escapeHtml(note.source === 'workflow' ? 'Workflow Note' : 'Internal Note')}</span>
+                                <span class="rounded-full bg-amber-100 px-2 py-1 tracking-normal text-amber-700">${escapeHtml(note.visibility_label || getFinanceNoteVisibilityLabel(note.visibility))}</span>
+                            </div>
+                            <div class="mt-2 whitespace-pre-line text-sm text-gray-900">${escapeHtml(note.note || '')}</div>
                         </div>
-                    ` : `
-                        <p class="finance-preview-muted">No review notes yet.</p>
+                    `).join('') : `
+                        <div class="rounded-xl border border-dashed border-amber-200 bg-white px-4 py-5 text-sm text-gray-500">
+                            ${escapeHtml(emptyMessage)}
+                        </div>
                     `}
                 </div>
             </div>
         `;
+    }
+
+    function renderFinanceReviewNotesSection(record) {
+        return renderFinanceNotesCard(record, { context: 'details' });
     }
 
     function renderDvPreviewLineItems(record) {
@@ -6579,6 +7021,8 @@
     function getModulePreviewSections(record) {
         const data = record.data || {};
         const supplierIsPending = data.completion_mode === 'send_to_supplier' && !record.supplier_completed_at;
+        const filterSupplierPreviewFields = (fieldNames) => fieldNames.filter((fieldName) => shouldShowSupplierPreviewField(fieldName, data));
+        const filterConditionalPreviewFields = (fieldNames) => fieldNames.filter((fieldName) => shouldShowSpecifyOtherField(fieldName, data) || shouldShowSupplierPreviewField(fieldName, data));
 
         switch (record.module_key) {
             case 'supplier':
@@ -6587,12 +7031,12 @@
                 }
 
                 return [
-                    { title: 'Supplier Profile', fieldNames: ['completion_mode', 'date_accomplished', 'trade_name', 'entity_type', 'corporation_type', 'registration_number', 'tin', 'bir_tin'] },
-                    { title: 'Business Details', fieldNames: ['vat_status', 'business_permit_number', 'permit_expiry_date', 'nature_of_business', 'products_services_offered', 'supplier_category', 'years_in_operation'] },
+                    { title: 'Supplier Profile', fieldNames: filterSupplierPreviewFields(['completion_mode', 'date_accomplished', 'trade_name', 'entity_type', 'entity_type_other', 'corporation_type', 'registration_number', 'tin']) },
+                    { title: 'Business Details', fieldNames: filterSupplierPreviewFields(['vat_status', 'business_permit_number', 'permit_expiry_date', 'nature_of_business', 'products_services_offered', 'supplier_category', 'supplier_category_other', 'years_in_operation']) },
                     { title: 'Addresses & Contacts', fieldNames: ['registered_address', 'office_address', 'warehouse_address', 'telephone_number', 'mobile_number', 'email_address', 'website_social_media'] },
                     { title: 'Authorized Representative', fieldNames: ['representative_full_name', 'designation', 'phone_number', 'representative_email_address'] },
-                    { title: 'Billing & Payment', fieldNames: ['billing_address', 'accounting_contact_person', 'accounting_contact_number', 'accounting_email_address', 'payment_terms', 'preferred_payment_method', 'bank_name', 'bank_branch', 'bank_account_name', 'bank_account_number', 'swift_code'] },
-                    { title: 'Acknowledgment', fieldNames: ['person_accomplishing_full_name', 'person_accomplishing_position', 'id_type', 'id_number', 'date_signed'] },
+                    { title: 'Billing & Payment', fieldNames: filterSupplierPreviewFields(['billing_address', 'accounting_contact_person', 'accounting_contact_number', 'accounting_email_address', 'payment_terms', 'payment_terms_other', 'preferred_payment_method', 'preferred_payment_method_other', 'online_payment_details', 'bank_name', 'bank_branch', 'bank_account_name', 'bank_account_number', 'swift_code']) },
+                    { title: 'Acknowledgment', fieldNames: filterSupplierPreviewFields(['person_accomplishing_full_name', 'person_accomplishing_position', 'id_type', 'id_type_other', 'id_number', 'date_signed']) },
                     { type: 'notes', renderer: () => renderFinanceReviewNotesSection(record) },
                 ];
             case 'service':
@@ -6623,8 +7067,9 @@
             case 'pr':
                 return [
                     { title: 'Request Overview', fieldNames: ['record_number', 'record_title', 'requestor', 'priority', 'needed_date', 'amount', 'record_date', 'workflow_status', 'approval_status'] },
+                    { title: 'Connected Records', fieldNames: ['linked_po_id', 'linked_dv_id'] },
                     { title: 'Request Details', fieldNames: ['requester_mode', 'requester_employee_id', 'for_client', 'pr_reason_categories', 'request_type'] },
-                    { title: 'Requester Details', fieldNames: ['requestor', 'employee_id', 'employee_email', 'contact_number', 'position', 'department', 'superior', 'superior_email'] },
+                    { title: 'Requester Details', fieldNames: ['requestor', 'employee_name', 'employee_id', 'employee_email', 'contact_number', 'position', 'department', 'superior', 'superior_email'] },
                     { title: 'Items / Cost Details', renderer: () => renderPrPreviewTable(record) },
                     { type: 'notes', renderer: () => renderFinanceReviewNotesSection(record) },
                 ];
@@ -6642,15 +7087,17 @@
                 return [
                     { type: 'ca_payment_tracking', renderer: () => renderCashAdvancePaymentPreview(record) },
                     { type: 'source_disbursement_summary', renderer: () => renderSourceDisbursementSummaryCard(record) },
+                    { title: 'Connected Records', fieldNames: ['linked_dv_id', 'linked_lr_id', 'linked_crf_id'] },
                     { title: 'Approval Routing', fieldNames: ['first_approver_user_id', 'second_approver_user_id'] },
-                    { title: 'Request Details', fieldNames: ['requester_mode', 'requester_employee_id', 'requestor', 'department', 'purpose', 'needed_date', 'mode_of_release', 'amount_requested', 'release_schedule', 'release_count', 'amount_per_release', 'cash_release_date', 'cash_release_time', 'paid_through'] },
+                    { title: 'Request Details', fieldNames: filterConditionalPreviewFields(['requester_mode', 'requester_employee_id', 'requestor', 'department', 'purpose', 'needed_date', 'mode_of_release', 'amount_requested', 'release_schedule', 'release_count', 'amount_per_release', 'cash_release_date', 'cash_release_time', 'paid_through', 'other_business_purpose_specify', 'other_expense_specify']) },
+                    { title: 'Requester Details', fieldNames: ['requestor', 'employee_id', 'employee_name', 'employee_email', 'contact_number', 'position', 'department', 'superior', 'superior_email'] },
                     { title: 'Funding & Notes', fieldNames: ['bank_account_id', 'coa_id', 'remarks'] },
                     { type: 'notes', renderer: () => renderFinanceReviewNotesSection(record) },
                 ];
             case 'lr':
                 return [
                     { title: 'Liquidation Overview', fieldNames: ['record_number', 'record_title', 'linked_ca_id', 'total_cash_advance', 'workflow_status', 'approval_status'] },
-                    { title: 'Connected Records', fieldNames: ['linked_ca_id', 'linked_dv_id', 'requester_mode'] },
+                    { title: 'Connected Records', fieldNames: ['linked_ca_id', 'linked_dv_id', 'linked_crf_id'] },
                     { type: 'attachments', title: 'Attachments' },
                     { type: 'history' },
                     { title: 'Liquidation Details', fieldNames: ['requester_mode', 'requester_employee_id', 'total_cash_advance', 'purpose', 'department'] },
@@ -6668,14 +7115,16 @@
 
                 return [
                     { title: 'Reimbursement Overview', fieldNames: ['record_number', 'record_title', 'linked_lr_id', 'reimbursement_mode', 'amount', 'workflow_status', 'approval_status'] },
-                    { title: 'Connected Records', fieldNames: ['linked_lr_id', 'requester_mode', 'requestor'] },
+                    { title: 'Connected Records', fieldNames: ['linked_lr_id', 'linked_dv_id'] },
                     { type: 'source_disbursement_summary', renderer: () => renderSourceDisbursementSummaryCard(record) },
                     { title: 'Reimbursement Details', fieldNames: ['requester_mode', 'requester_employee_id', 'expense_details', 'reimbursement_payment_details', 'reimbursement_mode', ...errPaymentFieldNames, 'remarks'] },
+                    { title: 'Requester Details', fieldNames: ['requestor', 'employee_id', 'employee_name', 'employee_email', 'contact_number', 'position', 'department', 'superior', 'superior_email'] },
                     { type: 'notes', renderer: () => renderFinanceReviewNotesSection(record) },
                 ];
             case 'dv':
                 return [
                     { title: 'Voucher Details', fieldNames: ['source_document_type', 'source_document_id', 'payee_type', 'payee_name', 'supplier_id', 'amount', 'payment_type', 'disbursement_type', 'payment_date', 'due_date', 'projected_balance_after_payment', 'fund_availability_status', 'fund_availability_requested_amount', 'fund_availability_available_balance', 'accounting_balance_status', 'total_debit_amount', 'total_credit_amount', 'accounting_balance_difference'] },
+                    { title: 'Connected Records', fieldNames: ['source_document_type', 'source_document_id', 'linked_pr_id', 'linked_po_id', 'linked_ca_id', 'linked_lr_id', 'linked_crf_id'] },
                     { title: 'Funding & Notes', fieldNames: ['bank_account_id', 'coa_id', 'fund_source', 'source_current_balance', 'source_reserved_balance', 'source_available_balance', 'source_fund_source', 'department', 'reference_number', 'purpose', 'remarks', 'fund_availability_warning', 'fund_availability_checked_at', 'fund_availability_checked_by_name', 'fund_availability_policy_allows_approval', 'accounting_balance_warning', 'accounting_balance_checked_at', 'accounting_balance_checked_by_name'] },
                     { renderer: () => renderDvPreviewLineItems(record) },
                     { title: 'Tax & Receipt', fieldNames: ['withholding_tax', 'vat_amount', 'net_amount', 'currency', 'exchange_rate', 'received_by_name', 'received_by_signature', 'date_received'] },
@@ -6684,6 +7133,7 @@
             case 'pda':
                 return [
                     { title: 'Payroll Overview', fieldNames: ['record_number', 'record_title', 'payroll_period_id', 'pay_date', 'workflow_status', 'approval_status'] },
+                    { title: 'Connected Records', fieldNames: ['payroll_period_id', 'linked_dv_id'] },
                     { title: 'Approval Routing', fieldNames: ['first_approver_user_id', 'second_approver_user_id'] },
                     { type: 'source_disbursement_summary', renderer: () => renderSourceDisbursementSummaryCard(record) },
                     { type: 'pda_payroll_period', title: 'Payroll Period' },
@@ -6695,6 +7145,8 @@
             case 'crf':
                 return [
                     { title: 'Return Details', fieldNames: ['requester_mode', 'requester_employee_id', 'requestor', 'linked_lr_id', 'amount_returned', 'mode_of_return', 'receiving_bank_account_id', 'coa_id'] },
+                    { title: 'Connected Records', fieldNames: ['linked_lr_id', 'linked_dv_id'] },
+                    { title: 'Requester Details', fieldNames: ['requestor', 'employee_id', 'employee_name', 'employee_email', 'contact_number', 'position', 'department', 'superior', 'superior_email'] },
                     { type: 'attachments', title: 'Attachments' },
                     { type: 'history' },
                     { title: 'Reference & Notes', fieldNames: ['reference_number', 'remarks'] },
@@ -6713,6 +7165,7 @@
                     },
                     { type: 'source_disbursement_summary', renderer: () => renderSourceDisbursementSummaryCard(record) },
                     { title: 'Transfer Details', fieldNames: ['source_bank_account_id', 'destination_bank_account_id', 'amount', 'reason'] },
+                    { title: 'Connected Records', fieldNames: ['linked_dv_id', 'source_bank_account_id', 'destination_bank_account_id'] },
                     { title: 'Reference & Notes', fieldNames: ['source_account_code', 'destination_account_code', 'transfer_reference_number', 'remarks'] },
                     { type: 'notes', renderer: () => renderFinanceReviewNotesSection(record) },
                 ];
@@ -6748,14 +7201,15 @@
 
     function getTemplatePreviewSections(record) {
         const data = record.data || {};
+        const filterSupplierPreviewFields = (fieldNames) => fieldNames.filter((fieldName) => shouldShowSupplierPreviewField(fieldName, data));
 
         if (record.module_key === 'supplier') {
             return [
-                { title: 'Supplier Profile', fieldNames: ['completion_mode', 'date_accomplished', 'trade_name', 'entity_type', 'corporation_type', 'registration_number', 'tin', 'bir_tin'] },
-                { title: 'Business Details', fieldNames: ['vat_status', 'business_permit_number', 'permit_expiry_date', 'nature_of_business', 'products_services_offered', 'supplier_category', 'years_in_operation'] },
+                { title: 'Supplier Profile', fieldNames: filterSupplierPreviewFields(['completion_mode', 'date_accomplished', 'trade_name', 'entity_type', 'entity_type_other', 'corporation_type', 'registration_number', 'tin']) },
+                { title: 'Business Details', fieldNames: filterSupplierPreviewFields(['vat_status', 'business_permit_number', 'permit_expiry_date', 'nature_of_business', 'products_services_offered', 'supplier_category', 'supplier_category_other', 'years_in_operation']) },
                 { title: 'Address & Contact', fieldNames: ['registered_address', 'office_address', 'warehouse_address', 'telephone_number', 'mobile_number', 'email_address', 'website_social_media'] },
                 { title: 'Authorized Representative', fieldNames: ['representative_full_name', 'designation', 'phone_number', 'representative_email_address'] },
-                { title: 'Billing & Payment', fieldNames: ['billing_address', 'accounting_contact_person', 'accounting_contact_number', 'accounting_email_address', 'payment_terms', 'preferred_payment_method', 'bank_name', 'bank_branch', 'bank_account_name', 'bank_account_number', 'swift_code'] },
+                { title: 'Billing & Payment', fieldNames: filterSupplierPreviewFields(['billing_address', 'accounting_contact_person', 'accounting_contact_number', 'accounting_email_address', 'payment_terms', 'payment_terms_other', 'preferred_payment_method', 'preferred_payment_method_other', 'online_payment_details', 'bank_name', 'bank_branch', 'bank_account_name', 'bank_account_number', 'swift_code']) },
             ];
         }
 
@@ -8134,13 +8588,16 @@
         if (currentModuleKey !== 'supplier') return;
 
         const entityTypeInput = $('dynamicFields')?.querySelector('[name="data[entity_type]"]');
+        const paymentTermsInput = $('dynamicFields')?.querySelector('[name="data[payment_terms]"]');
         const paymentMethodInput = $('dynamicFields')?.querySelector('[name="data[preferred_payment_method]"]');
         const entityType = entityTypeInput?.value || '';
+        const paymentTerms = paymentTermsInput?.value || '';
         const paymentMethod = paymentMethodInput?.value || '';
 
         const corporationField = $('dynamicFields')?.querySelector('[data-finance-field="corporation_type"]');
         if (corporationField) {
             const show = ['Corporation', 'One Person Corporation (OPC)', 'Foreign Company'].includes(entityType);
+            corporationField.hidden = !show;
             corporationField.classList.toggle('hidden', !show);
             corporationField.querySelectorAll('select, input, textarea').forEach((input) => {
                 input.disabled = !show;
@@ -8150,8 +8607,40 @@
         const entityOtherField = $('dynamicFields')?.querySelector('[data-finance-field="entity_type_other"]');
         if (entityOtherField) {
             const show = entityType === 'Others';
+            entityOtherField.hidden = !show;
             entityOtherField.classList.toggle('hidden', !show);
             entityOtherField.querySelectorAll('select, input, textarea').forEach((input) => {
+                input.disabled = !show;
+            });
+        }
+
+        const supplierCategoryOtherField = $('dynamicFields')?.querySelector('[data-finance-field="supplier_category_other"]');
+        if (supplierCategoryOtherField) {
+            const selectedCategories = Array.from($('dynamicFields')?.querySelectorAll('input[name="data[supplier_category][]"]:checked') || []).map((input) => input.value);
+            const show = selectedCategories.includes('Others');
+            supplierCategoryOtherField.hidden = !show;
+            supplierCategoryOtherField.classList.toggle('hidden', !show);
+            supplierCategoryOtherField.querySelectorAll('select, input, textarea').forEach((input) => {
+                input.disabled = !show;
+            });
+        }
+
+        const paymentTermsOtherField = $('dynamicFields')?.querySelector('[data-finance-field="payment_terms_other"]');
+        if (paymentTermsOtherField) {
+            const show = paymentTerms === 'Others';
+            paymentTermsOtherField.hidden = !show;
+            paymentTermsOtherField.classList.toggle('hidden', !show);
+            paymentTermsOtherField.querySelectorAll('select, input, textarea').forEach((input) => {
+                input.disabled = !show;
+            });
+        }
+
+        const idTypeOtherField = $('dynamicFields')?.querySelector('[data-finance-field="id_type_other"]');
+        if (idTypeOtherField) {
+            const show = $('dynamicFields')?.querySelector('[name="data[id_type]"]')?.value === 'Others';
+            idTypeOtherField.hidden = !show;
+            idTypeOtherField.classList.toggle('hidden', !show);
+            idTypeOtherField.querySelectorAll('select, input, textarea').forEach((input) => {
                 input.disabled = !show;
             });
         }
@@ -8159,6 +8648,7 @@
         const onlinePaymentField = $('dynamicFields')?.querySelector('[data-finance-field="online_payment_details"]');
         if (onlinePaymentField) {
             const show = paymentMethod === 'Online Payment';
+            onlinePaymentField.hidden = !show;
             onlinePaymentField.classList.toggle('hidden', !show);
             onlinePaymentField.querySelectorAll('select, input, textarea').forEach((input) => {
                 input.disabled = !show;
@@ -8168,6 +8658,7 @@
         const paymentMethodOtherField = $('dynamicFields')?.querySelector('[data-finance-field="preferred_payment_method_other"]');
         if (paymentMethodOtherField) {
             const show = paymentMethod === 'Others';
+            paymentMethodOtherField.hidden = !show;
             paymentMethodOtherField.classList.toggle('hidden', !show);
             paymentMethodOtherField.querySelectorAll('select, input, textarea').forEach((input) => {
                 input.disabled = !show;
@@ -8179,6 +8670,91 @@
         if (registrationLabel) {
             registrationLabel.textContent = supplierRegistrationLabel(entityType);
         }
+    }
+
+    function collectFinanceFormValues() {
+        const values = {};
+        const form = $('financeForm');
+        if (!form) return values;
+
+        form.querySelectorAll('input, select, textarea').forEach((input) => {
+            if (!input.name) return;
+
+            const fieldName = fieldNameFromInputName(input.name);
+
+            if (input.type === 'checkbox') {
+                if (input.name.endsWith('[]')) {
+                    const current = Array.isArray(values[input.name]) ? values[input.name] : [];
+                    if (input.checked) {
+                        current.push(input.value);
+                    }
+                    values[input.name] = current;
+                    values[fieldName] = current;
+                    return;
+                }
+
+                values[input.name] = input.checked ? (input.value || '1') : '';
+                values[fieldName] = values[input.name];
+                return;
+            }
+
+            if (input.type === 'radio' && !input.checked) {
+                return;
+            }
+
+            values[input.name] = input.value;
+            values[fieldName] = input.value;
+        });
+
+        return values;
+    }
+
+    function setConditionalFieldVisibility(field, show) {
+        const wrapper = $('dynamicFields')?.querySelector(`[data-finance-field="${cssIdentifier(field.name)}"]`);
+        if (!wrapper) return;
+
+        wrapper.hidden = !show;
+        wrapper.classList.toggle('hidden', !show);
+        wrapper.querySelectorAll('input, select, textarea').forEach((input) => {
+            if (field.dependsOnCheckbox || input.matches('[data-checkbox-field]')) return;
+            input.disabled = !show || Boolean(field.readOnly) || financeFormLockedReadOnly;
+        });
+    }
+
+    function syncConditionalDynamicFields(existingAttachments = []) {
+        const moduleConfig = getModuleConfig(currentModuleKey);
+        const formValues = collectFinanceFormValues();
+
+        (moduleConfig.fields || []).forEach((field) => {
+            if (!field || !field.name || field.type === 'calculation') return;
+
+            let show = true;
+
+            if (currentModuleKey === 'supplier') {
+                show = shouldShowSupplierPreviewField(field.name, formValues);
+            } else {
+                show = shouldShowSpecifyOtherField(field.name, formValues);
+            }
+
+            if (currentModuleKey === 'err') {
+                const mode = formValues['data[reimbursement_mode]'] || formValues.reimbursement_mode || '';
+                const modeFields = ['cash_receiver_name', 'recipient_bank_account', 'recipient_bank_number', 'bank_account_id'];
+                const visibleModeFields = {
+                    Cash: ['cash_receiver_name'],
+                    'Bank Transfer': ['recipient_bank_account', 'recipient_bank_number'],
+                    Check: ['bank_account_id'],
+                }[mode] || [];
+
+                if (modeFields.includes(field.name)) {
+                    show = visibleModeFields.includes(field.name);
+                }
+            }
+
+            setConditionalFieldVisibility(field, show);
+        });
+
+        syncAllDependentFieldStates();
+        syncSupplierConditionalFields(existingAttachments);
     }
 
     function wireDynamicFieldEvents() {
@@ -8198,6 +8774,7 @@
                 if (currentModuleKey === 'ca') {
                     updateCashAdvanceReleaseValues(input.name?.match(/^data\[(.+)\]$/)?.[1] || '');
                 }
+                syncConditionalDynamicFields();
                 renderDrawerPreview();
             });
             input.addEventListener('change', () => {
@@ -8210,9 +8787,12 @@
                 if (currentModuleKey === 'ca') {
                     updateCashAdvanceReleaseValues(input.name?.match(/^data\[(.+)\]$/)?.[1] || '');
                 }
+                syncConditionalDynamicFields();
                 renderDrawerPreview();
             });
         });
+
+        syncConditionalDynamicFields();
 
         if (currentModuleKey === 'lr') {
             const linkedCaSelect = form.querySelector('select[name="data[linked_ca_id]"]');
@@ -8278,7 +8858,7 @@
         }
 
         if (currentModuleKey === 'supplier') {
-            ['entity_type', 'preferred_payment_method'].forEach((fieldName) => {
+            ['entity_type', 'preferred_payment_method', 'id_type', 'payment_terms'].forEach((fieldName) => {
                 const input = form.querySelector(`[name="data[${fieldName}]"]`);
                 if (input) {
                     input.addEventListener('change', () => {
@@ -8290,6 +8870,14 @@
                         renderDrawerPreview();
                     });
                 }
+            });
+
+            form.querySelectorAll('input[name="data[supplier_category][]"]').forEach((input) => {
+                input.addEventListener('change', () => {
+                    const supplierRecord = currentEditRecordId ? getRecordById(currentEditRecordId) : null;
+                    syncSupplierConditionalFields(supplierRecord?.attachments || []);
+                    renderDrawerPreview();
+                });
             });
         }
 
@@ -8447,8 +9035,10 @@
         const recordNumberValue = record
             ? (record.record_number || '')
             : generateModuleRecordNumber(currentModuleKey);
-        const recordTitleValue = generateDefaultRecordTitle(currentModuleKey, record);
-        const recordDateValue = record ? record.record_date || '' : todayDateValue();
+        const recordTitleValue = record
+            ? (record.record_title || generateDefaultRecordTitle(currentModuleKey, record))
+            : (draftContext?.prefill?.record_title || draftContext?.recordTitle || generateDefaultRecordTitle(currentModuleKey));
+        const recordDateValue = record ? record.record_date || '' : (draftContext?.prefill?.record_date || todayDateValue());
         const recordTimeValue = record
             ? (record.data?.transaction_time || currentTimeValue())
             : (draftContext?.prefill?.transaction_time || currentTimeValue());
@@ -9270,14 +9860,16 @@
             }
 
             if (currentModuleKey === 'po') {
-                const supplierValue = getDraftValue('supplier_id', record);
                 const linkedPrId = getDraftValue('linked_pr_id', record);
                 const linkedPrRecord = getRecordById(linkedPrId) || getRecordByLookupValue('pr', linkedPrId);
-                const supplierSummary = record
-                    ? (getDraftValue('linked_pr_supplier_summary', record) || '')
-                    : '';
+                const linkedPrAutofill = getPoAutofillValuesFromLinkedRecord(linkedPrRecord);
+                const supplierValue = getDraftValue('supplier_id', record) || linkedPrAutofill.supplier_id;
+                const coaValue = getDraftValue('coa_id', record) || linkedPrAutofill.coa_id;
+                const supplierSummary = getDraftValue('linked_pr_supplier_summary', record) || linkedPrAutofill.linked_pr_supplier_summary || '';
                 values.supplier_id = supplierValue;
                 values['data[supplier_id]'] = supplierValue;
+                values.coa_id = coaValue;
+                values['data[coa_id]'] = coaValue;
                 values.linked_pr_id = linkedPrId;
                 values['data[linked_pr_id]'] = linkedPrId;
                 values.linked_pr_supplier_summary = supplierSummary;
@@ -9313,6 +9905,12 @@
             if (currentModuleKey === 'arf') {
                 const linkedPoId = getDraftValue('linked_po_id', record);
                 const linkedDvId = getDraftValue('linked_dv_id', record);
+                const linkedPoRecord = linkedPoId ? (getRecordById(linkedPoId) || getRecordByLookupValue('po', linkedPoId)) : null;
+                const linkedDvRecord = linkedDvId ? (getRecordById(linkedDvId) || getRecordByLookupValue('dv', linkedDvId)) : null;
+                const linkedAutofill = {
+                    ...(linkedPoRecord ? getArfAutofillValuesFromLinkedRecord(linkedPoRecord) : {}),
+                    ...(linkedDvRecord ? getArfAutofillValuesFromLinkedRecord(linkedDvRecord) : {}),
+                };
                 const itemClassificationValue = getDraftValue('item_classification', record) || 'Fixed Asset';
                 const isFixedAsset = itemClassificationValue === 'Fixed Asset';
                 const assetCodeValue = getDraftValue('asset_code', record) || recordNumberValue;
@@ -9320,10 +9918,10 @@
                 const assetCategoryValue = getDraftValue('asset_category', record);
                 const serialNumberValue = getDraftValue('serial_number', record);
                 const modelValue = getDraftValue('model', record);
-                const supplierValue = getDraftValue('supplier_id', record);
-                const acquisitionCostValue = getDraftValue('acquisition_cost', record);
-                const acquisitionDateValue = getDraftValue('acquisition_date', record);
-                const assetCoaValue = getDraftValue('asset_coa_id', record);
+                const supplierValue = getDraftValue('supplier_id', record) || linkedAutofill.supplier_id;
+                const acquisitionCostValue = getDraftValue('acquisition_cost', record) || linkedAutofill.acquisition_cost;
+                const acquisitionDateValue = getDraftValue('acquisition_date', record) || linkedAutofill.acquisition_date;
+                const assetCoaValue = getDraftValue('asset_coa_id', record) || linkedAutofill.asset_coa_id;
                 const locationValue = getDraftValue('location', record);
                 const custodianValue = getDraftValue('custodian', record);
                 const usefulLifeValue = getDraftValue('useful_life', record);
@@ -9458,7 +10056,7 @@
         $('dynamicFields').innerHTML = `${fieldsHtml}${approvalHtml}`;
         renderAttachmentControls(existingAttachments);
         wireDynamicFieldEvents();
-        syncSupplierConditionalFields(existingAttachments);
+        syncConditionalDynamicFields(existingAttachments);
         syncErrReimbursementModeFields();
         if (currentModuleKey === 'pr') {
             syncPrRequestDetails({ preserveExisting: true });
@@ -10101,10 +10699,14 @@
                                     <p class="text-[11px] uppercase tracking-[0.22em] text-gray-500">Paid Through</p>
                                     <p class="mt-2 min-h-[20px] border-b border-gray-300 text-[14px] font-semibold text-gray-900 break-words">${escapeHtml(summaryValues.paid_through)}</p>
                                 </div>
+                                ${(String(formValues['data[cash_advance_type]'] || '').trim() === 'Other Business Purpose' || (Array.isArray(formValues['data[usage_categories][]']) ? formValues['data[usage_categories][]'] : []).map((item) => String(item).trim()).includes('Other Expense'))
+                                    ? `
                                 <div class="border-r border-t border-gray-300 px-4 py-3">
                                     <p class="text-[11px] uppercase tracking-[0.22em] text-gray-500">Other Business Purpose</p>
                                     <p class="mt-2 min-h-[20px] border-b border-gray-300 text-[14px] font-semibold text-gray-900 break-words">${escapeHtml(formValues['data[other_business_purpose_specify]'] || formValues['data[other_expense_specify]'] || 'Not filled yet')}</p>
                                 </div>
+                                    `
+                                    : ''}
                             </div>
                         </div>
 
@@ -10273,6 +10875,14 @@
                     return field.name === 'email_address';
                 }
 
+                if (currentModuleKey === 'supplier') {
+                    return shouldShowSupplierPreviewField(field.name, formValues);
+                }
+
+                if (!shouldShowSpecifyOtherField(field.name, formValues)) {
+                    return false;
+                }
+
                 if (currentModuleKey === 'err') {
                     const mode = formValues['data[reimbursement_mode]'] || '';
                     const modeFields = ['cash_receiver_name', 'recipient_bank_account', 'recipient_bank_number', 'bank_account_id'];
@@ -10384,6 +10994,121 @@
         requestAnimationFrame(() => renderDrawerPreview());
     }
 
+    function openFinanceDraftFromSource(moduleKey, sourceRecord, prefill = {}, message = '') {
+        const resolvedSourceRecord = typeof sourceRecord === 'object' && sourceRecord !== null
+            ? sourceRecord
+            : getRecordById(sourceRecord);
+
+        if (!resolvedSourceRecord || !moduleKey) return;
+
+        currentModuleKey = moduleKey;
+        currentWorkflowFilter = 'all';
+
+        const url = new URL(window.location.href);
+        url.searchParams.set('module', moduleKey);
+        url.searchParams.delete('workflow_status');
+        window.history.replaceState({}, '', url);
+
+        financeDraftContext = {
+            moduleKey,
+            linkedRecord: resolvedSourceRecord,
+            prefill,
+        };
+
+        closePreview();
+        refreshFinanceView();
+        openFinanceDrawer(null);
+        if (message) {
+            showFinanceToast(message, 'success');
+        }
+    }
+
+    function openPurchaseOrderFromSource(sourceRecord) {
+        const resolvedSourceRecord = typeof sourceRecord === 'object' && sourceRecord !== null
+            ? sourceRecord
+            : getRecordById(sourceRecord);
+
+        if (!resolvedSourceRecord) return;
+
+        const sourceData = resolvedSourceRecord.data || {};
+        const poAutofill = getPoAutofillValuesFromLinkedRecord(resolvedSourceRecord);
+        openFinanceDraftFromSource('po', resolvedSourceRecord, {
+            linked_pr_id: resolvedSourceRecord.id,
+            supplier_id: sourceData.supplier_id || poAutofill.supplier_id || '',
+            coa_id: sourceData.coa_id || poAutofill.coa_id || '',
+            expected_delivery_date: sourceData.expected_delivery_date || '',
+            delivery_address: sourceData.delivery_address || '',
+            terms_and_conditions: sourceData.terms_and_conditions || '',
+            purpose: sourceData.purpose || '',
+            remarks: sourceData.remarks || '',
+            linked_pr_supplier_summary: resolvedSourceRecord.record_number || '',
+            record_title: `PO for ${resolvedSourceRecord.record_number || 'PR'}`,
+        }, 'PR details loaded into a new Purchase Order.');
+    }
+
+    function openLiquidationReportFromSource(sourceRecord) {
+        const resolvedSourceRecord = typeof sourceRecord === 'object' && sourceRecord !== null
+            ? sourceRecord
+            : getRecordById(sourceRecord);
+
+        if (!resolvedSourceRecord) return;
+
+        const sourceData = resolvedSourceRecord.data || {};
+        openFinanceDraftFromSource('lr', resolvedSourceRecord, {
+            linked_ca_id: resolvedSourceRecord.id,
+            total_cash_advance: resolvedSourceRecord.amount || sourceData.amount_requested || '',
+            purpose: sourceData.purpose || sourceData.justification || '',
+            employee_id: sourceData.employee_id || '',
+            employee_name: sourceData.employee_name || resolvedSourceRecord.user || bootstrap.currentUserName || '',
+            employee_email: sourceData.employee_email || '',
+            contact_number: sourceData.contact_number || '',
+            position: sourceData.position || '',
+            department: sourceData.department || '',
+            superior: sourceData.superior || '',
+            superior_email: sourceData.superior_email || '',
+            for_client: sourceData.for_client || 'N/A',
+            client_names: sourceData.client_names || '',
+            coa_id: sourceData.coa_id || '',
+            record_title: `LR for ${resolvedSourceRecord.record_number || 'CA'}`,
+        }, 'CA details loaded into a new Liquidation Report.');
+    }
+
+    function openAssetRecordFromSource(sourceRecord) {
+        const resolvedSourceRecord = typeof sourceRecord === 'object' && sourceRecord !== null
+            ? sourceRecord
+            : getRecordById(sourceRecord);
+
+        if (!resolvedSourceRecord) return;
+
+        const sourceData = resolvedSourceRecord.data || {};
+        const linkedPoRecord = sourceData.linked_po_id ? (getRecordById(sourceData.linked_po_id) || getRecordByLookupValue('po', sourceData.linked_po_id)) : null;
+        const linkedDvRecord = sourceData.linked_dv_id ? (getRecordById(sourceData.linked_dv_id) || getRecordByLookupValue('dv', sourceData.linked_dv_id)) : null;
+        const linkedAutofill = {
+            ...(linkedPoRecord ? getArfAutofillValuesFromLinkedRecord(linkedPoRecord) : {}),
+            ...(linkedDvRecord ? getArfAutofillValuesFromLinkedRecord(linkedDvRecord) : {}),
+        };
+        const prefill = {
+            linked_po_id: resolvedSourceRecord.module_key === 'po' ? resolvedSourceRecord.id : (sourceData.linked_po_id || ''),
+            linked_dv_id: resolvedSourceRecord.module_key === 'dv' ? resolvedSourceRecord.id : (sourceData.linked_dv_id || ''),
+            supplier_id: sourceData.supplier_id || linkedAutofill.supplier_id || '',
+            item_classification: sourceData.item_classification || 'Fixed Asset',
+            asset_code: sourceData.asset_code || resolvedSourceRecord.record_number || '',
+            asset_description: sourceData.asset_description || sourceData.purpose || linkedAutofill.asset_description || resolvedSourceRecord.record_title || '',
+            asset_category: sourceData.asset_category || sourceData.linked_item_type || linkedAutofill.asset_category || '',
+            serial_number: sourceData.serial_number || '',
+            model: sourceData.model || '',
+            acquisition_cost: sourceData.grand_total || sourceData.total_amount || sourceData.amount || linkedAutofill.acquisition_cost || resolvedSourceRecord.amount || '',
+            acquisition_date: sourceData.payment_date || linkedAutofill.acquisition_date || resolvedSourceRecord.record_date || '',
+            asset_coa_id: sourceData.asset_coa_id || sourceData.coa_id || linkedAutofill.asset_coa_id || '',
+            location: sourceData.location || '',
+            custodian: sourceData.custodian || '',
+            remarks: sourceData.remarks || '',
+            record_title: `Asset File for ${resolvedSourceRecord.record_number || resolvedSourceRecord.module_label || 'Source'}`,
+        };
+
+        openFinanceDraftFromSource('arf', resolvedSourceRecord, prefill, 'Source document loaded into a new Asset / Inventory record.');
+    }
+
     function openDisbursementVoucherFromSource(sourceRecord) {
         const resolvedSourceRecord = typeof sourceRecord === 'object' && sourceRecord !== null
             ? sourceRecord
@@ -10391,24 +11116,10 @@
 
         if (!resolvedSourceRecord) return;
 
-        currentModuleKey = 'dv';
-        currentWorkflowFilter = 'all';
-
-        const url = new URL(window.location.href);
-        url.searchParams.set('module', 'dv');
-        url.searchParams.delete('workflow_status');
-        window.history.replaceState({}, '', url);
-
-        financeDraftContext = {
-            moduleKey: 'dv',
-            linkedRecord: resolvedSourceRecord,
-            prefill: getDvFieldPayload('ibtf', resolvedSourceRecord, resolvedSourceRecord.id),
-        };
-
-        closePreview();
-        refreshFinanceView();
-        openFinanceDrawer(null);
-        showFinanceToast('IBTF details loaded into a new Disbursement Voucher.', 'success');
+        openFinanceDraftFromSource('dv', resolvedSourceRecord, {
+            ...getDvFieldPayload(resolvedSourceRecord.module_key, resolvedSourceRecord, resolvedSourceRecord.id),
+            record_title: `DV for ${resolvedSourceRecord.record_number || resolvedSourceRecord.module_label || 'Source'}`,
+        }, `${resolvedSourceRecord.module_label || 'Source'} details loaded into a new Disbursement Voucher.`);
     }
 
     function closeFinanceDrawer() {
@@ -10510,6 +11221,7 @@
 
     function syncPreviewFromRecord(record) {
         currentPreviewRecord = record;
+        currentPreviewRefreshSignature = buildPreviewRefreshSignature(record);
         $('previewModuleTitle').textContent = record.module_label;
         if (currentPreviewTab !== 'attachments' || !currentPreviewAttachmentUrl) {
             revokeCurrentPreviewAttachmentObjectUrl();
@@ -10540,6 +11252,12 @@
             refreshFinanceView();
 
             if (currentPreviewRecord && String(currentPreviewRecord.id) === String(data.id)) {
+                const nextSignature = buildPreviewRefreshSignature(data);
+                if (nextSignature === currentPreviewRefreshSignature) {
+                    currentPreviewRecord = data;
+                    return;
+                }
+
                 syncPreviewFromRecord(data);
                 if (!isPendingSupplierCompletion(data) || (currentPreviewTab === 'attachments' && currentPreviewAttachmentUrl)) {
                     clearPreviewRefreshTimer();
@@ -10554,6 +11272,7 @@
 
     function startPreviewRefresh(record) {
         clearPreviewRefreshTimer();
+        currentPreviewRefreshSignature = buildPreviewRefreshSignature(record);
 
         const refreshCurrentPreview = () => {
             if (!currentPreviewRecord) {
@@ -10597,17 +11316,30 @@
         return String(value);
     }
 
+    function financeHistoryFieldLabel(field) {
+        const normalized = String(field || '').trim().toLowerCase();
+
+        if (!normalized || normalized === 'data' || normalized.startsWith('data.')) {
+            return '';
+        }
+
+        return String(field || 'Field').replace(/^data\./, '').replace(/_/g, ' ');
+    }
+
     function financeHistoryChangeRows(entry, limit = 6) {
         const changes = Array.isArray(entry?.changes) ? entry.changes : [];
-        const rows = changes.slice(0, limit).map((change) => ({
-            field: String(change?.field || 'Field').replace(/^data\./, '').replace(/_/g, ' '),
-            oldValue: financeHistoryDisplayValue(change?.old_value),
-            newValue: financeHistoryDisplayValue(change?.new_value),
-        }));
+        const rows = changes
+            .filter((change) => financeHistoryFieldLabel(change?.field) !== '')
+            .slice(0, limit)
+            .map((change) => ({
+                field: financeHistoryFieldLabel(change?.field),
+                oldValue: financeHistoryDisplayValue(change?.old_value),
+                newValue: financeHistoryDisplayValue(change?.new_value),
+            }));
 
         return {
             rows,
-            remaining: Math.max(changes.length - rows.length, 0),
+            remaining: Math.max(changes.filter((change) => financeHistoryFieldLabel(change?.field) !== '').length - rows.length, 0),
         };
     }
 
@@ -10616,7 +11348,7 @@
             return renderCrfHistoryTimeline(record);
         }
 
-        const entries = financeHistoryEntries(record, 10);
+        const entries = financeHistoryEntries(record, 5);
 
         if (!entries.length) {
             return `
@@ -11030,12 +11762,13 @@
         `;
     }
 
-    function buildFinancePreviewSourceHtml(record) {
+    function buildFinancePreviewSourceHtml(record, { templateMode = false } = {}) {
         const moduleConfig = getModuleConfig(record.module_key);
         const companyName = 'John Kelly & Company';
         const companyLegalName = 'JK&C INC.';
         const companyLogo = '/images/imaglogo.png';
         const data = record.data || {};
+        const roleLabels = getApprovalRoutingRoleLabels(record);
         const summaryItems = record.module_key === 'pr'
             ? [
                 ['Module', moduleConfig.label],
@@ -11065,15 +11798,15 @@
                 ['Submitted At', record.submitted_at || 'N/A'],
                 ['Approved At', record.approved_at || 'N/A'],
                 ...(record.module_key === 'ca' ? [
-                    ['President', getApproverRoutingDisplayValue(record, 0)],
-                    ['Treasurer', getApproverRoutingDisplayValue(record, 1)],
+                    [roleLabels[0] || 'President', getApproverRoutingDisplayValue(record, 0)],
+                    [roleLabels[1] || 'Treasurer', getApproverRoutingDisplayValue(record, 1)],
                 ] : []),
                 ...(record.module_key === 'lr' ? [
                     ['Attachments', getAttachmentSummaryValue(record)],
                 ] : []),
             ];
 
-        const previewSections = getModulePreviewSections(record);
+        const previewSections = templateMode ? getTemplatePreviewSections(record) : getModulePreviewSections(record);
         const modulePreviewHtml = previewSections.map((section) => {
             if (typeof section.renderer === 'function') {
                 return section.renderer();
@@ -11103,6 +11836,25 @@
                 <td class="preview-cell-value">${escapeHtml(attachment.name || attachment.path || 'Attachment')}</td>
             </tr>
         `).join('');
+
+        const detailsHtml = `
+            <div class="finance-preview-box">
+                <div class="finance-preview-section-title">Audit / Workflow</div>
+                <div class="finance-preview-inner">
+                    ${renderAuditControlCallout(record)}
+                </div>
+            </div>
+            ${renderFinanceHistorySourceHtml(record)}
+        `;
+
+        const templateHtml = `
+            <div class="finance-preview-box">
+                <div class="finance-preview-section-title">Template Form</div>
+                <div class="finance-preview-inner">
+                    ${modulePreviewHtml || '<p class="finance-preview-muted">No template sections available.</p>'}
+                </div>
+            </div>
+        `;
 
         return `
             <div class="finance-preview-source">
@@ -11298,25 +12050,7 @@
                     `).join('')}
                 </table>
 
-                ${modulePreviewHtml || '<p class="finance-preview-muted">No additional details provided.</p>'}
-
-                ${renderFinanceHistorySourceHtml(record)}
-
-                ${record.attachments?.length ? `
-                    <div class="finance-preview-box">
-                        <div class="finance-preview-section-title">Attachments</div>
-                        <div class="finance-preview-inner">
-                            <table class="finance-preview-details">
-                                ${record.attachments.map((attachment) => `
-                                    <tr>
-                                        <td class="finance-preview-label">Attachment</td>
-                                        <td class="finance-preview-value">${escapeHtml(attachment.name || attachment.path || 'Attachment')}</td>
-                                    </tr>
-                                `).join('')}
-                            </table>
-                        </div>
-                    </div>
-                ` : ''}
+                ${templateMode ? templateHtml : detailsHtml}
             </div>
         `;
     }
@@ -11330,7 +12064,7 @@
         }
 
         const generationId = ++currentPreviewPdfGeneration;
-        source.innerHTML = buildFinancePreviewSourceHtml(record);
+        source.innerHTML = buildFinancePreviewSourceHtml(record, { templateMode: currentPreviewTab === 'template' });
         frame.src = '';
 
         try {
@@ -11376,6 +12110,20 @@
         }
     }
 
+    function buildPreviewRefreshSignature(record) {
+        const data = record || {};
+        return [
+            data.updated_at || '',
+            data.supplier_completed_at || '',
+            data.submitted_at || '',
+            data.approved_at || '',
+            data.status || '',
+            data.workflow_status || '',
+            data.approval_status || '',
+            Array.isArray(data.attachments) ? data.attachments.length : 0,
+        ].join('|');
+    }
+
     function renderPreviewDocument(record) {
         const templateMode = currentPreviewTab === 'template';
         const attachmentMode = Boolean(currentPreviewAttachmentUrl);
@@ -11385,13 +12133,24 @@
             ? (record.attachments || []).find((attachment) => (attachment.url || normalizeAttachmentUrl(attachment.path || '')) === currentPreviewAttachmentUrl)?.name || 'Attached PDF'
             : 'Finance Preview PDF');
         const holderLabel = templateMode ? 'Template PDF' : (attachmentMode ? 'Attachment PDF' : 'Finance PDF');
-        const previewCacheKey = encodeURIComponent(record.supplier_completed_at || record.submitted_at || record.approved_at || Date.now());
+        const previewCacheKey = encodeURIComponent(buildPreviewRefreshSignature(record) || record.id);
         const attachmentPreviewUrl = currentPreviewAttachmentObjectUrl || currentPreviewAttachmentUrl;
         const previewUrl = templateMode
             ? `/finance/${record.id}/preview-pdf?template=1&t=${previewCacheKey}`
             : (attachmentPreviewUrl
                 ? `${attachmentPreviewUrl}${attachmentPreviewUrl.startsWith('blob:') ? '' : `${attachmentPreviewUrl.includes('?') ? '&' : '?'}preview=${encodeURIComponent(String(currentPreviewAttachmentToken || Date.now()))}`}`
                 : `/finance/${record.id}/preview-pdf?t=${previewCacheKey}`);
+        const previewFooterHtml = !templateMode && currentPreviewTab === 'details' ? `
+            <div class="mt-4 space-y-4">
+                ${renderFinanceNotesCard(record, { context: 'details' })}
+                ${renderAuditControlCallout(record)}
+            </div>
+        ` : '';
+        const templateFooterHtml = templateMode ? `
+            <div class="mt-4 space-y-4">
+                ${renderFinanceNotesCard(record, { context: 'template' })}
+            </div>
+        ` : '';
 
         $('previewDocument').innerHTML = `
             <div class="mx-auto w-full max-w-[100%] overflow-hidden">
@@ -11415,6 +12174,8 @@
                         </a>
                     </div>
                 </div>
+                ${previewFooterHtml}
+                ${templateFooterHtml}
                 <div id="financePreviewPdfSource" class="fixed top-0 left-0 w-[816px] bg-white" style="transform: translateX(-120vw); pointer-events: none;" aria-hidden="true"></div>
             </div>
         `;
@@ -11462,22 +12223,6 @@
         const summaryRows = getFinancePreviewSummaryRows(record);
         const detailItems = '';
 
-        const notesHtml = `
-            <div class="rounded-2xl border border-amber-100 bg-amber-50/70 p-4">
-                <h4 class="text-[15px] font-semibold text-gray-900">Review Notes</h4>
-                <p class="mt-1 text-xs text-gray-500">Finance review notes are shown here in the same card-style layout used in BIR &amp; Tax.</p>
-                <div class="mt-4 rounded-xl border border-amber-100 bg-white px-4 py-3">
-                    <div class="flex items-center justify-between gap-3 text-[11px] text-gray-500">
-                        <div>
-                            <span class="font-semibold text-gray-800">${escapeHtml(record.approved_by || record.submitted_by || record.user || 'Finance Team')}</span>
-                        </div>
-                        <div>${escapeHtml(record.approved_at || record.submitted_at || '')}</div>
-                    </div>
-                    <div class="mt-1 text-[11px] uppercase tracking-[0.18em] text-amber-700">Review Note</div>
-                    <div class="mt-2 whitespace-pre-line text-sm text-gray-900">${escapeHtml(record.review_note || 'No review notes yet.')}</div>
-                </div>
-            </div>
-        `;
         const crfCalloutHtml = record.module_key === 'crf' ? renderCrfPreviewCallout(record) : '';
 
         const pdfAttachments = attachments.filter((attachment) => {
@@ -11547,10 +12292,9 @@
                         </a>
                     </div>
                 </div>
-                ${record.module_key === 'supplier'
-                    ? renderPreviewRowsCard('Supplier Details', summaryRows)
-                    : ''}
-                ${templateSectionCards}
+                <div class="space-y-4">
+                    ${templateSectionCards}
+                </div>
             </div>
         `;
 
@@ -11559,11 +12303,24 @@
             : '';
         const progressHtml = renderFinanceProgressTracker(record);
         const historyHtml = renderFinanceHistoryCards(record);
+        const detailCards = [
+            crfCalloutHtml,
+            moduleTrackingHtml,
+            progressHtml,
+            historyHtml,
+        ].filter(Boolean);
+        const detailContent = detailCards
+            .map((html, index) => {
+                const spanClass = index >= 4 ? 'xl:col-span-2' : '';
+                return `<div class="${spanClass}">${html}</div>`;
+            })
+            .join('');
+
         $('previewTabContent').innerHTML = currentPreviewTab === 'attachments'
             ? attachmentsHtml
             : (currentPreviewTab === 'template'
                 ? templateHtml
-                : `${renderAuditControlCallout(record)}${crfCalloutHtml}${moduleTrackingHtml}${progressHtml}${notesHtml}${historyHtml}`);
+                : `<div class="space-y-4">${detailContent}</div>`);
     }
 
     function updatePreviewTabButtons() {
@@ -11590,6 +12347,7 @@
                     return name.endsWith('.pdf') || mime.includes('pdf');
                 });
                 currentPreviewAttachmentUrl = firstPdf ? (firstPdf.url || normalizeAttachmentUrl(firstPdf.path || '')) : '';
+                currentPreviewAttachmentToken = 0;
             } else {
                 currentPreviewAttachmentUrl = '';
             }
@@ -11634,6 +12392,18 @@
                 actions.push(`<button type="button" onclick="window.financeModule.recordArfAssetEvent(${record.id}, 'return')" class="w-full border border-sky-300 text-sky-700 rounded-md py-2 hover:bg-sky-50">Record Return</button>`);
                 actions.push(`<button type="button" onclick="window.financeModule.recordArfAssetEvent(${record.id}, 'disposal')" class="w-full border border-gray-300 text-gray-700 rounded-md py-2 hover:bg-gray-50">Record Disposal</button>`);
             }
+
+            if (record.module_key === 'po' || record.module_key === 'dv') {
+                actions.push(`<button type="button" onclick="window.financeModule.openAssetRecordFromSource(${record.id})" class="w-full bg-indigo-600 text-white rounded-md py-2 hover:bg-indigo-700">Create Asset / Inventory File</button>`);
+            }
+        }
+
+        if (record.module_key === 'pr') {
+            actions.push(`<button type="button" onclick="window.financeModule.openPurchaseOrderFromSource(${record.id})" class="w-full bg-indigo-600 text-white rounded-md py-2 hover:bg-indigo-700">Create Purchase Order</button>`);
+        }
+
+        if (record.module_key === 'ca') {
+            actions.push(`<button type="button" onclick="window.financeModule.openLiquidationReportFromSource(${record.id})" class="w-full bg-indigo-600 text-white rounded-md py-2 hover:bg-indigo-700">Create Liquidation Report</button>`);
         }
 
         if (record.can_submit) {
@@ -11658,10 +12428,10 @@
         }
 
         if (record.can_revert || record.can_review) {
-            actions.push(`<button type="button" onclick="window.financeModule.revertFinanceRecord(${record.id})" class="w-full bg-amber-500 text-white rounded-md py-2 hover:bg-amber-600">Return for Revision</button>`);
+            actions.push(`<button type="button" onclick="window.financeModule.openFinanceRevertDialog(${record.id})" class="w-full bg-amber-500 text-white rounded-md py-2 hover:bg-amber-600">Return for Revision</button>`);
         }
 
-        if (record.module_key === 'ibtf' && (record.approval_status === 'Approved' || record.relationship_status === 'Awaiting Disbursement Voucher')) {
+        if (['po', 'ca', 'err', 'pda', 'ibtf'].includes(record.module_key) && (record.approval_status === 'Approved' || record.workflow_status === 'Accepted' || record.relationship_status === 'Awaiting Disbursement Voucher')) {
             actions.push(`<button type="button" onclick="window.financeModule.openDisbursementVoucherFromSource(${record.id})" class="w-full bg-indigo-600 text-white rounded-md py-2 hover:bg-indigo-700">Create Disbursement Voucher</button>`);
         }
 
@@ -11985,7 +12755,7 @@
 
         clearPreviewRefreshTimer();
         currentPreviewRecord = record;
-        currentPreviewTab = 'details';
+        currentPreviewTab = 'template';
         currentPreviewAttachmentUrl = '';
         currentPreviewAttachmentToken = 0;
         revokeCurrentPreviewAttachmentObjectUrl();
@@ -12005,7 +12775,7 @@
         if (!currentPreviewRecord || !url) return;
 
         currentPreviewAttachmentUrl = url;
-        currentPreviewAttachmentToken = Date.now();
+        currentPreviewAttachmentToken = (currentPreviewAttachmentToken || 0) + 1;
         currentPreviewTab = 'attachments';
         revokeCurrentPreviewPdfObjectUrl();
         revokeCurrentPreviewAttachmentObjectUrl();
@@ -12123,7 +12893,7 @@
         const currentRecord = currentEditRecordId ? getRecordById(currentEditRecordId) : null;
         const sendToSupplier = isSupplierDispatchLayout(currentRecord);
 
-        if (moduleRequiresDualApproval(currentModuleKey)) {
+        if (moduleRequiresDualApproval(currentModuleKey) && !(currentModuleKey === 'supplier' && sendToSupplier)) {
             const firstApprover = String(formData.get('data[first_approver_user_id]') || '');
             const secondApprover = String(formData.get('data[second_approver_user_id]') || '');
             if (!firstApprover || !secondApprover) {
@@ -12245,9 +13015,66 @@
         openPreview(data.data.id);
     }
 
-    async function holdFinanceRecord(id) {
-        const note = prompt('Enter the reason for placing this record on hold:');
-        if (!note) return;
+    function removeFinanceHoldDialog() {
+        $('financeHoldDialog')?.remove();
+    }
+
+    function openFinanceHoldDialog(id) {
+        const record = getRecordById(id);
+        if (!record) return;
+
+        removeFinanceHoldDialog();
+        const dialog = document.createElement('div');
+        dialog.id = 'financeHoldDialog';
+        dialog.className = 'fixed inset-0 z-[80] flex items-center justify-center bg-black/40 px-4';
+        dialog.innerHTML = `
+            <div class="w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-2xl">
+                <div class="flex items-center justify-between border-b border-gray-100 px-5 py-4">
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-900">Put Record On Hold</h3>
+                        <p class="text-sm text-gray-500">Enter the reason for placing this record on hold. The reason is saved in history and included in notifications.</p>
+                    </div>
+                    <button type="button" onclick="window.financeModule.closeFinanceHoldDialog()" class="text-sm text-gray-500 hover:text-gray-700">Close</button>
+                </div>
+                <div class="space-y-4 px-5 py-5">
+                    <div class="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                        <p class="text-[11px] uppercase tracking-[0.18em] text-gray-500">Record</p>
+                        <p class="mt-1 text-sm font-semibold text-gray-900">${escapeHtml(record.record_number || 'N/A')} - ${escapeHtml(getVisibleRecordTitle(record) || 'Record')}</p>
+                        <p class="mt-1 text-xs text-gray-500">${escapeHtml(record.module_label || 'Finance')} | ${escapeHtml(record.status || 'N/A')}</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Reason for Hold</label>
+                        <textarea data-finance-hold-reason rows="5" class="mt-1 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm text-gray-900 focus:border-blue-400 focus:ring-2 focus:ring-blue-100" placeholder="Explain why this record is being placed on hold."></textarea>
+                        <p class="mt-2 text-xs text-gray-500">This reason is required and will appear in the audit trail and email notification.</p>
+                    </div>
+                </div>
+                <div class="flex items-center justify-end gap-3 border-t border-gray-100 px-5 py-4">
+                    <button type="button" onclick="window.financeModule.closeFinanceHoldDialog()" class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Cancel</button>
+                    <button type="button" onclick="window.financeModule.submitFinanceHoldDialog(${record.id})" class="rounded-lg bg-yellow-500 px-4 py-2 text-sm font-medium text-white hover:bg-yellow-600">Hold Record</button>
+                </div>
+            </div>
+        `;
+        dialog.addEventListener('click', (event) => {
+            if (event.target === dialog) {
+                removeFinanceHoldDialog();
+            }
+        });
+        document.body.appendChild(dialog);
+    }
+
+    function closeFinanceHoldDialog() {
+        removeFinanceHoldDialog();
+    }
+
+    async function submitFinanceHoldDialog(id) {
+        const dialog = $('financeHoldDialog');
+        if (!dialog) return;
+
+        const note = String(dialog.querySelector('[data-finance-hold-reason]')?.value || '').trim();
+        if (!note) {
+            alert('Please enter a reason for placing this record on hold.');
+            return;
+        }
 
         const formData = new FormData();
         formData.append('review_note', note);
@@ -12266,14 +13093,76 @@
             return;
         }
 
+        removeFinanceHoldDialog();
         upsertFinanceRecord(data.data);
         refreshFinanceView();
         openPreview(data.data.id);
     }
 
-    async function revertFinanceRecord(id) {
-        const reason = prompt('Enter the reason for reverting this record:');
-        if (!reason) return;
+    async function holdFinanceRecord(id) {
+        openFinanceHoldDialog(id);
+    }
+
+    function removeFinanceRevertDialog() {
+        $('financeRevertDialog')?.remove();
+    }
+
+    function openFinanceRevertDialog(id) {
+        const record = getRecordById(id);
+        if (!record) return;
+
+        removeFinanceRevertDialog();
+        const dialog = document.createElement('div');
+        dialog.id = 'financeRevertDialog';
+        dialog.className = 'fixed inset-0 z-[80] flex items-center justify-center bg-black/40 px-4';
+        dialog.innerHTML = `
+            <div class="w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-2xl">
+                <div class="flex items-center justify-between border-b border-gray-100 px-5 py-4">
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-900">Return for Revision</h3>
+                        <p class="text-sm text-gray-500">Enter the reason for reverting this record. The reason is saved in history and included in notifications.</p>
+                    </div>
+                    <button type="button" onclick="window.financeModule.closeFinanceRevertDialog()" class="text-sm text-gray-500 hover:text-gray-700">Close</button>
+                </div>
+                <div class="space-y-4 px-5 py-5">
+                    <div class="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                        <p class="text-[11px] uppercase tracking-[0.18em] text-gray-500">Record</p>
+                        <p class="mt-1 text-sm font-semibold text-gray-900">${escapeHtml(record.record_number || 'N/A')} - ${escapeHtml(getVisibleRecordTitle(record) || 'Record')}</p>
+                        <p class="mt-1 text-xs text-gray-500">${escapeHtml(record.module_label || 'Finance')} | ${escapeHtml(record.status || 'N/A')}</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Reason for Reversion</label>
+                        <textarea data-finance-revert-reason rows="5" class="mt-1 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm text-gray-900 focus:border-blue-400 focus:ring-2 focus:ring-blue-100" placeholder="Explain why this record is being returned for revision."></textarea>
+                        <p class="mt-2 text-xs text-gray-500">This reason is required and will appear in the audit trail and email notification.</p>
+                    </div>
+                </div>
+                <div class="flex items-center justify-end gap-3 border-t border-gray-100 px-5 py-4">
+                    <button type="button" onclick="window.financeModule.closeFinanceRevertDialog()" class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Cancel</button>
+                    <button type="button" onclick="window.financeModule.submitFinanceRevertDialog(${record.id})" class="rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-white hover:bg-amber-600">Return for Revision</button>
+                </div>
+            </div>
+        `;
+        dialog.addEventListener('click', (event) => {
+            if (event.target === dialog) {
+                removeFinanceRevertDialog();
+            }
+        });
+        document.body.appendChild(dialog);
+    }
+
+    function closeFinanceRevertDialog() {
+        removeFinanceRevertDialog();
+    }
+
+    async function submitFinanceRevertDialog(id) {
+        const dialog = $('financeRevertDialog');
+        if (!dialog) return;
+
+        const reason = String(dialog.querySelector('[data-finance-revert-reason]')?.value || '').trim();
+        if (!reason) {
+            alert('Please enter a reason for reverting this record.');
+            return;
+        }
 
         const formData = new FormData();
         formData.append('reason', reason);
@@ -12293,9 +13182,111 @@
             return;
         }
 
+        removeFinanceRevertDialog();
         upsertFinanceRecord(data.data);
         refreshFinanceView();
         openPreview(data.data.id);
+    }
+
+    async function revertFinanceRecord(id) {
+        openFinanceRevertDialog(id);
+    }
+
+    function removeFinanceNoteDialog() {
+        $('financeNoteDialog')?.remove();
+    }
+
+    function openFinanceNoteDialog(id) {
+        const record = getRecordById(id);
+        if (!record) return;
+
+        removeFinanceNoteDialog();
+        const visibilityOptionsHtml = financeNoteVisibilityOptions.map((option) => `
+            <option value="${escapeHtml(option.value)}">${escapeHtml(option.label)}</option>
+        `).join('');
+        const dialog = document.createElement('div');
+        dialog.id = 'financeNoteDialog';
+        dialog.className = 'fixed inset-0 z-[80] flex items-center justify-center bg-black/40 px-4';
+        dialog.innerHTML = `
+            <div class="w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-2xl">
+                <div class="flex items-center justify-between border-b border-gray-100 px-5 py-4">
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-900">Add Finance Note</h3>
+                        <p class="text-sm text-gray-500">Choose who can see this note before saving it to the record.</p>
+                    </div>
+                    <button type="button" onclick="window.financeModule.closeFinanceNoteDialog()" class="text-sm text-gray-500 hover:text-gray-700">Close</button>
+                </div>
+                <div class="space-y-4 px-5 py-5">
+                    <div class="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                        <p class="text-[11px] uppercase tracking-[0.18em] text-gray-500">Record</p>
+                        <p class="mt-1 text-sm font-semibold text-gray-900">${escapeHtml(record.record_number || 'N/A')} - ${escapeHtml(getVisibleRecordTitle(record) || 'Record')}</p>
+                        <p class="mt-1 text-xs text-gray-500">${escapeHtml(record.module_label || 'Finance')} | ${escapeHtml(record.status || 'N/A')}</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Note</label>
+                        <textarea data-finance-note-body rows="6" class="mt-1 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm text-gray-900 focus:border-blue-400 focus:ring-2 focus:ring-blue-100" placeholder="Write the note you want to store on this record."></textarea>
+                        <p class="mt-2 text-xs text-gray-500">This note is saved in the record history and will only be visible to the authority you choose below.</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Visible To</label>
+                        <select data-finance-note-visibility class="mt-1 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm text-gray-900 focus:border-blue-400 focus:ring-2 focus:ring-blue-100">
+                            ${visibilityOptionsHtml}
+                        </select>
+                    </div>
+                </div>
+                <div class="flex items-center justify-end gap-3 border-t border-gray-100 px-5 py-4">
+                    <button type="button" onclick="window.financeModule.closeFinanceNoteDialog()" class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Cancel</button>
+                    <button type="button" onclick="window.financeModule.submitFinanceNoteDialog(${record.id})" class="rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-white hover:bg-amber-600">Save Note</button>
+                </div>
+            </div>
+        `;
+        dialog.addEventListener('click', (event) => {
+            if (event.target === dialog) {
+                removeFinanceNoteDialog();
+            }
+        });
+        document.body.appendChild(dialog);
+    }
+
+    function closeFinanceNoteDialog() {
+        removeFinanceNoteDialog();
+    }
+
+    async function submitFinanceNoteDialog(id) {
+        const dialog = $('financeNoteDialog');
+        if (!dialog) return;
+
+        const note = String(dialog.querySelector('[data-finance-note-body]')?.value || '').trim();
+        const visibility = String(dialog.querySelector('[data-finance-note-visibility]')?.value || 'all').trim();
+
+        if (!note) {
+            alert('Please enter a note before saving.');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('note', note);
+        formData.append('visibility', visibility || 'all');
+
+        const res = await csrfFetch(`/finance/${id}/notes`, {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json'
+            },
+            body: formData
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+            alert(data.message || 'Unable to save note.');
+            return;
+        }
+
+        removeFinanceNoteDialog();
+        upsertFinanceRecord(data.data);
+        refreshFinanceView();
+        openPreview(data.data.id);
+        showFinanceToast('Note saved.', 'success');
     }
 
     async function archiveFinanceRecord(id) {
@@ -12318,8 +13309,66 @@
     }
 
     async function requestDeleteFinanceRecord(id) {
-        const note = prompt('Enter a reason for deleting this finance record:');
-        if (note === null) return;
+        const record = getRecordById(id);
+        if (!record) return;
+
+        removeFinanceDeleteDialog();
+        const dialog = document.createElement('div');
+        dialog.id = 'financeDeleteDialog';
+        dialog.className = 'fixed inset-0 z-[80] flex items-center justify-center bg-black/40 px-4';
+        dialog.innerHTML = `
+            <div class="w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-2xl">
+                <div class="flex items-center justify-between border-b border-gray-100 px-5 py-4">
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-900">Request Delete</h3>
+                        <p class="text-sm text-gray-500">Enter the reason for deleting this record. The request is saved for admin review.</p>
+                    </div>
+                    <button type="button" onclick="window.financeModule.closeFinanceDeleteDialog()" class="text-sm text-gray-500 hover:text-gray-700">Close</button>
+                </div>
+                <div class="space-y-4 px-5 py-5">
+                    <div class="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                        <p class="text-[11px] uppercase tracking-[0.18em] text-gray-500">Record</p>
+                        <p class="mt-1 text-sm font-semibold text-gray-900">${escapeHtml(record.record_number || 'N/A')} - ${escapeHtml(getVisibleRecordTitle(record) || 'Record')}</p>
+                        <p class="mt-1 text-xs text-gray-500">${escapeHtml(record.module_label || 'Finance')} | ${escapeHtml(record.status || 'N/A')}</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Reason for Delete Request</label>
+                        <textarea data-finance-delete-reason rows="5" class="mt-1 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm text-gray-900 focus:border-blue-400 focus:ring-2 focus:ring-blue-100" placeholder="Explain why this record should be deleted."></textarea>
+                        <p class="mt-2 text-xs text-gray-500">This reason is required and will appear in the audit trail and admin review notification.</p>
+                    </div>
+                </div>
+                <div class="flex items-center justify-end gap-3 border-t border-gray-100 px-5 py-4">
+                    <button type="button" onclick="window.financeModule.closeFinanceDeleteDialog()" class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Cancel</button>
+                    <button type="button" onclick="window.financeModule.submitFinanceDeleteDialog(${record.id})" class="rounded-lg bg-red-500 px-4 py-2 text-sm font-medium text-white hover:bg-red-600">Request Delete</button>
+                </div>
+            </div>
+        `;
+        dialog.addEventListener('click', (event) => {
+            if (event.target === dialog) {
+                removeFinanceDeleteDialog();
+            }
+        });
+        document.body.appendChild(dialog);
+    }
+
+    function removeFinanceDeleteDialog() {
+        $('financeDeleteDialog')?.remove();
+    }
+
+    function closeFinanceDeleteDialog() {
+        removeFinanceDeleteDialog();
+    }
+
+    async function submitFinanceDeleteDialog(id) {
+        const dialog = $('financeDeleteDialog');
+        if (!dialog) return;
+
+        const note = String(dialog.querySelector('[data-finance-delete-reason]')?.value || '').trim();
+        if (!note) {
+            alert('Please enter a reason for deleting this finance record.');
+            return;
+        }
+
         const formData = new FormData();
         formData.append('review_note', note);
 
@@ -12509,6 +13558,8 @@
     }
 
     function changeModule(moduleKey) {
+        if (!moduleKeys.includes(moduleKey)) return;
+
         currentModuleKey = moduleKey;
         currentWorkflowFilter = 'all';
         supplierCompletionMode = moduleKey === 'supplier' ? 'complete_internally' : 'complete_internally';
@@ -12571,9 +13622,11 @@
         openDropdownSettings,
         closeDropdownSettings,
         changeDropdownSettingsModule,
+        focusDropdownSettingsSection,
         resetDropdownSettingsField,
         resetAttachmentTypesSettings,
         resetLabelOverrides,
+        resetSingleLabelOverride,
         saveDropdownSettings,
         fetchLiquidationSource,
         openPendingLiquidationBranch,
@@ -12585,6 +13638,10 @@
         toggleRecordNumberEditMode,
         changePreviewTab,
         openFinanceDrawer,
+        openFinanceDraftFromSource,
+        openPurchaseOrderFromSource,
+        openLiquidationReportFromSource,
+        openAssetRecordFromSource,
         openDisbursementVoucherFromSource,
         closeFinanceDrawer,
         openPreview,
@@ -12594,9 +13651,21 @@
         submitFinanceRecord,
         approveFinanceRecord,
         holdFinanceRecord,
+        openFinanceHoldDialog,
+        closeFinanceHoldDialog,
+        submitFinanceHoldDialog,
+        openFinanceRevertDialog,
+        closeFinanceRevertDialog,
+        submitFinanceRevertDialog,
+        openFinanceNoteDialog,
+        closeFinanceNoteDialog,
+        submitFinanceNoteDialog,
         revertFinanceRecord,
         archiveFinanceRecord,
         requestDeleteFinanceRecord,
+        openFinanceDeleteDialog: requestDeleteFinanceRecord,
+        closeFinanceDeleteDialog,
+        submitFinanceDeleteDialog,
         shareSupplierRecord,
         resendSupplierForm,
         changeSupplierEmailAndResend,

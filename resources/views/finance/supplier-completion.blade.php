@@ -11,6 +11,8 @@
     $data = $record['data'] ?? [];
     $isCompleted = filled($record['supplier_completed_at'] ?? null);
     $dataValue = fn ($key, $default = '') => old("data.$key", data_get($data, $key, $default));
+    $supplierLabels = $supplierLabels ?? [];
+    $supplierLabel = fn ($key, $default) => $supplierLabels[$key] ?? $default;
     $fieldClass = 'w-full rounded-md border border-gray-300 p-2 text-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100';
     $entityOptions = ['Sole Proprietorship', 'Partnership', 'Corporation', 'One Person Corporation (OPC)', 'Cooperative', 'Freelancer / Individual Professional', 'Independent Contractor', 'Government Agency', 'Non-Profit Organization', 'Foreign Company', 'Others'];
     $corporationTypes = ['Domestic Stock Corporation', 'Domestic Non-Stock Corporation', 'Close Corporation', 'Foreign Corporation', 'Branch Office', 'Representative Office', 'Regional Headquarters', 'Regional Operating Headquarters'];
@@ -81,24 +83,24 @@
                     <h2 class="text-base font-semibold text-gray-900">Business Registration</h2>
                     <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
                         <div>
-                            <label class="mb-1 block text-sm font-medium">Supplier Code</label>
+                            <label class="mb-1 block text-sm font-medium">{{ $supplierLabel('record_number_label', 'Supplier Code') }}</label>
                             <input type="text" name="record_number" value="{{ old('record_number', $record['record_number'] ?? '') }}" class="{{ $fieldClass }} bg-gray-100" readonly>
                         </div>
                         <div>
-                            <label class="mb-1 block text-sm font-medium">Date Accomplished</label>
+                            <label class="mb-1 block text-sm font-medium">{{ $supplierLabel('record_date_label', 'Date Accomplished') }}</label>
                             <input type="date" name="record_date" value="{{ old('record_date', $record['record_date'] ?? now()->toDateString()) }}" class="{{ $fieldClass }}">
                         </div>
                         <div>
-                            <label class="mb-1 block text-sm font-medium">Registered Business Name <span class="text-red-500">*</span></label>
-                            <input type="text" name="record_title" value="{{ old('record_title', ($record['record_title'] ?? '') === 'Registered Business Name' ? '' : ($record['record_title'] ?? '')) }}" class="{{ $fieldClass }}" required>
+                            <label class="mb-1 block text-sm font-medium">{{ $supplierLabel('record_title_label', 'Registered Business Name') }} <span class="text-red-500">*</span></label>
+                            <input type="text" name="record_title" value="{{ old('record_title', ($record['record_title'] ?? '') === $supplierLabel('record_title_label', 'Registered Business Name') ? '' : ($record['record_title'] ?? '')) }}" class="{{ $fieldClass }}" required>
                             @if($errors->first('record_title')) <p class="mt-1 text-xs text-red-600">{{ $errors->first('record_title') }}</p> @endif
                         </div>
                         <div>
-                            <label class="mb-1 block text-sm font-medium">Trade Name / Brand Name</label>
+                            <label class="mb-1 block text-sm font-medium">{{ $supplierLabel('trade_name', 'Trade Name / Brand Name') }}</label>
                             <input type="text" name="data[trade_name]" value="{{ $dataValue('trade_name') }}" class="{{ $fieldClass }}">
                         </div>
                         <div>
-                            <label class="mb-1 block text-sm font-medium">Entity Type <span class="text-red-500">*</span></label>
+                            <label class="mb-1 block text-sm font-medium">{{ $supplierLabel('entity_type', 'Entity Type') }} <span class="text-red-500">*</span></label>
                             <select id="entityTypeInput" name="data[entity_type]" class="{{ $fieldClass }}" required>
                                 <option value="">Select entity type</option>
                                 @foreach($entityOptions as $option)
@@ -107,12 +109,12 @@
                             </select>
                             @if($errors->first('data.entity_type')) <p class="mt-1 text-xs text-red-600">{{ $errors->first('data.entity_type') }}</p> @endif
                         </div>
-                        <div id="entityTypeOtherWrap">
-                            <label class="mb-1 block text-sm font-medium">Specify Other Entity Type</label>
+                        <div id="entityTypeOtherWrap" class="{{ $dataValue('entity_type') === 'Others' ? '' : 'hidden' }}">
+                            <label class="mb-1 block text-sm font-medium">{{ $supplierLabel('entity_type_other', 'Specify Other Entity Type') }}</label>
                             <input type="text" name="data[entity_type_other]" value="{{ $dataValue('entity_type_other') }}" class="{{ $fieldClass }}">
                         </div>
-                        <div id="corporationTypeWrap">
-                            <label class="mb-1 block text-sm font-medium">If Corporation, Specify Corporation Type</label>
+                        <div id="corporationTypeWrap" class="{{ in_array($dataValue('entity_type'), ['Corporation', 'One Person Corporation (OPC)', 'Foreign Company'], true) ? '' : 'hidden' }}">
+                            <label class="mb-1 block text-sm font-medium">{{ $supplierLabel('corporation_type', 'If Corporation, Specify Corporation Type') }}</label>
                             <select name="data[corporation_type]" class="{{ $fieldClass }}">
                                 <option value="">Select corporation type</option>
                                 @foreach($corporationTypes as $option)
@@ -121,16 +123,12 @@
                             </select>
                         </div>
                         <div>
-                            <label id="registrationNumberLabel" class="mb-1 block text-sm font-medium">Registration Number</label>
+                            <label id="registrationNumberLabel" class="mb-1 block text-sm font-medium">{{ $supplierLabel('registration_number', 'Registration Number') }}</label>
                             <input type="text" name="data[registration_number]" value="{{ $dataValue('registration_number') }}" class="{{ $fieldClass }}">
                         </div>
                         <div>
-                            <label class="mb-1 block text-sm font-medium">Tax Identification Number (TIN)</label>
+                            <label class="mb-1 block text-sm font-medium">{{ $supplierLabel('tin', 'Tax Identification Number (TIN)') }}</label>
                             <input type="text" name="data[tin]" value="{{ $dataValue('tin') }}" class="{{ $fieldClass }}">
-                        </div>
-                        <div>
-                            <label class="mb-1 block text-sm font-medium">BIR TIN</label>
-                            <input type="text" name="data[bir_tin]" value="{{ $dataValue('bir_tin') }}" class="{{ $fieldClass }}">
                         </div>
                     </div>
                 </section>
@@ -139,7 +137,7 @@
                     <h2 class="text-base font-semibold text-gray-900">Business Details</h2>
                     <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
                         <div>
-                            <label class="mb-1 block text-sm font-medium">VAT Status</label>
+                            <label class="mb-1 block text-sm font-medium">{{ $supplierLabel('vat_status', 'VAT Status') }}</label>
                             <select name="data[vat_status]" class="{{ $fieldClass }}">
                                 <option value="">Select VAT status</option>
                                 @foreach($vatStatuses as $option)
@@ -148,27 +146,27 @@
                             </select>
                         </div>
                         <div>
-                            <label class="mb-1 block text-sm font-medium">Business Permit Number</label>
+                            <label class="mb-1 block text-sm font-medium">{{ $supplierLabel('business_permit_number', 'Business Permit Number') }}</label>
                             <input type="text" name="data[business_permit_number]" value="{{ $dataValue('business_permit_number') }}" class="{{ $fieldClass }}">
                         </div>
                         <div>
-                            <label class="mb-1 block text-sm font-medium">Permit Expiry Date</label>
+                            <label class="mb-1 block text-sm font-medium">{{ $supplierLabel('permit_expiry_date', 'Permit Expiry Date') }}</label>
                             <input type="date" name="data[permit_expiry_date]" value="{{ $dataValue('permit_expiry_date') }}" class="{{ $fieldClass }}">
                         </div>
                         <div>
-                            <label class="mb-1 block text-sm font-medium">Years in Operation</label>
+                            <label class="mb-1 block text-sm font-medium">{{ $supplierLabel('years_in_operation', 'Years in Operation') }}</label>
                             <input type="number" name="data[years_in_operation]" value="{{ $dataValue('years_in_operation') }}" class="{{ $fieldClass }}" min="0" step="1">
                         </div>
                         <div class="md:col-span-2">
-                            <label class="mb-1 block text-sm font-medium">Nature of Business</label>
+                            <label class="mb-1 block text-sm font-medium">{{ $supplierLabel('nature_of_business', 'Nature of Business') }}</label>
                             <textarea name="data[nature_of_business]" rows="3" class="{{ $fieldClass }}">{{ $dataValue('nature_of_business') }}</textarea>
                         </div>
                         <div class="md:col-span-2">
-                            <label class="mb-1 block text-sm font-medium">Products / Services Offered</label>
+                            <label class="mb-1 block text-sm font-medium">{{ $supplierLabel('products_services_offered', 'Products / Services Offered') }}</label>
                             <textarea name="data[products_services_offered]" rows="3" class="{{ $fieldClass }}">{{ $dataValue('products_services_offered') }}</textarea>
                         </div>
                         <div class="md:col-span-2">
-                            <label class="mb-2 block text-sm font-medium">Supplier Category</label>
+                            <label class="mb-2 block text-sm font-medium">{{ $supplierLabel('supplier_category', 'Supplier Category') }}</label>
                             <div class="grid grid-cols-1 gap-2 md:grid-cols-3">
                                 @foreach($supplierCategories as $option)
                                     <label class="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm">
@@ -178,8 +176,8 @@
                                 @endforeach
                             </div>
                         </div>
-                        <div>
-                            <label class="mb-1 block text-sm font-medium">Specify Other Supplier Category</label>
+                        <div id="supplierCategoryOtherWrap" class="{{ in_array('Others', $selectedCategories, true) ? '' : 'hidden' }}">
+                            <label class="mb-1 block text-sm font-medium">{{ $supplierLabel('supplier_category_other', 'Specify Other Supplier Category') }}</label>
                             <input type="text" name="data[supplier_category_other]" value="{{ $dataValue('supplier_category_other') }}" class="{{ $fieldClass }}">
                         </div>
                     </div>
@@ -189,10 +187,10 @@
                     <h2 class="text-base font-semibold text-gray-900">Addresses and Contacts</h2>
                     <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
                         @foreach([
-                            'registered_address' => 'Registered Address',
-                            'office_address' => 'Office Address',
-                            'warehouse_address' => 'Warehouse Address',
-                            'billing_address' => 'Billing Address',
+                            'registered_address' => $supplierLabel('registered_address', 'Registered Address'),
+                            'office_address' => $supplierLabel('office_address', 'Office Address'),
+                            'warehouse_address' => $supplierLabel('warehouse_address', 'Warehouse Address'),
+                            'billing_address' => $supplierLabel('billing_address', 'Billing Address'),
                         ] as $name => $label)
                             <div class="md:col-span-2">
                                 <label class="mb-1 block text-sm font-medium">{{ $label }}</label>
@@ -200,17 +198,17 @@
                             </div>
                         @endforeach
                         @foreach([
-                            'telephone_number' => ['Telephone Number', 'text'],
-                            'mobile_number' => ['Mobile Number', 'text'],
-                            'email_address' => ['Official Email Address', 'email'],
-                            'website_social_media' => ['Website / Social Media', 'text'],
-                            'representative_full_name' => ['Authorized Representative Full Name', 'text'],
-                            'designation' => ['Authorized Representative Position / Designation', 'text'],
-                            'phone_number' => ['Authorized Representative Mobile Number', 'text'],
-                            'representative_email_address' => ['Authorized Representative Email Address', 'email'],
-                            'accounting_contact_person' => ['Accounting Contact Person', 'text'],
-                            'accounting_contact_number' => ['Accounting Contact Number', 'text'],
-                            'accounting_email_address' => ['Accounting Email Address', 'email'],
+                            'telephone_number' => [$supplierLabel('telephone_number', 'Telephone Number'), 'text'],
+                            'mobile_number' => [$supplierLabel('mobile_number', 'Mobile Number'), 'text'],
+                            'email_address' => [$supplierLabel('email_address', 'Official Email Address'), 'email'],
+                            'website_social_media' => [$supplierLabel('website_social_media', 'Website / Social Media'), 'text'],
+                            'representative_full_name' => [$supplierLabel('representative_full_name', 'Authorized Representative Full Name'), 'text'],
+                            'designation' => [$supplierLabel('designation', 'Authorized Representative Position / Designation'), 'text'],
+                            'phone_number' => [$supplierLabel('phone_number', 'Authorized Representative Mobile Number'), 'text'],
+                            'representative_email_address' => [$supplierLabel('representative_email_address', 'Authorized Representative Email Address'), 'email'],
+                            'accounting_contact_person' => [$supplierLabel('accounting_contact_person', 'Accounting Contact Person'), 'text'],
+                            'accounting_contact_number' => [$supplierLabel('accounting_contact_number', 'Accounting Contact Number'), 'text'],
+                            'accounting_email_address' => [$supplierLabel('accounting_email_address', 'Accounting Email Address'), 'email'],
                         ] as $name => [$label, $type])
                             <div>
                                 <label class="mb-1 block text-sm font-medium">{{ $label }} @if(in_array($name, ['email_address', 'representative_full_name', 'phone_number'], true))<span class="text-red-500">*</span>@endif</label>
@@ -225,7 +223,7 @@
                     <h2 class="text-base font-semibold text-gray-900">Payment and Banking</h2>
                     <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
                         <div>
-                            <label class="mb-1 block text-sm font-medium">Payment Terms</label>
+                            <label class="mb-1 block text-sm font-medium">{{ $supplierLabel('payment_terms', 'Payment Terms') }}</label>
                             <select name="data[payment_terms]" class="{{ $fieldClass }}">
                                 <option value="">Select payment terms</option>
                                 @foreach($paymentTerms as $option)
@@ -233,12 +231,12 @@
                                 @endforeach
                             </select>
                         </div>
-                        <div>
-                            <label class="mb-1 block text-sm font-medium">Specify Other Payment Terms</label>
+                        <div id="paymentTermsOtherWrap" class="{{ $dataValue('payment_terms') === 'Others' ? '' : 'hidden' }}">
+                            <label class="mb-1 block text-sm font-medium">{{ $supplierLabel('payment_terms_other', 'Specify Other Payment Terms') }}</label>
                             <input type="text" name="data[payment_terms_other]" value="{{ $dataValue('payment_terms_other') }}" class="{{ $fieldClass }}">
                         </div>
                         <div>
-                            <label class="mb-1 block text-sm font-medium">Preferred Payment Method</label>
+                            <label class="mb-1 block text-sm font-medium">{{ $supplierLabel('preferred_payment_method', 'Preferred Payment Method') }}</label>
                             <select id="paymentMethodInput" name="data[preferred_payment_method]" class="{{ $fieldClass }}">
                                 <option value="">Select payment method</option>
                                 @foreach($paymentMethods as $option)
@@ -246,20 +244,20 @@
                                 @endforeach
                             </select>
                         </div>
-                        <div id="onlinePaymentWrap">
-                            <label class="mb-1 block text-sm font-medium">Online Payment Details</label>
+                        <div id="onlinePaymentWrap" class="{{ $dataValue('preferred_payment_method') === 'Online Payment' ? '' : 'hidden' }}">
+                            <label class="mb-1 block text-sm font-medium">{{ $supplierLabel('online_payment_details', 'Online Payment Details') }}</label>
                             <input type="text" name="data[online_payment_details]" value="{{ $dataValue('online_payment_details') }}" class="{{ $fieldClass }}">
                         </div>
-                        <div id="paymentMethodOtherWrap">
-                            <label class="mb-1 block text-sm font-medium">Specify Other Payment Method</label>
+                        <div id="paymentMethodOtherWrap" class="{{ $dataValue('preferred_payment_method') === 'Others' ? '' : 'hidden' }}">
+                            <label class="mb-1 block text-sm font-medium">{{ $supplierLabel('preferred_payment_method_other', 'Specify Other Payment Method') }}</label>
                             <input type="text" name="data[preferred_payment_method_other]" value="{{ $dataValue('preferred_payment_method_other') }}" class="{{ $fieldClass }}">
                         </div>
                         @foreach([
-                            'bank_name' => 'Bank Name',
-                            'bank_branch' => 'Bank Branch',
-                            'bank_account_name' => 'Bank Account Name',
-                            'bank_account_number' => 'Bank Account Number',
-                            'swift_code' => 'Swift Code',
+                            'bank_name' => $supplierLabel('bank_name', 'Bank Name'),
+                            'bank_branch' => $supplierLabel('bank_branch', 'Bank Branch'),
+                            'bank_account_name' => $supplierLabel('bank_account_name', 'Bank Account Name'),
+                            'bank_account_number' => $supplierLabel('bank_account_number', 'Bank Account Number'),
+                            'swift_code' => $supplierLabel('swift_code', 'Swift Code'),
                         ] as $name => $label)
                             <div>
                                 <label class="mb-1 block text-sm font-medium">{{ $label }}</label>
@@ -306,32 +304,32 @@
 
                     <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
                         <div>
-                            <label class="mb-1 block text-sm font-medium">Person Accomplishing the Form Full Name</label>
+                            <label class="mb-1 block text-sm font-medium">{{ $supplierLabel('person_accomplishing_full_name', 'Person Accomplishing the Form Full Name') }}</label>
                             <input type="text" name="data[person_accomplishing_full_name]" value="{{ $dataValue('person_accomplishing_full_name') }}" class="{{ $fieldClass }}">
                         </div>
                         <div>
-                            <label class="mb-1 block text-sm font-medium">Position / Designation</label>
+                            <label class="mb-1 block text-sm font-medium">{{ $supplierLabel('person_accomplishing_position', 'Position / Designation') }}</label>
                             <input type="text" name="data[person_accomplishing_position]" value="{{ $dataValue('person_accomplishing_position') }}" class="{{ $fieldClass }}">
                         </div>
                         <div>
-                            <label class="mb-1 block text-sm font-medium">ID Type</label>
-                            <select name="data[id_type]" class="{{ $fieldClass }}">
+                            <label class="mb-1 block text-sm font-medium">{{ $supplierLabel('id_type', 'ID Type') }}</label>
+                            <select id="idTypeInput" name="data[id_type]" class="{{ $fieldClass }}">
                                 <option value="">Select ID type</option>
                                 @foreach($idTypes as $option)
                                     <option value="{{ $option }}" @selected($dataValue('id_type') === $option)>{{ $option }}</option>
                                 @endforeach
                             </select>
                         </div>
-                        <div>
-                            <label class="mb-1 block text-sm font-medium">Specify Other ID Type</label>
+                        <div id="idTypeOtherWrap" class="{{ $dataValue('id_type') === 'Others' ? '' : 'hidden' }}">
+                            <label class="mb-1 block text-sm font-medium">{{ $supplierLabel('id_type_other', 'Specify Other ID Type') }}</label>
                             <input type="text" name="data[id_type_other]" value="{{ $dataValue('id_type_other') }}" class="{{ $fieldClass }}">
                         </div>
                         <div>
-                            <label class="mb-1 block text-sm font-medium">ID Number</label>
+                            <label class="mb-1 block text-sm font-medium">{{ $supplierLabel('id_number', 'ID Number') }}</label>
                             <input type="text" name="data[id_number]" value="{{ $dataValue('id_number') }}" class="{{ $fieldClass }}">
                         </div>
                         <div>
-                            <label class="mb-1 block text-sm font-medium">Date Signed</label>
+                            <label class="mb-1 block text-sm font-medium">{{ $supplierLabel('date_signed', 'Date Signed') }}</label>
                             <input type="text" name="data[date_signed]" value="{{ old('data.date_signed', now()->format('Y-m-d H:i')) }}" class="{{ $fieldClass }} bg-gray-100" readonly>
                         </div>
                     </div>
@@ -353,6 +351,8 @@
         const existingCategories = @js($existingCategories);
         const entityTypeInput = document.getElementById('entityTypeInput');
         const paymentMethodInput = document.getElementById('paymentMethodInput');
+        const idTypeInput = document.getElementById('idTypeInput');
+        const supplierCategoryOtherWrap = document.getElementById('supplierCategoryOtherWrap');
         const attachmentTarget = document.getElementById('requiredAttachmentFields');
 
         function attachmentSlug(label) {
@@ -382,11 +382,16 @@
         function syncConditionalFields() {
             const entityType = entityTypeInput?.value || '';
             const paymentMethod = paymentMethodInput?.value || '';
+            const idType = idTypeInput?.value || '';
+            const supplierCategories = Array.from(document.querySelectorAll('input[name="data[supplier_category][]"]:checked')).map((input) => input.value);
             const registrationNumberLabel = document.getElementById('registrationNumberLabel');
             setWrapVisibility('corporationTypeWrap', ['Corporation', 'One Person Corporation (OPC)', 'Foreign Company'].includes(entityType));
             setWrapVisibility('entityTypeOtherWrap', entityType === 'Others');
+            setWrapVisibility('supplierCategoryOtherWrap', supplierCategories.includes('Others'));
+            setWrapVisibility('paymentTermsOtherWrap', (document.querySelector('select[name="data[payment_terms]"]')?.value || '') === 'Others');
             setWrapVisibility('onlinePaymentWrap', paymentMethod === 'Online Payment');
             setWrapVisibility('paymentMethodOtherWrap', paymentMethod === 'Others');
+            setWrapVisibility('idTypeOtherWrap', idType === 'Others');
             if (registrationNumberLabel) {
                 registrationNumberLabel.textContent = registrationLabel(entityType);
             }
@@ -415,6 +420,11 @@
             renderAttachmentFields();
         });
         paymentMethodInput?.addEventListener('change', syncConditionalFields);
+        idTypeInput?.addEventListener('change', syncConditionalFields);
+        document.querySelector('select[name="data[payment_terms]"]')?.addEventListener('change', syncConditionalFields);
+        document.querySelectorAll('input[name="data[supplier_category][]"]').forEach((input) => {
+            input.addEventListener('change', syncConditionalFields);
+        });
         syncConditionalFields();
         renderAttachmentFields();
 

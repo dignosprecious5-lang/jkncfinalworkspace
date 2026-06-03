@@ -5,11 +5,11 @@ namespace App\Notifications;
 use App\Models\FinanceRecord;
 use App\Models\User;
 use Illuminate\Bus\Queueable;
+use Illuminate\Notifications\AnonymousNotifiable;
+use Illuminate\Notifications\Messages\BroadcastMessage;
 use Illuminate\Notifications\Messages\MailMessage;
-use Illuminate\Notifications\Notification;
-use Illuminate\Support\Facades\Schema;
 
-class FinanceRecordWorkflowNotification extends Notification
+class FinanceRecordWorkflowNotification extends SystemRealtimeNotification
 {
     use Queueable;
 
@@ -19,26 +19,30 @@ class FinanceRecordWorkflowNotification extends Notification
         public string $title,
         public string $body,
         public string $buttonLabel,
-        public string $url,
+        public ?string $url,
+        public array $actionButtons = [],
         public ?string $reviewNote = null,
         public ?string $pdfData = null,
         public ?string $pdfFilename = null
     ) {
+        parent::__construct($title, $body, $url, 'Finance', 'fa-coins');
     }
 
     public function via(object $notifiable): array
     {
-        $channels = [];
+        $channels = $notifiable instanceof AnonymousNotifiable
+            ? []
+            : parent::via($notifiable);
 
-        if (Schema::hasTable('notifications')) {
-            $channels[] = 'database';
-        }
+        $mailRoute = $notifiable instanceof AnonymousNotifiable
+            ? $notifiable->routeNotificationFor('mail')
+            : ($notifiable->email ?? null);
 
-        if (filled($notifiable->email ?? null)) {
+        if (filled($mailRoute)) {
             $channels[] = 'mail';
         }
 
-        return $channels;
+        return array_values(array_unique($channels));
     }
 
     public function toMail(object $notifiable): MailMessage
@@ -95,11 +99,12 @@ class FinanceRecordWorkflowNotification extends Notification
             ->from(config('mail.from.address'), config('mail.from.name'))
             ->subject($this->title)
             ->view('emails.finance-workflow-notification', [
-                'notifiableName' => $notifiable->name ?: 'there',
+                'notifiableName' => $notifiable->name ?? 'there',
                 'title' => $this->title,
                 'body' => $this->body,
                 'buttonLabel' => $this->buttonLabel,
                 'url' => $this->url,
+                'actionButtons' => $this->actionButtons,
                 'reviewNote' => $this->reviewNote,
                 'recordNumber' => $record?->record_number ?: 'N/A',
                 'recordTitle' => $record?->record_title ?: $record?->module_key ?: 'Finance Record',
@@ -130,11 +135,35 @@ class FinanceRecordWorkflowNotification extends Notification
     {
         return [
             'record_id' => $this->recordId,
+            'action' => $this->action,
             'title' => $this->title,
             'body' => $this->body,
             'button_label' => $this->buttonLabel,
             'url' => $this->url,
+            'action_buttons' => $this->actionButtons,
             'review_note' => $this->reviewNote,
         ];
+    }
+
+    public function toDatabase(object $notifiable): array
+    {
+        return array_merge(parent::toDatabase($notifiable), [
+            'record_id' => $this->recordId,
+            'action' => $this->action,
+            'button_label' => $this->buttonLabel,
+            'action_buttons' => $this->actionButtons,
+            'review_note' => $this->reviewNote,
+        ]);
+    }
+
+    public function toBroadcast(object $notifiable): BroadcastMessage
+    {
+        return new BroadcastMessage(array_merge(parent::toBroadcast($notifiable)->data, [
+            'record_id' => $this->recordId,
+            'action' => $this->action,
+            'button_label' => $this->buttonLabel,
+            'action_buttons' => $this->actionButtons,
+            'review_note' => $this->reviewNote,
+        ]));
     }
 }

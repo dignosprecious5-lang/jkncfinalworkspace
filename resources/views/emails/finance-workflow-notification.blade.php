@@ -5,20 +5,20 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ $title }}</title>
 </head>
-<body style="margin:0; padding:0; background-color:#f4f8fc; font-family:Arial, Helvetica, sans-serif; color:#0f172a;">
-    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#f4f8fc; margin:0; padding:24px 0;">
+<body style="margin:0;padding:0;background:#f4f6f8;font-family:Arial,Helvetica,sans-serif;color:#111827;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6f8;padding:24px 0;">
         <tr>
             <td align="center">
-                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:640px; background-color:#ffffff; border-radius:18px; overflow:hidden; box-shadow:0 14px 36px rgba(15, 23, 42, 0.10);">
+                <table width="640" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e5e7eb;">
                     <tr>
-                        <td style="background:linear-gradient(135deg, #0f4c81 0%, #1d4ed8 100%); padding:28px 32px 22px;">
-                            <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+                        <td style="padding:24px 28px;border-bottom:1px solid #e5e7eb;background:#f9fafb;">
+                            <table width="100%" cellpadding="0" cellspacing="0">
                                 <tr>
                                     <td style="vertical-align:middle;">
-                                        <img src="{{ $logoUrl }}" alt="JK&C Inc." style="display:block; width:170px; max-width:100%; height:auto;">
+                                        <img src="{{ $logoUrl }}" alt="JK&C Inc." style="display:block;width:168px;max-width:100%;height:auto;">
                                     </td>
                                     <td align="right" style="vertical-align:middle;">
-                                        <span style="display:inline-block; background-color:rgba(255,255,255,0.16); color:#ffffff; border:1px solid rgba(255,255,255,0.24); border-radius:999px; padding:8px 14px; font-size:12px; font-weight:700; letter-spacing:0.04em; text-transform:uppercase;">
+                                        <span style="display:inline-block;background:#dbeafe;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:999px;padding:7px 12px;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;">
                                             Finance Workflow
                                         </span>
                                     </td>
@@ -26,51 +26,110 @@
                             </table>
                         </td>
                     </tr>
+
                     <tr>
-                        <td style="padding:32px;">
-                            <span style="display:inline-block; background-color:{{ $accentSoftColor }}; color:{{ $accentColor }}; border-radius:999px; padding:8px 14px; font-size:12px; font-weight:700; letter-spacing:0.04em; text-transform:uppercase;">
+                        <td style="padding:24px 28px;">
+                            <span style="display:inline-block;background:{{ $accentSoftColor }};color:{{ $accentColor }};border-radius:999px;padding:7px 12px;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;">
                                 {{ $badgeLabel }}
                             </span>
 
-                            <h1 style="margin:18px 0 12px; font-size:28px; line-height:1.2; color:#0f172a;">{{ $title }}</h1>
-                            <p style="margin:0 0 24px; font-size:16px; line-height:1.7; color:#334155;">Hi {{ $notifiableName }}, {{ $body }}</p>
+                            <h1 style="margin:18px 0 8px;font-size:24px;line-height:1.25;color:#111827;">{{ $title }}</h1>
+                            <p style="margin:0 0 20px;font-size:14px;line-height:1.7;color:#475569;">Hi {{ $notifiableName }}, {{ $body }}</p>
 
-                            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border:1px solid #dbe7f3; border-radius:16px; overflow:hidden; margin-bottom:22px;">
+                            <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e5e7eb;border-radius:12px;overflow:hidden;margin-bottom:20px;">
                                 <tr>
-                                    <td style="padding:18px 20px; background-color:#f8fbff; border-bottom:1px solid #dbe7f3;">
-                                        <p style="margin:0; font-size:12px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; color:#0f4c81;">Record Summary</p>
+                                    <td style="padding:14px 16px;background:#f9fafb;border-bottom:1px solid #e5e7eb;">
+                                        <p style="margin:0;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#6b7280;">Record Summary</p>
                                     </td>
                                 </tr>
                                 <tr>
-                                    <td style="padding:20px;">
-                                        <p style="margin:0 0 14px; font-size:14px; line-height:1.6; color:#334155;"><strong style="color:#0f172a;">Record:</strong> {{ $recordNumber }} - {{ $recordTitle }}</p>
-                                        <p style="margin:0 0 14px; font-size:14px; line-height:1.6; color:#334155;"><strong style="color:#0f172a;">Record Date:</strong> {{ $recordDate }}</p>
-                                        <p style="margin:0 0 14px; font-size:14px; line-height:1.6; color:#334155;"><strong style="color:#0f172a;">Status:</strong> {{ $workflowStatus }} / {{ $approvalStatus }}</p>
-                                        <p style="margin:0 0 14px; font-size:14px; line-height:1.6; color:#334155;"><strong style="color:#0f172a;">Relationship Status:</strong> {{ $relationshipStatus }}</p>
-                                        <p style="margin:0 0 14px; font-size:14px; line-height:1.6; color:#334155;"><strong style="color:#0f172a;">Submitted By:</strong> {{ $submittedByName ?: 'N/A' }}</p>
-                                        @if(filled($approvedByName))
-                                            <p style="margin:0 0 14px; font-size:14px; line-height:1.6; color:#334155;"><strong style="color:#0f172a;">Approved By:</strong> {{ $approvedByName }}</p>
-                                        @endif
-                                        <p style="margin:0 0 14px; font-size:14px; line-height:1.6; color:#334155;"><strong style="color:#0f172a;">Attachments:</strong> {{ $attachmentCount }} file{{ $attachmentCount === 1 ? '' : 's' }}</p>
-                                        <p style="margin:0 0 14px; font-size:14px; line-height:1.6; color:#334155;"><strong style="color:#0f172a;">History Entries:</strong> {{ $historyCount }}</p>
-                                        @if(filled($reviewNote))
-                                            <p style="margin:0; font-size:14px; line-height:1.7; color:#334155;"><strong style="color:#0f172a;">Review Note:</strong> {{ $reviewNote }}</p>
-                                        @endif
+                                    <td style="padding:16px;">
+                                        <table width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;line-height:1.5;">
+                                            <tr>
+                                                <td style="padding:6px 0;color:#6b7280;width:180px;">Record Number</td>
+                                                <td style="padding:6px 0;font-weight:700;color:#111827;">{{ $recordNumber }}</td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding:6px 0;color:#6b7280;">Record Title</td>
+                                                <td style="padding:6px 0;font-weight:700;color:#111827;">{{ $recordTitle }}</td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding:6px 0;color:#6b7280;">Record Date</td>
+                                                <td style="padding:6px 0;font-weight:700;color:#111827;">{{ $recordDate }}</td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding:6px 0;color:#6b7280;">Status</td>
+                                                <td style="padding:6px 0;font-weight:700;color:#111827;">{{ $workflowStatus }} / {{ $approvalStatus }}</td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding:6px 0;color:#6b7280;">Relationship Status</td>
+                                                <td style="padding:6px 0;font-weight:700;color:#111827;">{{ $relationshipStatus }}</td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding:6px 0;color:#6b7280;">Submitted By</td>
+                                                <td style="padding:6px 0;font-weight:700;color:#111827;">{{ $submittedByName ?: 'N/A' }}</td>
+                                            </tr>
+                                            @if(filled($approvedByName))
+                                                <tr>
+                                                    <td style="padding:6px 0;color:#6b7280;">Approved By</td>
+                                                    <td style="padding:6px 0;font-weight:700;color:#111827;">{{ $approvedByName }}</td>
+                                                </tr>
+                                            @endif
+                                            <tr>
+                                                <td style="padding:6px 0;color:#6b7280;">Attachments</td>
+                                                <td style="padding:6px 0;font-weight:700;color:#111827;">{{ $attachmentCount }} file{{ $attachmentCount === 1 ? '' : 's' }}</td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding:6px 0;color:#6b7280;">History Entries</td>
+                                                <td style="padding:6px 0;font-weight:700;color:#111827;">{{ $historyCount }}</td>
+                                            </tr>
+                                            @if(filled($reviewNote))
+                                                <tr>
+                                                    <td style="padding:6px 0;color:#6b7280;vertical-align:top;">Review Note</td>
+                                                    <td style="padding:6px 0;font-weight:700;color:#111827;">{{ $reviewNote }}</td>
+                                                </tr>
+                                            @endif
+                                        </table>
                                     </td>
                                 </tr>
                             </table>
 
-                            <table role="presentation" cellspacing="0" cellpadding="0" style="margin:0 0 24px;">
+                            @php
+                                $actionButtons = $actionButtons ?? [];
+                                if (empty($actionButtons)) {
+                                    $actionButtons = [
+                                        [
+                                            'label' => $buttonLabel,
+                                            'url' => $url,
+                                            'color' => $accentColor,
+                                        ],
+                                    ];
+                                }
+                            @endphp
+
+                            <table role="presentation" cellspacing="0" cellpadding="0" style="margin:0 0 22px;">
                                 <tr>
-                                    <td align="center" bgcolor="{{ $accentColor }}" style="border-radius:12px;">
-                                        <a href="{{ $url }}" style="display:inline-block; padding:14px 24px; font-size:14px; font-weight:700; color:#ffffff; text-decoration:none;">{{ $buttonLabel }}</a>
-                                    </td>
+                                    @foreach($actionButtons as $button)
+                                        <td style="padding:0 8px 8px 0;">
+                                            <a href="{{ $button['url'] }}"
+                                               style="display:inline-block;background:{{ $button['color'] ?? $accentColor }};color:#ffffff;text-decoration:none;padding:12px 18px;border-radius:8px;font-size:14px;font-weight:700;">
+                                                {{ $button['label'] }}
+                                            </a>
+                                        </td>
+                                    @endforeach
                                 </tr>
                             </table>
 
-                            <p style="margin:0 0 8px; font-size:14px; line-height:1.7; color:#475569;">For concerns, please contact the Finance Department of JK&amp;C Inc.</p>
-                            <p style="margin:0 0 8px; font-size:14px; line-height:1.7; color:#475569;">A PDF copy of the current record is attached for your reference.</p>
-                            <p style="margin:0; font-size:14px; line-height:1.7; color:#475569;">Regards,<br>JK&amp;C Inc.</p>
+                            <p style="margin:0 0 8px;font-size:13px;color:#6b7280;line-height:1.6;">The finance record is fully traceable through the workflow summary above.</p>
+                            <p style="margin:0 0 8px;font-size:13px;color:#6b7280;line-height:1.6;">Open the record in Finance to review the full details, then approve, revert with reason, or place it on hold with reason from the dashboard.</p>
+                            <p style="margin:0 0 8px;font-size:13px;color:#6b7280;line-height:1.6;">A PDF copy of the current record is attached for reference.</p>
+                            <p style="margin:0;font-size:13px;color:#6b7280;line-height:1.6;">For concerns, please contact the Finance Department of JK&amp;C Inc.</p>
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <td style="padding:16px 28px;background:#f9fafb;border-top:1px solid #e5e7eb;font-size:12px;color:#6b7280;">
+                            This is an automated notification from the JK&amp;C Finance system.
                         </td>
                     </tr>
                 </table>

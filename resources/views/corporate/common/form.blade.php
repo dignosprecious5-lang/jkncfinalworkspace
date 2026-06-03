@@ -36,6 +36,8 @@
                         $fieldLabel = $field['label'] ?? ucfirst(str_replace('_', ' ', $fieldName));
                         $fieldRequired = $field['required'] ?? false;
                         $fieldStep = $field['step'] ?? null;
+                        $fieldReadonly = $field['readonly'] ?? false;
+                        $fieldDisabled = $field['disabled'] ?? false;
                         $value = old($fieldName, data_get($item, $fieldName));
                         $isFile = $fieldType === 'file';
                         $isTextarea = $fieldType === 'textarea';
@@ -53,13 +55,21 @@
                         </label>
 
                         @if ($isTextarea)
-                            <textarea name="{{ $fieldName }}" rows="3" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm">{{ $value }}</textarea>
+                            <textarea name="{{ $fieldName }}" rows="3" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm" @if ($fieldReadonly) readonly @endif @if ($fieldDisabled) disabled @endif>{{ $value }}</textarea>
                         @elseif ($isSelect)
-                            <select name="{{ $fieldName }}" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm" @if ($fieldRequired) required @endif>
-                                @foreach ($fieldOptions as $option)
-                                    <option value="{{ $option }}" @selected($value === $option)>{{ $option }}</option>
+                            <select name="{{ $fieldName }}" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm" @if ($fieldRequired) required @endif @if ($fieldReadonly || $fieldDisabled) disabled @endif>
+                                @foreach ($fieldOptions as $optionValue => $optionLabel)
+                                    @php
+                                        if (is_int($optionValue)) {
+                                            $optionValue = $optionLabel;
+                                        }
+                                    @endphp
+                                    <option value="{{ $optionValue }}" @selected((string) $value === (string) $optionValue)>{{ $optionLabel }}</option>
                                 @endforeach
                             </select>
+                            @if ($fieldReadonly || $fieldDisabled)
+                                <input type="hidden" name="{{ $fieldName }}" value="{{ $value }}">
+                            @endif
                         @elseif ($isFile)
                             <input type="file" name="{{ $fieldName }}" class="mt-1 block w-full text-sm text-gray-600 file:mr-4 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-blue-600 file:text-white hover:file:bg-blue-700">
                             @if ($value)
@@ -72,13 +82,15 @@
                                 </div>
                             @endif
                         @else
-                            <input
+                                <input
                                 type="{{ $fieldType }}"
                                 name="{{ $fieldName }}"
                                 value="{{ $value }}"
                                 @if ($fieldStep) step="{{ $fieldStep }}" @endif
                                 @if ($fieldRequired) required @endif
-                                class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                                @if ($fieldReadonly) readonly @endif
+                                @if ($fieldDisabled) disabled @endif
+                                class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm @if ($fieldReadonly || $fieldDisabled) bg-gray-50 text-gray-600 @endif"
                             >
                         @endif
                     </div>

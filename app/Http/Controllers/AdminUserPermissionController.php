@@ -10,6 +10,27 @@ use Illuminate\Support\Facades\Schema;
 
 class AdminUserPermissionController extends Controller
 {
+    private array $financePermissionColumns = [
+        'access_finance',
+        'create_finance',
+        'approve_finance',
+        'access_finance_supplier',
+        'access_finance_service',
+        'access_finance_product',
+        'access_finance_chart_account',
+        'access_finance_bank_account',
+        'access_finance_pr',
+        'access_finance_po',
+        'access_finance_ca',
+        'access_finance_lr',
+        'access_finance_err',
+        'access_finance_dv',
+        'access_finance_pda',
+        'access_finance_crf',
+        'access_finance_ibtf',
+        'access_finance_arf',
+    ];
+
     public function index()
     {
         if (!Auth::user()->hasPermission('manage_users')) {
@@ -64,6 +85,8 @@ class AdminUserPermissionController extends Controller
                 'access_sales_marketing' => false,
 
                 'access_human_capital' => false,
+
+                ...array_fill_keys($this->financePermissionColumns, false),
             ]
         );
 
@@ -93,7 +116,7 @@ class AdminUserPermissionController extends Controller
         $updates = [];
 
         foreach (
-            [
+            array_merge([
                 'manage_users',
                 'access_admin_dashboard',
                 'approve_townhall',
@@ -120,7 +143,7 @@ class AdminUserPermissionController extends Controller
                 'access_sales_marketing',
 
                 'access_human_capital',
-            ] as $column
+            ], $this->financePermissionColumns) as $column
         ) {
             if (Schema::hasColumn('user_permissions', $column)) {
                 $updates[$column] = $request->has($column);

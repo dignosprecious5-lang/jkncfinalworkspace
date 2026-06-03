@@ -33,6 +33,11 @@ class TownHallCommunication extends Model
         'additional',
         'attachment',
         'created_by',
+        'source_type',
+        'source_id',
+        'deadline_date',
+        'reminder_key',
+        'reminder_trigger_date',
         'submitted_at',
         'posted_at',
         'posted_by',
@@ -59,6 +64,8 @@ class TownHallCommunication extends Model
 
     protected $casts = [
         'communication_date' => 'datetime',
+        'deadline_date' => 'date',
+        'reminder_trigger_date' => 'date',
         'approved_at' => 'datetime',
         'submitted_at' => 'datetime',
         'posted_at' => 'datetime',

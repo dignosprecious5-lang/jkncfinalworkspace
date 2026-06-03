@@ -686,6 +686,9 @@
 </head>
 <body>
     <div class="page">
+        @php
+            $data = $record->data ?? [];
+        @endphp
         <table class="header-table">
             <tr>
                 <td class="header-cell" style="width: 62%;">
@@ -715,42 +718,45 @@
         </table>
 
         @php
+            $data = $record->data ?? [];
             $auditHistory = (array) data_get($data, 'history', []);
             $relationshipStatus = data_get($data, 'relationship_status') ?: 'In Progress';
             $isLocked = in_array($record->status ?? '', ['Disbursed', 'Completed', 'Closed'], true) || !($record->can_edit ?? true);
         @endphp
-        <div class="audit-banner">
-            <div class="audit-banner-head">
-                <div>
-                    <p class="audit-banner-title">Audit / Control Status</p>
-                    <p class="audit-banner-copy">System-managed status, relationship updates, validations, and history. Users manage the transaction, while the system manages the control state.</p>
+        @if(!$isTemplatePreview)
+            <div class="audit-banner">
+                <div class="audit-banner-head">
+                    <div>
+                        <p class="audit-banner-title">Audit / Control Status</p>
+                        <p class="audit-banner-copy">System-managed status, relationship updates, validations, and history. Users manage the transaction, while the system manages the control state.</p>
+                    </div>
+                    <div class="audit-badges">
+                        <span class="audit-badge {{ $isLocked ? 'locked' : '' }}">{{ $isLocked ? 'Read-only' : 'Editable' }}</span>
+                        <span class="audit-badge">{{ $record->status ?: 'N/A' }}</span>
+                        <span class="audit-badge">{{ $relationshipStatus }}</span>
+                    </div>
                 </div>
-                <div class="audit-badges">
-                    <span class="audit-badge {{ $isLocked ? 'locked' : '' }}">{{ $isLocked ? 'Read-only' : 'Editable' }}</span>
-                    <span class="audit-badge">{{ $record->status ?: 'N/A' }}</span>
-                    <span class="audit-badge">{{ $relationshipStatus }}</span>
-                </div>
+                <table class="audit-grid">
+                    <tr>
+                        <td>
+                            <p class="audit-label">Current Status</p>
+                            <p class="audit-value">{{ $record->status ?: 'N/A' }}</p>
+                        </td>
+                        <td>
+                            <p class="audit-label">Relationship</p>
+                            <p class="audit-value">{{ $relationshipStatus }}</p>
+                        </td>
+                        <td>
+                            <p class="audit-label">History Entries</p>
+                            <p class="audit-value">{{ count($auditHistory) }}</p>
+                        </td>
+                    </tr>
+                </table>
             </div>
-            <table class="audit-grid">
-                <tr>
-                    <td>
-                        <p class="audit-label">Current Status</p>
-                        <p class="audit-value">{{ $record->status ?: 'N/A' }}</p>
-                    </td>
-                    <td>
-                        <p class="audit-label">Relationship</p>
-                        <p class="audit-value">{{ $relationshipStatus }}</p>
-                    </td>
-                    <td>
-                        <p class="audit-label">History Entries</p>
-                        <p class="audit-value">{{ count($auditHistory) }}</p>
-                    </td>
-                </tr>
-            </table>
-        </div>
+        @endif
 
         <table class="summary-table" style="margin-top: 12px;">
-            @foreach(array_chunk($summaryCards, 4) as $row)
+            @foreach(array_chunk($summaryCards, 2) as $row)
                 <tr>
                     @foreach($row as $card)
                         <td>
@@ -758,14 +764,14 @@
                             <div class="summary-value">{{ $card['value'] }}</div>
                         </td>
                     @endforeach
-                    @for($pad = count($row); $pad < 4; $pad++)
+                    @for($pad = count($row); $pad < 2; $pad++)
                         <td></td>
                     @endfor
                 </tr>
             @endforeach
         </table>
 
-        @if(!empty($approvalTrailRows))
+        @if(!$isTemplatePreview && !empty($approvalTrailRows))
             <div class="section-box">
                 <div class="section-title">Approval Trail</div>
                 <div class="section-body">
@@ -791,53 +797,7 @@
             </div>
         @endif
 
-        @if(!empty($attachmentSummary['items'] ?? []))
-            <div class="section-box">
-                <div class="section-title">Attachment Summary</div>
-                <div class="section-body">
-                    <table class="detail-table">
-                        <tr>
-                            <td>
-                                <div class="detail-label">Total Attachments</div>
-                                <div class="detail-value">{{ $attachmentSummary['total_count'] ?? 0 }}</div>
-                            </td>
-                            <td>
-                                <div class="detail-label">Photo Attachments</div>
-                                <div class="detail-value">{{ $attachmentSummary['image_count'] ?? 0 }}</div>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td>
-                                <div class="detail-label">Document Attachments</div>
-                                <div class="detail-value">{{ $attachmentSummary['document_count'] ?? 0 }}</div>
-                            </td>
-                            <td>
-                                <div class="detail-label">Attachment Types</div>
-                                <div class="detail-value">{{ !empty($attachmentSummary['type_summary']) ? implode('; ', $attachmentSummary['type_summary']) : 'N/A' }}</div>
-                            </td>
-                        </tr>
-                    </table>
-                    <table class="line-table" style="margin-top: 8px;">
-                        <tr>
-                            <th>File</th>
-                            <th>Category</th>
-                            <th>Uploaded By</th>
-                            <th>Uploaded At</th>
-                        </tr>
-                        @foreach(($attachmentSummary['items'] ?? []) as $attachment)
-                            <tr>
-                                <td>{{ $attachment['name'] ?? '-' }}</td>
-                                <td>{{ $attachment['category'] ?? '-' }}</td>
-                                <td>{{ $attachment['uploaded_by'] ?: '-' }}</td>
-                                <td>{{ $attachment['uploaded_at'] ?: '-' }}</td>
-                            </tr>
-                        @endforeach
-                    </table>
-                </div>
-            </div>
-        @endif
-
-        @if(!empty($completeDataRows))
+        @if(!$isTemplatePreview && !empty($completeDataRows))
             <div class="section-box">
                 <div class="section-title">Complete Record Data</div>
                 <div class="section-body">
@@ -936,7 +896,7 @@
             $hasHistorySection = $specialPreviewSections->contains(fn ($section) => data_get($section, 'type') === 'history');
         @endphp
 
-        @if($specialPreviewSections->isNotEmpty())
+        @if(!$isTemplatePreview && $specialPreviewSections->isNotEmpty())
             @foreach($specialPreviewSections as $section)
                 @if(data_get($section, 'type') === 'attachments')
                     @if(count($attachments))
@@ -1055,7 +1015,7 @@
                 ->values();
         @endphp
 
-        @if($fieldPreviewSections->isNotEmpty())
+        @if($isTemplatePreview && $fieldPreviewSections->isNotEmpty())
             @foreach($fieldPreviewSections as $section)
                 <div class="section-box">
                     <div class="section-title">{{ data_get($section, 'title', 'Details') }}</div>
@@ -1083,7 +1043,7 @@
                     </div>
                 </div>
             @endforeach
-        @elseif(count($detailRows ?? []))
+        @elseif(!$isTemplatePreview && count($detailRows ?? []))
             <div class="section-box">
                 <div class="section-title">Details</div>
                 <div class="section-body">
@@ -1116,7 +1076,7 @@
         @php
             $historyEntries = array_values(array_filter((array) data_get($record->data, 'history', []), fn ($entry) => is_array($entry)));
         @endphp
-        @if(count($historyEntries) && ! $hasHistorySection)
+        @if(!$isTemplatePreview && count($historyEntries) && ! $hasHistorySection)
             <div class="section-box">
                 <div class="section-title">Record History / Audit Trail</div>
                 <div class="section-body">
@@ -1609,6 +1569,11 @@
                             $entryChanges = (array) data_get($entry, 'changes', []);
                             $changes = collect($entryChanges)
                                 ->filter(fn ($change) => is_array($change))
+                                ->filter(function ($change) {
+                                    $field = strtolower(trim((string) data_get($change, 'field', '')));
+
+                                    return $field !== '' && $field !== 'data' && ! str_starts_with($field, 'data.');
+                                })
                                 ->take(6)
                                 ->values();
                             $remainingChanges = max(count($entryChanges) - $changes->count(), 0);
@@ -1647,7 +1612,7 @@
             </div>
         @endif
 
-        @if(count($attachments) && ! $hasAttachmentSection)
+        @if(!$isTemplatePreview && count($attachments) && ! $hasAttachmentSection)
             <div class="section-box">
                 <div class="section-title">Attachments</div>
                 <div class="section-body">

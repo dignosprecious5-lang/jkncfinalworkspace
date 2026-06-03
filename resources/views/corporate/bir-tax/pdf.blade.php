@@ -20,13 +20,15 @@
     <div class="card">
         <table class="grid">
             <tr><td class="label">TIN</td><td class="value">{{ $tax->tin ?: '-' }}</td></tr>
-            <tr><td class="label">Tax Payer</td><td class="value">{{ $tax->tax_payer ?: '-' }}</td></tr>
-            <tr><td class="label">Registering Office</td><td class="value">{{ $tax->registering_office ?: '-' }}</td></tr>
+            <tr><td class="label">Taxpayer</td><td class="value">{{ $tax->tax_payer ?: '-' }}</td></tr>
+            <tr><td class="label">RDO</td><td class="value">{{ $tax->rdo ?: $tax->registering_office ?: '-' }}</td></tr>
             <tr><td class="label">Registered Address</td><td class="value">{{ $tax->registered_address ?: '-' }}</td></tr>
-            <tr><td class="label">Tax Types</td><td class="value">{{ $tax->tax_types ?: '-' }}</td></tr>
+            <tr><td class="label">Tax Type/s</td><td class="value">{{ $tax->tax_types ?: '-' }}</td></tr>
             <tr><td class="label">Form Type</td><td class="value">{{ $tax->form_type ?: '-' }}</td></tr>
+            <tr><td class="label">Tax Due</td><td class="value">{{ $tax->tax_due !== null ? number_format((float) $tax->tax_due, 2) : '-' }}</td></tr>
             <tr><td class="label">Filing Frequency</td><td class="value">{{ $tax->filing_frequency ?: '-' }}</td></tr>
             <tr><td class="label">Due Date</td><td class="value">{{ optional($tax->due_date)->format('F d, Y') ?: '-' }}</td></tr>
+            <tr><td class="label">Status</td><td class="value">{{ $tax->display_status }}</td></tr>
             <tr><td class="label">Uploaded By</td><td class="value">{{ $tax->uploaded_by ?: '-' }}</td></tr>
             <tr><td class="label">Date Uploaded</td><td class="value">{{ optional($tax->date_uploaded)->format('F d, Y') ?: '-' }}</td></tr>
         </table>

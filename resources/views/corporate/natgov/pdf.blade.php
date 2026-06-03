@@ -20,15 +20,11 @@
     <div class="card">
         <table class="grid">
             <tr><td class="label">Company</td><td class="value">{{ $natgov->client ?: '-' }}</td></tr>
-            <tr><td class="label">TIN</td><td class="value">{{ $natgov->tin ?: '-' }}</td></tr>
-            <tr><td class="label">Agency</td><td class="value">{{ $natgov->agency ?: '-' }}</td></tr>
-            <tr><td class="label">Registration Status</td><td class="value">{{ $natgov->registration_status ?: '-' }}</td></tr>
+            <tr><td class="label">Government Agency</td><td class="value">{{ $natgov->agency ?: '-' }}</td></tr>
             <tr><td class="label">Registration Date</td><td class="value">{{ optional($natgov->registration_date)->format('F d, Y') ?: '-' }}</td></tr>
-            <tr><td class="label">Deadline Date</td><td class="value">{{ optional($natgov->deadline_date)->format('F d, Y') ?: '-' }}</td></tr>
-            <tr><td class="label">Registration No.</td><td class="value">{{ $natgov->registration_no ?: '-' }}</td></tr>
-            <tr><td class="label">Status</td><td class="value">{{ $natgov->status ?: '-' }}</td></tr>
-            <tr><td class="label">Uploaded By</td><td class="value">{{ $natgov->uploaded_by ?: '-' }}</td></tr>
-            <tr><td class="label">Date Uploaded</td><td class="value">{{ optional($natgov->date_uploaded)->format('F d, Y') ?: '-' }}</td></tr>
+            <tr><td class="label">Renewal Date</td><td class="value">{{ optional($natgov->renewal_date ?? $natgov->deadline_date)->format('F d, Y') ?: '-' }}</td></tr>
+            <tr><td class="label">Registration Number</td><td class="value">{{ $natgov->registration_no ?: '-' }}</td></tr>
+            <tr><td class="label">Status</td><td class="value">{{ $natgov->display_status }}</td></tr>
         </table>
     </div>
 </body>

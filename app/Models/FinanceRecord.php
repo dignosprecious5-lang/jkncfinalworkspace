@@ -15,6 +15,10 @@ class FinanceRecord extends Model
         'status',
         'workflow_status',
         'approval_status',
+        'relationship_status',
+        'next_action',
+        'disbursement_status',
+        'transaction_progress',
         'submitted_by',
         'submitted_at',
         'approved_by',
@@ -36,6 +40,7 @@ class FinanceRecord extends Model
         'supplier_completed_at' => 'datetime',
         'data' => 'array',
         'attachments' => 'array',
+        'transaction_progress' => 'array',
         'amount' => 'decimal:2',
     ];
 }

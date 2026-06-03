@@ -278,6 +278,109 @@ test('workflow notifications are sent for submission approval hold and revert', 
     });
 });
 
+it('notifies supplier approvers and admins when a supplier completion form is submitted', function () {
+    Notification::fake();
+    $fixtures = financeNotificationLogicFixtures();
+
+    $supplierRecord = FinanceRecord::query()->create([
+        'module_key' => 'supplier',
+        'record_number' => 'SUP-51001',
+        'record_title' => 'Supplier Completion Notification Test',
+        'record_date' => now()->toDateString(),
+        'status' => 'Draft',
+        'workflow_status' => 'Accepted',
+        'approval_status' => 'Approved',
+        'submitted_by' => $fixtures['owner']->id,
+        'submitted_at' => now(),
+        'approved_by' => $fixtures['owner']->id,
+        'approved_at' => now(),
+        'share_token' => (string) \Illuminate\Support\Str::uuid(),
+        'data' => [
+            'completion_mode' => 'send_to_supplier',
+            'approval_steps' => [
+                [
+                    'step' => 1,
+                    'role' => 'Treasurer',
+                    'label' => 'Treasurer',
+                    'required' => true,
+                    'user_id' => $fixtures['treasurer']->id,
+                    'user_name' => $fixtures['treasurer']->name,
+                    'user_email' => $fixtures['treasurer']->email,
+                    'official_name' => $fixtures['treasurer']->name,
+                    'source' => 'GIS',
+                ],
+                [
+                    'step' => 2,
+                    'role' => 'President',
+                    'label' => 'President',
+                    'required' => true,
+                    'user_id' => $fixtures['president']->id,
+                    'user_name' => $fixtures['president']->name,
+                    'user_email' => $fixtures['president']->email,
+                    'official_name' => $fixtures['president']->name,
+                    'source' => 'GIS',
+                ],
+            ],
+            'approval_required_count' => 2,
+            'approval_completed_count' => 0,
+            'approval_remaining_count' => 2,
+            'first_approver_user_id' => $fixtures['treasurer']->id,
+            'second_approver_user_id' => $fixtures['president']->id,
+            'representative_full_name' => 'Notification Supplier Rep',
+            'email_address' => 'supplier.rep@example.com',
+            'phone_number' => '09171234567',
+            'legal_acknowledgment' => true,
+            'electronic_signature_consent' => true,
+            'data_privacy_consent' => true,
+            'confidentiality_undertaking' => true,
+            'company_policy_compliance' => true,
+            'false_information_penalty' => true,
+        ],
+        'attachments' => [],
+        'user' => $fixtures['owner']->name,
+    ]);
+
+    $response = $this->actingAs($fixtures['owner'])->post(route('finance.supplier.completion', $supplierRecord->share_token), [
+        'record_title' => 'Supplier Completion Notification Test',
+        'record_number' => 'SUP-51001',
+        'record_date' => now()->toDateString(),
+        'data' => [
+            'entity_type' => 'Corporation',
+            'representative_full_name' => 'Notification Supplier Rep',
+            'email_address' => 'supplier.rep@example.com',
+            'phone_number' => '09171234567',
+            'legal_acknowledgment' => true,
+            'electronic_signature_consent' => true,
+            'data_privacy_consent' => true,
+            'confidentiality_undertaking' => true,
+            'company_policy_compliance' => true,
+            'false_information_penalty' => true,
+        ],
+    ]);
+
+    $response->assertRedirect();
+
+    Notification::assertSentTo($fixtures['treasurer'], FinanceRecordWorkflowNotification::class, function (FinanceRecordWorkflowNotification $notification) use ($supplierRecord): bool {
+        return $notification->action === 'supplier_submitted'
+            && $notification->recordId === $supplierRecord->id
+            && in_array('database', $notification->via($notification), true)
+            && in_array('broadcast', $notification->via($notification), true)
+            && in_array('mail', $notification->via($notification), true);
+    });
+
+    Notification::assertSentTo($fixtures['president'], FinanceRecordWorkflowNotification::class, function (FinanceRecordWorkflowNotification $notification) use ($supplierRecord): bool {
+        return $notification->action === 'supplier_submitted'
+            && $notification->recordId === $supplierRecord->id
+            && in_array('database', $notification->via($notification), true)
+            && in_array('broadcast', $notification->via($notification), true)
+            && in_array('mail', $notification->via($notification), true);
+    });
+
+    Notification::assertNotSentTo($fixtures['owner'], FinanceRecordWorkflowNotification::class, function (FinanceRecordWorkflowNotification $notification) use ($supplierRecord): bool {
+        return $notification->action === 'supplier_submitted' && $notification->recordId === $supplierRecord->id;
+    });
+});
+
 test('liquidation due asset assignment and inventory alerts are notified automatically', function () {
     Notification::fake();
     $fixtures = financeNotificationLogicFixtures();

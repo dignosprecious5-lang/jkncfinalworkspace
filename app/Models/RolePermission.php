@@ -39,5 +39,24 @@ class RolePermission extends Model
         'approve_policies',
 
         'access_human_capital',
+
+        'access_finance',
+        'create_finance',
+        'approve_finance',
+        'access_finance_supplier',
+        'access_finance_service',
+        'access_finance_product',
+        'access_finance_chart_account',
+        'access_finance_bank_account',
+        'access_finance_pr',
+        'access_finance_po',
+        'access_finance_ca',
+        'access_finance_lr',
+        'access_finance_err',
+        'access_finance_dv',
+        'access_finance_pda',
+        'access_finance_crf',
+        'access_finance_ibtf',
+        'access_finance_arf',
     ];
 }

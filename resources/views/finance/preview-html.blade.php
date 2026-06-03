@@ -682,6 +682,7 @@
 
     <div class="page">
         @php
+            $data = $record->data ?? [];
             $noteAuthor = data_get($record, 'approval_actor_names.0')
                 ?: data_get($record, 'approved_by_name')
                 ?: data_get($record, 'submitted_by_name')
@@ -713,42 +714,45 @@
         </div>
 
         @php
-            $previewHistory = (array) data_get($record->data, 'history', []);
-            $previewRelationshipStatus = data_get($record->data, 'relationship_status') ?: 'In Progress';
+            $data = $record->data ?? [];
+            $previewHistory = (array) data_get($data, 'history', []);
+            $previewRelationshipStatus = data_get($data, 'relationship_status') ?: 'In Progress';
             $previewIsLocked = in_array($record->status ?? '', ['Disbursed', 'Completed', 'Closed'], true) || !($record->can_edit ?? true);
         @endphp
-        <div class="audit-banner">
-            <div class="audit-banner-head">
-                <div>
-                    <p class="audit-banner-title">Audit / Control Status</p>
-                    <p class="audit-banner-copy">System-managed status, relationship updates, validations, and audit entries. Users manage the transaction while the system manages the controls.</p>
+        @if(!$isTemplatePreview)
+            <div class="audit-banner">
+                <div class="audit-banner-head">
+                    <div>
+                        <p class="audit-banner-title">Audit / Control Status</p>
+                        <p class="audit-banner-copy">System-managed status, relationship updates, validations, and audit entries. Users manage the transaction while the system manages the controls.</p>
+                    </div>
+                    <div class="audit-badges">
+                        <span class="audit-badge {{ $previewIsLocked ? 'locked' : '' }}">{{ $previewIsLocked ? 'Read-only' : 'Editable' }}</span>
+                        <span class="audit-badge">{{ $record->status ?: 'N/A' }}</span>
+                        <span class="audit-badge">{{ $previewRelationshipStatus }}</span>
+                    </div>
                 </div>
-                <div class="audit-badges">
-                    <span class="audit-badge {{ $previewIsLocked ? 'locked' : '' }}">{{ $previewIsLocked ? 'Read-only' : 'Editable' }}</span>
-                    <span class="audit-badge">{{ $record->status ?: 'N/A' }}</span>
-                    <span class="audit-badge">{{ $previewRelationshipStatus }}</span>
-                </div>
+                <table class="audit-grid">
+                    <tr>
+                        <td>
+                            <p class="label">Current Status</p>
+                            <p class="value">{{ $record->status ?: 'N/A' }}</p>
+                        </td>
+                        <td>
+                            <p class="label">Relationship</p>
+                            <p class="value">{{ $previewRelationshipStatus }}</p>
+                        </td>
+                        <td>
+                            <p class="label">History Entries</p>
+                            <p class="value">{{ count($previewHistory) }}</p>
+                        </td>
+                    </tr>
+                </table>
             </div>
-            <table class="audit-grid">
-                <tr>
-                    <td>
-                        <p class="label">Current Status</p>
-                        <p class="value">{{ $record->status ?: 'N/A' }}</p>
-                    </td>
-                    <td>
-                        <p class="label">Relationship</p>
-                        <p class="value">{{ $previewRelationshipStatus }}</p>
-                    </td>
-                    <td>
-                        <p class="label">History Entries</p>
-                        <p class="value">{{ count($previewHistory) }}</p>
-                    </td>
-                </tr>
-            </table>
-        </div>
+        @endif
 
         <table class="summary">
-            @foreach(array_chunk($summaryCards, 4) as $row)
+            @foreach(array_chunk($summaryCards, 2) as $row)
                 <tr>
                     @foreach($row as $card)
                         <td>
@@ -756,14 +760,14 @@
                             <p class="value">{{ $card['value'] }}</p>
                         </td>
                     @endforeach
-                    @for($i = count($row); $i < 4; $i++)
+                    @for($i = count($row); $i < 2; $i++)
                         <td></td>
                     @endfor
                 </tr>
             @endforeach
         </table>
 
-        @if(!empty($approvalTrailRows))
+        @if(!$isTemplatePreview && !empty($approvalTrailRows))
             <div class="box">
                 <div class="block-title">Approval Trail</div>
                 <div class="block">
@@ -789,53 +793,7 @@
             </div>
         @endif
 
-        @if(!empty($attachmentSummary['items'] ?? []))
-            <div class="box">
-                <div class="block-title">Attachment Summary</div>
-                <div class="block">
-                    <table class="details">
-                        <tr>
-                            <td>
-                                <p class="label">Total Attachments</p>
-                                <p class="value">{{ $attachmentSummary['total_count'] ?? 0 }}</p>
-                            </td>
-                            <td>
-                                <p class="label">Photo Attachments</p>
-                                <p class="value">{{ $attachmentSummary['image_count'] ?? 0 }}</p>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td>
-                                <p class="label">Document Attachments</p>
-                                <p class="value">{{ $attachmentSummary['document_count'] ?? 0 }}</p>
-                            </td>
-                            <td>
-                                <p class="label">Attachment Types</p>
-                                <p class="value">{{ !empty($attachmentSummary['type_summary']) ? implode('; ', $attachmentSummary['type_summary']) : 'N/A' }}</p>
-                            </td>
-                        </tr>
-                    </table>
-                    <table class="details" style="margin-top: 8px;">
-                        <tr>
-                            <th>File</th>
-                            <th>Category</th>
-                            <th>Uploaded By</th>
-                            <th>Uploaded At</th>
-                        </tr>
-                        @foreach(($attachmentSummary['items'] ?? []) as $attachment)
-                            <tr>
-                                <td>{{ $attachment['name'] ?? '-' }}</td>
-                                <td>{{ $attachment['category'] ?? '-' }}</td>
-                                <td>{{ $attachment['uploaded_by'] ?: '-' }}</td>
-                                <td>{{ $attachment['uploaded_at'] ?: '-' }}</td>
-                            </tr>
-                        @endforeach
-                    </table>
-                </div>
-            </div>
-        @endif
-
-        @if(!empty($completeDataRows))
+        @if(!$isTemplatePreview && !empty($completeDataRows))
             <div class="box">
                 <div class="block-title">Complete Record Data</div>
                 <div class="block">

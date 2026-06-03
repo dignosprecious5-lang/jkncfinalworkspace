@@ -912,6 +912,7 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::get('/natgov/{natgov}', [NatGovController::class, 'show'])->name('natgov.preview');
     Route::get('/natgov/{natgov}/edit', [NatGovController::class, 'edit'])->name('natgov.edit');
     Route::put('/natgov/{natgov}', [NatGovController::class, 'update'])->name('natgov.update');
+    Route::post('/natgov/{natgov}/approve', [NatGovController::class, 'approve'])->name('natgov.approve');
     Route::post('/natgov/{natgov}/authority-notes', [NatGovController::class, 'storeAuthorityNote'])->name('natgov.notes.store');
     Route::delete('/natgov/{natgov}', [NatGovController::class, 'destroy'])->name('natgov.destroy');
 
@@ -1032,6 +1033,7 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::post('/finance/{financeRecord}/asset-acknowledge', [FinanceController::class, 'acknowledgeAsset'])->name('finance.asset.acknowledge');
     Route::post('/finance/{financeRecord}/asset-transfer', [FinanceController::class, 'transferAsset'])->name('finance.asset.transfer');
     Route::post('/finance/{financeRecord}/asset-event', [FinanceController::class, 'recordAssetEvent'])->name('finance.asset.event');
+    Route::post('/finance/{financeRecord}/notes', [FinanceController::class, 'addNote'])->name('finance.notes.store');
 
     Route::get('/banking/data', [BankingController::class, 'index'])->name('banking.index');
     Route::post('/banking/store', [BankingController::class, 'store'])->name('banking.store');

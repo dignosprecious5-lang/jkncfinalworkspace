@@ -129,9 +129,9 @@
                     <div class="bg-white border border-gray-200 rounded-xl px-5 py-6">
                         <h3 id="previewModuleTitle" class="text-[18px] font-semibold text-gray-900 mb-6">Finance Record</h3>
                         <div class="inline-flex rounded-full border border-gray-200 bg-gray-50 p-1 mb-4 shadow-sm">
-                            <button type="button" id="previewTabDetails" onclick="window.financeModule.changePreviewTab('details')" class="rounded-full px-4 py-2 text-sm font-medium transition bg-white text-blue-700 shadow-sm border border-gray-200">Details</button>
+                            <button type="button" id="previewTabTemplate" onclick="window.financeModule.changePreviewTab('template')" class="rounded-full px-4 py-2 text-sm font-medium transition text-gray-600 hover:text-gray-900">Template</button>
                             <button type="button" id="previewTabAttachments" onclick="window.financeModule.changePreviewTab('attachments')" class="rounded-full px-4 py-2 text-sm font-medium transition text-gray-600 hover:text-gray-900">Attachments</button>
-                            <button type="button" id="previewTabTemplate" onclick="window.financeModule.changePreviewTab('template')" class="hidden rounded-full px-4 py-2 text-sm font-medium transition text-gray-600 hover:text-gray-900">Template</button>
+                            <button type="button" id="previewTabDetails" onclick="window.financeModule.changePreviewTab('details')" class="rounded-full px-4 py-2 text-sm font-medium transition bg-white text-blue-700 shadow-sm border border-gray-200">Details</button>
                         </div>
 
                         <div id="previewTabContent"></div>
@@ -278,7 +278,7 @@
             <div class="flex items-start justify-between gap-4 border-b border-gray-100 px-5 py-4">
                 <div>
                     <h3 class="text-lg font-semibold text-gray-900">Finance Dropdown Settings</h3>
-                    <p class="mt-1 text-xs text-gray-500">Edit selectable values for dropdowns that are not linked to master records.</p>
+                    <p class="mt-1 text-xs text-gray-500">Use this editor to see the current label, type the new label, and save the change to the database without altering existing record data.</p>
                 </div>
                 <button type="button" onclick="window.financeModule.closeDropdownSettings()" class="text-sm text-gray-500 hover:text-gray-700">Close</button>
             </div>
@@ -291,7 +291,7 @@
                     <div id="financeDropdownSettingsFields" class="flex-1 overflow-y-auto p-5 space-y-4"></div>
                     <div class="border-t border-gray-100 px-5 py-4 flex justify-end gap-2">
                         <button type="button" onclick="window.financeModule.closeDropdownSettings()" class="rounded-md border border-gray-200 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Cancel</button>
-                        <button type="button" onclick="window.financeModule.saveDropdownSettings()" class="rounded-md bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700">Save Settings</button>
+                        <button type="button" onclick="window.financeModule.saveDropdownSettings()" class="rounded-md bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700">Save Changes</button>
                     </div>
                 </div>
             </div>
@@ -337,11 +337,13 @@
         'financeDropdownOptions' => $financeDropdownOptions,
         'financeAttachmentTypes' => $financeAttachmentTypes,
         'financeLabelOverrides' => $financeLabelOverrides,
+        'financeNoteVisibilityOptions' => $financeNoteVisibilityOptions,
         'officialApproverOptions' => $officialApproverOptions,
         'defaultApprovalSteps' => $defaultApprovalSteps,
         'requestTypeModules' => $requestTypeModules,
         'currentUserName' => $currentUserName,
         'currentUserEmail' => $currentUserEmail,
+        'currentUserEmployeeId' => $currentUserEmployeeId,
         'currentUserContact' => $currentUserContact,
         'csrfToken' => csrf_token(),
     ]);

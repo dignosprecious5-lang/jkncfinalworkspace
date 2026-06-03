@@ -3,11 +3,12 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
 class NotificationController extends Controller
 {
-    public function markAsRead(Request $request, string $notification): JsonResponse
+    public function markAsRead(Request $request, string $notification): JsonResponse|RedirectResponse
     {
         $item = $request->user()
             ->notifications()
@@ -18,19 +19,29 @@ class NotificationController extends Controller
             $item->markAsRead();
         }
 
-        return response()->json([
-            'success' => true,
-            'unread_count' => $request->user()->unreadNotifications()->count(),
-        ]);
+        $unreadCount = $request->user()->unreadNotifications()->count();
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'success' => true,
+                'unread_count' => $unreadCount,
+            ]);
+        }
+
+        return redirect(data_get($item->data, 'url') ?: url()->previous());
     }
 
-    public function markAllAsRead(Request $request): JsonResponse
+    public function markAllAsRead(Request $request): JsonResponse|RedirectResponse
     {
         $request->user()->unreadNotifications->markAsRead();
 
-        return response()->json([
-            'success' => true,
-            'unread_count' => 0,
-        ]);
+        if ($request->expectsJson()) {
+            return response()->json([
+                'success' => true,
+                'unread_count' => 0,
+            ]);
+        }
+
+        return back();
     }
 }
