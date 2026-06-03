@@ -537,8 +537,6 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::get('/policies/preview-pdf', [PolicyController::class, 'previewPdf'])->name('policies.preview');
     Route::get('/policies/{id}', [PolicyController::class, 'show'])->name('policies.show');
     Route::get('/policies/{id}/edit', [PolicyController::class, 'edit'])->name('policies.edit');
-    Route::get('/policies/{id}/edit', [PolicyController::class, 'edit'])
-        ->name('policies.edit');
 
     Route::put('/policies/{id}', [PolicyController::class, 'update'])
         ->name('policies.update');
@@ -833,7 +831,7 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::redirect('/banking', '/corporate/banking')->name('banking');
     Route::redirect('/legal', '/corporate/legal')->name('legal');
     Route::redirect('/operations', '/corporate/operations')->name('operations');
-    Route::redirect('/correspondence', '/corporate/correspondence')->name('correspondence');
+    Route::redirect('/correspondence', '/corporate/correspondence')->name('correspondence.redirect');
 
     /*
     |--------------------------------------------------------------------------
@@ -972,7 +970,7 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::get('/permits/template/sanitary-permit/{id}', [PermitController::class, 'showSanitaryPermitTemplate'])->name('permits.template.sanitary-permit');
     Route::get('/permits/template/obo-permit/{id}', [PermitController::class, 'showOboPermitTemplate'])->name('permits.template.obo-permit');
 
-    Route::get('/corporate/lgu', [PermitController::class, 'page'])->name('corporate.lgu');
+    Route::get('/corporate/lgu', [PermitController::class, 'page'])->name('corporate.lgu.permits');
     Route::get('/permits', [PermitController::class, 'index'])->name('permits.index');
     Route::post('/permits', [PermitController::class, 'store'])->name('permits.store');
     Route::get('/permits/{id}', [PermitController::class, 'show'])->name('permits.show');
@@ -985,13 +983,13 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     | CORRESPONDENCE / LEGAL / ACCOUNTING / BANKING / OPERATIONS
     |--------------------------------------------------------------------------
     */
-    Route::get('/correspondence/data', [CorrespondenceController::class, 'index'])->name('correspondence.data');
-    Route::post('/correspondence', [CorrespondenceController::class, 'store'])->name('correspondence.store');
+    Route::get('/correspondence/data', [CorrespondenceController::class, 'index'])->name('correspondence.data.legacy');
+    Route::post('/correspondence', [CorrespondenceController::class, 'store'])->name('correspondence.store.legacy');
     Route::get('/correspondence/{id}', [CorrespondenceController::class, 'show'])->name('correspondence.show');
     Route::put('/correspondence/{id}/update', [CorrespondenceController::class, 'update'])->name('correspondence.update');
-    Route::post('/correspondence/{id}/submit', [CorrespondenceController::class, 'submit'])->name('correspondence.submit');
+    Route::post('/correspondence/{id}/submit', [CorrespondenceController::class, 'submit'])->name('correspondence.submit.legacy');
     Route::get('/correspondence/draft-preview/{slug}', [CorrespondenceController::class, 'showDraftPreview'])->name('correspondence.draft-preview');
-    Route::get('/correspondence/template/{slug}/{id}', [CorrespondenceController::class, 'showTemplate'])->name('correspondence.template');
+    Route::get('/correspondence/template/{slug}/{id}', [CorrespondenceController::class, 'showTemplate'])->name('correspondence.template.legacy');
 
     Route::get('/legal/data', [LegalController::class, 'index'])->name('legal.index');
     Route::post('/legal/store', [LegalController::class, 'store'])->name('legal.store');
