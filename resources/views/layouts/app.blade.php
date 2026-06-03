@@ -490,6 +490,14 @@
                             </a>
                         @endif
 
+                        @if((Auth::user()->isAdmin() || Auth::user()->isSuperAdmin() || Auth::user()->hasPermission('approve_corporate')) && \Illuminate\Support\Facades\Route::has('admin.transmittal.dashboard'))
+                            <a href="{{ route('admin.transmittal.dashboard') }}"
+                            class="block px-3 py-2 rounded-lg transition
+                            {{ request()->routeIs('admin.transmittal.dashboard') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
+                                Transmittal
+                            </a>
+                        @endif
+
                         @if(Auth::user()->hasPermission('access_admin_dashboard') || Auth::user()->hasPermission('approve_townhall'))
                             {{-- Marketing --}}
                             <a href="{{ route('admin.dashboard.section', ['section' => 'products']) }}"

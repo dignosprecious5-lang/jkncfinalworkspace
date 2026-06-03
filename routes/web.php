@@ -1031,6 +1031,18 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     |--------------------------------------------------------------------------
     */
     Route::get('/transmittal', [TransmittalController::class, 'index'])->name('transmittal.index');
+
+    Route::get('/admin/transmittal-dashboard', [TransmittalController::class, 'dashboard'])
+        ->name('admin.transmittal.dashboard');
+
+    Route::post('/transmittal/{transmittal}/dashboard-approve', [TransmittalController::class, 'dashboardApprove'])
+        ->name('transmittal.dashboard.approve');
+
+    Route::post('/transmittal/{transmittal}/dashboard-revise', [TransmittalController::class, 'dashboardRevise'])
+        ->name('transmittal.dashboard.revise');
+
+    Route::post('/transmittal/{transmittal}/dashboard-reject', [TransmittalController::class, 'dashboardReject'])
+        ->name('transmittal.dashboard.reject');
     Route::get('/transmittal/create/project/{project}', [TransmittalController::class, 'createFromProject'])->name('transmittal.create.project');
     Route::get('/transmittal/create/regular/{regular}', [TransmittalController::class, 'createFromRegular'])->name('transmittal.create.regular');
     Route::get('/transmittal/data', [TransmittalController::class, 'data'])->name('transmittal.data');
