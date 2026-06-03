@@ -196,6 +196,13 @@
         </div>
     @endif
 
+    <div class="townhall-edit-top-actions">
+        <a href="{{ route('townhall.show', $communication->id) }}"
+           class="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 shadow-sm transition">
+            ← Back to Memo
+        </a>
+    </div>
+
     @if($communication->approval_notes)
         <div class="mb-4 rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">
             <span class="font-semibold">Revision Note:</span> {{ $communication->approval_notes }}
@@ -206,14 +213,7 @@
 
         {{-- LEFT PREVIEW PANEL --}}
         <div class="w-[70%] bg-[#f5f6f8] overflow-y-auto p-6 border border-gray-200 rounded-xl">
-            <div class="townhall-edit-sticky-back">
-                <div class="max-w-[850px] mx-auto">
-                    <a href="{{ route('townhall.show', $communication->id) }}"
-                       class="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 shadow-sm transition">
-                        ← Back to Memo
-                    </a>
-                </div>
-            </div>
+
 
             <div class="max-w-[850px] mx-auto">
                 <div id="memo-preview-pdf" class="memo-edit-preview bg-white border border-gray-300 shadow min-h-[1100px] px-[72px] py-[72px]">
@@ -993,14 +993,18 @@
     }
 
 
-    /* Sticky Edit Revision back button inside preview panel */
-    .townhall-edit-sticky-back {
+
+    /* Edit Revision top action bar - same top behavior as Show page */
+    .townhall-edit-top-actions {
         position: sticky;
         top: 0;
-        z-index: 80;
-        margin: -1.5rem -1.5rem 1rem -1.5rem;
-        padding: 1rem 1.5rem;
-        background: rgba(245, 246, 248, 0.96);
+        z-index: 120;
+        display: flex;
+        justify-content: flex-start;
+        align-items: center;
+        padding: 0.75rem 0;
+        margin-bottom: 0.75rem;
+        background: rgba(243, 244, 246, 0.96);
         border-bottom: 1px solid #e5e7eb;
         backdrop-filter: blur(6px);
     }
