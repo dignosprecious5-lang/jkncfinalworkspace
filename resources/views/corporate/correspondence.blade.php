@@ -17,7 +17,7 @@
         'Complaint Letter',
         'Explanation Letter',
         'Response Letter',
-
+        'Other',
     ];
 
     $companyInfo = $companyInfo ?? [
@@ -108,21 +108,7 @@
             </button>
         </div>
 
-        <div class="px-5 pt-4 bg-white border-b border-gray-100">
-            <div class="flex gap-8 text-[15px] text-gray-700 overflow-x-auto">
-                <button onclick="applyWorkflowFilter('uploaded')" id="tab-uploaded" class="pb-3 whitespace-nowrap border-b-2 border-blue-600 font-medium text-gray-900">Uploaded</button>
-                <button onclick="applyWorkflowFilter('submitted')" id="tab-submitted" class="pb-3 whitespace-nowrap">Submitted</button>
-                <button onclick="applyWorkflowFilter('accepted')" id="tab-accepted" class="pb-3 whitespace-nowrap">Accepted</button>
-                <button onclick="applyWorkflowFilter('reverted')" id="tab-reverted" class="pb-3 whitespace-nowrap">Reverted</button>
-                <button onclick="applyWorkflowFilter('archived')" id="tab-archived" class="pb-3 whitespace-nowrap">Archived</button>
-            </div>
-
-            <div id="statusMessage" class="mt-3 mb-4 border border-blue-200 bg-blue-50 text-blue-700 text-[14px] px-4 py-3 rounded-md">
-                These records are uploaded and ready for submission.
-            </div>
-        </div>
-
-        <div id="tableSection" class="px-5 pb-4 flex-1 flex flex-col">
+<div id="tableSection" class="px-5 pb-4 flex-1 flex flex-col">
             <div class="border border-gray-200 rounded-md overflow-hidden flex-1 overflow-auto">
                 <table class="w-full text-sm text-left border-collapse">
                     <thead class="bg-gray-100 text-gray-700 sticky top-0 z-10">
@@ -615,7 +601,7 @@
 
 <script>
 let currentTypeFilter = "All";
-let currentWorkflowFilter = "uploaded";
+let currentWorkflowFilter = "";
 let correspondenceRows = [];
 
 const correspondenceTypes = @json($types);
@@ -657,28 +643,11 @@ function showOnlySection(sectionId) {
 }
 
 function updateStatusMessage() {
-    const messageBox = document.getElementById('statusMessage');
-    const config = {
-        uploaded: ['border-blue-200', 'bg-blue-50', 'text-blue-700', 'These records are uploaded and ready for submission.'],
-        submitted: ['border-yellow-200', 'bg-yellow-50', 'text-yellow-700', 'These records are submitted and waiting for approval.'],
-        accepted: ['border-green-200', 'bg-green-50', 'text-green-700', 'These records were already accepted.'],
-        reverted: ['border-red-200', 'bg-red-50', 'text-red-700', 'These records were reverted and can be corrected then resubmitted.'],
-        archived: ['border-gray-200', 'bg-gray-50', 'text-gray-700', 'These records are archived.'],
-    }[currentWorkflowFilter] || ['border-gray-200', 'bg-gray-50', 'text-gray-700', 'Correspondence records.'];
-
-    messageBox.className = `mt-3 mb-4 border ${config[0]} ${config[1]} ${config[2]} text-[14px] px-4 py-3 rounded-md`;
-    messageBox.textContent = config[3];
+    // Corporate side tabs were removed.
 }
 
 function setActiveTab() {
-    ['uploaded', 'submitted', 'accepted', 'reverted', 'archived'].forEach(tab => {
-        const el = document.getElementById(`tab-${tab}`);
-        if (!el) return;
-
-        el.className = tab === currentWorkflowFilter
-            ? 'pb-3 whitespace-nowrap border-b-2 border-blue-600 font-medium text-gray-900'
-            : 'pb-3 whitespace-nowrap text-gray-700';
-    });
+    // Admin side handles workflow tabs.
 }
 
 function showSliderError(message) {
@@ -785,7 +754,8 @@ function resetFormDefaults() {
 }
 
 function applyWorkflowFilter(filterValue) {
-    currentWorkflowFilter = filterValue;
+    // Workflow filtering is managed in the Admin Correspondence dashboard.
+    currentWorkflowFilter = '';
     renderTable();
 }
 
@@ -796,8 +766,6 @@ async function fetchCorrespondence() {
         params.append('type', currentTypeFilter);
     }
 
-    params.append('workflow_status', currentWorkflowFilter);
-
     const res = await fetch(`/correspondence/data?${params.toString()}`, {
         headers: { 'Accept': 'application/json' }
     });
@@ -806,8 +774,8 @@ async function fetchCorrespondence() {
 }
 
 function getWorkflowClasses(status) {
-    if (status === 'Uploaded') return 'text-orange-600';
     if (status === 'Submitted') return 'text-blue-600';
+    if (status === 'Uploaded') return 'text-orange-600';
     if (status === 'Accepted') return 'text-green-600';
     if (status === 'Reverted') return 'text-yellow-600';
     if (status === 'Archived') return 'text-gray-600';
@@ -842,14 +810,6 @@ function openPreview(index) {
 
     const actions = document.getElementById('previewActions');
     actions.innerHTML = `<a id="openPreviewBtn" href="${previewUrl}" target="_blank" class="text-sm text-blue-600 hover:underline block">Open in New Tab</a>`;
-
-    if (item.can_submit) {
-        actions.innerHTML += `
-            <button type="button" onclick="submitCorrespondence(${item.id})" class="w-full bg-blue-600 text-white rounded-md py-2 hover:bg-blue-700">
-                Submit for Approval
-            </button>
-        `;
-    }
 
     actions.innerHTML += `
         <a href="/correspondence/${item.id}/download-pdf" class="block w-full text-center bg-red-600 text-white rounded-md py-2 hover:bg-red-700">
@@ -954,8 +914,7 @@ async function addCorrespondence() {
             return false;
         }
 
-        showSliderSuccess(data.message || 'Correspondence saved successfully.');
-        currentWorkflowFilter = 'uploaded';
+        showSliderSuccess(data.message || 'Correspondence submitted successfully.');
         await renderTable();
         setSaveLoading(false);
         return true;
@@ -983,7 +942,6 @@ async function submitCorrespondence(id) {
     }
 
     alert(data.message || 'Submitted successfully.');
-    currentWorkflowFilter = 'submitted';
     closePreview();
     await renderTable();
 }

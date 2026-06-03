@@ -31,7 +31,7 @@ class CorrespondenceController extends Controller
         'Complaint Letter',
         'Explanation Letter',
         'Response Letter',
-
+        'Other',
     ];
 
     public function index()
@@ -68,6 +68,9 @@ class CorrespondenceController extends Controller
                 $query->where('workflow_status', $status)->where('is_archived', false);
             }
         } else {
+            // Corporate side has no workflow tabs now.
+            // Show all active/non-archived correspondence here.
+            // Admin side handles Submitted / Accepted / Reverted / Archived workflow filtering.
             $query->where('is_archived', false);
         }
 
@@ -94,7 +97,7 @@ class CorrespondenceController extends Controller
                 'approval_status' => $item->approval_status,
                 'review_note' => $item->review_note,
                 'user' => $item->creator?->name ?: 'System',
-                'can_submit' => in_array($item->workflow_status, ['Uploaded', 'Reverted'], true),
+                'can_submit' => false,
             ])
             ->values();
     }
@@ -136,8 +139,11 @@ class CorrespondenceController extends Controller
             'body' => $validated['body'] ?? null,
             'sent_via' => $validated['sent_via'] ?? 'Email',
             'status' => 'Open',
-            'workflow_status' => 'Uploaded',
-            'approval_status' => 'Draft',
+            'workflow_status' => 'Submitted',
+            'approval_status' => 'Pending',
+            'submitted_at' => now(),
+            'management_approval_status' => 'Pending',
+            'executive_approval_status' => 'Pending',
             'created_by' => Auth::id(),
         ], $this->buildApprovalData(
             $request->input('management_approver_id'),
@@ -161,12 +167,12 @@ class CorrespondenceController extends Controller
         $record->update([
             'workflow_status' => 'Submitted',
             'approval_status' => 'Pending',
-            'submitted_at' => now(),
-            'management_approval_status' => 'Pending',
-            'executive_approval_status' => 'Pending',
+            'submitted_at' => $record->submitted_at ?: now(),
+            'management_approval_status' => $record->management_approval_status ?: 'Pending',
+            'executive_approval_status' => $record->executive_approval_status ?: 'Pending',
         ]);
 
-        return response()->json(['message' => 'Correspondence submitted for approval.']);
+        return response()->json(['message' => 'Correspondence is already in the submitted workflow.']);
     }
 
     public function template($type, $id)
@@ -288,7 +294,7 @@ class CorrespondenceController extends Controller
             'submitted' => Correspondence::where('workflow_status', 'Submitted')->where('is_archived', false)->count(),
             'accepted' => Correspondence::where('workflow_status', 'Accepted')->where('is_archived', false)->count(),
             'reverted' => Correspondence::where('workflow_status', 'Reverted')->where('is_archived', false)->count(),
-            'uploaded' => Correspondence::where('workflow_status', 'Uploaded')->where('is_archived', false)->count(),
+            'uploaded' => Correspondence::where('workflow_status', 'Uploaded')->where('is_archived', false)->count(), // legacy only
             'archived' => Correspondence::where('is_archived', true)->count(),
         ];
 
