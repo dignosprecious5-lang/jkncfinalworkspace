@@ -223,9 +223,6 @@
 
         .signature-name {
             margin-top: 42px;
-            width: 260px;
-            border-top: 0.8px solid #111827;
-            padding-top: 5px;
             font-weight: 700;
             text-transform: uppercase;
         }

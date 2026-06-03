@@ -546,13 +546,13 @@
                                     <div id="minutes-print-signatures" class="mt-10 text-[15px] leading-7">
                                         <div class="minutes-signoff-block">
                                             <div class="font-bold">Prepared by:</div>
-                                            <div class="mt-10 w-[320px] border-t border-slate-900 pt-2 font-bold uppercase">{{ $minute->secretary ?: '________________' }}</div>
+                                            <div class="mt-12 font-bold uppercase">{{ $minute->secretary ?: '________________' }}</div>
                                             <div class="font-bold">Corporate Secretary</div>
                                         </div>
 
                                         <div class="minutes-signoff-block mt-12">
                                             <div class="font-bold">Attested by:</div>
-                                            <div class="mt-10 w-[320px] border-t border-slate-900 pt-2 font-bold uppercase">{{ $minute->chairman ?: '________________' }}</div>
+                                            <div class="mt-12 font-bold uppercase">{{ $minute->chairman ?: '________________' }}</div>
                                             <div class="font-bold">Chairman of the Meeting</div>
                                         </div>
                                     </div>
