@@ -471,7 +471,7 @@
                         <div class="rounded-lg border border-blue-100 bg-white p-3">
                             <p class="text-xs font-bold uppercase tracking-wide text-blue-700">Approval Workflow</p>
                             <p class="mt-1 text-xs text-gray-500">
-                                Level 1 and Level 2 approvers are selected from the latest approved GIS Directors / Officers list. Officers with N/A or blank officer type are hidden.
+                                Level 1 approver is selected from Employee Profile. Level 2 approver is selected from the latest approved GIS Directors / Officers list. GIS officers with N/A or blank officer type are hidden.
                             </p>
                         </div>
 
@@ -484,7 +484,7 @@
                                 required
                                 class="w-full border border-blue-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500"
                             >
-                                <option value="">Select GIS director/officer</option>
+                                <option value="">Select active employee approver</option>
                                 @foreach($managementApprovers as $approver)
                                     <option value="{{ $approver['id'] }}">
                                         {{ $approver['name'] }} — {{ $approver['position'] }} • {{ $approver['department'] }}
@@ -510,7 +510,7 @@
                                 class="w-full border border-blue-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500"
                             >
                                 <option value="">Select GIS director/officer</option>
-                                @foreach(($executiveApprovers ?? $managementApprovers) as $approver)
+                                @foreach(($executiveApprovers ?? collect()) as $approver)
                                     <option value="{{ $approver['id'] }}">
                                         {{ $approver['name'] }} — {{ $approver['position'] }} • {{ $approver['department'] }}
                                     </option>

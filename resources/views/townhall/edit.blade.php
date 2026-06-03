@@ -608,7 +608,7 @@
                             <option value="">Select active employee approver</option>
                             @foreach(($managementApprovers ?? collect()) as $approver)
                                 <option value="{{ $approver['id'] }}">
-                                    {{ $approver['name'] }} — {{ $approver['position'] ?? 'Position' }}
+                                    {{ $approver['name'] }} — {{ $approver['position'] ?? 'Position' }} • {{ $approver['department'] ?? '—' }}
                                 </option>
                             @endforeach
                         </select>

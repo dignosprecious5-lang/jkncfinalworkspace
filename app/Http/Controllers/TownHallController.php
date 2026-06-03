@@ -95,8 +95,10 @@ class TownHallController extends Controller
             ->orderBy('last_name')
             ->get();
 
+        // Level 1 approvers now come from Employee Profile.
+        // Level 2 approvers remain from the latest approved GIS Directors / Officers list.
+        $managementApprovers = $this->activeEmployeeApprovers();
         $gisApprovers = $this->gisApprovers();
-        $managementApprovers = $gisApprovers;
         $executiveApprovers = $gisApprovers;
         $executiveApprover = $gisApprovers->first() ?? $this->resolveExecutiveApprover();
 
@@ -315,8 +317,10 @@ class TownHallController extends Controller
             ->orderBy('last_name')
             ->get();
 
+        // Level 1 approvers now come from Employee Profile.
+        // Level 2 approvers remain from the latest approved GIS Directors / Officers list.
+        $managementApprovers = $this->activeEmployeeApprovers();
         $gisApprovers = $this->gisApprovers();
-        $managementApprovers = $gisApprovers;
         $executiveApprovers = $gisApprovers;
         $executiveApprover = $gisApprovers->first() ?? $this->resolveExecutiveApprover();
 
@@ -1335,7 +1339,7 @@ class TownHallController extends Controller
             'name' => $officer->officer_name ?: 'Unnamed Officer',
             'email' => $officer->email,
             'position' => $position,
-            'department' => 'Department of the ' . $position,
+            'department' => 'Office of the ' . $position,
             'gis_id' => $officer->gis_id,
         ];
     }
@@ -1361,18 +1365,30 @@ class TownHallController extends Controller
 
     private function activeEmployeeApprovers()
     {
-        if (!class_exists(Employee::class)) {
+        if (!class_exists(Employee::class) || !Schema::hasTable((new Employee())->getTable())) {
             return collect();
         }
 
-        return Employee::query()
-            ->whereNotNull('user_id')
-            ->where(function ($query) {
-                $query->whereNull('employment_status')
+        $query = Employee::query();
+
+        if (Schema::hasColumn((new Employee())->getTable(), 'user_id')) {
+            $query->whereNotNull('user_id');
+        }
+
+        if (Schema::hasColumn((new Employee())->getTable(), 'employment_status')) {
+            $query->where(function ($statusQuery) {
+                $statusQuery->whereNull('employment_status')
                     ->orWhereIn('employment_status', ['Active', 'active', 'Regular', 'regular', 'Probationary', 'probationary']);
-            })
-            ->orderBy('last_name')
-            ->orderBy('first_name')
+            });
+        }
+
+        foreach (['last_name', 'first_name', 'id'] as $column) {
+            if (Schema::hasColumn((new Employee())->getTable(), $column)) {
+                $query->orderBy($column);
+            }
+        }
+
+        return $query
             ->get()
             ->map(function ($employee) {
                 return $this->formatEmployeeApprover($employee);
@@ -1383,12 +1399,15 @@ class TownHallController extends Controller
 
     private function buildApprovalData($managementApproverId, $executiveApproverId = null): array
     {
-        $management = $this->getGisApproverData($managementApproverId);
+        // Level 1 - From Management: Employee Profile
+        $management = $this->getEmployeeApproverData($managementApproverId);
+
+        // Level 2 - From Executive Management: GIS Director / Officer
         $executive = $this->getGisApproverData($executiveApproverId);
 
         return [
             'management_approver_id' => $management['id'] ?? null,
-            'management_approver_user_id' => null,
+            'management_approver_user_id' => $management['user_id'] ?? null,
             'management_approver_name' => $management['name'] ?? null,
             'management_approver_position' => $management['position'] ?? null,
             'management_approver_department' => $management['department'] ?? null,
@@ -1396,7 +1415,7 @@ class TownHallController extends Controller
             'management_approved_at' => null,
 
             'executive_approver_id' => $executive['id'] ?? null,
-            'executive_approver_user_id' => null,
+            'executive_approver_user_id' => $executive['user_id'] ?? null,
             'executive_approver_name' => $executive['name'] ?? null,
             'executive_approver_position' => $executive['position'] ?? null,
             'executive_approver_department' => $executive['department'] ?? null,
@@ -1440,18 +1459,25 @@ class TownHallController extends Controller
             $employee->middle_name ?? null,
             $employee->last_name ?? null,
             $employee->suffix ?? null,
+            $employee->name_extension ?? null,
         ])->filter()->implode(' '));
+
+        if (!$name && !empty($employee->name)) {
+            $name = $employee->name;
+        }
 
         if (!$name && !empty($employee->user_id)) {
             $name = User::whereKey($employee->user_id)->value('name');
         }
 
+        $department = $this->resolveDepartmentName($employee->department_id ?? null);
+
         return [
             'id' => $employee->id,
-            'user_id' => $employee->user_id,
+            'user_id' => $employee->user_id ?? null,
             'name' => $name ?: 'Unnamed Employee',
-            'position' => $employee->position ?: '—',
-            'department' => $this->resolveDepartmentName($employee->department_id ?? null),
+            'position' => $employee->position ?: ($employee->job_title ?? '—'),
+            'department' => $department,
         ];
     }
 
