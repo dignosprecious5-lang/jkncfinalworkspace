@@ -798,7 +798,30 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::view('/corporate/banking', 'corporate.banking')->name('corporate.banking');
     Route::view('/corporate/legal', 'corporate.legal')->name('corporate.legal');
     Route::view('/corporate/operations', 'corporate.operations')->name('corporate.operations');
-    Route::view('/corporate/correspondence', 'corporate.correspondence')->name('corporate.correspondence');
+    /*
+    |--------------------------------------------------------------------------
+    | CORPORATE CORRESPONDENCE MODULE
+    |--------------------------------------------------------------------------
+    */
+    Route::get('/corporate/correspondence', [CorrespondenceController::class, 'index'])->name('correspondence');
+    Route::redirect('/correspondence/index', '/corporate/correspondence')->name('correspondence.index.redirect');
+    Route::get('/corporate/correspondence/index', [CorrespondenceController::class, 'index'])->name('correspondence.index');
+    Route::get('/correspondence/data', [CorrespondenceController::class, 'data'])->name('correspondence.data');
+    Route::post('/correspondence', [CorrespondenceController::class, 'store'])->name('correspondence.store');
+    Route::post('/correspondence/{id}/submit', [CorrespondenceController::class, 'submit'])->name('correspondence.submit');
+
+    Route::get('/correspondence/template/{type}/{id}', [CorrespondenceController::class, 'template'])->name('correspondence.template');
+    Route::get('/correspondence/{id}/download-pdf', [CorrespondenceController::class, 'downloadPdf'])->name('correspondence.download');
+
+    Route::post('/correspondence/{id}/approve', [CorrespondenceController::class, 'approve'])->name('correspondence.approve');
+    Route::post('/correspondence/{id}/revise', [CorrespondenceController::class, 'revise'])->name('correspondence.revise');
+    Route::post('/correspondence/{id}/reject', [CorrespondenceController::class, 'reject'])->name('correspondence.reject');
+    Route::post('/correspondence/{id}/archive', [CorrespondenceController::class, 'archive'])->name('correspondence.archive');
+    Route::post('/correspondence/{id}/unarchive', [CorrespondenceController::class, 'unarchive'])->name('correspondence.unarchive');
+
+    Route::get('/admin/correspondence', [CorrespondenceController::class, 'submittedDashboard'])->name('admin.correspondence.dashboard');
+    Route::get('/admin/correspondence/{id}', [CorrespondenceController::class, 'showAdmin'])->name('admin.correspondence.show');
+
     Route::view('/corporate/ubo', 'corporate.ubo-form')->name('corporate.ubo');
 
     /*
