@@ -537,8 +537,6 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::get('/policies/preview-pdf', [PolicyController::class, 'previewPdf'])->name('policies.preview');
     Route::get('/policies/{id}', [PolicyController::class, 'show'])->name('policies.show');
     Route::get('/policies/{id}/edit', [PolicyController::class, 'edit'])->name('policies.edit');
-    Route::get('/policies/{id}/edit', [PolicyController::class, 'edit'])
-        ->name('policies.edit');
 
     Route::put('/policies/{id}', [PolicyController::class, 'update'])
         ->name('policies.update');
@@ -793,7 +791,8 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::post('/corporate/bylaws/{id}/upload-notary-file', [BylawController::class, 'uploadNotaryFile'])->name('corporate.bylaws.upload.notary');
     Route::post('/corporate/bylaws/{id}/submit', [BylawController::class, 'submit'])->name('corporate.bylaws.submit');
 
-    Route::view('/corporate/lgu', 'corporate.lgu')->name('corporate.lgu');
+    // Kept only for old/static view reference; main /corporate/lgu route is handled by PermitController below.
+    Route::view('/corporate/lgu-static', 'corporate.lgu')->name('corporate.lgu.static');
     Route::view('/corporate/accounting', 'corporate.accounting')->name('corporate.accounting');
     Route::view('/corporate/banking', 'corporate.banking')->name('corporate.banking');
     Route::view('/corporate/legal', 'corporate.legal')->name('corporate.legal');
@@ -822,7 +821,7 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::get('/admin/correspondence', [CorrespondenceController::class, 'submittedDashboard'])->name('admin.correspondence.dashboard');
     Route::get('/admin/correspondence/{id}', [CorrespondenceController::class, 'showAdmin'])->name('admin.correspondence.show');
 
-Route::view('/corporate/ubo', 'corporate.ubo-form')->name('corporate.ubo');
+    Route::view('/corporate/ubo', 'corporate.ubo-form')->name('corporate.ubo');
 
     /*
     |--------------------------------------------------------------------------
@@ -833,7 +832,7 @@ Route::view('/corporate/ubo', 'corporate.ubo-form')->name('corporate.ubo');
     Route::redirect('/banking', '/corporate/banking')->name('banking');
     Route::redirect('/legal', '/corporate/legal')->name('legal');
     Route::redirect('/operations', '/corporate/operations')->name('operations');
-    Route::redirect('/correspondence', '/corporate/correspondence')->name('correspondence');
+    Route::redirect('/correspondence', '/corporate/correspondence')->name('correspondence.redirect');
 
     /*
     |--------------------------------------------------------------------------
@@ -934,6 +933,7 @@ Route::view('/corporate/ubo', 'corporate.ubo-form')->name('corporate.ubo');
     Route::get('/corporate/minutes', [MinuteController::class, 'index'])->name('minutes');
     Route::get('/corporate/minutes/create', [MinuteController::class, 'create'])->name('minutes.create');
     Route::post('/corporate/minutes', [MinuteController::class, 'store'])->name('minutes.store');
+    Route::get('/corporate/minutes/{minute}/download', [MinuteController::class, 'downloadPdf'])->name('minutes.download');
     Route::get('/corporate/minutes/{minute}', [MinuteController::class, 'show'])->name('minutes.preview');
     Route::get('/corporate/minutes/{minute}/edit', [MinuteController::class, 'edit'])->name('minutes.edit');
     Route::put('/corporate/minutes/{minute}', [MinuteController::class, 'update'])->name('minutes.update');
@@ -984,13 +984,13 @@ Route::view('/corporate/ubo', 'corporate.ubo-form')->name('corporate.ubo');
     | CORRESPONDENCE / LEGAL / ACCOUNTING / BANKING / OPERATIONS
     |--------------------------------------------------------------------------
     */
-    Route::get('/correspondence/data', [CorrespondenceController::class, 'index'])->name('correspondence.data');
-    Route::post('/correspondence', [CorrespondenceController::class, 'store'])->name('correspondence.store');
+    Route::get('/correspondence/data', [CorrespondenceController::class, 'index'])->name('correspondence.data.legacy');
+    Route::post('/correspondence', [CorrespondenceController::class, 'store'])->name('correspondence.store.legacy');
     Route::get('/correspondence/{id}', [CorrespondenceController::class, 'show'])->name('correspondence.show');
     Route::put('/correspondence/{id}/update', [CorrespondenceController::class, 'update'])->name('correspondence.update');
-    Route::post('/correspondence/{id}/submit', [CorrespondenceController::class, 'submit'])->name('correspondence.submit');
+    Route::post('/correspondence/{id}/submit', [CorrespondenceController::class, 'submit'])->name('correspondence.submit.legacy');
     Route::get('/correspondence/draft-preview/{slug}', [CorrespondenceController::class, 'showDraftPreview'])->name('correspondence.draft-preview');
-    Route::get('/correspondence/template/{slug}/{id}', [CorrespondenceController::class, 'showTemplate'])->name('correspondence.template');
+    Route::get('/correspondence/template/{slug}/{id}', [CorrespondenceController::class, 'showTemplate'])->name('correspondence.template.legacy');
 
     Route::get('/legal/data', [LegalController::class, 'index'])->name('legal.index');
     Route::post('/legal/store', [LegalController::class, 'store'])->name('legal.store');
@@ -1054,6 +1054,18 @@ Route::view('/corporate/ubo', 'corporate.ubo-form')->name('corporate.ubo');
     |--------------------------------------------------------------------------
     */
     Route::get('/transmittal', [TransmittalController::class, 'index'])->name('transmittal.index');
+
+    Route::get('/admin/transmittal-dashboard', [TransmittalController::class, 'dashboard'])
+        ->name('admin.transmittal.dashboard');
+
+    Route::post('/transmittal/{transmittal}/dashboard-approve', [TransmittalController::class, 'dashboardApprove'])
+        ->name('transmittal.dashboard.approve');
+
+    Route::post('/transmittal/{transmittal}/dashboard-revise', [TransmittalController::class, 'dashboardRevise'])
+        ->name('transmittal.dashboard.revise');
+
+    Route::post('/transmittal/{transmittal}/dashboard-reject', [TransmittalController::class, 'dashboardReject'])
+        ->name('transmittal.dashboard.reject');
     Route::get('/transmittal/create/project/{project}', [TransmittalController::class, 'createFromProject'])->name('transmittal.create.project');
     Route::get('/transmittal/create/regular/{regular}', [TransmittalController::class, 'createFromRegular'])->name('transmittal.create.regular');
     Route::get('/transmittal/data', [TransmittalController::class, 'data'])->name('transmittal.data');
