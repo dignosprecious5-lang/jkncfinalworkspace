@@ -156,7 +156,16 @@
     }
 
     #minutes-print-signatures {
-        margin-top: 14px !important;
+        margin-top: 30px !important;
+        line-height: 1.65 !important;
+    }
+
+    .minutes-signoff-block {
+        margin-top: 18px !important;
+    }
+
+    .minutes-signoff-block:first-child {
+        margin-top: 0 !important;
     }
 
 
@@ -536,14 +545,18 @@
                                         <div id="minutes-template-editor" class="minutes-rich-editor mt-1 min-h-0 whitespace-pre-wrap text-[15px] leading-6 text-slate-900 outline-none" contenteditable="true" data-placeholder="Type the minutes following the template here..."></div>
                                     </div>
 
-                                    <div id="minutes-print-signatures" class="mt-3 text-[15px] leading-6">
-                                        <div class="font-bold">Prepared by:</div>
-                                        <div class="mt-1 font-bold uppercase">{{ $minute->secretary ?: '________________' }}</div>
-                                        <div class="font-bold">Corporate Secretary</div>
+                                    <div id="minutes-print-signatures" class="mt-8 text-[15px] leading-7">
+                                        <div class="minutes-signoff-block">
+                                            <div class="font-bold">Prepared by:</div>
+                                            <div class="mt-2 font-bold uppercase">{{ $minute->secretary ?: '________________' }}</div>
+                                            <div class="font-bold">Corporate Secretary</div>
+                                        </div>
 
-                                        <div class="mt-5 font-bold">Attested by:</div>
-                                        <div class="mt-1 font-bold uppercase">{{ $minute->chairman ?: '________________' }}</div>
-                                        <div class="font-bold">Chairman of the Meeting</div>
+                                        <div class="minutes-signoff-block mt-8">
+                                            <div class="font-bold">Attested by:</div>
+                                            <div class="mt-2 font-bold uppercase">{{ $minute->chairman ?: '________________' }}</div>
+                                            <div class="font-bold">Chairman of the Meeting</div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>

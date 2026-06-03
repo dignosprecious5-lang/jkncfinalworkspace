@@ -113,6 +113,7 @@
         .resolution-body strong { font-weight: 700; }
 
         .resolution-title { text-align: center; font-weight: 700; text-transform: uppercase; margin: 26px 0 14px; }
+        .purpose-line { text-align: center; font-size: 15px; line-height: 1.45; font-weight: 700; text-transform: uppercase; margin: 14px 0 22px; }
         .signature { margin-top: 42px; text-align: right; }
         .signature-line { display: inline-block; min-width: 250px; border-top: 1px solid #000; padding-top: 8px; text-align: center; }
         .meta { margin-top: 36px; font-size: 12px; line-height: 1.5; }
@@ -131,7 +132,7 @@
         <p>That, per corporate records, at the {{ $certificate->type_of_meeting ?: 'Special' }} Meeting of the {{ $certificate->governing_body ?: 'Board of Directors' }} of the Corporation held on <strong>{{ $meetingDate }}</strong>, and recorded under Minutes Ref. <strong>{{ $certificate->minutes_ref ?: ($minute?->minutes_ref ?: '________________') }}</strong>, the following corporate action was duly approved and recorded in the Minute Book, a legal quorum being present and voting, viz:</p>
 
         <div class="resolution-title">{{ $certificate->resolution_no ? $resolutionLabel . $certificate->resolution_no : 'CERTIFIED MINUTES EXTRACT' }}</div>
-        <p><strong>{{ $certificatePurpose }}</strong></p>
+        <div class="purpose-line">{{ $certificatePurpose }}</div>
         <div class="resolution-body">{!! $formatResolutionBodyForDisplay($certificateBody) !!}</div>
 
         <p>That, the foregoing resolution shall be in full force and effect unless revoked by the Board of Directors. Moreover, the foregoing resolution is in accordance and does not in any way contravene any provision of the Articles of Incorporation or By-Laws of the Corporation.</p>

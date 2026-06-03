@@ -210,18 +210,18 @@
         }
 
         .signature-section {
-            margin-top: 14px;
-            line-height: 1.32;
+            margin-top: 30px;
+            line-height: 1.55;
         }
 
         .signature-name {
-            margin-top: 3px;
+            margin-top: 7px;
             font-weight: 700;
             text-transform: uppercase;
         }
 
         .attested-block {
-            margin-top: 13px;
+            margin-top: 28px;
         }
 
         .avoid-break {

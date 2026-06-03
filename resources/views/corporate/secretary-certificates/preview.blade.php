@@ -141,6 +141,15 @@
         font-weight: 700;
     }
 
+    .certificate-purpose-heading {
+        margin: 18px 0 22px 0;
+        text-align: center;
+        font-size: 17px;
+        line-height: 1.45;
+        font-weight: 700;
+        text-transform: uppercase;
+    }
+
 </style>
 
 <div class="w-full px-4 sm:px-6 lg:px-8 mt-4" x-data="{ activeVersion: 'draft', activeDraftPane: 'live' }">
@@ -190,7 +199,7 @@
                                         <p>That, per corporate records, at the <span data-preview="certificate-meeting-type">{{ $certificate->type_of_meeting ?: 'Special' }}</span> Meeting of the <span data-preview="certificate-governing-body">{{ $certificate->governing_body ?: 'Board of Directors' }}</span> of the Corporation held on <strong data-preview="certificate-meeting-date">{{ $meetingDate }}</strong>, and recorded under Minutes Ref. <strong>{{ $certificate->minutes_ref ?: '-' }}</strong>, the following corporate action was duly approved and recorded in the Minute Book, a legal quorum being present and voting, viz:</p>
 
                                         <div class="my-6 text-center font-bold uppercase" data-preview="certificate-resolution-title">{{ $certificate->resolution_no ? $resolutionLabel . $certificate->resolution_no : 'CERTIFIED MINUTES EXTRACT' }}</div>
-                                        <p><strong data-preview="certificate-purpose">{{ $certificatePurpose }}</strong></p>
+                                        <div class="certificate-purpose-heading" data-preview="certificate-purpose">{{ $certificatePurpose }}</div>
                                         <div data-preview="certificate-body" class="min-h-[180px] corporate-resolution-body">{!! $formatResolutionBodyForDisplay($certificateBody) !!}</div>
 
                                         <p>That, the foregoing resolution shall be in full force and effect unless revoked by the Board of Directors. Moreover, the foregoing resolution is in accordance and does not in any way contravene any provision of the Articles of Incorporation or By-Laws of the Corporation.</p>
