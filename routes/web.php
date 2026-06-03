@@ -793,10 +793,10 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
 
     // Kept only for old/static view reference; main /corporate/lgu route is handled by PermitController below.
     Route::view('/corporate/lgu-static', 'corporate.lgu')->name('corporate.lgu.static');
-    Route::view('/corporate/accounting', 'corporate.accounting')->name('corporate.accounting');
-    Route::view('/corporate/banking', 'corporate.banking')->name('corporate.banking');
-    Route::view('/corporate/legal', 'corporate.legal')->name('corporate.legal');
-    Route::view('/corporate/operations', 'corporate.operations')->name('corporate.operations');
+    Route::get('/corporate/accounting', [AccountingController::class, 'page'])->name('corporate.accounting');
+    Route::get('/corporate/banking', [BankingController::class, 'page'])->name('corporate.banking');
+    Route::get('/corporate/legal', [LegalController::class, 'page'])->name('corporate.legal');
+    Route::get('/corporate/operations', [OperationController::class, 'page'])->name('corporate.operations');
     /*
     |--------------------------------------------------------------------------
     | CORPORATE CORRESPONDENCE MODULE
@@ -999,7 +999,6 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::post('/legal/{id}/submit', [LegalController::class, 'submit'])->name('legal.submit');
 
     Route::prefix('corporate')->name('corporate.')->group(function () {
-        Route::get('/accounting', [AccountingController::class, 'page'])->name('accounting.index');
         Route::get('/accounting/data', [AccountingController::class, 'index'])->name('accounting.data');
         Route::post('/accounting', [AccountingController::class, 'store'])->name('accounting.store');
         Route::get('/accounting/{id}', [AccountingController::class, 'show'])->name('accounting.show');
