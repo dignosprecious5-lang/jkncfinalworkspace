@@ -205,23 +205,12 @@
     <div class="flex gap-6 h-[calc(100vh-7rem)]">
 
         {{-- LEFT PREVIEW PANEL --}}
-        <div class="w-[70%] bg-[#f5f6f8] overflow-y-auto p-6 border border-gray-200 rounded-xl">
-            <div class="townhall-edit-sticky-actions">
-                <div class="max-w-[850px] mx-auto flex justify-between items-center">
-                    <a href="{{ route('townhall.show', $communication->id) }}"
-                       class="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 shadow-sm transition">
-                        ← Back to Memo
-                    </a>
-
-                    <button
-                        type="button"
-                        id="download-preview-pdf"
-                        class="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 shadow transition"
-                    >
-                        <i class="fas fa-file-pdf"></i>
-                        Download Preview PDF
-                    </button>
-                </div>
+        <div class="w-[70%] bg-[#f5f6f8] overflow-y-auto p-6 pt-16 border border-gray-200 rounded-xl">
+            <div class="townhall-edit-fixed-back">
+                <a href="{{ route('townhall.show', $communication->id) }}"
+                   class="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 shadow-sm transition">
+                    ← Back to Memo
+                </a>
             </div>
 
             <div class="max-w-[850px] mx-auto">
@@ -1002,44 +991,21 @@
     }
 
 
-    /* Sticky edit-preview actions */
-    .townhall-edit-sticky-actions {
-        position: sticky;
-        top: 0;
-        z-index: 80;
-        margin: -1.5rem -1.5rem 1rem -1.5rem;
-        padding: 1rem 1.5rem;
-        background: rgba(245, 246, 248, 0.96);
-        border-bottom: 1px solid #e5e7eb;
-        backdrop-filter: blur(6px);
+    /* Fixed Edit Revision back button */
+    .townhall-edit-fixed-back {
+        position: fixed;
+        top: 86px;
+        left: 6rem;
+        z-index: 999;
+        padding: 0;
+        background: transparent;
     }
 
-    .townhall-pdf-export-wrapper {
-        width: 794px;
-        background: #ffffff;
-        color: #000000;
-        font-family: Georgia, "Times New Roman", serif !important;
-    }
-
-    .townhall-pdf-export-wrapper,
-    .townhall-pdf-export-wrapper * {
-        box-shadow: none !important;
-        text-shadow: none !important;
-        font-family: Georgia, "Times New Roman", serif !important;
-    }
-
-    .townhall-pdf-export-wrapper table {
-        width: 100% !important;
-        max-width: 100% !important;
-        table-layout: fixed !important;
-        border-collapse: collapse !important;
-    }
-
-    .townhall-pdf-export-wrapper td,
-    .townhall-pdf-export-wrapper th {
-        white-space: normal !important;
-        word-break: normal !important;
-        overflow-wrap: break-word !important;
+    @media (max-width: 1024px) {
+        .townhall-edit-fixed-back {
+            top: 78px;
+            left: 1rem;
+        }
     }
 
 </style>
@@ -1048,8 +1014,6 @@
 @push('scripts')
 <script src="https://cdn.jsdelivr.net/npm/quill@2/dist/quill.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/quill-table-better@1/dist/quill-table-better.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     const editorEl = document.getElementById('editor');
@@ -1155,96 +1119,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
         form.addEventListener('submit', function () {
             hiddenInput.value = quill.root.innerHTML;
-        });
-    }
-
-    const downloadBtn = document.getElementById('download-preview-pdf');
-
-    if (downloadBtn) {
-        downloadBtn.addEventListener('click', async function () {
-            const source = document.getElementById('memo-preview-pdf');
-            if (!source || !window.html2pdf) return;
-
-            const originalHtml = downloadBtn.innerHTML;
-            downloadBtn.disabled = true;
-            downloadBtn.classList.add('opacity-70', 'cursor-not-allowed');
-            downloadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Preparing PDF...';
-
-            try {
-                /*
-                 * Export a clean clone of the live preview.
-                 * This avoids downloading the sticky buttons and avoids using the
-                 * visible scroll container size as the PDF size.
-                 */
-                const clone = source.cloneNode(true);
-                clone.id = 'memo-preview-pdf-export';
-                clone.classList.add('townhall-pdf-export-wrapper');
-
-                clone.style.width = '794px';
-                clone.style.maxWidth = '794px';
-                clone.style.minHeight = '1123px';
-                clone.style.margin = '0';
-                clone.style.border = '0';
-                clone.style.boxShadow = 'none';
-                clone.style.background = '#ffffff';
-                clone.style.color = '#000000';
-                clone.style.overflow = 'visible';
-
-                const sandbox = document.createElement('div');
-                sandbox.style.position = 'fixed';
-                sandbox.style.left = '-10000px';
-                sandbox.style.top = '0';
-                sandbox.style.width = '794px';
-                sandbox.style.background = '#ffffff';
-                sandbox.appendChild(clone);
-                document.body.appendChild(sandbox);
-
-                const subject = document.querySelector('input[name="subject"]')?.value?.trim()
-                    || @json($communication->ref_no ?: 'townhall-memo');
-
-                const safeFileName = subject
-                    .replace(/[\\/:*?"<>|]+/g, '')
-                    .replace(/\s+/g, '-')
-                    .replace(/^-+|-+$/g, '')
-                    .toLowerCase() || 'townhall-memo';
-
-                await html2pdf()
-                    .set({
-                        margin: 0,
-                        filename: `${safeFileName}-preview.pdf`,
-                        image: { type: 'jpeg', quality: 0.98 },
-                        html2canvas: {
-                            scale: 2,
-                            useCORS: true,
-                            allowTaint: true,
-                            backgroundColor: '#ffffff',
-                            scrollX: 0,
-                            scrollY: 0,
-                            windowWidth: 794
-                        },
-                        jsPDF: {
-                            unit: 'px',
-                            format: [794, 1123],
-                            orientation: 'portrait',
-                            compress: true
-                        },
-                        pagebreak: {
-                            mode: ['css', 'legacy'],
-                            avoid: ['tr', 'table', '.approval-block']
-                        }
-                    })
-                    .from(clone)
-                    .save();
-
-                sandbox.remove();
-            } catch (error) {
-                console.error('Town Hall preview PDF download failed:', error);
-                alert('Unable to generate the preview PDF. Please try again.');
-            } finally {
-                downloadBtn.disabled = false;
-                downloadBtn.classList.remove('opacity-70', 'cursor-not-allowed');
-                downloadBtn.innerHTML = originalHtml;
-            }
         });
     }
 });
