@@ -1236,7 +1236,7 @@ class TownHallController extends Controller
             ->setOptions([
                 'isHtml5ParserEnabled' => true,
                 'isRemoteEnabled' => true,
-                'defaultFont' => 'DejaVu Serif',
+                'defaultFont' => 'Georgia',
             ]);
     }
 

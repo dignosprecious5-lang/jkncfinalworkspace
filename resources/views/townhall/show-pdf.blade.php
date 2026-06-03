@@ -11,7 +11,7 @@
 
         body {
             margin: 0;
-            font-family: "Times New Roman", DejaVu Serif, serif;
+            font-family: Georgia, "Times New Roman", DejaVu Serif, serif;
             font-size: 13px;
             line-height: 1.45;
             color: #222;
@@ -97,7 +97,7 @@
         .body-content span,
         .body-content td,
         .body-content th {
-            font-family: "Times New Roman", DejaVu Serif, serif !important;
+            font-family: Georgia, "Times New Roman", DejaVu Serif, serif !important;
         }
 
         .body-content p,
@@ -294,7 +294,71 @@
             overflow-wrap: break-word !important;
         }
 
-    </style>
+
+    /* Town Hall stable body containment + Georgia default */
+    .memo-page,
+    .memo-edit-preview,
+    .memo-page *,
+    .memo-edit-preview *,
+    .preview-body,
+    .preview-body *,
+    .memo-page-body,
+    .memo-page-body *,
+    .memo-body-block,
+    .memo-body-block *,
+    #editor .ql-editor,
+    #editor .ql-editor * {
+        font-family: Georgia, "Times New Roman", serif !important;
+    }
+
+    .memo-page-body,
+    .memo-page-body p,
+    .memo-page-body div,
+    .memo-page-body span,
+    .memo-page-body li,
+    .memo-body-block,
+    .memo-body-block p,
+    .memo-body-block div,
+    .memo-body-block span,
+    .memo-body-block li,
+    .preview-body,
+    .preview-body p,
+    .preview-body div,
+    .preview-body span,
+    .preview-body li {
+        max-width: 100% !important;
+        white-space: normal !important;
+        overflow-wrap: anywhere !important;
+        word-break: break-word !important;
+    }
+
+    .ql-font-georgia,
+    .ql-font-georgia * {
+        font-family: Georgia, "Times New Roman", serif !important;
+    }
+
+    .ql-picker.ql-font .ql-picker-label[data-value="georgia"]::before,
+    .ql-picker.ql-font .ql-picker-item[data-value="georgia"]::before {
+        content: "Georgia";
+        font-family: Georgia, "Times New Roman", serif;
+    }
+
+    .ql-picker.ql-font .ql-picker-label[data-value="serif"]::before,
+    .ql-picker.ql-font .ql-picker-item[data-value="serif"]::before {
+        content: "Serif";
+    }
+
+    .ql-picker.ql-font .ql-picker-label[data-value="sans-serif"]::before,
+    .ql-picker.ql-font .ql-picker-item[data-value="sans-serif"]::before {
+        content: "Sans Serif";
+    }
+
+    .ql-picker.ql-font .ql-picker-label[data-value="monospace"]::before,
+    .ql-picker.ql-font .ql-picker-item[data-value="monospace"]::before {
+        content: "Monospace";
+    }
+
+</style>
 </head>
 <body>
     @php

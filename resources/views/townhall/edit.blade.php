@@ -621,11 +621,32 @@
                         <p><span class="font-semibold">Department:</span> <span x-text="previewManagementDepartment || '—'"></span></p>
                     </div>
 
+                    <div>
+                        <label class="block text-xs font-semibold text-blue-700 mb-1">
+                            Level 2 Approver - From Executive Management
+                        </label>
+
+                        <select
+                            name="executive_approver_id"
+                            x-model="previewExecutiveApproverId"
+                            @change="syncExecutiveApprover()"
+                            class="w-full border border-blue-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500"
+                            required
+                        >
+                            <option value="">Select GIS director/officer</option>
+                            @foreach(($executiveApprovers ?? collect()) as $approver)
+                                <option value="{{ $approver['id'] }}">
+                                    {{ $approver['name'] }} — {{ $approver['position'] ?? 'Position' }} • {{ $approver['department'] ?? '—' }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+
                     <div class="rounded-lg border border-blue-100 bg-white p-3 text-sm">
                         <p class="text-xs font-bold uppercase text-blue-700 mb-2">From Executive Management</p>
                         <p><span class="font-semibold">Name:</span> <span x-text="previewExecutiveName || 'John Kelly D. Abalde'"></span></p>
                         <p><span class="font-semibold">Position:</span> <span x-text="previewExecutivePosition || 'President and CEO'"></span></p>
-                        <p><span class="font-semibold">Department:</span> <span x-text="previewExecutiveDepartment || 'Executive Management'"></span></p>
+                        <p><span class="font-semibold">Office:</span> <span x-text="previewExecutiveDepartment || 'Executive Management'"></span></p>
                     </div>
                 </div>
 
@@ -678,7 +699,7 @@
 <link href="https://cdn.jsdelivr.net/npm/quill-table-better@1/dist/quill-table-better.css" rel="stylesheet">
 <style>
     .memo-edit-preview {
-        font-family: "Times New Roman", Georgia, serif;
+        font-family: Georgia, "Times New Roman", serif;
         color: #111827;
         font-size: 14px;
         line-height: 1.5;
@@ -702,7 +723,7 @@
         font-size: 24px;
         font-weight: 700;
         color: #111827;
-        font-family: "Times New Roman", Georgia, serif;
+        font-family: Georgia, "Times New Roman", serif;
         margin: 0;
     }
 
@@ -711,7 +732,7 @@
         font-size: 14px;
         line-height: 1.35;
         color: #111827;
-        font-family: "Times New Roman", Georgia, serif;
+        font-family: Georgia, "Times New Roman", serif;
     }
 
     .memo-page-meta p {
@@ -731,7 +752,7 @@
     .memo-page-body div,
     .memo-page-body td,
     .memo-page-body th {
-        font-family: "Times New Roman", Georgia, serif !important;
+        font-family: Georgia, "Times New Roman", serif !important;
         color: #111827;
     }
 
@@ -783,7 +804,7 @@
         font-size: 14px;
         line-height: 1.45;
         text-align: justify;
-        font-family: "Times New Roman", Georgia, serif;
+        font-family: Georgia, "Times New Roman", serif;
     }
 
     .issued-block {
@@ -791,12 +812,12 @@
         margin-bottom: 26px;
         font-size: 14px;
         line-height: 1.7;
-        font-family: "Times New Roman", Georgia, serif;
+        font-family: Georgia, "Times New Roman", serif;
     }
 
     .approval-routing {
         margin-top: 26px;
-        font-family: "Times New Roman", Georgia, serif;
+        font-family: Georgia, "Times New Roman", serif;
         font-size: 13px;
         line-height: 1.25;
         color: #111827;
@@ -843,7 +864,7 @@
     .preview-body,
     .memo-page-body,
     .memo-body-block {
-        font-family: "Times New Roman", Georgia, serif !important;
+        font-family: Georgia, "Times New Roman", serif !important;
     }
 
     #editor .ql-editor .ql-indent-1,
@@ -914,6 +935,70 @@
         overflow-wrap: break-word !important;
     }
 
+
+    /* Town Hall stable body containment + Georgia default */
+    .memo-page,
+    .memo-edit-preview,
+    .memo-page *,
+    .memo-edit-preview *,
+    .preview-body,
+    .preview-body *,
+    .memo-page-body,
+    .memo-page-body *,
+    .memo-body-block,
+    .memo-body-block *,
+    #editor .ql-editor,
+    #editor .ql-editor * {
+        font-family: Georgia, "Times New Roman", serif !important;
+    }
+
+    .memo-page-body,
+    .memo-page-body p,
+    .memo-page-body div,
+    .memo-page-body span,
+    .memo-page-body li,
+    .memo-body-block,
+    .memo-body-block p,
+    .memo-body-block div,
+    .memo-body-block span,
+    .memo-body-block li,
+    .preview-body,
+    .preview-body p,
+    .preview-body div,
+    .preview-body span,
+    .preview-body li {
+        max-width: 100% !important;
+        white-space: normal !important;
+        overflow-wrap: anywhere !important;
+        word-break: break-word !important;
+    }
+
+    .ql-font-georgia,
+    .ql-font-georgia * {
+        font-family: Georgia, "Times New Roman", serif !important;
+    }
+
+    .ql-picker.ql-font .ql-picker-label[data-value="georgia"]::before,
+    .ql-picker.ql-font .ql-picker-item[data-value="georgia"]::before {
+        content: "Georgia";
+        font-family: Georgia, "Times New Roman", serif;
+    }
+
+    .ql-picker.ql-font .ql-picker-label[data-value="serif"]::before,
+    .ql-picker.ql-font .ql-picker-item[data-value="serif"]::before {
+        content: "Serif";
+    }
+
+    .ql-picker.ql-font .ql-picker-label[data-value="sans-serif"]::before,
+    .ql-picker.ql-font .ql-picker-item[data-value="sans-serif"]::before {
+        content: "Sans Serif";
+    }
+
+    .ql-picker.ql-font .ql-picker-label[data-value="monospace"]::before,
+    .ql-picker.ql-font .ql-picker-item[data-value="monospace"]::before {
+        content: "Monospace";
+    }
+
 </style>
 @endpush
 
@@ -929,6 +1014,10 @@ document.addEventListener('DOMContentLoaded', function () {
     const form = document.getElementById('townhall-edit-form');
 
     if (editorEl && hiddenInput && form && window.Quill && window.QuillTableBetter) {
+        const Font = Quill.import('formats/font');
+        Font.whitelist = ['georgia', 'serif', 'sans-serif', 'monospace'];
+        Quill.register(Font, true);
+
         Quill.register({
             'modules/table-better': QuillTableBetter
         }, true);
@@ -937,7 +1026,7 @@ document.addEventListener('DOMContentLoaded', function () {
             placeholder: 'Write the formal communication here...',
             modules: {
                 toolbar: [
-                    [{ font: [] }, { size: ['small', false, 'large', 'huge'] }],
+                    [{ font: ['georgia', 'serif', 'sans-serif', 'monospace'] }, { size: ['small', false, 'large', 'huge'] }],
                     [{ header: [1, 2, 3, false] }],
                     ['bold', 'italic', 'underline', 'strike'],
                     [{ script: 'sub' }, { script: 'super' }],
@@ -983,6 +1072,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
             }
         });
+        quill.root.style.fontFamily = 'Georgia, "Times New Roman", serif';
+        quill.format('font', 'georgia');
+
 
         const existingMessage = {!! json_encode(old('message', $communication->message)) !!};
         const rootEl = document.getElementById('townhall-edit-page');

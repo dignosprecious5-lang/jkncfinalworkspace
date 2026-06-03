@@ -522,7 +522,7 @@
                             <p class="text-xs font-bold uppercase text-blue-700 mb-2">From Executive Management</p>
                             <p><span class="font-semibold">Name:</span> <span x-text="previewExecutiveName || '—'"></span></p>
                             <p><span class="font-semibold">Position:</span> <span x-text="previewExecutivePosition || '—'"></span></p>
-                            <p><span class="font-semibold">Department:</span> <span x-text="previewExecutiveDepartment || '—'"></span></p>
+                            <p><span class="font-semibold">Office:</span> <span x-text="previewExecutiveDepartment || '—'"></span></p>
                         </div>
                     </div>
 
@@ -872,7 +872,7 @@
         font-size: 15px;
         line-height: 1.85;
         color: #111827;
-        font-family: "Calibri", "Arial", sans-serif;
+        font-family: Georgia, "Times New Roman", serif;
     }
 
     #editor .ql-editor.ql-blank::before {
@@ -1043,7 +1043,7 @@
         font-weight: 600;
         letter-spacing: 0.04em;
         color: #555;
-        font-family: "Times New Roman", Georgia, serif;
+        font-family: Georgia, "Times New Roman", serif;
         margin: 0;
     }
 
@@ -1052,7 +1052,7 @@
         font-size: 14px;
         line-height: 1.3;
         color: #111827;
-        font-family: "Times New Roman", Georgia, serif;
+        font-family: Georgia, "Times New Roman", serif;
     }
 
     .memo-page-divider {
@@ -1064,7 +1064,7 @@
         font-size: 14px;
         line-height: 1.7;
         color: #111827;
-        font-family: "Times New Roman", Georgia, serif;
+        font-family: Georgia, "Times New Roman", serif;
     }
 
     .memo-page-body p {
@@ -1073,7 +1073,7 @@
 
     .memo-page-footer {
         margin-top: 40px;
-        font-family: "Times New Roman", Georgia, serif;
+        font-family: Georgia, "Times New Roman", serif;
         color: #1f2937;
     }
 
@@ -1101,7 +1101,7 @@
 
     .memo-body-block,
     .memo-body-block * {
-        font-family: "Times New Roman", Georgia, serif !important;
+        font-family: Georgia, "Times New Roman", serif !important;
     }
 
     .memo-effectivity {
@@ -1109,12 +1109,12 @@
         font-size: 14px;
         line-height: 1.45;
         text-align: justify;
-        font-family: "Times New Roman", Georgia, serif;
+        font-family: Georgia, "Times New Roman", serif;
     }
 
     .approval-routing {
         margin-top: 26px;
-        font-family: "Times New Roman", Georgia, serif;
+        font-family: Georgia, "Times New Roman", serif;
         font-size: 13px;
         line-height: 1.25;
         color: #111827;
@@ -1145,7 +1145,7 @@
     .preview-body,
     .memo-page-body,
     .memo-body-block {
-        font-family: "Times New Roman", Georgia, serif !important;
+        font-family: Georgia, "Times New Roman", serif !important;
     }
 
     #editor .ql-editor .ql-indent-1,
@@ -1214,6 +1214,70 @@
         white-space: normal !important;
         word-break: normal !important;
         overflow-wrap: break-word !important;
+    }
+
+
+    /* Town Hall stable body containment + Georgia default */
+    .memo-page,
+    .memo-edit-preview,
+    .memo-page *,
+    .memo-edit-preview *,
+    .preview-body,
+    .preview-body *,
+    .memo-page-body,
+    .memo-page-body *,
+    .memo-body-block,
+    .memo-body-block *,
+    #editor .ql-editor,
+    #editor .ql-editor * {
+        font-family: Georgia, "Times New Roman", serif !important;
+    }
+
+    .memo-page-body,
+    .memo-page-body p,
+    .memo-page-body div,
+    .memo-page-body span,
+    .memo-page-body li,
+    .memo-body-block,
+    .memo-body-block p,
+    .memo-body-block div,
+    .memo-body-block span,
+    .memo-body-block li,
+    .preview-body,
+    .preview-body p,
+    .preview-body div,
+    .preview-body span,
+    .preview-body li {
+        max-width: 100% !important;
+        white-space: normal !important;
+        overflow-wrap: anywhere !important;
+        word-break: break-word !important;
+    }
+
+    .ql-font-georgia,
+    .ql-font-georgia * {
+        font-family: Georgia, "Times New Roman", serif !important;
+    }
+
+    .ql-picker.ql-font .ql-picker-label[data-value="georgia"]::before,
+    .ql-picker.ql-font .ql-picker-item[data-value="georgia"]::before {
+        content: "Georgia";
+        font-family: Georgia, "Times New Roman", serif;
+    }
+
+    .ql-picker.ql-font .ql-picker-label[data-value="serif"]::before,
+    .ql-picker.ql-font .ql-picker-item[data-value="serif"]::before {
+        content: "Serif";
+    }
+
+    .ql-picker.ql-font .ql-picker-label[data-value="sans-serif"]::before,
+    .ql-picker.ql-font .ql-picker-item[data-value="sans-serif"]::before {
+        content: "Sans Serif";
+    }
+
+    .ql-picker.ql-font .ql-picker-label[data-value="monospace"]::before,
+    .ql-picker.ql-font .ql-picker-item[data-value="monospace"]::before {
+        content: "Monospace";
     }
 
 </style>
@@ -1789,6 +1853,10 @@ document.addEventListener('DOMContentLoaded', function () {
     const alpineData = rootEl ? Alpine.$data(rootEl) : null;
 
     if (editorEl && hiddenInput && form && window.Quill && window.QuillTableBetter) {
+        const Font = Quill.import('formats/font');
+        Font.whitelist = ['georgia', 'serif', 'sans-serif', 'monospace'];
+        Quill.register(Font, true);
+
         Quill.register({
             'modules/table-better': QuillTableBetter
         }, true);
@@ -1798,7 +1866,7 @@ document.addEventListener('DOMContentLoaded', function () {
             placeholder: 'Write the formal communication here...',
             modules: {
                 toolbar: [
-                    [{ font: [] }, { size: ['small', false, 'large', 'huge'] }],
+                    [{ font: ['georgia', 'serif', 'sans-serif', 'monospace'] }, { size: ['small', false, 'large', 'huge'] }],
                     [{ header: [1, 2, 3, false] }],
                     ['bold', 'italic', 'underline', 'strike'],
                     [{ script: 'sub' }, { script: 'super' }],
@@ -1876,6 +1944,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
             }
         });
+        quill.root.style.fontFamily = 'Georgia, "Times New Roman", serif';
+        quill.format('font', 'georgia');
+
 
         const oldMessage = {!! json_encode(old('message')) !!};
 

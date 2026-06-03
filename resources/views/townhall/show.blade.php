@@ -404,7 +404,7 @@
         font-weight: 600;
         letter-spacing: 0.04em;
         color: #555;
-        font-family: "Times New Roman", Georgia, serif;
+        font-family: Georgia, "Times New Roman", serif;
         margin: 0;
     }
 
@@ -413,7 +413,7 @@
         font-size: 14px;
         line-height: 1.35;
         color: #111827;
-        font-family: "Times New Roman", Georgia, serif;
+        font-family: Georgia, "Times New Roman", serif;
     }
 
     .memo-page-meta p {
@@ -433,7 +433,7 @@
     .memo-page-body div,
     .memo-page-body td,
     .memo-page-body th {
-        font-family: "Times New Roman", Georgia, serif !important;
+        font-family: Georgia, "Times New Roman", serif !important;
         color: #111827;
     }
 
@@ -482,7 +482,7 @@
 
     .memo-page-footer {
         margin-top: 40px;
-        font-family: "Times New Roman", Georgia, serif;
+        font-family: Georgia, "Times New Roman", serif;
         color: #1f2937;
     }
 
@@ -550,12 +550,12 @@
         font-size: 14px;
         line-height: 1.45;
         text-align: justify;
-        font-family: "Times New Roman", Georgia, serif;
+        font-family: Georgia, "Times New Roman", serif;
     }
 
     .approval-routing {
         margin-top: 26px;
-        font-family: "Times New Roman", Georgia, serif;
+        font-family: Georgia, "Times New Roman", serif;
         font-size: 13px;
         line-height: 1.25;
         color: #111827;
@@ -586,7 +586,7 @@
     .preview-body,
     .memo-page-body,
     .memo-body-block {
-        font-family: "Times New Roman", Georgia, serif !important;
+        font-family: Georgia, "Times New Roman", serif !important;
     }
 
     #editor .ql-editor .ql-indent-1,
@@ -655,6 +655,70 @@
         white-space: normal !important;
         word-break: normal !important;
         overflow-wrap: break-word !important;
+    }
+
+
+    /* Town Hall stable body containment + Georgia default */
+    .memo-page,
+    .memo-edit-preview,
+    .memo-page *,
+    .memo-edit-preview *,
+    .preview-body,
+    .preview-body *,
+    .memo-page-body,
+    .memo-page-body *,
+    .memo-body-block,
+    .memo-body-block *,
+    #editor .ql-editor,
+    #editor .ql-editor * {
+        font-family: Georgia, "Times New Roman", serif !important;
+    }
+
+    .memo-page-body,
+    .memo-page-body p,
+    .memo-page-body div,
+    .memo-page-body span,
+    .memo-page-body li,
+    .memo-body-block,
+    .memo-body-block p,
+    .memo-body-block div,
+    .memo-body-block span,
+    .memo-body-block li,
+    .preview-body,
+    .preview-body p,
+    .preview-body div,
+    .preview-body span,
+    .preview-body li {
+        max-width: 100% !important;
+        white-space: normal !important;
+        overflow-wrap: anywhere !important;
+        word-break: break-word !important;
+    }
+
+    .ql-font-georgia,
+    .ql-font-georgia * {
+        font-family: Georgia, "Times New Roman", serif !important;
+    }
+
+    .ql-picker.ql-font .ql-picker-label[data-value="georgia"]::before,
+    .ql-picker.ql-font .ql-picker-item[data-value="georgia"]::before {
+        content: "Georgia";
+        font-family: Georgia, "Times New Roman", serif;
+    }
+
+    .ql-picker.ql-font .ql-picker-label[data-value="serif"]::before,
+    .ql-picker.ql-font .ql-picker-item[data-value="serif"]::before {
+        content: "Serif";
+    }
+
+    .ql-picker.ql-font .ql-picker-label[data-value="sans-serif"]::before,
+    .ql-picker.ql-font .ql-picker-item[data-value="sans-serif"]::before {
+        content: "Sans Serif";
+    }
+
+    .ql-picker.ql-font .ql-picker-label[data-value="monospace"]::before,
+    .ql-picker.ql-font .ql-picker-item[data-value="monospace"]::before {
+        content: "Monospace";
     }
 
 </style>
