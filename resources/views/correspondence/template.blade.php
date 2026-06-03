@@ -153,21 +153,6 @@
         <div class="body-content">
             {!! $correspondence->body ?: '<p>No body provided.</p>' !!}
         </div>
-
-        <div style="margin-top: 54px; display:grid; grid-template-columns: 1fr 1fr; gap:20px; font-size: 13px;">
-            <div>
-                <strong>From Management</strong><br>
-                {{ $correspondence->management_approver_name ?: '—' }}<br>
-                {{ $correspondence->management_approver_position ?: '—' }}<br>
-                {{ $correspondence->management_approver_department ?: '—' }}
-            </div>
-            <div>
-                <strong>From Executive Management</strong><br>
-                {{ $correspondence->executive_approver_name ?: '—' }}<br>
-                {{ $correspondence->executive_approver_position ?: '—' }}<br>
-                {{ $correspondence->executive_approver_department ?: '—' }}
-            </div>
-        </div>
     </div>
 </body>
 </html>

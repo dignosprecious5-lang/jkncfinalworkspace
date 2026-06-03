@@ -236,22 +236,6 @@
                             <div class="correspondence-body text-[15px] text-gray-900">
                                 <div class="body-content" x-html="previewBody"></div>
                             </div>
-
-                            <div class="mt-12 grid grid-cols-2 gap-5 text-[12px]">
-                                <div class="rounded-lg border border-blue-100 bg-blue-50 p-3">
-                                    <p class="text-xs font-bold uppercase text-blue-700 mb-2">Level 1 - From Management</p>
-                                    <p><span class="font-semibold">Name:</span> <span x-text="previewManagementName || '—'"></span></p>
-                                    <p><span class="font-semibold">Position:</span> <span x-text="previewManagementPosition || '—'"></span></p>
-                                    <p><span class="font-semibold">Department:</span> <span x-text="previewManagementDepartment || '—'"></span></p>
-                                </div>
-
-                                <div class="rounded-lg border border-blue-100 bg-blue-50 p-3">
-                                    <p class="text-xs font-bold uppercase text-blue-700 mb-2">Level 2 - From Executive Management</p>
-                                    <p><span class="font-semibold">Name:</span> <span x-text="previewExecutiveName || '—'"></span></p>
-                                    <p><span class="font-semibold">Position:</span> <span x-text="previewExecutivePosition || '—'"></span></p>
-                                    <p><span class="font-semibold">Office:</span> <span x-text="previewExecutiveDepartment || '—'"></span></p>
-                                </div>
-                            </div>
                         </div>
                     </div>
                 </div>
@@ -331,24 +315,51 @@
                             </div>
                         </div>
 
-                        <div>
-                            <label class="block text-xs font-semibold text-gray-500 mb-1">Level 1 Approver - From Management</label>
-                            <select id="managementApproverInput" x-model="previewManagementApproverId" @change="syncManagementApprover()" class="w-full border border-blue-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500">
-                                <option value="">Select employee profile approver</option>
-                                @foreach(($managementApprovers ?? collect()) as $approver)
-                                    <option value="{{ $approver['id'] }}">{{ $approver['name'] }} — {{ $approver['position'] ?? 'Management' }} • {{ $approver['department'] ?? 'Management' }}</option>
-                                @endforeach
-                            </select>
-                        </div>
+                                                <div class="rounded-lg border border-blue-100 bg-blue-50 p-4 space-y-4">
+                            <div>
+                                <p class="text-xs font-bold uppercase text-blue-700">Approval Workflow</p>
+                                <p class="text-xs text-gray-500 mt-1">
+                                    Level 1 approver is selected from Employee Profile. Level 2 approver is selected from the latest approved GIS Directors / Officers list.
+                                </p>
+                            </div>
 
-                        <div>
-                            <label class="block text-xs font-semibold text-gray-500 mb-1">Level 2 Approver - From Executive Management</label>
-                            <select id="executiveApproverInput" x-model="previewExecutiveApproverId" @change="syncExecutiveApprover()" class="w-full border border-blue-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500">
-                                <option value="">Select GIS director/officer</option>
-                                @foreach(($executiveApprovers ?? collect()) as $approver)
-                                    <option value="{{ $approver['id'] }}">{{ $approver['name'] }} — {{ $approver['position'] ?? 'Officer' }} • {{ $approver['department'] ?? 'Office' }}</option>
-                                @endforeach
-                            </select>
+                            <div>
+                                <label class="block text-xs font-semibold text-blue-700 mb-1">Level 1 Approver - From Management</label>
+                                <select id="managementApproverInput" x-model="previewManagementApproverId" @change="syncManagementApprover()" class="w-full border border-blue-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500">
+                                    <option value="">Select active employee approver</option>
+                                    @foreach(($managementApprovers ?? collect()) as $approver)
+                                        <option value="{{ $approver['id'] }}">
+                                            {{ $approver['name'] }} — {{ $approver['position'] ?? 'Management' }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                            </div>
+
+                            <div class="rounded-lg border border-blue-100 bg-white p-3 text-sm">
+                                <p class="text-xs font-bold uppercase text-blue-700 mb-2">From Management</p>
+                                <p><span class="font-semibold">Name:</span> <span x-text="previewManagementName || '—'"></span></p>
+                                <p><span class="font-semibold">Position:</span> <span x-text="previewManagementPosition || '—'"></span></p>
+                                <p><span class="font-semibold">Department:</span> <span x-text="previewManagementDepartment || '—'"></span></p>
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-semibold text-blue-700 mb-1">Level 2 Approver - From Executive Management</label>
+                                <select id="executiveApproverInput" x-model="previewExecutiveApproverId" @change="syncExecutiveApprover()" class="w-full border border-blue-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500">
+                                    <option value="">Select GIS director/officer</option>
+                                    @foreach(($executiveApprovers ?? collect()) as $approver)
+                                        <option value="{{ $approver['id'] }}">
+                                            {{ $approver['name'] }} — {{ $approver['position'] ?? 'Officer' }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                            </div>
+
+                            <div class="rounded-lg border border-blue-100 bg-white p-3 text-sm">
+                                <p class="text-xs font-bold uppercase text-blue-700 mb-2">From Executive Management</p>
+                                <p><span class="font-semibold">Name:</span> <span x-text="previewExecutiveName || '—'"></span></p>
+                                <p><span class="font-semibold">Position:</span> <span x-text="previewExecutivePosition || '—'"></span></p>
+                                <p><span class="font-semibold">Office:</span> <span x-text="previewExecutiveDepartment || '—'"></span></p>
+                            </div>
                         </div>
 
                         <div>

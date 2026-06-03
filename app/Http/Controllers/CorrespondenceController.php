@@ -31,7 +31,7 @@ class CorrespondenceController extends Controller
         'Complaint Letter',
         'Explanation Letter',
         'Response Letter',
-        'Other',
+
     ];
 
     public function index()
@@ -446,24 +446,82 @@ class CorrespondenceController extends Controller
             ]);
     }
 
+
+    private function readableApproverValue($value, string $fallback = '—'): string
+    {
+        if ($value === null || $value === '') {
+            return $fallback;
+        }
+
+        if (is_string($value)) {
+            $decoded = json_decode($value, true);
+
+            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                foreach (['department_name', 'office_name', 'branch_name', 'name', 'department_head', 'office_head'] as $key) {
+                    if (!empty($decoded[$key]) && is_string($decoded[$key])) {
+                        return $decoded[$key];
+                    }
+                }
+
+                return $fallback;
+            }
+
+            return $value;
+        }
+
+        if (is_array($value)) {
+            foreach (['department_name', 'office_name', 'branch_name', 'name', 'department_head', 'office_head'] as $key) {
+                if (!empty($value[$key]) && is_string($value[$key])) {
+                    return $value[$key];
+                }
+            }
+
+            return $fallback;
+        }
+
+        if (is_object($value)) {
+            foreach (['department_name', 'office_name', 'branch_name', 'name', 'department_head', 'office_head'] as $key) {
+                if (isset($value->{$key}) && is_string($value->{$key}) && $value->{$key} !== '') {
+                    return $value->{$key};
+                }
+            }
+
+            return $fallback;
+        }
+
+        return (string) $value;
+    }
+
+
     private function formatEmployeeApprover($employee): array
     {
         $table = (new Employee())->getTable();
 
-        $name = $employee->name
-            ?? trim(($employee->first_name ?? '') . ' ' . ($employee->last_name ?? ''))
-            ?: ($employee->employee_name ?? null);
+        $name = $this->readableApproverValue(
+            $employee->name
+                ?? $employee->employee_name
+                ?? trim(($employee->first_name ?? '') . ' ' . ($employee->last_name ?? ''))
+                ?: null,
+            null
+        );
 
-        $position = $employee->position
-            ?? $employee->job_title
-            ?? $employee->designation
-            ?? 'Management';
+        $position = $this->readableApproverValue(
+            $employee->position
+                ?? $employee->position_name
+                ?? $employee->job_title
+                ?? $employee->designation
+                ?? null,
+            'Management'
+        );
 
-        $department = $employee->department
-            ?? $employee->department_name
-            ?? $employee->office
-            ?? $employee->office_name
-            ?? 'Management';
+        $department = $this->readableApproverValue(
+            $employee->department
+                ?? $employee->department_name
+                ?? $employee->office
+                ?? $employee->office_name
+                ?? null,
+            'Management'
+        );
 
         return [
             'id' => $employee->id,

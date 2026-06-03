@@ -177,20 +177,5 @@
     <div class="body-content">
         {!! $correspondence->body ?: '<p>No body provided.</p>' !!}
     </div>
-
-    <div style="margin-top: 54px; display: table; width: 100%; font-size: 10.5pt;">
-        <div style="display: table-cell; width: 50%; vertical-align: top;">
-            <strong>From Management</strong><br>
-            {{ $correspondence->management_approver_name ?: '—' }}<br>
-            {{ $correspondence->management_approver_position ?: '—' }}<br>
-            {{ $correspondence->management_approver_department ?: '—' }}
-        </div>
-        <div style="display: table-cell; width: 50%; vertical-align: top;">
-            <strong>From Executive Management</strong><br>
-            {{ $correspondence->executive_approver_name ?: '—' }}<br>
-            {{ $correspondence->executive_approver_position ?: '—' }}<br>
-            {{ $correspondence->executive_approver_department ?: '—' }}
-        </div>
-    </div>
 </body>
 </html>
