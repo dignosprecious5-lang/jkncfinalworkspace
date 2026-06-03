@@ -623,9 +623,7 @@ class CompanyBifController extends Controller
 
         $contactName = $contact ? trim(collect([
             $contact->first_name,
-            $contact->middle_name,
             $contact->last_name,
-            $contact->name_extension,
         ])->filter()->implode(' ')) : '';
         $industryDefaults = $this->industryDefaultsFromNature($contact?->nature_of_business);
 
@@ -732,9 +730,7 @@ class CompanyBifController extends Controller
             ->map(function (Contact $contact): array {
                 $fullName = trim(collect([
                     $contact->first_name,
-                    $contact->middle_name,
                     $contact->last_name,
-                    $contact->name_extension,
                 ])->filter()->implode(' '));
                 $address = collect([$contact->contact_address, $contact->company_address])->first(fn ($value) => filled($value));
 

@@ -137,9 +137,7 @@ class CompanyController extends Controller
                     $contact->setAttribute('company_autofill', $autofill);
                     $contact->setAttribute('contact_full_name', trim(collect([
                         $contact->first_name,
-                        $contact->middle_name,
                         $contact->last_name,
-                        $contact->name_extension,
                     ])->filter()->implode(' ')));
 
                     return $contact;
@@ -261,6 +259,21 @@ class CompanyController extends Controller
             $bif->updateQuietly([
                 'bif_no' => 'BIF-' . now()->format('Ymd') . '-' . str_pad((string) $bif->id, 4, '0', STR_PAD_LEFT),
             ]);
+        }
+
+        // Link the primary contact (and any signatory/UBO contacts with a contact_id)
+        // to the company via the pivot table, matching the behaviour in update().
+        if (Schema::hasTable('company_contact')) {
+            $contactIdsToLink = collect([$contact->id]);
+
+            foreach (array_merge($validated['authorized_signatories'] ?? [], $validated['ubos'] ?? []) as $row) {
+                $rowContactId = (int) ($row['contact_id'] ?? 0);
+                if ($rowContactId > 0) {
+                    $contactIdsToLink->push($rowContactId);
+                }
+            }
+
+            $company->contacts()->syncWithoutDetaching($contactIdsToLink->unique()->all());
         }
 
         return redirect()
@@ -1143,6 +1156,12 @@ class CompanyController extends Controller
             $cifData['last_name'] ?? $contact->last_name,
             $cifData['name_extension'] ?? $contact->name_extension,
         ])->filter()->implode(' '));
+
+        // For Authorized Contact Person and Acknowledgment: First + Last only
+        $contactPersonName = trim(collect([
+            $cifData['first_name'] ?? $contact->first_name,
+            $cifData['last_name'] ?? $contact->last_name,
+        ])->filter()->implode(' '));
         $companyName = $this->firstFilledValue(
             $cifData['company_name'] ?? null,
             $cifData['business_name'] ?? null,
@@ -1191,7 +1210,7 @@ class CompanyController extends Controller
             'industry_other_text' => $industryDefaults['other_text'],
             'zip_code' => $this->firstFilledValue($cifData['zip_code'] ?? null, $bifData['zip_code'] ?? null),
             'tin_no' => $this->firstFilledValue($contact->tin, $cifData['tin'] ?? null, $bifData['tin_no'] ?? null),
-            'authorized_contact_person_name' => $fullName !== '' ? $fullName : trim($contact->first_name.' '.$contact->last_name),
+            'authorized_contact_person_name' => $contactPersonName !== '' ? $contactPersonName : trim($contact->first_name.' '.$contact->last_name),
             'authorized_contact_person_email' => $this->firstFilledValue($cifData['email'] ?? null, $contact->email),
             'authorized_contact_person_phone' => $this->firstFilledValue($cifData['mobile'] ?? null, $contact->phone),
             'authorized_contact_person_position' => $this->firstFilledValue(
@@ -1683,6 +1702,16 @@ class CompanyController extends Controller
             ->map(function (Contact $contact): array {
                 $cifData = $this->loadContactCifData($contact);
                 $bifData = $this->loadLinkedBifData($contact);
+
+                // Build the display label using only first + last name (no name extension)
+                // so auto-populated inputs show "Juan Dela Cruz" not "Juan Dela Cruz Jr."
+                $label = trim(collect([
+                    $cifData['first_name'] ?? $contact->first_name,
+                    $cifData['last_name'] ?? $contact->last_name,
+                ])->filter()->implode(' '));
+
+                // The full name (including middle name / extension) is only used for the
+                // search blob so the contact is still findable by their full legal name.
                 $fullName = trim(collect([
                     $cifData['first_name'] ?? $contact->first_name,
                     $cifData['middle_name'] ?? $contact->middle_name,
@@ -1692,7 +1721,7 @@ class CompanyController extends Controller
 
                 return [
                     'id' => (int) $contact->id,
-                    'label' => $fullName !== '' ? $fullName : 'Contact #'.$contact->id,
+                    'label' => $label !== '' ? $label : ($fullName !== '' ? $fullName : 'Contact #'.$contact->id),
                     'search_blob' => Str::lower(collect([
                         $fullName,
                         $this->firstFilledValue(
