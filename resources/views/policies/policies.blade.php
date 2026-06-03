@@ -289,7 +289,7 @@
                         {{-- COVER PAGE --}}
                         <section class="policy-cover-page">
                             <div class="cover-logo" style="width:100%; display:flex; justify-content:center; align-items:center; text-align:center;">
-                                <img src="{{ $policyLogoUrl ?? asset('images/jk-logo.png') }}" alt="John Kelly & Company Logo" style="display:block; margin-left:auto; margin-right:auto; width:260px; max-height:120px; object-fit:contain;">
+                                <img src="{{ asset('images/jk-logo.png') }}" alt="John Kelly & Company Logo" style="display:block; margin-left:auto; margin-right:auto; width:260px; max-height:120px; object-fit:contain;">
                             </div>
 
                             <div class="cover-company">
@@ -373,6 +373,8 @@
 
                 <form id="policyFormSubmit" method="POST" action="{{ route('policies.store') }}" enctype="multipart/form-data" class="flex-1 overflow-y-auto px-6 py-6 space-y-5">
                     @csrf
+                    <input type="hidden" name="prepared_by" x-model="previewPrepared">
+
                     <div>
                         <label class="text-[11px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Policy Title</label>
                         <input
@@ -437,39 +439,11 @@
                     </div>
 
                     <div class="space-y-4 pt-4 border-t border-gray-100">
-                        <div>
-                            <label class="text-[11px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Prepared By</label>
-                            <input
-                                type="text"
-                                name="prepared_by"
-                                x-model="previewPrepared"
-                                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-gray-50"
-                                oninput="syncPreview()"
-                            >
-                        </div>
-
-                        <div>
-                            <label class="text-[11px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Reviewed By</label>
-                            <input
-                                type="text"
-                                name="reviewed_by"
-                                x-model="previewReviewed"
-                                placeholder="e.g. Policy Development Committee (PDC)"
-                                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition"
-                                oninput="syncPreview()"
-                            >
-                        </div>
-
-                        <div>
-                            <label class="text-[11px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Approved By</label>
-                            <input
-                                type="text"
-                                name="approved_by"
-                                x-model="previewApproved"
-                                placeholder="e.g. Board of Directors"
-                                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition"
-                                oninput="syncPreview()"
-                            >
+                        <div class="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-xs text-blue-700">
+                            <p class="font-semibold">Automatic approval details</p>
+                            <p class="mt-1">
+                                Prepared By is automatically set to the signed-in user. Reviewed By and Approved By will be filled once the policy is reviewed or approved.
+                            </p>
                         </div>
 
                         <div>
@@ -896,19 +870,56 @@
     }
 
 
-    /* Policy module default font */
+    /* Policy body Quill paragraph indentation */
+    .policy-preview-body .ql-indent-1,
+    .description-content .ql-indent-1,
+    #policy-preview-sheet .ql-indent-1 { padding-left: 3em !important; }
+
+    .policy-preview-body .ql-indent-2,
+    .description-content .ql-indent-2,
+    #policy-preview-sheet .ql-indent-2 { padding-left: 6em !important; }
+
+    .policy-preview-body .ql-indent-3,
+    .description-content .ql-indent-3,
+    #policy-preview-sheet .ql-indent-3 { padding-left: 9em !important; }
+
+    .policy-preview-body .ql-indent-4,
+    .description-content .ql-indent-4,
+    #policy-preview-sheet .ql-indent-4 { padding-left: 12em !important; }
+
+    .policy-preview-body .ql-indent-5,
+    .description-content .ql-indent-5,
+    #policy-preview-sheet .ql-indent-5 { padding-left: 15em !important; }
+
+    .policy-preview-body .ql-indent-6,
+    .description-content .ql-indent-6,
+    #policy-preview-sheet .ql-indent-6 { padding-left: 18em !important; }
+
+    .policy-preview-body .ql-indent-7,
+    .description-content .ql-indent-7,
+    #policy-preview-sheet .ql-indent-7 { padding-left: 21em !important; }
+
+    .policy-preview-body .ql-indent-8,
+    .description-content .ql-indent-8,
+    #policy-preview-sheet .ql-indent-8 { padding-left: 24em !important; }
+
+
+    /* Georgia default font for Policy document/editor */
     .policy-paper,
     .policy-paper *,
     #policy-preview-sheet,
     #policy-preview-sheet *,
-    .description-content,
-    .description-content *,
     .policy-preview-body,
-    .policy-preview-body * {
+    .policy-preview-body *,
+    .description-content,
+    .description-content * {
         font-family: Georgia, "Times New Roman", serif !important;
     }
 
-    /* Quill editor Georgia font option */
+    #policy-editor .ql-editor {
+        font-family: Georgia, "Times New Roman", serif !important;
+    }
+
     .ql-font-georgia,
     .ql-font-georgia * {
         font-family: Georgia, "Times New Roman", serif !important;
@@ -933,130 +944,6 @@
     .ql-picker.ql-font .ql-picker-label[data-value="monospace"]::before,
     .ql-picker.ql-font .ql-picker-item[data-value="monospace"]::before {
         content: "Monospace";
-    }
-
-    #policy-editor .ql-editor {
-        font-family: Georgia, "Times New Roman", serif !important;
-    }
-
-
-    /* Quill alignment support for live preview, show pages, and PDF */
-    .ql-align-left {
-        text-align: left !important;
-    }
-
-    .ql-align-center {
-        text-align: center !important;
-    }
-
-    .ql-align-right {
-        text-align: right !important;
-    }
-
-    .ql-align-justify {
-        text-align: justify !important;
-        text-justify: inter-word;
-    }
-
-    .description-content .ql-align-left,
-    .policy-preview-body .ql-align-left,
-    #policy-preview-sheet .ql-align-left {
-        text-align: left !important;
-    }
-
-    .description-content .ql-align-center,
-    .policy-preview-body .ql-align-center,
-    #policy-preview-sheet .ql-align-center {
-        text-align: center !important;
-    }
-
-    .description-content .ql-align-right,
-    .policy-preview-body .ql-align-right,
-    #policy-preview-sheet .ql-align-right {
-        text-align: right !important;
-    }
-
-    .description-content .ql-align-justify,
-    .policy-preview-body .ql-align-justify,
-    #policy-preview-sheet .ql-align-justify {
-        text-align: justify !important;
-        text-justify: inter-word;
-    }
-
-
-    /* Quill indentation support for live preview, show pages, and PDF */
-    .ql-indent-1 { padding-left: 3em !important; }
-    .ql-indent-2 { padding-left: 6em !important; }
-    .ql-indent-3 { padding-left: 9em !important; }
-    .ql-indent-4 { padding-left: 12em !important; }
-    .ql-indent-5 { padding-left: 15em !important; }
-    .ql-indent-6 { padding-left: 18em !important; }
-    .ql-indent-7 { padding-left: 21em !important; }
-    .ql-indent-8 { padding-left: 24em !important; }
-
-    .description-content .ql-indent-1,
-    .policy-preview-body .ql-indent-1,
-    #policy-preview-sheet .ql-indent-1 { padding-left: 3em !important; }
-
-    .description-content .ql-indent-2,
-    .policy-preview-body .ql-indent-2,
-    #policy-preview-sheet .ql-indent-2 { padding-left: 6em !important; }
-
-    .description-content .ql-indent-3,
-    .policy-preview-body .ql-indent-3,
-    #policy-preview-sheet .ql-indent-3 { padding-left: 9em !important; }
-
-    .description-content .ql-indent-4,
-    .policy-preview-body .ql-indent-4,
-    #policy-preview-sheet .ql-indent-4 { padding-left: 12em !important; }
-
-    .description-content .ql-indent-5,
-    .policy-preview-body .ql-indent-5,
-    #policy-preview-sheet .ql-indent-5 { padding-left: 15em !important; }
-
-    .description-content .ql-indent-6,
-    .policy-preview-body .ql-indent-6,
-    #policy-preview-sheet .ql-indent-6 { padding-left: 18em !important; }
-
-    .description-content .ql-indent-7,
-    .policy-preview-body .ql-indent-7,
-    #policy-preview-sheet .ql-indent-7 { padding-left: 21em !important; }
-
-    .description-content .ql-indent-8,
-    .policy-preview-body .ql-indent-8,
-    #policy-preview-sheet .ql-indent-8 { padding-left: 24em !important; }
-
-
-    /* Real tab-space support for policy editor and preview */
-    #policy-editor .ql-editor,
-    .policy-preview-body,
-    .description-content {
-        tab-size: 4 !important;
-    }
-
-
-    /* Preserve manual spacing/tabs from the document editor */
-    .policy-preview-body,
-    .description-content {
-        white-space: normal !important;
-    }
-
-    .policy-preview-body p,
-    .policy-preview-body div,
-    .description-content p,
-    .description-content div {
-        white-space: pre-wrap !important;
-    }
-
-    .policy-preview-body span,
-    .description-content span {
-        white-space: pre-wrap !important;
-    }
-
-
-    /* Toolbar indent buttons now insert spaces at cursor, not whole-block indent */
-    #policy-editor .ql-editor {
-        tab-size: 4 !important;
     }
 
 </style>
@@ -1089,83 +976,46 @@
             theme: 'snow',
             placeholder: 'Define policy...',
             modules: {
-                toolbar: {
-                    container: [
-                        [{ font: ['georgia', 'serif', 'sans-serif', 'monospace'] }, { size: ['small', false, 'large', 'huge'] }],
-                        [{ header: [1, 2, 3, false] }],
-                        ['bold', 'italic', 'underline', 'strike'],
-                        [{ script: 'sub' }, { script: 'super' }],
-                        [{ color: [] }, { background: [] }],
-                        [{ list: 'ordered' }, { list: 'bullet' }],
-                        [{ indent: '-1' }, { indent: '+1' }],
-                        [{ align: [] }],
-                        ['blockquote', 'link'],
-                        ['table-better'],
-                        ['clean']
-                    ],
-                    handlers: {
-                        indent: function(value) {
-                            const range = this.quill.getSelection(true);
-                            if (!range) return;
-
-                            const spaces = '\u00a0\u00a0\u00a0\u00a0';
-
-                            if (value === '+1') {
-                                this.quill.insertText(range.index, spaces, Quill.sources.USER);
-                                this.quill.setSelection(range.index + spaces.length, 0, Quill.sources.SILENT);
-                                return;
-                            }
-
-                            if (value === '-1') {
-                                const start = Math.max(0, range.index - 4);
-                                const before = this.quill.getText(start, 4);
-
-                                if (before === '\u00a0\u00a0\u00a0\u00a0' || before === '    ') {
-                                    this.quill.deleteText(start, 4, Quill.sources.USER);
-                                    this.quill.setSelection(start, 0, Quill.sources.SILENT);
-                                }
-                            }
-                        }
-                    }
-                },
+                toolbar: [
+                    [{ font: ['georgia', 'serif', 'sans-serif', 'monospace'] }, { size: ['small', false, 'large', 'huge'] }],
+                    [{ header: [1, 2, 3, false] }],
+                    ['bold', 'italic', 'underline', 'strike'],
+                    [{ script: 'sub' }, { script: 'super' }],
+                    [{ color: [] }, { background: [] }],
+                    [{ list: 'ordered' }, { list: 'bullet' }],
+                    [{ indent: '-1' }, { indent: '+1' }],
+                    [{ align: [] }],
+                    ['blockquote', 'link'],
+                    ['table-better'],
+                    ['clean']
+                ],
                 table: false,
                 'table-better': {
                     language: 'en_US',
                     menus: ['column', 'row', 'merge', 'table', 'cell', 'wrap', 'copy', 'delete'],
                     toolbarTable: true
                 },
-
                 keyboard: {
                     bindings: {
                         ...QuillTableBetter.keyboardBindings,
 
-                        policyTabInsertSpaces: {
+                        policyTabIndent: {
                             key: 9,
                             handler: function(range, context) {
-                                if (!range) return false;
-
-                                const spaces = '\u00a0\u00a0\u00a0\u00a0';
-
-                                this.quill.insertText(range.index, spaces, Quill.sources.USER);
-                                this.quill.setSelection(range.index + spaces.length, 0, Quill.sources.SILENT);
-
+                                if (range) {
+                                    this.quill.format('indent', '+1', Quill.sources.USER);
+                                }
                                 return false;
                             }
                         },
 
-                        policyShiftTabRemoveSpaces: {
+                        policyShiftTabOutdent: {
                             key: 9,
                             shiftKey: true,
                             handler: function(range, context) {
-                                if (!range || range.index < 1) return false;
-
-                                const before = this.quill.getText(Math.max(0, range.index - 4), 4);
-
-                                if (before === '\u00a0\u00a0\u00a0\u00a0' || before === '    ') {
-                                    this.quill.deleteText(range.index - 4, 4, Quill.sources.USER);
-                                    this.quill.setSelection(range.index - 4, 0, Quill.sources.SILENT);
+                                if (range) {
+                                    this.quill.format('indent', '-1', Quill.sources.USER);
                                 }
-
                                 return false;
                             }
                         }

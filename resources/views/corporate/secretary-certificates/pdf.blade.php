@@ -90,13 +90,20 @@
         return implode("\n", $html);
     };
 
+
+    $dompdfFooterLeft = trim('SECRETARY CERTIFICATE ' . ($certificate->certificate_no ?: '') . ' - ' . strtoupper($companyName));
+    $dompdfFooterLeft = html_entity_decode((string) $dompdfFooterLeft, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $dompdfFooterLeft = preg_replace('/\s+/', ' ', $dompdfFooterLeft);
+    if (mb_strlen($dompdfFooterLeft) > 90) {
+        $dompdfFooterLeft = mb_substr($dompdfFooterLeft, 0, 87) . '...';
+    }
 @endphp
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <style>
-        @page { size: A4; margin: 15mm 16mm 18mm; }
+        @page { size: A4; margin: 15mm 16mm 24mm; }
         body { margin: 0; font-family: Georgia, "Times New Roman", serif; color: #000; font-size: 13px; line-height: 1.65; }
         .title { text-align: center; font-size: 20px; font-weight: 700; margin: 22px 0 28px; }
         .content p { margin: 0 0 16px; text-align: justify; }
@@ -106,13 +113,14 @@
         .resolution-body strong { font-weight: 700; }
 
         .resolution-title { text-align: center; font-weight: 700; text-transform: uppercase; margin: 26px 0 14px; }
+        .purpose-line { text-align: center; font-size: 15px; line-height: 1.45; font-weight: 700; text-transform: uppercase; margin: 14px 0 22px; }
         .signature { margin-top: 42px; text-align: right; }
         .signature-line { display: inline-block; min-width: 250px; border-top: 1px solid #000; padding-top: 8px; text-align: center; }
         .meta { margin-top: 36px; font-size: 12px; line-height: 1.5; }
-    </style>
+</style>
 </head>
 <body>
-    <div>Republic of the Philippines)</div>
+<div>Republic of the Philippines)</div>
     <div>______________________) S.S.</div>
 
     <div class="title">SECRETARY'S CERTIFICATE</div>
@@ -124,7 +132,7 @@
         <p>That, per corporate records, at the {{ $certificate->type_of_meeting ?: 'Special' }} Meeting of the {{ $certificate->governing_body ?: 'Board of Directors' }} of the Corporation held on <strong>{{ $meetingDate }}</strong>, and recorded under Minutes Ref. <strong>{{ $certificate->minutes_ref ?: ($minute?->minutes_ref ?: '________________') }}</strong>, the following corporate action was duly approved and recorded in the Minute Book, a legal quorum being present and voting, viz:</p>
 
         <div class="resolution-title">{{ $certificate->resolution_no ? $resolutionLabel . $certificate->resolution_no : 'CERTIFIED MINUTES EXTRACT' }}</div>
-        <p><strong>{{ $certificatePurpose }}</strong></p>
+        <div class="purpose-line">{{ $certificatePurpose }}</div>
         <div class="resolution-body">{!! $formatResolutionBodyForDisplay($certificateBody) !!}</div>
 
         <p>That, the foregoing resolution shall be in full force and effect unless revoked by the Board of Directors. Moreover, the foregoing resolution is in accordance and does not in any way contravene any provision of the Articles of Incorporation or By-Laws of the Corporation.</p>
@@ -168,7 +176,7 @@
     if (isset($pdf)) {
         $font = $fontMetrics->get_font("Times-Roman", "normal");
         $boldFont = $fontMetrics->get_font("Times-Roman", "bold");
-        $footerLeft = @json($dompdfFooterLeft);
+        $footerLeft = {!! var_export($dompdfFooterLeft, true) !!};
 
         $pdf->line(40, 800, 555, 800, [0, 0, 0], 0.4);
         $pdf->page_text(40, 808, $footerLeft, $font, 8, [0, 0, 0]);

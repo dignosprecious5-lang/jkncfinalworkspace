@@ -686,6 +686,61 @@ class NoticeController extends Controller
         ];
     }
 
+
+    private function syncManualNoticeGuests(Notice $notice, array $guests): void
+    {
+        // Remove the old manual guest rows for this notice, then recreate them
+        // from the Add Notice/Edit Notice drawer. Auto-loaded GIS attendees are
+        // not touched because they use source_type director_officer/stockholder.
+        $notice->attendees()->where('source_type', 'guest')->delete();
+
+        $rows = collect($guests)
+            ->map(function ($guest) {
+                if (!is_array($guest)) {
+                    return null;
+                }
+
+                $name = trim((string) ($guest['name'] ?? $guest['guest_name'] ?? $guest['full_name'] ?? ''));
+                $email = trim((string) ($guest['email'] ?? $guest['guest_email'] ?? ''));
+                $position = trim((string) ($guest['position'] ?? $guest['role'] ?? $guest['title'] ?? 'Guest'));
+
+                if ($name === '' && $email === '') {
+                    return null;
+                }
+
+                if ($name === '') {
+                    $name = $email;
+                }
+
+                return [
+                    'name' => $name,
+                    'email' => $email !== '' ? $email : null,
+                    'position' => $position !== '' ? $position : 'Guest',
+                ];
+            })
+            ->filter()
+            ->values();
+
+        if ($rows->isEmpty()) {
+            return;
+        }
+
+        $baseSortOrder = (int) $notice->attendees()->where('source_type', '<>', 'guest')->max('sort_order');
+
+        $rows->each(function (array $row, int $index) use ($notice, $baseSortOrder) {
+            NoticeAttendee::create([
+                'notice_id' => $notice->id,
+                'source_type' => 'guest',
+                'source_id' => $index + 1,
+                'name' => $row['name'],
+                'position' => $row['position'],
+                'email' => $row['email'],
+                'is_selected' => filled($row['email']),
+                'sort_order' => $baseSortOrder + $index + 1,
+            ]);
+        });
+    }
+
     private function noticePdfBinary(Notice $notice): string
     {
         $notice->loadMissing('attendees');

@@ -451,6 +451,16 @@
                     <input name="assigned_associate" id="project_assigned_associate" value="{{ old('assigned_associate') }}" autocomplete="off" data-employee-search-input class="h-11 w-full rounded-xl border border-gray-300 px-4 text-sm text-gray-900">
                     <div class="absolute z-20 mt-1 hidden w-full rounded-xl border border-gray-200 bg-white shadow-lg" data-employee-search-results></div>
                 </div>
+                <div class="relative md:col-span-2" data-employee-picker>
+                    <label class="mb-2 block text-sm font-medium text-gray-700">Sales &amp; Marketing</label>
+                    <input name="sales_marketing" id="project_sales_marketing" value="{{ old('sales_marketing') }}" autocomplete="off" data-employee-search-input class="h-11 w-full rounded-xl border border-gray-300 px-4 text-sm text-gray-900">
+                    <div class="absolute z-20 mt-1 hidden w-full rounded-xl border border-gray-200 bg-white shadow-lg" data-employee-search-results></div>
+                </div>
+                <div class="relative md:col-span-2" data-employee-picker>
+                    <label class="mb-2 block text-sm font-medium text-gray-700">Finance</label>
+                    <input name="finance" id="project_finance" value="{{ old('finance') }}" autocomplete="off" data-employee-search-input class="h-11 w-full rounded-xl border border-gray-300 px-4 text-sm text-gray-900">
+                    <div class="absolute z-20 mt-1 hidden w-full rounded-xl border border-gray-200 bg-white shadow-lg" data-employee-search-results></div>
+                </div>
                 <div class="md:col-span-2">
                     <label class="mb-2 block text-sm font-medium text-gray-700">Scope Summary</label>
                     <textarea name="scope_summary" id="project_scope_summary" rows="3" class="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm text-gray-900">{{ old('scope_summary') }}</textarea>
@@ -866,6 +876,8 @@
             setFieldValue('project_assigned_project_manager', payload.assigned_project_manager || '');
             setFieldValue('project_assigned_consultant', payload.assigned_consultant || '');
             setFieldValue('project_assigned_associate', payload.assigned_associate || '');
+            setFieldValue('project_sales_marketing', payload.sales_marketing || '');
+            setFieldValue('project_finance', payload.finance || '');
             setFieldValue('project_scope_summary', payload.scope_summary || '');
             setFieldValue('project_engagement_requirements_text', payload.engagement_requirements_text || '');
             applyServiceSelections({
@@ -1028,6 +1040,8 @@
                 assigned_project_manager: record.assigned_project_manager,
                 assigned_consultant: record.assigned_consultant,
                 assigned_associate: record.assigned_associate,
+                sales_marketing: record.sales_marketing,
+                finance: record.finance,
                 services: record.services,
                 products: record.products,
                 scope_summary: record.scope_summary,
@@ -1286,7 +1300,7 @@
             input.addEventListener('change', syncCompositeFields);
         });
         templateSelect?.addEventListener('change', renderProjectTemplatePreview);
-        ['project_client_name', 'project_business_name', 'project_client_confirmation_name', 'project_assigned_project_manager', 'project_assigned_consultant', 'project_assigned_associate'].forEach((id) => {
+        ['project_client_name', 'project_business_name', 'project_client_confirmation_name', 'project_assigned_project_manager', 'project_assigned_consultant', 'project_assigned_associate', 'project_sales_marketing', 'project_finance'].forEach((id) => {
             document.getElementById(id)?.addEventListener('input', renderProjectTemplatePreview);
         });
 

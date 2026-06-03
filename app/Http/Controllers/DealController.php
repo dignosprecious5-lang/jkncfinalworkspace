@@ -132,6 +132,10 @@ class DealController extends Controller
                     'company_name',
                     'company_address',
                     'position',
+                    'referred_by',
+                    'sales_marketing',
+                    'consultant_lead',
+                    'lead_associate',
                 ], fn (string $column): bool => Schema::hasColumn('contacts', $column)));
 
                 if (! in_array('id', $contactColumns, true)) {
@@ -180,6 +184,10 @@ class DealController extends Controller
                             'company_name' => $contact->company_name,
                             'company_address' => $contact->company_address,
                             'position' => $contact->position,
+                            'referred_by' => $contact->referred_by,
+                            'sales_marketing' => $contact->sales_marketing,
+                            'consultant_lead' => $contact->consultant_lead,
+                            'lead_associate' => $contact->lead_associate,
                             'client_requirement_status_map' => $this->buildClientRequirementStatusMap(
                                 strtolower((string) ($contact->cif_status ?? '')) === 'approved',
                                 false,
@@ -226,6 +234,11 @@ class DealController extends Controller
                             'company_bifs.authorized_contact_person_position',
                             'company_bifs.authorized_contact_person_email',
                             'company_bifs.authorized_contact_person_phone',
+                            'company_bifs.referred_by',
+                            'company_bifs.sales_marketing_name',
+                            'company_bifs.consultant_lead',
+                            'company_bifs.lead_associate',
+                            'company_bifs.president_use_only_name',
                         ]),
                         'primaryContact' => fn ($query) => $query->select([
                             'contacts.id',
@@ -243,6 +256,10 @@ class DealController extends Controller
                             'contacts.contact_address',
                             'contacts.position',
                             'contacts.company_name',
+                            'contacts.referred_by',
+                            'contacts.sales_marketing',
+                            'contacts.consultant_lead',
+                            'contacts.lead_associate',
                         ]),
                     ])
                     ->select($companyColumns)
@@ -293,6 +310,11 @@ class DealController extends Controller
                             'authorized_contact_date_of_birth' => optional($primaryContact?->date_of_birth)->format('Y-m-d'),
                             'authorized_contact_address' => $primaryContact?->contact_address,
                             'business_organization' => $company->latestBif?->business_organization,
+                            'referred_by' => $company->latestBif?->referred_by ?: $primaryContact?->referred_by,
+                            'sales_marketing' => $company->latestBif?->sales_marketing_name ?: $primaryContact?->sales_marketing,
+                            'consultant_lead' => $company->latestBif?->consultant_lead ?: $primaryContact?->consultant_lead,
+                            'lead_associate' => $company->latestBif?->lead_associate ?: $primaryContact?->lead_associate,
+                            'president_use_only_name' => $company->latestBif?->president_use_only_name,
                             'client_requirement_status_map' => $this->buildClientRequirementStatusMap(
                                 strtolower((string) ($primaryContact?->cif_status ?? '')) === 'approved',
                                 strtolower((string) ($company->latestBif?->status ?? '')) === 'approved',
@@ -336,11 +358,16 @@ class DealController extends Controller
                         $dealFormData = $this->normalizeDealFormData([
                             ...$storedDeal->toArray(),
                             'stage' => $stageName,
+                            'salutation' => $storedDeal->salutation ?: $contact?->salutation,
                             'first_name' => $storedDeal->first_name ?: $contact?->first_name,
                             'middle_initial' => $storedDeal->middle_initial ?? $contact?->middle_initial,
                             'middle_name' => $storedDeal->middle_name ?: $contact?->middle_name,
                             'last_name' => $storedDeal->last_name ?: $contact?->last_name,
                             'name_extension' => $storedDeal->name_extension ?? $contact?->name_extension,
+                            'sex' => $storedDeal->sex ?: $contact?->sex,
+                            'date_of_birth' => filled($storedDeal->date_of_birth)
+                                ? optional($storedDeal->date_of_birth)->format('Y-m-d')
+                                : optional($contact?->date_of_birth)->format('Y-m-d'),
                             'email' => $storedDeal->email ?: $contact?->email,
                             'mobile' => $storedDeal->mobile ?: $contact?->phone,
                             'address' => $storedDeal->address ?: $contact?->contact_address,

@@ -1,132 +1,128 @@
 @extends('layouts.app')
 @section('title', 'Correspondence')
+
+@php
+    $types = [
+        'Letters',
+        'Demand Letter',
+        'Request Letter',
+        'Follow-Up Letter',
+        'Notice',
+        'Advisory Letter',
+        'Transmittal Letter',
+        'Authorization Letter',
+        'Acknowledgment Letter',
+        'Invitation Letter',
+        'Endorsement Letter',
+        'Complaint Letter',
+        'Explanation Letter',
+        'Response Letter',
+        'Other',
+    ];
+
+    $companyInfo = $companyInfo ?? [
+        'company_name' => 'JOHN KELLY & COMPANY (JK&C INC)',
+        'registration_number' => '',
+        'principal_address' => '3F Cebu Holdings Center Cebu Business Park, Cebu City, Philippines, 6000',
+    ];
+
+    $correspondenceLogoUrl = $correspondenceLogoUrl ?? asset('images/jk-logo.png');
+@endphp
+
 @section('content')
 <div
     id="correspondence-page"
     class="w-full h-full px-6 py-5"
     x-data="{
         showSlideOver: false,
-        hasDeadline: true,
+        hasDeadline: false,
+
+        companyName: @js($companyInfo['company_name'] ?? ''),
+        registrationNumber: @js($companyInfo['registration_number'] ?? ''),
+        principalAddress: @js($companyInfo['principal_address'] ?? ''),
+        correspondenceLogoUrl: @js($correspondenceLogoUrl ?? asset('images/jk-logo.png')),
+
         previewRef: 'AUTO-INCREMENT',
         previewDate: '{{ now()->format('Y-m-d') }}',
         previewType: 'Letters',
         previewTin: '',
-        previewSenderLabel: 'From',
-        previewSender: '',
+        previewToForLabel: 'To',
+        previewToFor: '',
+        previewFrom: '{{ Auth::user()->name ?? 'System Super Admin' }}',
         previewDepartment: '',
         previewSubject: '',
-        previewBody: '<p style=&quot;color:#9ca3af;&quot;>Write the formal communication here...</p>',
+        previewBody: '<p style=&quot;color:#9ca3af;&quot;>Write the formal correspondence here...</p>',
         previewDeadline: '',
         previewSentVia: 'Email',
-        previewPreparedBy: '{{ Auth::user()->name ?? 'System' }}',
+        previewCc: '',
+        previewAdditional: '',
+
+        previewManagementApproverId: '',
+        previewManagementName: '',
+        previewManagementPosition: '',
+        previewManagementDepartment: '',
+
+        previewExecutiveApproverId: '',
+        previewExecutiveName: '',
+        previewExecutivePosition: '',
+        previewExecutiveDepartment: '',
+
         closeAddSectionAlpine() {
             this.showSlideOver = false;
             closeAddSection();
+        },
+
+        syncManagementApprover() {
+            const selected = managementApprovers.find(item => String(item.id) === String(this.previewManagementApproverId));
+            this.previewManagementName = selected?.name || '';
+            this.previewManagementPosition = selected?.position || '';
+            this.previewManagementDepartment = selected?.department || '';
+        },
+
+        syncExecutiveApprover() {
+            const selected = executiveApprovers.find(item => String(item.id) === String(this.previewExecutiveApproverId));
+            this.previewExecutiveName = selected?.name || '';
+            this.previewExecutivePosition = selected?.position || '';
+            this.previewExecutiveDepartment = selected?.department || '';
         }
     }"
 >
     <div class="bg-white border border-gray-200 rounded-xl min-h-[calc(100vh-7rem)] flex flex-col">
-
         <div class="px-5 py-4 flex items-center justify-between border-b border-gray-200">
-            <h1 class="text-[30px] font-semibold text-gray-800 leading-none">Correspondence</h1>
+            <div>
+                <p class="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.18em] text-blue-700 bg-blue-50 border border-blue-100 rounded-full px-3 py-1 mb-2">
+                    <i class="fas fa-envelope-open-text"></i>
+                    Corporate Governance
+                </p>
+                <h1 class="text-[30px] font-semibold text-gray-800 leading-none">Correspondence</h1>
+                <p class="text-sm text-gray-500 mt-2">Create, submit, and approve official corporate correspondence.</p>
+            </div>
 
             <button
                 type="button"
                 @click="showSlideOver = true"
                 onclick="openAddSection()"
-                class="bg-blue-600 text-white px-6 py-2 rounded text-sm shrink-0"
+                class="bg-blue-600 text-white px-6 py-2 rounded-lg text-sm shrink-0 hover:bg-blue-700 transition"
             >
-                + Add
+                + Add Correspondence
             </button>
-
-
-
         </div>
 
-        <div class="px-5 pt-4 bg-white border-b border-gray-100">
-            <div class="flex gap-8 text-[15px] text-gray-700 overflow-x-auto">
-                <button onclick="applyWorkflowFilter('uploaded')" id="tab-uploaded" class="pb-3 whitespace-nowrap border-b-2 border-blue-600 font-medium text-gray-900">
-                    Uploaded
-                </button>
-                <button onclick="applyWorkflowFilter('submitted')" id="tab-submitted" class="pb-3 whitespace-nowrap">
-                    Submitted
-                </button>
-                <button onclick="applyWorkflowFilter('accepted')" id="tab-accepted" class="pb-3 whitespace-nowrap">
-                    Accepted
-                </button>
-                <button onclick="applyWorkflowFilter('reverted')" id="tab-reverted" class="pb-3 whitespace-nowrap">
-                    Reverted
-                </button>
-                <button onclick="applyWorkflowFilter('archived')" id="tab-archived" class="pb-3 whitespace-nowrap">
-                    Archived
-                </button>
-            </div>
-
-            <div id="statusMessage" class="mt-3 mb-4 border border-blue-200 bg-blue-50 text-blue-700 text-[14px] px-4 py-3 rounded-md">
-                These records are uploaded and ready for submission.
-            </div>
-        </div>
-
-        <div id="tableSection" class="px-5 pb-4 flex-1 flex flex-col">
+<div id="tableSection" class="px-5 pb-4 flex-1 flex flex-col">
             <div class="border border-gray-200 rounded-md overflow-hidden flex-1 overflow-auto">
                 <table class="w-full text-sm text-left border-collapse">
                     <thead class="bg-gray-100 text-gray-700 sticky top-0 z-10">
                         <tr>
                             <th class="px-3 py-3 border-r border-gray-200 font-semibold">Ref#</th>
                             <th class="px-3 py-3 border-r border-gray-200 font-semibold">Date</th>
-
-                            <th class="px-3 py-3 border-r border-gray-200 font-semibold relative">
-                                <div class="flex items-center justify-between gap-2">
-                                    <span>Correspondence Type</span>
-                                    <div class="relative">
-                                        <button
-                                            type="button"
-                                            onclick="toggleTypeFilterMenu(event)"
-                                            class="text-gray-500 hover:text-gray-700"
-                                        >
-                                            <i class="fas fa-filter text-xs"></i>
-                                        </button>
-
-                                        <div
-                                            id="typeFilterMenu"
-                                            class="hidden absolute right-0 mt-2 w-52 bg-white border border-gray-200 rounded-lg shadow-lg z-30 overflow-hidden"
-                                        >
-                                            <button type="button" onclick="setTypeFilter('All')" class="w-full text-left px-4 py-2 text-sm hover:bg-gray-50">
-                                                All Types
-                                            </button>
-                                            <button type="button" onclick="setTypeFilter('Letters')" class="w-full text-left px-4 py-2 text-sm hover:bg-gray-50">
-                                                Letters
-                                            </button>
-                                            <button type="button" onclick="setTypeFilter('Demand Letter')" class="w-full text-left px-4 py-2 text-sm hover:bg-gray-50">
-                                                Demand Letter
-                                            </button>
-                                            <button type="button" onclick="setTypeFilter('Request Letter')" class="w-full text-left px-4 py-2 text-sm hover:bg-gray-50">
-                                                Request Letter
-                                            </button>
-                                            <button type="button" onclick="setTypeFilter('Follow Up Letter')" class="w-full text-left px-4 py-2 text-sm hover:bg-gray-50">
-                                                Follow Up Letter
-                                            </button>
-                                            <button type="button" onclick="setTypeFilter('Memo')" class="w-full text-left px-4 py-2 text-sm hover:bg-gray-50">
-                                                Memo
-                                            </button>
-                                            <button type="button" onclick="setTypeFilter('Notice')" class="w-full text-left px-4 py-2 text-sm hover:bg-gray-50">
-                                                Notice
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </th>
-
-                            <th class="px-3 py-3 border-r border-gray-200 font-semibold">TIN</th>
-                            <th class="px-3 py-3 border-r border-gray-200 font-semibold">Department</th>
+                            <th class="px-3 py-3 border-r border-gray-200 font-semibold">Type</th>
+                            <th class="px-3 py-3 border-r border-gray-200 font-semibold">Company</th>
+                            <th class="px-3 py-3 border-r border-gray-200 font-semibold">To / For</th>
                             <th class="px-3 py-3 border-r border-gray-200 font-semibold">From</th>
-                            <th class="px-3 py-3 border-r border-gray-200 font-semibold">To</th>
                             <th class="px-3 py-3 border-r border-gray-200 font-semibold">Subject</th>
                             <th class="px-3 py-3 border-r border-gray-200 font-semibold">Respond Before</th>
-                            <th class="px-3 py-3 border-r border-gray-200 font-semibold">Sent Via</th>
-                            <th class="px-3 py-3 border-r border-gray-200 font-semibold">Status</th>
-                            <th class="px-3 py-3 border-r border-gray-200 font-semibold">Workflow Status</th>
-                            <th class="px-3 py-3 border-r border-gray-200 font-semibold">Approval Status</th>
+                            <th class="px-3 py-3 border-r border-gray-200 font-semibold">Workflow</th>
+                            <th class="px-3 py-3 border-r border-gray-200 font-semibold">Approval</th>
                             <th class="px-3 py-3 font-semibold">Template</th>
                         </tr>
                     </thead>
@@ -144,9 +140,7 @@
                 <div class="w-[320px] shrink-0 flex flex-col gap-4">
                     <div class="bg-white border border-gray-200 rounded-xl px-5 py-4 flex items-center justify-between">
                         <h2 class="text-[20px] font-semibold text-gray-900">Document Preview</h2>
-                        <button type="button" onclick="closePreview()" class="text-sm text-gray-500 hover:text-gray-700">
-                            Close
-                        </button>
+                        <button type="button" onclick="closePreview()" class="text-sm text-gray-500 hover:text-gray-700">Close</button>
                     </div>
 
                     <div class="bg-white border border-gray-200 rounded-xl px-5 py-6 overflow-y-auto">
@@ -154,26 +148,17 @@
 
                         <div class="space-y-5 text-[14px]">
                             <div class="flex justify-between gap-4"><span class="text-gray-500">Type</span><span id="infoType" class="text-right font-medium text-gray-900"></span></div>
-                            <div class="flex justify-between gap-4"><span class="text-gray-500">Uploaded Date</span><span id="infoUploadedDate" class="text-right font-medium text-gray-900"></span></div>
-                            <div class="flex justify-between gap-4"><span class="text-gray-500">Uploader</span><span id="infoUser" class="text-right font-medium text-gray-900"></span></div>
-                            <div class="flex justify-between gap-4"><span class="text-gray-500">TIN</span><span id="infoTin" class="text-right font-medium text-gray-900"></span></div>
+                            <div class="flex justify-between gap-4"><span class="text-gray-500">Company</span><span id="infoCompany" class="text-right font-medium text-gray-900 break-words"></span></div>
+                            <div class="flex justify-between gap-4"><span class="text-gray-500">Reg No.</span><span id="infoRegNo" class="text-right font-medium text-gray-900 break-words"></span></div>
                             <div class="flex justify-between gap-4"><span class="text-gray-500">Subject</span><span id="infoSubject" class="text-right font-medium text-gray-900"></span></div>
+                            <div class="flex justify-between gap-4"><span class="text-gray-500">To / For</span><span id="infoToFor" class="text-right font-medium text-gray-900 break-all"></span></div>
                             <div class="flex justify-between gap-4"><span class="text-gray-500">From</span><span id="infoFrom" class="text-right font-medium text-gray-900 break-all"></span></div>
-                            <div class="flex justify-between gap-4"><span class="text-gray-500">To</span><span id="infoTo" class="text-right font-medium text-gray-900 break-all"></span></div>
-                            <div class="flex justify-between gap-4"><span class="text-gray-500">Department</span><span id="infoDepartment" class="text-right font-medium text-gray-900"></span></div>
-                            <div class="flex justify-between gap-4"><span class="text-gray-500">Date Sent</span><span id="infoDate" class="text-right font-medium text-gray-900"></span></div>
-                            <div class="flex justify-between gap-4"><span class="text-gray-500">Time Sent</span><span id="infoTime" class="text-right font-medium text-gray-900"></span></div>
-                            <div class="flex justify-between gap-4"><span class="text-gray-500">Respond Before</span><span id="infoDeadline" class="text-right font-medium text-gray-900"></span></div>
-                            <div class="flex justify-between gap-4"><span class="text-gray-500">Sent Via</span><span id="infoSentVia" class="text-right font-medium text-gray-900"></span></div>
-                            <div class="flex justify-between gap-4"><span class="text-gray-500">Status</span><span id="infoStatus" class="text-right font-medium text-gray-900"></span></div>
                             <div class="flex justify-between gap-4"><span class="text-gray-500">Workflow</span><span id="infoWorkflowStatus" class="text-right font-medium text-gray-900"></span></div>
                             <div class="flex justify-between gap-4"><span class="text-gray-500">Approval</span><span id="infoApprovalStatus" class="text-right font-medium text-gray-900"></span></div>
                             <div class="flex justify-between gap-4"><span class="text-gray-500">Review Note</span><span id="infoReviewNote" class="text-right font-medium text-gray-900 break-words"></span></div>
 
                             <div class="pt-2 border-t border-gray-200 space-y-3" id="previewActions">
-                                <a id="openPreviewBtn" href="#" target="_blank" class="text-sm text-blue-600 hover:underline block">
-                                    Open in New Tab
-                                </a>
+                                <a id="openPreviewBtn" href="#" target="_blank" class="text-sm text-blue-600 hover:underline block">Open in New Tab</a>
                             </div>
                         </div>
                     </div>
@@ -195,83 +180,47 @@
                     x-transition:leave-end="-translate-x-full"
                     class="w-[70%] h-full bg-[#f5f6f8] overflow-y-auto p-6 border-r border-gray-200"
                 >
-                    <div class="max-w-[900px] mx-auto mb-4 flex justify-end sticky top-0 z-10">
-                        <button
-                            type="button"
-                            id="download-preview-pdf"
-                            class="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 shadow transition"
-                        >
-                            <i class="fas fa-file-pdf"></i>
-                            Download PDF
-                        </button>
-                    </div>
-
                     <div class="max-w-[900px] mx-auto flex justify-center">
-                        <div
-                            id="correspondence-preview-pdf"
-                            class="correspondence-a4-page bg-white border border-gray-300 shadow"
-                        >
-                            <div class="flex items-start justify-between border-b border-gray-300 pb-6 mb-8">
-                                <div>
-                                    <h1 class="text-[22px] font-bold tracking-wide text-gray-900">JOHN KELLY &amp; COMPANY</h1>
-                                    <p class="text-[12px] text-gray-500 mt-1">Correspondence Preview</p>
+                        <div id="correspondence-preview-pdf" class="correspondence-a4-page bg-white border border-gray-300 shadow">
+                            <div class="correspondence-header mb-12">
+                                <div class="header-logo">
+                                    <img :src="correspondenceLogoUrl" alt="Company Logo">
                                 </div>
 
-                                <div class="text-right text-[12px] text-gray-600 leading-5">
-                                    <p>Ref No: <span class="font-semibold" x-text="previewRef"></span></p>
-                                    <p>Date: <span class="font-semibold" x-text="previewDate || '________________'"></span></p>
-                                    <p>Type: <span class="font-semibold" x-text="previewType || '________________'"></span></p>
+                                <div class="header-company">
+                                    <p class="company-name" x-text="companyName || 'COMPANY NAME'"></p>
+                                    <p>Registration No.: <span x-text="registrationNumber || '____________________'"></span></p>
+                                    <p x-text="principalAddress || 'Principal Office Address'"></p>
                                 </div>
                             </div>
 
-                            <div class="text-center mb-8">
-                                <h2 class="text-[20px] font-bold tracking-[0.18em] text-gray-900" x-text="(previewType || 'LETTERS').toUpperCase()"></h2>
+                            <div class="text-center mb-10">
+                                <h2 class="text-[24px] font-bold uppercase tracking-[0.14em]" x-text="previewType || 'CORRESPONDENCE'"></h2>
                             </div>
 
-                            <div class="space-y-3 text-[14px] text-gray-800 mb-10">
-                                <div class="grid grid-cols-[120px_1fr] gap-3">
-                                    <p class="font-semibold uppercase tracking-wide">TIN</p>
-                                    <p class="border-b border-dotted border-gray-300 pb-1 break-words" x-text="previewTin || '______________________________'"></p>
+                            <div class="correspondence-fields text-gray-900">
+                                <div class="field-row">
+                                    <p class="font-semibold">Date:</p>
+                                    <p class="pb-1" x-text="formatDisplayDate(previewDate) || '______________________'"></p>
                                 </div>
-
-                                <div class="grid grid-cols-[120px_1fr] gap-3">
-                                    <p class="font-semibold uppercase tracking-wide" x-text="previewSenderLabel"></p>
-                                    <p class="border-b border-dotted border-gray-300 pb-1 break-words" x-text="previewSender || '______________________________'"></p>
+                                <div class="field-row">
+                                    <p class="font-semibold"><span x-text="previewToForLabel || 'To'"></span>:</p>
+                                    <p class="pb-1 break-words" x-text="previewToFor || '______________________'"></p>
                                 </div>
-
-                                <div class="grid grid-cols-[120px_1fr] gap-3">
-                                    <p class="font-semibold uppercase tracking-wide">Department</p>
-                                    <p class="border-b border-dotted border-gray-300 pb-1 break-words" x-text="previewDepartment || '______________________________'"></p>
+                                <div class="field-row">
+                                    <p class="font-semibold">From:</p>
+                                    <p class="pb-1 break-words" x-text="previewFrom || '______________________'"></p>
                                 </div>
-
-                                <div class="grid grid-cols-[120px_1fr] gap-3">
-                                    <p class="font-semibold uppercase tracking-wide">Subject</p>
-                                    <p class="border-b border-dotted border-gray-300 pb-1 font-semibold break-words" x-text="previewSubject || '______________________________'"></p>
+                                <div class="field-row">
+                                    <p class="font-semibold uppercase">Subject:</p>
+                                    <p class="pb-1 font-semibold break-words" x-text="previewSubject || '______________________________'"></p>
                                 </div>
-
-                                <div class="grid grid-cols-[120px_1fr] gap-3">
-                                    <p class="font-semibold uppercase tracking-wide">Sent Via</p>
-                                    <p class="border-b border-dotted border-gray-300 pb-1 break-words" x-text="previewSentVia || '______________________________'"></p>
-                                </div>
-
-                                <template x-if="hasDeadline">
-                                    <div class="grid grid-cols-[120px_1fr] gap-3">
-                                        <p class="font-semibold uppercase tracking-wide">Respond Before</p>
-                                        <p class="border-b border-dotted border-gray-300 pb-1 break-words" x-text="previewDeadline || '______________________________'"></p>
-                                    </div>
-                                </template>
                             </div>
+
+                            <div class="correspondence-divider"></div>
 
                             <div class="correspondence-body text-[15px] text-gray-900">
                                 <div class="body-content" x-html="previewBody"></div>
-                            </div>
-
-                            <div class="mt-16 space-y-10 text-[14px] text-gray-800">
-                                <div>
-                                    <p>Respectfully,</p>
-                                    <div class="mt-12 border-b border-gray-400 w-[260px]"></div>
-                                    <p class="mt-2 font-semibold break-words" x-text="previewPreparedBy || '________________'"></p>
-                                </div>
                             </div>
                         </div>
                     </div>
@@ -299,26 +248,19 @@
                         <div id="sliderSuccessBox" class="hidden rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700"></div>
 
                         <div>
-                            <label class="block text-xs font-semibold text-gray-500 mb-1">Ref #</label>
-                            <input type="text" value="AUTO-INCREMENT" readonly class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-gray-100 text-gray-600">
-                            <p class="mt-1 text-xs text-gray-400">Date is automatically set to today when saved.</p>
-                        </div>
-
-                        <div>
                             <label class="block text-xs font-semibold text-gray-500 mb-1">Correspondence Type</label>
                             <select id="typeInput" x-model="previewType" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500">
-                                <option value="Letters">Letters</option>
-                                <option value="Demand Letter">Demand Letter</option>
-                                <option value="Request Letter">Request Letter</option>
-                                <option value="Follow Up Letter">Follow Up Letter</option>
-                                <option value="Memo">Memo</option>
-                                <option value="Notice">Notice</option>
+                                @foreach($types as $type)
+                                    <option value="{{ $type }}">{{ $type }}</option>
+                                @endforeach
                             </select>
                         </div>
 
-                        <div>
-                            <label class="block text-xs font-semibold text-gray-500 mb-1">TIN</label>
-                            <input id="tinInput" x-model="previewTin" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500" placeholder="Enter TIN">
+                        <div class="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm">
+                            <p class="font-semibold text-blue-700">Header details auto-filled from latest approved GIS</p>
+                            <p class="mt-1"><strong>Company Name:</strong> {{ $companyInfo['company_name'] ?? '—' }}</p>
+                            <p><strong>Registration Number:</strong> {{ $companyInfo['registration_number'] ?? '—' }}</p>
+                            <p><strong>Principal Address:</strong> {{ $companyInfo['principal_address'] ?? '—' }}</p>
                         </div>
 
                         <div>
@@ -327,21 +269,83 @@
                         </div>
 
                         <div>
-                            <label class="block text-xs font-semibold text-gray-500 mb-1">From / To</label>
-                            <select id="senderTypeInput" x-model="previewSenderLabel" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500">
-                                <option value="From">From</option>
-                                <option value="To">To</option>
-                            </select>
+                            <label class="block text-xs font-semibold text-gray-500 mb-1">To / For</label>
+                            <div class="grid grid-cols-[110px_1fr] gap-3">
+                                <select id="toForLabelInput" x-model="previewToForLabel" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500">
+                                    <option value="To">To</option>
+                                    <option value="For">For</option>
+                                </select>
+
+                                <input id="toForInput" x-model="previewToFor" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500" placeholder="Manually type recipient">
+                            </div>
                         </div>
 
                         <div>
-                            <label class="block text-xs font-semibold text-gray-500 mb-1">Name / Value</label>
-                            <input id="senderInput" x-model="previewSender" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500" placeholder="Enter From or To value">
+                            <label class="block text-xs font-semibold text-gray-500 mb-1">From</label>
+                            <input id="fromInput" x-model="previewFrom" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500" placeholder="Enter sender">
                         </div>
 
                         <div>
                             <label class="block text-xs font-semibold text-gray-500 mb-1">Department / Stakeholder</label>
                             <input id="departmentInput" x-model="previewDepartment" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500" placeholder="Enter department or stakeholder">
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-500 mb-1">CC</label>
+                                <input id="ccInput" x-model="previewCc" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="Optional">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-500 mb-1">Additional</label>
+                                <input id="additionalInput" x-model="previewAdditional" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="Optional">
+                            </div>
+                        </div>
+
+                                                <div class="rounded-lg border border-blue-100 bg-blue-50 p-4 space-y-4">
+                            <div>
+                                <p class="text-xs font-bold uppercase text-blue-700">Approval Workflow</p>
+                                <p class="text-xs text-gray-500 mt-1">
+                                    Level 1 approver is selected from Employee Profile. Level 2 approver is selected from the latest approved GIS Directors / Officers list.
+                                </p>
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-semibold text-blue-700 mb-1">Level 1 Approver - From Management</label>
+                                <select id="managementApproverInput" x-model="previewManagementApproverId" @change="syncManagementApprover()" class="w-full border border-blue-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500">
+                                    <option value="">Select active employee approver</option>
+                                    @foreach(($managementApprovers ?? collect()) as $approver)
+                                        <option value="{{ $approver['id'] }}">
+                                            {{ $approver['name'] }} — {{ $approver['position'] ?? 'Management' }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                            </div>
+
+                            <div class="rounded-lg border border-blue-100 bg-white p-3 text-sm">
+                                <p class="text-xs font-bold uppercase text-blue-700 mb-2">From Management</p>
+                                <p><span class="font-semibold">Name:</span> <span x-text="previewManagementName || '—'"></span></p>
+                                <p><span class="font-semibold">Position:</span> <span x-text="previewManagementPosition || '—'"></span></p>
+                                <p><span class="font-semibold">Department:</span> <span x-text="previewManagementDepartment || '—'"></span></p>
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-semibold text-blue-700 mb-1">Level 2 Approver - From Executive Management</label>
+                                <select id="executiveApproverInput" x-model="previewExecutiveApproverId" @change="syncExecutiveApprover()" class="w-full border border-blue-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500">
+                                    <option value="">Select GIS director/officer</option>
+                                    @foreach(($executiveApprovers ?? collect()) as $approver)
+                                        <option value="{{ $approver['id'] }}">
+                                            {{ $approver['name'] }} — {{ $approver['position'] ?? 'Officer' }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                            </div>
+
+                            <div class="rounded-lg border border-blue-100 bg-white p-3 text-sm">
+                                <p class="text-xs font-bold uppercase text-blue-700 mb-2">From Executive Management</p>
+                                <p><span class="font-semibold">Name:</span> <span x-text="previewExecutiveName || '—'"></span></p>
+                                <p><span class="font-semibold">Position:</span> <span x-text="previewExecutivePosition || '—'"></span></p>
+                                <p><span class="font-semibold">Office:</span> <span x-text="previewExecutiveDepartment || '—'"></span></p>
+                            </div>
                         </div>
 
                         <div>
@@ -364,10 +368,11 @@
 
                         <div>
                             <label class="block text-xs font-semibold text-gray-500 mb-1">Sent Via</label>
-                            <select id="sentViaInput" x-model="previewSentVia" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500">
+                            <select id="sentViaInput" x-model="previewSentVia" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
                                 <option value="Email">Email</option>
                                 <option value="LBC">LBC</option>
                                 <option value="Internal">Internal</option>
+                                <option value="Hand Delivery">Hand Delivery</option>
                             </select>
                         </div>
                     </div>
@@ -388,17 +393,57 @@
 </div>
 
 <style>
+
+    .correspondence-header {
+        display: grid;
+        grid-template-columns: 38% 62%;
+        align-items: center;
+        gap: 18px;
+        margin-top: 8px;
+    }
+
+    .correspondence-header .header-logo {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 85px;
+    }
+
+    .correspondence-header .header-logo img {
+        display: block;
+        max-width: 190px;
+        max-height: 95px;
+        object-fit: contain;
+    }
+
+    .correspondence-header .header-company {
+        text-align: left;
+        font-size: 13px;
+        line-height: 1.35;
+        color: #000;
+        overflow-wrap: break-word;
+        word-break: normal;
+    }
+
+    .correspondence-header .company-name {
+        font-weight: 700;
+        text-transform: uppercase;
+        font-size: 14px;
+        margin-bottom: 2px;
+    }
+
     .correspondence-a4-page {
         width: 210mm;
         min-height: 297mm;
         padding: 18mm 18mm 20mm 18mm;
         box-sizing: border-box;
         background: #fff;
+        font-family: Georgia, "Times New Roman", serif;
     }
 
     .correspondence-body {
-        min-height: 420px;
-        line-height: 1.85;
+        min-height: 360px;
+        line-height: 1.65;
     }
 
     .body-content,
@@ -409,45 +454,42 @@
         word-wrap: break-word;
         word-break: normal;
         white-space: normal;
+        font-family: Georgia, "Times New Roman", serif;
     }
 
     .body-content p {
         margin: 0 0 14px 0;
-        line-height: 1.85;
+        line-height: 1.65;
     }
 
-    .body-content ul,
-    .body-content ol {
-        margin: 0 0 14px 22px;
-        padding-left: 18px;
-    }
+    .body-content .ql-align-left { text-align: left !important; }
+    .body-content .ql-align-center { text-align: center !important; }
+    .body-content .ql-align-right { text-align: right !important; }
+    .body-content .ql-align-justify { text-align: justify !important; }
 
-    .body-content li {
-        margin-bottom: 6px;
-        line-height: 1.8;
-    }
-
-    .body-content img,
-    .body-content video,
-    .body-content iframe,
-    .body-content table {
-        max-width: 100%;
-    }
+    .body-content .ql-indent-1 { padding-left: 3em !important; }
+    .body-content .ql-indent-2 { padding-left: 6em !important; }
+    .body-content .ql-indent-3 { padding-left: 9em !important; }
+    .body-content .ql-indent-4 { padding-left: 12em !important; }
+    .body-content .ql-indent-5 { padding-left: 15em !important; }
+    .body-content .ql-indent-6 { padding-left: 18em !important; }
+    .body-content .ql-indent-7 { padding-left: 21em !important; }
+    .body-content .ql-indent-8 { padding-left: 24em !important; }
 
     .body-content table {
         width: 100% !important;
-        table-layout: fixed;
-        border-collapse: collapse;
+        table-layout: fixed !important;
+        border-collapse: collapse !important;
+        margin: 12px 0 !important;
     }
 
     .body-content td,
     .body-content th {
-        overflow-wrap: break-word;
-        word-wrap: break-word;
-        white-space: normal;
         border: 1px solid #9ca3af;
         padding: 8px 10px;
         vertical-align: top;
+        overflow-wrap: break-word;
+        word-break: normal;
     }
 
     #editor {
@@ -457,48 +499,27 @@
         overflow: hidden;
     }
 
-    #editor .ql-toolbar.ql-snow {
-        border: 0;
-        border-bottom: 1px solid #e5e7eb;
-        background: #fff;
-    }
-
     #editor .ql-container.ql-snow {
         border: 0;
         font-size: 15px;
         min-height: 320px;
+        font-family: Georgia, "Times New Roman", serif;
     }
 
     #editor .ql-editor {
         min-height: 320px;
-        max-height: none;
         padding: 16px 18px;
-        line-height: 1.85;
+        line-height: 1.65;
         overflow-wrap: break-word;
         word-wrap: break-word;
-        white-space: pre-wrap;
-    }
-
-    #editor .ql-editor.ql-blank::before {
-        color: #9ca3af;
-        font-style: italic;
-    }
-
-    #editor .ql-editor p,
-    #editor .ql-editor li {
-        overflow-wrap: break-word;
-        word-wrap: break-word;
-    }
-
-    #editor .ql-editor img,
-    #editor .ql-editor table {
-        max-width: 100%;
+        font-family: Georgia, "Times New Roman", serif;
     }
 
     #editor .ql-editor table {
-        width: 100%;
-        table-layout: fixed;
-        border-collapse: collapse;
+        width: 100% !important;
+        table-layout: fixed !important;
+        border-collapse: collapse !important;
+        margin: 12px 0 !important;
     }
 
     #editor .ql-editor td,
@@ -506,187 +527,108 @@
         border: 1px solid #9ca3af;
         padding: 8px 10px;
         vertical-align: top;
+        overflow-wrap: break-word;
+        word-break: normal;
     }
+
+    .ql-font-georgia,
+    .ql-font-georgia * {
+        font-family: Georgia, "Times New Roman", serif !important;
+    }
+
+    .ql-picker.ql-font .ql-picker-label[data-value="georgia"]::before,
+    .ql-picker.ql-font .ql-picker-item[data-value="georgia"]::before {
+        content: "Georgia";
+        font-family: Georgia, "Times New Roman", serif;
+    }
+
+    /* Match Town Hall memo spacing */
+    .correspondence-a4-page {
+        padding: 18mm 18mm 20mm 18mm !important;
+    }
+
+    .correspondence-header {
+        margin-top: 8px !important;
+        margin-bottom: 38px !important;
+    }
+
+    .correspondence-header .header-logo img {
+        max-width: 205px !important;
+        max-height: 105px !important;
+    }
+
+    .correspondence-header .header-company {
+        font-size: 13px !important;
+        line-height: 1.25 !important;
+    }
+
+    .correspondence-fields {
+        margin-top: 0 !important;
+        margin-bottom: 22px !important;
+    }
+
+    .correspondence-fields .field-row {
+        display: grid;
+        grid-template-columns: 105px 1fr;
+        column-gap: 10px;
+        margin-bottom: 2px;
+        line-height: 1.3;
+        font-size: 14px;
+    }
+
+    .correspondence-fields .field-row p {
+        margin: 0;
+        padding: 0;
+    }
+
+    .correspondence-divider {
+        border-top: 1px solid #6b7280;
+        margin-top: 8px;
+        margin-bottom: 22px;
+    }
+
 </style>
 @endsection
 
 @push('styles')
 <link href="https://cdn.jsdelivr.net/npm/quill@2/dist/quill.snow.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/quill-table-better@1/dist/quill-table-better.css" rel="stylesheet">
-
-<style>
-    .correspondence-a4-page {
-        width: 210mm;
-        min-height: 297mm;
-        padding: 18mm 18mm 20mm 18mm;
-        box-sizing: border-box;
-        background: #fff;
-    }
-
-    .correspondence-body {
-        min-height: 420px;
-        line-height: 1.85;
-    }
-
-    .body-content,
-    .body-content * {
-        max-width: 100%;
-        box-sizing: border-box;
-        overflow-wrap: break-word;
-        word-wrap: break-word;
-        word-break: normal;
-        white-space: normal;
-    }
-
-    .body-content p {
-        margin: 0 0 14px 0;
-        line-height: 1.85;
-    }
-
-    .body-content ul,
-    .body-content ol {
-        margin: 0 0 14px 22px;
-        padding-left: 18px;
-    }
-
-    .body-content li {
-        margin-bottom: 6px;
-        line-height: 1.8;
-    }
-
-    .body-content img,
-    .body-content video,
-    .body-content iframe,
-    .body-content table {
-        max-width: 100%;
-    }
-
-    .body-content table {
-        width: 100% !important;
-        max-width: 100% !important;
-        table-layout: fixed !important;
-        border-collapse: collapse !important;
-        border-spacing: 0 !important;
-        margin: 12px 0 !important;
-    }
-
-    .body-content table colgroup,
-    .body-content table col {
-        width: auto !important;
-    }
-
-    .body-content td,
-    .body-content th {
-        overflow-wrap: break-word;
-        word-wrap: break-word;
-        white-space: normal;
-        border: 1px solid #9ca3af;
-        padding: 8px 10px;
-        vertical-align: top;
-    }
-
-    #editor {
-        background: #fff;
-        border: 1px solid #d1d5db;
-        border-radius: 0.5rem;
-        overflow: hidden;
-    }
-
-    #editor .ql-toolbar.ql-snow {
-        border: 0;
-        border-bottom: 1px solid #e5e7eb;
-        background: #fff;
-    }
-
-    #editor .ql-container.ql-snow {
-        border: 0;
-        font-size: 15px;
-        min-height: 320px;
-    }
-
-    #editor .ql-editor {
-        min-height: 320px;
-        max-height: none;
-        padding: 16px 18px;
-        line-height: 1.85;
-        overflow-wrap: break-word;
-        word-wrap: break-word;
-        white-space: pre-wrap;
-    }
-
-    #editor .ql-editor.ql-blank::before {
-        color: #9ca3af;
-        font-style: italic;
-    }
-
-    #editor .ql-editor p,
-    #editor .ql-editor li {
-        overflow-wrap: break-word;
-        word-wrap: break-word;
-    }
-
-    #editor .ql-editor img,
-    #editor .ql-editor table {
-        max-width: 100%;
-    }
-
-    #editor .ql-editor table {
-        width: 100% !important;
-        max-width: 100% !important;
-        table-layout: fixed !important;
-        border-collapse: collapse !important;
-        border-spacing: 0 !important;
-        margin: 12px 0 !important;
-    }
-
-    #editor .ql-editor table colgroup,
-    #editor .ql-editor table col {
-        width: auto !important;
-    }
-
-    #editor .ql-editor td,
-    #editor .ql-editor th {
-        border: 1px solid #9ca3af;
-        padding: 8px 10px;
-        vertical-align: top;
-        overflow-wrap: break-word;
-        word-wrap: break-word;
-        white-space: normal;
-    }
-
-    .qlbt-operation-menu,
-    .ql-table-better-menu,
-    .quill-table-better-wrapper {
-        z-index: 9999 !important;
-    }
-</style>
 @endpush
 
 @push('scripts')
 <script src="https://cdn.jsdelivr.net/npm/quill@2/dist/quill.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/quill-table-better@1/dist/quill-table-better.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
 <script>
 let currentTypeFilter = "All";
-let currentWorkflowFilter = "uploaded";
+let currentWorkflowFilter = "";
 let correspondenceRows = [];
 
-const previewRoutes = {
-    "Letters": "letters",
-    "Demand Letter": "demand-letter",
-    "Request Letter": "request-letter",
-    "Follow Up Letter": "follow-up-letter",
-    "Memo": "memo",
-    "Notice": "notice"
-};
+const correspondenceTypes = @json($types);
+const managementApprovers = @json(($managementApprovers ?? collect())->values());
+const executiveApprovers = @json(($executiveApprovers ?? collect())->values());
 
-const urlParams = new URLSearchParams(window.location.search);
-const autoOpenRecordId = urlParams.get('record');
-const autoOpenTab = (urlParams.get('tab') || '').toLowerCase();
+function formatDisplayDate(value) {
+    if (!value) return '';
 
-if (['uploaded', 'submitted', 'accepted', 'reverted', 'archived'].includes(autoOpenTab)) {
-    currentWorkflowFilter = autoOpenTab;
+    const date = new Date(`${value}T00:00:00`);
+
+    if (Number.isNaN(date.getTime())) {
+        return value;
+    }
+
+    return date.toLocaleDateString('en-US', {
+        month: 'long',
+        day: '2-digit',
+        year: 'numeric'
+    });
+}
+
+function slugifyType(type) {
+    return String(type || 'other')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
 }
 
 function getAlpineData() {
@@ -701,37 +643,11 @@ function showOnlySection(sectionId) {
 }
 
 function updateStatusMessage() {
-    const messageBox = document.getElementById('statusMessage');
-
-    if (currentWorkflowFilter === 'uploaded') {
-        messageBox.className = 'mt-3 mb-4 border border-blue-200 bg-blue-50 text-blue-700 text-[14px] px-4 py-3 rounded-md';
-        messageBox.textContent = 'These records are uploaded and ready for submission.';
-    } else if (currentWorkflowFilter === 'submitted') {
-        messageBox.className = 'mt-3 mb-4 border border-yellow-200 bg-yellow-50 text-yellow-700 text-[14px] px-4 py-3 rounded-md';
-        messageBox.textContent = 'These records are already submitted and waiting for admin approval.';
-    } else if (currentWorkflowFilter === 'accepted') {
-        messageBox.className = 'mt-3 mb-4 border border-green-200 bg-green-50 text-green-700 text-[14px] px-4 py-3 rounded-md';
-        messageBox.textContent = 'These records were already accepted.';
-    } else if (currentWorkflowFilter === 'reverted') {
-        messageBox.className = 'mt-3 mb-4 border border-red-200 bg-red-50 text-red-700 text-[14px] px-4 py-3 rounded-md';
-        messageBox.textContent = 'These records were reverted and can be corrected then resubmitted.';
-    } else {
-        messageBox.className = 'mt-3 mb-4 border border-gray-200 bg-gray-50 text-gray-700 text-[14px] px-4 py-3 rounded-md';
-        messageBox.textContent = 'These records are archived.';
-    }
+    // Corporate side tabs were removed.
 }
 
 function setActiveTab() {
-    ['uploaded', 'submitted', 'accepted', 'reverted', 'archived'].forEach(tab => {
-        const el = document.getElementById(`tab-${tab}`);
-        if (!el) return;
-
-        if (tab === currentWorkflowFilter) {
-            el.className = 'pb-3 whitespace-nowrap border-b-2 border-blue-600 font-medium text-gray-900';
-        } else {
-            el.className = 'pb-3 whitespace-nowrap text-gray-700';
-        }
-    });
+    // Admin side handles workflow tabs.
 }
 
 function showSliderError(message) {
@@ -753,18 +669,13 @@ function showSliderSuccess(message) {
 }
 
 function clearSliderMessages() {
-    const errorBox = document.getElementById('sliderErrorBox');
-    const successBox = document.getElementById('sliderSuccessBox');
-
-    if (errorBox) {
-        errorBox.classList.add('hidden');
-        errorBox.innerHTML = '';
-    }
-
-    if (successBox) {
-        successBox.classList.add('hidden');
-        successBox.innerHTML = '';
-    }
+    ['sliderErrorBox', 'sliderSuccessBox'].forEach(id => {
+        const box = document.getElementById(id);
+        if (box) {
+            box.classList.add('hidden');
+            box.innerHTML = '';
+        }
+    });
 }
 
 function setSaveLoading(isLoading) {
@@ -779,27 +690,17 @@ function setSaveLoading(isLoading) {
 
 function openAddSection() {
     const alpineData = getAlpineData();
-    if (alpineData) {
-        alpineData.showSlideOver = true;
-    }
-
+    if (alpineData) alpineData.showSlideOver = true;
     resetFormDefaults();
     clearSliderMessages();
 }
 
 function closeAddSection() {
     const alpineData = getAlpineData();
-    if (alpineData) {
-        alpineData.showSlideOver = false;
-    }
-
+    if (alpineData) alpineData.showSlideOver = false;
     resetFormDefaults();
     clearSliderMessages();
     showOnlySection('tableSection');
-}
-
-function closeAddSectionAlpine() {
-    closeAddSection();
 }
 
 function resetFormDefaults() {
@@ -807,28 +708,42 @@ function resetFormDefaults() {
     const today = new Date().toISOString().split('T')[0];
 
     document.getElementById('typeInput').value = 'Letters';
-    document.getElementById('tinInput').value = '';
     document.getElementById('subjectInput').value = '';
-    document.getElementById('senderTypeInput').value = 'From';
-    document.getElementById('senderInput').value = '';
+    document.getElementById('toForLabelInput').value = 'To';
+    document.getElementById('toForInput').value = '';
+    document.getElementById('fromInput').value = '{{ Auth::user()->name ?? 'System Super Admin' }}';
     document.getElementById('departmentInput').value = '';
+    document.getElementById('ccInput').value = '';
+    document.getElementById('additionalInput').value = '';
+    document.getElementById('managementApproverInput').value = '';
+    document.getElementById('executiveApproverInput').value = '';
     document.getElementById('deadlineInput').value = '';
     document.getElementById('sentViaInput').value = 'Email';
-    document.getElementById('hasDeadlineInput').checked = true;
+    document.getElementById('hasDeadlineInput').checked = false;
 
     if (alpineData) {
-        alpineData.hasDeadline = true;
+        alpineData.hasDeadline = false;
         alpineData.previewRef = 'AUTO-INCREMENT';
         alpineData.previewDate = today;
         alpineData.previewType = 'Letters';
-        alpineData.previewTin = '';
-        alpineData.previewSubject = '';
-        alpineData.previewSenderLabel = 'From';
-        alpineData.previewSender = '';
+        alpineData.previewToForLabel = 'To';
+        alpineData.previewToFor = '';
+        alpineData.previewFrom = '{{ Auth::user()->name ?? 'System Super Admin' }}';
         alpineData.previewDepartment = '';
-        alpineData.previewBody = '<p style="color:#9ca3af;">Write the formal communication here...</p>';
+        alpineData.previewSubject = '';
+        alpineData.previewBody = '<p style="color:#9ca3af;">Write the formal correspondence here...</p>';
         alpineData.previewDeadline = '';
         alpineData.previewSentVia = 'Email';
+        alpineData.previewCc = '';
+        alpineData.previewAdditional = '';
+        alpineData.previewManagementApproverId = '';
+        alpineData.previewManagementName = '';
+        alpineData.previewManagementPosition = '';
+        alpineData.previewManagementDepartment = '';
+        alpineData.previewExecutiveApproverId = '';
+        alpineData.previewExecutiveName = '';
+        alpineData.previewExecutivePosition = '';
+        alpineData.previewExecutiveDepartment = '';
     }
 
     if (window.correspondenceQuill) {
@@ -838,19 +753,9 @@ function resetFormDefaults() {
     document.getElementById('detailsInput').value = '';
 }
 
-function toggleTypeFilterMenu(event) {
-    event.stopPropagation();
-    document.getElementById('typeFilterMenu').classList.toggle('hidden');
-}
-
-function setTypeFilter(type) {
-    currentTypeFilter = type;
-    document.getElementById('typeFilterMenu').classList.add('hidden');
-    renderTable();
-}
-
 function applyWorkflowFilter(filterValue) {
-    currentWorkflowFilter = filterValue;
+    // Workflow filtering is managed in the Admin Correspondence dashboard.
+    currentWorkflowFilter = '';
     renderTable();
 }
 
@@ -861,32 +766,16 @@ async function fetchCorrespondence() {
         params.append('type', currentTypeFilter);
     }
 
-    params.append('workflow_status', currentWorkflowFilter);
-
     const res = await fetch(`/correspondence/data?${params.toString()}`, {
-        headers: {
-            'Accept': 'application/json'
-        }
+        headers: { 'Accept': 'application/json' }
     });
 
     return await res.json();
 }
 
-function getStatusClasses(status) {
-    if (status === 'Open') {
-        return { textClass: 'text-green-600', dotClass: 'bg-green-500' };
-    }
-
-    if (status === 'Closed') {
-        return { textClass: 'text-red-600', dotClass: 'bg-red-500' };
-    }
-
-    return { textClass: 'text-gray-500', dotClass: 'bg-gray-400' };
-}
-
 function getWorkflowClasses(status) {
-    if (status === 'Uploaded') return 'text-orange-600';
     if (status === 'Submitted') return 'text-blue-600';
+    if (status === 'Uploaded') return 'text-orange-600';
     if (status === 'Accepted') return 'text-green-600';
     if (status === 'Reverted') return 'text-yellow-600';
     if (status === 'Archived') return 'text-gray-600';
@@ -901,56 +790,32 @@ function getApprovalClasses(status) {
     return 'text-gray-500';
 }
 
-function getFromValue(item) {
-    return item.sender_type === 'From' ? (item.sender ?? '') : '';
-}
-
-function getToValue(item) {
-    return item.sender_type === 'To' ? (item.sender ?? '') : '';
-}
-
 function openPreview(index) {
     const item = correspondenceRows[index];
     if (!item) return;
 
-    const routeSlug = previewRoutes[item.type];
-    if (!routeSlug) return;
-
-    const previewUrl = `/correspondence/template/${routeSlug}/${item.id}`;
+    const previewUrl = `/correspondence/template/${slugifyType(item.type)}/${item.id}`;
 
     document.getElementById('previewFrame').src = previewUrl;
     document.getElementById('openPreviewBtn').href = previewUrl;
     document.getElementById('infoType').textContent = item.type ?? '';
-    document.getElementById('infoUploadedDate').textContent = item.uploaded_date ?? '';
-    document.getElementById('infoUser').textContent = item.user ?? '';
-    document.getElementById('infoTin').textContent = item.tin ?? 'N/A';
+    document.getElementById('infoCompany').textContent = item.company_name ?? '';
+    document.getElementById('infoRegNo').textContent = item.registration_number ?? '';
     document.getElementById('infoSubject').textContent = item.subject ?? '';
-    document.getElementById('infoFrom').textContent = getFromValue(item) || 'N/A';
-    document.getElementById('infoTo').textContent = getToValue(item) || 'N/A';
-    document.getElementById('infoDepartment').textContent = item.department ?? '';
-    document.getElementById('infoDate').textContent = item.date ?? '';
-    document.getElementById('infoTime').textContent = item.time ?? '';
-    document.getElementById('infoDeadline').textContent = item.deadline ?? 'No Deadline';
-    document.getElementById('infoSentVia').textContent = item.sent_via ?? '';
-    document.getElementById('infoStatus').textContent = item.status ?? '';
+    document.getElementById('infoToFor').textContent = `${item.to_for_label || 'To'}: ${item.to_for || 'N/A'}`;
+    document.getElementById('infoFrom').textContent = item.from_name ?? 'N/A';
     document.getElementById('infoWorkflowStatus').textContent = item.workflow_status ?? '';
     document.getElementById('infoApprovalStatus').textContent = item.approval_status ?? '';
     document.getElementById('infoReviewNote').textContent = item.review_note ?? '—';
 
     const actions = document.getElementById('previewActions');
-    actions.innerHTML = `
-        <a id="openPreviewBtn" href="${previewUrl}" target="_blank" class="text-sm text-blue-600 hover:underline block">
-            Open in New Tab
+    actions.innerHTML = `<a id="openPreviewBtn" href="${previewUrl}" target="_blank" class="text-sm text-blue-600 hover:underline block">Open in New Tab</a>`;
+
+    actions.innerHTML += `
+        <a href="/correspondence/${item.id}/download-pdf" class="block w-full text-center bg-red-600 text-white rounded-md py-2 hover:bg-red-700">
+            Download PDF
         </a>
     `;
-
-    if (item.can_submit) {
-        actions.innerHTML += `
-            <button type="button" onclick="submitCorrespondence(${item.id})" class="w-full bg-blue-600 text-white rounded-md py-2 hover:bg-blue-700">
-                Submit for Approval
-            </button>
-        `;
-    }
 
     showOnlySection('previewSection');
 }
@@ -973,47 +838,29 @@ async function renderTable() {
     setActiveTab();
 
     if (!correspondenceRows.length) {
-        tableBody.innerHTML = `<tr><td colspan="14" class="px-3 py-8 text-center text-gray-500">No correspondence records found.</td></tr>`;
+        tableBody.innerHTML = `<tr><td colspan="11" class="px-3 py-8 text-center text-gray-500">No correspondence records found.</td></tr>`;
         return;
     }
 
     correspondenceRows.forEach((item, index) => {
-        const classes = getStatusClasses(item.status);
-        const canView = !!previewRoutes[item.type];
-
         tableBody.innerHTML += `
-            <tr class="border-t border-gray-200 hover:bg-gray-50 ${canView ? 'cursor-pointer' : ''}" ${canView ? `onclick="openPreview(${index})"` : ''}>
-                <td class="px-3 py-3 border-r border-gray-200">COR-${String(item.id).padStart(5, '0')}</td>
+            <tr class="border-t border-gray-200 hover:bg-gray-50 cursor-pointer" onclick="openPreview(${index})">
+                <td class="px-3 py-3 border-r border-gray-200">${item.ref_no ?? `COR-${String(item.id).padStart(5, '0')}`}</td>
                 <td class="px-3 py-3 border-r border-gray-200">${item.date ?? ''}</td>
                 <td class="px-3 py-3 border-r border-gray-200">${item.type ?? ''}</td>
-                <td class="px-3 py-3 border-r border-gray-200">${item.tin ?? ''}</td>
-                <td class="px-3 py-3 border-r border-gray-200">${item.department ?? ''}</td>
-                <td class="px-3 py-3 border-r border-gray-200">${getFromValue(item) || ''}</td>
-                <td class="px-3 py-3 border-r border-gray-200">${getToValue(item) || ''}</td>
+                <td class="px-3 py-3 border-r border-gray-200">${item.company_name ?? ''}</td>
+                <td class="px-3 py-3 border-r border-gray-200">${item.to_for ?? ''}</td>
+                <td class="px-3 py-3 border-r border-gray-200">${item.from_name ?? ''}</td>
                 <td class="px-3 py-3 border-r border-gray-200">${item.subject ?? ''}</td>
                 <td class="px-3 py-3 border-r border-gray-200">${item.deadline ?? 'No Deadline'}</td>
-                <td class="px-3 py-3 border-r border-gray-200">${item.sent_via ?? ''}</td>
-                <td class="px-3 py-3 border-r border-gray-200">
-                    <span class="flex items-center gap-1.5 ${classes.textClass}">
-                        <span class="w-2 h-2 ${classes.dotClass} rounded-full"></span>
-                        ${item.status ?? ''}
-                    </span>
-                </td>
                 <td class="px-3 py-3 border-r border-gray-200 ${getWorkflowClasses(item.workflow_status)} font-medium">${item.workflow_status ?? ''}</td>
                 <td class="px-3 py-3 border-r border-gray-200 ${getApprovalClasses(item.approval_status)} font-medium">${item.approval_status ?? ''}</td>
                 <td class="px-3 py-3">
-                    ${canView ? `<button type="button" onclick="event.stopPropagation(); openPreview(${index})" class="text-blue-600 hover:underline">View</button>` : '—'}
+                    <button type="button" onclick="event.stopPropagation(); openPreview(${index})" class="text-blue-600 hover:underline">View</button>
                 </td>
             </tr>
         `;
     });
-
-    if (autoOpenRecordId) {
-        const targetIndex = correspondenceRows.findIndex(row => String(row.id) === String(autoOpenRecordId));
-        if (targetIndex !== -1) {
-            openPreview(targetIndex);
-        }
-    }
 }
 
 async function addCorrespondence() {
@@ -1022,18 +869,23 @@ async function addCorrespondence() {
 
     const payload = {
         type: document.getElementById('typeInput').value,
-        tin: document.getElementById('tinInput').value,
+        to_for_label: document.getElementById('toForLabelInput').value,
+        tin: '',
         subject: document.getElementById('subjectInput').value,
-        sender_type: document.getElementById('senderTypeInput').value,
-        sender: document.getElementById('senderInput').value,
-        department: document.getElementById('departmentInput').value,
-        details: document.getElementById('detailsInput').value,
+        to_for: document.getElementById('toForInput').value,
+        from_name: document.getElementById('fromInput').value,
+        department_stakeholder: document.getElementById('departmentInput').value,
+        body: document.getElementById('detailsInput').value,
+        cc: document.getElementById('ccInput').value,
+        additional: document.getElementById('additionalInput').value,
         deadline: document.getElementById('hasDeadlineInput').checked ? document.getElementById('deadlineInput').value : null,
-        sent_via: document.getElementById('sentViaInput').value
+        sent_via: document.getElementById('sentViaInput').value,
+        management_approver_id: document.getElementById('managementApproverInput').value,
+        executive_approver_id: document.getElementById('executiveApproverInput').value,
     };
 
-    if (!payload.subject || !payload.sender || !payload.type) {
-        showSliderError('Please fill in Correspondence Type, Subject, and Sender.');
+    if (!payload.type || !payload.subject || !payload.to_for || !payload.management_approver_id || !payload.executive_approver_id) {
+        showSliderError('Please fill in Correspondence Type, To / For, Subject, Level 1 Approver, and Level 2 Approver.');
         setSaveLoading(false);
         return false;
     }
@@ -1053,20 +905,16 @@ async function addCorrespondence() {
 
         if (!res.ok) {
             if (data.errors) {
-                const messages = Object.values(data.errors).flat().join('<br>');
-                showSliderError(messages);
-            } else if (data.message) {
-                showSliderError(data.message);
+                showSliderError(Object.values(data.errors).flat().join('<br>'));
             } else {
-                showSliderError('Failed to save correspondence.');
+                showSliderError(data.message || 'Failed to save correspondence.');
             }
 
             setSaveLoading(false);
             return false;
         }
 
-        showSliderSuccess(data.message || 'Correspondence saved successfully.');
-        currentWorkflowFilter = 'uploaded';
+        showSliderSuccess(data.message || 'Correspondence submitted successfully.');
         await renderTable();
         setSaveLoading(false);
         return true;
@@ -1094,7 +942,6 @@ async function submitCorrespondence(id) {
     }
 
     alert(data.message || 'Submitted successfully.');
-    currentWorkflowFilter = 'submitted';
     closePreview();
     await renderTable();
 }
@@ -1105,18 +952,23 @@ document.addEventListener('DOMContentLoaded', function () {
     const rootEl = document.getElementById('correspondence-page');
 
     if (editorEl && hiddenInput && rootEl && window.Quill && window.QuillTableBetter) {
+        const Font = Quill.import('formats/font');
+        Font.whitelist = ['georgia', 'serif', 'sans-serif', 'monospace'];
+        Quill.register(Font, true);
+
         Quill.register({
             'modules/table-better': QuillTableBetter
         }, true);
 
         const quill = new Quill('#editor', {
             theme: 'snow',
-            placeholder: 'Write the formal communication here...',
+            placeholder: 'Write the formal correspondence here...',
             modules: {
                 toolbar: [
-                    [{ font: [] }, { size: ['small', false, 'large', 'huge'] }],
+                    [{ font: ['georgia', 'serif', 'sans-serif', 'monospace'] }, { size: ['small', false, 'large', 'huge'] }],
                     [{ header: [1, 2, 3, false] }],
                     ['bold', 'italic', 'underline', 'strike'],
+                    [{ script: 'sub' }, { script: 'super' }],
                     [{ color: [] }, { background: [] }],
                     [{ list: 'ordered' }, { list: 'bullet' }],
                     [{ indent: '-1' }, { indent: '+1' }],
@@ -1132,10 +984,30 @@ document.addEventListener('DOMContentLoaded', function () {
                     toolbarTable: true
                 },
                 keyboard: {
-                    bindings: QuillTableBetter.keyboardBindings
+                    bindings: {
+                        ...QuillTableBetter.keyboardBindings,
+                        correspondenceTabIndent: {
+                            key: 9,
+                            handler: function(range) {
+                                if (range) this.quill.format('indent', '+1', Quill.sources.USER);
+                                return false;
+                            }
+                        },
+                        correspondenceShiftTabOutdent: {
+                            key: 9,
+                            shiftKey: true,
+                            handler: function(range) {
+                                if (range) this.quill.format('indent', '-1', Quill.sources.USER);
+                                return false;
+                            }
+                        }
+                    }
                 }
             }
         });
+
+        quill.root.style.fontFamily = 'Georgia, "Times New Roman", serif';
+        quill.format('font', 'georgia');
 
         window.correspondenceQuill = quill;
 
@@ -1151,38 +1023,10 @@ document.addEventListener('DOMContentLoaded', function () {
             if (alpineData) {
                 alpineData.previewBody = (plainText || hasTable)
                     ? html
-                    : '<p style="color:#9ca3af;">Write the formal communication here...</p>';
+                    : '<p style="color:#9ca3af;">Write the formal correspondence here...</p>';
             }
         });
     }
-
-    const downloadBtn = document.getElementById('download-preview-pdf');
-
-    if (downloadBtn) {
-        downloadBtn.addEventListener('click', function () {
-            const element = document.getElementById('correspondence-preview-pdf');
-            if (!element) return;
-
-            const subject = document.getElementById('subjectInput')?.value?.trim() || 'correspondence';
-            const safeFileName = subject.replace(/[\\/:*?"<>|]+/g, '').replace(/\s+/g, '-').toLowerCase();
-
-            html2pdf().set({
-                margin: [0, 0, 0, 0],
-                filename: `${safeFileName}.pdf`,
-                image: { type: 'jpeg', quality: 0.98 },
-                html2canvas: { scale: 2, useCORS: true, scrollY: 0 },
-                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-                pagebreak: { mode: ['css', 'legacy'] }
-            }).from(element).save();
-        });
-    }
-
-    document.addEventListener('click', function (e) {
-        const menu = document.getElementById('typeFilterMenu');
-        if (menu && !menu.contains(e.target) && !e.target.closest('button')) {
-            menu.classList.add('hidden');
-        }
-    });
 
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {

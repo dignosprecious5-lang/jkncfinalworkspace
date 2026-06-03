@@ -41,31 +41,5 @@
             <tr><td class="project-ntp-sign-box"></td></tr>
             <tr><td class="project-ntp-sign-box">Name, Signature and Date<br>Associate<br><span class="project-ntp-light">{{ $ntp['associate'] ?? '' }}</span></td></tr>
         </table>
-        <div class="project-ntp-panel">
-            <div class="project-ntp-grid">
-                <div>
-                    <span class="project-ntp-label">Printed Name</span>
-                    <div class="project-ntp-value-box">{{ $ntpRecord->client_approved_name ?: $contactName }}</div>
-                </div>
-                <div>
-                    <span class="project-ntp-label">Approved At</span>
-                    <div class="project-ntp-value-box">{{ optional($ntpRecord->client_approved_at)->format('M d, Y h:i A') ?: '-' }}</div>
-                </div>
-            </div>
-            <div class="mt-4">
-                <span class="project-ntp-label">Notes / Comments</span>
-                <div class="project-ntp-value-box min-h-[110px]">{{ $ntpRecord->client_response_notes ?: '-' }}</div>
-            </div>
-            <div class="mt-4">
-                <span class="project-ntp-label">Client Attachment</span>
-                <div class="project-ntp-value-box">
-                    @if ($ntpRecord->client_attachment_path)
-                        <a href="{{ route('uploads.show', ['path' => $ntpRecord->client_attachment_path]) }}" target="_blank" rel="noopener" class="project-ntp-attachment-link">Open Uploaded Attachment</a>
-                    @else
-                        -
-                    @endif
-                </div>
-            </div>
-        </div>
     </div>
 </div>

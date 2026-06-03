@@ -247,18 +247,31 @@ class ResolutionController extends Controller
         $resolution = new Resolution($data);
         $document = $this->resolutionDocumentData($resolution);
 
+        // Store the names used in the signatory section. These names now come
+        // from the latest accepted GIS based on the governing body:
+        // Board = Directors, Stockholders = Stockholders, Joint = both.
         $data['directors'] = collect($document['approval_rows'] ?? [])->pluck('name')->implode(', ');
 
-        $data['chairman'] = !empty($document['chairman']['name'])
-            ? $document['chairman']['name']
-            : null;
+        // Chairman must be whoever is assigned as chairman of the meeting.
+        // Do not overwrite it with the first GIS director/signatory.
+        $data['chairman'] = trim((string) ($data['chairman'] ?? '')) !== ''
+            ? $data['chairman']
+            : data_get($document, 'chairman.name');
 
+        // Corporate Secretary must be whoever is assigned as secretary of the
+        // meeting. Only use the text fallback if no meeting secretary exists.
         if (empty($data['secretary'])) {
             $data['secretary'] = 'Corporate Secretary';
         }
 
+        // Default the notarial series to the current year, but keep it editable.
+        if (empty($data['notary_series_no'])) {
+            $data['notary_series_no'] = now()->year;
+        }
+
         return $data;
     }
+
 
     private function syncSecretaryCertificates(Resolution $resolution): void
     {
@@ -385,33 +398,59 @@ class ResolutionController extends Controller
     {
         $resolution->loadMissing(['minute.notice.attendees', 'notice.attendees']);
 
-        // Corporate module resolutions must use the Corporate GIS as the source
-        // of company identity/header information, not the separate Company module
-        // record. Prefer the GIS that supplied the linked Notice/Minutes attendees;
-        // otherwise use the latest approved Corporate GIS.
+        // Use the GIS linked to the meeting/notice where possible. Fallback to
+        // the latest accepted Corporate GIS. The signatory rows below are pulled
+        // from this GIS, not hardcoded and not manually typed.
         $gis = $this->gisForResolution($resolution);
 
-        $governingBody = trim((string) ($resolution->governing_body ?: $resolution->minute?->governing_body ?: $resolution->notice?->governing_body));
-        $approvalRows = collect($this->attendingSignatories($resolution, $gis));
+        $governingBody = trim((string) (
+            $resolution->governing_body
+            ?: $resolution->minute?->governing_body
+            ?: $resolution->notice?->governing_body
+        ));
 
-        $chairman = null;
+        $chairmanName = trim((string) (
+            $resolution->chairman
+            ?: $resolution->minute?->chairman
+            ?: $resolution->notice?->chairman
+        ));
+
+        // Fallback only: if no meeting chairman was saved, try to find a chair
+        // record from the GIS directors/officers.
+        if ($chairmanName === '' && $gis) {
+            $chairmanName = (string) optional(
+                $gis->directors->first(function ($person) {
+                    $position = Str::lower((string) ($person->officer_type . ' ' . $person->board . ' ' . $person->committee));
+                    return Str::contains($position, 'chair');
+                })
+            )->officer_name;
+        }
+
+        $chairman = $chairmanName !== ''
+            ? ['name' => $chairmanName, 'role' => 'Chairman']
+            : null;
+
+        // President requested:
+        // - Board meetings: show all directors/officers on the GIS
+        // - Stockholders meetings: show all stockholders on the GIS
+        // - Joint meetings: show both directors/officers and stockholders
+        $approvalRows = $gis
+            ? collect($this->gisPeopleForGoverningBody($gis, Str::lower($governingBody)))
+            : collect();
+
+        // The template prints the chairman separately below the approval grid.
+        // Remove the chairman from the grid if the same name is already there.
+        if ($chairmanName !== '') {
+            $normalizedChairman = $this->normalizeName($chairmanName);
+
+            $approvalRows = $approvalRows->reject(function ($row) use ($normalizedChairman) {
+                return $this->normalizeName($row['name'] ?? '') === $normalizedChairman;
+            });
+        }
+
         $approvalRows = $approvalRows
-            ->reject(function ($row) use (&$chairman) {
-                $role = Str::lower((string) ($row['role'] ?? ''));
-                $position = Str::lower((string) ($row['position'] ?? ''));
-
-                $isChairman = Str::contains($role, 'chair')
-                    || Str::contains($position, 'chair');
-
-                if ($isChairman && !$chairman) {
-                    $chairman = [
-                        'name' => $row['name'],
-                        'role' => 'Chairman',
-                    ];
-                }
-
-                return $isChairman;
-            })
+            ->filter(fn ($row) => trim((string) ($row['name'] ?? '')) !== '')
+            ->unique(fn ($row) => $this->normalizeName($row['name'] ?? ''))
             ->values()
             ->all();
 
@@ -430,6 +469,7 @@ class ResolutionController extends Controller
             'full_resolution_body' => $this->completeResolutionBody($resolution),
         ];
     }
+
 
     private function gisForResolution(Resolution $resolution): ?GisRecord
     {
@@ -631,26 +671,32 @@ class ResolutionController extends Controller
 
     private function gisPeopleForGoverningBody(GisRecord $gis, string $governingBody)
     {
+        $body = Str::lower($governingBody);
         $people = collect();
 
-        if (Str::contains($governingBody, 'director') || Str::contains($governingBody, 'board') || Str::contains($governingBody, 'joint')) {
+        if (Str::contains($body, 'director') || Str::contains($body, 'board') || Str::contains($body, 'joint')) {
             $people = $people->merge($gis->directors->map(fn (DirectorOfficer $person) => [
                 'name' => $person->officer_name,
-                'position' => $person->officer_type,
+                'position' => $person->officer_type ?: ($person->board ?: 'Director'),
                 'source_type' => 'director',
+                'role' => 'Director',
             ]));
         }
 
-        if (Str::contains($governingBody, 'stockholder') || Str::contains($governingBody, 'joint')) {
+        if (Str::contains($body, 'stockholder') || Str::contains($body, 'joint')) {
             $people = $people->merge($gis->stockholders->map(fn (Stockholder $person) => [
                 'name' => $person->stockholder_name,
                 'position' => 'Stockholder',
                 'source_type' => 'stockholder',
+                'role' => 'Stockholder',
             ]));
         }
 
-        return $people->values();
+        return $people
+            ->filter(fn ($row) => trim((string) ($row['name'] ?? '')) !== '')
+            ->values();
     }
+
 
     private function gisSourceMap(GisRecord $gis): array
     {

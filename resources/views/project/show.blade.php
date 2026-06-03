@@ -11,6 +11,15 @@
     $repWithin = collect($report?->within_scope_items ?? [])->whenEmpty(fn () => collect([['main_task_description' => '', 'sub_task_description' => '', 'responsible' => '', 'duration' => '', 'start_date' => '', 'end_date' => '', 'status' => '', 'remarks' => '']]));
     $repOut = collect($report?->out_of_scope_items ?? [])->whenEmpty(fn () => collect([['main_task_description' => '', 'sub_task_description' => '', 'responsible' => '', 'duration' => '', 'start_date' => '', 'end_date' => '', 'status' => '', 'remarks' => '']]));
     $sowApproval = (array) ($sow?->internal_approval ?? []);
+    if (blank($sowApproval['sales_marketing'] ?? null) || ($sowApproval['sales_marketing'] ?? null) === 'Sales & Marketing') {
+        $sowApproval['sales_marketing'] = data_get($project->metadata ?? [], 'internal_assignments.sales_marketing', $sowApproval['sales_marketing'] ?? null);
+    }
+    if (blank($sowApproval['finance'] ?? null) || ($sowApproval['finance'] ?? null) === 'Finance') {
+        $sowApproval['finance'] = data_get($project->metadata ?? [], 'internal_assignments.finance', $sowApproval['finance'] ?? null);
+    }
+    if (blank($sowApproval['president'] ?? null) || ($sowApproval['president'] ?? null) === 'President') {
+        $sowApproval['president'] = 'John Kelly Abalde';
+    }
     $repApproval = (array) ($report?->internal_approval ?? []);
     $repSummary = (array) ($report?->status_summary ?? []);
     $logoPath = asset('images/imaglogo.png');
@@ -159,11 +168,6 @@
     .project-ntp-signatures td { border: 1px solid #000; padding: 8px 10px; vertical-align: top; }
     .project-ntp-sign-head { font-family: Georgia, "Times New Roman", serif; font-size: 12pt; font-weight: 700; }
     .project-ntp-sign-box { height: 96px; text-align: center; vertical-align: middle; font-family: Georgia, "Times New Roman", serif; font-size: 11pt; font-weight: 700; }
-    .project-ntp-panel { margin-top: 28px; border: 1px solid #dbe3f0; background: #f8fbff; padding: 18px; }
-    .project-ntp-grid { display: grid; gap: 14px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .project-ntp-label { display: block; margin-bottom: 6px; font-size: .74rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #475569; }
-    .project-ntp-value-box { min-height: 44px; border: 1px solid #cbd5e1; background: #fff; padding: 10px 12px; font-size: .95rem; box-sizing: border-box; }
-    .project-ntp-attachment-link { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; border: 1px solid #1c4587; background: #1c4587; padding: 0 18px; font-size: .9rem; font-weight: 700; color: #fff; text-decoration: none; }
     @media (max-width: 1280px) {
         .project-work-grid { grid-template-columns: 1fr; }
         .project-quick-grid { grid-template-columns: 1fr; }
@@ -182,7 +186,6 @@
         .project-doc-view-actions { width: 100%; justify-content: flex-start; }
         .project-doc-view-body { padding: 14px; }
         .project-doc-view-paper { padding: 20px 18px 22px; }
-        .project-ntp-grid { grid-template-columns: minmax(0, 1fr); }
     }
 </style>
 

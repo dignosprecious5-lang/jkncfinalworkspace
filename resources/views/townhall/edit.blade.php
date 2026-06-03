@@ -196,6 +196,13 @@
         </div>
     @endif
 
+    <div class="townhall-edit-top-actions">
+        <a href="{{ route('townhall.show', $communication->id) }}"
+           class="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 shadow-sm transition">
+            ← Back to Memo
+        </a>
+    </div>
+
     @if($communication->approval_notes)
         <div class="mb-4 rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">
             <span class="font-semibold">Revision Note:</span> {{ $communication->approval_notes }}
@@ -206,21 +213,7 @@
 
         {{-- LEFT PREVIEW PANEL --}}
         <div class="w-[70%] bg-[#f5f6f8] overflow-y-auto p-6 border border-gray-200 rounded-xl">
-            <div class="max-w-[850px] mx-auto mb-4 flex justify-between items-center sticky top-0 z-10">
-                <a href="{{ route('townhall.show', $communication->id) }}"
-                   class="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 shadow-sm transition">
-                    ← Back to Memo
-                </a>
 
-                <button
-                    type="button"
-                    id="download-preview-pdf"
-                    class="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 shadow transition"
-                >
-                    <i class="fas fa-file-pdf"></i>
-                    Download Preview PDF
-                </button>
-            </div>
 
             <div class="max-w-[850px] mx-auto">
                 <div id="memo-preview-pdf" class="memo-edit-preview bg-white border border-gray-300 shadow min-h-[1100px] px-[72px] py-[72px]">
@@ -608,7 +601,7 @@
                             <option value="">Select active employee approver</option>
                             @foreach(($managementApprovers ?? collect()) as $approver)
                                 <option value="{{ $approver['id'] }}">
-                                    {{ $approver['name'] }} — {{ $approver['position'] ?? 'Position' }}
+                                    {{ $approver['name'] }} — {{ $approver['position'] ?? 'Position' }} • {{ $approver['department'] ?? '—' }}
                                 </option>
                             @endforeach
                         </select>
@@ -621,11 +614,32 @@
                         <p><span class="font-semibold">Department:</span> <span x-text="previewManagementDepartment || '—'"></span></p>
                     </div>
 
+                    <div>
+                        <label class="block text-xs font-semibold text-blue-700 mb-1">
+                            Level 2 Approver - From Executive Management
+                        </label>
+
+                        <select
+                            name="executive_approver_id"
+                            x-model="previewExecutiveApproverId"
+                            @change="syncExecutiveApprover()"
+                            class="w-full border border-blue-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500"
+                            required
+                        >
+                            <option value="">Select GIS director/officer</option>
+                            @foreach(($executiveApprovers ?? collect()) as $approver)
+                                <option value="{{ $approver['id'] }}">
+                                    {{ $approver['name'] }} — {{ $approver['position'] ?? 'Position' }} • {{ $approver['department'] ?? '—' }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+
                     <div class="rounded-lg border border-blue-100 bg-white p-3 text-sm">
                         <p class="text-xs font-bold uppercase text-blue-700 mb-2">From Executive Management</p>
                         <p><span class="font-semibold">Name:</span> <span x-text="previewExecutiveName || 'John Kelly D. Abalde'"></span></p>
                         <p><span class="font-semibold">Position:</span> <span x-text="previewExecutivePosition || 'President and CEO'"></span></p>
-                        <p><span class="font-semibold">Department:</span> <span x-text="previewExecutiveDepartment || 'Executive Management'"></span></p>
+                        <p><span class="font-semibold">Office:</span> <span x-text="previewExecutiveDepartment || 'Executive Management'"></span></p>
                     </div>
                 </div>
 
@@ -674,9 +688,11 @@
 
 
 @push('styles')
+<link href="https://cdn.jsdelivr.net/npm/quill@2/dist/quill.snow.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/quill-table-better@1/dist/quill-table-better.css" rel="stylesheet">
 <style>
     .memo-edit-preview {
-        font-family: "Times New Roman", Georgia, serif;
+        font-family: Georgia, "Times New Roman", serif;
         color: #111827;
         font-size: 14px;
         line-height: 1.5;
@@ -700,7 +716,7 @@
         font-size: 24px;
         font-weight: 700;
         color: #111827;
-        font-family: "Times New Roman", Georgia, serif;
+        font-family: Georgia, "Times New Roman", serif;
         margin: 0;
     }
 
@@ -709,7 +725,7 @@
         font-size: 14px;
         line-height: 1.35;
         color: #111827;
-        font-family: "Times New Roman", Georgia, serif;
+        font-family: Georgia, "Times New Roman", serif;
     }
 
     .memo-page-meta p {
@@ -729,7 +745,7 @@
     .memo-page-body div,
     .memo-page-body td,
     .memo-page-body th {
-        font-family: "Times New Roman", Georgia, serif !important;
+        font-family: Georgia, "Times New Roman", serif !important;
         color: #111827;
     }
 
@@ -781,7 +797,7 @@
         font-size: 14px;
         line-height: 1.45;
         text-align: justify;
-        font-family: "Times New Roman", Georgia, serif;
+        font-family: Georgia, "Times New Roman", serif;
     }
 
     .issued-block {
@@ -789,12 +805,12 @@
         margin-bottom: 26px;
         font-size: 14px;
         line-height: 1.7;
-        font-family: "Times New Roman", Georgia, serif;
+        font-family: Georgia, "Times New Roman", serif;
     }
 
     .approval-routing {
         margin-top: 26px;
-        font-family: "Times New Roman", Georgia, serif;
+        font-family: Georgia, "Times New Roman", serif;
         font-size: 13px;
         line-height: 1.25;
         color: #111827;
@@ -835,34 +851,238 @@
     #editor .ql-editor {
         min-height: 260px;
     }
+
+    /* Stable document editor/body support */
+    #editor .ql-editor,
+    .preview-body,
+    .memo-page-body,
+    .memo-body-block {
+        font-family: Georgia, "Times New Roman", serif !important;
+    }
+
+    #editor .ql-editor .ql-indent-1,
+    .preview-body .ql-indent-1,
+    .memo-page-body .ql-indent-1,
+    .memo-body-block .ql-indent-1 { padding-left: 3em !important; }
+
+    #editor .ql-editor .ql-indent-2,
+    .preview-body .ql-indent-2,
+    .memo-page-body .ql-indent-2,
+    .memo-body-block .ql-indent-2 { padding-left: 6em !important; }
+
+    #editor .ql-editor .ql-indent-3,
+    .preview-body .ql-indent-3,
+    .memo-page-body .ql-indent-3,
+    .memo-body-block .ql-indent-3 { padding-left: 9em !important; }
+
+    #editor .ql-editor .ql-indent-4,
+    .preview-body .ql-indent-4,
+    .memo-page-body .ql-indent-4,
+    .memo-body-block .ql-indent-4 { padding-left: 12em !important; }
+
+    #editor .ql-editor .ql-indent-5,
+    .preview-body .ql-indent-5,
+    .memo-page-body .ql-indent-5,
+    .memo-body-block .ql-indent-5 { padding-left: 15em !important; }
+
+    #editor .ql-editor .ql-indent-6,
+    .preview-body .ql-indent-6,
+    .memo-page-body .ql-indent-6,
+    .memo-body-block .ql-indent-6 { padding-left: 18em !important; }
+
+    #editor .ql-editor .ql-indent-7,
+    .preview-body .ql-indent-7,
+    .memo-page-body .ql-indent-7,
+    .memo-body-block .ql-indent-7 { padding-left: 21em !important; }
+
+    #editor .ql-editor .ql-indent-8,
+    .preview-body .ql-indent-8,
+    .memo-page-body .ql-indent-8,
+    .memo-body-block .ql-indent-8 { padding-left: 24em !important; }
+
+    #editor .ql-editor table,
+    .preview-body table,
+    .memo-page-body table,
+    .memo-body-block table {
+        width: 100% !important;
+        max-width: 100% !important;
+        table-layout: fixed !important;
+        border-collapse: collapse !important;
+        border-spacing: 0 !important;
+        margin: 12px 0 !important;
+    }
+
+    #editor .ql-editor th,
+    #editor .ql-editor td,
+    .preview-body th,
+    .preview-body td,
+    .memo-page-body th,
+    .memo-page-body td,
+    .memo-body-block th,
+    .memo-body-block td {
+        border: 1px solid #94a3b8 !important;
+        padding: 10px 12px !important;
+        vertical-align: top !important;
+        white-space: normal !important;
+        word-break: normal !important;
+        overflow-wrap: break-word !important;
+    }
+
+
+    /* Town Hall stable body containment + Georgia default */
+    .memo-page,
+    .memo-edit-preview,
+    .memo-page *,
+    .memo-edit-preview *,
+    .preview-body,
+    .preview-body *,
+    .memo-page-body,
+    .memo-page-body *,
+    .memo-body-block,
+    .memo-body-block *,
+    #editor .ql-editor,
+    #editor .ql-editor * {
+        font-family: Georgia, "Times New Roman", serif !important;
+    }
+
+    .memo-page-body,
+    .memo-page-body p,
+    .memo-page-body div,
+    .memo-page-body span,
+    .memo-page-body li,
+    .memo-body-block,
+    .memo-body-block p,
+    .memo-body-block div,
+    .memo-body-block span,
+    .memo-body-block li,
+    .preview-body,
+    .preview-body p,
+    .preview-body div,
+    .preview-body span,
+    .preview-body li {
+        max-width: 100% !important;
+        white-space: normal !important;
+        overflow-wrap: anywhere !important;
+        word-break: break-word !important;
+    }
+
+    .ql-font-georgia,
+    .ql-font-georgia * {
+        font-family: Georgia, "Times New Roman", serif !important;
+    }
+
+    .ql-picker.ql-font .ql-picker-label[data-value="georgia"]::before,
+    .ql-picker.ql-font .ql-picker-item[data-value="georgia"]::before {
+        content: "Georgia";
+        font-family: Georgia, "Times New Roman", serif;
+    }
+
+    .ql-picker.ql-font .ql-picker-label[data-value="serif"]::before,
+    .ql-picker.ql-font .ql-picker-item[data-value="serif"]::before {
+        content: "Serif";
+    }
+
+    .ql-picker.ql-font .ql-picker-label[data-value="sans-serif"]::before,
+    .ql-picker.ql-font .ql-picker-item[data-value="sans-serif"]::before {
+        content: "Sans Serif";
+    }
+
+    .ql-picker.ql-font .ql-picker-label[data-value="monospace"]::before,
+    .ql-picker.ql-font .ql-picker-item[data-value="monospace"]::before {
+        content: "Monospace";
+    }
+
+
+
+    /* Edit Revision top action bar - same top behavior as Show page */
+    .townhall-edit-top-actions {
+        position: sticky;
+        top: 0;
+        z-index: 120;
+        display: flex;
+        justify-content: flex-start;
+        align-items: center;
+        padding: 0.75rem 0;
+        margin-bottom: 0.75rem;
+        background: rgba(243, 244, 246, 0.96);
+        border-bottom: 1px solid #e5e7eb;
+        backdrop-filter: blur(6px);
+    }
+
 </style>
 @endpush
 
 @push('scripts')
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-
+<script src="https://cdn.jsdelivr.net/npm/quill@2/dist/quill.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/quill-table-better@1/dist/quill-table-better.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     const editorEl = document.getElementById('editor');
     const hiddenInput = document.getElementById('message');
     const form = document.getElementById('townhall-edit-form');
 
-    if (editorEl && hiddenInput && form) {
+    if (editorEl && hiddenInput && form && window.Quill && window.QuillTableBetter) {
+        const Font = Quill.import('formats/font');
+        Font.whitelist = ['georgia', 'serif', 'sans-serif', 'monospace'];
+        Quill.register(Font, true);
+
+        Quill.register({
+            'modules/table-better': QuillTableBetter
+        }, true);
         const quill = new Quill('#editor', {
             theme: 'snow',
             placeholder: 'Write the formal communication here...',
             modules: {
                 toolbar: [
-                    [{ font: [] }, { size: ['small', false, 'large', 'huge'] }],
-                    ['bold', 'italic', 'underline'],
+                    [{ font: ['georgia', 'serif', 'sans-serif', 'monospace'] }, { size: ['small', false, 'large', 'huge'] }],
+                    [{ header: [1, 2, 3, false] }],
+                    ['bold', 'italic', 'underline', 'strike'],
+                    [{ script: 'sub' }, { script: 'super' }],
                     [{ color: [] }, { background: [] }],
                     [{ list: 'ordered' }, { list: 'bullet' }],
+                    [{ indent: '-1' }, { indent: '+1' }],
                     [{ align: [] }],
-                    ['link'],
+                    ['blockquote', 'link'],
+                    ['table-better'],
                     ['clean']
-                ]
+                ],
+                table: false,
+                'table-better': {
+                    language: 'en_US',
+                    menus: ['column', 'row', 'merge', 'table', 'cell', 'wrap', 'copy', 'delete'],
+                    toolbarTable: true
+                },
+                keyboard: {
+                    bindings: {
+                        ...QuillTableBetter.keyboardBindings,
+
+                        townhallTabIndent: {
+                            key: 9,
+                            handler: function(range, context) {
+                                if (range) {
+                                    this.quill.format('indent', '+1', Quill.sources.USER);
+                                }
+                                return false;
+                            }
+                        },
+
+                        townhallShiftTabOutdent: {
+                            key: 9,
+                            shiftKey: true,
+                            handler: function(range, context) {
+                                if (range) {
+                                    this.quill.format('indent', '-1', Quill.sources.USER);
+                                }
+                                return false;
+                            }
+                        }
+                    }
+                }
             }
         });
+        quill.root.style.fontFamily = 'Georgia, "Times New Roman", serif';
+        quill.format('font', 'georgia');
+
 
         const existingMessage = {!! json_encode(old('message', $communication->message)) !!};
         const rootEl = document.getElementById('townhall-edit-page');
@@ -890,7 +1110,9 @@ document.addEventListener('DOMContentLoaded', function () {
             hiddenInput.value = html;
 
             if (alpineData) {
-                alpineData.previewBody = quill.getText().trim()
+                const hasText = quill.getText().trim().length > 0;
+                const hasTable = !!quill.root.querySelector('table');
+                alpineData.previewBody = (hasText || hasTable)
                     ? html
                     : '<p style="color:#9ca3af;">Write the formal communication here...</p>';
             }
@@ -898,30 +1120,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
         form.addEventListener('submit', function () {
             hiddenInput.value = quill.root.innerHTML;
-        });
-    }
-
-    const downloadBtn = document.getElementById('download-preview-pdf');
-
-    if (downloadBtn) {
-        downloadBtn.addEventListener('click', function () {
-            const element = document.getElementById('memo-preview-pdf');
-            if (!element) return;
-
-            const subject = document.querySelector('input[name="subject"]')?.value?.trim() || 'townhall-memo';
-            const safeFileName = subject
-                .replace(/[\\/:*?"<>|]+/g, '')
-                .replace(/\s+/g, '-')
-                .toLowerCase();
-
-            html2pdf().set({
-                margin: [0.3, 0.3, 0.3, 0.3],
-                filename: `${safeFileName}.pdf`,
-                image: { type: 'jpeg', quality: 0.98 },
-                html2canvas: { scale: 2, useCORS: true, scrollY: 0 },
-                jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' },
-                pagebreak: { mode: ['css', 'legacy'] }
-            }).from(element).save();
         });
     }
 });

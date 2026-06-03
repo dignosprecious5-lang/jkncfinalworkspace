@@ -92,6 +92,13 @@
 
     $minutesProperHtml = $compactMinutesHtml($minute->recording_notes ?? '');
     $pdfFooterLeft = trim(($minute->minutes_ref ?: 'MINUTES') . ' - ' . $jkCompanyName);
+
+    $dompdfFooterLeft = trim('MINUTES ' . ($minute->minutes_ref ?: '') . ' - ' . $jkCompanyName);
+    $dompdfFooterLeft = html_entity_decode((string) $dompdfFooterLeft, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $dompdfFooterLeft = preg_replace('/\s+/', ' ', $dompdfFooterLeft);
+    if (mb_strlen($dompdfFooterLeft) > 90) {
+        $dompdfFooterLeft = mb_substr($dompdfFooterLeft, 0, 87) . '...';
+    }
 @endphp
 
 <!DOCTYPE html>
@@ -102,7 +109,7 @@
     <style>
         @page {
             size: A4 portrait;
-            margin: 14mm 16mm 22mm 16mm;
+            margin: 14mm 16mm 22mm 24mm;
         }
 
         * {
@@ -187,13 +194,20 @@
 
         .minutes-body {
             margin-top: 5px;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+            white-space: normal;
             min-height: 0;
             line-height: 1.32;
         }
 
         .minutes-body p,
-        .minutes-body div {
+        .minutes-body div,
+        .minutes-body span {
             margin: 0 0 5px;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+            white-space: normal;
         }
 
         .minutes-body ol,
@@ -203,58 +217,34 @@
         }
 
         .signature-section {
-            margin-top: 14px;
-            line-height: 1.32;
+            margin-top: 42px;
+            line-height: 1.5;
         }
 
         .signature-name {
-            margin-top: 3px;
+            margin-top: 42px;
             font-weight: 700;
             text-transform: uppercase;
         }
 
         .attested-block {
-            margin-top: 13px;
+            margin-top: 46px;
+        }
+
+        .minutes-body pre,
+        .minutes-body code {
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+            word-break: break-word;
         }
 
         .avoid-break {
             page-break-inside: avoid;
         }
-
-        .pdf-fixed-footer {
-            position: fixed;
-            left: 0;
-            right: 0;
-            bottom: -12mm;
-            height: 10mm;
-            border-top: 0.6px solid #111;
-            font-size: 8pt;
-            line-height: 1.2;
-            color: #111;
-        }
-        .pdf-fixed-footer .pdf-footer-left {
-            position: absolute;
-            left: 0;
-            top: 2mm;
-            width: 70%;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        .pdf-fixed-footer .pdf-footer-right {
-            position: absolute;
-            right: 0;
-            top: 2mm;
-            text-align: right;
-            font-weight: 700;
-        }
-        .pdf-page-counter:after {
-            content: "Page " counter(page) " of " counter(pages);
-        }
-    </style>
+</style>
 </head>
 <body>
-    <div class="page">
+<div class="page">
         <div class="center">
             @if($gisLogoDataUri)
                 <img src="{{ $gisLogoDataUri }}" class="gis-logo" alt="Company Logo">
@@ -403,7 +393,7 @@
     if (isset($pdf)) {
         $font = $fontMetrics->get_font("Times-Roman", "normal");
         $boldFont = $fontMetrics->get_font("Times-Roman", "bold");
-        $footerLeft = @json($dompdfFooterLeft);
+        $footerLeft = {!! var_export($dompdfFooterLeft, true) !!};
 
         $pdf->line(40, 800, 555, 800, [0, 0, 0], 0.4);
         $pdf->page_text(40, 808, $footerLeft, $font, 8, [0, 0, 0]);
