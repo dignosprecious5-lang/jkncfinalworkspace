@@ -793,7 +793,8 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::post('/corporate/bylaws/{id}/upload-notary-file', [BylawController::class, 'uploadNotaryFile'])->name('corporate.bylaws.upload.notary');
     Route::post('/corporate/bylaws/{id}/submit', [BylawController::class, 'submit'])->name('corporate.bylaws.submit');
 
-    Route::view('/corporate/lgu', 'corporate.lgu')->name('corporate.lgu');
+    // Kept only for old/static view reference; main /corporate/lgu route is handled by PermitController below.
+    Route::view('/corporate/lgu-static', 'corporate.lgu')->name('corporate.lgu.static');
     Route::view('/corporate/accounting', 'corporate.accounting')->name('corporate.accounting');
     Route::view('/corporate/banking', 'corporate.banking')->name('corporate.banking');
     Route::view('/corporate/legal', 'corporate.legal')->name('corporate.legal');
