@@ -9,6 +9,7 @@ use App\Models\PayrollPeriod;
 use App\Models\PayrollLevel;
 use App\Models\SalaryGrade;
 use App\Models\User;
+use App\Models\UserPermission;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 
@@ -21,6 +22,19 @@ function financeLifecyclePolicyFixtures(): array
         'email' => 'lifecycle.requester@example.com',
         'role' => 'employee',
     ]);
+    UserPermission::query()->updateOrCreate(
+        ['user_id' => $owner->id],
+        [
+            'access_finance_ca' => true,
+            'access_finance_dv' => true,
+            'access_finance_lr' => true,
+            'access_finance_err' => true,
+            'access_finance_pda' => true,
+            'access_finance_ibtf' => true,
+            'access_finance_bank_account' => true,
+            'access_finance_chart_account' => true,
+        ]
+    );
 
     $president = User::factory()->create([
         'name' => 'Lifecycle President',
@@ -362,7 +376,7 @@ test('payroll authorization completes after dv release and locks the record', fu
     $pda = $pda->fresh();
     $dv = $dv->fresh();
 
-    expect(data_get($dv->data, 'relationship_status'))->toBe('Completed');
+    expect(data_get($dv->data, 'relationship_status'))->toBe('Disbursed');
     expect(data_get($pda->data, 'relationship_status'))->toBe('Payroll Released');
     expect(data_get($pda->data, 'disbursement_status'))->toBe('Fully Disbursed');
     expect(data_get($pda->data, 'total_disbursed_amount'))->toBe('25000.00');
@@ -714,7 +728,7 @@ test('interbank transfer completes after dv release', function () {
     $ibtf = $ibtf->fresh();
     $dv = $dv->fresh();
 
-    expect(data_get($dv->data, 'relationship_status'))->toBe('Completed');
+    expect(data_get($dv->data, 'relationship_status'))->toBe('Disbursed');
     expect(data_get($ibtf->data, 'relationship_status'))->toBe('Transfer Completed');
     expect(data_get($ibtf->data, 'disbursement_status'))->toBe('Fully Disbursed');
     expect(data_get($ibtf->data, 'total_disbursed_amount'))->toBe('15000.00');
@@ -991,7 +1005,7 @@ test('expense reimbursements complete after dv release and remain linked to the 
     $dv = $dv->fresh();
 
     expect(data_get($err->data, 'relationship_status'))->toBe('Completed');
-    expect(data_get($dv->data, 'relationship_status'))->toBe('Completed');
+    expect(data_get($dv->data, 'relationship_status'))->toBe('Disbursed');
     expect(data_get($err->data, 'disbursement_status'))->toBe('Fully Disbursed');
     expect(data_get($err->data, 'total_disbursed_amount'))->toBe('1800.00');
     expect(data_get($err->data, 'remaining_balance'))->toBe('0.00');

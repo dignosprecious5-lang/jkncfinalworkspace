@@ -2,6 +2,7 @@
 
 use App\Models\FinanceRecord;
 use App\Models\User;
+use App\Models\UserPermission;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
@@ -13,6 +14,17 @@ function financePurchaseOrderFixtures(): array
         'email' => 'po.requester@example.com',
         'role' => 'employee',
     ]);
+    UserPermission::query()->updateOrCreate(
+        ['user_id' => $owner->id],
+        [
+            'access_finance_pr' => true,
+            'access_finance_po' => true,
+            'access_finance_dv' => true,
+            'access_finance_supplier' => true,
+            'access_finance_service' => true,
+            'access_finance_chart_account' => true,
+        ]
+    );
 
     $president = User::factory()->create([
         'name' => 'PO President',
@@ -272,7 +284,7 @@ test('purchase orders must link to an approved purchase request and promote the 
 
     expect($po->workflow_status)->toBe('Accepted');
     expect($po->approval_status)->toBe('Approved');
-    expect(data_get($po->data, 'relationship_status'))->toBe('Awaiting DV Creation');
+    expect(data_get($po->data, 'relationship_status'))->toBe('Awaiting Disbursement');
     expect(data_get($po->data, 'next_action'))->toBe('Create Disbursement Voucher');
     expect(data_get($fixtures['approvedPr']->data, 'relationship_status'))->toBe('Purchase Order Approved');
     expect(data_get($fixtures['approvedPr']->data, 'next_action'))->toBe('Create Disbursement Voucher');
@@ -340,12 +352,12 @@ test('purchase orders must link to an approved purchase request and promote the 
     $po->refresh();
     $fixtures['approvedPr']->refresh();
 
-    expect($dv->status)->toBe('Completed');
-    expect(data_get($dv->data, 'relationship_status'))->toBe('Completed');
+    expect($dv->status)->toBe('Disbursed');
+    expect(data_get($dv->data, 'relationship_status'))->toBe('Disbursed');
     expect(data_get($dv->data, 'next_action'))->toBe('No further action');
-    expect(data_get($po->data, 'relationship_status'))->toBe('Fully Disbursed');
+    expect(data_get($po->data, 'relationship_status'))->toBe('Disbursed');
     expect(data_get($po->data, 'next_action'))->toBe('No further action');
-    expect(data_get($fixtures['approvedPr']->data, 'relationship_status'))->toBe('Fully Disbursed');
+    expect(data_get($fixtures['approvedPr']->data, 'relationship_status'))->toBe('Disbursed');
     expect(data_get($fixtures['approvedPr']->data, 'next_action'))->toBe('No further action');
 });
 

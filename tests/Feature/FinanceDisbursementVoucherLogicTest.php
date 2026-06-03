@@ -3,6 +3,7 @@
 use App\Models\FinanceRecord;
 use App\Models\Setting;
 use App\Models\User;
+use App\Models\UserPermission;
 use App\Notifications\FinanceRecordWorkflowNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -30,6 +31,15 @@ function financeDisbursementVoucherFixtures(): array
         'email' => 'dv.requester@example.com',
         'role' => 'employee',
     ]);
+    UserPermission::query()->updateOrCreate(
+        ['user_id' => $owner->id],
+        [
+            'access_finance_ca' => true,
+            'access_finance_dv' => true,
+            'access_finance_bank_account' => true,
+            'access_finance_chart_account' => true,
+        ]
+    );
 
     $president = User::factory()->create([
         'name' => 'DV President',
@@ -391,7 +401,7 @@ test('disbursement vouchers auto-populate source snapshots and ignore conflictin
             'source_payee_name' => 'Override Payee Name',
             'source_status' => 'Cancelled',
             'source_workflow_status' => 'Draft',
-            'source_relationship_status' => 'Awaiting DV Creation',
+            'source_relationship_status' => 'Awaiting Disbursement',
             'payee_type' => 'Override Payee Type',
             'payee_name' => 'Override Payee Name',
             'amount' => 9999,
@@ -561,8 +571,8 @@ test('released disbursement vouchers become read-only and reject field and attac
     $releaseResponse->assertOk();
 
     $dv->refresh();
-    expect($dv->status)->toBe('Completed');
-    expect(data_get($dv->data, 'relationship_status'))->toBe('Completed');
+    expect($dv->status)->toBe('Disbursed');
+    expect(data_get($dv->data, 'relationship_status'))->toBe('Disbursed');
 
     $lockedUpdateResponse = $this->actingAs($fixtures['president'])->put(route('finance.update', $dv), [
         'module_key' => 'dv',

@@ -706,14 +706,16 @@
                         </div>
                     </div>
                 </td>
-                <td class="header-cell" style="width: 38%;">
-                    <div class="status-box">
-                        <p class="status-title">Document Status</p>
-                        <p class="status-line">Workflow: {{ $record->workflow_status ?: 'N/A' }}</p>
-                        <p class="status-line">Approval: {{ $record->approval_status ?: 'N/A' }}</p>
-                        <p class="status-line">Status: {{ $record->status ?: 'N/A' }}</p>
-                    </div>
-                </td>
+                @if(!$isTemplatePreview)
+                    <td class="header-cell" style="width: 38%;">
+                        <div class="status-box">
+                            <p class="status-title">Document Status</p>
+                            <p class="status-line">Workflow: {{ $record->workflow_status ?: 'N/A' }}</p>
+                            <p class="status-line">Approval: {{ $record->approval_status ?: 'N/A' }}</p>
+                            <p class="status-line">Status: {{ $record->status ?: 'N/A' }}</p>
+                        </div>
+                    </td>
+                @endif
             </tr>
         </table>
 

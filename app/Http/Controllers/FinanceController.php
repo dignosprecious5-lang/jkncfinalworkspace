@@ -2279,6 +2279,8 @@ SVG;
                 $data = array_replace($data, array_filter([
                     'supplier_id' => data_get($data, 'supplier_id') ?: data_get($linkedPr->data ?? [], 'supplier_id'),
                     'supplier_name' => data_get($data, 'supplier_name') ?: data_get($linkedPr->data ?? [], 'supplier_name') ?: data_get($linkedPr->data ?? [], 'supplier_name'),
+                    'project' => data_get($data, 'project') ?: data_get($linkedPr->data ?? [], 'project') ?: data_get($linkedPr->data ?? [], 'project_name') ?: data_get($linkedPr->data ?? [], 'project_code'),
+                    'cost_center' => data_get($data, 'cost_center') ?: data_get($linkedPr->data ?? [], 'cost_center') ?: data_get($linkedPr->data ?? [], 'cost_center_code') ?: data_get($linkedPr->data ?? [], 'cost_center_name'),
                     'trade_name' => data_get($data, 'trade_name') ?: data_get($linkedPr->data ?? [], 'trade_name'),
                     'company_name' => data_get($data, 'company_name') ?: data_get($linkedPr->data ?? [], 'company_name'),
                 ], fn ($value) => ! blank($value)));
@@ -2681,12 +2683,16 @@ SVG;
     private function financeLifecycleLinkedRecords(FinanceRecord $record): array
     {
         $data = $record->data ?? [];
-        $po = $record->module_key === 'pr'
-            ? $this->financeFirstPoForPr($record->id)
-            : $this->financeResolveModuleRecord('po', data_get($data, 'linked_po_id'));
-        $pr = $record->module_key === 'pr'
-            ? $record
-            : ($po ? $this->financeResolveModuleRecord('pr', data_get($po->data ?? [], 'linked_pr_id')) : null);
+        $po = match ($record->module_key) {
+            'pr' => $this->financeFirstPoForPr($record->id),
+            'po' => $record,
+            default => $this->financeResolveModuleRecord('po', data_get($data, 'linked_po_id')),
+        };
+        $pr = match ($record->module_key) {
+            'pr' => $record,
+            'po' => $this->financeResolveModuleRecord('pr', data_get($data, 'linked_pr_id')),
+            default => $po ? $this->financeResolveModuleRecord('pr', data_get($po->data ?? [], 'linked_pr_id')) : null,
+        };
 
         $dv = match ($record->module_key) {
             'dv' => $record,
@@ -2845,13 +2851,11 @@ SVG;
                 return 'For Payment Processing';
             }
 
-            if ($disbursement['is_fully_disbursed']) {
-                return 'Fully Disbursed';
+            if ($disbursement['is_fully_disbursed'] || $this->financeRecordIsReleased($dv)) {
+                return 'Disbursed';
             }
 
-            return $this->financeRecordIsReleased($dv)
-                ? 'Fully Disbursed'
-                : 'Approved for Payment';
+            return 'Approved for Payment';
         }
 
         if ($record->module_key === 'po') {
@@ -2862,7 +2866,7 @@ SVG;
             $disbursement = $this->financeSourceDisbursementSummary($record);
 
             if (!$dv) {
-                return 'Awaiting DV Creation';
+                return 'Awaiting Disbursement';
             }
 
             if ($disbursement['is_partially_disbursed']) {
@@ -2870,23 +2874,19 @@ SVG;
             }
 
             if (!$this->financeRecordIsApproved($dv)) {
-                return 'Pending DV Approval';
+                return 'Pending Disbursement';
             }
 
-            if ($disbursement['is_fully_disbursed']) {
-                return 'Fully Disbursed';
+            if ($disbursement['is_fully_disbursed'] || $this->financeRecordIsReleased($dv)) {
+                return 'Disbursed';
             }
 
-            return $this->financeRecordIsReleased($dv)
-                ? 'Fully Disbursed'
-                : 'Approved for Payment';
+            return 'Approved for Payment';
         }
 
         if ($record->module_key === 'dv') {
             if ($this->financeRecordIsReleased($record)) {
-                return (string) data_get($record->data ?? [], 'source_document_type') === 'ca'
-                    ? 'Disbursed'
-                    : 'Completed';
+                return 'Disbursed';
             }
 
             return $this->financeRecordIsApproved($record)
@@ -3001,7 +3001,7 @@ SVG;
             $relationshipStatus === 'Correction Requested' => 'Review Correction Request',
             $relationshipStatus === 'Completed' => 'No further action',
             $relationshipStatus === 'Partially Disbursed' => in_array($moduleKey, ['ca'], true) ? 'Continue Liquidation' : 'Release Remaining Balance',
-            $relationshipStatus === 'Fully Disbursed' => match ($moduleKey) {
+            in_array($relationshipStatus, ['Fully Disbursed', 'Disbursed'], true) => match ($moduleKey) {
                 'ca' => 'Submit Liquidation Report',
                 'po', 'pr' => 'No further action',
                 'err', 'pda', 'ibtf' => 'No further action',
@@ -3012,7 +3012,7 @@ SVG;
             $moduleKey === 'pr' && $relationshipStatus === 'Purchase Order Approved' => 'Create Disbursement Voucher',
             $moduleKey === 'pr' && in_array($relationshipStatus, ['For Payment Processing', 'Pending Disbursement'], true) => 'Approve Disbursement Voucher',
             $moduleKey === 'pr' && $relationshipStatus === 'Approved for Payment' => 'Release Funds',
-            $moduleKey === 'po' && in_array($relationshipStatus, ['Awaiting DV Creation', 'Awaiting Disbursement'], true) => 'Create Disbursement Voucher',
+            $moduleKey === 'po' && $relationshipStatus === 'Awaiting Disbursement' => 'Create Disbursement Voucher',
             $moduleKey === 'po' && $relationshipStatus === 'Pending Disbursement' => 'Approve Disbursement Voucher',
             $moduleKey === 'po' && $relationshipStatus === 'Approved for Payment' => 'Release Funds',
             $moduleKey === 'dv' && $relationshipStatus === 'Pending Approval' => 'Approve Disbursement Voucher',
@@ -3055,7 +3055,7 @@ SVG;
         $supportingDocumentsSubmitted = collect([$record, $sourceRecord, $dv, $lr])
             ->filter(fn ($candidate) => $candidate instanceof FinanceRecord)
             ->contains(fn (FinanceRecord $candidate) => !blank((array) ($candidate->attachments ?? [])));
-        $completed = $relationshipStatus === 'Completed'
+        $completed = in_array($relationshipStatus, ['Completed', 'Disbursed'], true)
             || $relationshipStatus === 'Payroll Released'
             || $relationshipStatus === 'Transfer Completed'
             || in_array(Str::lower((string) ($record->status ?? '')), ['completed', 'paid', 'liquidated', 'closed'], true);
@@ -3577,12 +3577,12 @@ SVG;
             ],
             'pr' => [
                 $section('Request Details', [
+                    ['name' => 'request_type', 'label' => 'Type'],
                     ['name' => 'priority', 'label' => 'Priority'],
                     ['name' => 'needed_date', 'label' => 'Needed Date'],
                     ['name' => 'for_client', 'label' => 'Is this for a client?'],
                     ['name' => 'pr_reason_categories', 'label' => 'Reason (tick all that apply)'],
                 ]),
-                $this->financeConnectedRecordsSection($record, $lookupOptions),
                 $section('Requester Details', [
                     ['name' => 'requester_mode', 'label' => 'Requester Option'],
                     ['name' => 'requester_employee_id', 'label' => 'Selected Employee'],
@@ -3595,44 +3595,66 @@ SVG;
                     ['name' => 'superior', 'label' => 'Superior'],
                     ['name' => 'superior_email', 'label' => 'Superior Email'],
                 ]),
+                $section('Vendor / Supplier Details', [
+                    ['name' => 'supplier_id', 'label' => 'Supplier'],
+                    ['name' => 'new_vendor', 'label' => 'New Vendor?'],
+                    ['name' => 'vendor_id_number', 'label' => 'Vendor ID Number'],
+                    ['name' => 'vendors_tin', 'label' => 'Vendors TIN#'],
+                    ['name' => 'company_name', 'label' => 'Company'],
+                    ['name' => 'vendor_address', 'label' => 'Address'],
+                    ['name' => 'city', 'label' => 'City'],
+                    ['name' => 'province', 'label' => 'Province'],
+                    ['name' => 'zip', 'label' => 'Zip'],
+                    ['name' => 'vendor_phone', 'label' => 'Phone Number'],
+                    ['name' => 'vendor_email', 'label' => 'Email'],
+                ]),
+                $section('Project Allocation', [
+                    ['name' => 'project', 'label' => 'Project'],
+                    ['name' => 'cost_center', 'label' => 'Cost Center'],
+                    ['name' => 'coa_id', 'label' => 'Account'],
+                ]),
                 ['type' => 'line_items', 'title' => 'Items / Cost Details'],
                 $section('Purpose & Notes', [
                     ['name' => 'purpose', 'label' => 'Purpose / Justification'],
                     ['name' => 'remarks', 'label' => 'Remarks'],
                 ]),
-                $notesSection,
             ],
             'po' => [
-                $section('Order Overview', [
-                    ['name' => 'record_number', 'label' => 'PO Number'],
-                    ['name' => 'record_title', 'label' => 'Title'],
-                    ['name' => 'record_date', 'label' => 'Date'],
-                    ['name' => 'workflow_status', 'label' => 'Workflow'],
-                    ['name' => 'approval_status', 'label' => 'Approval'],
-                ]),
-                $section('Connected Records', [
-                    ['name' => 'linked_pr_id', 'label' => 'Linked PR'],
-                    ['name' => 'linked_dv_id', 'label' => 'Linked DV'],
-                    ['name' => 'supplier_id', 'label' => 'Supplier'],
-                ]),
                 $section('Order Details', [
+                    ['name' => 'linked_pr_id', 'label' => 'Linked PR'],
+                    ['name' => 'supplier_id', 'label' => 'Supplier'],
+                    ['name' => 'project', 'label' => 'Project'],
+                    ['name' => 'cost_center', 'label' => 'Cost Center'],
+                    ['name' => 'linked_item_type', 'label' => 'Items / Services Type'],
+                    ['name' => 'linked_item_id', 'label' => 'Items / Services'],
+                    ['name' => 'quantity', 'label' => 'Quantity'],
+                    ['name' => 'unit_cost', 'label' => 'Unit Cost'],
+                    ['name' => 'total_amount', 'label' => 'Total Amount'],
                     ['name' => 'expected_delivery_date', 'label' => 'Expected Delivery Date'],
                     ['name' => 'delivery_address', 'label' => 'Delivery Address'],
                     ['name' => 'terms_and_conditions', 'label' => 'Terms and Conditions'],
-                    ['name' => 'purpose', 'label' => 'Purpose'],
                     ['name' => 'remarks', 'label' => 'Remarks'],
                     ['name' => 'coa_id', 'label' => 'Account'],
                 ]),
                 ['type' => 'line_items', 'title' => 'Items / Cost Details'],
-                $notesSection,
             ],
             'ca' => [
-                [
-                    'type' => 'ca_payment_tracking',
-                    'title' => 'Cash Advance Payment Tracking',
-                ],
-                $this->financeConnectedRecordsSection($record, $lookupOptions),
-                $section('Cash Advance Details', [
+                $section('Request Details', array_values(array_filter([
+                    ['name' => 'requester_mode', 'label' => 'Requester Option'],
+                    ['name' => 'requester_employee_id', 'label' => 'Selected Employee'],
+                    ['name' => 'employee_id', 'label' => 'Employee ID'],
+                    ['name' => 'employee_name', 'label' => 'Employee Name'],
+                    ['name' => 'employee_email', 'label' => 'Email'],
+                    ['name' => 'contact_number', 'label' => 'Contact #'],
+                    ['name' => 'position', 'label' => 'Position'],
+                    ['name' => 'department', 'label' => 'Department'],
+                    ['name' => 'superior', 'label' => 'Superior'],
+                    ['name' => 'superior_email', 'label' => 'Superior Email'],
+                    ['name' => 'needed_date', 'label' => 'Needed Date'],
+                    ['name' => 'priority', 'label' => 'Priority'],
+                    ['name' => 'cash_advance_type', 'label' => 'Cash Advance Type'],
+                    ['name' => 'for_client', 'label' => 'For Client?'],
+                    ['name' => 'client_names', 'label' => 'Client Name(s)'],
                     ['name' => 'amount_requested', 'label' => 'Amount Requested'],
                     ['name' => 'release_schedule', 'label' => 'Release Schedule'],
                     ['name' => 'release_count', 'label' => 'Number of Releases'],
@@ -3641,22 +3663,10 @@ SVG;
                     ['name' => 'cash_release_time', 'label' => 'Cash Release Time'],
                     ['name' => 'mode_of_release', 'label' => 'Mode of Release'],
                     ['name' => 'paid_through', 'label' => 'Paid Through'],
-                ]),
-                $section('Approval Routing', [
-                    ['name' => 'first_approver_user_id', 'label' => 'Treasurer'],
-                    ['name' => 'second_approver_user_id', 'label' => 'President'],
-                ]),
-                $section('Request Details', array_values(array_filter([
-                    ['name' => 'requester_mode', 'label' => 'Requester Option'],
-                    ['name' => 'needed_date', 'label' => 'Needed Date'],
-                    ['name' => 'priority', 'label' => 'Priority'],
-                    ['name' => 'cash_advance_type', 'label' => 'Cash Advance Type'],
-                    ['name' => 'for_client', 'label' => 'For Client?'],
                     ['name' => 'purpose', 'label' => 'Justification / Business Need'],
                     ['name' => 'usage_categories', 'label' => 'Cash Advance Usage / Expense Categories'],
                     ['name' => 'other_business_purpose_specify', 'label' => 'Other Business Purpose - Specify'],
                     ['name' => 'other_expense_specify', 'label' => 'Other Expense - Specify'],
-                    ['name' => 'client_names', 'label' => 'Client Name(s)'],
                 ], fn ($field) => ! isset($field['name']) || $this->conditionalPreviewFieldVisible($data, $field['name'])))),
                 $section('Requester Details', [
                     ['name' => 'requester_employee_id', 'label' => 'Selected Employee'],
@@ -3678,44 +3688,19 @@ SVG;
                     ['name' => 'policy_acknowledgment', 'label' => 'Policy Acknowledgment'],
                 ]),
                 $section('Funding & Notes', [
-                    ['name' => 'bank_account_id', 'label' => 'Bank Account / Cash Source'],
-                    ['name' => 'coa_id', 'label' => 'Account'],
                     ['name' => 'remarks', 'label' => 'Remarks'],
                 ]),
-                $notesSection,
             ],
             'lr' => [
-                $section('Liquidation Overview', [
-                    ['name' => 'record_number', 'label' => 'LR Number'],
-                    ['name' => 'record_title', 'label' => 'Title'],
-                    ['name' => 'linked_ca_id', 'label' => 'CA Reference No.'],
-                    ['name' => 'linked_dv_id', 'label' => 'Linked DV'],
-                    ['name' => 'total_cash_advance', 'label' => 'CA Amount'],
-                    ['name' => 'workflow_status', 'label' => 'Workflow'],
-                    ['name' => 'approval_status', 'label' => 'Approval'],
-                ]),
-                $section('Connected Records', [
-                    ['name' => 'linked_ca_id', 'label' => 'CA Reference No.'],
-                    ['name' => 'linked_dv_id', 'label' => 'Linked DV'],
-                    ['name' => 'linked_crf_id', 'label' => 'Linked CRF'],
-                    ['name' => 'requester_mode', 'label' => 'Requester Option'],
-                ]),
-                [
-                    'type' => 'attachments',
-                    'title' => 'Attachments',
-                ],
-                [
-                    'type' => 'history',
-                    'title' => 'Record History / Audit Trail',
-                ],
                 $section('Liquidation Details', [
                     ['name' => 'requester_mode', 'label' => 'Requester Option'],
+                    ['name' => 'requester_employee_id', 'label' => 'Selected Employee'],
+                    ['name' => 'linked_ca_id', 'label' => 'CA Reference No.'],
                     ['name' => 'purpose', 'label' => 'Justification / Business Need'],
+                    ['name' => 'total_cash_advance', 'label' => 'CA Amount'],
+                    ['name' => 'actual_expenses', 'label' => 'Actual Expenses'],
                     ['name' => 'for_client', 'label' => 'For Client?'],
                     ['name' => 'client_names', 'label' => 'Client Name(s)'],
-                ]),
-                $section('Requester Details', [
-                    ['name' => 'requester_employee_id', 'label' => 'Selected Employee'],
                     ['name' => 'employee_id', 'label' => 'Employee ID'],
                     ['name' => 'employee_name', 'label' => 'Employee Name'],
                     ['name' => 'employee_email', 'label' => 'Email'],
@@ -3725,42 +3710,17 @@ SVG;
                     ['name' => 'superior', 'label' => 'Superior'],
                     ['name' => 'superior_email', 'label' => 'Superior Email'],
                 ]),
-                [
-                    'type' => 'liquidation_report',
-                    'title' => 'Liquidation Report',
-                ],
-                [
-                    'type' => 'line_items',
-                    'title' => 'Liquidation Cost Details',
-                ],
-                [
-                    'type' => 'cost_summary',
-                    'title' => 'Liquidation Summary',
-                ],
-                $notesSection,
             ],
             'err' => [
-                $section('Reimbursement Overview', [
-                    ['name' => 'record_number', 'label' => 'ERR Number'],
-                    ['name' => 'record_title', 'label' => 'Requestor'],
-                    ['name' => 'linked_lr_id', 'label' => 'Linked LR'],
-                    ['name' => 'reimbursement_mode', 'label' => 'Mode of Reimbursement'],
-                    ['name' => 'amount', 'label' => 'Amount'],
-                    ['name' => 'workflow_status', 'label' => 'Workflow'],
-                    ['name' => 'approval_status', 'label' => 'Approval'],
-                ]),
-                $section('Connected Records', [
-                    ['name' => 'linked_lr_id', 'label' => 'Linked LR'],
-                    ['name' => 'linked_dv_id', 'label' => 'Linked DV'],
-                    ['name' => 'requester_mode', 'label' => 'Requester Option'],
-                    ['name' => 'requestor', 'label' => 'Requestor'],
-                ]),
                 $section('Reimbursement Details', [
                     ['name' => 'requester_mode', 'label' => 'Requester Option'],
                     ['name' => 'requester_employee_id', 'label' => 'Selected Employee'],
                     ['name' => 'requestor', 'label' => 'Requestor'],
+                    ['name' => 'linked_lr_id', 'label' => 'Linked LR'],
                     ['name' => 'expense_details', 'label' => 'Expense Details'],
+                    ['name' => 'amount', 'label' => 'Amount'],
                     ['name' => 'reimbursement_payment_details', 'label' => 'Reimbursement Payment Details'],
+                    ['name' => 'manual_liquidation_entry', 'label' => 'Manually edit reimbursement details'],
                     ['name' => 'reimbursement_mode', 'label' => 'Mode of Reimbursement'],
                     ...match (data_get($data, 'reimbursement_mode')) {
                         'Cash' => [
@@ -3777,12 +3737,13 @@ SVG;
                     },
                     ['name' => 'remarks', 'label' => 'Remarks'],
                 ]),
-                $notesSection,
             ],
             'dv' => [
                 $section('Voucher Details', [
                     ['name' => 'source_document_type', 'label' => 'Linked Source Document Type'],
                     ['name' => 'source_document_id', 'label' => 'Linked Source Document'],
+                    ['name' => 'payee_type', 'label' => 'Payee Type'],
+                    ['name' => 'payee_name', 'label' => 'Payee'],
                     ['name' => 'supplier_id', 'label' => 'Supplier'],
                     ['name' => 'amount', 'label' => 'Amount'],
                     ['name' => 'payment_type', 'label' => 'Payment Type'],
@@ -3790,8 +3751,7 @@ SVG;
                     ['name' => 'payment_date', 'label' => 'Payment Date'],
                     ['name' => 'due_date', 'label' => 'Due Date'],
                 ]),
-                $this->financeConnectedRecordsSection($record, $lookupOptions),
-                $section('Accounting & Notes', [
+                $section('Funding & Notes', [
                     ['name' => 'bank_account_id', 'label' => 'Bank Account'],
                     ['name' => 'coa_id', 'label' => 'Account'],
                     ['name' => 'fund_source', 'label' => 'Fund Source / Project'],
@@ -3800,10 +3760,6 @@ SVG;
                     ['name' => 'purpose', 'label' => 'Purpose'],
                     ['name' => 'remarks', 'label' => 'Remarks'],
                 ]),
-                [
-                    'type' => 'dv_line_items',
-                    'title' => 'Breakdown / Line Items',
-                ],
                 $section('Tax & Receipt', [
                     ['name' => 'withholding_tax', 'label' => 'Withholding Tax'],
                     ['name' => 'vat_amount', 'label' => 'VAT'],
@@ -3814,22 +3770,8 @@ SVG;
                     ['name' => 'received_by_signature', 'label' => 'Signature'],
                     ['name' => 'date_received', 'label' => 'Date Received'],
                 ]),
-                $notesSection,
             ],
             'pda' => [
-                $section('Payroll Overview', [
-                    ['name' => 'record_number', 'label' => 'PDA Number'],
-                    ['name' => 'record_title', 'label' => 'Title'],
-                    ['name' => 'payroll_period_id', 'label' => 'Payroll Period'],
-                    ['name' => 'pay_date', 'label' => 'Pay Date'],
-                    ['name' => 'workflow_status', 'label' => 'Workflow'],
-                    ['name' => 'approval_status', 'label' => 'Approval'],
-                ]),
-                $section('Approval Routing', [
-                    ['name' => 'first_approver_user_id', 'label' => 'Treasurer'],
-                    ['name' => 'second_approver_user_id', 'label' => 'President'],
-                ]),
-                $this->financeConnectedRecordsSection($record, $lookupOptions),
                 $section('Payroll Details', [
                     ['name' => 'payroll_period_id', 'label' => 'Payroll Period'],
                     ['name' => 'period_start', 'label' => 'Period Start'],
@@ -3859,7 +3801,6 @@ SVG;
                     ['name' => 'employee_payroll_breakdown', 'label' => 'Employee Payroll Breakdown'],
                     ['name' => 'remarks', 'label' => 'Remarks'],
                 ]),
-                $notesSection,
             ],
             'crf' => [
                 $section('Return Details', [
@@ -3888,31 +3829,18 @@ SVG;
                 $notesSection,
             ],
             'ibtf' => [
-                [
-                    'type' => 'next_action_callout',
-                    'title' => 'Next Action',
-                    'next_action' => data_get($data, 'next_action') ?: 'Create Disbursement Voucher',
-                    'relationship_status' => data_get($data, 'relationship_status') ?: 'In Progress',
-                    'description' => Str::lower((string) data_get($data, 'relationship_status')) === 'awaiting disbursement voucher'
-                        ? 'This approved interbank transfer now moves forward to the disbursement voucher stage.'
-                        : 'Once the transfer is approved, the next step is to create a disbursement voucher.',
-                ],
                 $section('Transfer Details', [
                     ['name' => 'source_bank_account_id', 'label' => 'Source Bank Account'],
                     ['name' => 'destination_bank_account_id', 'label' => 'Destination Bank Account'],
                     ['name' => 'amount', 'label' => 'Amount'],
                     ['name' => 'reason', 'label' => 'Reason / Purpose'],
-                ]),
-                $section('Reference & Notes', [
                     ['name' => 'source_account_code', 'label' => 'Source Account Code'],
                     ['name' => 'destination_account_code', 'label' => 'Destination Account Code'],
                     ['name' => 'transfer_reference_number', 'label' => 'Transfer Reference Number'],
                     ['name' => 'remarks', 'label' => 'Remarks'],
                 ]),
-                $notesSection,
             ],
             'arf' => [
-                // Inventory records carry stock, cost, custody, and movement history for transparency.
                 $section('Asset / Inventory Details', [
                     ['name' => 'item_classification', 'label' => 'Item Classification'],
                     ['name' => 'linked_po_id', 'label' => 'Linked PO'],
@@ -3949,14 +3877,6 @@ SVG;
                     ['name' => 'average_cost', 'label' => 'Average Cost'],
                     ['name' => 'last_purchase_cost', 'label' => 'Last Purchase Cost'],
                 ]),
-                [
-                    'type' => 'asset_tag',
-                    'title' => 'Asset Tag',
-                    'asset_code' => data_get($data, 'asset_code') ?: $record->record_number ?: 'N/A',
-                    'location' => data_get($data, 'location') ?: 'N/A',
-                    'serial_number' => data_get($data, 'serial_number') ?: 'N/A',
-                    'barcode_svg' => $this->financeBarcodeSvg(data_get($data, 'asset_code') ?: $record->record_number ?: ''),
-                ],
                 $section('Valuation & Custody', [
                     ['name' => 'acquisition_cost', 'label' => 'Acquisition Cost'],
                     ['name' => 'acquisition_date', 'label' => 'Acquisition Date'],
@@ -3976,7 +3896,6 @@ SVG;
                     ['name' => 'movement_history_note', 'label' => 'Inventory / Asset Movement Note'],
                     ['name' => 'remarks', 'label' => 'Remarks'],
                 ]),
-                $notesSection,
             ],
             default => [],
         };
@@ -4049,82 +3968,91 @@ SVG;
         $companyName = 'John Kelly & Company';
         $companyLegalName = 'JK&C INC.';
         $companyLogo = $includeLogo ? $this->financePdfImageDataUri('images/imaglogo.png') : null;
-        $summaryCards = $record->module_key === 'pr'
-            ? [
-                ['label' => 'Module', 'value' => $moduleLabel],
-                ['label' => 'Request Number', 'value' => $this->normalizeFinanceRecordNumber($record->module_key, $record->record_number)],
-                ['label' => 'Requestor', 'value' => data_get($data, 'requestor') ?: data_get($data, 'employee_name') ?: 'N/A'],
-                ['label' => 'Priority', 'value' => data_get($data, 'priority') ?: 'N/A'],
-                ['label' => 'Date Needed', 'value' => data_get($data, 'needed_date') ?: 'N/A'],
-                ['label' => 'Amount', 'value' => $record->amount !== null ? number_format((float) $record->amount, 2) : 'N/A'],
-                ['label' => 'Record Date', 'value' => optional($record->record_date)->format('Y-m-d') ?: 'N/A'],
-                ['label' => 'Workflow', 'value' => $record->workflow_status ?: 'N/A'],
-                ['label' => 'Approval', 'value' => $record->approval_status ?: 'N/A'],
-                ['label' => 'Submitted By', 'value' => $this->financeSubmittedByName($record)],
-                ['label' => 'Approved By', 'value' => $approvalActorNames ? implode(', ', $approvalActorNames) : $this->financeUserDisplayName($record->approved_by, 'N/A')],
-                ...$ownershipCards,
-                ['label' => 'Relationship Status', 'value' => data_get($data, 'relationship_status') ?: 'N/A'],
-                ['label' => 'Next Action', 'value' => data_get($data, 'next_action') ?: 'N/A'],
-                ['label' => 'Submitted At', 'value' => optional($record->submitted_at)->format('Y-m-d H:i:s') ?: 'N/A'],
-                ['label' => 'Approved At', 'value' => optional($record->approved_at)->format('Y-m-d H:i:s') ?: 'N/A'],
-                ...($record->module_key === 'ca' ? [
-                    ['label' => 'Treasurer', 'value' => $this->financeApprovalRoutingDisplayValue($record, 'first_approver_user_id')],
-                    ['label' => 'President', 'value' => $this->financeApprovalRoutingDisplayValue($record, 'second_approver_user_id')],
-                ] : []),
-                ...($record->module_key === 'pda' ? [
-                    ['label' => 'Payroll Period', 'value' => $this->financePdfLookupLabel($lookupOptions, 'payroll_period', data_get($data, 'payroll_period_id')) ?: data_get($data, 'payroll_period_id') ?: 'N/A'],
-                    ['label' => 'Treasurer', 'value' => $this->financeApprovalRoutingDisplayValue($record, 'first_approver_user_id')],
-                    ['label' => 'President', 'value' => $this->financeApprovalRoutingDisplayValue($record, 'second_approver_user_id')],
-                ] : []),
-                ...($record->module_key === 'err' ? [
-                    ['label' => 'Linked LR', 'value' => $this->financePdfLookupLabel($lookupOptions, 'lr', data_get($data, 'linked_lr_id')) ?: data_get($data, 'linked_lr_id') ?: 'N/A'],
-                    ['label' => 'Reimbursement Mode', 'value' => data_get($data, 'reimbursement_mode') ?: 'N/A'],
-                ] : []),
-                ...($record->module_key === 'lr' ? [
-                    ['label' => 'Attachments', 'value' => max(count((array) ($record->attachments ?? [])), 0) . ' file' . (count((array) ($record->attachments ?? [])) === 1 ? '' : 's')],
-                ] : []),
-                ...($record->module_key === 'crf' ? [
-                    ['label' => 'Attachments', 'value' => max(count((array) ($record->attachments ?? [])), 0) . ' file' . (count((array) ($record->attachments ?? [])) === 1 ? '' : 's')],
-                    ['label' => 'History Entries', 'value' => count((array) data_get($data, 'history', []))],
-                ] : []),
-                ...($record->module_key === 'arf' ? [
-                    ['label' => 'Attachments', 'value' => max(count((array) ($record->attachments ?? [])), 0) . ' file' . (count((array) ($record->attachments ?? [])) === 1 ? '' : 's')],
-                    ['label' => 'Photo Attachments', 'value' => collect((array) ($record->attachments ?? []))->filter(fn ($attachment) => $this->financeAttachmentIsImage(is_array($attachment) ? $attachment : []))->count()],
-                ] : []),
-            ]
-            : [
+        if ($isTemplatePreview) {
+            $summaryCards = [
                 ['label' => 'Module', 'value' => $moduleLabel],
                 ['label' => 'Record Number', 'value' => $this->normalizeFinanceRecordNumber($record->module_key, $record->record_number)],
                 ['label' => $recordTitleLabel, 'value' => $record->record_title ?: 'N/A'],
                 ['label' => 'Record Date', 'value' => optional($record->record_date)->format('Y-m-d') ?: 'N/A'],
-                ['label' => 'Record Time', 'value' => data_get($data, 'transaction_time') ?: 'N/A'],
-                ['label' => 'Amount', 'value' => $record->amount !== null ? number_format((float) $record->amount, 2) : 'N/A'],
-                ['label' => 'Status', 'value' => $record->status ?: 'N/A'],
-                ['label' => 'Workflow', 'value' => $record->workflow_status ?: 'N/A'],
-                ['label' => 'Approval', 'value' => $record->approval_status ?: 'N/A'],
-                ['label' => 'Submitted By', 'value' => $this->financeSubmittedByName($record)],
-                ['label' => 'Approved By', 'value' => $approvalActorNames ? implode(', ', $approvalActorNames) : $this->financeUserDisplayName($record->approved_by, 'N/A')],
-                ...$ownershipCards,
-                ['label' => 'Relationship Status', 'value' => data_get($data, 'relationship_status') ?: 'N/A'],
-                ['label' => 'Next Action', 'value' => data_get($data, 'next_action') ?: 'N/A'],
-                ['label' => 'Submitted At', 'value' => optional($record->submitted_at)->format('Y-m-d H:i:s') ?: 'N/A'],
-                ['label' => 'Approved At', 'value' => optional($record->approved_at)->format('Y-m-d H:i:s') ?: 'N/A'],
-                ...($record->module_key === 'ca' ? [
-                    ['label' => 'Treasurer', 'value' => $this->financeApprovalRoutingDisplayValue($record, 'first_approver_user_id')],
-                    ['label' => 'President', 'value' => $this->financeApprovalRoutingDisplayValue($record, 'second_approver_user_id')],
-                ] : []),
-                ...($record->module_key === 'lr' ? [
-                    ['label' => 'Attachments', 'value' => max(count((array) ($record->attachments ?? [])), 0) . ' file' . (count((array) ($record->attachments ?? [])) === 1 ? '' : 's')],
-                ] : []),
-                ...($record->module_key === 'crf' ? [
-                    ['label' => 'Attachments', 'value' => max(count((array) ($record->attachments ?? [])), 0) . ' file' . (count((array) ($record->attachments ?? [])) === 1 ? '' : 's')],
-                    ['label' => 'History Entries', 'value' => count((array) data_get($data, 'history', []))],
-                ] : []),
-                ...($record->module_key === 'arf' ? [
-                    ['label' => 'Attachments', 'value' => max(count((array) ($record->attachments ?? [])), 0) . ' file' . (count((array) ($record->attachments ?? [])) === 1 ? '' : 's')],
-                    ['label' => 'Photo Attachments', 'value' => collect((array) ($record->attachments ?? []))->filter(fn ($attachment) => $this->financeAttachmentIsImage(is_array($attachment) ? $attachment : []))->count()],
-                ] : []),
             ];
+        } else {
+            $summaryCards = $record->module_key === 'pr'
+                ? [
+                    ['label' => 'Module', 'value' => $moduleLabel],
+                    ['label' => 'Request Number', 'value' => $this->normalizeFinanceRecordNumber($record->module_key, $record->record_number)],
+                    ['label' => 'Requestor', 'value' => data_get($data, 'requestor') ?: data_get($data, 'employee_name') ?: 'N/A'],
+                    ['label' => 'Priority', 'value' => data_get($data, 'priority') ?: 'N/A'],
+                    ['label' => 'Date Needed', 'value' => data_get($data, 'needed_date') ?: 'N/A'],
+                    ['label' => 'Amount', 'value' => $record->amount !== null ? number_format((float) $record->amount, 2) : 'N/A'],
+                    ['label' => 'Record Date', 'value' => optional($record->record_date)->format('Y-m-d') ?: 'N/A'],
+                    ['label' => 'Workflow', 'value' => $record->workflow_status ?: 'N/A'],
+                    ['label' => 'Approval', 'value' => $record->approval_status ?: 'N/A'],
+                    ['label' => 'Submitted By', 'value' => $this->financeSubmittedByName($record)],
+                    ['label' => 'Approved By', 'value' => $approvalActorNames ? implode(', ', $approvalActorNames) : $this->financeUserDisplayName($record->approved_by, 'N/A')],
+                    ...$ownershipCards,
+                    ['label' => 'Relationship Status', 'value' => data_get($data, 'relationship_status') ?: 'N/A'],
+                    ['label' => 'Next Action', 'value' => data_get($data, 'next_action') ?: 'N/A'],
+                    ['label' => 'Submitted At', 'value' => optional($record->submitted_at)->format('Y-m-d H:i:s') ?: 'N/A'],
+                    ['label' => 'Approved At', 'value' => optional($record->approved_at)->format('Y-m-d H:i:s') ?: 'N/A'],
+                    ...($record->module_key === 'ca' ? [
+                        ['label' => 'Treasurer', 'value' => $this->financeApprovalRoutingDisplayValue($record, 'first_approver_user_id')],
+                        ['label' => 'President', 'value' => $this->financeApprovalRoutingDisplayValue($record, 'second_approver_user_id')],
+                    ] : []),
+                    ...($record->module_key === 'pda' ? [
+                        ['label' => 'Payroll Period', 'value' => $this->financePdfLookupLabel($lookupOptions, 'payroll_period', data_get($data, 'payroll_period_id')) ?: data_get($data, 'payroll_period_id') ?: 'N/A'],
+                        ['label' => 'Treasurer', 'value' => $this->financeApprovalRoutingDisplayValue($record, 'first_approver_user_id')],
+                        ['label' => 'President', 'value' => $this->financeApprovalRoutingDisplayValue($record, 'second_approver_user_id')],
+                    ] : []),
+                    ...($record->module_key === 'err' ? [
+                        ['label' => 'Linked LR', 'value' => $this->financePdfLookupLabel($lookupOptions, 'lr', data_get($data, 'linked_lr_id')) ?: data_get($data, 'linked_lr_id') ?: 'N/A'],
+                        ['label' => 'Reimbursement Mode', 'value' => data_get($data, 'reimbursement_mode') ?: 'N/A'],
+                    ] : []),
+                    ...($record->module_key === 'lr' ? [
+                        ['label' => 'Attachments', 'value' => max(count((array) ($record->attachments ?? [])), 0) . ' file' . (count((array) ($record->attachments ?? [])) === 1 ? '' : 's')],
+                    ] : []),
+                    ...($record->module_key === 'crf' ? [
+                        ['label' => 'Attachments', 'value' => max(count((array) ($record->attachments ?? [])), 0) . ' file' . (count((array) ($record->attachments ?? [])) === 1 ? '' : 's')],
+                        ['label' => 'History Entries', 'value' => count((array) data_get($data, 'history', []))],
+                    ] : []),
+                    ...($record->module_key === 'arf' ? [
+                        ['label' => 'Attachments', 'value' => max(count((array) ($record->attachments ?? [])), 0) . ' file' . (count((array) ($record->attachments ?? [])) === 1 ? '' : 's')],
+                        ['label' => 'Photo Attachments', 'value' => collect((array) ($record->attachments ?? []))->filter(fn ($attachment) => $this->financeAttachmentIsImage(is_array($attachment) ? $attachment : []))->count()],
+                    ] : []),
+                ]
+                : [
+                    ['label' => 'Module', 'value' => $moduleLabel],
+                    ['label' => 'Record Number', 'value' => $this->normalizeFinanceRecordNumber($record->module_key, $record->record_number)],
+                    ['label' => $recordTitleLabel, 'value' => $record->record_title ?: 'N/A'],
+                    ['label' => 'Record Date', 'value' => optional($record->record_date)->format('Y-m-d') ?: 'N/A'],
+                    ['label' => 'Record Time', 'value' => data_get($data, 'transaction_time') ?: 'N/A'],
+                    ['label' => 'Amount', 'value' => $record->amount !== null ? number_format((float) $record->amount, 2) : 'N/A'],
+                    ['label' => 'Status', 'value' => $record->status ?: 'N/A'],
+                    ['label' => 'Workflow', 'value' => $record->workflow_status ?: 'N/A'],
+                    ['label' => 'Approval', 'value' => $record->approval_status ?: 'N/A'],
+                    ['label' => 'Submitted By', 'value' => $this->financeSubmittedByName($record)],
+                    ['label' => 'Approved By', 'value' => $approvalActorNames ? implode(', ', $approvalActorNames) : $this->financeUserDisplayName($record->approved_by, 'N/A')],
+                    ...$ownershipCards,
+                    ['label' => 'Relationship Status', 'value' => data_get($data, 'relationship_status') ?: 'N/A'],
+                    ['label' => 'Next Action', 'value' => data_get($data, 'next_action') ?: 'N/A'],
+                    ['label' => 'Submitted At', 'value' => optional($record->submitted_at)->format('Y-m-d H:i:s') ?: 'N/A'],
+                    ['label' => 'Approved At', 'value' => optional($record->approved_at)->format('Y-m-d H:i:s') ?: 'N/A'],
+                    ...($record->module_key === 'ca' ? [
+                        ['label' => 'Treasurer', 'value' => $this->financeApprovalRoutingDisplayValue($record, 'first_approver_user_id')],
+                        ['label' => 'President', 'value' => $this->financeApprovalRoutingDisplayValue($record, 'second_approver_user_id')],
+                    ] : []),
+                    ...($record->module_key === 'lr' ? [
+                        ['label' => 'Attachments', 'value' => max(count((array) ($record->attachments ?? [])), 0) . ' file' . (count((array) ($record->attachments ?? [])) === 1 ? '' : 's')],
+                    ] : []),
+                    ...($record->module_key === 'crf' ? [
+                        ['label' => 'Attachments', 'value' => max(count((array) ($record->attachments ?? [])), 0) . ' file' . (count((array) ($record->attachments ?? [])) === 1 ? '' : 's')],
+                        ['label' => 'History Entries', 'value' => count((array) data_get($data, 'history', []))],
+                    ] : []),
+                    ...($record->module_key === 'arf' ? [
+                        ['label' => 'Attachments', 'value' => max(count((array) ($record->attachments ?? [])), 0) . ' file' . (count((array) ($record->attachments ?? [])) === 1 ? '' : 's')],
+                        ['label' => 'Photo Attachments', 'value' => collect((array) ($record->attachments ?? []))->filter(fn ($attachment) => $this->financeAttachmentIsImage(is_array($attachment) ? $attachment : []))->count()],
+                    ] : []),
+                ];
+        }
 
         $lineItems = $this->financeResolvedLineItems($record, $lookupOptions);
         $lineItemsTotal = array_reduce($lineItems, function (float $carry, array $item) {
@@ -4433,7 +4361,7 @@ SVG;
         }
 
         $recipients = match ($action) {
-            'submitted', 'supplier_submitted' => $workflowRecipients->merge($owner ? [$owner] : []),
+            'submitted', 'supplier_submitted' => $workflowRecipients,
             'updated' => in_array($record->workflow_status ?? 'Uploaded', ['Submitted', 'On Hold', 'Shared'], true)
                 || $record->module_key === 'crf'
                 ? $workflowRecipients->merge($owner ? [$owner] : [])
@@ -6271,6 +6199,7 @@ SVG;
             data_get($data, 'supplier_name'),
             data_get($data, 'supplier_submitted_by_name'),
             data_get($data, 'representative_full_name'),
+            data_get($payeeSnapshot, 'payee_type') === 'Supplier' ? data_get($payeeSnapshot, 'payee_name') : null,
         ]) ?: '');
 
         $resolvedBankAccountLabel = trim((string) $firstFilled([
@@ -6326,11 +6255,17 @@ SVG;
                 data_get($data, 'project'),
                 data_get($data, 'project_name'),
                 data_get($data, 'project_code'),
+                data_get($data, 'fund_source'),
+                data_get($data, 'department'),
+                data_get($data, 'requesting_department'),
             ]) ?: '')),
             'cost_center' => trim((string) ($firstFilled([
                 data_get($data, 'cost_center'),
                 data_get($data, 'cost_center_code'),
                 data_get($data, 'cost_center_name'),
+                data_get($data, 'department'),
+                data_get($data, 'requesting_department'),
+                data_get($data, 'fund_source'),
             ]) ?: '')),
             'fund_source' => trim((string) ($firstFilled([
                 data_get($data, 'fund_source'),

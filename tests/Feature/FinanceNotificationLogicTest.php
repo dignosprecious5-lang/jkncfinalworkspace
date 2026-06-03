@@ -270,6 +270,10 @@ test('workflow notifications are sent for submission approval hold and revert', 
         return $notification->action === 'submitted' && $notification->recordId === $submittedRecord->id;
     });
 
+    Notification::assertNotSentTo($fixtures['owner'], FinanceRecordWorkflowNotification::class, function (FinanceRecordWorkflowNotification $notification) use ($submittedRecord): bool {
+        return $notification->action === 'submitted' && $notification->recordId === $submittedRecord->id;
+    });
+
     $approvedRecord = financeNotificationCreateAndApproveRecord($this, [
         'module_key' => 'chart_account',
         'record_number' => 'COA-51002',
@@ -444,6 +448,10 @@ it('notifies supplier approvers and admins when a supplier completion form is su
             && in_array('database', $notification->via($fixtures['approver']), true)
             && in_array('broadcast', $notification->via($fixtures['approver']), true)
             && in_array('mail', $notification->via($fixtures['approver']), true);
+    });
+
+    Notification::assertNotSentTo($fixtures['owner'], FinanceRecordWorkflowNotification::class, function (FinanceRecordWorkflowNotification $notification) use ($supplierRecord): bool {
+        return $notification->action === 'supplier_submitted' && $notification->recordId === $supplierRecord->id;
     });
 
     Notification::assertSentTo($fixtures['president'], FinanceRecordWorkflowNotification::class, function (FinanceRecordWorkflowNotification $notification) use ($supplierRecord, $fixtures): bool {

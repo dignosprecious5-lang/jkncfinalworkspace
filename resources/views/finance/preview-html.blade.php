@@ -705,12 +705,14 @@
                 </div>
             </div>
 
-            <div class="status">
-                <p class="title">Document Status</p>
-                <p>Workflow: {{ $record->workflow_status ?: 'N/A' }}</p>
-                <p>Approval: {{ $record->approval_status ?: 'N/A' }}</p>
-                <p>Status: {{ $record->status ?: 'N/A' }}</p>
-            </div>
+            @if(!$isTemplatePreview)
+                <div class="status">
+                    <p class="title">Document Status</p>
+                    <p>Workflow: {{ $record->workflow_status ?: 'N/A' }}</p>
+                    <p>Approval: {{ $record->approval_status ?: 'N/A' }}</p>
+                    <p>Status: {{ $record->status ?: 'N/A' }}</p>
+                </div>
+            @endif
         </div>
 
         @php
