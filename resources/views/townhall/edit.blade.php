@@ -205,12 +205,14 @@
     <div class="flex gap-6 h-[calc(100vh-7rem)]">
 
         {{-- LEFT PREVIEW PANEL --}}
-        <div class="w-[70%] bg-[#f5f6f8] overflow-y-auto p-6 pt-16 border border-gray-200 rounded-xl">
-            <div class="townhall-edit-fixed-back">
-                <a href="{{ route('townhall.show', $communication->id) }}"
-                   class="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 shadow-sm transition">
-                    ← Back to Memo
-                </a>
+        <div class="w-[70%] bg-[#f5f6f8] overflow-y-auto p-6 border border-gray-200 rounded-xl">
+            <div class="townhall-edit-sticky-back">
+                <div class="max-w-[850px] mx-auto">
+                    <a href="{{ route('townhall.show', $communication->id) }}"
+                       class="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 shadow-sm transition">
+                        ← Back to Memo
+                    </a>
+                </div>
             </div>
 
             <div class="max-w-[850px] mx-auto">
@@ -991,21 +993,16 @@
     }
 
 
-    /* Fixed Edit Revision back button */
-    .townhall-edit-fixed-back {
-        position: fixed;
-        top: 86px;
-        left: 6rem;
-        z-index: 999;
-        padding: 0;
-        background: transparent;
-    }
-
-    @media (max-width: 1024px) {
-        .townhall-edit-fixed-back {
-            top: 78px;
-            left: 1rem;
-        }
+    /* Sticky Edit Revision back button inside preview panel */
+    .townhall-edit-sticky-back {
+        position: sticky;
+        top: 0;
+        z-index: 80;
+        margin: -1.5rem -1.5rem 1rem -1.5rem;
+        padding: 1rem 1.5rem;
+        background: rgba(245, 246, 248, 0.96);
+        border-bottom: 1px solid #e5e7eb;
+        backdrop-filter: blur(6px);
     }
 
 </style>
