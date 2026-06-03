@@ -453,10 +453,10 @@ class CorrespondenceController extends Controller
     }
 
 
-    private function readableApproverValue($value, string $fallback = '—'): string
+    private function readableApproverValue($value, ?string $fallback = '—'): string
     {
         if ($value === null || $value === '') {
-            return $fallback;
+            return $fallback ?? '';
         }
 
         if (is_string($value)) {
@@ -508,7 +508,7 @@ class CorrespondenceController extends Controller
                 ?? $employee->employee_name
                 ?? trim(($employee->first_name ?? '') . ' ' . ($employee->last_name ?? ''))
                 ?: null,
-            null
+            ''
         );
 
         $position = $this->readableApproverValue(
