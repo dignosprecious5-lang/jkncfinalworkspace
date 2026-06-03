@@ -39,7 +39,7 @@
                     @csrf
                     <div class="bg-gray-50 p-4 sm:p-6">
                         <div class="mx-auto max-w-[1120px]">
-                            @include('company.bif.partials.form-fields', ['bif' => null])
+                            @include('company.bif.partials.form-fields', ['bif' => $bif])
                         </div>
                     </div>
 

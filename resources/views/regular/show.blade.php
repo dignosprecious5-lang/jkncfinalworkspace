@@ -3,6 +3,10 @@
 @section('content')
 @php
     $fmt = fn ($v) => $v ? \Illuminate\Support\Carbon::parse($v)->format('M d, Y') : '-';
+    $dateInput = function ($v) {
+        $value = trim((string) $v);
+        return preg_match('/^\d{4}-\d{2}-\d{2}$/', $value) ? $value : '';
+    };
     $contactName = trim(collect([$regular->contact?->first_name, $regular->contact?->last_name])->filter()->implode(' ')) ?: '-';
     $rsatRequirements = collect($rsat?->engagement_requirements ?? [])->whenEmpty(fn () => collect([['number' => 1, 'requirement' => '', 'notes' => '', 'purpose' => '', 'provided_by' => '', 'submitted_to' => '', 'assigned_to' => '', 'timeline' => '', 'status' => 'open']]));
     $rsatClearance = (array) ($rsat?->clearance ?? []);
@@ -13,10 +17,25 @@
     $approvalReviewedBy = old('clearance_lead_consultant_confirmed', $rsatClearance['lead_consultant_confirmed'] ?? '');
     $approvalReferredBy = old('rejection_reason', $rsat?->rejection_reason);
     $approvalSalesMarketing = old('clearance_sales_marketing', $rsatClearance['sales_marketing'] ?? '');
+    if (blank($approvalSalesMarketing) || $approvalSalesMarketing === 'Sales & Marketing') {
+        $approvalSalesMarketing = data_get($regular->metadata ?? [], 'internal_assignments.sales_marketing', $approvalSalesMarketing);
+    }
     $approvalLeadAssociate = old('clearance_lead_associate_assigned', $rsatClearance['lead_associate_assigned'] ?? '');
-    $approvalLeadConsultant = old('approval_responsible_person.0', $regular->assigned_consultant ?? '');
-    $approvalFinance = old('approval_responsible_person.1', '');
-    $approvalPresident = old('approval_name_and_signature.0', '');
+    $savedLeadConsultantApproval = data_get($rsat->approval_steps ?? [], '0.requirement') === 'Lead Consultant'
+        ? data_get($rsat->approval_steps ?? [], '0.responsible_person')
+        : null;
+    $savedFinanceApproval = data_get($rsat->approval_steps ?? [], '1.requirement') === 'Finance'
+        ? data_get($rsat->approval_steps ?? [], '1.responsible_person')
+        : null;
+    $approvalLeadConsultant = old('approval_responsible_person.0', $savedLeadConsultantApproval ?? ($regular->assigned_consultant ?? ''));
+    $approvalFinance = old('approval_responsible_person.1', $savedFinanceApproval ?? data_get($regular->metadata ?? [], 'internal_assignments.finance', ''));
+    if ($approvalFinance === 'Finance') {
+        $approvalFinance = data_get($regular->metadata ?? [], 'internal_assignments.finance', $approvalFinance);
+    }
+    $approvalPresident = old('approval_name_and_signature.0', data_get($rsat->approval_steps ?? [], '0.name_and_signature'));
+    if (blank($approvalPresident) || $approvalPresident === 'President') {
+        $approvalPresident = 'John Kelly Abalde';
+    }
     $recordCustodian = old('clearance_record_custodian_name', $rsatClearance['record_custodian_name'] ?? '');
     $recordedDate = old('clearance_date_recorded', $rsatClearance['date_recorded'] ?? '');
     $signedDate = old('clearance_date_signed', $rsatClearance['date_signed'] ?? '');
@@ -376,11 +395,6 @@
     .rsat-doc-view-body .project-ntp-signatures td { border: 1px solid #000; padding: 8px 10px; vertical-align: top; }
     .rsat-doc-view-body .project-ntp-sign-head { font-family: Georgia, "Times New Roman", serif; font-size: 12pt; font-weight: 700; }
     .rsat-doc-view-body .project-ntp-sign-box { height: 96px; text-align: center; vertical-align: middle; font-family: Georgia, "Times New Roman", serif; font-size: 11pt; font-weight: 700; }
-    .rsat-doc-view-body .project-ntp-panel { margin-top: 28px; border: 1px solid #dbe3f0; background: #f8fbff; padding: 18px; }
-    .rsat-doc-view-body .project-ntp-grid { display: grid; gap: 14px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .rsat-doc-view-body .project-ntp-label { display: block; margin-bottom: 6px; font-size: .74rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #475569; }
-    .rsat-doc-view-body .project-ntp-value-box { min-height: 44px; border: 1px solid #cbd5e1; background: #fff; padding: 10px 12px; font-size: .95rem; box-sizing: border-box; }
-    .rsat-doc-view-body .project-ntp-attachment-link { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; border: 1px solid #1c4587; background: #1c4587; padding: 0 18px; font-size: .9rem; font-weight: 700; color: #fff; text-decoration: none; }
     @media (max-width: 1024px) {
         .rsat-work-grid { grid-template-columns: 1fr; }
         .rsat-quick-grid { grid-template-columns: 1fr; }
@@ -641,7 +655,7 @@
                                         <input name="engagement_timeline[]" value="{{ old('engagement_timeline.'.$index, $item['timeline'] ?? '') }}" class="rsat-row-input">
                                     </td>
                                     <td>
-                                        <input name="engagement_submitted_to[]" value="{{ old('engagement_submitted_to.'.$index, $item['submitted_to'] ?? '') }}" class="rsat-row-input">
+                                        <input type="date" name="engagement_submitted_to[]" value="{{ $dateInput(old('engagement_submitted_to.'.$index, $item['submitted_to'] ?? '')) }}" class="rsat-row-input">
                                     </td>
                                     <td>
                                         <select name="engagement_status[]" class="rsat-row-input" style="appearance: none;">
@@ -996,7 +1010,7 @@
         <td><input name="engagement_requirement[]" class="rsat-row-input"></td>
         <td><input name="engagement_notes[]" class="rsat-row-input"></td>
         <td><input name="engagement_timeline[]" class="rsat-row-input"></td>
-        <td><input name="engagement_submitted_to[]" class="rsat-row-input"></td>
+        <td><input type="date" name="engagement_submitted_to[]" class="rsat-row-input"></td>
         <td>
             <select name="engagement_status[]" class="rsat-row-input" style="appearance: none;">
                 <option value="open" selected>Open</option>

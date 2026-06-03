@@ -4,6 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\Company;
 use App\Models\CompanyBif;
+use App\Models\Contact;
+use App\Models\Employee;
+use App\Models\User;
 use App\Support\CompanyHistoryLogger;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -16,7 +19,6 @@ use Illuminate\View\View;
 
 class CompanyBifController extends Controller
 {
-    private const DEMO_AUTO_APPROVE_ON_SUBMIT = true;
     private const CLIENT_LINK_TTL_DAYS = 14;
 
     private const CLIENT_TYPES = [
@@ -109,7 +111,7 @@ class CompanyBifController extends Controller
         ]);
 
         $message = $isSubmit
-            ? "Business Client Information Form saved for {$companyData['company_name']} and marked as approved for demo."
+            ? "Business Client Information Form saved for {$companyData['company_name']} and submitted for approval."
             : "Business Client Information Form draft saved for {$companyData['company_name']}.";
 
         return redirect()
@@ -142,51 +144,16 @@ class CompanyBifController extends Controller
         $payload = $this->validatedPayload($request);
         $action = $request->input('action', 'submit');
         $isSubmit = $action !== 'draft';
-        $isReviewer = $this->isKycReviewer($request);
-        $status = $isReviewer ? 'approved' : $this->resolveSubmittedStatus($isSubmit);
-        $requiresChangeRequest = ! $isReviewer && (string) $bifRecord->status === 'approved';
+        $status = $this->resolveSubmittedStatus($isSubmit);
         $userName = $request->user()?->name ?? 'System User';
-
-        if ($requiresChangeRequest) {
-            $validatedRequestMeta = $request->validate([
-                'change_request_note' => ['nullable', 'string', 'max:2000'],
-            ]);
-            $requestNote = trim((string) ($validatedRequestMeta['change_request_note'] ?? ''));
-
-            $bifRecord->update([
-                'change_request_payload' => $payload,
-                'change_request_status' => 'pending',
-                'change_request_note' => $requestNote !== '' ? $requestNote : null,
-                'change_requested_at' => now(),
-                'change_requested_by_name' => $userName,
-                'change_reviewed_at' => null,
-                'change_reviewed_by_name' => null,
-                'change_rejection_reason' => null,
-                'updated_by' => $request->user()?->id,
-            ]);
-
-            CompanyHistoryLogger::log($company, [
-                'type' => 'profile',
-                'title' => 'BIF change request submitted',
-                'description' => $bifRecord->title,
-                'extra_label' => 'Status',
-                'extra_value' => self::CHANGE_REQUEST_STATUSES['pending'],
-                'user_name' => $userName,
-                'user_initials' => $this->initials($userName),
-            ]);
-
-            return redirect()
-                ->route('company.kyc', ['company' => $company, 'tab' => 'business-client-information'])
-                ->with('bif_success', "Change request submitted for {$companyData['company_name']}. Awaiting admin approval.");
-        }
 
         $bifRecord->update([
             ...$payload,
             'title' => $this->resolveTitle($payload),
             'status' => $status,
-            'submitted_at' => ($isSubmit || $isReviewer) ? ($bifRecord->submitted_at ?? now()) : null,
-            'approved_at' => $isReviewer ? now() : $this->resolveApprovedAt($isSubmit),
-            'approved_by_name' => $isReviewer ? $userName : $this->resolveApprovedByName($request, $isSubmit),
+            'submitted_at' => $isSubmit ? now() : null,
+            'approved_at' => null,
+            'approved_by_name' => null,
             'rejected_at' => null,
             'rejected_by_name' => null,
             'rejection_reason' => null,
@@ -215,11 +182,15 @@ class CompanyBifController extends Controller
         ]);
 
         $message = $isSubmit
-            ? "Business Client Information Form updated for {$companyData['company_name']} and kept as an approved demo record."
+            ? "Business Client Information Form updated for {$companyData['company_name']} and submitted for approval."
             : "Business Client Information Form draft updated for {$companyData['company_name']}.";
 
+        $redirectRoute = $request->boolean('return_to_kyc')
+            ? ['company.kyc', ['company' => $company, 'tab' => 'business-client-information']]
+            : ['company.bif.show', ['company' => $company, 'bif' => $bifRecord->id]];
+
         return redirect()
-            ->route('company.bif.show', ['company' => $company, 'bif' => $bifRecord->id])
+            ->route($redirectRoute[0], $redirectRoute[1])
             ->with('bif_success', $message);
     }
 
@@ -528,14 +499,18 @@ class CompanyBifController extends Controller
 
     private function buildViewData(Request $request, int $company, ?CompanyBif $bif): array
     {
+        $companyData = $this->findCompany($request, $company);
+
         return [
-            'company' => (object) $this->findCompany($request, $company),
-            'bif' => $bif,
+            'company' => (object) $companyData,
+            'bif' => $this->bifWithDefaults($companyData, $bif),
             'clientTypeOptions' => self::CLIENT_TYPES,
             'organizationOptions' => self::ORGANIZATION_TYPES,
             'nationalityOptions' => self::NATIONALITY_TYPES,
             'officeTypeOptions' => self::OFFICE_TYPES,
             'statusLabels' => self::STATUSES,
+            'employeeOptions' => $this->employeeOptions(),
+            'roleContactOptions' => $this->roleContactOptions(),
         ];
     }
 
@@ -591,6 +566,7 @@ class CompanyBifController extends Controller
                     'website' => $record->website,
                     'description' => $record->description,
                     'address' => $record->address,
+                    'primary_contact_id' => $record->primary_contact_id,
                     'owner_name' => $record->owner_name,
                     'created_at' => optional($record->created_at)->toDateTimeString(),
                 ];
@@ -609,9 +585,216 @@ class CompanyBifController extends Controller
             'website' => null,
             'description' => null,
             'address' => null,
+            'primary_contact_id' => null,
             'owner_name' => null,
             ...$companyData,
         ];
+    }
+
+    private function bifWithDefaults(array $companyData, ?CompanyBif $bif): CompanyBif
+    {
+        $defaults = $this->companyBifDefaults($companyData);
+        $resolved = $bif ? $bif->replicate() : new CompanyBif();
+
+        if ($bif) {
+            $resolved->exists = true;
+            $resolved->setAttribute('id', $bif->id);
+            $resolved->setAttribute('created_at', $bif->created_at);
+            $resolved->setAttribute('updated_at', $bif->updated_at);
+        }
+
+        foreach ($defaults as $field => $value) {
+            if (blank($resolved->{$field}) && filled($value)) {
+                $resolved->setAttribute($field, $value);
+            }
+        }
+
+        return $resolved;
+    }
+
+    private function companyBifDefaults(array $companyData): array
+    {
+        $contact = null;
+        $primaryContactId = (int) ($companyData['primary_contact_id'] ?? 0);
+
+        if ($primaryContactId > 0 && Schema::hasTable('contacts')) {
+            $contact = Contact::query()->find($primaryContactId);
+        }
+
+        $contactName = $contact ? trim(collect([
+            $contact->first_name,
+            $contact->last_name,
+        ])->filter()->implode(' ')) : '';
+        $industryDefaults = $this->industryDefaultsFromNature($contact?->nature_of_business);
+
+        return [
+            'bif_date' => now()->toDateString(),
+            'client_type' => 'new_client',
+            'business_name' => $companyData['company_name'] ?? null,
+            'business_address' => $companyData['address'] ?? null,
+            'business_phone' => $companyData['phone'] ?? null,
+            'mobile_no' => $contact?->phone,
+            'authorized_contact_person_name' => $contactName,
+            'authorized_contact_person_position' => $contact?->position,
+            'authorized_contact_person_email' => $contact?->email ?: ($companyData['email'] ?? null),
+            'authorized_contact_person_phone' => $contact?->phone ?: ($companyData['phone'] ?? null),
+            'signature_printed_name' => $contactName,
+            'signature_position' => $contact?->position,
+            'sales_marketing_name' => $contact?->sales_marketing,
+            'referred_by' => $contact?->referred_by,
+            'consultant_lead' => $contact?->consultant_lead,
+            'lead_associate' => $contact?->lead_associate,
+            'industry_services' => in_array('services', $industryDefaults['types'], true),
+            'industry_export_import' => in_array('export_import', $industryDefaults['types'], true),
+            'industry_education' => in_array('education', $industryDefaults['types'], true),
+            'industry_financial_services' => in_array('financial_services', $industryDefaults['types'], true),
+            'industry_transportation' => in_array('transportation', $industryDefaults['types'], true),
+            'industry_distribution' => in_array('distribution', $industryDefaults['types'], true),
+            'industry_manufacturing' => in_array('manufacturing', $industryDefaults['types'], true),
+            'industry_government' => in_array('government', $industryDefaults['types'], true),
+            'industry_wholesale_retail_trade' => in_array('wholesale_retail_trade', $industryDefaults['types'], true),
+            'industry_other' => in_array('other', $industryDefaults['types'], true),
+            'industry_other_text' => $industryDefaults['other_text'],
+        ];
+    }
+
+    private function employeeOptions(): array
+    {
+        if (! Schema::hasTable('employees')) {
+            return User::query()
+                ->select(['id', 'name', 'email', 'role'])
+                ->whereIn('role', ['Admin', 'Employee', 'SuperAdmin'])
+                ->orderBy('name')
+                ->get()
+                ->map(fn (User $user): array => [
+                    'id' => (int) $user->id,
+                    'name' => $user->name,
+                    'employee_code' => null,
+                    'email' => $user->email,
+                    'position' => null,
+                    'department' => null,
+                ])
+                ->filter(fn (array $employee): bool => filled($employee['name']))
+                ->values()
+                ->all();
+        }
+
+        return Employee::query()
+            ->with('department:id,department_name')
+            ->select(['id', 'employee_code', 'first_name', 'last_name', 'email', 'position', 'department_id'])
+            ->orderBy('first_name')
+            ->orderBy('last_name')
+            ->get()
+            ->map(fn (Employee $employee): array => [
+                'id' => (int) $employee->id,
+                'name' => $employee->full_name,
+                'employee_code' => $employee->employee_code,
+                'email' => $employee->email,
+                'position' => $employee->position,
+                'department' => $employee->department?->department_name,
+            ])
+            ->filter(fn (array $employee): bool => filled($employee['name']))
+            ->values()
+            ->all();
+    }
+
+    private function roleContactOptions(): array
+    {
+        if (! Schema::hasTable('contacts')) {
+            return [];
+        }
+
+        return Contact::query()
+            ->orderBy('first_name')
+            ->orderBy('last_name')
+            ->get([
+                'id',
+                'first_name',
+                'middle_name',
+                'last_name',
+                'name_extension',
+                'position',
+                'email',
+                'phone',
+                'contact_address',
+                'company_name',
+                'company_address',
+                'tin',
+                'date_of_birth',
+                'sales_marketing',
+                'consultant_lead',
+                'lead_associate',
+                'referred_by',
+                'cif_status',
+            ])
+            ->map(function (Contact $contact): array {
+                $fullName = trim(collect([
+                    $contact->first_name,
+                    $contact->last_name,
+                ])->filter()->implode(' '));
+                $address = collect([$contact->contact_address, $contact->company_address])->first(fn ($value) => filled($value));
+
+                return [
+                    'id' => (int) $contact->id,
+                    'label' => $fullName !== '' ? $fullName : 'Contact #'.$contact->id,
+                    'search_blob' => Str::lower(collect([
+                        $fullName,
+                        $contact->company_name,
+                        $contact->position,
+                        $contact->email,
+                        $contact->phone,
+                        $address,
+                        $contact->tin,
+                    ])->filter()->implode(' ')),
+                    'company_name' => $contact->company_name,
+                    'position' => $contact->position,
+                    'email' => $contact->email,
+                    'phone' => $contact->phone,
+                    'address' => $address,
+                    'nationality' => null,
+                    'date_of_birth' => optional($contact->date_of_birth)->format('Y-m-d'),
+                    'tin' => $contact->tin,
+                    'sales_marketing_name' => $contact->sales_marketing,
+                    'consultant_lead' => $contact->consultant_lead,
+                    'lead_associate' => $contact->lead_associate,
+                    'referred_by' => $contact->referred_by,
+                    'cif_status' => $contact->cif_status,
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    private function industryDefaultsFromNature(?string $value): array
+    {
+        $raw = trim((string) $value);
+
+        if ($raw === '') {
+            return ['types' => [], 'other_text' => null];
+        }
+
+        $normalized = Str::of($raw)->lower()->replace(['&', '/', '-'], ' ')->squish()->toString();
+        $options = [
+            'services' => ['services', 'service'],
+            'export_import' => ['export import', 'export', 'import'],
+            'education' => ['education', 'school', 'academy'],
+            'financial_services' => ['financial services', 'finance', 'financial', 'banking'],
+            'transportation' => ['transportation', 'transport', 'logistics'],
+            'distribution' => ['distribution', 'distributor'],
+            'manufacturing' => ['manufacturing', 'manufacturer'],
+            'government' => ['government'],
+            'wholesale_retail_trade' => ['wholesale retail trade', 'wholesale', 'retail', 'trade'],
+        ];
+
+        foreach ($options as $key => $needles) {
+            foreach ($needles as $needle) {
+                if ($normalized === $needle || Str::contains($normalized, $needle)) {
+                    return ['types' => [$key], 'other_text' => null];
+                }
+            }
+        }
+
+        return ['types' => ['other'], 'other_text' => $raw];
     }
 
     private function findBif(int $company, int $bif): CompanyBif
@@ -731,6 +914,10 @@ class CompanyBifController extends Controller
             $validated[$field] = $request->boolean($field);
         }
 
+        $validated['employee_total'] = (int) ($validated['employee_male'] ?? 0)
+            + (int) ($validated['employee_female'] ?? 0)
+            + (int) ($validated['employee_pwd'] ?? 0);
+
         if (($validated['business_organization'] ?? null) !== 'other') {
             $validated['business_organization_other'] = null;
         }
@@ -786,7 +973,7 @@ class CompanyBifController extends Controller
                 ['key' => 'sole_proof_of_billing_residential_document', 'label' => 'Proof of Billing (Residential)'],
                 ['key' => 'sole_proof_of_billing_business_document', 'label' => 'Proof of Billing (Business Address if different)'],
                 ['key' => 'sole_spa_document', 'label' => 'Special Power of Attorney (if representative)'],
-                ['key' => 'sole_representative_ids_document', 'label' => 'Representative\'s 2 Valid IDs (if applicable)'],
+                ['key' => 'sole_representative_ids_document', 'label' => 'Representative\'s 2 Valid IDs (if applicable)', 'multiple_slots' => 2],
             ],
             'juridical_entity' => [
                 ['key' => 'juridical_sec_cda_certificate_document', 'label' => 'SEC / CDA Certificate of Registration'],
@@ -810,31 +997,79 @@ class CompanyBifController extends Controller
 
         foreach ($this->clientDocumentDefinitions() as $group) {
             foreach ($group as $document) {
-                $rules[$document['key']] = ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png,doc,docx', 'max:10240'];
+                if (($document['multiple_slots'] ?? 1) > 1) {
+                    $rules[$document['key'].'.*'] = ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png,doc,docx', 'max:10240'];
+                } else {
+                    $rules[$document['key']] = ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png,doc,docx', 'max:10240'];
+                }
             }
         }
 
-        $validated = $request->validate($rules);
+        $request->validate($rules);
         $stored = $bif->client_requirement_documents ?? [];
         $uploadedBy = trim((string) ($payload['authorized_contact_person_name'] ?? $bif->authorized_contact_person_name ?? ''));
         $uploadedBy = $uploadedBy !== '' ? $uploadedBy : 'Client';
         $issuedBy = strcasecmp($uploadedBy, 'Client') === 0 ? 'Client' : "Client - {$uploadedBy}";
 
-        foreach ($validated as $key => $file) {
-            if (! $file) {
-                continue;
+        foreach ($this->clientDocumentDefinitions() as $group) {
+            foreach ($group as $document) {
+                $key = $document['key'];
+                $uploads = $request->file($key);
+
+                if (! $uploads) {
+                    continue;
+                }
+
+                if (($document['multiple_slots'] ?? 1) > 1) {
+                    $slotCount = (int) $document['multiple_slots'];
+                    $existing = array_values(array_filter((array) ($stored[$key] ?? []), fn ($item) => is_array($item)));
+                    $existing = collect($existing)
+                        ->mapWithKeys(fn (array $item, int $index) => [(int) ($item['slot'] ?? $index) => $item])
+                        ->all();
+                    $existing = array_replace(
+                        array_fill(0, $slotCount, null),
+                        array_intersect_key($existing, array_flip(range(0, $slotCount - 1)))
+                    );
+
+                    foreach ((array) $uploads as $slot => $file) {
+                        if (! $file) {
+                            continue;
+                        }
+
+                        $path = $file->store("company-bifs/{$bif->id}/client-documents", 'public');
+                        $existing[(int) $slot] = [
+                            'slot' => (int) $slot,
+                            'original_name' => $file->getClientOriginalName(),
+                            'file_name' => $file->getClientOriginalName(),
+                            'path' => $path,
+                            'file_path' => $path,
+                            'mime_type' => $file->getMimeType(),
+                            'uploaded_at' => now()->toIso8601String(),
+                            'uploaded_by' => $uploadedBy,
+                            'uploaded_by_role' => 'Client',
+                            'issued_by' => $issuedBy,
+                        ];
+                    }
+
+                    $stored[$key] = array_values(array_filter(array_slice($existing, 0, $slotCount), fn ($item) => is_array($item)));
+                    continue;
+                }
+
+                $file = $uploads;
+                $path = $file->store("company-bifs/{$bif->id}/client-documents", 'public');
+
+                $stored[$key] = [
+                    'original_name' => $file->getClientOriginalName(),
+                    'file_name' => $file->getClientOriginalName(),
+                    'path' => $path,
+                    'file_path' => $path,
+                    'mime_type' => $file->getMimeType(),
+                    'uploaded_at' => now()->toIso8601String(),
+                    'uploaded_by' => $uploadedBy,
+                    'uploaded_by_role' => 'Client',
+                    'issued_by' => $issuedBy,
+                ];
             }
-
-            $path = $file->store("company-bifs/{$bif->id}/client-documents", 'public');
-
-            $stored[$key] = [
-                'original_name' => $file->getClientOriginalName(),
-                'path' => $path,
-                'uploaded_at' => now()->toIso8601String(),
-                'uploaded_by' => $uploadedBy,
-                'uploaded_by_role' => 'Client',
-                'issued_by' => $issuedBy,
-            ];
         }
 
         return $stored;
@@ -858,25 +1093,17 @@ class CompanyBifController extends Controller
             return 'draft';
         }
 
-        return self::DEMO_AUTO_APPROVE_ON_SUBMIT ? 'approved' : 'pending_approval';
+        return 'pending_approval';
     }
 
     private function resolveApprovedAt(bool $isSubmit)
     {
-        if (! $isSubmit || ! self::DEMO_AUTO_APPROVE_ON_SUBMIT) {
-            return null;
-        }
-
-        return now();
+        return null;
     }
 
     private function resolveApprovedByName(Request $request, bool $isSubmit): ?string
     {
-        if (! $isSubmit || ! self::DEMO_AUTO_APPROVE_ON_SUBMIT) {
-            return null;
-        }
-
-        return $request->user()?->name ?? 'Demo Approval';
+        return null;
     }
 
     private function defaultCompanies(): array

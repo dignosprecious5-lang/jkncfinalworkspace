@@ -339,6 +339,25 @@
                 feedback.textContent = message || '';
                 feedback.classList.toggle('hidden', !message);
             };
+            const notifyKycUpdated = () => {
+                const detail = {
+                    module: 'contacts',
+                    id: @json((string) $contact->id),
+                    source: 'client-cif',
+                    at: Date.now(),
+                };
+
+                if ('BroadcastChannel' in window) {
+                    const channel = new BroadcastChannel('jknc:kyc-sync');
+                    channel.postMessage(detail);
+                    channel.close();
+                }
+
+                try {
+                    localStorage.setItem('jknc:kyc-sync', JSON.stringify(detail));
+                } catch (error) {
+                }
+            };
 
             const getSelectedValue = (name) => form.querySelector(`input[name="${name}"]:checked`)?.value || '';
             const getInputValue = (name) => form.querySelector(`[name="${name}"]`)?.value?.trim() || '';
@@ -486,6 +505,7 @@
 
                     const payload = await response.json();
                     showFeedback(payload.message || 'Your Client Information Form has been submitted successfully.', 'success');
+                    notifyKycUpdated();
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                 } catch (error) {
                     showFeedback(error.message, 'error');

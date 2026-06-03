@@ -2,10 +2,6 @@
 @section('title', 'Edit Business Client Information Form')
 
 @section('content')
-@php
-    $canReviewKyc = in_array((string) (auth()->user()->role ?? ''), ['Admin', 'SuperAdmin'], true);
-    $requiresAdminApprovalRequest = ! $canReviewKyc && (string) ($bif->status ?? '') === 'approved';
-@endphp
 <style>
     .bif-edit-canvas {
         overflow-x: auto;
@@ -58,16 +54,6 @@
                             <div class="bif-edit-canvas">
                                 @include('company.bif.partials.form-fields', ['bif' => $bif])
                             </div>
-                            @if ($requiresAdminApprovalRequest)
-                                <div class="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-4">
-                                    <label for="change_request_note" class="mb-2 block text-sm font-semibold text-amber-900">Change Request Note</label>
-                                    <textarea id="change_request_note" name="change_request_note" rows="3" class="w-full rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100" placeholder="Explain what was changed and why this needs admin approval.">{{ old('change_request_note', $bif->change_request_note ?? '') }}</textarea>
-                                    <p class="mt-2 text-xs text-amber-800">Your edits will be submitted as a request and will only apply after admin approval.</p>
-                                    @error('change_request_note')
-                                        <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
-                                    @enderror
-                                </div>
-                            @endif
                         </div>
                     </div>
 
@@ -75,25 +61,12 @@
                         <a href="{{ route('company.bif.show', ['company' => $company->id, 'bif' => $bif->id]) }}" class="inline-flex h-10 min-w-[100px] items-center justify-center rounded-full border border-gray-200 px-4 text-sm font-medium text-gray-700 hover:bg-gray-50">
                             Cancel
                         </a>
-                        @if ($canReviewKyc)
-                            <button type="submit" name="action" value="draft" class="h-10 min-w-[120px] rounded-full border border-gray-200 px-4 text-sm font-medium text-gray-700 hover:bg-gray-50">
-                                Save Draft
-                            </button>
-                            <button type="submit" name="action" value="submit" class="h-10 min-w-[140px] rounded-full bg-blue-600 px-4 text-sm font-medium text-white hover:bg-blue-700">
-                                Return to Approval
-                            </button>
-                        @elseif ($requiresAdminApprovalRequest)
-                            <button type="submit" name="action" value="submit" class="h-10 min-w-[220px] rounded-full bg-amber-600 px-4 text-sm font-medium text-white hover:bg-amber-700">
-                                Request Admin Approval
-                            </button>
-                        @else
-                            <button type="submit" name="action" value="draft" class="h-10 min-w-[120px] rounded-full border border-gray-200 px-4 text-sm font-medium text-gray-700 hover:bg-gray-50">
-                                Save Draft
-                            </button>
-                            <button type="submit" name="action" value="submit" class="h-10 min-w-[140px] rounded-full bg-blue-600 px-4 text-sm font-medium text-white hover:bg-blue-700">
-                                Save Changes
-                            </button>
-                        @endif
+                        <button type="submit" name="action" value="draft" class="h-10 min-w-[120px] rounded-full border border-gray-200 px-4 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                            Save Draft
+                        </button>
+                        <button type="submit" name="action" value="submit" class="h-10 min-w-[140px] rounded-full bg-blue-600 px-4 text-sm font-medium text-white hover:bg-blue-700">
+                            Save
+                        </button>
                     </div>
                 </form>
             </div>

@@ -146,7 +146,7 @@
                             <div class="flex items-center justify-between border-b border-gray-100 px-4 py-3">
                                 <h2 class="text-base font-semibold text-gray-900">Business Information Summary</h2>
                                 @if ($bif)
-                                    <a href="{{ route('company.bif.edit', ['company' => $company->id, 'bif' => $bif->id]) }}" class="text-sm text-blue-600 hover:text-blue-700">Edit</a>
+                                    <button type="button" data-open-bif-edit-drawer class="text-sm text-blue-600 hover:text-blue-700">Edit</button>
                                 @endif
                             </div>
                             <div id="companyBifSummaryCard" class="space-y-4 px-4 py-4 text-sm">
@@ -197,7 +197,7 @@
                             <div class="border-b border-gray-100 px-4 py-3">
                                 <h3 class="text-base font-semibold text-gray-900">Actions</h3>
                             </div>
-                            <div class="space-y-2 px-4 py-4">
+                            <div id="companyKycActionPanel" class="space-y-2 px-4 py-4">
                                 @if ($bif && $bif->change_request_status === 'pending')
                                     <div class="mb-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 text-xs text-amber-900">
                                         <p class="font-semibold">Pending BIF Change Request</p>
@@ -256,7 +256,7 @@
                                         <button type="button" class="h-10 w-full rounded-lg bg-amber-500 text-sm font-medium text-white cursor-not-allowed opacity-80" disabled>Waiting For Admin Decision</button>
                                     @elseif ($bifApproved)
                                         <button type="button" class="h-10 w-full rounded-lg border border-green-200 bg-green-100 text-sm font-medium text-green-700 cursor-not-allowed" disabled>Approved</button>
-                                        <a href="{{ route('company.bif.edit', ['company' => $company->id, 'bif' => $bif->id]) }}" class="inline-flex h-10 w-full items-center justify-center rounded-lg bg-blue-600 text-sm font-medium text-white hover:bg-blue-700">Request BIF Changes</a>
+                                        <a href="{{ route('company.bif.edit', ['company' => $company->id, 'bif' => $bif->id]) }}" class="inline-flex h-10 w-full items-center justify-center rounded-lg bg-blue-600 text-sm font-medium text-white hover:bg-blue-700">Edit BIF</a>
                                     @elseif ($bifPendingApproval)
                                         <button type="button" class="h-10 w-full rounded-lg bg-slate-500 text-sm font-medium text-white cursor-not-allowed opacity-80" disabled>Submitted For Approval</button>
                                     @else
@@ -298,8 +298,14 @@
                                                 <div class="flex items-start justify-between gap-3">
                                                     <div>
                                                         <p class="text-sm font-semibold text-gray-900">{{ $requirement['label'] }}</p>
-                                                        <span class="mt-1 inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium {{ $requirement['uploaded'] ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-gray-100 text-gray-600 border border-gray-200' }}">
-                                                            {{ $requirement['uploaded'] ? 'Uploaded' : 'Missing' }}
+                                                        <span class="mt-1 inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium {{ $requirement['uploaded'] ? 'bg-green-100 text-green-700 border border-green-200' : (($requirement['uploaded_count'] ?? 0) > 0 ? 'bg-amber-100 text-amber-700 border border-amber-200' : 'bg-gray-100 text-gray-600 border border-gray-200') }}">
+                                                            @if ($requirement['uploaded'])
+                                                                Uploaded
+                                                            @elseif (($requirement['uploaded_count'] ?? 0) > 0)
+                                                                Partial
+                                                            @else
+                                                                Missing
+                                                            @endif
                                                         </span>
                                                         <p class="mt-1 text-xs text-gray-500">{{ $requirement['helper'] }}</p>
                                                     </div>
@@ -318,25 +324,27 @@
                                                                 @csrf
                                                                 <label class="cursor-pointer rounded-md border border-gray-200 px-2 py-1 text-gray-600 hover:bg-gray-50">
                                                                     {{ ($requirement['template_url'] ?? null) ? ($requirement['uploaded'] ? 'Replace Signed Copy' : 'Upload Signed Copy') : ($requirement['uploaded'] ? 'Replace' : 'Upload') }}
-                                                                    <input type="file" name="document" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" class="hidden" onchange="this.form.submit()">
+                                                                    <input type="file" name="{{ ($requirement['required_count'] ?? 1) > 1 ? 'document[]' : 'document' }}" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" class="hidden" @if (($requirement['required_count'] ?? 1) > 1) multiple @endif onchange="this.form.submit()">
                                                                 </label>
                                                             </form>
                                                         @endif
 
-                                                        @if ($requirement['uploaded'] && $requirement['file_url'])
-                                                            <button
-                                                                type="button"
-                                                                class="rounded-md border border-gray-200 px-2 py-1 text-gray-600 hover:bg-gray-50"
-                                                                data-open-requirement-view
-                                                                data-view-url="{{ $requirement['file_url'] }}"
-                                                                data-view-title="{{ $requirement['label'] }}"
-                                                                data-view-file-name="{{ $requirement['file_name'] }}"
-                                                                data-view-mime-type="{{ $requirement['mime_type'] }}"
-                                                                data-view-uploaded-at="{{ $requirement['uploaded_at'] }}"
-                                                                data-view-issued-by="{{ $requirement['issued_by'] }}"
-                                                            >
-                                                                View
-                                                            </button>
+                                                        @if (!empty($requirement['files']))
+                                                            @foreach ($requirement['files'] as $file)
+                                                                <button
+                                                                    type="button"
+                                                                    class="rounded-md border border-gray-200 px-2 py-1 text-gray-600 hover:bg-gray-50"
+                                                                    data-open-requirement-view
+                                                                    data-view-url="{{ route('company.kyc.requirements.view', ['company' => $company->id, 'requirement' => $requirement['key'], 'file' => $file['index']]) }}"
+                                                                    data-view-title="{{ ($requirement['required_count'] ?? 1) > 1 ? $requirement['label'].' '.($file['index'] + 1) : $requirement['label'] }}"
+                                                                    data-view-file-name="{{ $file['file_name'] }}"
+                                                                    data-view-mime-type="{{ $file['mime_type'] }}"
+                                                                    data-view-uploaded-at="{{ $file['uploaded_at'] }}"
+                                                                    data-view-issued-by="{{ $file['issued_by'] }}"
+                                                                >
+                                                                    {{ ($requirement['required_count'] ?? 1) > 1 ? 'View '.($file['index'] + 1) : 'View' }}
+                                                                </button>
+                                                            @endforeach
                                                         @else
                                                             <button type="button" class="rounded-md border border-gray-200 px-2 py-1 text-gray-600 opacity-40 pointer-events-none">View</button>
                                                         @endif
@@ -362,6 +370,43 @@
         </div>
     </div>
 </div>
+
+@if ($bif)
+<x-slide-over id="bifEditDrawer" width="sm:max-w-[980px]">
+    <div class="border-b border-gray-100 px-4 py-4 sm:px-6">
+        <div class="flex items-start justify-between gap-4">
+            <div>
+                <h2 class="text-lg font-semibold text-gray-900">Edit Business Information Form</h2>
+                <p class="mt-1 text-sm text-gray-500">Update the saved BIF details without leaving the Company KYC page.</p>
+            </div>
+            <button type="button" data-close-bif-edit-drawer class="h-9 w-9 rounded-full border border-gray-200 text-gray-600 hover:bg-gray-50">
+                <i class="fas fa-times text-sm"></i>
+            </button>
+        </div>
+    </div>
+
+    <form method="POST" action="{{ route('company.bif.update', ['company' => $company->id, 'bif' => $bif->id]) }}" class="flex min-h-0 flex-1 flex-col">
+        @csrf
+        @method('PUT')
+        <input type="hidden" name="return_to_kyc" value="1">
+        <input type="hidden" name="_from_bif_edit_drawer" value="1">
+
+        <div class="flex-1 overflow-y-auto bg-gray-50 px-4 py-4 sm:px-6">
+            <div class="mx-auto max-w-[1120px] overflow-x-auto">
+                @include('company.bif.partials.form-fields', ['bif' => $bif])
+            </div>
+        </div>
+
+        <div class="border-t border-gray-100 px-4 py-3 sm:px-6">
+            <div class="flex flex-wrap items-center justify-end gap-2">
+                <button type="button" data-close-bif-edit-drawer class="h-9 min-w-[100px] rounded-full border border-gray-200 px-4 text-sm font-medium text-gray-700 hover:bg-gray-50">Cancel</button>
+                <button type="submit" name="action" value="draft" class="h-9 min-w-[120px] rounded-full border border-gray-200 px-4 text-sm font-medium text-gray-700 hover:bg-gray-50">Save Draft</button>
+                <button type="submit" name="action" value="submit" class="h-9 min-w-[140px] rounded-full bg-blue-600 px-4 text-sm font-medium text-white hover:bg-blue-700">Save</button>
+            </div>
+        </div>
+    </form>
+</x-slide-over>
+@endif
 
 <x-slide-over id="sendBifModal" width="sm:max-w-[560px]">
     <div class="border-b border-gray-100 px-4 py-4 sm:px-6">
@@ -487,15 +532,21 @@
 <script>
     document.addEventListener('DOMContentLoaded', function () {
         const sendBifModal = document.getElementById('sendBifModal');
+        const bifEditDrawer = document.getElementById('bifEditDrawer');
         const requirementViewModal = document.getElementById('requirementViewModal');
+        const openBifEditButtons = document.querySelectorAll('[data-open-bif-edit-drawer]');
+        const closeBifEditButtons = document.querySelectorAll('[data-close-bif-edit-drawer]');
         const openSendBifButtons = document.querySelectorAll('[data-open-send-bif-modal]');
         const closeSendBifButtons = document.querySelectorAll('[data-close-send-bif-modal]');
         const openRequirementViewButtons = document.querySelectorAll('[data-open-requirement-view]');
         const closeRequirementViewButtons = document.querySelectorAll('[data-close-requirement-view-modal]');
         const shouldOpenSendModal = @json($errors->has('recipient_email'));
+        const shouldOpenBifEditDrawer = @json((bool) old('_from_bif_edit_drawer'));
 
         const openModal = () => window.jkncSlideOver.open(sendBifModal);
         const closeModal = () => window.jkncSlideOver.close(sendBifModal);
+        const openBifEditDrawer = () => bifEditDrawer && window.jkncSlideOver.open(bifEditDrawer);
+        const closeBifEditDrawer = () => bifEditDrawer && window.jkncSlideOver.close(bifEditDrawer);
         const openRequirementModal = () => window.jkncSlideOver.open(requirementViewModal);
         const closeRequirementModal = () => window.jkncSlideOver.close(requirementViewModal);
         const requirementViewTitle = document.getElementById('requirementViewTitle');
@@ -513,9 +564,9 @@
         const submitCompanyKycForm = document.getElementById('submitCompanyKycForm');
         const approveCompanyKycForm = document.getElementById('approveCompanyKycForm');
         const rejectCompanyKycForm = document.getElementById('rejectCompanyKycForm');
-        const companyBifStatusBadge = document.getElementById('companyBifStatusBadge');
-        const companyBifSubmittedAt = document.getElementById('companyBifSubmittedAt');
-        const companyBifClientSubmittedAt = document.getElementById('companyBifClientSubmittedAt');
+        const q = (id) => document.getElementById(id);
+        let refreshSequence = 0;
+        const syncEventName = 'jknc:kyc-sync';
         const statusBadgeClasses = {
             draft: 'bg-gray-100 text-gray-700 border border-gray-200',
             pending_approval: 'bg-amber-100 text-amber-700 border border-amber-200',
@@ -577,6 +628,7 @@
             current.innerHTML = incoming.innerHTML;
         };
         const syncCompanyKycFragments = async () => {
+            const sequence = ++refreshSequence;
             try {
                 const refreshUrl = new URL(window.location.href);
                 refreshUrl.searchParams.set('tab', 'business-client-information');
@@ -587,6 +639,7 @@
                 });
                 if (!response.ok) return;
                 const html = await response.text();
+                if (sequence !== refreshSequence) return;
                 const parser = new DOMParser();
                 const doc = parser.parseFromString(html, 'text/html');
                 replaceHtmlIfPresent('companyHeaderWrap', doc);
@@ -594,6 +647,7 @@
                 replaceHtmlIfPresent('companyHeaderSummary', doc);
                 replaceHtmlIfPresent('companyBifDocumentContent', doc);
                 replaceHtmlIfPresent('companyBifSummaryCard', doc);
+                replaceHtmlIfPresent('companyKycActionPanel', doc);
                 replaceHtmlIfPresent('companyKycRequirementsList', doc);
             } catch (error) {
             }
@@ -608,18 +662,35 @@
                 body: new FormData(form),
                 cache: 'no-store',
             });
+            const contentType = response.headers.get('content-type') || '';
+            const isJson = contentType.includes('application/json');
+            const responseText = await response.text();
+            let payload = {};
+
+            if (responseText.trim() !== '') {
+                try {
+                    payload = JSON.parse(responseText);
+                } catch (error) {
+                    if (isJson) {
+                        throw new Error(fallbackError);
+                    }
+                }
+            }
 
             if (response.status === 422) {
-                const payload = await response.json();
                 const firstError = Object.values(payload.errors || {}).flat()[0] || 'Please review the form.';
                 throw new Error(firstError);
             }
 
-            if (!response.ok) {
-                throw new Error(fallbackError);
+            if (response.redirected || !isJson || responseText.trim().startsWith('<')) {
+                throw new Error(response.redirected ? 'Your session may have expired. Please refresh the page and try again.' : fallbackError);
             }
 
-            return response.json();
+            if (!response.ok) {
+                throw new Error(payload.message || fallbackError);
+            }
+
+            return payload;
         };
         const syncBifState = (bif) => {
             if (!bif) return;
@@ -631,6 +702,9 @@
                     : status === 'rejected'
                         ? 'Rejected'
                         : 'Draft';
+            const companyBifStatusBadge = q('companyBifStatusBadge');
+            const companyBifSubmittedAt = q('companyBifSubmittedAt');
+            const companyBifClientSubmittedAt = q('companyBifClientSubmittedAt');
             if (companyBifStatusBadge) {
                 companyBifStatusBadge.className = `inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${statusBadgeClasses[status] || statusBadgeClasses.draft}`;
                 companyBifStatusBadge.textContent = label;
@@ -681,6 +755,14 @@
             button.addEventListener('click', openModal);
         });
 
+        openBifEditButtons.forEach((button) => {
+            button.addEventListener('click', openBifEditDrawer);
+        });
+
+        closeBifEditButtons.forEach((button) => {
+            button.addEventListener('click', closeBifEditDrawer);
+        });
+
         closeSendBifButtons.forEach((button) => {
             button.addEventListener('click', closeModal);
         });
@@ -729,6 +811,12 @@
             }
         });
 
+        bifEditDrawer?.addEventListener('click', function (event) {
+            if (event.target === bifEditDrawer || event.target.hasAttribute('data-drawer-overlay')) {
+                closeBifEditDrawer();
+            }
+        });
+
         requirementViewModal?.addEventListener('click', function (event) {
             if (event.target === requirementViewModal || event.target.hasAttribute('data-drawer-overlay')) {
                 closeRequirementModal();
@@ -738,6 +826,7 @@
         document.addEventListener('keydown', function (event) {
             if (event.key === 'Escape') {
                 closeModal();
+                closeBifEditDrawer();
                 closeRequirementModal();
             }
         });
@@ -746,10 +835,30 @@
             openModal();
         }
 
+        if (shouldOpenBifEditDrawer) {
+            openBifEditDrawer();
+        }
+
         const sessionClientEmail = @json(session('bif_client_email'));
         if (sessionClientEmail) {
             showSendSuccess(sessionClientEmail);
         }
+
+        const handleKycSyncEvent = (detail) => {
+            if (!detail || detail.module !== 'company' || String(detail.id || '') !== @json((string) $company->id)) return;
+            syncCompanyKycFragments();
+        };
+        if ('BroadcastChannel' in window) {
+            const syncChannel = new BroadcastChannel(syncEventName);
+            syncChannel.addEventListener('message', (event) => handleKycSyncEvent(event.data));
+        }
+        window.addEventListener('storage', (event) => {
+            if (event.key !== syncEventName || !event.newValue) return;
+            try {
+                handleKycSyncEvent(JSON.parse(event.newValue));
+            } catch (error) {
+            }
+        });
 
         sendBifForm?.addEventListener('submit', async (event) => {
             event.preventDefault();

@@ -4,6 +4,7 @@
     $showSoleRequirements = $selectedOrganization === 'sole_proprietorship';
     $showJuridicalRequirements = in_array($selectedOrganization, ['partnership', 'corporation', 'cooperative', 'ngo', 'other'], true);
     $showRequirements = $showSoleRequirements || $showJuridicalRequirements;
+    $clientRequirementDocuments = is_array($bif->client_requirement_documents) ? $bif->client_requirement_documents : [];
 @endphp
 <!DOCTYPE html>
 <html lang="en">
@@ -138,7 +139,7 @@
                             <label for="business_address" class="mb-1 block text-sm font-medium text-slate-700">Business Address</label>
                             <textarea id="business_address" name="business_address" rows="3" class="w-full border border-slate-300 px-3 py-3 text-sm">{{ old('business_address', $bif->business_address) }}</textarea>
                         </div>
-                        <div class="md:col-span-2 xl:col-span-3">
+                        <div id="business_organization_other_wrap" class="md:col-span-2 xl:col-span-3 {{ old('business_organization', $bif->business_organization) === 'other' ? '' : 'hidden' }}">
                             <label for="business_organization_other" class="mb-1 block text-sm font-medium text-slate-700">If Other, please specify</label>
                             <input id="business_organization_other" name="business_organization_other" value="{{ old('business_organization_other', $bif->business_organization_other) }}" class="h-11 w-full border border-slate-300 px-3 text-sm">
                         </div>
@@ -165,6 +166,99 @@
                         <div>
                             <label for="date_of_incorporation" class="mb-1 block text-sm font-medium text-slate-700">Date of Incorporation</label>
                             <input id="date_of_incorporation" type="date" name="date_of_incorporation" value="{{ old('date_of_incorporation', optional($bif->date_of_incorporation)->format('Y-m-d')) }}" class="h-11 w-full border border-slate-300 px-3 text-sm">
+                        </div>
+                    </div>
+                </section>
+
+                <section class="border border-slate-300 bg-white p-5">
+                    <h2 class="mb-4 border-b border-slate-200 pb-2 text-lg font-semibold text-slate-900">Industry, Capital, and Funds</h2>
+                    <div class="space-y-5">
+                        <div>
+                            <label class="mb-2 block text-sm font-semibold text-slate-900">Industry / Nature of Business</label>
+                            <div class="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                                @foreach ([
+                                    'industry_services' => 'Services',
+                                    'industry_export_import' => 'Export / Import',
+                                    'industry_education' => 'Education',
+                                    'industry_financial_services' => 'Financial Services',
+                                    'industry_transportation' => 'Transportation',
+                                    'industry_distribution' => 'Distribution',
+                                    'industry_manufacturing' => 'Manufacturing',
+                                    'industry_government' => 'Government',
+                                    'industry_wholesale_retail_trade' => 'Wholesale / Retail Trade',
+                                    'industry_other' => 'Other',
+                                ] as $name => $label)
+                                    <label class="flex items-center gap-2 border border-slate-300 px-3 py-2 text-sm">
+                                        <input type="checkbox" name="{{ $name }}" value="1" @checked(old($name, $bif->{$name}))>
+                                        {{ $label }}
+                                    </label>
+                                @endforeach
+                            </div>
+                            <div id="industry_other_wrap" class="mt-3 {{ old('industry_other', $bif->industry_other) ? '' : 'hidden' }}">
+                                <label for="industry_other_text" class="mb-1 block text-sm font-medium text-slate-700">Other Industry / Nature of Business</label>
+                                <input id="industry_other_text" name="industry_other_text" value="{{ old('industry_other_text', $bif->industry_other_text) }}" class="h-11 w-full border border-slate-300 px-3 text-sm">
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="mb-2 block text-sm font-semibold text-slate-900">Authorized Capital / Capital</label>
+                            <div class="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+                                @foreach ([
+                                    'capital_micro' => 'PHP 3,000,000 - Micro',
+                                    'capital_small' => 'PHP 3M to PHP 15M - Small',
+                                    'capital_medium' => 'PHP 15M to PHP 100M - Medium',
+                                    'capital_large' => 'PHP 100M Above - Large',
+                                ] as $name => $label)
+                                    <label class="flex items-center gap-2 border border-slate-300 px-3 py-2 text-sm">
+                                        <input type="checkbox" name="{{ $name }}" value="1" @checked(old($name, $bif->{$name}))>
+                                        {{ $label }}
+                                    </label>
+                                @endforeach
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="mb-2 block text-sm font-semibold text-slate-900">Number of Employee/s</label>
+                            <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                                <div>
+                                    <label for="employee_male" class="mb-1 block text-sm font-medium text-slate-700">Male</label>
+                                    <input id="employee_male" name="employee_male" type="number" min="0" value="{{ old('employee_male', $bif->employee_male) }}" class="h-11 w-full border border-slate-300 px-3 text-sm" data-employee-count-input>
+                                </div>
+                                <div>
+                                    <label for="employee_female" class="mb-1 block text-sm font-medium text-slate-700">Female</label>
+                                    <input id="employee_female" name="employee_female" type="number" min="0" value="{{ old('employee_female', $bif->employee_female) }}" class="h-11 w-full border border-slate-300 px-3 text-sm" data-employee-count-input>
+                                </div>
+                                <div>
+                                    <label for="employee_pwd" class="mb-1 block text-sm font-medium text-slate-700">PWD</label>
+                                    <input id="employee_pwd" name="employee_pwd" type="number" min="0" value="{{ old('employee_pwd', $bif->employee_pwd) }}" class="h-11 w-full border border-slate-300 px-3 text-sm" data-employee-count-input>
+                                </div>
+                                <div>
+                                    <label for="employee_total" class="mb-1 block text-sm font-medium text-slate-700">Total</label>
+                                    <input id="employee_total" name="employee_total" type="number" min="0" value="{{ old('employee_total', $bif->employee_total) }}" class="h-11 w-full border border-slate-300 bg-slate-50 px-3 text-sm text-slate-700" readonly>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="mb-2 block text-sm font-semibold text-slate-900">Source of Funds</label>
+                            <div class="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                                @foreach ([
+                                    'source_revenue_income' => 'Revenue / Income',
+                                    'source_investments' => 'Investments',
+                                    'source_remittance' => 'Remittance',
+                                    'source_fees' => 'Fees',
+                                    'source_other' => 'Other',
+                                ] as $name => $label)
+                                    <label class="flex items-center gap-2 border border-slate-300 px-3 py-2 text-sm">
+                                        <input type="checkbox" name="{{ $name }}" value="1" @checked(old($name, $bif->{$name}))>
+                                        {{ $label }}
+                                    </label>
+                                @endforeach
+                            </div>
+                            <div id="source_other_wrap" class="mt-3 {{ old('source_other', $bif->source_other) ? '' : 'hidden' }}">
+                                <label for="source_other_text" class="mb-1 block text-sm font-medium text-slate-700">Other Source of Funds</label>
+                                <input id="source_other_text" name="source_other_text" value="{{ old('source_other_text', $bif->source_other_text) }}" class="h-11 w-full border border-slate-300 px-3 text-sm">
+                            </div>
                         </div>
                     </div>
                 </section>
@@ -241,7 +335,39 @@
                         @foreach ($documentFields['sole_proprietorship'] as $document)
                             <div class="border border-slate-300 p-4">
                                 <label for="{{ $document['key'] }}" class="mb-2 block text-sm font-semibold text-slate-900">{{ $document['label'] }}</label>
-                                <input id="{{ $document['key'] }}" name="{{ $document['key'] }}" type="file" class="block w-full text-sm text-slate-600 file:mr-4 file:border-0 file:bg-[#3153d4] file:px-4 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-[#2745b3]">
+                                @if (($document['multiple_slots'] ?? 1) > 1)
+                                    @php
+                                        $existingFiles = collect((array) ($clientRequirementDocuments[$document['key']] ?? []))
+                                            ->filter(fn ($item) => is_array($item))
+                                            ->mapWithKeys(fn ($item, $index) => [(int) ($item['slot'] ?? $index) => $item])
+                                            ->all();
+                                    @endphp
+                                    <p class="mb-3 text-xs text-slate-500">Please upload two separate valid ID files.</p>
+                                    <div class="grid gap-4 md:grid-cols-2">
+                                        @foreach (range(1, $document['multiple_slots']) as $slot)
+                                            @php
+                                                $existingFile = $existingFiles[$slot - 1] ?? null;
+                                                $existingFileName = $existingFile['file_name'] ?? $existingFile['original_name'] ?? null;
+                                            @endphp
+                                            <div>
+                                                <label class="mb-2 block text-sm font-medium text-slate-700">Valid ID {{ $slot }}</label>
+                                                <input name="{{ $document['key'] }}[]" type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" class="block w-full text-sm text-slate-600 file:mr-4 file:border-0 file:bg-[#3153d4] file:px-4 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-[#2745b3]">
+                                                @if ($existingFileName)
+                                                    <p class="mt-2 text-xs text-slate-500">Current file: {{ $existingFileName }}</p>
+                                                @endif
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                @else
+                                    @php
+                                        $existingFile = is_array($clientRequirementDocuments[$document['key']] ?? null) ? $clientRequirementDocuments[$document['key']] : null;
+                                        $existingFileName = $existingFile['file_name'] ?? $existingFile['original_name'] ?? null;
+                                    @endphp
+                                    <input id="{{ $document['key'] }}" name="{{ $document['key'] }}" type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" class="block w-full text-sm text-slate-600 file:mr-4 file:border-0 file:bg-[#3153d4] file:px-4 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-[#2745b3]">
+                                    @if ($existingFileName)
+                                        <p class="mt-2 text-xs text-slate-500">Current file: {{ $existingFileName }}</p>
+                                    @endif
+                                @endif
                             </div>
                         @endforeach
                     </div>
@@ -249,8 +375,15 @@
                     <div class="mt-5 grid gap-4 md:grid-cols-2" id="juridicalUploads" @if(! $showJuridicalRequirements) style="display:none;" @endif>
                         @foreach ($documentFields['juridical_entity'] as $document)
                             <div class="border border-slate-300 p-4">
+                                @php
+                                    $existingFile = is_array($clientRequirementDocuments[$document['key']] ?? null) ? $clientRequirementDocuments[$document['key']] : null;
+                                    $existingFileName = $existingFile['file_name'] ?? $existingFile['original_name'] ?? null;
+                                @endphp
                                 <label for="{{ $document['key'] }}" class="mb-2 block text-sm font-semibold text-slate-900">{{ $document['label'] }}</label>
                                 <input id="{{ $document['key'] }}" name="{{ $document['key'] }}" type="file" class="block w-full text-sm text-slate-600 file:mr-4 file:border-0 file:bg-[#3153d4] file:px-4 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-[#2745b3]">
+                                @if ($existingFileName)
+                                    <p class="mt-2 text-xs text-slate-500">Current file: {{ $existingFileName }}</p>
+                                @endif
                             </div>
                         @endforeach
                     </div>
@@ -314,8 +447,77 @@
                 feedback.textContent = message || '';
                 feedback.classList.toggle('hidden', !message);
             };
+            const notifyKycUpdated = () => {
+                const detail = {
+                    module: 'company',
+                    id: @json((string) $bif->company_id),
+                    source: 'client-bif',
+                    at: Date.now(),
+                };
+
+                if ('BroadcastChannel' in window) {
+                    const channel = new BroadcastChannel('jknc:kyc-sync');
+                    channel.postMessage(detail);
+                    channel.close();
+                }
+
+                try {
+                    localStorage.setItem('jknc:kyc-sync', JSON.stringify(detail));
+                } catch (error) {
+                }
+            };
 
             const juridicalTypes = new Set(['partnership', 'corporation', 'cooperative', 'ngo', 'other']);
+            const businessOrganizationOtherWrap = document.getElementById('business_organization_other_wrap');
+            const businessOrganizationOtherInput = document.getElementById('business_organization_other');
+            const industryOtherCheckbox = form.querySelector('[name="industry_other"]');
+            const industryOtherWrap = document.getElementById('industry_other_wrap');
+            const industryOtherInput = document.getElementById('industry_other_text');
+            const sourceOtherCheckbox = form.querySelector('[name="source_other"]');
+            const sourceOtherWrap = document.getElementById('source_other_wrap');
+            const sourceOtherInput = document.getElementById('source_other_text');
+            const employeeCountInputs = Array.from(form.querySelectorAll('[data-employee-count-input]'));
+            const employeeTotalInput = form.querySelector('[name="employee_total"]');
+
+            const clearValidationState = (field) => {
+                if (!field) {
+                    return;
+                }
+
+                field.removeAttribute('aria-invalid');
+                field.classList.remove('border-red-400', 'bg-red-50', 'text-red-900', 'focus:border-red-500', 'focus:ring-red-100');
+                field.classList.add('border-slate-300');
+            };
+
+            const syncOtherField = () => {
+                const showOther = organizationSelect.value === 'other';
+
+                businessOrganizationOtherWrap?.classList.toggle('hidden', !showOther);
+
+                if (!showOther && businessOrganizationOtherInput) {
+                    businessOrganizationOtherInput.value = '';
+                    clearValidationState(businessOrganizationOtherInput);
+                }
+            };
+
+            const syncCheckboxOtherField = (checkbox, wrapper, input) => {
+                const showOther = Boolean(checkbox?.checked);
+
+                wrapper?.classList.toggle('hidden', !showOther);
+
+                if (!showOther && input) {
+                    input.value = '';
+                    clearValidationState(input);
+                }
+            };
+
+            const syncEmployeeTotal = () => {
+                if (!employeeTotalInput) {
+                    return;
+                }
+
+                employeeTotalInput.value = String(employeeCountInputs.reduce((total, field) => total + (Number(field.value) || 0), 0));
+            };
 
             const syncCompanyNameHeading = () => {
                 if (!companyNameHeading) return;
@@ -336,9 +538,15 @@
                 soleUploads.style.display = showSole ? '' : 'none';
                 juridicalUploads.style.display = showJuridical ? '' : 'none';
                 placeholder.style.display = (showSole || showJuridical) ? 'none' : '';
+                syncOtherField();
+                syncCheckboxOtherField(industryOtherCheckbox, industryOtherWrap, industryOtherInput);
+                syncCheckboxOtherField(sourceOtherCheckbox, sourceOtherWrap, sourceOtherInput);
             };
 
             organizationSelect.addEventListener('change', syncRequirementCards);
+            industryOtherCheckbox?.addEventListener('change', syncRequirementCards);
+            sourceOtherCheckbox?.addEventListener('change', syncRequirementCards);
+            employeeCountInputs.forEach((field) => field.addEventListener('input', syncEmployeeTotal));
             form.querySelector('[name="business_name"]')?.addEventListener('input', syncCompanyNameHeading);
             form.addEventListener('submit', async (event) => {
                 event.preventDefault();
@@ -367,6 +575,7 @@
 
                     const payload = await response.json();
                     showFeedback(payload.message || 'Your Business Information Form has been submitted successfully.', 'success');
+                    notifyKycUpdated();
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                     syncCompanyNameHeading();
                 } catch (error) {
@@ -376,6 +585,7 @@
             });
             syncRequirementCards();
             syncCompanyNameHeading();
+            syncEmployeeTotal();
         })();
     </script>
 </body>
