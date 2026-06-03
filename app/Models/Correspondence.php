@@ -23,6 +23,7 @@ class Correspondence extends Model
         'company_name',
         'registration_number',
         'principal_address',
+        'to_for_label',
         'to_for',
         'from_name',
         'department_stakeholder',

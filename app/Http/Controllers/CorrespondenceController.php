@@ -38,12 +38,14 @@ class CorrespondenceController extends Controller
     {
         $latestGisRecord = $this->latestApprovedGisRecord();
         $companyInfo = $this->latestGisCompanyInfo($latestGisRecord);
+        $correspondenceLogoUrl = $this->gisLogoUrl($latestGisRecord);
         $managementApprovers = $this->activeEmployeeApprovers();
         $executiveApprovers = $this->executiveApproversFromGis();
 
         return view('corporate.correspondence', compact(
             'latestGisRecord',
             'companyInfo',
+            'correspondenceLogoUrl',
             'managementApprovers',
             'executiveApprovers'
         ));
@@ -80,6 +82,7 @@ class CorrespondenceController extends Controller
                 'registration_number' => $item->registration_number,
                 'principal_address' => $item->principal_address,
                 'tin' => $item->tin,
+                'to_for_label' => $item->to_for_label ?: 'To',
                 'to_for' => $item->to_for,
                 'from_name' => $item->from_name,
                 'department' => $item->department_stakeholder,
@@ -101,6 +104,7 @@ class CorrespondenceController extends Controller
         $validated = $request->validate([
             'type' => ['required', 'string', 'max:100', 'in:' . implode(',', $this->correspondenceTypes)],
             'tin' => ['nullable', 'string', 'max:100'],
+            'to_for_label' => ['nullable', 'string', 'max:10', 'in:To,For'],
             'to_for' => ['nullable', 'string', 'max:255'],
             'from_name' => ['nullable', 'string', 'max:255'],
             'department_stakeholder' => ['nullable', 'string', 'max:255'],
@@ -169,8 +173,12 @@ class CorrespondenceController extends Controller
     {
         $correspondence = Correspondence::findOrFail($id);
 
+        $latestGisRecord = $this->latestApprovedGisRecord();
+        $correspondenceLogoUrl = $this->gisLogoUrl($latestGisRecord);
+
         return view('correspondence.template', [
             'correspondence' => $correspondence,
+            'correspondenceLogoUrl' => $correspondenceLogoUrl,
         ]);
     }
 
@@ -179,7 +187,10 @@ class CorrespondenceController extends Controller
         $correspondence = Correspondence::findOrFail($id);
         $correspondence->body = $this->prepareCorrespondenceBodyForPdf($correspondence->body);
 
-        $pdf = Pdf::loadView('correspondence.pdf', compact('correspondence'))
+        $latestGisRecord = $this->latestApprovedGisRecord();
+        $correspondenceLogoSrc = $this->gisLogoDataUri($latestGisRecord);
+
+        $pdf = Pdf::loadView('correspondence.pdf', compact('correspondence', 'correspondenceLogoSrc'))
             ->setPaper('a4', 'portrait')
             ->setOptions([
                 'isHtml5ParserEnabled' => true,
@@ -319,6 +330,69 @@ class CorrespondenceController extends Controller
         ]);
 
         return back()->with('success', 'Correspondence unarchived successfully.');
+    }
+
+
+
+    private function gisLogoUrl($gisRecord): string
+    {
+        $fallback = asset('images/jk-logo.png');
+
+        if (!$gisRecord || empty($gisRecord->logo_path)) {
+            return $fallback;
+        }
+
+        $path = ltrim($gisRecord->logo_path, '/');
+
+        if (str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) {
+            return $path;
+        }
+
+        if (str_starts_with($path, 'storage/')) {
+            return asset($path);
+        }
+
+        return asset('storage/' . $path);
+    }
+
+    private function gisLogoDataUri($gisRecord): ?string
+    {
+        $candidates = [];
+
+        if ($gisRecord && !empty($gisRecord->logo_path)) {
+            $path = ltrim($gisRecord->logo_path, '/');
+
+            if (!str_starts_with($path, 'http://') && !str_starts_with($path, 'https://')) {
+                $normalizedPath = str_starts_with($path, 'storage/')
+                    ? substr($path, strlen('storage/'))
+                    : $path;
+
+                $candidates[] = storage_path('app/public/' . $normalizedPath);
+                $candidates[] = public_path($path);
+                $candidates[] = public_path('storage/' . $normalizedPath);
+            }
+        }
+
+        $candidates[] = public_path('images/jk-logo.png');
+        $candidates[] = public_path('images/logo.png');
+
+        foreach ($candidates as $candidate) {
+            if ($candidate && file_exists($candidate)) {
+                $extension = strtolower(pathinfo($candidate, PATHINFO_EXTENSION));
+
+                $mime = match ($extension) {
+                    'jpg', 'jpeg' => 'image/jpeg',
+                    'gif' => 'image/gif',
+                    'webp' => 'image/webp',
+                    'svg' => 'image/svg+xml',
+                    default => 'image/png',
+                };
+
+                return 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($candidate));
+            }
+        }
+
+        return null;
     }
 
 

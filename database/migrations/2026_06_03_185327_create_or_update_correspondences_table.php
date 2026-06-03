@@ -27,6 +27,7 @@ return new class extends Migration
                 $table->text('principal_address')->nullable();
 
                 $table->string('tin')->nullable();
+                $table->string('to_for_label')->default('To');
                 $table->string('to_for')->nullable();
                 $table->string('from_name')->nullable();
                 $table->string('department_stakeholder')->nullable();
@@ -86,6 +87,7 @@ return new class extends Migration
             $this->addColumnIfMissing($table, $tableName, 'principal_address', fn($table) => $table->text('principal_address')->nullable());
 
             $this->addColumnIfMissing($table, $tableName, 'tin', fn($table) => $table->string('tin')->nullable());
+            $this->addColumnIfMissing($table, $tableName, 'to_for_label', fn($table) => $table->string('to_for_label')->default('To'));
             $this->addColumnIfMissing($table, $tableName, 'to_for', fn($table) => $table->string('to_for')->nullable());
             $this->addColumnIfMissing($table, $tableName, 'from_name', fn($table) => $table->string('from_name')->nullable());
             $this->addColumnIfMissing($table, $tableName, 'department_stakeholder', fn($table) => $table->string('department_stakeholder')->nullable());

@@ -537,6 +537,8 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::get('/policies/preview-pdf', [PolicyController::class, 'previewPdf'])->name('policies.preview');
     Route::get('/policies/{id}', [PolicyController::class, 'show'])->name('policies.show');
     Route::get('/policies/{id}/edit', [PolicyController::class, 'edit'])->name('policies.edit');
+    Route::get('/policies/{id}/edit', [PolicyController::class, 'edit'])
+        ->name('policies.edit');
 
     Route::put('/policies/{id}', [PolicyController::class, 'update'])
         ->name('policies.update');
@@ -831,7 +833,7 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::redirect('/banking', '/corporate/banking')->name('banking');
     Route::redirect('/legal', '/corporate/legal')->name('legal');
     Route::redirect('/operations', '/corporate/operations')->name('operations');
-    Route::redirect('/correspondence', '/corporate/correspondence')->name('correspondence.redirect');
+    Route::redirect('/correspondence', '/corporate/correspondence')->name('correspondence');
 
     /*
     |--------------------------------------------------------------------------
@@ -932,7 +934,6 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::get('/corporate/minutes', [MinuteController::class, 'index'])->name('minutes');
     Route::get('/corporate/minutes/create', [MinuteController::class, 'create'])->name('minutes.create');
     Route::post('/corporate/minutes', [MinuteController::class, 'store'])->name('minutes.store');
-    Route::get('/corporate/minutes/{minute}/download', [MinuteController::class, 'downloadPdf'])->name('minutes.download');
     Route::get('/corporate/minutes/{minute}', [MinuteController::class, 'show'])->name('minutes.preview');
     Route::get('/corporate/minutes/{minute}/edit', [MinuteController::class, 'edit'])->name('minutes.edit');
     Route::put('/corporate/minutes/{minute}', [MinuteController::class, 'update'])->name('minutes.update');
@@ -970,7 +971,7 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::get('/permits/template/sanitary-permit/{id}', [PermitController::class, 'showSanitaryPermitTemplate'])->name('permits.template.sanitary-permit');
     Route::get('/permits/template/obo-permit/{id}', [PermitController::class, 'showOboPermitTemplate'])->name('permits.template.obo-permit');
 
-    Route::get('/corporate/lgu', [PermitController::class, 'page'])->name('corporate.lgu.permits');
+    Route::get('/corporate/lgu', [PermitController::class, 'page'])->name('corporate.lgu');
     Route::get('/permits', [PermitController::class, 'index'])->name('permits.index');
     Route::post('/permits', [PermitController::class, 'store'])->name('permits.store');
     Route::get('/permits/{id}', [PermitController::class, 'show'])->name('permits.show');
@@ -983,13 +984,13 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     | CORRESPONDENCE / LEGAL / ACCOUNTING / BANKING / OPERATIONS
     |--------------------------------------------------------------------------
     */
-    Route::get('/correspondence/data', [CorrespondenceController::class, 'index'])->name('correspondence.data.legacy');
-    Route::post('/correspondence', [CorrespondenceController::class, 'store'])->name('correspondence.store.legacy');
+    Route::get('/correspondence/data', [CorrespondenceController::class, 'index'])->name('correspondence.data');
+    Route::post('/correspondence', [CorrespondenceController::class, 'store'])->name('correspondence.store');
     Route::get('/correspondence/{id}', [CorrespondenceController::class, 'show'])->name('correspondence.show');
     Route::put('/correspondence/{id}/update', [CorrespondenceController::class, 'update'])->name('correspondence.update');
-    Route::post('/correspondence/{id}/submit', [CorrespondenceController::class, 'submit'])->name('correspondence.submit.legacy');
+    Route::post('/correspondence/{id}/submit', [CorrespondenceController::class, 'submit'])->name('correspondence.submit');
     Route::get('/correspondence/draft-preview/{slug}', [CorrespondenceController::class, 'showDraftPreview'])->name('correspondence.draft-preview');
-    Route::get('/correspondence/template/{slug}/{id}', [CorrespondenceController::class, 'showTemplate'])->name('correspondence.template.legacy');
+    Route::get('/correspondence/template/{slug}/{id}', [CorrespondenceController::class, 'showTemplate'])->name('correspondence.template');
 
     Route::get('/legal/data', [LegalController::class, 'index'])->name('legal.index');
     Route::post('/legal/store', [LegalController::class, 'store'])->name('legal.store');
@@ -1053,18 +1054,6 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     |--------------------------------------------------------------------------
     */
     Route::get('/transmittal', [TransmittalController::class, 'index'])->name('transmittal.index');
-
-    Route::get('/admin/transmittal-dashboard', [TransmittalController::class, 'dashboard'])
-        ->name('admin.transmittal.dashboard');
-
-    Route::post('/transmittal/{transmittal}/dashboard-approve', [TransmittalController::class, 'dashboardApprove'])
-        ->name('transmittal.dashboard.approve');
-
-    Route::post('/transmittal/{transmittal}/dashboard-revise', [TransmittalController::class, 'dashboardRevise'])
-        ->name('transmittal.dashboard.revise');
-
-    Route::post('/transmittal/{transmittal}/dashboard-reject', [TransmittalController::class, 'dashboardReject'])
-        ->name('transmittal.dashboard.reject');
     Route::get('/transmittal/create/project/{project}', [TransmittalController::class, 'createFromProject'])->name('transmittal.create.project');
     Route::get('/transmittal/create/regular/{regular}', [TransmittalController::class, 'createFromRegular'])->name('transmittal.create.regular');
     Route::get('/transmittal/data', [TransmittalController::class, 'data'])->name('transmittal.data');

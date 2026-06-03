@@ -24,6 +24,31 @@
 
         .center { text-align: center; }
 
+        .header {
+            display: grid;
+            grid-template-columns: 38% 62%;
+            align-items: center;
+            gap: 18px;
+            margin-top: 6px;
+            margin-bottom: 38px;
+        }
+
+        .header-logo {
+            text-align: center;
+        }
+
+        .header-logo img {
+            max-width: 190px;
+            max-height: 95px;
+            object-fit: contain;
+        }
+
+        .header-company {
+            text-align: left;
+            font-size: 13px;
+            line-height: 1.35;
+        }
+
         .title {
             font-weight: bold;
             text-transform: uppercase;
@@ -41,15 +66,20 @@
         .field {
             display: grid;
             grid-template-columns: 105px 1fr;
-            gap: 12px;
-            margin-bottom: 10px;
+            gap: 10px;
+            margin-bottom: 3px;
             font-size: 14px;
+            line-height: 1.3;
         }
 
         .line {
-            border-bottom: 1px solid #333;
-            min-height: 20px;
+            min-height: 18px;
             word-break: break-word;
+        }
+
+        .field-divider {
+            border-top: 1px solid #6b7280;
+            margin: 10px 0 24px 0;
         }
 
         .body-content {
@@ -84,12 +114,16 @@
 </head>
 <body>
     <div class="page">
-        <div class="center title">{{ $correspondence->type }}</div>
+        <div class="header">
+            <div class="header-logo">
+                <img src="{{ $correspondenceLogoUrl ?? asset('images/jk-logo.png') }}" alt="Company Logo">
+            </div>
 
-        <div class="center" style="margin-bottom: 34px;">
-            <div class="company-name">{{ $correspondence->company_name }}</div>
-            <div>Registration No.: {{ $correspondence->registration_number ?: '____________________' }}</div>
-            <div>{{ $correspondence->principal_address }}</div>
+            <div class="header-company">
+                <div class="company-name">{{ $correspondence->company_name }}</div>
+                <div>Registration No.: {{ $correspondence->registration_number ?: '____________________' }}</div>
+                <div>{{ $correspondence->principal_address }}</div>
+            </div>
         </div>
 
         <div class="center title">{{ $correspondence->type }}</div>
@@ -100,7 +134,7 @@
         </div>
 
         <div class="field">
-            <strong>To / For:</strong>
+            <strong>{{ $correspondence->to_for_label ?: 'To' }}:</strong>
             <div class="line">{{ $correspondence->to_for }}</div>
         </div>
 
@@ -113,6 +147,8 @@
             <strong>SUBJECT:</strong>
             <div class="line"><strong>{{ $correspondence->subject }}</strong></div>
         </div>
+
+        <div class="field-divider"></div>
 
         <div class="body-content">
             {!! $correspondence->body ?: '<p>No body provided.</p>' !!}

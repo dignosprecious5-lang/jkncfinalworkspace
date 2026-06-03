@@ -17,7 +17,7 @@
         'Complaint Letter',
         'Explanation Letter',
         'Response Letter',
-        'Other',
+
     ];
 
     $companyInfo = $companyInfo ?? [
@@ -25,6 +25,8 @@
         'registration_number' => '',
         'principal_address' => '3F Cebu Holdings Center Cebu Business Park, Cebu City, Philippines, 6000',
     ];
+
+    $correspondenceLogoUrl = $correspondenceLogoUrl ?? asset('images/jk-logo.png');
 @endphp
 
 @section('content')
@@ -38,11 +40,13 @@
         companyName: @js($companyInfo['company_name'] ?? ''),
         registrationNumber: @js($companyInfo['registration_number'] ?? ''),
         principalAddress: @js($companyInfo['principal_address'] ?? ''),
+        correspondenceLogoUrl: @js($correspondenceLogoUrl ?? asset('images/jk-logo.png')),
 
         previewRef: 'AUTO-INCREMENT',
         previewDate: '{{ now()->format('Y-m-d') }}',
         previewType: 'Letters',
         previewTin: '',
+        previewToForLabel: 'To',
         previewToFor: '',
         previewFrom: '{{ Auth::user()->name ?? 'System Super Admin' }}',
         previewDepartment: '',
@@ -192,38 +196,42 @@
                 >
                     <div class="max-w-[900px] mx-auto flex justify-center">
                         <div id="correspondence-preview-pdf" class="correspondence-a4-page bg-white border border-gray-300 shadow">
-                            <div class="text-center mb-6">
-                                <h1 class="text-[18px] font-bold uppercase tracking-[0.16em]" x-text="previewType || 'CORRESPONDENCE'"></h1>
+                            <div class="correspondence-header mb-12">
+                                <div class="header-logo">
+                                    <img :src="correspondenceLogoUrl" alt="Company Logo">
+                                </div>
+
+                                <div class="header-company">
+                                    <p class="company-name" x-text="companyName || 'COMPANY NAME'"></p>
+                                    <p>Registration No.: <span x-text="registrationNumber || '____________________'"></span></p>
+                                    <p x-text="principalAddress || 'Principal Office Address'"></p>
+                                </div>
                             </div>
 
                             <div class="text-center mb-10">
-                                <h2 class="text-[15px] font-bold uppercase" x-text="companyName || 'COMPANY NAME'"></h2>
-                                <p class="text-[13px]">Registration No.: <span x-text="registrationNumber || '____________________'"></span></p>
-                                <p class="text-[13px]" x-text="principalAddress || 'Principal Office Address'"></p>
+                                <h2 class="text-[24px] font-bold uppercase tracking-[0.14em]" x-text="previewType || 'CORRESPONDENCE'"></h2>
                             </div>
 
-                            <div class="text-center mb-10">
-                                <h2 class="text-[18px] font-bold uppercase tracking-[0.14em]" x-text="previewType || 'CORRESPONDENCE'"></h2>
-                            </div>
-
-                            <div class="space-y-3 text-[14px] text-gray-900 mb-8">
-                                <div class="grid grid-cols-[100px_1fr] gap-3">
+                            <div class="correspondence-fields text-gray-900">
+                                <div class="field-row">
                                     <p class="font-semibold">Date:</p>
-                                    <p class="border-b border-gray-400 pb-1" x-text="previewDate || '______________________'"></p>
+                                    <p class="pb-1" x-text="formatDisplayDate(previewDate) || '______________________'"></p>
                                 </div>
-                                <div class="grid grid-cols-[100px_1fr] gap-3">
-                                    <p class="font-semibold">To / For:</p>
-                                    <p class="border-b border-gray-400 pb-1 break-words" x-text="previewToFor || '______________________'"></p>
+                                <div class="field-row">
+                                    <p class="font-semibold"><span x-text="previewToForLabel || 'To'"></span>:</p>
+                                    <p class="pb-1 break-words" x-text="previewToFor || '______________________'"></p>
                                 </div>
-                                <div class="grid grid-cols-[100px_1fr] gap-3">
+                                <div class="field-row">
                                     <p class="font-semibold">From:</p>
-                                    <p class="border-b border-gray-400 pb-1 break-words" x-text="previewFrom || '______________________'"></p>
+                                    <p class="pb-1 break-words" x-text="previewFrom || '______________________'"></p>
                                 </div>
-                                <div class="grid grid-cols-[100px_1fr] gap-3">
+                                <div class="field-row">
                                     <p class="font-semibold uppercase">Subject:</p>
-                                    <p class="border-b border-gray-400 pb-1 font-semibold break-words" x-text="previewSubject || '______________________________'"></p>
+                                    <p class="pb-1 font-semibold break-words" x-text="previewSubject || '______________________________'"></p>
                                 </div>
                             </div>
+
+                            <div class="correspondence-divider"></div>
 
                             <div class="correspondence-body text-[15px] text-gray-900">
                                 <div class="body-content" x-html="previewBody"></div>
@@ -279,9 +287,9 @@
                         </div>
 
                         <div class="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm">
-                            <p class="font-semibold text-blue-700">Auto-filled from latest approved GIS</p>
-                            <p class="mt-1"><strong>Company:</strong> {{ $companyInfo['company_name'] ?? '—' }}</p>
-                            <p><strong>Registration No.:</strong> {{ $companyInfo['registration_number'] ?? '—' }}</p>
+                            <p class="font-semibold text-blue-700">Header details auto-filled from latest approved GIS</p>
+                            <p class="mt-1"><strong>Company Name:</strong> {{ $companyInfo['company_name'] ?? '—' }}</p>
+                            <p><strong>Registration Number:</strong> {{ $companyInfo['registration_number'] ?? '—' }}</p>
                             <p><strong>Principal Address:</strong> {{ $companyInfo['principal_address'] ?? '—' }}</p>
                         </div>
 
@@ -292,7 +300,14 @@
 
                         <div>
                             <label class="block text-xs font-semibold text-gray-500 mb-1">To / For</label>
-                            <input id="toForInput" x-model="previewToFor" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500" placeholder="Enter recipient">
+                            <div class="grid grid-cols-[110px_1fr] gap-3">
+                                <select id="toForLabelInput" x-model="previewToForLabel" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500">
+                                    <option value="To">To</option>
+                                    <option value="For">For</option>
+                                </select>
+
+                                <input id="toForInput" x-model="previewToFor" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500" placeholder="Manually type recipient">
+                            </div>
                         </div>
 
                         <div>
@@ -381,6 +396,45 @@
 </div>
 
 <style>
+
+    .correspondence-header {
+        display: grid;
+        grid-template-columns: 38% 62%;
+        align-items: center;
+        gap: 18px;
+        margin-top: 8px;
+    }
+
+    .correspondence-header .header-logo {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 85px;
+    }
+
+    .correspondence-header .header-logo img {
+        display: block;
+        max-width: 190px;
+        max-height: 95px;
+        object-fit: contain;
+    }
+
+    .correspondence-header .header-company {
+        text-align: left;
+        font-size: 13px;
+        line-height: 1.35;
+        color: #000;
+        overflow-wrap: break-word;
+        word-break: normal;
+    }
+
+    .correspondence-header .company-name {
+        font-weight: 700;
+        text-transform: uppercase;
+        font-size: 14px;
+        margin-bottom: 2px;
+    }
+
     .correspondence-a4-page {
         width: 210mm;
         min-height: 297mm;
@@ -490,6 +544,52 @@
         content: "Georgia";
         font-family: Georgia, "Times New Roman", serif;
     }
+
+    /* Match Town Hall memo spacing */
+    .correspondence-a4-page {
+        padding: 18mm 18mm 20mm 18mm !important;
+    }
+
+    .correspondence-header {
+        margin-top: 8px !important;
+        margin-bottom: 38px !important;
+    }
+
+    .correspondence-header .header-logo img {
+        max-width: 205px !important;
+        max-height: 105px !important;
+    }
+
+    .correspondence-header .header-company {
+        font-size: 13px !important;
+        line-height: 1.25 !important;
+    }
+
+    .correspondence-fields {
+        margin-top: 0 !important;
+        margin-bottom: 22px !important;
+    }
+
+    .correspondence-fields .field-row {
+        display: grid;
+        grid-template-columns: 105px 1fr;
+        column-gap: 10px;
+        margin-bottom: 2px;
+        line-height: 1.3;
+        font-size: 14px;
+    }
+
+    .correspondence-fields .field-row p {
+        margin: 0;
+        padding: 0;
+    }
+
+    .correspondence-divider {
+        border-top: 1px solid #6b7280;
+        margin-top: 8px;
+        margin-bottom: 22px;
+    }
+
 </style>
 @endsection
 
@@ -510,6 +610,22 @@ let correspondenceRows = [];
 const correspondenceTypes = @json($types);
 const managementApprovers = @json(($managementApprovers ?? collect())->values());
 const executiveApprovers = @json(($executiveApprovers ?? collect())->values());
+
+function formatDisplayDate(value) {
+    if (!value) return '';
+
+    const date = new Date(`${value}T00:00:00`);
+
+    if (Number.isNaN(date.getTime())) {
+        return value;
+    }
+
+    return date.toLocaleDateString('en-US', {
+        month: 'long',
+        day: '2-digit',
+        year: 'numeric'
+    });
+}
 
 function slugifyType(type) {
     return String(type || 'other')
@@ -613,6 +729,7 @@ function resetFormDefaults() {
 
     document.getElementById('typeInput').value = 'Letters';
     document.getElementById('subjectInput').value = '';
+    document.getElementById('toForLabelInput').value = 'To';
     document.getElementById('toForInput').value = '';
     document.getElementById('fromInput').value = '{{ Auth::user()->name ?? 'System Super Admin' }}';
     document.getElementById('departmentInput').value = '';
@@ -629,6 +746,7 @@ function resetFormDefaults() {
         alpineData.previewRef = 'AUTO-INCREMENT';
         alpineData.previewDate = today;
         alpineData.previewType = 'Letters';
+        alpineData.previewToForLabel = 'To';
         alpineData.previewToFor = '';
         alpineData.previewFrom = '{{ Auth::user()->name ?? 'System Super Admin' }}';
         alpineData.previewDepartment = '';
@@ -705,7 +823,7 @@ function openPreview(index) {
     document.getElementById('infoCompany').textContent = item.company_name ?? '';
     document.getElementById('infoRegNo').textContent = item.registration_number ?? '';
     document.getElementById('infoSubject').textContent = item.subject ?? '';
-    document.getElementById('infoToFor').textContent = item.to_for ?? 'N/A';
+    document.getElementById('infoToFor').textContent = `${item.to_for_label || 'To'}: ${item.to_for || 'N/A'}`;
     document.getElementById('infoFrom').textContent = item.from_name ?? 'N/A';
     document.getElementById('infoWorkflowStatus').textContent = item.workflow_status ?? '';
     document.getElementById('infoApprovalStatus').textContent = item.approval_status ?? '';
@@ -780,6 +898,7 @@ async function addCorrespondence() {
 
     const payload = {
         type: document.getElementById('typeInput').value,
+        to_for_label: document.getElementById('toForLabelInput').value,
         tin: '',
         subject: document.getElementById('subjectInput').value,
         to_for: document.getElementById('toForInput').value,
