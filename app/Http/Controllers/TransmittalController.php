@@ -234,7 +234,9 @@ class TransmittalController extends Controller
                     !empty($item['qty']) || !empty($item['description']) ||
                     !empty($item['remarks']) || $request->hasFile("item_files.$index");
 
-                if (! $hasContent) continue;
+                if (! $hasContent) {
+                    continue;
+                }
 
                 $attachmentPath = null;
                 if ($request->hasFile("item_files.$index")) {
@@ -274,9 +276,9 @@ class TransmittalController extends Controller
             DB::commit();
 
             return response()->json(['message' => 'Transmittal saved successfully.', 'id' => $transmittal->id]);
-
         } catch (\Throwable $e) {
             DB::rollBack();
+
             return response()->json(['message' => 'Failed to save transmittal.', 'error' => $e->getMessage()], 500);
         }
     }
@@ -307,7 +309,9 @@ class TransmittalController extends Controller
             ? route('transmittal.receipt.pdf', $transmittal->id)
             : null;
 
-        return view('transmittal.preview', compact('transmittal', 'transmittalPdfUrl', 'receiptPdfUrl'));
+        $corporateContext = $this->transmittalCorporateContext();
+
+        return view('transmittal.preview', compact('transmittal', 'transmittalPdfUrl', 'receiptPdfUrl', 'corporateContext'));
     }
 
     public function previewPdf($id)
@@ -452,6 +456,8 @@ class TransmittalController extends Controller
         $approvedByText = ($transmittal->approved_by_name ?? 'N/A')
             . ($transmittal->approved_position ? ' (' . $transmittal->approved_position . ')' : '');
 
+        $corporateContext = $this->transmittalCorporateContext();
+
         try {
             $pdf = Pdf::loadView('transmittal.receipt-pdf', [
                     'transmittal' => $transmittal,
@@ -465,6 +471,7 @@ class TransmittalController extends Controller
                     'fromValue' => $fromValue,
                     'toValue' => $toValue,
                     'approvedByText' => $approvedByText,
+                    'corporateContext' => $corporateContext,
                 ])
                 ->setPaper($customPaper);
 
@@ -699,8 +706,6 @@ class TransmittalController extends Controller
 
     private function resolveApprovedByName(Transmittal $transmittal): string
     {
-        // Approved by should be the actual admin/user who approved the record.
-        // The add form must not manually fill this value.
         if (! empty($transmittal->approved_by) && Schema::hasTable('users')) {
             $userColumns = Schema::getColumnListing('users');
             $nameColumn = in_array('name', $userColumns, true) ? 'name' : (in_array('email', $userColumns, true) ? 'email' : null);
@@ -716,10 +721,8 @@ class TransmittalController extends Controller
             }
         }
 
-        // Fallback only for old records where approved_by_name already stores the admin approver.
         return trim((string) ($transmittal->approved_by_name ?? ''));
     }
-
 
     private function transmittalCorporateContext(): array
     {
@@ -735,22 +738,72 @@ class TransmittalController extends Controller
             return $fallback;
         }
 
-        $query = DB::table('gis_records');
+        $buildCorporateGisQuery = function () {
+            $query = DB::table('gis_records');
+
+            /*
+            |--------------------------------------------------------------------------
+            | IMPORTANT FIX
+            |--------------------------------------------------------------------------
+            | Transmittal belongs to the internal Corporate/Operations module.
+            |
+            | Corporate GIS records = company_id IS NULL
+            | Company module GIS records = company_id = selected company ID
+            |
+            | This prevents Transmittal from using Company GIS logos/names/address
+            | like AWEAWRREAWR.
+            |--------------------------------------------------------------------------
+            */
+            if (Schema::hasColumn('gis_records', 'company_id')) {
+                $query->whereNull('company_id');
+            }
+
+            return $query;
+        };
+
+        $query = $buildCorporateGisQuery();
 
         if (Schema::hasColumn('gis_records', 'workflow_status')) {
             $query->where(function ($q) {
                 $q->where('workflow_status', 'Accepted');
 
                 if (Schema::hasColumn('gis_records', 'approval_status')) {
-                    $q->orWhere('approval_status', 'Approved')->orWhere('approval_status', 'Accepted');
+                    $q->orWhere('approval_status', 'Approved')
+                        ->orWhere('approval_status', 'Accepted');
                 }
+
+                if (Schema::hasColumn('gis_records', 'submission_status')) {
+                    $q->orWhere('submission_status', 'Accepted')
+                        ->orWhere('submission_status', 'Approved');
+                }
+            });
+        } elseif (Schema::hasColumn('gis_records', 'approval_status')) {
+            $query->where(function ($q) {
+                $q->where('approval_status', 'Approved')
+                    ->orWhere('approval_status', 'Accepted');
             });
         }
 
-        $gis = $query->latest('updated_at')->first();
+        $gis = $query
+            ->latest('updated_at')
+            ->latest('created_at')
+            ->latest('id')
+            ->first();
 
+        /*
+        |--------------------------------------------------------------------------
+        | Fallback, but still Corporate only.
+        |--------------------------------------------------------------------------
+        | Do NOT fallback to all GIS records. That is what caused Transmittal to
+        | accidentally use the latest Company GIS.
+        |--------------------------------------------------------------------------
+        */
         if (! $gis) {
-            $gis = DB::table('gis_records')->latest('updated_at')->first();
+            $gis = $buildCorporateGisQuery()
+                ->latest('updated_at')
+                ->latest('created_at')
+                ->latest('id')
+                ->first();
         }
 
         if (! $gis) {
@@ -761,20 +814,29 @@ class TransmittalController extends Controller
         $secRegNo = trim((string) ($gis->company_reg_no ?? ''));
         $principalAddress = trim((string) ($gis->principal_address ?? ($gis->business_address ?? '')));
         $logoPath = trim((string) ($gis->logo_path ?? ''));
+
         $logoUrl = $fallback['logoUrl'];
         $logoBase64 = null;
 
         if ($logoPath !== '') {
-            if (Storage::disk('public')->exists($logoPath)) {
-                $absoluteLogoPath = Storage::disk('public')->path($logoPath);
-                $mime = mime_content_type($absoluteLogoPath) ?: 'image/png';
+            $normalizedLogoPath = preg_replace('#^/?storage/#', '', $logoPath);
+
+            if (Storage::disk('public')->exists($normalizedLogoPath)) {
+                $absoluteLogoPath = Storage::disk('public')->path($normalizedLogoPath);
+                $mime = function_exists('mime_content_type')
+                    ? (mime_content_type($absoluteLogoPath) ?: 'image/png')
+                    : 'image/png';
+
                 $logoBase64 = 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($absoluteLogoPath));
-                $logoUrl = asset('storage/' . $logoPath);
-            } elseif (file_exists(public_path($logoPath))) {
-                $absoluteLogoPath = public_path($logoPath);
-                $mime = mime_content_type($absoluteLogoPath) ?: 'image/png';
+                $logoUrl = asset('storage/' . $normalizedLogoPath);
+            } elseif (file_exists(public_path($normalizedLogoPath))) {
+                $absoluteLogoPath = public_path($normalizedLogoPath);
+                $mime = function_exists('mime_content_type')
+                    ? (mime_content_type($absoluteLogoPath) ?: 'image/png')
+                    : 'image/png';
+
                 $logoBase64 = 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($absoluteLogoPath));
-                $logoUrl = asset($logoPath);
+                $logoUrl = asset($normalizedLogoPath);
             }
         }
 
@@ -786,5 +848,4 @@ class TransmittalController extends Controller
             'logoBase64' => $logoBase64,
         ];
     }
-
 }
