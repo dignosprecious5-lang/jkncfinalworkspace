@@ -227,29 +227,150 @@ class PolicyController extends Controller
             ->with('success', 'Policy submitted for admin review.');
     }
 
+
+
+
+    private function inlinePolicyPdfIndentStyles(string $html): string
+    {
+        /*
+         * DomPDF can be inconsistent with Quill's ql-indent-* classes.
+         * Convert those classes into inline margin/padding styles before rendering.
+         */
+        return preg_replace_callback('/<([a-z0-9]+)\b([^>]*)class=("|\')([^"\']*\bql-indent-([1-8])\b[^"\']*)\3([^>]*)>/i', function ($matches) {
+            $tag = $matches[1];
+            $beforeClass = $matches[2];
+            $quote = $matches[3];
+            $classes = $matches[4];
+            $level = (int) $matches[5];
+            $afterClass = $matches[6];
+
+            $indentEm = $level * 3;
+            $attrs = $beforeClass . 'class=' . $quote . $classes . $quote . $afterClass;
+
+            if (preg_match('/\sstyle=("|\')(.*?)\1/is', $attrs, $styleMatch)) {
+                $existingStyle = rtrim($styleMatch[2], ';');
+                $newStyle = $existingStyle . '; margin-left:' . $indentEm . 'em; padding-left:0; text-indent:0;';
+                $attrs = preg_replace('/\sstyle=("|\')(.*?)\1/is', ' style="' . e($newStyle) . '"', $attrs, 1);
+            } else {
+                $attrs .= ' style="margin-left:' . $indentEm . 'em; padding-left:0; text-indent:0;"';
+            }
+
+            return '<' . $tag . $attrs . '>';
+        }, $html);
+    }
+
+
+    private function normalizePolicyPdfTables(string $html): string
+    {
+        return preg_replace_callback('/<table\b[^>]*>.*?<\/table>/is', function ($matches) {
+            $tableHtml = $matches[0];
+            $rows = [];
+
+            if (preg_match_all('/<tr\b[^>]*>(.*?)<\/tr>/is', $tableHtml, $rowMatches)) {
+                foreach ($rowMatches[1] as $rowHtml) {
+                    $cells = [];
+
+                    if (preg_match_all('/<(td|th)\b[^>]*>(.*?)<\/\1>/is', $rowHtml, $cellMatches, PREG_SET_ORDER)) {
+                        foreach ($cellMatches as $cellMatch) {
+                            $tag = strtolower($cellMatch[1]) === 'th' ? 'th' : 'td';
+                            $content = $cellMatch[2];
+
+                            $content = preg_replace('/<colgroup\b[^>]*>.*?<\/colgroup>/is', '', $content);
+                            $content = preg_replace('/<col\b[^>]*\/?>/is', '', $content);
+                            $content = preg_replace('/<span\b[^>]*(qlbt|table-better|quill-better-table|ql-table)[^>]*>.*?<\/span>/is', '', $content);
+                            $content = preg_replace('/<div\b[^>]*(qlbt|table-better|quill-better-table|ql-table)[^>]*>.*?<\/div>/is', '', $content);
+
+                            $content = preg_replace('/\sstyle=("|\')(.*?)\1/is', '', $content);
+                            $content = str_replace(['&amp;nbsp;', '&nbsp;', "\u{00A0}"], ' ', $content);
+                            $content = preg_replace('/[ \t]{2,}/u', ' ', $content);
+
+                            if (trim(strip_tags($content)) === '') {
+                                $content = '&nbsp;';
+                            }
+
+                            $cells[] = [
+                                'tag' => $tag,
+                                'content' => $content,
+                            ];
+                        }
+                    }
+
+                    if (!empty($cells)) {
+                        $rows[] = $cells;
+                    }
+                }
+            }
+
+            if (empty($rows)) {
+                return $tableHtml;
+            }
+
+            $maxColumns = max(array_map('count', $rows));
+            $maxColumns = max(1, min($maxColumns, 12));
+            $cellWidth = round(100 / $maxColumns, 4);
+
+            $safeTable = '<table class="policy-pdf-table" style="width:100%;border-collapse:collapse;table-layout:fixed;">';
+
+            foreach ($rows as $row) {
+                $safeTable .= '<tr>';
+
+                for ($i = 0; $i < $maxColumns; $i++) {
+                    $cell = $row[$i] ?? ['tag' => 'td', 'content' => '&nbsp;'];
+                    $tag = $cell['tag'];
+
+                    $safeTable .= '<' . $tag . ' style="width:' . $cellWidth . '%;border:1px solid #000;padding:7px;vertical-align:top;text-align:left;">'
+                        . $cell['content']
+                        . '</' . $tag . '>';
+                }
+
+                $safeTable .= '</tr>';
+            }
+
+            $safeTable .= '</table>';
+
+            return $safeTable;
+        }, $html);
+    }
+
+
     public function previewPdf(Request $request)
     {
-        $description = $request->input(
-            'description',
-            '<p style="color:#cbd5e0;">No description provided.</p>'
-        );
+        $policyFromRequest = null;
 
+        if ($request->filled('policy_id')) {
+            $policyFromRequest = Policy::find($request->input('policy_id'));
+        }
+
+        $getPdfValue = function (string $key, $default = null) use ($request, $policyFromRequest) {
+            if ($request->filled($key)) {
+                return $request->input($key);
+            }
+
+            if ($policyFromRequest && isset($policyFromRequest->{$key})) {
+                return $policyFromRequest->{$key};
+            }
+
+            return $default;
+        };
+
+        $description = $request->filled('description')
+            ? $request->input('description')
+            : ($policyFromRequest?->description ?: '<p style="color:#cbd5e0;">No description provided.</p>');
+
+        /*
+         * PDF body/table cleanup.
+         * Use Quill's real paragraph indentation (ql-indent-* classes).
+         * Do not convert indentation into fake spaces or &nbsp;.
+         */
+        $description = str_replace(['&amp;nbsp;', '&nbsp;', "\u{00A0}"], ' ', $description);
+        $description = preg_replace('/[ \t]{2,}/u', ' ', $description);
+
+        // Remove Quill/table-better column sizing so PDF tables use our stable CSS.
         $description = preg_replace('/<colgroup\b[^>]*>.*?<\/colgroup>/is', '', $description);
         $description = preg_replace('/<col\b[^>]*\/?>/is', '', $description);
 
-        $description = preg_replace_callback(
-            '/<(table|thead|tbody|tfoot|tr|td|th)\b([^>]*)>/is',
-            function ($matches) {
-                $tag = $matches[1];
-                $attrs = $matches[2];
-
-                $attrs = preg_replace('/\sstyle=("|\')(.*?)\1/is', '', $attrs);
-                $attrs = preg_replace('/\s(width|height)=("|\')(.*?)\2/is', '', $attrs);
-
-                return '<' . $tag . $attrs . '>';
-            },
-            $description
-        );
+        $description = $this->normalizePolicyPdfTables($description);
+        $description = $this->inlinePolicyPdfIndentStyles($description);
 
 
         $safePdfText = function ($value, int $chunk = 34): string {
@@ -259,33 +380,39 @@ class PolicyController extends Controller
                 return '';
             }
 
-            return preg_replace_callback('/[^\s]{' . $chunk . ',}/u', function ($matches) use ($chunk) {
-                return trim(chunk_split($matches[0], $chunk, ' '));
-            }, $value);
+            return $value;
         };
 
-        $description = preg_replace_callback('/>([^<]+)</u', function ($matches) {
-            $text = preg_replace_callback('/[^\s]{35,}/u', function ($longWord) {
-                return trim(chunk_split($longWord[0], 35, ' '));
-            }, $matches[1]);
-
-            return '>' . $text . '<';
-        }, $description);
+        /*
+         * Do not split body text manually.
+         * Manual chunk_split changes wrapping and can create small fragments on separate lines.
+         * Let DomPDF and CSS handle wrapping instead.
+         */
 
         $latestGisRecord = $this->latestGisWithLogo();
 
+        $rawEffectivityDate = $getPdfValue('effectivity_date', '');
+
+        try {
+            $formattedEffectivityDate = !empty($rawEffectivityDate)
+                ? Carbon::parse($rawEffectivityDate)->format('F d, Y')
+                : '';
+        } catch (\Throwable $e) {
+            $formattedEffectivityDate = (string) $rawEffectivityDate;
+        }
+
         $data = [
             'logo_src' => $this->gisLogoDataUri($latestGisRecord),
-            'code' => $safePdfText($request->input('code', 'AUTO-GENERATED'), 30),
-            'policy' => $safePdfText($request->input('policy', ''), 32),
-            'policy_subtitle' => $safePdfText($request->input('policy_subtitle', ''), 42),
-            'version' => $safePdfText($request->input('version', '1.0'), 30),
-            'effectivity_date' => $request->input('effectivity_date', ''),
-            'prepared_by' => $safePdfText($request->input('prepared_by', auth()->user()->name ?? 'System Admin'), 30),
-            'reviewed_by' => $safePdfText($request->input('reviewed_by', ''), 30),
-            'approved_by' => $safePdfText($request->input('approved_by', ''), 30),
-            'review_cycle' => $safePdfText($request->input('review_cycle', ''), 30),
-            'classification' => $safePdfText($request->input('classification', 'Internal Use'), 30),
+            'code' => $safePdfText($getPdfValue('code', 'AUTO-GENERATED'), 30),
+            'policy' => $safePdfText($getPdfValue('policy', ''), 32),
+            'policy_subtitle' => $safePdfText($getPdfValue('policy_subtitle', ''), 42),
+            'version' => $safePdfText($getPdfValue('version', '1.0'), 30),
+            'effectivity_date' => $formattedEffectivityDate,
+            'prepared_by' => $safePdfText($getPdfValue('prepared_by', auth()->user()->name ?? 'System Admin'), 30),
+            'reviewed_by' => $safePdfText($getPdfValue('reviewed_by', ''), 30),
+            'approved_by' => $safePdfText($getPdfValue('approved_by', ''), 30),
+            'review_cycle' => $safePdfText($getPdfValue('review_cycle', ''), 30),
+            'classification' => $safePdfText($getPdfValue('classification', 'Internal Use'), 30),
             'description' => $description,
         ];
 
@@ -299,7 +426,7 @@ class PolicyController extends Controller
                 'debugLayout' => false,
             ]);
 
-        $filename = ($request->input('code') ?: 'policy') . '.pdf';
+        $filename = ($getPdfValue('code', null) ?: 'policy') . '.pdf';
 
         /*
          * Render first, then add page numbers on the final DomPDF canvas.

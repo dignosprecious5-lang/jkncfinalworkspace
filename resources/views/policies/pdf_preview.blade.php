@@ -58,7 +58,6 @@
 
             return e($wrapped);
         };
-
         $pdfPreparedDescription = function ($html) {
             $html = (string) ($html ?? '');
 
@@ -66,33 +65,26 @@
                 return '<p style="color:#777;">No description provided.</p>';
             }
 
-            /*
-             * Add break opportunities only in visible text chunks, not HTML tags.
-             * This prevents long words from destroying the PDF width.
-             */
-            return preg_replace_callback('/>([^<]+)</u', function ($matches) {
-                $text = $matches[1];
-
-                $text = preg_replace_callback('/[^\s]{35,}/u', function ($longWord) {
-                    return trim(chunk_split($longWord[0], 35, ' '));
-                }, $text);
-
-                return '>' . $text . '<';
-            }, $html);
+            return $html;
         };
+
+
+
+
 
     @endphp
 
     <style>
         @page {
             size: A4 portrait;
-            margin: 1in;
+            margin: 0;
         }
 
         * {
             box-sizing: border-box;
         }
 
+        html,
         body {
             margin: 0;
             padding: 0;
@@ -104,15 +96,16 @@
         }
 
         .cover-page {
-            page-break-after: always;
-            min-height: 9.35in;
+            padding: 72px;
             text-align: center;
+            page-break-after: always;
+            overflow: hidden;
         }
 
         .cover-logo {
+            margin-top: 16px;
             width: 100%;
             text-align: center;
-            margin-top: -0.35in;
         }
 
         .cover-logo img {
@@ -136,72 +129,107 @@
         }
 
         .policy-title-block {
-            margin-top: 1.65in;
-            text-align: center;
+            margin-top: 145px;
             line-height: 1.25;
+            text-align: center;
+            width: 100%;
+            max-width: 100%;
         }
 
         .policy-title {
+            margin: 0;
             font-weight: bold;
             text-transform: uppercase;
             font-size: 12pt;
+            text-align: center;
+            overflow-wrap: break-word;
+            word-break: normal;
         }
 
         .policy-subtitle {
+            margin: 2px 0 0;
             font-size: 10pt;
+            text-align: center;
+            overflow-wrap: break-word;
+            word-break: normal;
         }
 
         .details-wrap {
-            width: 4.85in;
-            margin: 1.95in auto 0 auto;
+            width: 485px;
+            max-width: 485px;
+            margin: 150px auto 0 auto;
             text-align: left;
             font-size: 11pt;
+            overflow: hidden;
         }
 
         .details-table {
             width: 100%;
             border-collapse: collapse;
+            table-layout: fixed;
         }
 
         .details-table td {
             padding: 5px 8px;
             vertical-align: top;
             border: none;
+            overflow-wrap: break-word;
+            word-break: normal;
+            white-space: normal;
         }
 
         .details-table td:first-child {
-            width: 1.45in;
+            width: 150px;
+            min-width: 150px;
+            max-width: 150px;
             font-weight: normal;
         }
 
         .details-table td:last-child {
+            width: auto;
+            max-width: 335px;
             font-weight: bold;
+            overflow: hidden;
+        }
+
+        .content-page {
+            padding: 72px;
+            page-break-before: auto;
+            overflow: visible;
         }
 
         .document-title {
+            margin: 0 0 24px 0;
             text-align: center;
+            font-size: 14pt;
             font-weight: bold;
             text-transform: uppercase;
-            margin: 0 0 24px 0;
-            font-size: 14pt;
+            line-height: 1.25;
+            overflow-wrap: break-word;
+            word-break: normal;
         }
 
         .description-content {
             width: 100%;
+            max-width: 100%;
+            font-family: Georgia, "Times New Roman", serif;
             font-size: 12pt;
             line-height: 1.45;
-            word-wrap: break-word;
+            white-space: normal;
             overflow-wrap: break-word;
-        }
-
-        .description-content * {
-            max-width: 100%;
-            word-wrap: break-word;
-            overflow-wrap: break-word;
+            word-break: normal;
         }
 
         .description-content p {
             margin: 0 0 10px 0;
+        }
+
+        .description-content div,
+        .description-content span,
+        .description-content li {
+            white-space: normal;
+            overflow-wrap: break-word;
+            word-break: normal;
         }
 
         .description-content ul,
@@ -223,6 +251,8 @@
             margin: 14px 0 8px 0;
             line-height: 1.25;
             font-weight: bold;
+            overflow-wrap: break-word;
+            word-break: normal;
         }
 
         .description-content h1 { font-size: 16pt; }
@@ -234,41 +264,60 @@
             height: auto !important;
         }
 
-        .description-content table {
-            width: 100% !important;
-            max-width: 100% !important;
-            border-collapse: collapse !important;
-            table-layout: fixed !important;
-            margin: 12px 0 !important;
-            border: 1px solid #000 !important;
-            page-break-inside: auto;
+        .description-content .ql-align-left { text-align: left !important; }
+        .description-content .ql-align-center { text-align: center !important; }
+        .description-content .ql-align-right { text-align: right !important; }
+        .description-content .ql-align-justify {
+            text-align: justify !important;
+            text-justify: inter-word;
         }
 
-        .description-content tr {
-            page-break-inside: avoid;
-            page-break-after: auto;
+        /* Quill paragraph indentation for PDF */
+        .description-content .ql-indent-1 { margin-left: 3em !important; padding-left: 0 !important; text-indent: 0 !important; }
+        .description-content .ql-indent-2 { margin-left: 6em !important; padding-left: 0 !important; text-indent: 0 !important; }
+        .description-content .ql-indent-3 { margin-left: 9em !important; padding-left: 0 !important; text-indent: 0 !important; }
+        .description-content .ql-indent-4 { margin-left: 12em !important; padding-left: 0 !important; text-indent: 0 !important; }
+        .description-content .ql-indent-5 { margin-left: 15em !important; padding-left: 0 !important; text-indent: 0 !important; }
+        .description-content .ql-indent-6 { margin-left: 18em !important; padding-left: 0 !important; text-indent: 0 !important; }
+        .description-content .ql-indent-7 { margin-left: 21em !important; padding-left: 0 !important; text-indent: 0 !important; }
+        .description-content .ql-indent-8 { margin-left: 24em !important; padding-left: 0 !important; text-indent: 0 !important; }
+
+        .description-content table,
+        .policy-pdf-table {
+            width: 100% !important;
+            max-width: 100% !important;
+            table-layout: fixed !important;
+            border-collapse: collapse !important;
+            border-spacing: 0 !important;
+            margin: 12px 0 !important;
+            page-break-inside: auto !important;
+        }
+
+        .description-content tr,
+        .policy-pdf-table tr {
+            page-break-inside: avoid !important;
+            page-break-after: auto !important;
+        }
+
+
+        .description-content th,
+        .description-content td,
+        .policy-pdf-table th,
+        .policy-pdf-table td {
+            min-width: 0 !important;
+            border: 1px solid #94a3b8 !important;
+            padding: 10px 12px !important;
+            vertical-align: top !important;
+            word-break: break-word !important;
+            overflow-wrap: break-word !important;
+            white-space: normal !important;
+            text-align: left !important;
         }
 
         .description-content th,
-        .description-content td {
-            border: 1px solid #000 !important;
-            padding: 7px !important;
-            vertical-align: top !important;
-            text-align: left !important;
-            white-space: normal !important;
-            word-break: break-word !important;
-            overflow-wrap: break-word !important;
-        }
-
-        .description-content th {
+        .policy-pdf-table th {
             font-weight: bold !important;
             background: #f3f3f3 !important;
-        }
-
-        .description-content colgroup,
-        .description-content col {
-            display: none !important;
-            width: auto !important;
         }
 
         .description-content td p,
@@ -280,212 +329,28 @@
             margin: 0 !important;
             padding: 0 !important;
             white-space: normal !important;
-            word-break: break-word !important;
+            word-break: normal !important;
             overflow-wrap: break-word !important;
         }
 
-        /* PDF HARD FIX: prevent long unbroken words from overflowing A4 */
-        .policy-title-block {
-            width: 100% !important;
-            max-width: 100% !important;
-            padding-left: 0.15in;
-            padding-right: 0.15in;
-            overflow: hidden;
+        .ql-font-georgia,
+        .ql-font-georgia * {
+            font-family: Georgia, "Times New Roman", serif !important;
         }
 
-        .policy-title,
-        .policy-subtitle {
-            width: 100% !important;
-            max-width: 100% !important;
-            text-align: center !important;
-            word-break: break-all !important;
-            overflow-wrap: break-word !important;
-            white-space: normal !important;
-        }
-
-        .details-wrap {
-            width: 4.85in !important;
-            max-width: 4.85in !important;
-            overflow: hidden !important;
-        }
-
-        .details-table {
-            width: 100% !important;
-            max-width: 100% !important;
-            table-layout: fixed !important;
-        }
-
-        .details-table td:first-child {
-            width: 1.35in !important;
-        }
-
-        .details-table td:last-child {
-            width: 3.35in !important;
-            max-width: 3.35in !important;
-            word-break: break-all !important;
-            overflow-wrap: break-word !important;
-            white-space: normal !important;
-        }
+        /* PDF BODY NO FORCED LETTER BREAKS */
 
         .description-content,
-        .description-content * {
-            max-width: 100% !important;
-            word-break: break-all !important;
-            overflow-wrap: break-word !important;
+        .description-content p,
+        .description-content div,
+        .description-content span,
+        .description-content li {
             white-space: normal !important;
+            word-break: normal !important;
+            overflow-wrap: break-word !important;
         }
 
-
-    /* Policy module default font */
-    .policy-paper,
-    .policy-paper *,
-    #policy-preview-sheet,
-    #policy-preview-sheet *,
-    .description-content,
-    .description-content *,
-    .policy-preview-body,
-    .policy-preview-body * {
-        font-family: Georgia, "Times New Roman", serif !important;
-    }
-
-    /* Quill editor Georgia font option */
-    .ql-font-georgia,
-    .ql-font-georgia * {
-        font-family: Georgia, "Times New Roman", serif !important;
-    }
-
-    .ql-picker.ql-font .ql-picker-label[data-value="georgia"]::before,
-    .ql-picker.ql-font .ql-picker-item[data-value="georgia"]::before {
-        content: "Georgia";
-        font-family: Georgia, "Times New Roman", serif;
-    }
-
-    .ql-picker.ql-font .ql-picker-label[data-value="serif"]::before,
-    .ql-picker.ql-font .ql-picker-item[data-value="serif"]::before {
-        content: "Serif";
-    }
-
-    .ql-picker.ql-font .ql-picker-label[data-value="sans-serif"]::before,
-    .ql-picker.ql-font .ql-picker-item[data-value="sans-serif"]::before {
-        content: "Sans Serif";
-    }
-
-    .ql-picker.ql-font .ql-picker-label[data-value="monospace"]::before,
-    .ql-picker.ql-font .ql-picker-item[data-value="monospace"]::before {
-        content: "Monospace";
-    }
-
-    #policy-editor .ql-editor {
-        font-family: Georgia, "Times New Roman", serif !important;
-    }
-
-
-    /* Quill alignment support for live preview, show pages, and PDF */
-    .ql-align-left {
-        text-align: left !important;
-    }
-
-    .ql-align-center {
-        text-align: center !important;
-    }
-
-    .ql-align-right {
-        text-align: right !important;
-    }
-
-    .ql-align-justify {
-        text-align: justify !important;
-        text-justify: inter-word;
-    }
-
-    .description-content .ql-align-left,
-    .policy-preview-body .ql-align-left,
-    #policy-preview-sheet .ql-align-left {
-        text-align: left !important;
-    }
-
-    .description-content .ql-align-center,
-    .policy-preview-body .ql-align-center,
-    #policy-preview-sheet .ql-align-center {
-        text-align: center !important;
-    }
-
-    .description-content .ql-align-right,
-    .policy-preview-body .ql-align-right,
-    #policy-preview-sheet .ql-align-right {
-        text-align: right !important;
-    }
-
-    .description-content .ql-align-justify,
-    .policy-preview-body .ql-align-justify,
-    #policy-preview-sheet .ql-align-justify {
-        text-align: justify !important;
-        text-justify: inter-word;
-    }
-
-
-    /* Quill indentation support for live preview, show pages, and PDF */
-    .ql-indent-1 { padding-left: 3em !important; }
-    .ql-indent-2 { padding-left: 6em !important; }
-    .ql-indent-3 { padding-left: 9em !important; }
-    .ql-indent-4 { padding-left: 12em !important; }
-    .ql-indent-5 { padding-left: 15em !important; }
-    .ql-indent-6 { padding-left: 18em !important; }
-    .ql-indent-7 { padding-left: 21em !important; }
-    .ql-indent-8 { padding-left: 24em !important; }
-
-    .description-content .ql-indent-1,
-    .policy-preview-body .ql-indent-1,
-    #policy-preview-sheet .ql-indent-1 { padding-left: 3em !important; }
-
-    .description-content .ql-indent-2,
-    .policy-preview-body .ql-indent-2,
-    #policy-preview-sheet .ql-indent-2 { padding-left: 6em !important; }
-
-    .description-content .ql-indent-3,
-    .policy-preview-body .ql-indent-3,
-    #policy-preview-sheet .ql-indent-3 { padding-left: 9em !important; }
-
-    .description-content .ql-indent-4,
-    .policy-preview-body .ql-indent-4,
-    #policy-preview-sheet .ql-indent-4 { padding-left: 12em !important; }
-
-    .description-content .ql-indent-5,
-    .policy-preview-body .ql-indent-5,
-    #policy-preview-sheet .ql-indent-5 { padding-left: 15em !important; }
-
-    .description-content .ql-indent-6,
-    .policy-preview-body .ql-indent-6,
-    #policy-preview-sheet .ql-indent-6 { padding-left: 18em !important; }
-
-    .description-content .ql-indent-7,
-    .policy-preview-body .ql-indent-7,
-    #policy-preview-sheet .ql-indent-7 { padding-left: 21em !important; }
-
-    .description-content .ql-indent-8,
-    .policy-preview-body .ql-indent-8,
-    #policy-preview-sheet .ql-indent-8 { padding-left: 24em !important; }
-
-
-    /* Preserve manual spacing/tabs from the document editor */
-    .policy-preview-body,
-    .description-content {
-        white-space: normal !important;
-    }
-
-    .policy-preview-body p,
-    .policy-preview-body div,
-    .description-content p,
-    .description-content div {
-        white-space: pre-wrap !important;
-    }
-
-    .policy-preview-body span,
-    .description-content span {
-        white-space: pre-wrap !important;
-    }
-
-</style>
+    </style>
 </head>
 <body>
 <section class="cover-page">
@@ -519,7 +384,7 @@
                 </tr>
                 <tr>
                     <td>Effectivity Date</td>
-                    <td>{!! $pdfSafeText(!empty($data['effectivity_date']) ? \Carbon\Carbon::parse($data['effectivity_date'])->format('F d, Y') : '______________________________', 30) !!}</td>
+                    <td>{!! $pdfSafeText($data['effectivity_date'] ?: '______________________________', 30) !!}</td>
                 </tr>
                 <tr>
                     <td>Prepared by</td>

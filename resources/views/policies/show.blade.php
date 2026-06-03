@@ -30,7 +30,7 @@
                     <div class="policy-paper bg-white border border-gray-300 shadow mb-6">
                         <section class="policy-cover-page">
                             <div class="cover-logo">
-                                <img src="{{ $policyLogoUrl ?? asset('images/jk-logo.png') }}" alt="John Kelly & Company Logo">
+                                <img src="{{ asset('images/jk-logo.png') }}" alt="John Kelly & Company Logo">
                             </div>
 
                             <div class="cover-company">
@@ -187,11 +187,12 @@
                 </div>
 
                 <a href="{{ route('policies.preview', [
+                        'policy_id' => $policy->id,
                         'policy' => $policy->policy,
                         'policy_subtitle' => $policy->policy_subtitle,
                         'code' => $policy->code,
                         'version' => $policy->version,
-                        'effectivity_date' => $policy->effectivity_date,
+                        'effectivity_date' => $policy->effectivity_date ? \Carbon\Carbon::parse($policy->effectivity_date)->format('Y-m-d') : null,
                         'prepared_by' => $policy->prepared_by,
                         'reviewed_by' => $policy->reviewed_by,
                         'approved_by' => $policy->approved_by,
@@ -431,19 +432,56 @@
     }
 
 
-    /* Policy module default font */
+    /* Policy body Quill paragraph indentation */
+    .policy-preview-body .ql-indent-1,
+    .description-content .ql-indent-1,
+    #policy-preview-sheet .ql-indent-1 { padding-left: 3em !important; }
+
+    .policy-preview-body .ql-indent-2,
+    .description-content .ql-indent-2,
+    #policy-preview-sheet .ql-indent-2 { padding-left: 6em !important; }
+
+    .policy-preview-body .ql-indent-3,
+    .description-content .ql-indent-3,
+    #policy-preview-sheet .ql-indent-3 { padding-left: 9em !important; }
+
+    .policy-preview-body .ql-indent-4,
+    .description-content .ql-indent-4,
+    #policy-preview-sheet .ql-indent-4 { padding-left: 12em !important; }
+
+    .policy-preview-body .ql-indent-5,
+    .description-content .ql-indent-5,
+    #policy-preview-sheet .ql-indent-5 { padding-left: 15em !important; }
+
+    .policy-preview-body .ql-indent-6,
+    .description-content .ql-indent-6,
+    #policy-preview-sheet .ql-indent-6 { padding-left: 18em !important; }
+
+    .policy-preview-body .ql-indent-7,
+    .description-content .ql-indent-7,
+    #policy-preview-sheet .ql-indent-7 { padding-left: 21em !important; }
+
+    .policy-preview-body .ql-indent-8,
+    .description-content .ql-indent-8,
+    #policy-preview-sheet .ql-indent-8 { padding-left: 24em !important; }
+
+
+    /* Georgia default font for Policy document/editor */
     .policy-paper,
     .policy-paper *,
     #policy-preview-sheet,
     #policy-preview-sheet *,
-    .description-content,
-    .description-content *,
     .policy-preview-body,
-    .policy-preview-body * {
+    .policy-preview-body *,
+    .description-content,
+    .description-content * {
         font-family: Georgia, "Times New Roman", serif !important;
     }
 
-    /* Quill editor Georgia font option */
+    #policy-editor .ql-editor {
+        font-family: Georgia, "Times New Roman", serif !important;
+    }
+
     .ql-font-georgia,
     .ql-font-georgia * {
         font-family: Georgia, "Times New Roman", serif !important;
@@ -468,116 +506,6 @@
     .ql-picker.ql-font .ql-picker-label[data-value="monospace"]::before,
     .ql-picker.ql-font .ql-picker-item[data-value="monospace"]::before {
         content: "Monospace";
-    }
-
-    #policy-editor .ql-editor {
-        font-family: Georgia, "Times New Roman", serif !important;
-    }
-
-
-    /* Quill alignment support for live preview, show pages, and PDF */
-    .ql-align-left {
-        text-align: left !important;
-    }
-
-    .ql-align-center {
-        text-align: center !important;
-    }
-
-    .ql-align-right {
-        text-align: right !important;
-    }
-
-    .ql-align-justify {
-        text-align: justify !important;
-        text-justify: inter-word;
-    }
-
-    .description-content .ql-align-left,
-    .policy-preview-body .ql-align-left,
-    #policy-preview-sheet .ql-align-left {
-        text-align: left !important;
-    }
-
-    .description-content .ql-align-center,
-    .policy-preview-body .ql-align-center,
-    #policy-preview-sheet .ql-align-center {
-        text-align: center !important;
-    }
-
-    .description-content .ql-align-right,
-    .policy-preview-body .ql-align-right,
-    #policy-preview-sheet .ql-align-right {
-        text-align: right !important;
-    }
-
-    .description-content .ql-align-justify,
-    .policy-preview-body .ql-align-justify,
-    #policy-preview-sheet .ql-align-justify {
-        text-align: justify !important;
-        text-justify: inter-word;
-    }
-
-
-    /* Quill indentation support for live preview, show pages, and PDF */
-    .ql-indent-1 { padding-left: 3em !important; }
-    .ql-indent-2 { padding-left: 6em !important; }
-    .ql-indent-3 { padding-left: 9em !important; }
-    .ql-indent-4 { padding-left: 12em !important; }
-    .ql-indent-5 { padding-left: 15em !important; }
-    .ql-indent-6 { padding-left: 18em !important; }
-    .ql-indent-7 { padding-left: 21em !important; }
-    .ql-indent-8 { padding-left: 24em !important; }
-
-    .description-content .ql-indent-1,
-    .policy-preview-body .ql-indent-1,
-    #policy-preview-sheet .ql-indent-1 { padding-left: 3em !important; }
-
-    .description-content .ql-indent-2,
-    .policy-preview-body .ql-indent-2,
-    #policy-preview-sheet .ql-indent-2 { padding-left: 6em !important; }
-
-    .description-content .ql-indent-3,
-    .policy-preview-body .ql-indent-3,
-    #policy-preview-sheet .ql-indent-3 { padding-left: 9em !important; }
-
-    .description-content .ql-indent-4,
-    .policy-preview-body .ql-indent-4,
-    #policy-preview-sheet .ql-indent-4 { padding-left: 12em !important; }
-
-    .description-content .ql-indent-5,
-    .policy-preview-body .ql-indent-5,
-    #policy-preview-sheet .ql-indent-5 { padding-left: 15em !important; }
-
-    .description-content .ql-indent-6,
-    .policy-preview-body .ql-indent-6,
-    #policy-preview-sheet .ql-indent-6 { padding-left: 18em !important; }
-
-    .description-content .ql-indent-7,
-    .policy-preview-body .ql-indent-7,
-    #policy-preview-sheet .ql-indent-7 { padding-left: 21em !important; }
-
-    .description-content .ql-indent-8,
-    .policy-preview-body .ql-indent-8,
-    #policy-preview-sheet .ql-indent-8 { padding-left: 24em !important; }
-
-
-    /* Preserve manual spacing/tabs from the document editor */
-    .policy-preview-body,
-    .description-content {
-        white-space: normal !important;
-    }
-
-    .policy-preview-body p,
-    .policy-preview-body div,
-    .description-content p,
-    .description-content div {
-        white-space: pre-wrap !important;
-    }
-
-    .policy-preview-body span,
-    .description-content span {
-        white-space: pre-wrap !important;
     }
 
 </style>
