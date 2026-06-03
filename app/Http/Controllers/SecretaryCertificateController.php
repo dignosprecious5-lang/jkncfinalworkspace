@@ -243,15 +243,28 @@ class SecretaryCertificateController extends Controller
             $data['purpose'] = $resolution->board_resolution ?: $resolution->resolution_no;
             $data['date_of_meeting'] = $resolution->date_of_meeting;
             $data['location'] = $resolution->location;
+
             $secretaryPerson = $this->corporateSecretaryPerson($this->gisForSources($resolution->notice, $resolution->minute, $resolution));
-            $data['secretary'] = $secretaryPerson?->officer_name ?: ($this->corporateSecretaryNameForSources($resolution->notice, $resolution->minute) ?: $resolution->secretary);
+
+            // Corporate Secretary must follow the meeting/resolution first.
+            // GIS secretary is only a fallback if the meeting did not save one.
+            $meetingSecretary = trim((string) (
+                $resolution->secretary
+                ?: $resolution->minute?->secretary
+                ?: $resolution->notice?->secretary
+            ));
+
+            $data['secretary'] = $meetingSecretary !== ''
+                ? $meetingSecretary
+                : ($secretaryPerson?->officer_name ?: 'Corporate Secretary');
+
             $data['secretary_address'] = $data['secretary_address'] ?? ($secretaryPerson?->address ?: null);
             $data['secretary_tin'] = $data['secretary_tin'] ?? ($secretaryPerson?->tin ?: null);
             $data['notarial_place'] = $data['notarial_place'] ?? ($resolution->notarized_at ?: $this->guessNotarialPlace($resolution->location));
             $data['notary_doc_no'] = $resolution->notary_doc_no;
             $data['notary_page_no'] = $resolution->notary_page_no;
             $data['notary_book_no'] = $resolution->notary_book_no;
-            $data['notary_series_no'] = $resolution->notary_series_no;
+            $data['notary_series_no'] = $resolution->notary_series_no ?: now()->year;
             $data['notary_public'] = $resolution->notary_public;
 
             return $data;
@@ -275,11 +288,20 @@ class SecretaryCertificateController extends Controller
         $data['meeting_no'] = $minute->meeting_no ?: $notice?->meeting_no;
         $data['date_of_meeting'] = $minute->date_of_meeting ?: $notice?->date_of_meeting;
         $data['location'] = $minute->location ?: $notice?->location;
+
         $secretaryPerson = $this->corporateSecretaryPerson($this->gisForSources($notice, $minute, null));
-        $data['secretary'] = $secretaryPerson?->officer_name ?: ($this->corporateSecretaryNameForSources($notice, $minute) ?: ($minute->secretary ?: $notice?->secretary));
+
+        // Corporate Secretary must follow the meeting first.
+        $meetingSecretary = trim((string) ($minute->secretary ?: $notice?->secretary));
+
+        $data['secretary'] = $meetingSecretary !== ''
+            ? $meetingSecretary
+            : ($secretaryPerson?->officer_name ?: 'Corporate Secretary');
+
         $data['secretary_address'] = $data['secretary_address'] ?? ($secretaryPerson?->address ?: null);
         $data['secretary_tin'] = $data['secretary_tin'] ?? ($secretaryPerson?->tin ?: null);
         $data['notarial_place'] = $data['notarial_place'] ?? $this->guessNotarialPlace($minute->location ?: $notice?->location);
+        $data['notary_series_no'] = $data['notary_series_no'] ?? now()->year;
         $data['resolution_id'] = null;
         $data['resolution_no'] = ($data['resolution_no'] ?? null) ?: null;
         $data['resolution_body'] = ($data['resolution_body'] ?? null) ?: ('Certified from Minutes Ref. ' . ($minute->minutes_ref ?: '') . '.');
@@ -287,8 +309,6 @@ class SecretaryCertificateController extends Controller
 
         return $data;
     }
-
-
 
 
     private function completeResolutionBodyForCertificate(Resolution $resolution): string
@@ -340,7 +360,20 @@ class SecretaryCertificateController extends Controller
         $companyName = $gis?->corporation_name ?: '________________';
         $companyRegNo = $gis?->company_reg_no ?: '________________';
         $companyAddress = $gis?->principal_address ?: ($gis?->business_address ?: '________________');
-        $secretaryName = $certificate->secretary ?: ($secretaryPerson?->officer_name ?: ($resolution?->secretary ?: ($minute?->secretary ?: 'Corporate Secretary')));
+
+        // Corporate Secretary must be whoever was saved in the connected
+        // Resolution/Minutes/Notice. GIS secretary is only a fallback.
+        $meetingSecretary = trim((string) (
+            $certificate->secretary
+            ?: $resolution?->secretary
+            ?: $minute?->secretary
+            ?: $notice?->secretary
+        ));
+
+        $secretaryName = $meetingSecretary !== ''
+            ? $meetingSecretary
+            : ($secretaryPerson?->officer_name ?: 'Corporate Secretary');
+
         $secretaryTin = data_get($certificate, 'secretary_tin') ?: ($secretaryPerson?->tin ?: null);
         $secretaryAddress = data_get($certificate, 'secretary_address') ?: ($secretaryPerson?->address ?: ($companyAddress ?: 'principal office of the Corporation'));
         $notarialPlace = data_get($certificate, 'notarial_place') ?: $this->guessNotarialPlace($certificate->location ?: $resolution?->location ?: $minute?->location ?: $companyAddress);
@@ -361,6 +394,7 @@ class SecretaryCertificateController extends Controller
             'logo_path' => $gis?->logo_path,
         ];
     }
+
 
     private function corporateSecretaryNameForSources(?Notice $notice = null, ?Minute $minute = null): ?string
     {
