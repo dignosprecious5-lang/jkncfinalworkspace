@@ -681,6 +681,7 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::get('/company/{company}/corporate-formation/minutes', [CompanyCorporateRecordController::class, 'minutes'])->name('company.corporate-formation.minutes');
     Route::post('/company/{company}/corporate-formation/minutes', [CompanyCorporateRecordController::class, 'storeMinute'])->name('company.corporate-formation.minutes.store');
     Route::get('/company/{company}/corporate-formation/minutes/{minute}', [CompanyCorporateRecordController::class, 'showMinute'])->name('company.corporate-formation.minutes.preview');
+    Route::get('/company/{company}/corporate-formation/minutes/{minute}/download', [CompanyCorporateRecordController::class, 'downloadMinutePdf'])->name('company.corporate-formation.minutes.download');
     Route::match(['put', 'patch'], '/company/{company}/corporate-formation/minutes/{minute}', [CompanyCorporateRecordController::class, 'updateMinute'])->name('company.corporate-formation.minutes.update');
     Route::post('/company/{company}/corporate-formation/minutes/{minute}/approve', [CompanyCorporateRecordController::class, 'approveMinute'])->name('company.corporate-formation.minutes.approve');
     Route::post('/company/{company}/corporate-formation/minutes/{minute}/workspace-save', [CompanyCorporateRecordController::class, 'saveMinuteWorkspace'])->name('company.corporate-formation.minutes.workspace-save');
@@ -690,11 +691,13 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::get('/company/{company}/corporate-formation/resolutions', [CompanyCorporateRecordController::class, 'resolutions'])->name('company.corporate-formation.resolutions');
     Route::post('/company/{company}/corporate-formation/resolutions', [CompanyCorporateRecordController::class, 'storeResolution'])->name('company.corporate-formation.resolutions.store');
     Route::get('/company/{company}/corporate-formation/resolutions/{resolution}', [CompanyCorporateRecordController::class, 'showResolution'])->name('company.corporate-formation.resolutions.preview');
+    Route::get('/company/{company}/corporate-formation/resolutions/{resolution}/download', [CompanyCorporateRecordController::class, 'downloadResolutionPdf'])->name('company.corporate-formation.resolutions.download');
     Route::match(['put', 'patch'], '/company/{company}/corporate-formation/resolutions/{resolution}', [CompanyCorporateRecordController::class, 'updateResolution'])->name('company.corporate-formation.resolutions.update');
     Route::delete('/company/{company}/corporate-formation/resolutions/{resolution}', [CompanyCorporateRecordController::class, 'destroyResolution'])->name('company.corporate-formation.resolutions.destroy');
     Route::get('/company/{company}/corporate-formation/secretary-certificates', [CompanyCorporateRecordController::class, 'secretaryCertificates'])->name('company.corporate-formation.secretary-certificates');
     Route::post('/company/{company}/corporate-formation/secretary-certificates', [CompanyCorporateRecordController::class, 'storeSecretaryCertificate'])->name('company.corporate-formation.secretary-certificates.store');
     Route::get('/company/{company}/corporate-formation/secretary-certificates/{certificate}', [CompanyCorporateRecordController::class, 'showSecretaryCertificate'])->name('company.corporate-formation.secretary-certificates.preview');
+    Route::get('/company/{company}/corporate-formation/secretary-certificates/{certificate}/download', [CompanyCorporateRecordController::class, 'downloadSecretaryCertificatePdf'])->name('company.corporate-formation.secretary-certificates.download');
     Route::match(['put', 'patch'], '/company/{company}/corporate-formation/secretary-certificates/{certificate}', [CompanyCorporateRecordController::class, 'updateSecretaryCertificate'])->name('company.corporate-formation.secretary-certificates.update');
     Route::delete('/company/{company}/corporate-formation/secretary-certificates/{certificate}', [CompanyCorporateRecordController::class, 'destroySecretaryCertificate'])->name('company.corporate-formation.secretary-certificates.destroy');
     Route::post('/company/{company}/corporate-formation/gis', [CompanyCorporateFormationController::class, 'storeGis'])->name('company.corporate-formation.gis.store');

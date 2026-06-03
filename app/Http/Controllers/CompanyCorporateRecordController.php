@@ -123,7 +123,7 @@ class CompanyCorporateRecordController extends Controller
             'notice' => $noticeRecord,
             'bodyHtml' => $noticeRecord->body_html,
             ...$viewData,
-        ])->setPaper('a4');
+        ])->setPaper('a4')->setOptions(['isPhpEnabled' => true, 'isRemoteEnabled' => true]);
 
         $filename = 'notice-' . Str::slug($noticeRecord->notice_number ?: 'meeting') . '.pdf';
 
@@ -132,6 +132,59 @@ class CompanyCorporateRecordController extends Controller
         }
 
         return $pdf->stream($filename);
+    }
+
+
+    public function downloadMinutePdf(Request $request, int $company, int $minute)
+    {
+        $this->findCompanyOrAbort($request, $company);
+        $minuteRecord = $this->findCompanyMinute($company, $minute);
+        $minuteRecord->loadMissing('notice.attendees');
+
+        $path = $this->generateCompanyMinuteTemplatePreviewPdf($minuteRecord);
+        $filename = $this->companyDocumentPdfFilename('minutes', $minuteRecord->minutes_ref ?: $minuteRecord->id);
+
+        return $this->streamOrDownloadCompanyPdf($path, $filename, $request->boolean('download'));
+    }
+
+    public function downloadResolutionPdf(Request $request, int $company, int $resolution)
+    {
+        $this->findCompanyOrAbort($request, $company);
+        $resolutionRecord = $this->findCompanyResolution($company, $resolution);
+        $resolutionRecord->loadMissing(['minute.notice.attendees', 'notice.attendees', 'secretaryCertificates']);
+
+        $path = $this->generateResolutionPdf(
+            $resolutionRecord,
+            'generated-previews/resolutions/' . ($resolutionRecord->resolution_no ?: $resolutionRecord->id) . '-body-built.pdf'
+        );
+        $filename = $this->companyDocumentPdfFilename('resolution', $resolutionRecord->resolution_no ?: $resolutionRecord->id);
+
+        return $this->streamOrDownloadCompanyPdf($path, $filename, $request->boolean('download'));
+    }
+
+    public function downloadSecretaryCertificatePdf(Request $request, int $company, int $certificate)
+    {
+        $companyData = $this->findCompanyOrAbort($request, $company);
+        $certificateRecord = $this->findCompanySecretaryCertificate($company, $certificate);
+        $certificateRecord->loadMissing([
+            'notice.attendees',
+            'resolution.notice.attendees',
+            'resolution.minute.notice.attendees',
+            'minute.notice.attendees',
+        ]);
+
+        $corporateContext = $this->companyCorporateContextForCertificate($certificateRecord, $company, $companyData);
+        $path = $this->generatePdfPreview(
+            'corporate.secretary-certificates.pdf',
+            [
+                'certificate' => $certificateRecord,
+                'corporateContext' => $corporateContext,
+            ],
+            'generated-previews/secretary-certificates/' . ($certificateRecord->certificate_no ?: $certificateRecord->id) . '-draft.pdf'
+        );
+        $filename = $this->companyDocumentPdfFilename('secretary-certificate', $certificateRecord->certificate_no ?: $certificateRecord->id);
+
+        return $this->streamOrDownloadCompanyPdf($path, $filename, $request->boolean('download'));
     }
 
     public function uploadOriginalNotice(Request $request, int $company, int $notice): RedirectResponse
@@ -266,8 +319,8 @@ class CompanyCorporateRecordController extends Controller
             'workspaceSaveUrl' => route('company.corporate-formation.minutes.workspace-save', [$company, $minuteRecord->id]),
             'finalAudioSaveUrl' => route('company.corporate-formation.minutes.final-audio', [$company, $minuteRecord->id]),
             'finalSaveUrl' => route('company.corporate-formation.minutes.final-save', [$company, $minuteRecord->id]),
-            'templatePreviewUrl' => $templatePreviewPath ? route('uploads.show', ['path' => $templatePreviewPath]) : null,
-            'templatePreviewDownloadUrl' => $templatePreviewPath ? route('uploads.show', ['path' => $templatePreviewPath, 'download' => 1]) : null,
+            'templatePreviewUrl' => route('company.corporate-formation.minutes.download', [$company, $minuteRecord->id]),
+            'templatePreviewDownloadUrl' => route('company.corporate-formation.minutes.download', [$company, $minuteRecord->id, 'download' => 1]),
             'sectionRibbonPartial' => 'company.partials.corporate-formation-ribbon',
             'sendRoute' => $noticeRecord
                 ? route('company.corporate-formation.notices.send', [$company, $noticeRecord->id])
@@ -516,7 +569,7 @@ class CompanyCorporateRecordController extends Controller
             'editRoute' => route('company.corporate-formation.resolutions.preview', [$company, $resolutionRecord->id]),
             'updateRoute' => route('company.corporate-formation.resolutions.update', [$company, $resolutionRecord->id]),
             'deleteRoute' => route('company.corporate-formation.resolutions.destroy', [$company, $resolutionRecord->id]),
-            'downloadRoute' => $generatedBodyPreviewPath ? route('uploads.show', ['path' => $generatedBodyPreviewPath, 'download' => 1]) : null,
+            'downloadRoute' => route('company.corporate-formation.resolutions.download', [$company, $resolutionRecord->id, 'download' => 1]),
             'sectionRibbonPartial' => 'company.partials.corporate-formation-ribbon',
             'sendRoute' => $noticeRecord
                 ? route('company.corporate-formation.notices.send', [$company, $noticeRecord->id])
@@ -630,7 +683,8 @@ class CompanyCorporateRecordController extends Controller
         return view('corporate.secretary-certificates.preview', [
             'certificate' => $certificateRecord,
             'corporateContext' => $corporateContext,
-            'generatedDraftUrl' => $generatedDraftPath ? route('uploads.show', ['path' => $generatedDraftPath]) : null,
+            'generatedDraftUrl' => route('company.corporate-formation.secretary-certificates.download', [$company, $certificateRecord->id]),
+            'generatedDraftDownloadUrl' => route('company.corporate-formation.secretary-certificates.download', [$company, $certificateRecord->id, 'download' => 1]),
             'backRoute' => route('company.corporate-formation.secretary-certificates', $company),
             'editRoute' => route('company.corporate-formation.secretary-certificates.preview', [$company, $certificateRecord->id]),
             'updateRoute' => route('company.corporate-formation.secretary-certificates.update', [$company, $certificateRecord->id]),
@@ -665,6 +719,61 @@ class CompanyCorporateRecordController extends Controller
         $this->findCompanySecretaryCertificate($company, $certificate)->delete();
 
         return redirect()->route('company.corporate-formation.secretary-certificates', $company)->with('success', 'Secretary certificate deleted.');
+    }
+
+
+
+    /**
+     * Local override for the shared PDF preview generator.
+     * The corporate document PDF blades use DomPDF page_text() / CSS page counters,
+     * so PHP support must be enabled or the visible page footer will not render.
+     */
+    private function generatePdfPreview(string $view, array $data, string $targetPath): ?string
+    {
+        try {
+            $pdf = Pdf::loadView($view, $data)
+                ->setPaper('a4')
+                ->setOptions([
+                    'isPhpEnabled' => true,
+                    'isRemoteEnabled' => true,
+                ]);
+
+            Storage::disk('public')->delete($targetPath);
+            Storage::disk('public')->put($targetPath, $pdf->output());
+
+            return $targetPath;
+        } catch (\Throwable $e) {
+            report($e);
+
+            return null;
+        }
+    }
+
+    private function companyDocumentPdfFilename(string $prefix, $reference): string
+    {
+        $reference = trim((string) ($reference ?: 'document'));
+        $reference = preg_replace('/[^A-Za-z0-9._-]+/', '-', $reference) ?: 'document';
+        $reference = trim($reference, '-_.');
+
+        return $prefix . '-' . ($reference ?: 'document') . '.pdf';
+    }
+
+    private function streamOrDownloadCompanyPdf(?string $path, string $filename, bool $download = false)
+    {
+        abort_unless($path && Storage::disk('public')->exists($path), 404);
+
+        $absolutePath = Storage::disk('public')->path($path);
+
+        if ($download) {
+            return response()->download($absolutePath, $filename, [
+                'Content-Type' => 'application/pdf',
+            ]);
+        }
+
+        return response()->file($absolutePath, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="' . addslashes($filename) . '"',
+        ]);
     }
 
     private function validateNoticeData(Request $request): array
@@ -1424,8 +1533,8 @@ class CompanyCorporateRecordController extends Controller
             'script_file_filename' => $minute->script_file_path ? basename($minute->script_file_path) : null,
             'recording_notes' => $minute->recording_notes,
             'script_text' => $minute->script_text,
-            'template_preview_url' => $templatePreviewPath ? route('uploads.show', ['path' => $templatePreviewPath]) : null,
-            'template_preview_download_url' => $templatePreviewPath ? route('uploads.show', ['path' => $templatePreviewPath, 'download' => 1]) : null,
+            'template_preview_url' => route('company.corporate-formation.minutes.download', [$company, $minute->id]),
+            'template_preview_download_url' => route('company.corporate-formation.minutes.download', [$company, $minute->id, 'download' => 1]),
             'recording_clips' => collect($minute->recording_clips ?? [])->map(fn ($path) => [
                 'id' => $path,
                 'url' => route('uploads.show', ['path' => $path]),
@@ -1660,70 +1769,26 @@ class CompanyCorporateRecordController extends Controller
             $resolution->setAttribute('chairman', $document['chairman']['name']);
         }
 
-        $html = view('corporate.resolutions.pdf', [
-            'resolution' => $resolution,
-            'document' => $document,
-            ...$viewData,
-        ])->render();
+        try {
+            $pdf = Pdf::loadView('corporate.resolutions.pdf', [
+                'resolution' => $resolution,
+                'document' => $document,
+                ...$viewData,
+            ])->setPaper('a4')->setOptions([
+                'isPhpEnabled' => true,
+                'isRemoteEnabled' => true,
+            ]);
 
-        $resolution->setAttribute('resolution_body', $originalBody);
-        $resolution->setAttribute('directors', $originalDirectors);
-        $resolution->setAttribute('chairman', $originalChairman);
-        $tempDirectory = storage_path('app/temp');
-        if (!is_dir($tempDirectory)) {
-            mkdir($tempDirectory, 0777, true);
+            $targetPath = $targetPath ?: 'uploads/resolutions/' . ($resolution->resolution_no ?: 'draft-resolution') . '.pdf';
+            Storage::disk('public')->delete($targetPath);
+            Storage::disk('public')->put($targetPath, $pdf->output());
+
+            return $targetPath;
+        } finally {
+            $resolution->setAttribute('resolution_body', $originalBody);
+            $resolution->setAttribute('directors', $originalDirectors);
+            $resolution->setAttribute('chairman', $originalChairman);
         }
-
-        $basename = 'resolution-' . Str::slug($resolution->resolution_no ?: 'draft-resolution');
-        $htmlPath = $tempDirectory . DIRECTORY_SEPARATOR . $basename . '-' . Str::uuid() . '.html';
-        $pdfPath = $tempDirectory . DIRECTORY_SEPARATOR . $basename . '-' . Str::uuid() . '.pdf';
-        $profilePath = $tempDirectory . DIRECTORY_SEPARATOR . $basename . '-profile-' . Str::uuid();
-
-        file_put_contents($htmlPath, $html);
-        if (!is_dir($profilePath)) {
-            mkdir($profilePath, 0777, true);
-        }
-
-        $process = new Process([
-            $browserBinary,
-            '--headless',
-            '--disable-gpu',
-            '--user-data-dir=' . $profilePath,
-            '--no-first-run',
-            '--no-default-browser-check',
-            '--disable-crash-reporter',
-            '--disable-features=Crashpad',
-            '--noerrdialogs',
-            '--allow-file-access-from-files',
-            '--disable-web-security',
-            '--print-to-pdf=' . $pdfPath,
-            '--no-pdf-header-footer',
-            'file:///' . str_replace(DIRECTORY_SEPARATOR, '/', $htmlPath),
-        ]);
-
-        $process->setTimeout(60);
-        $process->setEnv([
-            'TEMP' => $tempDirectory,
-            'TMP' => $tempDirectory,
-            'LOCALAPPDATA' => $tempDirectory,
-            'APPDATA' => $tempDirectory,
-        ]);
-        $process->run();
-
-        @unlink($htmlPath);
-        $this->deleteDirectory($profilePath);
-        if (!file_exists($pdfPath) || filesize($pdfPath) === 0) {
-            @unlink($pdfPath);
-
-            return null;
-        }
-
-        $targetPath = $targetPath ?: 'uploads/resolutions/' . ($resolution->resolution_no ?: 'draft-resolution') . '.pdf';
-        Storage::disk('public')->delete($targetPath);
-        Storage::disk('public')->put($targetPath, file_get_contents($pdfPath));
-        @unlink($pdfPath);
-
-        return $targetPath;
     }
 
     private function browserBinary(): ?string
@@ -2073,7 +2138,7 @@ class CompanyCorporateRecordController extends Controller
             'notice' => $notice,
             'bodyHtml' => $notice->body_html,
             ...$viewData,
-        ])->setPaper('a4')->output();
+        ])->setPaper('a4')->setOptions(['isPhpEnabled' => true, 'isRemoteEnabled' => true])->output();
     }
 
 }

@@ -30,6 +30,7 @@
     $workspaceSaveUrl = $workspaceSaveUrl ?? route('minutes.workspace-save', $minute);
     $finalAudioSaveUrl = $finalAudioSaveUrl ?? route('minutes.final-audio', $minute);
     $finalSaveUrl = $finalSaveUrl ?? route('minutes.final-save', $minute);
+    $minutePreviewRoute = $editRoute ?? route('minutes.preview', $minute);
 
     $activeMinutesPdfVersion = request('version') === 'original' && $approvedMinutesUrl ? 'original' : 'draft';
     $activeMinutesPdfUrl = $activeMinutesPdfVersion === 'original' ? $approvedMinutesUrl : $templatePreviewUrl;
@@ -388,8 +389,8 @@
                                 </div>
                                 <div class="flex-1"></div>
                                 <div class="inline-flex rounded-full bg-slate-100 p-1 text-xs font-semibold">
-                                    <a href="{{ route('minutes.preview', $minute) }}?version=draft" class="rounded-full px-3 py-1 {{ $activeMinutesPdfVersion === 'draft' ? 'bg-white text-blue-700 shadow' : 'text-slate-600 hover:text-slate-900' }}">Draft</a>
-                                    <a href="{{ $approvedMinutesUrl ? route('minutes.preview', $minute) . '?version=original' : '#' }}" class="rounded-full px-3 py-1 {{ $activeMinutesPdfVersion === 'original' ? 'bg-white text-blue-700 shadow' : 'text-slate-600 hover:text-slate-900' }} {{ $approvedMinutesUrl ? '' : 'pointer-events-none opacity-50' }}">Approved / Signed</a>
+                                    <a href="{{ $minutePreviewRoute }}?version=draft" class="rounded-full px-3 py-1 {{ $activeMinutesPdfVersion === 'draft' ? 'bg-white text-blue-700 shadow' : 'text-slate-600 hover:text-slate-900' }}">Draft</a>
+                                    <a href="{{ $approvedMinutesUrl ? $minutePreviewRoute . '?version=original' : '#' }}" class="rounded-full px-3 py-1 {{ $activeMinutesPdfVersion === 'original' ? 'bg-white text-blue-700 shadow' : 'text-slate-600 hover:text-slate-900' }} {{ $approvedMinutesUrl ? '' : 'pointer-events-none opacity-50' }}">Approved / Signed</a>
                                 </div>
                                 <a
                                     id="minutes-template-download-btn"

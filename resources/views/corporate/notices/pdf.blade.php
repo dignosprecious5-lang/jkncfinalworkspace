@@ -46,6 +46,13 @@
 
     // Do not show internal meeting officer/contact/deadline details in the issued notice.
 
+
+    $dompdfFooterLeft = trim('NOTICE ' . ($selected->notice_number ?: '') . ' - ' . $companyName);
+    $dompdfFooterLeft = html_entity_decode((string) $dompdfFooterLeft, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $dompdfFooterLeft = preg_replace('/\s+/', ' ', $dompdfFooterLeft);
+    if (mb_strlen($dompdfFooterLeft) > 90) {
+        $dompdfFooterLeft = mb_substr($dompdfFooterLeft, 0, 87) . '...';
+    }
 @endphp
 <!DOCTYPE html>
 <html lang="en">
@@ -56,7 +63,7 @@
     <style>
         @page {
             size: A4;
-            margin: 12mm 12mm 22mm;
+            margin: 12mm 12mm 24mm;
         }
         body {
             margin: 0;
@@ -145,41 +152,10 @@
             margin-top: 36px;
             font-weight: 700;
         }
-
-        .pdf-fixed-footer {
-            position: fixed;
-            left: 0;
-            right: 0;
-            bottom: -12mm;
-            height: 10mm;
-            border-top: 0.6px solid #111;
-            font-size: 8pt;
-            line-height: 1.2;
-            color: #111;
-        }
-        .pdf-fixed-footer .pdf-footer-left {
-            position: absolute;
-            left: 0;
-            top: 2mm;
-            width: 70%;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        .pdf-fixed-footer .pdf-footer-right {
-            position: absolute;
-            right: 0;
-            top: 2mm;
-            text-align: right;
-            font-weight: 700;
-        }
-        .pdf-page-counter:after {
-            content: "Page " counter(page) " of " counter(pages);
-        }
-    </style>
+</style>
 </head>
 <body>
-    <div class="page">
+<div class="page">
         <div class="center">
             @if($gisLogoDataUri)
                 <img src="{{ $gisLogoDataUri }}" class="gis-logo" alt="Company Logo">
@@ -237,7 +213,7 @@
     if (isset($pdf)) {
         $font = $fontMetrics->get_font("Times-Roman", "normal");
         $boldFont = $fontMetrics->get_font("Times-Roman", "bold");
-        $footerLeft = @json($dompdfFooterLeft);
+        $footerLeft = {!! var_export($dompdfFooterLeft, true) !!};
 
         $pdf->line(40, 800, 555, 800, [0, 0, 0], 0.4);
         $pdf->page_text(40, 808, $footerLeft, $font, 8, [0, 0, 0]);

@@ -5,6 +5,7 @@
 @php
     $sectionRibbonPartial = $sectionRibbonPartial ?? 'corporate.partials.section-ribbon';
     $draftUrl = $generatedDraftUrl ?? null;
+    $draftDownloadUrl = $generatedDraftDownloadUrl ?? $draftUrl;
     $documentUrl = $certificate->document_path ? route('uploads.show', ['path' => $certificate->document_path]) : null;
     $corporateContext = $corporateContext ?? [];
     $resolution = $certificate->resolution;
@@ -229,7 +230,10 @@
                                             <div class="text-sm font-semibold text-gray-900">Built Draft PDF</div>
                                             <div class="text-xs text-gray-500">This is the generated PDF version of the certificate.</div>
                                         </div>
-                                        <a href="{{ $draftUrl }}" target="_blank" class="inline-flex rounded-lg bg-slate-800 px-4 py-2 text-sm font-medium text-white hover:bg-black">Open in New Tab</a>
+                                        <div class="flex flex-wrap gap-2">
+                                            <a href="{{ $draftUrl }}" target="_blank" class="inline-flex rounded-lg bg-slate-800 px-4 py-2 text-sm font-medium text-white hover:bg-black">Open in New Tab</a>
+                                            <a href="{{ $draftDownloadUrl }}" target="_blank" class="inline-flex rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Download PDF</a>
+                                        </div>
                                     </div>
                                     <iframe src="{{ $draftUrl }}" class="w-full h-[700px] border-0 bg-white"></iframe>
                                 </div>
