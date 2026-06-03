@@ -110,7 +110,71 @@
         .ql-align-center { text-align: center; }
         .ql-align-right { text-align: right; }
         .ql-align-justify { text-align: justify; }
-    </style>
+
+        .signature-block {
+            margin-top: 46px;
+            font-size: 14px;
+            line-height: 1.35;
+            color: #000;
+        }
+
+        .signature-block p {
+            margin: 0 0 2px 0;
+        }
+
+        .signature-section {
+            margin-bottom: 18px;
+        }
+
+        .signature-heading {
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .computer-generated-note {
+            margin-top: 22px;
+            font-weight: 700;
+        }
+
+        /* SIGNATURE FORMAT MATCH FIX */
+        .signature-block {
+            margin-top: 46px !important;
+            font-size: 14px !important;
+            line-height: 1.28 !important;
+            color: #000 !important;
+            font-family: Georgia, "Times New Roman", serif !important;
+        }
+
+        .signature-block p {
+            display: block !important;
+            margin: 0 0 2px 0 !important;
+            padding: 0 !important;
+            font-weight: 400 !important;
+            line-height: 1.28 !important;
+        }
+
+        .signature-section {
+            display: block !important;
+            margin: 0 0 18px 0 !important;
+            padding: 0 !important;
+        }
+
+        .signature-heading {
+            display: block !important;
+            font-weight: 700 !important;
+            margin: 0 0 8px 0 !important;
+            padding: 0 !important;
+        }
+
+        .computer-generated-note {
+            display: block !important;
+            margin: 22px 0 0 0 !important;
+            padding: 0 !important;
+            font-weight: 700 !important;
+            line-height: 1.28 !important;
+        }
+
+</style>
 </head>
 <body>
     <div class="page">
@@ -152,6 +216,36 @@
 
         <div class="body-content">
             {!! $correspondence->body ?: '<p>No body provided.</p>' !!}
+        </div>
+
+        <div class="signature-block">
+            <div class="signature-section">
+                <p class="signature-heading">Prepared By:</p>
+                <p>{{ $correspondence->from_name ?: ($correspondence->creator?->name ?? 'System Super Admin') }}</p>
+                <p>Position</p>
+                <p>—</p>
+                <p>Prepared on: Date and Time</p>
+            </div>
+
+            <div class="signature-section">
+                <p class="signature-heading">From Management</p>
+                <p>{{ $correspondence->management_approver_name ?: 'Name' }}</p>
+                <p>{{ $correspondence->management_approver_position ?: 'Position' }}</p>
+                <p>{{ $correspondence->management_approver_department ?: 'Department' }}</p>
+                <p>Approved on: Date and Time</p>
+            </div>
+
+            <div class="signature-section">
+                <p class="signature-heading">From Executive Management</p>
+                <p>{{ $correspondence->executive_approver_name ?: 'Name' }}</p>
+                <p>{{ $correspondence->executive_approver_position ?: 'Position' }}</p>
+                <p>Executive Management</p>
+                <p>Approved on: Date and Time</p>
+            </div>
+
+            <p class="computer-generated-note">
+                This is a computer-generated document. Signature is not required.
+            </p>
         </div>
     </div>
 </body>

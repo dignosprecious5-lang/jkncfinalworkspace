@@ -49,6 +49,8 @@
         previewToForLabel: 'To',
         previewToFor: '',
         previewFrom: '{{ Auth::user()->name ?? 'System Super Admin' }}',
+        previewPreparedPosition: 'Position',
+        previewPreparedDateTime: 'Date and Time',
         previewDepartment: '',
         previewSubject: '',
         previewBody: '<p style=&quot;color:#9ca3af;&quot;>Write the formal correspondence here...</p>',
@@ -221,6 +223,36 @@
 
                             <div class="correspondence-body text-[15px] text-gray-900">
                                 <div class="body-content" x-html="previewBody"></div>
+                            </div>
+
+                            <div class="correspondence-signature-block">
+                                <div class="signature-section">
+                                    <p class="signature-heading">Prepared By:</p>
+                                    <p x-text="previewFrom || 'System Super Admin'"></p>
+                                    <p>Position</p>
+                                    <p>—</p>
+                                    <p>Prepared on: Date and Time</p>
+                                </div>
+
+                                <div class="signature-section">
+                                    <p class="signature-heading">From Management</p>
+                                    <p x-text="previewManagementName || 'Name'"></p>
+                                    <p x-text="previewManagementPosition || 'Position'"></p>
+                                    <p x-text="previewManagementDepartment || 'Department'"></p>
+                                    <p>Approved on: Date and Time</p>
+                                </div>
+
+                                <div class="signature-section">
+                                    <p class="signature-heading">From Executive Management</p>
+                                    <p x-text="previewExecutiveName || 'Name'"></p>
+                                    <p x-text="previewExecutivePosition || 'Position'"></p>
+                                    <p>Executive Management</p>
+                                    <p>Approved on: Date and Time</p>
+                                </div>
+
+                                <p class="computer-generated-note">
+                                    This is a computer-generated document. Signature is not required.
+                                </p>
                             </div>
                         </div>
                     </div>
@@ -585,6 +617,47 @@
         border-top: 1px solid #6b7280;
         margin-top: 8px;
         margin-bottom: 22px;
+    }
+
+
+    /* SIGNATURE FORMAT MATCH FIX */
+
+    .correspondence-signature-block {
+        margin-top: 46px !important;
+        font-size: 14px !important;
+        line-height: 1.28 !important;
+        color: #000 !important;
+        font-family: Georgia, "Times New Roman", serif !important;
+    }
+
+    .correspondence-signature-block p {
+        display: block !important;
+        margin: 0 0 2px 0 !important;
+        padding: 0 !important;
+        font-weight: 400 !important;
+        line-height: 1.28 !important;
+    }
+
+    .correspondence-signature-block .signature-section {
+        display: block !important;
+        margin: 0 0 18px 0 !important;
+        padding: 0 !important;
+    }
+
+    .correspondence-signature-block .signature-heading {
+        display: block !important;
+        font-weight: 700 !important;
+        margin: 0 0 8px 0 !important;
+        padding: 0 !important;
+    }
+
+    .correspondence-signature-block .computer-generated-note,
+    .computer-generated-note {
+        display: block !important;
+        margin: 22px 0 0 0 !important;
+        padding: 0 !important;
+        font-weight: 700 !important;
+        line-height: 1.28 !important;
     }
 
 </style>
