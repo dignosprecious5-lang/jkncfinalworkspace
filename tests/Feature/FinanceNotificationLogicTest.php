@@ -73,6 +73,18 @@ function financeNotificationLogicFixtures(): array
         ]
     );
 
+    $approver = User::factory()->create([
+        'name' => 'Notification Approver',
+        'email' => 'notification.approver@example.com',
+        'role' => 'employee',
+    ]);
+    UserPermission::query()->updateOrCreate(
+        ['user_id' => $approver->id],
+        [
+            'finance_approver' => true,
+        ]
+    );
+
     $gisRecord = GisRecord::query()->create([
         'uploaded_by' => $owner->name,
         'submission_status' => 'Submitted',
@@ -201,7 +213,7 @@ function financeNotificationLogicFixtures(): array
         'user' => $owner->name,
     ]);
 
-    return compact('owner', 'president', 'treasurer', 'custodianUser', 'custodian', 'supplier', 'chartAccount', 'bankAccount', 'po', 'gisRecord');
+    return compact('owner', 'president', 'treasurer', 'approver', 'custodianUser', 'custodian', 'supplier', 'chartAccount', 'bankAccount', 'po', 'gisRecord');
 }
 
 function financeNotificationCreateAndApproveRecord($testCase, array $payload, User $owner, User $president, User $treasurer): FinanceRecord
@@ -254,6 +266,10 @@ test('workflow notifications are sent for submission approval hold and revert', 
         return $notification->action === 'submitted' && $notification->recordId === $submittedRecord->id;
     });
 
+    Notification::assertSentTo($fixtures['approver'], FinanceRecordWorkflowNotification::class, function (FinanceRecordWorkflowNotification $notification) use ($submittedRecord): bool {
+        return $notification->action === 'submitted' && $notification->recordId === $submittedRecord->id;
+    });
+
     $approvedRecord = financeNotificationCreateAndApproveRecord($this, [
         'module_key' => 'chart_account',
         'record_number' => 'COA-51002',
@@ -272,6 +288,10 @@ test('workflow notifications are sent for submission approval hold and revert', 
     });
 
     Notification::assertSentTo($fixtures['president'], FinanceRecordWorkflowNotification::class, function (FinanceRecordWorkflowNotification $notification) use ($approvedRecord): bool {
+        return $notification->action === 'approved' && $notification->recordId === $approvedRecord->id;
+    });
+
+    Notification::assertSentTo($fixtures['approver'], FinanceRecordWorkflowNotification::class, function (FinanceRecordWorkflowNotification $notification) use ($approvedRecord): bool {
         return $notification->action === 'approved' && $notification->recordId === $approvedRecord->id;
     });
 
@@ -306,6 +326,10 @@ test('workflow notifications are sent for submission approval hold and revert', 
         return $notification->action === 'held' && $notification->recordId === $holdRecord->id;
     });
 
+    Notification::assertSentTo($fixtures['approver'], FinanceRecordWorkflowNotification::class, function (FinanceRecordWorkflowNotification $notification) use ($holdRecord): bool {
+        return $notification->action === 'held' && $notification->recordId === $holdRecord->id;
+    });
+
     $revertResponse = $this->actingAs($fixtures['president'])->postJson(route('finance.revert', $holdRecord), [
         'reason' => 'Please revise the backup documents.',
     ]);
@@ -316,6 +340,10 @@ test('workflow notifications are sent for submission approval hold and revert', 
     });
 
     Notification::assertSentTo($fixtures['treasurer'], FinanceRecordWorkflowNotification::class, function (FinanceRecordWorkflowNotification $notification) use ($holdRecord): bool {
+        return $notification->action === 'reverted' && $notification->recordId === $holdRecord->id;
+    });
+
+    Notification::assertSentTo($fixtures['approver'], FinanceRecordWorkflowNotification::class, function (FinanceRecordWorkflowNotification $notification) use ($holdRecord): bool {
         return $notification->action === 'reverted' && $notification->recordId === $holdRecord->id;
     });
 });
@@ -410,6 +438,14 @@ it('notifies supplier approvers and admins when a supplier completion form is su
             && in_array('mail', $notification->via($fixtures['treasurer']), true);
     });
 
+    Notification::assertSentTo($fixtures['approver'], FinanceRecordWorkflowNotification::class, function (FinanceRecordWorkflowNotification $notification) use ($supplierRecord, $fixtures): bool {
+        return $notification->action === 'supplier_submitted'
+            && $notification->recordId === $supplierRecord->id
+            && in_array('database', $notification->via($fixtures['approver']), true)
+            && in_array('broadcast', $notification->via($fixtures['approver']), true)
+            && in_array('mail', $notification->via($fixtures['approver']), true);
+    });
+
     Notification::assertSentTo($fixtures['president'], FinanceRecordWorkflowNotification::class, function (FinanceRecordWorkflowNotification $notification) use ($supplierRecord, $fixtures): bool {
         return $notification->action === 'supplier_submitted'
             && $notification->recordId === $supplierRecord->id
@@ -502,6 +538,10 @@ test('liquidation due asset assignment and inventory alerts are notified automat
         return $notification->action === 'liquidation_due' && $notification->recordId === $ca->id;
     });
 
+    Notification::assertSentTo($fixtures['approver'], FinanceRecordWorkflowNotification::class, function (FinanceRecordWorkflowNotification $notification) use ($ca): bool {
+        return $notification->action === 'liquidation_due' && $notification->recordId === $ca->id;
+    });
+
     $lrResponse = $this->actingAs($fixtures['owner'])->post(route('finance.store'), [
         'module_key' => 'lr',
         'record_number' => 'LR-51001',
@@ -580,6 +620,10 @@ test('liquidation due asset assignment and inventory alerts are notified automat
     Notification::assertSentTo($fixtures['treasurer'], FinanceRecordWorkflowNotification::class, function (FinanceRecordWorkflowNotification $notification) use ($arf): bool {
         return $notification->action === 'inventory_alert' && $notification->recordId === $arf->id;
     });
+
+    Notification::assertSentTo($fixtures['approver'], FinanceRecordWorkflowNotification::class, function (FinanceRecordWorkflowNotification $notification) use ($arf): bool {
+        return $notification->action === 'inventory_alert' && $notification->recordId === $arf->id;
+    });
 });
 
 test('workflow emails include pdf copy record metadata and relationship status', function () {
@@ -648,9 +692,13 @@ test('workflow emails include pdf copy record metadata and relationship status',
 
     $rendered = strip_tags(view($view, $viewData)->render());
 
-    expect($rendered)->toContain('Record: PO-51099 - Email Logic Purchase Order');
-    expect($rendered)->toContain('Status: Approved / Approved');
-    expect($rendered)->toContain('Relationship Status: Awaiting Disbursement');
+    expect($rendered)->toContain('Record Summary');
+    expect($rendered)->toContain('Record Number');
+    expect($rendered)->toContain('PO-51099');
+    expect($rendered)->toContain('Status');
+    expect($rendered)->toContain('Approved / Approved');
+    expect($rendered)->toContain('Relationship Status');
+    expect($rendered)->toContain('Awaiting Disbursement');
     expect($rendered)->toContain('View Record');
-    expect($rendered)->toContain('A PDF copy of the current record is attached for your reference.');
+    expect($rendered)->toContain('A PDF copy of the current record is attached for reference.');
 });

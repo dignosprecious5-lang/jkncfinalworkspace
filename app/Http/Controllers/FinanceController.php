@@ -122,6 +122,11 @@ class FinanceController extends Controller
         return $this->moduleRequiresTwoPersonApproval($moduleKey) ? 2 : 1;
     }
 
+    private function financeApprovalRolePriority(): array
+    {
+        return ['Treasurer', 'President', 'Approver'];
+    }
+
     private function financeUserDisplayName(?int $userId, string $fallback = 'N/A'): string
     {
         if (blank($userId)) {
@@ -415,7 +420,7 @@ class FinanceController extends Controller
             ->unique(fn (array $option) => Str::lower((string) $option['role']) . '|' . (int) $option['user_id'])
             ->values();
 
-        $defaults = collect(['Treasurer', 'President'])
+        $defaults = collect($this->financeApprovalRolePriority())
             ->map(function (string $role) use ($options) {
                 $match = $options->first(function (array $option) use ($role) {
                     return Str::lower((string) $option['role']) === Str::lower($role);
@@ -424,6 +429,7 @@ class FinanceController extends Controller
                 return $match ? ['role' => $role, ...$match] : null;
             })
             ->filter()
+            ->unique(fn (array $option) => (int) $option['user_id'])
             ->values();
 
         return [
@@ -439,7 +445,14 @@ class FinanceController extends Controller
                 'official_name' => $option['official_name'],
                 'source' => $option['source'],
             ])->all(),
-            'missing_default_roles' => collect(['Treasurer', 'President'])
+            'available_default_roles' => $defaults
+                ->pluck('role')
+                ->map(fn ($role) => trim((string) $role))
+                ->filter()
+                ->unique()
+                ->values()
+                ->all(),
+            'missing_default_roles' => collect($this->financeApprovalRolePriority())
                 ->reject(fn (string $role) => $defaults->contains(fn (array $option) => Str::lower((string) $option['role']) === Str::lower($role)))
                 ->values()
                 ->all(),
@@ -458,7 +471,6 @@ class FinanceController extends Controller
         }
 
         return User::query()
-            ->with(['userPermission', 'employeeProfile', 'contactProfile'])
             ->whereHas('userPermission', function ($query) {
                 $query->where('finance_treasurer', true)
                     ->orWhere('finance_president', true)
@@ -588,7 +600,19 @@ class FinanceController extends Controller
 
     private function financeApprovalRoleLabelsForRecord(?FinanceRecord $record = null, ?string $moduleKey = null): array
     {
-        return ['Treasurer', 'President'];
+        $dataRoles = collect((array) data_get($record?->data ?? [], 'approval_steps', []))
+            ->pluck('role')
+            ->map(fn ($role) => trim((string) $role))
+            ->filter()
+            ->values()
+            ->all();
+
+        $priorityRoles = $this->financeApprovalRolePriority();
+
+        return [
+            $dataRoles[0] ?? $priorityRoles[0],
+            $dataRoles[1] ?? $priorityRoles[1],
+        ];
     }
 
     private function defaultFinanceApprovalSteps(array $data = [], ?string $moduleKey = null): array
@@ -602,11 +626,6 @@ class FinanceController extends Controller
 
         $selectedUserIds = $this->financeSelectedApprovalUserIds($data);
         $defaultSteps = $this->financeOfficialApproverDirectory()['default_steps'];
-        $defaultRoles = collect($defaultSteps)
-            ->pluck('role')
-            ->filter()
-            ->values()
-            ->all();
         $steps = [];
 
         foreach (($selectedUserIds ?: array_column($defaultSteps, 'user_id')) as $index => $userId) {
@@ -615,7 +634,7 @@ class FinanceController extends Controller
                 continue;
             }
 
-            $role = $defaultRoles[$index] ?? ($option['role'] ?? ($index === 0 ? 'Treasurer' : 'President'));
+            $role = trim((string) ($option['role'] ?? data_get($defaultSteps, $index . '.role', $index === 0 ? 'Treasurer' : 'President')));
 
             $steps[] = [
                 'step' => $index + 1,
@@ -652,6 +671,20 @@ class FinanceController extends Controller
     private function financeUserApprovalRole(): string
     {
         $user = Auth::user();
+        $permission = $user?->userPermission;
+
+        if ((bool) data_get($permission, 'finance_treasurer')) {
+            return 'Treasurer';
+        }
+
+        if ((bool) data_get($permission, 'finance_president')) {
+            return 'President';
+        }
+
+        if ((bool) data_get($permission, 'finance_approver')) {
+            return 'Approver';
+        }
+
         $position = trim((string) ($user?->position ?: $user?->employeeProfile?->position ?: ''));
         $name = trim((string) ($user?->name ?: ''));
         $haystack = Str::lower($position . ' ' . $name);
@@ -4274,6 +4307,25 @@ SVG;
             ->values();
     }
 
+    private function financeRoleNotificationUsers(): \Illuminate\Support\Collection
+    {
+        if (!Schema::hasTable('user_permissions') || !Schema::hasColumn('user_permissions', 'finance_treasurer') || !Schema::hasColumn('user_permissions', 'finance_president') || !Schema::hasColumn('user_permissions', 'finance_approver')) {
+            return collect();
+        }
+
+        return User::query()
+            ->with(['userPermission', 'employeeProfile', 'contactProfile'])
+            ->whereHas('userPermission', function ($query) {
+                $query->where('finance_treasurer', true)
+                    ->orWhere('finance_president', true)
+                    ->orWhere('finance_approver', true);
+            })
+            ->get()
+            ->filter()
+            ->unique('id')
+            ->values();
+    }
+
     private function financeAdminNotificationUsers()
     {
         return User::query()
@@ -4346,6 +4398,7 @@ SVG;
     {
         $owner = $record->submitted_by ? User::query()->find($record->submitted_by) : null;
         $approvers = $this->financeApproverUsersForRecord($record);
+        $roleRecipients = $this->financeRoleNotificationUsers();
 
         if ($approvers->isEmpty()) {
             $fallbackApproverIds = collect($this->financeOfficialApproverDirectory()['default_steps'] ?? [])
@@ -4363,8 +4416,9 @@ SVG;
             }
         }
 
+        $workflowRecipients = $roleRecipients->merge($approvers)->unique('id')->values();
         $adminRecipients = $this->financeAdminNotificationUsers();
-        $pendingApprovers = $approvers->reject(fn (User $user) => collect($this->financeApprovalActions($record))
+        $pendingApprovers = $workflowRecipients->reject(fn (User $user) => collect($this->financeApprovalActions($record))
             ->contains(fn (array $actionRow) => (int) data_get($actionRow, 'approved_by') === (int) $user->id));
         $inventoryAlertRecipients = $adminRecipients;
 
@@ -4379,23 +4433,23 @@ SVG;
         }
 
         $recipients = match ($action) {
-            'submitted', 'supplier_submitted' => $approvers->merge($owner ? [$owner] : []),
+            'submitted', 'supplier_submitted' => $workflowRecipients->merge($owner ? [$owner] : []),
             'updated' => in_array($record->workflow_status ?? 'Uploaded', ['Submitted', 'On Hold', 'Shared'], true)
                 || $record->module_key === 'crf'
-                ? $approvers->merge($owner ? [$owner] : [])
+                ? $workflowRecipients->merge($owner ? [$owner] : [])
                 : collect($owner ? [$owner] : []),
             'partially_approved' => $pendingApprovers->merge($owner ? [$owner] : []),
-            'liquidation_due' => collect($owner ? [$owner] : [])->merge($adminRecipients)->merge($approvers),
-            'inventory_alert' => $inventoryAlertRecipients->merge($approvers),
-            'insufficient_funds' => $approvers->merge($adminRecipients)->merge($owner ? [$owner] : []),
-            'accounting_imbalance' => $approvers->merge($adminRecipients)->merge($owner ? [$owner] : []),
-            'approved', 'reverted', 'held' => collect($owner ? [$owner] : [])->merge($approvers),
-            'delete_requested' => $adminRecipients->merge($owner ? [$owner] : [])->merge($approvers),
-            default => collect($owner ? [$owner] : [])->merge($approvers),
+            'liquidation_due' => collect($owner ? [$owner] : [])->merge($adminRecipients)->merge($workflowRecipients),
+            'inventory_alert' => $inventoryAlertRecipients->merge($workflowRecipients),
+            'insufficient_funds' => $workflowRecipients->merge($adminRecipients)->merge($owner ? [$owner] : []),
+            'accounting_imbalance' => $workflowRecipients->merge($adminRecipients)->merge($owner ? [$owner] : []),
+            'approved', 'reverted', 'held' => collect($owner ? [$owner] : [])->merge($workflowRecipients),
+            'delete_requested' => $adminRecipients->merge($owner ? [$owner] : [])->merge($workflowRecipients),
+            default => collect($owner ? [$owner] : [])->merge($workflowRecipients),
         };
 
         $recipients = $recipients
-            ->merge($approvers)
+            ->merge($workflowRecipients)
             ->filter()
             ->unique('id')
             ->values();
@@ -4561,9 +4615,7 @@ SVG;
             buttonLabel: $buttonLabel,
             url: $recordUrl,
             actionButtons: $actionButtons,
-            reviewNote: $reviewNote,
-            pdfData: $this->financeRecordPdfData($freshRecord),
-            pdfFilename: $this->financeRecordPdfFilename($freshRecord)
+            reviewNote: $reviewNote
         );
 
         try {
@@ -4576,6 +4628,7 @@ SVG;
     private function sendFinanceAssetCustodianNotification(FinanceRecord $record, string $action): void
     {
         $freshRecord = $record->fresh() ?: $record;
+        $roleRecipients = $this->financeRoleNotificationUsers();
         $custodianId = data_get($freshRecord->data ?? [], 'custodian');
 
         if (!is_numeric($custodianId)) {
@@ -4611,15 +4664,13 @@ SVG;
         };
 
         try {
-            Notification::send([$recipient], new FinanceRecordWorkflowNotification(
+            Notification::send($roleRecipients->merge([$recipient])->unique('id')->values(), new FinanceRecordWorkflowNotification(
                 recordId: $freshRecord->id,
                 action: $action,
                 title: $title,
                 body: $body,
                 buttonLabel: $buttonLabel,
                 url: $this->financeRecordSystemUrl($freshRecord),
-                pdfData: $this->financeRecordPdfData($freshRecord),
-                pdfFilename: $this->financeRecordPdfFilename($freshRecord)
             ));
         } catch (Throwable $exception) {
             report($exception);
@@ -7123,10 +7174,16 @@ SVG;
         $validated = $request->validate($rules);
 
         if ($this->moduleRequiresTwoPersonApproval($moduleKey) && ! $supplierSendMode) {
-            $missingDefaultRoles = $this->financeOfficialApproverDirectory()['missing_default_roles'] ?? [];
-            if (!empty($missingDefaultRoles)) {
+            $defaultStepCount = collect($this->financeOfficialApproverDirectory()['default_steps'] ?? [])
+                ->pluck('user_id')
+                ->map(fn ($id) => (int) $id)
+                ->filter(fn (int $id) => $id > 0)
+                ->unique()
+                ->count();
+
+            if ($defaultStepCount < 2) {
                 throw ValidationException::withMessages([
-                    'data.first_approver_user_id' => 'Official approver records are incomplete. Please make sure the ' . implode(' and ', $missingDefaultRoles) . ' are linked to active user accounts.',
+                    'data.first_approver_user_id' => 'Official approver records are incomplete. Please make sure at least two of the Treasurer, President, or Approver roles are linked to active user accounts.',
                 ]);
             }
         }
