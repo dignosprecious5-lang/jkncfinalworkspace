@@ -499,10 +499,100 @@ class CorrespondenceController extends Controller
     }
 
 
+
+    private function readablePositionValue($value, string $fallback = 'Management'): string
+    {
+        if ($value === null || $value === '') {
+            return $fallback;
+        }
+
+        if (is_string($value)) {
+            $decoded = json_decode($value, true);
+
+            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                foreach (['position_name', 'name', 'title', 'designation'] as $key) {
+                    if (!empty($decoded[$key]) && is_string($decoded[$key])) {
+                        return $decoded[$key];
+                    }
+                }
+
+                return $fallback;
+            }
+
+            return $value;
+        }
+
+        if (is_array($value)) {
+            foreach (['position_name', 'name', 'title', 'designation'] as $key) {
+                if (!empty($value[$key]) && is_string($value[$key])) {
+                    return $value[$key];
+                }
+            }
+
+            return $fallback;
+        }
+
+        if (is_object($value)) {
+            foreach (['position_name', 'name', 'title', 'designation'] as $key) {
+                if (isset($value->{$key}) && is_string($value->{$key}) && $value->{$key} !== '') {
+                    return $value->{$key};
+                }
+            }
+
+            return $fallback;
+        }
+
+        return (string) $value;
+    }
+
+    private function readableDepartmentValue($value, string $fallback = 'Management'): string
+    {
+        if ($value === null || $value === '') {
+            return $fallback;
+        }
+
+        if (is_string($value)) {
+            $decoded = json_decode($value, true);
+
+            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                foreach (['department_name', 'name'] as $key) {
+                    if (!empty($decoded[$key]) && is_string($decoded[$key])) {
+                        return $decoded[$key];
+                    }
+                }
+
+                return $fallback;
+            }
+
+            return $value;
+        }
+
+        if (is_array($value)) {
+            foreach (['department_name', 'name'] as $key) {
+                if (!empty($value[$key]) && is_string($value[$key])) {
+                    return $value[$key];
+                }
+            }
+
+            return $fallback;
+        }
+
+        if (is_object($value)) {
+            foreach (['department_name', 'name'] as $key) {
+                if (isset($value->{$key}) && is_string($value->{$key}) && $value->{$key} !== '') {
+                    return $value->{$key};
+                }
+            }
+
+            return $fallback;
+        }
+
+        return (string) $value;
+    }
+
+
     private function formatEmployeeApprover($employee): array
     {
-        $table = (new Employee())->getTable();
-
         $name = $this->readableApproverValue(
             $employee->name
                 ?? $employee->employee_name
@@ -511,8 +601,13 @@ class CorrespondenceController extends Controller
             ''
         );
 
-        $position = $this->readableApproverValue(
-            $employee->position
+        /*
+         * LEVEL 1 is from Employee Profile / Management.
+         * Do not use office fields here, because that makes Level 1 show
+         * "Office of the ..." which should only appear in Level 2.
+         */
+        $position = $this->readablePositionValue(
+            $employee->position_title
                 ?? $employee->position_name
                 ?? $employee->job_title
                 ?? $employee->designation
@@ -520,11 +615,9 @@ class CorrespondenceController extends Controller
             'Management'
         );
 
-        $department = $this->readableApproverValue(
-            $employee->department
-                ?? $employee->department_name
-                ?? $employee->office
-                ?? $employee->office_name
+        $department = $this->readableDepartmentValue(
+            $employee->department_name
+                ?? $employee->department
                 ?? null,
             'Management'
         );
@@ -622,6 +715,7 @@ class CorrespondenceController extends Controller
             'name' => $officer->officer_name ?: 'Unnamed Officer',
             'email' => $officer->email ?? null,
             'position' => $position,
+            // LEVEL 2 is from GIS Directors/Officers, so this intentionally uses Office of the.
             'department' => 'Office of the ' . $position,
             'gis_id' => $officer->gis_id,
         ];
