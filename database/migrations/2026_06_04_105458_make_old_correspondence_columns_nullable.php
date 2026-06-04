@@ -1,7 +1,6 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
@@ -18,61 +17,44 @@ return new class extends Migration
             return;
         }
 
-        /*
-         * This fixes production errors from the old correspondence table schema.
-         * Old required columns such as uploaded_date may still be NOT NULL without defaults,
-         * while the new Town Hall-style CorrespondenceController no longer fills them.
-         */
-        $nullableDateColumns = [
-            'uploaded_date',
-            'date',
-            'deadline',
-        ];
-
-        foreach ($nullableDateColumns as $column) {
-            if ($this->columnExists($column)) {
-                DB::statement("ALTER TABLE correspondences MODIFY {$column} DATE NULL");
-            }
+        if ($this->columnExists('uploaded_date')) {
+            DB::statement("ALTER TABLE correspondences MODIFY uploaded_date DATE NULL");
         }
 
-        $nullableTimeColumns = [
-            'time',
-        ];
-
-        foreach ($nullableTimeColumns as $column) {
-            if ($this->columnExists($column)) {
-                DB::statement("ALTER TABLE correspondences MODIFY {$column} TIME NULL");
-            }
+        if ($this->columnExists('date')) {
+            DB::statement("ALTER TABLE correspondences MODIFY date DATE NULL");
         }
 
-        $nullableStringColumns = [
-            'user',
-            'tin',
-            'subject',
-            'sender_type',
-            'sender',
-            'department',
-            'sent_via',
-            'workflow_status',
-            'approval_status',
-            'review_note',
-            'attachment',
-        ];
+        if ($this->columnExists('deadline')) {
+            DB::statement("ALTER TABLE correspondences MODIFY deadline DATE NULL");
+        }
 
-        foreach ($nullableStringColumns as $column) {
+        if ($this->columnExists('time')) {
+            DB::statement("ALTER TABLE correspondences MODIFY time TIME NULL");
+        }
+
+        foreach (
+            [
+                'user',
+                'tin',
+                'subject',
+                'sender_type',
+                'sender',
+                'department',
+                'sent_via',
+                'workflow_status',
+                'approval_status',
+                'review_note',
+                'attachment',
+            ] as $column
+        ) {
             if ($this->columnExists($column)) {
                 DB::statement("ALTER TABLE correspondences MODIFY {$column} VARCHAR(255) NULL");
             }
         }
 
-        $nullableTextColumns = [
-            'details',
-        ];
-
-        foreach ($nullableTextColumns as $column) {
-            if ($this->columnExists($column)) {
-                DB::statement("ALTER TABLE correspondences MODIFY {$column} TEXT NULL");
-            }
+        if ($this->columnExists('details')) {
+            DB::statement("ALTER TABLE correspondences MODIFY details TEXT NULL");
         }
 
         if ($this->columnExists('submitted_by')) {
@@ -90,6 +72,6 @@ return new class extends Migration
 
     public function down(): void
     {
-        // Intentionally empty. Reverting to NOT NULL could break existing production data.
+        //
     }
 };

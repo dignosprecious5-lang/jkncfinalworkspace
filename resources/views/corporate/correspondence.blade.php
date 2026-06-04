@@ -288,7 +288,16 @@
                             </select>
                         </div>
 
-                        <div class="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm">
+
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-500 mb-1">Date</label>
+                            <input id="correspondenceDateInput"
+                                   type="date"
+                                   x-model="previewDate"
+                                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500">
+                        </div>
+
+<div class="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm">
                             <p class="font-semibold text-blue-700">Header details auto-filled from latest approved GIS</p>
                             <p class="mt-1"><strong>Company Name:</strong> {{ $companyInfo['company_name'] ?? '—' }}</p>
                             <p><strong>Registration Number:</strong> {{ $companyInfo['registration_number'] ?? '—' }}</p>
@@ -799,6 +808,7 @@ function resetFormDefaults() {
         alpineData.previewRef = 'AUTO-INCREMENT';
         alpineData.previewDate = today;
         alpineData.previewType = 'Letters';
+        alpineData.previewDate = new Date().toISOString().slice(0, 10);
         alpineData.previewToForLabel = 'To';
         alpineData.previewToFor = '';
         alpineData.previewFrom = '{{ Auth::user()->name ?? 'System Super Admin' }}';
@@ -942,6 +952,7 @@ async function addCorrespondence() {
 
     const payload = {
         type: document.getElementById('typeInput').value,
+        correspondence_date: document.getElementById('correspondenceDateInput').value,
         to_for_label: document.getElementById('toForLabelInput').value,
         tin: '',
         subject: document.getElementById('subjectInput').value,
