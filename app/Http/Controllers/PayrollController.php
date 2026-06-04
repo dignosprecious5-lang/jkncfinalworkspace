@@ -14,6 +14,8 @@ use App\Models\PayrollSummary;
 use App\Models\PayrollSummaryItem;
 use App\Models\SalaryGrade;
 use App\Services\PayrollCalculator;
+use App\Support\HumanCapitalLogger;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -53,141 +55,180 @@ class PayrollController extends Controller
 
     public function storeSalaryGrade(Request $request)
     {
-        SalaryGrade::create($this->salaryGradePayload($request));
+        $salaryGrade = SalaryGrade::create($this->salaryGradePayload($request));
+        $this->logPayrollCreated($request, 'Salary Grade', $salaryGrade);
 
         return back()->with('success', 'Salary grade added successfully.');
     }
 
     public function updateSalaryGrade(Request $request, SalaryGrade $salaryGrade)
     {
+        $oldValues = $this->snapshot($salaryGrade);
         $salaryGrade->update($this->salaryGradePayload($request, $salaryGrade->basis_file_path));
+        $this->logPayrollUpdated($request, 'Salary Grade', $salaryGrade->fresh(), $oldValues);
 
         return back()->with('success', 'Salary grade updated successfully.');
     }
 
     public function destroySalaryGrade(SalaryGrade $salaryGrade)
     {
+        $oldValues = $this->snapshot($salaryGrade);
+        $subjectName = $this->modelLabel($salaryGrade);
         $salaryGrade->delete();
+        $this->logPayrollDeleted(request(), 'Salary Grade', $salaryGrade, $oldValues, $subjectName);
 
         return back()->with('success', 'Salary grade deleted successfully.');
     }
 
     public function storePayrollLevel(Request $request)
     {
-        PayrollLevel::create($this->payrollLevelPayload($request));
+        $level = PayrollLevel::create($this->payrollLevelPayload($request));
+        $this->logPayrollCreated($request, 'Payroll Level', $level);
 
         return back()->with('success', 'Payroll level added successfully.');
     }
 
     public function updatePayrollLevel(Request $request, PayrollLevel $level)
     {
+        $oldValues = $this->snapshot($level);
         $level->update($this->payrollLevelPayload($request, $level->basis_file_path));
+        $this->logPayrollUpdated($request, 'Payroll Level', $level->fresh(), $oldValues);
 
         return back()->with('success', 'Payroll level updated successfully.');
     }
 
     public function destroyPayrollLevel(PayrollLevel $level)
     {
+        $oldValues = $this->snapshot($level);
+        $subjectName = $this->modelLabel($level);
         $level->delete();
+        $this->logPayrollDeleted(request(), 'Payroll Level', $level, $oldValues, $subjectName);
 
         return back()->with('success', 'Payroll level deleted successfully.');
     }
 
     public function storeBenefit(Request $request)
     {
-        return $this->storeLinkedValueItem($request, PayrollBenefit::class, 'Benefit added successfully.');
+        return $this->storeLinkedValueItem($request, PayrollBenefit::class, 'Benefit', 'Benefit added successfully.');
     }
 
     public function updateBenefit(Request $request, PayrollBenefit $benefit)
     {
+        $oldValues = $this->snapshot($benefit);
         $benefit->update($this->linkedValuePayload($request, PayrollBenefit::class, $benefit->basis_file_path));
+        $this->logPayrollUpdated($request, 'Benefit', $benefit->fresh(), $oldValues);
 
         return back()->with('success', 'Benefit updated successfully.');
     }
 
     public function destroyBenefit(PayrollBenefit $benefit)
     {
+        $oldValues = $this->snapshot($benefit);
+        $subjectName = $this->modelLabel($benefit);
         $benefit->delete();
+        $this->logPayrollDeleted(request(), 'Benefit', $benefit, $oldValues, $subjectName);
 
         return back()->with('success', 'Benefit deleted successfully.');
     }
 
     public function storeAllowance(Request $request)
     {
-        return $this->storeLinkedValueItem($request, PayrollAllowance::class, 'Allowance added successfully.');
+        return $this->storeLinkedValueItem($request, PayrollAllowance::class, 'Allowance', 'Allowance added successfully.');
     }
 
     public function updateAllowance(Request $request, PayrollAllowance $allowance)
     {
+        $oldValues = $this->snapshot($allowance);
         $allowance->update($this->linkedValuePayload($request, PayrollAllowance::class, $allowance->basis_file_path));
+        $this->logPayrollUpdated($request, 'Allowance', $allowance->fresh(), $oldValues);
 
         return back()->with('success', 'Allowance updated successfully.');
     }
 
     public function destroyAllowance(PayrollAllowance $allowance)
     {
+        $oldValues = $this->snapshot($allowance);
+        $subjectName = $this->modelLabel($allowance);
         $allowance->delete();
+        $this->logPayrollDeleted(request(), 'Allowance', $allowance, $oldValues, $subjectName);
 
         return back()->with('success', 'Allowance deleted successfully.');
     }
 
     public function storeDeduction(Request $request)
     {
-        return $this->storeLinkedValueItem($request, PayrollDeduction::class, 'Deduction added successfully.');
+        return $this->storeLinkedValueItem($request, PayrollDeduction::class, 'Deduction', 'Deduction added successfully.');
     }
 
     public function updateDeduction(Request $request, PayrollDeduction $deduction)
     {
+        $oldValues = $this->snapshot($deduction);
         $deduction->update($this->linkedValuePayload($request, PayrollDeduction::class, $deduction->basis_file_path));
+        $this->logPayrollUpdated($request, 'Deduction', $deduction->fresh(), $oldValues);
 
         return back()->with('success', 'Deduction updated successfully.');
     }
 
     public function destroyDeduction(PayrollDeduction $deduction)
     {
+        $oldValues = $this->snapshot($deduction);
+        $subjectName = $this->modelLabel($deduction);
         $deduction->delete();
+        $this->logPayrollDeleted(request(), 'Deduction', $deduction, $oldValues, $subjectName);
 
         return back()->with('success', 'Deduction deleted successfully.');
     }
 
     public function storeHoliday(Request $request)
     {
-        PayrollHoliday::create($this->holidayPayload($request));
+        $holiday = PayrollHoliday::create($this->holidayPayload($request));
+        $this->logPayrollCreated($request, 'Holiday', $holiday);
 
         return back()->with('success', 'Holiday added successfully.');
     }
 
     public function updateHoliday(Request $request, PayrollHoliday $holiday)
     {
+        $oldValues = $this->snapshot($holiday);
         $holiday->update($this->holidayPayload($request, $holiday->basis_file_path));
+        $this->logPayrollUpdated($request, 'Holiday', $holiday->fresh(), $oldValues);
 
         return back()->with('success', 'Holiday updated successfully.');
     }
 
     public function destroyHoliday(PayrollHoliday $holiday)
     {
+        $oldValues = $this->snapshot($holiday);
+        $subjectName = $this->modelLabel($holiday);
         $holiday->delete();
+        $this->logPayrollDeleted(request(), 'Holiday', $holiday, $oldValues, $subjectName);
 
         return back()->with('success', 'Holiday deleted successfully.');
     }
 
     public function storePayrollPeriod(Request $request)
     {
-        PayrollPeriod::create($this->periodPayload($request));
+        $period = PayrollPeriod::create($this->periodPayload($request));
+        $this->logPayrollCreated($request, 'Payroll Period', $period);
 
         return back()->with('success', 'Payroll period added successfully.');
     }
 
     public function updatePayrollPeriod(Request $request, PayrollPeriod $period)
     {
+        $oldValues = $this->snapshot($period);
         $period->update($this->periodPayload($request, $period->basis_file_path));
+        $this->logPayrollUpdated($request, 'Payroll Period', $period->fresh(), $oldValues);
 
         return back()->with('success', 'Payroll period updated successfully.');
     }
 
     public function destroyPayrollPeriod(PayrollPeriod $period)
     {
+        $oldValues = $this->snapshot($period);
+        $subjectName = $this->modelLabel($period);
         $period->delete();
+        $this->logPayrollDeleted(request(), 'Payroll Period', $period, $oldValues, $subjectName);
 
         return back()->with('success', 'Payroll period deleted successfully.');
     }
@@ -200,20 +241,29 @@ class PayrollController extends Controller
             ['employee_id' => $payload['employee_id']],
             $payload
         );
+        $profile = EmployeePayrollProfile::where('employee_id', $payload['employee_id'])->first();
+        if ($profile) {
+            $this->logPayrollCreated($request, 'Employee Payroll Profile', $profile, 'Employee payroll profile saved');
+        }
 
         return back()->with('success', 'Employee payroll profile saved successfully.');
     }
 
     public function updateEmployeeProfile(Request $request, EmployeePayrollProfile $profile)
     {
+        $oldValues = $this->snapshot($profile);
         $profile->update($this->employeeProfilePayload($request));
+        $this->logPayrollUpdated($request, 'Employee Payroll Profile', $profile->fresh(), $oldValues);
 
         return back()->with('success', 'Employee payroll profile updated successfully.');
     }
 
     public function destroyEmployeeProfile(EmployeePayrollProfile $profile)
     {
+        $oldValues = $this->snapshot($profile);
+        $subjectName = $this->modelLabel($profile);
         $profile->delete();
+        $this->logPayrollDeleted(request(), 'Employee Payroll Profile', $profile, $oldValues, $subjectName);
 
         return back()->with('success', 'Employee payroll profile deleted successfully.');
     }
@@ -271,6 +321,16 @@ class PayrollController extends Controller
             }
         });
 
+        HumanCapitalLogger::log($request, [
+            'module' => 'Payroll',
+            'action' => 'generated_summary',
+            'subject_type' => PayrollPeriod::class,
+            'subject_id' => $period->id,
+            'subject_name' => $period->name,
+            'description' => 'Generated payroll summaries for '.$period->name.'.',
+            'new_values' => ['payroll_period_id' => $period->id, 'period_name' => $period->name],
+        ]);
+
         return back()->with('success', 'Payroll summaries generated successfully.');
     }
 
@@ -288,6 +348,7 @@ class PayrollController extends Controller
 
     public function updateSummary(Request $request, PayrollSummary $summary)
     {
+        $oldValues = $this->snapshot($summary);
         $validated = $request->validate([
             'payroll_level_id' => ['required', 'exists:payroll_levels,id'],
             'gross_pay' => ['required', 'numeric', 'min:0'],
@@ -304,21 +365,26 @@ class PayrollController extends Controller
         $validated['computation_type'] = $level->computation_type;
 
         $summary->update($validated);
+        $this->logPayrollUpdated($request, 'Payroll Summary', $summary->fresh(), $oldValues);
 
         return back()->with('success', 'Payroll summary updated successfully.');
     }
 
     public function destroySummary(PayrollSummary $summary)
     {
+        $oldValues = $this->snapshot($summary);
+        $subjectName = $this->modelLabel($summary);
         $summary->items()->delete();
         $summary->delete();
+        $this->logPayrollDeleted(request(), 'Payroll Summary', $summary, $oldValues, $subjectName);
 
         return back()->with('success', 'Payroll summary deleted successfully.');
     }
 
-    private function storeLinkedValueItem(Request $request, string $modelClass, string $successMessage)
+    private function storeLinkedValueItem(Request $request, string $modelClass, string $moduleLabel, string $successMessage)
     {
-        $modelClass::create($this->linkedValuePayload($request, $modelClass));
+        $model = $modelClass::create($this->linkedValuePayload($request, $modelClass));
+        $this->logPayrollCreated($request, $moduleLabel, $model);
 
         return back()->with('success', $successMessage);
     }
@@ -576,5 +642,73 @@ class PayrollController extends Controller
         }
 
         return $request->file('basis_file')->store('payroll/'.$directory, 'public');
+    }
+
+    private function logPayrollCreated(Request $request, string $recordType, Model $model, ?string $description = null): void
+    {
+        HumanCapitalLogger::logModelChange(
+            $request,
+            'Payroll',
+            'created',
+            $model,
+            null,
+            $this->snapshot($model),
+            $this->modelLabel($model),
+            $description ?: "{$recordType} created."
+        );
+    }
+
+    private function logPayrollUpdated(Request $request, string $recordType, Model $model, array $oldValues): void
+    {
+        HumanCapitalLogger::logModelChange(
+            $request,
+            'Payroll',
+            'updated',
+            $model,
+            $oldValues,
+            $this->snapshot($model),
+            $this->modelLabel($model),
+            "{$recordType} updated."
+        );
+    }
+
+    private function logPayrollDeleted(Request $request, string $recordType, Model $model, array $oldValues, string $subjectName): void
+    {
+        HumanCapitalLogger::logModelChange(
+            $request,
+            'Payroll',
+            'deleted',
+            $model,
+            $oldValues,
+            null,
+            $subjectName,
+            "{$recordType} deleted."
+        );
+    }
+
+    private function snapshot(Model $model): array
+    {
+        return collect($model->getAttributes())
+            ->except(['created_at', 'updated_at'])
+            ->all();
+    }
+
+    private function modelLabel(Model $model): string
+    {
+        foreach (['name', 'level_name', 'employee_code', 'code'] as $field) {
+            if (filled($model->{$field} ?? null)) {
+                return (string) $model->{$field};
+            }
+        }
+
+        if ($model instanceof PayrollSummary) {
+            return trim(($model->employee?->full_name ?? 'Employee').' - '.($model->period?->name ?? 'Payroll Summary'));
+        }
+
+        if ($model instanceof EmployeePayrollProfile) {
+            return trim(($model->employee?->full_name ?? 'Employee').' Payroll Profile');
+        }
+
+        return class_basename($model).' #'.$model->getKey();
     }
 }

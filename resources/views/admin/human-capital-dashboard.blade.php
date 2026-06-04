@@ -93,7 +93,20 @@
         </div>
 
         <div class="px-5 pt-5">
+            <div class="inline-flex rounded-lg border border-gray-200 overflow-hidden text-sm">
+                <a href="{{ route('admin.human-capital.dashboard', ['view' => 'approvals']) }}" class="px-4 py-2 {{ $activeView === 'approvals' ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50' }}">
+                    Approvals
+                </a>
+                <a href="{{ route('admin.human-capital.dashboard', ['view' => 'logs']) }}" class="px-4 py-2 border-l border-gray-200 {{ $activeView === 'logs' ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50' }}">
+                    Human Capital Logs
+                </a>
+            </div>
+        </div>
+
+        @if($activeView === 'approvals')
+        <div class="px-5 pt-5">
             <form method="GET" action="{{ route('admin.human-capital.dashboard') }}" class="bg-gray-50 border border-gray-200 rounded-xl p-4 flex flex-col xl:flex-row xl:items-center gap-3 xl:justify-between">
+                <input type="hidden" name="view" value="approvals">
                 <div class="flex flex-col md:flex-row gap-3 w-full xl:w-auto">
                     <div class="relative">
                         <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
@@ -241,6 +254,126 @@
                 {{ $items->links() }}
             </div>
         </div>
+        @else
+        <div class="px-5 pt-5">
+            <form method="GET" action="{{ route('admin.human-capital.dashboard') }}" class="bg-gray-50 border border-gray-200 rounded-xl p-4 flex flex-col xl:flex-row xl:items-center gap-3 xl:justify-between">
+                <input type="hidden" name="view" value="logs">
+                <div class="flex flex-col md:flex-row gap-3 w-full xl:w-auto">
+                    <div class="relative">
+                        <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
+                        <input
+                            type="text"
+                            name="log_search"
+                            value="{{ $logFilters['search'] }}"
+                            placeholder="Search logs, user, module, action..."
+                            class="w-full md:w-96 border border-gray-300 rounded-lg pl-10 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500"
+                        >
+                    </div>
+
+                    <select name="log_module" class="border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500">
+                        <option value="all">All Modules</option>
+                        @foreach($logModuleOptions as $moduleOption)
+                            <option value="{{ $moduleOption }}" @selected($logFilters['module'] === $moduleOption)>{{ $moduleOption }}</option>
+                        @endforeach
+                    </select>
+
+                    <select name="log_action" class="border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500">
+                        <option value="all">All Actions</option>
+                        @foreach($logActionOptions as $actionOption)
+                            <option value="{{ $actionOption }}" @selected($logFilters['action'] === $actionOption)>{{ str($actionOption)->replace('_', ' ')->title() }}</option>
+                        @endforeach
+                    </select>
+                </div>
+
+                <div class="flex items-center gap-2">
+                    <a href="{{ route('admin.human-capital.dashboard', ['view' => 'logs']) }}" class="px-4 py-2 text-sm border border-gray-300 rounded-lg text-gray-700 hover:bg-white transition">
+                        Reset
+                    </a>
+                    <button type="submit" class="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
+                        Apply Filter
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <div class="px-5 py-5 flex-1 flex flex-col">
+            <div class="border border-gray-200 rounded-xl overflow-hidden flex-1">
+                <table class="w-full text-sm text-left border-collapse">
+                    <thead class="bg-gray-100 text-gray-700">
+                        <tr>
+                            <th class="px-4 py-3 border-r border-gray-200 font-semibold">Date / Time</th>
+                            <th class="px-4 py-3 border-r border-gray-200 font-semibold">Module</th>
+                            <th class="px-4 py-3 border-r border-gray-200 font-semibold">Action</th>
+                            <th class="px-4 py-3 border-r border-gray-200 font-semibold">Record</th>
+                            <th class="px-4 py-3 border-r border-gray-200 font-semibold">Details</th>
+                            <th class="px-4 py-3 font-semibold">Changed By</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse($logs as $log)
+                            <tr class="border-t border-gray-200 hover:bg-gray-50 align-top">
+                                <td class="px-4 py-3 border-r border-gray-100 text-gray-700 whitespace-nowrap">
+                                    {{ optional($log->logged_at)->format('M d, Y g:i A') ?: '-' }}
+                                </td>
+                                <td class="px-4 py-3 border-r border-gray-100 whitespace-nowrap">
+                                    <span class="px-2 py-1 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700">
+                                        {{ $log->module }}
+                                    </span>
+                                </td>
+                                <td class="px-4 py-3 border-r border-gray-100 whitespace-nowrap">
+                                    <span class="px-2 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700">
+                                        {{ str($log->action)->replace('_', ' ')->title() }}
+                                    </span>
+                                </td>
+                                <td class="px-4 py-3 border-r border-gray-100 text-gray-700">
+                                    <div class="font-semibold text-gray-900">{{ $log->subject_name ?: '-' }}</div>
+                                    <div class="text-xs text-gray-500">{{ class_basename($log->subject_type) }} #{{ $log->subject_id }}</div>
+                                </td>
+                                <td class="px-4 py-3 border-r border-gray-100 text-gray-700">
+                                    @php
+                                        $oldValues = collect($log->old_values ?? []);
+                                        $newValues = collect($log->new_values ?? []);
+                                        $changedFields = $newValues->keys()->take(8);
+                                    @endphp
+                                    @if($changedFields->isNotEmpty())
+                                        <div class="space-y-1">
+                                            @foreach($changedFields as $field)
+                                                <div>
+                                                    <span class="font-semibold text-gray-900">{{ str($field)->replace('_', ' ')->title() }}:</span>
+                                                    <span class="text-gray-500">{{ is_array($oldValues->get($field)) ? json_encode($oldValues->get($field)) : ($oldValues->get($field) ?? '-') }}</span>
+                                                    <span class="text-gray-400">-></span>
+                                                    <span class="text-gray-900">{{ is_array($newValues->get($field)) ? json_encode($newValues->get($field)) : ($newValues->get($field) ?? '-') }}</span>
+                                                </div>
+                                            @endforeach
+                                            @if($newValues->count() > 8)
+                                                <div class="text-xs text-gray-500">and {{ $newValues->count() - 8 }} more change(s)</div>
+                                            @endif
+                                        </div>
+                                    @else
+                                        <div>{{ $log->description ?: str($log->action)->replace('_', ' ')->title() }}</div>
+                                    @endif
+                                </td>
+                                <td class="px-4 py-3 text-gray-700 whitespace-nowrap">
+                                    <div class="font-medium">{{ $log->user_name ?: 'System User' }}</div>
+                                    <div class="text-xs text-gray-500">{{ $log->ip_address ?: '-' }}</div>
+                                </td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="6" class="px-4 py-16 text-center text-gray-400">
+                                    No Human Capital logs found.
+                                </td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="mt-4">
+                {{ $logs->links() }}
+            </div>
+        </div>
+        @endif
 
     </div>
 </div>
