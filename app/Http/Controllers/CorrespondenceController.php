@@ -158,6 +158,9 @@ class CorrespondenceController extends Controller
             'ref_no' => 'COR-' . str_pad((string) $record->id, 5, '0', STR_PAD_LEFT),
         ]);
 
+        // Always copy approver emails directly from source tables before notification.
+        $record = $this->syncApproverEmailsFromDatabase($record);
+
         return response()->json([
             'message' => 'Correspondence saved successfully.',
             'record' => $record->fresh(),
@@ -819,6 +822,44 @@ class CorrespondenceController extends Controller
             'executive_approval_status' => 'Pending',
         ];
     }
+
+
+    private function syncApproverEmailsFromDatabase(Correspondence $record): Correspondence
+    {
+        $updates = [];
+
+        if ($record->management_approver_id && Schema::hasTable('employees')) {
+            $employee = DB::table('employees')
+                ->where('id', $record->management_approver_id)
+                ->first();
+
+            $managementEmail = $this->readableEmailValue($employee);
+
+            if ($managementEmail) {
+                $updates['management_approver_email'] = $managementEmail;
+            }
+        }
+
+        if ($record->executive_approver_id && Schema::hasTable('directors_officers')) {
+            $officer = DB::table('directors_officers')
+                ->where('id', $record->executive_approver_id)
+                ->first();
+
+            $executiveEmail = $this->readableEmailValue($officer);
+
+            if ($executiveEmail) {
+                $updates['executive_approver_email'] = $executiveEmail;
+            }
+        }
+
+        if (!empty($updates)) {
+            $record->forceFill($updates)->save();
+            $record = $record->fresh(['creator']);
+        }
+
+        return $record;
+    }
+
 
     private function normalizeCorrespondencePdfTables(string $html): string
     {

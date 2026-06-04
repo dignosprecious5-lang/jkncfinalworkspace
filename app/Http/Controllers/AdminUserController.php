@@ -38,6 +38,43 @@ class AdminUserController extends Controller
         return view('admin.users', compact('users', 'employeeOptions', 'contactOptions'));
     }
 
+    private function splitUserName(string $name): array
+    {
+        $parts = preg_split('/\s+/', trim($name)) ?: [];
+
+        return [
+            'first_name' => $parts[0] ?? '',
+            'last_name' => count($parts) > 1 ? implode(' ', array_slice($parts, 1)) : '',
+        ];
+    }
+
+    private function syncLinkedProfileToUser(User $user): void
+    {
+        $nameParts = $this->splitUserName((string) $user->name);
+
+        $employee = Employee::where('user_id', $user->id)->first();
+
+        if ($employee) {
+            $employee->update([
+                'first_name' => $nameParts['first_name'] ?: $employee->first_name,
+                'last_name' => $nameParts['last_name'] ?: $employee->last_name,
+                'email' => $user->email,
+                'work_email' => $user->email,
+                'company_email' => $user->email,
+            ]);
+        }
+
+        $contact = Contact::where('user_id', $user->id)->first();
+
+        if ($contact) {
+            $contact->update([
+                'first_name' => $nameParts['first_name'] ?: $contact->first_name,
+                'last_name' => $nameParts['last_name'] ?: $contact->last_name,
+                'email' => $user->email,
+            ]);
+        }
+    }
+
     public function store(Request $request)
     {
         $authUser = auth()->user();
@@ -89,7 +126,7 @@ class AdminUserController extends Controller
                 }
 
                 $validated['role'] = 'Client';
-                $validated['name'] = $validated['name'] ?: ($contact->full_name ?: trim(($contact->first_name ?? '').' '.($contact->last_name ?? '')));
+                $validated['name'] = $validated['name'] ?: ($contact->full_name ?: trim(($contact->first_name ?? '') . ' ' . ($contact->last_name ?? '')));
                 $validated['email'] = $validated['email'] ?: $contact->email;
             }
 
@@ -123,15 +160,17 @@ class AdminUserController extends Controller
             if ($employee) {
                 $employee->update([
                     'user_id' => $user->id,
-                    'work_email' => $employee->work_email ?: $user->email,
-                    'email' => $employee->work_email ?: $user->email,
                 ]);
+
+                $this->syncLinkedProfileToUser($user);
             }
 
             if ($contact) {
                 $contact->update([
                     'user_id' => $user->id,
                 ]);
+
+                $this->syncLinkedProfileToUser($user);
             }
         });
 
@@ -167,6 +206,8 @@ class AdminUserController extends Controller
         }
 
         $user->save();
+
+        $this->syncLinkedProfileToUser($user);
 
         return redirect()
             ->route('admin.users')

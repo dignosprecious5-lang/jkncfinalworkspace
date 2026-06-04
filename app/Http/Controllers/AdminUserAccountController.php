@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Contact;
+use App\Models\Employee;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -11,6 +13,43 @@ use Illuminate\Validation\Rule;
 
 class AdminUserAccountController extends Controller
 {
+    private function splitUserName(string $name): array
+    {
+        $parts = preg_split('/\s+/', trim($name)) ?: [];
+
+        return [
+            'first_name' => $parts[0] ?? '',
+            'last_name' => count($parts) > 1 ? implode(' ', array_slice($parts, 1)) : '',
+        ];
+    }
+
+    private function syncLinkedProfileToUser(User $user): void
+    {
+        $nameParts = $this->splitUserName((string) $user->name);
+
+        $employee = Employee::where('user_id', $user->id)->first();
+
+        if ($employee) {
+            $employee->update([
+                'first_name' => $nameParts['first_name'] ?: $employee->first_name,
+                'last_name' => $nameParts['last_name'] ?: $employee->last_name,
+                'email' => $user->email,
+                'work_email' => $user->email,
+                'company_email' => $user->email,
+            ]);
+        }
+
+        $contact = Contact::where('user_id', $user->id)->first();
+
+        if ($contact) {
+            $contact->update([
+                'first_name' => $nameParts['first_name'] ?: $contact->first_name,
+                'last_name' => $nameParts['last_name'] ?: $contact->last_name,
+                'email' => $user->email,
+            ]);
+        }
+    }
+
     public function update(Request $request, $id)
     {
         $authUser = Auth::user();
@@ -64,6 +103,8 @@ class AdminUserAccountController extends Controller
         }
 
         $user->forceFill($payload)->save();
+
+        $this->syncLinkedProfileToUser($user);
 
         return redirect()
             ->back()
