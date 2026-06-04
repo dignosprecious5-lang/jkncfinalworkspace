@@ -156,11 +156,28 @@ class CorrespondenceController extends Controller
             'ref_no' => 'COR-' . str_pad((string) $record->id, 5, '0', STR_PAD_LEFT),
         ]);
 
-        $record = $record->fresh(['creator']);
-        $this->notifyCorrespondenceApprovers($record);
+        /*
+         * The correspondence is already saved at this point.
+         * Email notification must never make the Save button show "Something went wrong".
+         * If mail/SMTP/approver email has an issue, log it but still return success.
+         */
+        try {
+            $record = $record->fresh(['creator']);
+            $this->notifyCorrespondenceApprovers($record);
+
+            $message = 'Correspondence submitted successfully. Email notifications were sent to available approver emails.';
+        } catch (\Throwable $e) {
+            Log::warning('Correspondence saved but notification step failed.', [
+                'correspondence_id' => $record->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            $record = $record->fresh();
+            $message = 'Correspondence submitted successfully. Notification email was not completed.';
+        }
 
         return response()->json([
-            'message' => 'Correspondence submitted successfully. Email notifications were sent to available approver emails.',
+            'message' => $message,
             'record' => $record,
         ]);
     }
