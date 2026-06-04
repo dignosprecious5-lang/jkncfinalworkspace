@@ -980,6 +980,12 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::get('/permits/template/obo-permit/{id}', [PermitController::class, 'showOboPermitTemplate'])->name('permits.template.obo-permit');
 
     Route::get('/corporate/lgu', [PermitController::class, 'page'])->name('corporate.lgu');
+    Route::get('/corporate/lgu/records', [PermitController::class, 'index'])->name('corporate.lgu.records.index');
+    Route::post('/corporate/lgu/records', [PermitController::class, 'store'])->name('corporate.lgu.records.store');
+    Route::get('/corporate/lgu/records/{id}', [PermitController::class, 'show'])->name('corporate.lgu.records.show');
+    Route::put('/corporate/lgu/records/{id}/update', [PermitController::class, 'update'])->name('corporate.lgu.records.update');
+    Route::post('/corporate/lgu/records/{id}/upload-document', [PermitController::class, 'uploadDocument'])->name('corporate.lgu.records.upload.document');
+    Route::post('/corporate/lgu/records/{id}/submit', [PermitController::class, 'submit'])->name('corporate.lgu.records.submit');
     Route::get('/permits', [PermitController::class, 'index'])->name('permits.index');
     Route::post('/permits', [PermitController::class, 'store'])->name('permits.store');
     Route::get('/permits/{id}', [PermitController::class, 'show'])->name('permits.show');
