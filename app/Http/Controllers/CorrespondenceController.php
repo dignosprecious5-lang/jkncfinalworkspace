@@ -417,6 +417,8 @@ class CorrespondenceController extends Controller
             return null;
         }
 
+        $gisTable = (new GisRecord())->getTable();
+
         $query = GisRecord::with('directors')
             ->where(function ($q) {
                 $q->where('approval_status', 'Approved')
@@ -424,7 +426,24 @@ class CorrespondenceController extends Controller
                     ->orWhere('workflow_status', 'Approved');
             });
 
-        return $query->orderByDesc('approved_at')->orderByDesc('id')->first();
+        /*
+         * IMPORTANT:
+         * Account > Company > Corporate Formation > GIS uses /company/{company}/corporate-formation/gis
+         * and normally stores a company_id.
+         *
+         * Corporate > Corporate Formation / GIS uses /corporate/gis
+         * and should be the source for Correspondence headers.
+         *
+         * So Correspondence must ignore company-specific GIS records by requiring company_id IS NULL.
+         */
+        if (Schema::hasColumn($gisTable, 'company_id')) {
+            $query->whereNull('company_id');
+        }
+
+        return $query
+            ->orderByDesc('approved_at')
+            ->orderByDesc('id')
+            ->first();
     }
 
     private function latestGisCompanyInfo($gisRecord): array
