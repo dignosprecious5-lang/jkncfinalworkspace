@@ -20,6 +20,7 @@ class Correspondence extends Model
         'ref_no',
         'correspondence_date',
         'type',
+        'company_id',
         'company_name',
         'registration_number',
         'principal_address',

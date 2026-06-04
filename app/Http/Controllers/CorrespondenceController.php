@@ -63,7 +63,21 @@ class CorrespondenceController extends Controller
          * It should only show approved correspondence.
          * Admin Correspondence Dashboard is the place for Pending / Submitted / Reverted / Archived.
          */
-        $query = Correspondence::with('creator')
+        $query = $this->approvedCorrespondenceQuery();
+
+        if ($request->filled('type') && $request->type !== 'All') {
+            $query->where('type', $request->type);
+        }
+
+        return $query->latest()
+            ->get()
+            ->map(fn (Correspondence $item) => $this->correspondenceTableRow($item))
+            ->values();
+    }
+
+    protected function approvedCorrespondenceQuery()
+    {
+        return Correspondence::with('creator')
             ->where(function ($q) {
                 $q->where('is_archived', false)
                     ->orWhereNull('is_archived');
@@ -72,39 +86,34 @@ class CorrespondenceController extends Controller
                 $q->where('approval_status', 'Approved')
                     ->orWhere('workflow_status', 'Accepted');
             });
+    }
 
-        if ($request->filled('type') && $request->type !== 'All') {
-            $query->where('type', $request->type);
-        }
-
-        return $query->latest()
-            ->get()
-            ->map(function (Correspondence $item) {
-                return [
-                    'id' => $item->id,
-                    'ref_no' => $item->ref_no ?: 'COR-' . str_pad((string) $item->id, 5, '0', STR_PAD_LEFT),
-                    'date' => optional($item->correspondence_date)->format('M d, Y') ?: optional($item->created_at)->format('M d, Y'),
-                    'type' => $item->type,
-                    'company_name' => $item->company_name,
-                    'registration_number' => $item->registration_number,
-                    'principal_address' => $item->principal_address,
-                    'tin' => $item->tin,
-                    'to_for_label' => $item->to_for_label ?: 'To',
-                    'to_for' => $item->to_for,
-                    'from_name' => $item->from_name,
-                    'department' => $item->department_stakeholder,
-                    'subject' => $item->subject,
-                    'deadline' => $item->deadline ? $item->deadline->format('M d, Y') : null,
-                    'sent_via' => $item->sent_via,
-                    'status' => $item->status,
-                    'workflow_status' => 'Accepted',
-                    'approval_status' => 'Approved',
-                    'review_note' => $item->review_note,
-                    'user' => $item->creator?->name ?: ($item->user ?: 'System'),
-                    'can_submit' => false,
-                ];
-            })
-            ->values();
+    protected function correspondenceTableRow(Correspondence $item): array
+    {
+        return [
+            'id' => $item->id,
+            'ref_no' => $item->ref_no ?: 'COR-' . str_pad((string) $item->id, 5, '0', STR_PAD_LEFT),
+            'date' => optional($item->correspondence_date)->format('M d, Y') ?: optional($item->created_at)->format('M d, Y'),
+            'type' => $item->type,
+            'company_id' => $item->company_id,
+            'company_name' => $item->company_name,
+            'registration_number' => $item->registration_number,
+            'principal_address' => $item->principal_address,
+            'tin' => $item->tin,
+            'to_for_label' => $item->to_for_label ?: 'To',
+            'to_for' => $item->to_for,
+            'from_name' => $item->from_name,
+            'department' => $item->department_stakeholder,
+            'subject' => $item->subject,
+            'deadline' => $item->deadline ? $item->deadline->format('M d, Y') : null,
+            'sent_via' => $item->sent_via,
+            'status' => $item->status,
+            'workflow_status' => $item->workflow_status ?: 'Accepted',
+            'approval_status' => $item->approval_status ?: 'Approved',
+            'review_note' => $item->review_note,
+            'user' => $item->creator?->name ?: ($item->user ?: 'System'),
+            'can_submit' => false,
+        ];
     }
 
     public function store(Request $request)
@@ -458,7 +467,7 @@ class CorrespondenceController extends Controller
 
 
 
-    private function gisLogoUrl($gisRecord): string
+    protected function gisLogoUrl($gisRecord): string
     {
         $fallback = asset('images/jk-logo.png');
 
@@ -479,7 +488,7 @@ class CorrespondenceController extends Controller
         return asset('storage/' . $path);
     }
 
-    private function gisLogoDataUri($gisRecord): ?string
+    protected function gisLogoDataUri($gisRecord): ?string
     {
         $candidates = [];
 
@@ -520,7 +529,7 @@ class CorrespondenceController extends Controller
     }
 
 
-    private function latestApprovedGisRecord()
+    protected function latestApprovedGisRecord(?int $companyId = null)
     {
         if (!class_exists(GisRecord::class) || !Schema::hasTable((new GisRecord())->getTable())) {
             return null;
@@ -535,12 +544,10 @@ class CorrespondenceController extends Controller
                     ->orWhere('workflow_status', 'Approved');
             });
 
-        /*
-         * Use Corporate > Corporate Formation > GIS only.
-         * Ignore Account > Company > Corporate Formation > GIS records when company_id exists.
-         */
         if (Schema::hasColumn($gisTable, 'company_id')) {
-            $query->whereNull('company_id');
+            $companyId
+                ? $query->where('company_id', $companyId)
+                : $query->whereNull('company_id');
         }
 
         return $query
@@ -549,7 +556,7 @@ class CorrespondenceController extends Controller
             ->first();
     }
 
-    private function latestGisCompanyInfo($gisRecord): array
+    protected function latestGisCompanyInfo($gisRecord): array
     {
         return [
             'company_name' => $gisRecord?->corporation_name ?: 'JOHN KELLY & COMPANY (JK&C INC)',
@@ -558,7 +565,7 @@ class CorrespondenceController extends Controller
         ];
     }
 
-    private function activeEmployeeApprovers()
+    protected function activeEmployeeApprovers()
     {
         if (class_exists(Employee::class) && Schema::hasTable((new Employee())->getTable())) {
             return Employee::query()->with('user')
@@ -842,7 +849,7 @@ class CorrespondenceController extends Controller
         ];
     }
 
-    private function executiveApproversFromGis()
+    protected function executiveApproversFromGis(?int $companyId = null)
     {
         /*
          * Deployed database table is directors_officers.
@@ -853,7 +860,7 @@ class CorrespondenceController extends Controller
             return collect();
         }
 
-        $latestApprovedGis = $this->latestApprovedGisRecord();
+        $latestApprovedGis = $this->latestApprovedGisRecord($companyId);
 
         $query = DB::table('directors_officers');
 
@@ -868,13 +875,13 @@ class CorrespondenceController extends Controller
             ->values();
     }
 
-    private function getGisApproverData($officerId): array
+    protected function getGisApproverData($officerId, ?int $companyId = null): array
     {
         if (!$officerId || !Schema::hasTable('directors_officers')) {
             return [];
         }
 
-        $latestApprovedGis = $this->latestApprovedGisRecord();
+        $latestApprovedGis = $this->latestApprovedGisRecord($companyId);
 
         $query = DB::table('directors_officers')->where('id', $officerId);
 
@@ -891,7 +898,7 @@ class CorrespondenceController extends Controller
         return $this->formatGisApprover($officer);
     }
 
-    private function formatGisApprover($officer): array
+    protected function formatGisApprover($officer): array
     {
         $position = trim((string) ($officer->officer_type ?? 'Executive Management'));
 
@@ -906,7 +913,7 @@ class CorrespondenceController extends Controller
         ];
     }
 
-    private function isValidGisOfficerType($officerType): bool
+    protected function isValidGisOfficerType($officerType): bool
     {
         $value = trim((string) $officerType);
 
@@ -925,10 +932,10 @@ class CorrespondenceController extends Controller
         ], true);
     }
 
-    private function buildApprovalData($managementApproverId, $executiveApproverId): array
+    protected function buildApprovalData($managementApproverId, $executiveApproverId, ?int $companyId = null): array
     {
         $management = $this->getEmployeeApproverData($managementApproverId);
-        $executive = $this->getGisApproverData($executiveApproverId);
+        $executive = $this->getGisApproverData($executiveApproverId, $companyId);
 
         return [
             'management_approver_id' => $management['id'] ?? null,
@@ -949,7 +956,7 @@ class CorrespondenceController extends Controller
 
 
 
-    private function sendCorrespondenceLevelApprovalEmail(Correspondence $record, int $level): void
+    protected function sendCorrespondenceLevelApprovalEmail(Correspondence $record, int $level): void
     {
         $record = $this->syncApproverEmailsFromDatabase($record);
 
@@ -1047,7 +1054,7 @@ class CorrespondenceController extends Controller
         }
     }
 
-    private function syncApproverEmailsFromDatabase(Correspondence $record): Correspondence
+    protected function syncApproverEmailsFromDatabase(Correspondence $record): Correspondence
     {
         $updates = [];
 

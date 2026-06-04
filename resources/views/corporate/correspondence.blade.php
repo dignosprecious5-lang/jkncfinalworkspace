@@ -27,12 +27,22 @@
     ];
 
     $correspondenceLogoUrl = $correspondenceLogoUrl ?? asset('images/jk-logo.png');
+    $isCompanyScopedCorrespondence = $isCompanyScopedCorrespondence ?? false;
+    $correspondenceTitle = $correspondenceTitle ?? 'Correspondence';
+    $correspondenceSubtitle = $correspondenceSubtitle ?? 'View approved official corporate correspondence.';
+    $correspondenceEyebrow = $correspondenceEyebrow ?? 'Corporate Governance';
+    $emptyCorrespondenceText = $emptyCorrespondenceText ?? 'Only approved correspondence will appear on this corporate page.';
+    $correspondenceDataUrl = $correspondenceDataUrl ?? url('/correspondence/data');
+    $correspondenceStoreUrl = $correspondenceStoreUrl ?? url('/correspondence');
+    $correspondenceSubmitUrlTemplate = $correspondenceSubmitUrlTemplate ?? url('/correspondence/__ID__/submit');
+    $correspondenceTemplateUrlTemplate = $correspondenceTemplateUrlTemplate ?? url('/correspondence/template/__TYPE__/__ID__');
+    $correspondenceDownloadUrlTemplate = $correspondenceDownloadUrlTemplate ?? url('/correspondence/__ID__/download-pdf');
 @endphp
 
 @section('content')
 <div
     id="correspondence-page"
-    class="w-full h-full px-6 py-5"
+    class="w-full h-full {{ $isCompanyScopedCorrespondence ? 'px-4 sm:px-6 lg:px-8 mt-4 pb-8' : 'px-6 py-5' }}"
     x-data="{
         showSlideOver: false,
         hasDeadline: false,
@@ -89,16 +99,20 @@
         }
     }"
 >
-    <div class="bg-white border border-gray-200 rounded-xl min-h-[calc(100vh-7rem)] flex flex-col">
+    <div class="bg-white border border-gray-200 rounded-xl min-h-[calc(100vh-7rem)] flex flex-col overflow-hidden">
+        @if($isCompanyScopedCorrespondence && isset($company))
+            @include('company.partials.company-header', ['company' => $company])
+        @endif
+
         <div class="px-6 py-5 border-b border-gray-200 bg-gradient-to-r from-white via-blue-50/30 to-white">
             <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
                 <div>
                     <p class="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.18em] text-blue-700 bg-blue-50 border border-blue-100 rounded-full px-3 py-1 mb-3">
                         <i class="fas fa-envelope-open-text"></i>
-                        Corporate Governance
+                        {{ $correspondenceEyebrow }}
                     </p>
-                    <h1 class="text-[30px] font-semibold text-gray-900 leading-none">Correspondence</h1>
-                    <p class="text-sm text-gray-500 mt-2">View approved official corporate correspondence.</p>
+                    <h1 class="text-[30px] font-semibold text-gray-900 leading-none">{{ $correspondenceTitle }}</h1>
+                    <p class="text-sm text-gray-500 mt-2">{{ $correspondenceSubtitle }}</p>
                 </div>
 
                 <button
@@ -718,6 +732,14 @@ let correspondenceRows = [];
 const correspondenceTypes = @json($types);
 const managementApprovers = @json(($managementApprovers ?? collect())->values());
 const executiveApprovers = @json(($executiveApprovers ?? collect())->values());
+const correspondenceEndpoints = {
+    data: @json($correspondenceDataUrl),
+    store: @json($correspondenceStoreUrl),
+    submit: @json($correspondenceSubmitUrlTemplate),
+    template: @json($correspondenceTemplateUrlTemplate),
+    download: @json($correspondenceDownloadUrlTemplate),
+};
+const emptyCorrespondenceText = @json($emptyCorrespondenceText);
 
 function formatDisplayDate(value) {
     if (!value) return '';
@@ -878,7 +900,8 @@ async function fetchCorrespondence() {
         params.append('type', currentTypeFilter);
     }
 
-    const res = await fetch(`/correspondence/data?${params.toString()}`, {
+    const dataUrl = `${correspondenceEndpoints.data}${params.toString() ? `?${params.toString()}` : ''}`;
+    const res = await fetch(dataUrl, {
         headers: { 'Accept': 'application/json' }
     });
 
@@ -957,7 +980,11 @@ function openPreview(index) {
     const item = correspondenceRows[index];
     if (!item) return;
 
-    const previewUrl = `/correspondence/template/${slugifyType(item.type)}/${item.id}`;
+    const previewUrl = correspondenceEndpoints.template
+        .replace('__TYPE__', encodeURIComponent(slugifyType(item.type)))
+        .replace('__ID__', encodeURIComponent(item.id));
+    const downloadUrl = correspondenceEndpoints.download
+        .replace('__ID__', encodeURIComponent(item.id));
 
     document.getElementById('previewFrame').src = previewUrl;
     document.getElementById('openPreviewBtn').href = previewUrl;
@@ -975,7 +1002,7 @@ function openPreview(index) {
     actions.innerHTML = `<a id="openPreviewBtn" href="${previewUrl}" target="_blank" class="text-sm text-blue-600 hover:underline block">Open in New Tab</a>`;
 
     actions.innerHTML += `
-        <a href="/correspondence/${item.id}/download-pdf" class="block w-full text-center bg-red-600 text-white rounded-md py-2 hover:bg-red-700">
+        <a href="${downloadUrl}" class="block w-full text-center bg-red-600 text-white rounded-md py-2 hover:bg-red-700">
             Download PDF
         </a>
     `;
@@ -1015,7 +1042,7 @@ async function renderTable() {
                             <i class="fas fa-envelope-open-text"></i>
                         </div>
                         <h3 class="text-base font-semibold text-gray-900">No approved correspondence found</h3>
-                        <p class="mt-1 text-sm text-gray-500">Only approved correspondence will appear on this corporate page.</p>
+                        <p class="mt-1 text-sm text-gray-500">${emptyCorrespondenceText}</p>
                     </div>
                 </td>
             </tr>
@@ -1076,7 +1103,7 @@ async function addCorrespondence() {
     }
 
     try {
-        const res = await fetch('/correspondence', {
+        const res = await fetch(correspondenceEndpoints.store, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -1117,7 +1144,7 @@ async function addCorrespondence() {
 }
 
 async function submitCorrespondence(id) {
-    const res = await fetch(`/correspondence/${id}/submit`, {
+    const res = await fetch(correspondenceEndpoints.submit.replace('__ID__', encodeURIComponent(id)), {
         method: 'POST',
         headers: {
             'X-CSRF-TOKEN': '{{ csrf_token() }}',

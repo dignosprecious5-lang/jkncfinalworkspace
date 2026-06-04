@@ -631,9 +631,8 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::delete('/company/{company}/operations/{record}', [CompanyOperationsController::class, 'destroy'])->name('company.operations.destroy');
 
     Route::get('/company/{company}/correspondence', [CompanyCorrespondenceController::class, 'index'])->name('company.correspondence');
+    Route::get('/company/{company}/correspondence/data', [CompanyCorrespondenceController::class, 'data'])->name('company.correspondence.data');
     Route::post('/company/{company}/correspondence', [CompanyCorrespondenceController::class, 'store'])->name('company.correspondence.store');
-    Route::match(['put', 'patch'], '/company/{company}/correspondence/{record}', [CompanyCorrespondenceController::class, 'update'])->name('company.correspondence.update');
-    Route::delete('/company/{company}/correspondence/{record}', [CompanyCorrespondenceController::class, 'destroy'])->name('company.correspondence.destroy');
 
     Route::get('/company/{company}/bir-tax', [CompanyBirTaxController::class, 'index'])->name('company.bir-tax');
     Route::post('/company/{company}/bir-tax', [CompanyBirTaxController::class, 'store'])->name('company.bir-tax.store');
