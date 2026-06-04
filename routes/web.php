@@ -728,6 +728,7 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     |--------------------------------------------------------------------------
     */
     Route::get('/corporate', [GisController::class, 'companyInfo'])->name('corporate');
+
     Route::get('/corporate/company-general-information', [GisController::class, 'companyInfo'])->name('corporate.companyinfo');
 
     Route::get('/corporate/gis', [GisController::class, 'index'])->name('corporate.gis');
@@ -793,10 +794,6 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
 
     // Kept only for old/static view reference; main /corporate/lgu route is handled by PermitController below.
     Route::view('/corporate/lgu-static', 'corporate.lgu')->name('corporate.lgu.static');
-    Route::get('/corporate/accounting', [AccountingController::class, 'page'])->name('corporate.accounting');
-    Route::get('/corporate/banking', [BankingController::class, 'page'])->name('corporate.banking');
-    Route::get('/corporate/legal', [LegalController::class, 'page'])->name('corporate.legal');
-    Route::get('/corporate/operations', [OperationController::class, 'page'])->name('corporate.operations');
     /*
     |--------------------------------------------------------------------------
     | CORPORATE CORRESPONDENCE MODULE
@@ -815,6 +812,12 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::post('/correspondence/{id}/approve', [CorrespondenceController::class, 'approve'])->name('correspondence.approve');
     Route::post('/correspondence/{id}/revise', [CorrespondenceController::class, 'revise'])->name('correspondence.revise');
     Route::post('/correspondence/{id}/reject', [CorrespondenceController::class, 'reject'])->name('correspondence.reject');
+    Route::get('/correspondence/{id}/email-approve', [CorrespondenceController::class, 'approveFromEmail'])
+        ->name('correspondence.email.approve')
+        ->middleware('signed');
+    Route::get('/correspondence/{id}/email-reject', [CorrespondenceController::class, 'rejectFromEmail'])
+        ->name('correspondence.email.reject')
+        ->middleware('signed');
     Route::post('/correspondence/{id}/archive', [CorrespondenceController::class, 'archive'])->name('correspondence.archive');
     Route::post('/correspondence/{id}/unarchive', [CorrespondenceController::class, 'unarchive'])->name('correspondence.unarchive');
 
@@ -981,26 +984,29 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
 
     /*
     |--------------------------------------------------------------------------
-    | LEGACY DETAIL ROUTES / LEGAL / ACCOUNTING / BANKING / OPERATIONS
+    | CORPORATE SIDE NAV ROUTES
     |--------------------------------------------------------------------------
-    |
-    | IMPORTANT:
-    | Do not define another GET /correspondence/data here.
-    | The real JSON endpoint is already registered above as:
-    | Route::get('/correspondence/data', [CorrespondenceController::class, 'data'])
-    |
-    | The old duplicate route pointed /correspondence/data to index(), so the
-    | browser loaded the Correspondence page UI instead of JSON.
-    |
+    | These named routes are used by layouts/app.blade.php.
+    | Keep them defined so opening any Corporate page will not crash with:
+    | Route [corporate.accounting] not defined.
     */
-    Route::get('/correspondence/{id}', [CorrespondenceController::class, 'show'])
-        ->whereNumber('id')
-        ->name('correspondence.show');
-    Route::put('/correspondence/{id}/update', [CorrespondenceController::class, 'update'])
-        ->whereNumber('id')
-        ->name('correspondence.update');
-    Route::get('/correspondence/draft-preview/{slug}', [CorrespondenceController::class, 'showDraftPreview'])
-        ->name('correspondence.draft-preview');
+    Route::view('/corporate/accounting', 'corporate.accounting')->name('corporate.accounting');
+    Route::view('/corporate/banking', 'corporate.banking')->name('corporate.banking');
+    Route::view('/corporate/legal', 'corporate.legal')->name('corporate.legal');
+    Route::view('/corporate/operations', 'corporate.operations')->name('corporate.operations');
+
+    /*
+    |--------------------------------------------------------------------------
+    | CORRESPONDENCE / LEGAL / ACCOUNTING / BANKING / OPERATIONS
+    |--------------------------------------------------------------------------
+    */
+    Route::get('/correspondence/legacy-data', [CorrespondenceController::class, 'index'])->name('correspondence.data.legacy');
+    Route::post('/correspondence', [CorrespondenceController::class, 'store'])->name('correspondence.store.legacy');
+    Route::get('/correspondence/{id}', [CorrespondenceController::class, 'show'])->name('correspondence.show');
+    Route::put('/correspondence/{id}/update', [CorrespondenceController::class, 'update'])->name('correspondence.update');
+    Route::post('/correspondence/{id}/submit', [CorrespondenceController::class, 'submit'])->name('correspondence.submit.legacy');
+    Route::get('/correspondence/draft-preview/{slug}', [CorrespondenceController::class, 'showDraftPreview'])->name('correspondence.draft-preview');
+    Route::get('/correspondence/template/{slug}/{id}', [CorrespondenceController::class, 'showTemplate'])->name('correspondence.template.legacy');
 
     Route::get('/legal/data', [LegalController::class, 'index'])->name('legal.index');
     Route::post('/legal/store', [LegalController::class, 'store'])->name('legal.store');
@@ -1009,12 +1015,16 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::post('/legal/{id}/submit', [LegalController::class, 'submit'])->name('legal.submit');
 
     Route::prefix('corporate')->name('corporate.')->group(function () {
+        Route::get('/accounting', [AccountingController::class, 'page'])->name('accounting');
         Route::get('/accounting/data', [AccountingController::class, 'index'])->name('accounting.data');
         Route::post('/accounting', [AccountingController::class, 'store'])->name('accounting.store');
         Route::get('/accounting/{id}', [AccountingController::class, 'show'])->name('accounting.show');
         Route::put('/accounting/{id}/update', [AccountingController::class, 'update'])->name('accounting.update');
         Route::post('/accounting/{id}/submit', [AccountingController::class, 'submit'])->name('accounting.submit');
     });
+
+    // Backward-compatible alias only; main sidebar route is corporate.accounting.
+    Route::get('/corporate/accounting-index', [AccountingController::class, 'page'])->name('corporate.accounting.index');
 
     Route::get('/finance', [FinanceController::class, 'index'])->name('finance');
     Route::post('/finance/dropdown-settings', [FinanceController::class, 'updateDropdownSettings'])->name('finance.dropdown-settings.update');

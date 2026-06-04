@@ -257,26 +257,26 @@
                             <div class="correspondence-signature-block">
                                 <div class="signature-section">
                                     <p class="signature-heading">Prepared By:</p>
-                                    <p x-text="previewFrom || 'System Super Admin'"></p>
-                                    <p>Position</p>
-                                    <p>—</p>
-                                    <p>Prepared on: Date and Time</p>
+                                    <p class="signature-line" x-text="previewFrom || 'System Super Admin'"></p>
+                                    <p class="signature-line">Position</p>
+                                    <p class="signature-line">—</p>
+                                    <p class="signature-line">Prepared on: Date and Time</p>
                                 </div>
 
                                 <div class="signature-section">
                                     <p class="signature-heading">From Management</p>
-                                    <p x-text="previewManagementName || 'Name'"></p>
-                                    <p x-text="previewManagementPosition || 'Position'"></p>
-                                    <p x-text="previewManagementDepartment || 'Department'"></p>
-                                    <p>Approved on: Date and Time</p>
+                                    <p class="signature-line" x-text="previewManagementName || 'Name'"></p>
+                                    <p class="signature-line" x-text="previewManagementPosition || 'Position'"></p>
+                                    <p class="signature-line" x-text="previewManagementDepartment || 'Department'"></p>
+                                    <p class="signature-line">Approved on: Date and Time</p>
                                 </div>
 
                                 <div class="signature-section">
                                     <p class="signature-heading">From Executive Management</p>
-                                    <p x-text="previewExecutiveName || 'Name'"></p>
-                                    <p x-text="previewExecutivePosition || 'Position'"></p>
-                                    <p>Executive Management</p>
-                                    <p>Approved on: Date and Time</p>
+                                    <p class="signature-line" x-text="previewExecutiveName || 'Name'"></p>
+                                    <p class="signature-line" x-text="previewExecutivePosition || 'Position'"></p>
+                                    <p class="signature-line">Executive Management</p>
+                                    <p class="signature-line">Approved on: Date and Time</p>
                                 </div>
 
                                 <p class="computer-generated-note">
@@ -656,10 +656,7 @@
         margin-top: 8px;
         margin-bottom: 22px;
     }
-
-
-    /* SIGNATURE FORMAT MATCH FIX */
-
+    /* Signature footer: same format for live preview, saved preview, and PDF */
     .correspondence-signature-block {
         margin-top: 46px !important;
         font-size: 14px !important;
@@ -668,7 +665,21 @@
         font-family: Georgia, "Times New Roman", serif !important;
     }
 
-    .correspondence-signature-block p {
+    .correspondence-signature-block .signature-section {
+        display: block !important;
+        margin: 0 0 20px 0 !important;
+        padding: 0 !important;
+    }
+
+    .correspondence-signature-block .signature-heading {
+        display: block !important;
+        margin: 0 0 8px 0 !important;
+        padding: 0 !important;
+        font-weight: 700 !important;
+        line-height: 1.28 !important;
+    }
+
+    .correspondence-signature-block .signature-line {
         display: block !important;
         margin: 0 0 2px 0 !important;
         padding: 0 !important;
@@ -676,27 +687,15 @@
         line-height: 1.28 !important;
     }
 
-    .correspondence-signature-block .signature-section {
-        display: block !important;
-        margin: 0 0 18px 0 !important;
-        padding: 0 !important;
-    }
-
-    .correspondence-signature-block .signature-heading {
-        display: block !important;
-        font-weight: 700 !important;
-        margin: 0 0 8px 0 !important;
-        padding: 0 !important;
-    }
-
     .correspondence-signature-block .computer-generated-note,
     .computer-generated-note {
         display: block !important;
-        margin: 22px 0 0 0 !important;
+        margin: 24px 0 0 0 !important;
         padding: 0 !important;
         font-weight: 700 !important;
         line-height: 1.28 !important;
     }
+
 
 </style>
 @endsection

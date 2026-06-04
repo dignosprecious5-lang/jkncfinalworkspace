@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\URL;
 
 class CorrespondenceController extends Controller
 {
@@ -150,7 +151,7 @@ class CorrespondenceController extends Controller
             'archived_at' => null,
             'submitted_at' => now(),
             'management_approval_status' => 'Pending',
-            'executive_approval_status' => 'Pending',
+            'executive_approval_status' => 'Waiting for Level 1',
             'created_by' => Auth::id(),
         ], $this->buildApprovalData(
             $request->input('management_approver_id'),
@@ -163,6 +164,9 @@ class CorrespondenceController extends Controller
 
         // Always copy approver emails directly from source tables before notification.
         $record = $this->syncApproverEmailsFromDatabase($record);
+
+        // Send Town Hall-style approval notification to Level 1 and Level 2 approvers.
+        $this->sendCorrespondenceLevelApprovalEmail($record, 1);
 
         return response()->json([
             'message' => 'Correspondence saved successfully.',
@@ -221,24 +225,49 @@ class CorrespondenceController extends Controller
     {
         $record = Correspondence::findOrFail($id);
 
-        $record->update([
-            'workflow_status' => 'Accepted',
-            'approval_status' => 'Approved',
-            'status' => 'Open',
-            'is_archived' => false,
-            'archived_at' => null,
-            'approved_by' => Auth::id(),
-            'approved_at' => now(),
-            'management_approval_status' => 'Approved',
-            'management_approved_at' => now(),
-            'executive_approval_status' => 'Approved',
-            'executive_approved_at' => now(),
-            'posted_at' => now(),
-            'posted_by' => Auth::id(),
-            'review_note' => null,
-        ]);
+        /*
+         * Sequential approval:
+         * 1. Level 1 approves first. This only marks management approval and emails Level 2.
+         * 2. Level 2 approves next. This finally marks the correspondence Approved/Accepted and posts it.
+         */
+        if ($record->management_approval_status !== 'Approved') {
+            $record->update([
+                'workflow_status' => 'Submitted',
+                'approval_status' => 'Pending Level 2 Approval',
+                'status' => 'Pending Level 2 Approval',
+                'is_archived' => false,
+                'archived_at' => null,
+                'management_approval_status' => 'Approved',
+                'management_approved_at' => now(),
+                'review_note' => null,
+            ]);
 
-        return back()->with('success', 'Correspondence approved successfully.');
+            $record = $record->fresh(['creator']);
+            $this->sendCorrespondenceLevelApprovalEmail($record, 2);
+
+            return back()->with('success', 'Level 1 approved successfully. Level 2 approver has been notified.');
+        }
+
+        if ($record->executive_approval_status !== 'Approved') {
+            $record->update([
+                'workflow_status' => 'Accepted',
+                'approval_status' => 'Approved',
+                'status' => 'Open',
+                'is_archived' => false,
+                'archived_at' => null,
+                'approved_by' => Auth::id(),
+                'approved_at' => now(),
+                'executive_approval_status' => 'Approved',
+                'executive_approved_at' => now(),
+                'posted_at' => now(),
+                'posted_by' => Auth::id(),
+                'review_note' => null,
+            ]);
+
+            return back()->with('success', 'Level 2 approved successfully. Correspondence is now approved and posted.');
+        }
+
+        return back()->with('success', 'Correspondence is already fully approved.');
     }
 
     public function revise(Request $request, $id)
@@ -255,6 +284,78 @@ class CorrespondenceController extends Controller
 
         return back()->with('success', 'Correspondence returned for revision.');
     }
+
+
+    public function approveFromEmail(Request $request, $id)
+    {
+        $record = Correspondence::findOrFail($id);
+        $level = (int) $request->query('level', 1);
+
+        if ($level === 1 && $record->management_approval_status !== 'Approved') {
+            $record->update([
+                'workflow_status' => 'Submitted',
+                'approval_status' => 'Pending Level 2 Approval',
+                'status' => 'Pending Level 2 Approval',
+                'is_archived' => false,
+                'archived_at' => null,
+                'management_approval_status' => 'Approved',
+                'management_approved_at' => now(),
+                'review_note' => null,
+            ]);
+
+            $record = $record->fresh(['creator']);
+            $this->sendCorrespondenceLevelApprovalEmail($record, 2);
+
+            return redirect()
+                ->route('admin.correspondence.show', $record->id)
+                ->with('success', 'Level 1 approved successfully from email. Level 2 approver has been notified.');
+        }
+
+        if ($level === 2 && $record->management_approval_status === 'Approved' && $record->executive_approval_status !== 'Approved') {
+            $record->update([
+                'workflow_status' => 'Accepted',
+                'approval_status' => 'Approved',
+                'status' => 'Open',
+                'is_archived' => false,
+                'archived_at' => null,
+                'approved_by' => Auth::id(),
+                'approved_at' => now(),
+                'executive_approval_status' => 'Approved',
+                'executive_approved_at' => now(),
+                'posted_at' => now(),
+                'posted_by' => Auth::id(),
+                'review_note' => null,
+            ]);
+
+            return redirect()
+                ->route('admin.correspondence.show', $record->id)
+                ->with('success', 'Level 2 approved successfully from email. Correspondence is now approved and posted.');
+        }
+
+        return redirect()
+            ->route('admin.correspondence.show', $record->id)
+            ->with('success', 'No approval action was needed for this correspondence.');
+    }
+
+    public function rejectFromEmail(Request $request, $id)
+    {
+        $record = Correspondence::findOrFail($id);
+
+        $record->update([
+            'workflow_status' => 'Reverted',
+            'approval_status' => 'Rejected',
+            'is_archived' => false,
+            'archived_at' => null,
+            'review_note' => 'Rejected from email.',
+            'approved_by' => Auth::id(),
+            'approved_at' => now(),
+        ]);
+
+        return redirect()
+            ->route('admin.correspondence.show', $record->id)
+            ->with('success', 'Correspondence rejected successfully from email.');
+    }
+
 
     public function archive($id)
     {
@@ -847,6 +948,105 @@ class CorrespondenceController extends Controller
     }
 
 
+
+    private function sendCorrespondenceLevelApprovalEmail(Correspondence $record, int $level): void
+    {
+        $record = $this->syncApproverEmailsFromDatabase($record);
+
+        if ($level === 1) {
+            $recipient = [
+                'level' => 'Level 1 Approver - From Management',
+                'name' => $record->management_approver_name ?: 'Level 1 Approver',
+                'email' => $record->management_approver_email,
+            ];
+        } else {
+            $recipient = [
+                'level' => 'Level 2 Approver - From Executive Management',
+                'name' => $record->executive_approver_name ?: 'Level 2 Approver',
+                'email' => $record->executive_approver_email,
+            ];
+        }
+
+        $email = trim((string) ($recipient['email'] ?? ''));
+
+        if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            Log::warning('Correspondence approval email skipped because approver email is missing.', [
+                'correspondence_id' => $record->id,
+                'ref_no' => $record->ref_no,
+                'level' => $recipient['level'],
+                'name' => $recipient['name'],
+                'email' => $email,
+            ]);
+
+            return;
+        }
+
+        $this->sendCorrespondenceApprovalEmail(
+            email: $email,
+            approverName: $recipient['name'],
+            level: $recipient['level'],
+            record: $record,
+            approvalLevel: $level
+        );
+    }
+
+    private function sendCorrespondenceApprovalEmail(
+        string $email,
+        string $approverName,
+        string $level,
+        Correspondence $record,
+        int $approvalLevel
+    ): void {
+        try {
+            $reviewUrl = route('admin.correspondence.show', $record->id);
+
+            $approveUrl = URL::signedRoute('correspondence.email.approve', [
+                'id' => $record->id,
+                'level' => $approvalLevel,
+            ]);
+
+            $rejectUrl = URL::signedRoute('correspondence.email.reject', [
+                'id' => $record->id,
+                'level' => $approvalLevel,
+            ]);
+
+            $subject = 'Correspondence Approval Needed: ' . ($record->ref_no ?: 'COR-' . str_pad((string) $record->id, 5, '0', STR_PAD_LEFT));
+
+            Mail::send('emails.correspondence.approval-notification', [
+                'correspondence' => $record,
+                'level' => $level,
+                'approvalLevel' => $approvalLevel,
+                'approverName' => $approverName,
+                'subjectLine' => $subject,
+                'messageText' => $approvalLevel === 1
+                    ? 'A corporate correspondence has been submitted and requires your Level 1 approval.'
+                    : 'Level 1 has approved this corporate correspondence. It now requires your final Level 2 approval.',
+                'actionUrl' => $reviewUrl,
+                'approveUrl' => $approveUrl,
+                'rejectUrl' => $rejectUrl,
+            ], function ($mail) use ($email, $subject) {
+                $mail->to($email)->subject($subject);
+            });
+
+            Log::info('Correspondence approval email sent.', [
+                'correspondence_id' => $record->id,
+                'ref_no' => $record->ref_no,
+                'email' => $email,
+                'level' => $level,
+                'approval_level' => $approvalLevel,
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('Correspondence approval email failed.', [
+                'correspondence_id' => $record->id,
+                'ref_no' => $record->ref_no,
+                'email' => $email,
+                'level' => $level,
+                'approval_level' => $approvalLevel,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
     private function syncApproverEmailsFromDatabase(Correspondence $record): Correspondence
     {
         $updates = [];
@@ -857,6 +1057,15 @@ class CorrespondenceController extends Controller
                 ->first();
 
             $managementEmail = $this->readableEmailValue($employee);
+
+            // Town Hall-style fallback: if Employee profile has no email, use the linked User account email.
+            if (!$managementEmail && $employee && !empty($employee->user_id) && Schema::hasTable('users')) {
+                $linkedUser = DB::table('users')
+                    ->where('id', $employee->user_id)
+                    ->first(['id', 'email']);
+
+                $managementEmail = $this->readableEmailValue($linkedUser);
+            }
 
             if ($managementEmail) {
                 $updates['management_approver_email'] = $managementEmail;
