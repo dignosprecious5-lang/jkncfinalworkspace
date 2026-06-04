@@ -1195,6 +1195,15 @@
                                     : (str_contains(strtolower((string) ($liquidationReport['status_label'] ?? 'Balanced')), 'overage')
                                         ? 'background:#ecfdf5;color:#047857;'
                                         : 'background:#eff6ff;color:#1d4ed8;');
+                                $varianceIndicator = (string) ($liquidationReport['variance_indicator'] ?? 'Balanced');
+                                $routeActionLabel = $varianceIndicator === 'Shortage'
+                                    ? 'Create ERR'
+                                    : ($varianceIndicator === 'Overage' ? 'Create CRF' : '');
+                                $routeActionHelp = $varianceIndicator === 'Shortage'
+                                    ? 'Shortage detected. Route this liquidation to ERR.'
+                                    : ($varianceIndicator === 'Overage'
+                                        ? 'Overage detected. Route this liquidation to CRF.'
+                                        : 'Balanced liquidation. No follow-up request needed.');
                             @endphp
                             <div class="lr-report">
                                 <div class="lr-report-head">
@@ -1204,6 +1213,24 @@
                                         <p class="lr-report-subtitle">Built from the liquidation fields in the slider form.</p>
                                     </div>
                                     <span class="lr-report-badge" style="{{ $statusClass }}">{{ $liquidationReport['variance_indicator'] ?? 'Balanced' }}</span>
+                                </div>
+
+                                <div class="lr-report-panel" style="margin-bottom:12px;">
+                                    <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;">
+                                        <div>
+                                            <p class="lr-metric-label">Next Action</p>
+                                            <p class="lr-metric-value" style="font-size:12px;font-weight:500;">{{ $routeActionHelp }}</p>
+                                        </div>
+                                        @if($varianceIndicator !== 'Balanced')
+                                            <button
+                                                type="button"
+                                                onclick="window.financeModule.openPendingLiquidationBranch()"
+                                                style="border:none;border-radius:10px;background:#2563eb;color:#fff;padding:10px 16px;font-size:12px;font-weight:700;cursor:pointer;"
+                                            >
+                                                {{ $routeActionLabel }}
+                                            </button>
+                                        @endif
+                                    </div>
                                 </div>
 
                                 <div class="lr-report-grid">

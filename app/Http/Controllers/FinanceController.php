@@ -2147,6 +2147,7 @@ SVG;
         $data = $record->data ?? [];
         $value = data_get($data, $fieldName);
         $linkedCaData = [];
+        $linkedLrData = [];
         $liquidationLineItemsTotal = 0.0;
         $liquidationCashAdvance = 0.0;
         $liquidationActualExpenses = 0.0;
@@ -2193,8 +2194,23 @@ SVG;
             $liquidationVarianceIndicator = $liquidationVariance > 0 ? 'Overage' : ($liquidationVariance < 0 ? 'Shortage' : 'Balanced');
         }
 
+        if (in_array($record->module_key, ['err', 'crf'], true)) {
+            static $linkedLrCache = [];
+            $linkedLrId = (string) data_get($data, 'linked_lr_id', '');
+
+            if ($linkedLrId !== '') {
+                if (!array_key_exists($linkedLrId, $linkedLrCache)) {
+                    $linkedLrCache[$linkedLrId] = $this->financeResolveModuleRecord('lr', $linkedLrId)?->data ?? [];
+                }
+
+                $linkedLrData = is_array($linkedLrCache[$linkedLrId] ?? null) ? $linkedLrCache[$linkedLrId] : [];
+            }
+        }
+
         if ($fieldName === 'requester_mode') {
-            $fallback = data_get($linkedCaData, 'requester_mode') ?: 'own_request';
+            $fallback = data_get($linkedLrData, 'requester_mode')
+                ?: data_get($linkedCaData, 'requester_mode')
+                ?: 'own_request';
 
             return match ($value ?: $fallback) {
                 'own_request' => 'Own Request',
@@ -2223,19 +2239,29 @@ SVG;
             'source_document_id' => $this->financePdfLookupLabel($lookupOptions, (string) data_get($data, 'source_document_type', ''), $value) ?: $this->financePdfValue($value),
             'master_item_id' => $this->financePdfLookupLabel($lookupOptions, (string) data_get($data, 'master_item_type', 'product'), $value) ?: $this->financePdfValue($value),
             'linked_item_id' => $this->financePdfLookupLabel($lookupOptions, (string) data_get($data, 'linked_item_type', 'product'), $value) ?: $this->financePdfValue($value),
-            'requester_employee_id' => $this->financePdfLookupLabel($lookupOptions, 'employee', $value) ?: $this->financePdfLookupLabel($lookupOptions, 'employee', data_get($linkedCaData, 'requester_employee_id')) ?: $this->financePdfValue($value ?: data_get($linkedCaData, 'requester_employee_id')),
-            'requestor' => $this->financePdfValue($value ?: data_get($linkedCaData, 'requestor') ?: data_get($linkedCaData, 'employee_name') ?: data_get($linkedCaData, 'user') ?: ''),
-            'employee_id' => $this->financePdfValue($value ?: data_get($linkedCaData, 'employee_id') ?: ''),
-            'employee_name' => $this->financePdfValue($value ?: data_get($linkedCaData, 'employee_name') ?: data_get($linkedCaData, 'requestor') ?: data_get($linkedCaData, 'user') ?: ''),
-            'employee_email' => $this->financePdfValue($value ?: data_get($linkedCaData, 'employee_email') ?: ''),
-            'contact_number' => $this->financePdfValue($value ?: data_get($linkedCaData, 'contact_number') ?: ''),
-            'position' => $this->financePdfValue($value ?: data_get($linkedCaData, 'position') ?: ''),
-            'department' => $this->financePdfValue($value ?: data_get($linkedCaData, 'department') ?: ''),
-            'superior' => $this->financePdfValue($value ?: data_get($linkedCaData, 'superior') ?: ''),
-            'superior_email' => $this->financePdfValue($value ?: data_get($linkedCaData, 'superior_email') ?: ''),
+            'requester_employee_id' => $this->financePdfLookupLabel($lookupOptions, 'employee', $value)
+                ?: $this->financePdfLookupLabel($lookupOptions, 'employee', data_get($linkedLrData, 'requester_employee_id'))
+                ?: $this->financePdfLookupLabel($lookupOptions, 'employee', data_get($linkedCaData, 'requester_employee_id'))
+                ?: $this->financePdfValue($value ?: data_get($linkedLrData, 'requester_employee_id') ?: data_get($linkedCaData, 'requester_employee_id')),
+            'requestor' => $this->financePdfValue($value ?: data_get($linkedLrData, 'requestor') ?: data_get($linkedLrData, 'employee_name') ?: data_get($linkedCaData, 'requestor') ?: data_get($linkedCaData, 'employee_name') ?: data_get($linkedCaData, 'user') ?: ''),
+            'employee_id' => $this->financePdfValue($value ?: data_get($linkedLrData, 'employee_id') ?: data_get($linkedCaData, 'employee_id') ?: ''),
+            'employee_name' => $this->financePdfValue($value ?: data_get($linkedLrData, 'employee_name') ?: data_get($linkedLrData, 'requestor') ?: data_get($linkedCaData, 'employee_name') ?: data_get($linkedCaData, 'requestor') ?: data_get($linkedCaData, 'user') ?: ''),
+            'employee_email' => $this->financePdfValue($value ?: data_get($linkedLrData, 'employee_email') ?: data_get($linkedCaData, 'employee_email') ?: ''),
+            'contact_number' => $this->financePdfValue($value ?: data_get($linkedLrData, 'contact_number') ?: data_get($linkedCaData, 'contact_number') ?: ''),
+            'position' => $this->financePdfValue($value ?: data_get($linkedLrData, 'position') ?: data_get($linkedCaData, 'position') ?: ''),
+            'department' => $this->financePdfValue($value ?: data_get($linkedLrData, 'department') ?: data_get($linkedCaData, 'department') ?: ''),
+            'superior' => $this->financePdfValue($value ?: data_get($linkedLrData, 'superior') ?: data_get($linkedCaData, 'superior') ?: ''),
+            'superior_email' => $this->financePdfValue($value ?: data_get($linkedLrData, 'superior_email') ?: data_get($linkedCaData, 'superior_email') ?: ''),
             'for_client' => $this->financePdfValue($value ?: data_get($linkedCaData, 'for_client') ?: 'N/A'),
             'client_names' => $this->financePdfValue($value ?: data_get($linkedCaData, 'client_names') ?: 'N/A'),
-            'purpose' => $this->financePdfValue($value ?: data_get($linkedCaData, 'purpose') ?: data_get($linkedCaData, 'justification') ?: ''),
+            'purpose' => $this->financePdfValue($value ?: data_get($linkedLrData, 'purpose') ?: data_get($linkedCaData, 'purpose') ?: data_get($linkedCaData, 'justification') ?: ''),
+            'expense_details' => $this->financePdfValue($value ?: data_get($linkedLrData, 'purpose') ?: 'Shortage from linked liquidation report.'),
+            'amount' => $record->module_key === 'err'
+                ? $this->financePdfValue($value ?: number_format(abs((float) data_get($linkedLrData, 'variance', 0)), 2, '.', ''))
+                : $this->financePdfValue($value),
+            'amount_returned' => $record->module_key === 'crf'
+                ? $this->financePdfValue($value ?: number_format(abs((float) data_get($linkedLrData, 'variance', 0)), 2, '.', ''))
+                : $this->financePdfValue($value),
             'actual_expenses' => $record->module_key === 'lr'
                 ? $this->financePdfValue(number_format($liquidationActualExpenses, 2, '.', ''))
                 : $this->financePdfValue($value),
@@ -3976,36 +4002,56 @@ SVG;
                 ]),
             ],
             'dv' => [
-                $section('Voucher Details', [
-                    ['name' => 'source_document_type', 'label' => 'Linked Source Document Type'],
-                    ['name' => 'source_document_id', 'label' => 'Linked Source Document'],
-                    ['name' => 'payee_type', 'label' => 'Payee Type'],
-                    ['name' => 'payee_name', 'label' => 'Payee'],
-                    ['name' => 'supplier_id', 'label' => 'Supplier'],
-                    ['name' => 'amount', 'label' => 'Amount'],
-                    ['name' => 'payment_type', 'label' => 'Payment Type'],
-                    ['name' => 'disbursement_type', 'label' => 'Disbursement Type'],
-                    ['name' => 'payment_date', 'label' => 'Payment Date'],
-                    ['name' => 'due_date', 'label' => 'Due Date'],
-                ]),
-                $section('Funding & Notes', [
-                    ['name' => 'bank_account_id', 'label' => 'Bank Account'],
-                    ['name' => 'coa_id', 'label' => 'Account'],
-                    ['name' => 'fund_source', 'label' => 'Fund Source / Project'],
-                    ['name' => 'department', 'label' => 'Department'],
-                    ['name' => 'reference_number', 'label' => 'Reference Number'],
-                    ['name' => 'purpose', 'label' => 'Purpose'],
-                    ['name' => 'remarks', 'label' => 'Remarks'],
-                ]),
-                $section('Tax & Receipt', [
-                    ['name' => 'withholding_tax', 'label' => 'Withholding Tax'],
-                    ['name' => 'vat_amount', 'label' => 'VAT'],
-                    ['name' => 'net_amount', 'label' => 'Net Amount'],
-                    ['name' => 'currency', 'label' => 'Currency'],
-                    ['name' => 'exchange_rate', 'label' => 'Exchange Rate'],
-                    ['name' => 'received_by_name', 'label' => 'Received By'],
-                    ['name' => 'date_received', 'label' => 'Date Received'],
-                ]),
+                ...((function () use ($section, $data) {
+                    $dvSourceType = Str::lower(trim((string) data_get($data, 'source_document_type', '')));
+                    $isErrSource = $dvSourceType === 'err';
+                    $isIbtfSource = $dvSourceType === 'ibtf';
+                    $isErrCheck = $isErrSource && data_get($data, 'payment_type') === 'Check';
+
+                    $voucherFields = [
+                        ['name' => 'source_document_type', 'label' => 'Linked Source Document Type'],
+                        ['name' => 'source_document_id', 'label' => 'Linked Source Document'],
+                        ['name' => 'payee_type', 'label' => 'Payee Type'],
+                        ['name' => 'payee_name', 'label' => 'Payee'],
+                        ...($isErrSource || $isIbtfSource ? [] : [['name' => 'supplier_id', 'label' => 'Supplier']]),
+                        ['name' => 'amount', 'label' => 'Amount'],
+                        ['name' => 'payment_type', 'label' => 'Payment Type'],
+                        ['name' => 'disbursement_type', 'label' => 'Disbursement Type'],
+                        ['name' => 'payment_date', 'label' => 'Payment Date'],
+                        ...($isErrSource || $isIbtfSource ? [] : [['name' => 'due_date', 'label' => 'Due Date']]),
+                    ];
+
+                    $fundingFields = [
+                        ...($isErrSource
+                            ? ($isErrCheck ? [['name' => 'bank_account_id', 'label' => 'Bank Account']] : [])
+                            : [['name' => 'bank_account_id', 'label' => 'Bank Account']]),
+                        ['name' => 'coa_id', 'label' => 'Account'],
+                        ...($isErrSource || $isIbtfSource ? [] : [['name' => 'fund_source', 'label' => 'Fund Source / Project']]),
+                        ...($isIbtfSource ? [] : [['name' => 'department', 'label' => 'Department']]),
+                        ['name' => 'reference_number', 'label' => 'Reference Number'],
+                        ['name' => 'purpose', 'label' => 'Purpose'],
+                        ['name' => 'remarks', 'label' => 'Remarks'],
+                    ];
+
+                    $sections = [
+                        $section('Voucher Details', $voucherFields),
+                        $section('Funding & Notes', $fundingFields),
+                    ];
+
+                    if (!$isErrSource && !$isIbtfSource) {
+                        $sections[] = $section('Tax & Receipt', [
+                            ['name' => 'withholding_tax', 'label' => 'Withholding Tax'],
+                            ['name' => 'vat_amount', 'label' => 'VAT'],
+                            ['name' => 'net_amount', 'label' => 'Net Amount'],
+                            ['name' => 'currency', 'label' => 'Currency'],
+                            ['name' => 'exchange_rate', 'label' => 'Exchange Rate'],
+                            ['name' => 'received_by_name', 'label' => 'Received By'],
+                            ['name' => 'date_received', 'label' => 'Date Received'],
+                        ]);
+                    }
+
+                    return $sections;
+                })()),
             ],
             'pda' => [
                 $section('Payroll Details', [
@@ -4417,6 +4463,25 @@ SVG;
             })()
             : null;
 
+        $linkedLiquidationContext = in_array($record->module_key, ['err', 'crf'], true)
+            ? (function () use ($record, $data, $lookupOptions) {
+                $linkedLr = filled(data_get($data, 'linked_lr_id'))
+                    ? $this->financeResolveModuleRecord('lr', data_get($data, 'linked_lr_id'))
+                    : null;
+                $linkedLrData = $linkedLr?->data ?? [];
+                $varianceAmount = abs((float) data_get($linkedLrData, 'variance', 0));
+
+                return [
+                    'requester_mode' => data_get($data, 'requester_mode') ?: data_get($linkedLrData, 'requester_mode') ?: 'own_request',
+                    'requestor' => data_get($data, 'requestor') ?: data_get($linkedLrData, 'requestor') ?: data_get($linkedLrData, 'employee_name') ?: 'N/A',
+                    'amount' => $record->module_key === 'err'
+                        ? number_format((float) (data_get($data, 'amount') ?: $varianceAmount), 2, '.', '')
+                        : number_format((float) (data_get($data, 'amount_returned') ?: $varianceAmount), 2, '.', ''),
+                    'linked_lr_label' => $this->financePdfLookupLabel($lookupOptions, 'lr', data_get($data, 'linked_lr_id')) ?: data_get($data, 'linked_lr_id') ?: 'N/A',
+                ];
+            })()
+            : null;
+
         $dvSourceDocumentType = $record->module_key === 'dv'
             ? (string) data_get($data, 'source_document_type', '')
             : '';
@@ -4437,6 +4502,7 @@ SVG;
             'moduleLabel' => $moduleLabel,
             'recordTitleLabel' => $recordTitleLabel,
             'record' => $record,
+            'linkedLiquidationContext' => $linkedLiquidationContext,
             'assetTag' => $record->module_key === 'arf' ? [
                 'asset_code' => data_get($data, 'asset_code') ?: $record->record_number ?: 'N/A',
                 'location' => data_get($data, 'location') ?: 'N/A',
@@ -6482,6 +6548,48 @@ SVG;
             'source_relationship_status' => data_get($sourceSnapshot, 'relationship_status', $this->financeDerivedRelationshipStatus($record)),
         ];
 
+        if ((string) $record->module_key === 'err') {
+            $payload['supplier_id'] = '';
+            $payload['fund_source'] = '';
+            $payload['due_date'] = '';
+            $payload['withholding_tax'] = '';
+            $payload['vat_amount'] = '';
+            $payload['received_by_name'] = '';
+            $payload['date_received'] = '';
+            $payload['bank_account_id'] = data_get($data, 'reimbursement_mode') === 'Check'
+                ? ($payload['bank_account_id'] ?? '')
+                : '';
+            $payload['purpose'] = $firstFilled([
+                data_get($data, 'expense_details'),
+                data_get($data, 'purpose'),
+                $record->record_title,
+            ]) ?? '';
+        }
+
+        if ((string) $record->module_key === 'ibtf') {
+            $payload['supplier_id'] = '';
+            $payload['fund_source'] = '';
+            $payload['department'] = '';
+            $payload['due_date'] = '';
+            $payload['withholding_tax'] = '';
+            $payload['vat_amount'] = '';
+            $payload['received_by_name'] = '';
+            $payload['date_received'] = '';
+            $payload['payment_type'] = data_get($data, 'payment_type') ?: 'Bank Transfer';
+            $payload['disbursement_type'] = data_get($data, 'disbursement_type') ?: $payload['payment_type'];
+            $payload['bank_account_id'] = data_get($data, 'source_bank_account_id') ?: ($payload['bank_account_id'] ?? '');
+            $payload['reference_number'] = $firstFilled([
+                data_get($data, 'transfer_reference_number'),
+                data_get($data, 'reference_number'),
+                $record->record_number ? $record->record_number . '-REF' : null,
+            ]) ?? '';
+            $payload['purpose'] = $firstFilled([
+                data_get($data, 'reason'),
+                data_get($data, 'purpose'),
+                $record->record_title,
+            ]) ?? '';
+        }
+
         $payload['line_items'] = $this->financeDvLineItemsFromSource($record, $payload);
 
         return $payload;
@@ -6578,7 +6686,7 @@ SVG;
             data_get($data, 'requester_name'),
         ]) ?: '');
 
-        return [
+        $snapshot = [
             'source_record_number' => $record->record_number ?: '',
             'source_record_date' => optional($record->record_date)->format('Y-m-d') ?: '',
             'requester' => $requester,
@@ -6633,6 +6741,38 @@ SVG;
                 ? 'Partially Disbursed'
                 : (data_get($disbursementSummary, 'is_fully_disbursed') ? 'Fully Disbursed' : 'Awaiting Disbursement'),
         ];
+
+        if ((string) $record->module_key === 'err') {
+            $snapshot['project'] = '';
+            $snapshot['cost_center'] = '';
+            $snapshot['fund_source'] = '';
+            $snapshot['remaining_balance'] = '';
+            $snapshot['current_balance'] = '';
+            $snapshot['reserved_balance'] = '';
+            $snapshot['available_balance'] = '';
+            $snapshot['total_disbursed_amount'] = '';
+            $snapshot['percentage_paid'] = '';
+            $snapshot['disbursement_status'] = '';
+        }
+
+        if ((string) $record->module_key === 'ibtf') {
+            $snapshot['requester'] = '';
+            $snapshot['department'] = '';
+            $snapshot['project'] = '';
+            $snapshot['cost_center'] = '';
+            $snapshot['fund_source'] = '';
+            $snapshot['remaining_balance'] = '';
+            $snapshot['current_balance'] = '';
+            $snapshot['reserved_balance'] = '';
+            $snapshot['available_balance'] = '';
+            $snapshot['total_disbursed_amount'] = '';
+            $snapshot['percentage_paid'] = '';
+            $snapshot['supplier_name'] = '';
+            $snapshot['employee_name'] = '';
+            $snapshot['disbursement_status'] = '';
+        }
+
+        return $snapshot;
     }
 
     private function financeDvFundAvailabilityAssessment(FinanceRecord $financeRecord): ?array
@@ -6662,6 +6802,10 @@ SVG;
         if ($sourceDocumentType === 'ca') {
             $disbursementSummary = $this->financeSourceDisbursementSummary($sourceRecord);
             $availableBalance = (float) data_get($disbursementSummary, 'remaining_balance', $availableBalance);
+        } elseif ($sourceDocumentType === 'err') {
+            $availableBalance = (float) data_get($sourceSnapshot, 'amount', $requestedAmount);
+        } elseif ($sourceDocumentType === 'ibtf') {
+            $availableBalance = (float) data_get($sourceSnapshot, 'amount', $requestedAmount);
         }
 
         $status = $requestedAmount > $availableBalance ? 'Insufficient Funds' : 'Sufficient Funds';
@@ -6737,7 +6881,7 @@ SVG;
             $requirements[] = 'required attachments uploaded';
         }
 
-        if (blank(data_get($data, 'fund_source')) && blank(data_get($sourceSnapshot, 'fund_source'))) {
+        if (!in_array($sourceDocumentType, ['err', 'ibtf'], true) && blank(data_get($data, 'fund_source')) && blank(data_get($sourceSnapshot, 'fund_source'))) {
             $requirements[] = 'fund source identified';
         }
 
@@ -6750,7 +6894,12 @@ SVG;
             $requirements[] = 'payment information complete';
         }
 
-        if (blank(data_get($data, 'bank_account_id')) || blank(data_get($data, 'coa_id'))) {
+        $bankAccountRequired = data_get($data, 'payment_type') === 'Check'
+            || in_array($sourceDocumentType, ['po', 'ca', 'pda', 'ibtf'], true);
+        $missingBankAccount = $bankAccountRequired && blank(data_get($data, 'bank_account_id'));
+        $missingCoa = blank(data_get($data, 'coa_id'));
+
+        if ($missingBankAccount || $missingCoa) {
             $requirements[] = 'funding and accounting references identified';
         }
 
@@ -7240,7 +7389,12 @@ SVG;
                 'data.amount' => 'required|numeric|min:0',
                 'data.payment_type' => 'required|in:Cash,Check,Bank Transfer,E-Wallet',
                 'data.disbursement_type' => 'required|in:Cash,Check,Bank Transfer,Petty Cash',
-                'data.bank_account_id' => ['required', $this->acceptedLinkedRecordRule('bank_account')],
+                'data.bank_account_id' => [
+                    'nullable',
+                    'required_if:data.payment_type,Check',
+                    'required_if:data.source_document_type,po,ca,pda,ibtf',
+                    $this->acceptedLinkedRecordRule('bank_account'),
+                ],
                 'data.coa_id' => ['required', $this->acceptedLinkedRecordRule('chart_account')],
                 'data.supplier_id' => ['nullable', $this->acceptedLinkedRecordRule('supplier')],
                 'data.fund_source' => 'nullable|string|max:255',
@@ -7296,7 +7450,7 @@ SVG;
             ],
             'arf' => [
                 'data.linked_po_id' => ['nullable', $this->acceptedLinkedRecordRule('po')],
-                'data.linked_dv_id' => ['nullable', $this->acceptedLinkedRecordRule('dv')],
+                'data.linked_dv_id' => ['nullable', $this->acceptedLinkedRecordRule('dv', ['source_document_type' => 'po'])],
                 'data.item_classification' => 'required|in:Fixed Asset,Consumable Inventory',
                 'data.asset_code' => 'required|string|max:255',
                 'data.item_name' => 'nullable|string|max:255',
@@ -7354,7 +7508,7 @@ SVG;
 
         if ($moduleKey === 'arf') {
             $rules['data.linked_po_id'] = ['nullable', $this->acceptedLinkedRecordRule('po')];
-            $rules['data.linked_dv_id'] = ['nullable', $this->acceptedLinkedRecordRule('dv')];
+            $rules['data.linked_dv_id'] = ['nullable', $this->acceptedLinkedRecordRule('dv', ['source_document_type' => 'po'])];
             $rules['data.linked_po_id'][] = 'required_without:data.linked_dv_id';
             $rules['data.linked_dv_id'][] = 'required_without:data.linked_po_id';
         }
@@ -7566,6 +7720,25 @@ SVG;
                 throw ValidationException::withMessages([
                     'data.location' => 'Location is required for fixed assets.',
                 ]);
+            }
+
+            if (filled($linkedDvId)) {
+                $linkedDv = FinanceRecord::query()->find($linkedDvId);
+                $linkedDvSourceType = Str::lower(trim((string) data_get($linkedDv?->data, 'source_document_type', '')));
+                $linkedDvSourceId = data_get($linkedDv?->data, 'source_document_id');
+
+                if ($linkedDvSourceType !== 'po') {
+                    throw ValidationException::withMessages([
+                        'data.linked_dv_id' => 'ARF only accepts DVs that came from a Purchase Order.',
+                    ]);
+                }
+
+                if (filled($linkedPoId) && (string) $linkedDvSourceId !== (string) $linkedPoId) {
+                    throw ValidationException::withMessages([
+                        'data.linked_po_id' => 'The selected PO must match the PO used by the linked DV.',
+                        'data.linked_dv_id' => 'The selected DV must belong to the selected PO.',
+                    ]);
+                }
             }
 
             $assetCode = trim((string) data_get($validated, 'data.asset_code', ''));

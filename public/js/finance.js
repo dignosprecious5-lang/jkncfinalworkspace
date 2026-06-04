@@ -3004,6 +3004,9 @@
         const moduleKey = typeof recordOrModuleKey === 'string'
             ? recordOrModuleKey
             : recordOrModuleKey?.module_key;
+        if (moduleKey === 'ibtf') {
+            return false;
+        }
         const config = getModuleConfig(moduleKey);
 
         return (config.fields || []).some((field) => field.name === 'amount' && field.required);
@@ -3038,19 +3041,14 @@
     }
 
     function getApprovalRoutingRoleLabels(record) {
-        const isSupplierSendMode = record?.module_key === 'supplier'
-            && String(record?.data?.completion_mode || '').trim() === 'send_to_supplier';
-
-        return isSupplierSendMode
-            ? ['Treasurer', 'President']
-            : ['President', 'Treasurer'];
+        return ['Treasurer', 'President'];
     }
 
     function getApproverRoutingDisplayValue(record, index) {
         const data = record?.data || {};
         const step = Array.isArray(data.approval_steps) ? data.approval_steps[index] || {} : {};
         const roleLabels = getApprovalRoutingRoleLabels(record);
-        const role = roleLabels[index] || (index === 0 ? 'President' : 'Treasurer');
+        const role = roleLabels[index] || (index === 0 ? 'Treasurer' : 'President');
         const userId = step.user_id || getFieldValue(record, index === 0 ? 'first_approver_user_id' : 'second_approver_user_id');
         const match = officialApproverOptions.find((option) => String(option.user_id || '') === String(userId || ''));
         const name = match?.user_name || match?.official_name || String(userId || '');
@@ -3440,6 +3438,50 @@
             return [{ id: normalizedValue, label: selectedLabel }, ...options];
         };
 
+        if (moduleKey === 'arf') {
+            const linkedPoId = String(formValues['data[linked_po_id]'] || formValues.linked_po_id || '').trim();
+            const linkedDvId = String(formValues['data[linked_dv_id]'] || formValues.linked_dv_id || '').trim();
+
+            if (field.name === 'linked_po_id') {
+                const poOptions = financeLookupOptions.po || [];
+                const filteredPoOptions = linkedDvId
+                    ? poOptions.filter((option) => {
+                        const poId = String(option.id ?? option.value ?? '');
+                        const dvRecord = getRecordById(linkedDvId) || getRecordByLookupValue('dv', linkedDvId);
+                        return Boolean(
+                            dvRecord
+                            && String(dvRecord.data?.source_document_type || '').trim().toLowerCase() === 'po'
+                            && String(dvRecord.data?.source_document_id || '') === poId
+                        );
+                    })
+                    : poOptions;
+
+                return injectSelectedLookupOption(filteredPoOptions, 'po', linkedPoId);
+            }
+
+            if (field.name === 'linked_dv_id') {
+                const dvOptions = (financeLookupOptions.dv || []).filter((option) => {
+                    const optionId = option.id ?? option.value ?? '';
+                    const dvRecord = getRecordById(optionId) || getRecordByLookupValue('dv', optionId);
+                    if (!dvRecord) {
+                        return false;
+                    }
+
+                    if (String(dvRecord.data?.source_document_type || '').trim().toLowerCase() !== 'po') {
+                        return false;
+                    }
+
+                    if (!linkedPoId) {
+                        return true;
+                    }
+
+                    return String(dvRecord.data?.source_document_id || '') === linkedPoId;
+                });
+
+                return injectSelectedLookupOption(dvOptions, 'dv', linkedDvId);
+            }
+        }
+
         if (isEditableDropdownField(field)) {
             const customOptions = getCustomFieldOptions(moduleKey, field.name);
             if (customOptions !== null) {
@@ -3744,6 +3786,17 @@
         });
     }
 
+    function openPreviewLiquidationBranch(recordId) {
+        const record = getRecordById(recordId);
+        if (!record || record.module_key !== 'lr') {
+            showFinanceToast('No liquidation route is available for this preview.', 'warning');
+            return;
+        }
+
+        pendingLiquidationBranchDraft = buildLiquidationBranchDraft(record);
+        openPendingLiquidationBranch();
+    }
+
     function dismissPendingLiquidationBranch() {
         pendingLiquidationBranchDraft = null;
         document.querySelector('[data-pending-liquidation-panel]')?.remove();
@@ -3751,48 +3804,15 @@
         showFinanceToast('Staying on the liquidation report.', 'info');
     }
 
-    function loadErrTestDraft() {
-        const sampleRecord = {
-            id: 'err-test-lr',
-            record_number: 'LR-TEST-SHORTAGE',
-            record_title: 'Sample Shortage LR',
-            data: {
-                linked_ca_id: 'ca-test',
-                total_cash_advance: '10000.00',
-                actual_expenses: '11500.00',
-                variance: '-1500.00',
-                variance_indicator: 'Shortage',
-                requester_mode: 'own_request',
-                requestor: bootstrap.currentUserName || 'Test User',
-                employee_id: bootstrap.currentUserId ? `EMP-${bootstrap.currentUserId}` : 'EMP-TEST',
-                employee_name: bootstrap.currentUserName || 'Test User',
-                employee_email: bootstrap.currentUserEmail || '',
-                contact_number: '',
-                position: 'Finance Associate',
-                department: 'Finance',
-                superior: 'Finance Manager',
-                superior_email: '',
-                purpose: 'Test pre-ERR data for shortage workflow',
-                remarks: 'Sample pre-ERR data loaded for testing.',
-                mode_of_release: 'Bank Transfer',
-                bank_account_id: '',
-            },
-        };
-
-        const draft = buildLiquidationBranchDraft(sampleRecord);
-        if (!draft || draft.moduleKey !== 'err') {
-            showFinanceToast('Unable to build test ERR draft.', 'error');
-            return;
+    function getDraftValue(name, record = null) {
+        if (financeFormValues && Object.prototype.hasOwnProperty.call(financeFormValues, name)) {
+            return financeFormValues[name];
         }
 
-        financeDraftContext = draft;
-        changeModule('err');
-        openFinanceDrawer();
-        renderDrawerPreview();
-        showFinanceToast('Loaded sample pre-ERR data for testing.', 'success');
-    }
+        if (financeFormValues && Object.prototype.hasOwnProperty.call(financeFormValues, `data[${name}]`)) {
+            return financeFormValues[`data[${name}]`];
+        }
 
-    function getDraftValue(name, record = null) {
         if (financeDraftContext?.prefill && Object.prototype.hasOwnProperty.call(financeDraftContext.prefill, name)) {
             return financeDraftContext.prefill[name];
         }
@@ -3882,6 +3902,9 @@
             'percentage_paid',
             'disbursement_status',
             'projected_balance_after_payment',
+            'accounting_balance_status',
+            'total_debit_amount',
+            'total_credit_amount',
         ]);
         const commonVoucher = new Set([
             'source_document_type',
@@ -3910,37 +3933,94 @@
                 snapshot: ['source_supplier_name', 'source_payee_type', 'source_payee_name'],
                 voucher: ['supplier_id', 'bank_account_id', 'coa_id', 'fund_source', 'department', 'due_date'],
                 tax: ['received_by_name', 'date_received'],
+                hidden: [],
             },
             ca: {
                 snapshot: ['source_employee_name', 'source_payee_type', 'source_payee_name', 'source_remaining_balance', 'source_current_balance', 'source_reserved_balance', 'source_available_balance'],
                 voucher: ['bank_account_id', 'coa_id', 'fund_source', 'department', 'due_date'],
                 tax: ['received_by_name', 'date_received'],
+                hidden: [],
             },
             err: {
-                snapshot: ['source_employee_name', 'source_payee_type', 'source_payee_name', 'source_remaining_balance', 'source_current_balance', 'source_reserved_balance', 'source_available_balance'],
-                voucher: ['bank_account_id', 'coa_id', 'fund_source', 'department', 'due_date'],
-                tax: ['received_by_name', 'date_received'],
+                snapshot: ['source_employee_name', 'source_payee_type', 'source_payee_name'],
+                voucher: ['bank_account_id', 'coa_id', 'department'],
+                tax: [],
+                hidden: [
+                    'source_project',
+                    'source_cost_center',
+                    'source_fund_source',
+                    'source_remaining_balance',
+                    'source_current_balance',
+                    'source_reserved_balance',
+                    'source_available_balance',
+                    'total_disbursed_amount',
+                    'percentage_paid',
+                    'disbursement_status',
+                    'projected_balance_after_payment',
+                    'accounting_balance_status',
+                    'total_debit_amount',
+                    'total_credit_amount',
+                    'supplier_id',
+                    'fund_source',
+                    'due_date',
+                    'withholding_tax',
+                    'vat_amount',
+                    'net_amount',
+                    'received_by_name',
+                    'date_received',
+                ],
             },
             pda: {
                 snapshot: ['source_payee_type', 'source_payee_name'],
                 voucher: ['bank_account_id', 'coa_id', 'department', 'due_date'],
                 tax: ['received_by_name', 'date_received'],
+                hidden: [],
             },
             ibtf: {
                 snapshot: ['source_payee_type', 'source_payee_name'],
                 voucher: ['bank_account_id', 'coa_id', 'fund_source', 'department', 'due_date'],
                 tax: [],
+                hidden: [
+                    'source_requester',
+                    'source_department',
+                    'source_project',
+                    'source_cost_center',
+                    'source_fund_source',
+                    'source_supplier_name',
+                    'source_employee_name',
+                    'source_remaining_balance',
+                    'source_current_balance',
+                    'source_reserved_balance',
+                    'source_available_balance',
+                    'total_disbursed_amount',
+                    'percentage_paid',
+                    'disbursement_status',
+                    'projected_balance_after_payment',
+                    'accounting_balance_status',
+                    'total_debit_amount',
+                    'total_credit_amount',
+                    'supplier_id',
+                    'fund_source',
+                    'department',
+                    'due_date',
+                    'withholding_tax',
+                    'vat_amount',
+                    'net_amount',
+                    'received_by_name',
+                    'date_received',
+                ],
             },
         }[normalizedSourceType] || {
             snapshot: ['source_payee_type', 'source_payee_name'],
             voucher: ['bank_account_id', 'coa_id', 'fund_source', 'department', 'due_date'],
             tax: ['received_by_name', 'date_received'],
+            hidden: [],
         };
 
         return {
-            snapshot: new Set([...commonSnapshot, ...sourceSpecific.snapshot]),
-            voucher: new Set([...commonVoucher, ...sourceSpecific.voucher]),
-            tax: new Set([...commonTax, ...sourceSpecific.tax]),
+            snapshot: new Set([...commonSnapshot, ...sourceSpecific.snapshot].filter((fieldName) => !sourceSpecific.hidden.includes(fieldName))),
+            voucher: new Set([...commonVoucher, ...sourceSpecific.voucher].filter((fieldName) => !sourceSpecific.hidden.includes(fieldName))),
+            tax: new Set([...commonTax, ...sourceSpecific.tax].filter((fieldName) => !sourceSpecific.hidden.includes(fieldName))),
             alwaysVisible: new Set([
                 'source_document_type',
                 'source_document_id',
@@ -4423,6 +4503,30 @@
             sourceSnapshot.source_employee_name ? `Employee: ${sourceSnapshot.source_employee_name}` : '',
         ].filter(Boolean).join(' • ');
 
+        const sourceCards = [
+            ['Source Record Number', sourceSnapshot.source_record_number || 'N/A', 'source_record_number'],
+            ['Source Record Date', sourceSnapshot.source_record_date || 'N/A', 'source_record_date'],
+            ['Requester', sourceSnapshot.source_requester || 'N/A', 'source_requester'],
+            ['Department', sourceSnapshot.source_department || 'N/A', 'source_department'],
+            ['Project', sourceSnapshot.source_project || 'N/A', 'source_project'],
+            ['Cost Center', sourceSnapshot.source_cost_center || 'N/A', 'source_cost_center'],
+            ['Fund Source', sourceSnapshot.source_fund_source || 'N/A', 'source_fund_source'],
+            ['Amount', formatCurrency(sourceSnapshot.source_amount || 0), 'source_amount'],
+            ['Current Balance', formatCurrency(sourceSnapshot.source_current_balance || sourceSnapshot.source_amount || 0), 'source_current_balance'],
+            ['Reserved Balance', formatCurrency(sourceSnapshot.source_reserved_balance || sourceSnapshot.total_disbursed_amount || 0), 'source_reserved_balance'],
+            ['Available Balance', formatCurrency(sourceSnapshot.source_available_balance || sourceSnapshot.source_remaining_balance || 0), 'source_available_balance'],
+            ['Projected Balance After Payment', formatCurrency(projectedBalanceAfterPayment || 0), 'projected_balance_after_payment'],
+            ['Accounting Status', sourceSnapshot.accounting_balance_status || 'Balanced', 'accounting_balance_status'],
+            ['Total Debit', formatCurrency(sourceSnapshot.total_debit_amount || 0), 'total_debit_amount'],
+            ['Total Credit', formatCurrency(sourceSnapshot.total_credit_amount || 0), 'total_credit_amount'],
+            ['Remaining Balance', blank(sourceSnapshot.source_remaining_balance) ? 'N/A' : formatCurrency(sourceSnapshot.source_remaining_balance), 'source_remaining_balance'],
+        ].filter(([, value, fieldName]) => shouldRenderDvField(fieldName, value, sourceType, 'snapshot')).map(([label, value]) => `
+                    <div class="rounded-lg border border-gray-100 bg-white px-3 py-2">
+                        <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">${escapeHtml(label)}</p>
+                        <p class="mt-1 font-semibold text-gray-900 break-words">${escapeHtml(value)}</p>
+                    </div>
+        `).join('');
+
         return `
             <div class="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm">
                 <div class="flex flex-wrap items-start justify-between gap-3">
@@ -4452,70 +4556,7 @@
                     </div>
                 </div>
                 <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                    <div class="rounded-lg border border-gray-100 bg-white px-3 py-2">
-                        <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">Source Record Number</p>
-                        <p class="mt-1 font-semibold text-gray-900 break-words">${escapeHtml(sourceSnapshot.source_record_number || 'N/A')}</p>
-                    </div>
-                    <div class="rounded-lg border border-gray-100 bg-white px-3 py-2">
-                        <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">Source Record Date</p>
-                        <p class="mt-1 font-semibold text-gray-900 break-words">${escapeHtml(sourceSnapshot.source_record_date || 'N/A')}</p>
-                    </div>
-                    <div class="rounded-lg border border-gray-100 bg-white px-3 py-2">
-                        <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">Requester</p>
-                        <p class="mt-1 font-semibold text-gray-900 break-words">${escapeHtml(sourceSnapshot.source_requester || 'N/A')}</p>
-                    </div>
-                    <div class="rounded-lg border border-gray-100 bg-white px-3 py-2">
-                        <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">Department</p>
-                        <p class="mt-1 font-semibold text-gray-900 break-words">${escapeHtml(sourceSnapshot.source_department || 'N/A')}</p>
-                    </div>
-                    <div class="rounded-lg border border-gray-100 bg-white px-3 py-2">
-                        <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">Project</p>
-                        <p class="mt-1 font-semibold text-gray-900 break-words">${escapeHtml(sourceSnapshot.source_project || 'N/A')}</p>
-                    </div>
-                    <div class="rounded-lg border border-gray-100 bg-white px-3 py-2">
-                        <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">Cost Center</p>
-                        <p class="mt-1 font-semibold text-gray-900 break-words">${escapeHtml(sourceSnapshot.source_cost_center || 'N/A')}</p>
-                    </div>
-                    <div class="rounded-lg border border-gray-100 bg-white px-3 py-2">
-                        <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">Fund Source</p>
-                        <p class="mt-1 font-semibold text-gray-900 break-words">${escapeHtml(sourceSnapshot.source_fund_source || 'N/A')}</p>
-                    </div>
-                    <div class="rounded-lg border border-gray-100 bg-white px-3 py-2">
-                        <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">Amount</p>
-                        <p class="mt-1 font-semibold text-gray-900 break-words">${escapeHtml(formatCurrency(sourceSnapshot.source_amount || 0))}</p>
-                    </div>
-                    <div class="rounded-lg border border-gray-100 bg-white px-3 py-2">
-                        <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">Current Balance</p>
-                        <p class="mt-1 font-semibold text-gray-900 break-words">${escapeHtml(formatCurrency(sourceSnapshot.source_current_balance || sourceSnapshot.source_amount || 0))}</p>
-                    </div>
-                    <div class="rounded-lg border border-gray-100 bg-white px-3 py-2">
-                        <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">Reserved Balance</p>
-                        <p class="mt-1 font-semibold text-gray-900 break-words">${escapeHtml(formatCurrency(sourceSnapshot.source_reserved_balance || sourceSnapshot.total_disbursed_amount || 0))}</p>
-                    </div>
-                    <div class="rounded-lg border border-gray-100 bg-white px-3 py-2">
-                        <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">Available Balance</p>
-                        <p class="mt-1 font-semibold text-gray-900 break-words">${escapeHtml(formatCurrency(sourceSnapshot.source_available_balance || sourceSnapshot.source_remaining_balance || 0))}</p>
-                    </div>
-                    <div class="rounded-lg border border-gray-100 bg-white px-3 py-2">
-                        <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">Projected Balance After Payment</p>
-                        <p class="mt-1 font-semibold text-gray-900 break-words">${escapeHtml(formatCurrency(projectedBalanceAfterPayment || 0))}</p>
-                    </div>
-                    <div class="rounded-lg border border-gray-100 bg-white px-3 py-2">
-                        <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">Accounting Status</p>
-                        <p class="mt-1 font-semibold text-gray-900 break-words">${escapeHtml(sourceSnapshot.accounting_balance_status || 'Balanced')}</p>
-                    </div>
-                    <div class="rounded-lg border border-gray-100 bg-white px-3 py-2">
-                        <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">Total Debit</p>
-                        <p class="mt-1 font-semibold text-gray-900 break-words">${escapeHtml(formatCurrency(sourceSnapshot.total_debit_amount || 0))}</p>
-                    </div>
-                    <div class="rounded-lg border border-gray-100 bg-white px-3 py-2">
-                        <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">Total Credit</p>
-                        <p class="mt-1 font-semibold text-gray-900 break-words">${escapeHtml(formatCurrency(sourceSnapshot.total_credit_amount || 0))}</p>
-                    </div>
-                    <div class="rounded-lg border border-gray-100 bg-white px-3 py-2">
-                        <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">Remaining Balance</p>
-                        <p class="mt-1 font-semibold text-gray-900 break-words">${escapeHtml(blank(sourceSnapshot.source_remaining_balance) ? 'N/A' : formatCurrency(sourceSnapshot.source_remaining_balance))}</p>
-                    </div>
+                    ${sourceCards}
                     ${(sourceSnapshot.accounting_balance_warning ? `
                         <div class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 md:col-span-2">
                             <p class="text-[11px] uppercase tracking-[0.2em] text-amber-700">Accounting Warning</p>
@@ -4705,13 +4746,70 @@
 
         if (moduleKey === 'err') {
             prefill.amount = data.amount || amount || '';
-            prefill.supplier_id = data.supplier_id || '';
-            prefill.bank_account_id = data.bank_account_id || bankAccountId || '';
+            prefill.supplier_id = '';
+            prefill.payment_type = normalizeDvPaymentType(data.reimbursement_mode || data.payment_type || '') || 'Cash';
+            prefill.disbursement_type = prefill.payment_type;
+            prefill.purpose = data.expense_details || data.purpose || '';
+            prefill.fund_source = '';
+            prefill.due_date = '';
+            prefill.bank_account_id = data.reimbursement_mode === 'Check'
+                ? (data.bank_account_id || bankAccountId || '')
+                : '';
+            prefill.received_by_name = '';
+            prefill.date_received = '';
+            prefill.withholding_tax = '';
+            prefill.vat_amount = '';
+            prefill.net_amount = '';
+            prefill.exchange_rate = currency === 'PHP' ? '1.00' : '';
+            prefill.source_fund_source = '';
+            prefill.source_project = '';
+            prefill.source_cost_center = '';
+            prefill.source_remaining_balance = '';
+            prefill.source_current_balance = '';
+            prefill.source_reserved_balance = '';
+            prefill.source_available_balance = '';
+            prefill.total_disbursed_amount = '';
+            prefill.percentage_paid = '';
+            prefill.disbursement_status = '';
+            prefill.projected_balance_after_payment = '';
         }
 
         if (moduleKey === 'crf') {
             prefill.amount = data.amount_returned || amount || '';
             prefill.payment_type = normalizeDvPaymentType(data.mode_of_return || data.payment_type || '');
+        }
+
+        if (moduleKey === 'ibtf') {
+            prefill.amount = data.amount || amount || '';
+            prefill.supplier_id = '';
+            prefill.payment_type = normalizeDvPaymentType(data.payment_type || 'Bank Transfer') || 'Bank Transfer';
+            prefill.disbursement_type = prefill.payment_type;
+            prefill.purpose = data.reason || data.purpose || '';
+            prefill.reference_number = data.transfer_reference_number || data.reference_number || referenceNumber;
+            prefill.fund_source = '';
+            prefill.department = '';
+            prefill.due_date = '';
+            prefill.bank_account_id = data.source_bank_account_id || bankAccountId || '';
+            prefill.received_by_name = '';
+            prefill.date_received = '';
+            prefill.withholding_tax = '';
+            prefill.vat_amount = '';
+            prefill.net_amount = '';
+            prefill.source_requester = '';
+            prefill.source_department = '';
+            prefill.source_project = '';
+            prefill.source_cost_center = '';
+            prefill.source_fund_source = '';
+            prefill.source_supplier_name = '';
+            prefill.source_employee_name = '';
+            prefill.source_remaining_balance = '';
+            prefill.source_current_balance = '';
+            prefill.source_reserved_balance = '';
+            prefill.source_available_balance = '';
+            prefill.total_disbursed_amount = '';
+            prefill.percentage_paid = '';
+            prefill.disbursement_status = '';
+            prefill.projected_balance_after_payment = '';
         }
 
         return {
@@ -6597,6 +6695,21 @@
         financeFormValues.linked_dv_id = linkedDvId;
         financeFormValues['data[linked_dv_id]'] = linkedDvId;
 
+        if (linkedDvRecord && String(linkedDvRecord.data?.source_document_type || '').trim().toLowerCase() !== 'po') {
+            setFinanceFieldValue(form, 'linked_dv_id', '');
+            financeFormValues.linked_dv_id = '';
+            financeFormValues['data[linked_dv_id]'] = '';
+            showFinanceToast('ARF only accepts DVs that came from a Purchase Order.', 'warning');
+            renderFinanceForm(currentEditRecordId ? getRecordById(currentEditRecordId) : null);
+            return;
+        }
+
+        if (linkedPoRecord && linkedDvRecord && String(linkedDvRecord.data?.source_document_id || '') !== String(linkedPoId)) {
+            setFinanceFieldValue(form, 'linked_dv_id', '');
+            financeFormValues.linked_dv_id = '';
+            financeFormValues['data[linked_dv_id]'] = '';
+        }
+
         const payload = {
             ...(linkedPoRecord ? getArfAutofillValuesFromLinkedRecord(linkedPoRecord) : {}),
             ...(linkedDvRecord ? getArfAutofillValuesFromLinkedRecord(linkedDvRecord) : {}),
@@ -7098,6 +7211,12 @@
         const moduleConfig = getModuleConfig(record.module_key);
         const data = record.data || {};
         const roleLabels = getApprovalRoutingRoleLabels(record);
+        const linkedLrRecord = ['err', 'crf'].includes(record.module_key)
+            ? getLinkedLiquidationRecord(data.linked_lr_id, record.module_key === 'err' ? 'Shortage' : 'Overage')
+            : null;
+        const linkedLiquidationPrefill = linkedLrRecord
+            ? getLiquidationBranchPrefill(record.module_key, linkedLrRecord)
+            : {};
         if (record.module_key === 'pr') {
             return [
                 ['Request Number', record.record_number || ''],
@@ -7117,10 +7236,10 @@
         if (record.module_key === 'err') {
             return [
                 ['Record Number', record.record_number || ''],
-                ['Requestor', data.requestor || data.employee_name || ''],
+                ['Requestor', data.requestor || linkedLiquidationPrefill.requestor || data.employee_name || ''],
                 ['Linked LR', getLookupLabel('lr', data.linked_lr_id) || data.linked_lr_id || ''],
-                ['Reimbursement Mode', data.reimbursement_mode || ''],
-                ['Amount', record.amount ? formatCurrency(record.amount) : ''],
+                ['Reimbursement Mode', data.reimbursement_mode || linkedLiquidationPrefill.reimbursement_mode || ''],
+                ['Amount', (data.amount || linkedLiquidationPrefill.amount || record.amount) ? formatCurrency(data.amount || linkedLiquidationPrefill.amount || record.amount) : ''],
                 ['Workflow', record.workflow_status || ''],
                 ['Approval', previewApprovalLabel(record) || ''],
                 ['Submitted By', record.user || ''],
@@ -7252,12 +7371,12 @@
             err: [
                 ['Workflow', record.workflow_status || ''],
                 ['Approval', previewApprovalLabel(record) || ''],
-                ['Requester Option', data.requester_mode || ''],
-                ['Requested By', data.requestor || getLookupLabel('employee', data.requester_employee_id) || ''],
+                ['Requester Option', data.requester_mode || linkedLiquidationPrefill.requester_mode || ''],
+                ['Requested By', data.requestor || linkedLiquidationPrefill.requestor || getLookupLabel('employee', data.requester_employee_id) || ''],
                 ['Linked LR', getLookupLabel('lr', data.linked_lr_id) || ''],
                 ['Linked DV', getLookupLabel('dv', data.linked_dv_id) || ''],
-                ['Amount', data.amount ? formatCurrency(data.amount) : ''],
-                ['Reimbursement Mode', data.reimbursement_mode || ''],
+                ['Amount', (data.amount || linkedLiquidationPrefill.amount) ? formatCurrency(data.amount || linkedLiquidationPrefill.amount) : ''],
+                ['Reimbursement Mode', data.reimbursement_mode || linkedLiquidationPrefill.reimbursement_mode || ''],
             ],
             dv: [
                 ['Workflow', record.workflow_status || ''],
@@ -7287,12 +7406,12 @@
             crf: [
                 ['Workflow', record.workflow_status || ''],
                 ['Approval', previewApprovalLabel(record) || ''],
-                ['Requester Option', data.requester_mode || ''],
-                ['Requested By', data.requestor || getLookupLabel('employee', data.requester_employee_id) || ''],
+                ['Requester Option', data.requester_mode || linkedLiquidationPrefill.requester_mode || ''],
+                ['Requested By', data.requestor || linkedLiquidationPrefill.requestor || getLookupLabel('employee', data.requester_employee_id) || ''],
                 ['Linked LR', getLookupLabel('lr', data.linked_lr_id) || ''],
                 ['Linked DV', getLookupLabel('dv', data.linked_dv_id) || ''],
-                ['Amount Returned', data.amount_returned ? formatCurrency(data.amount_returned) : ''],
-                ['Mode of Return', data.mode_of_return || ''],
+                ['Amount Returned', (data.amount_returned || linkedLiquidationPrefill.amount_returned) ? formatCurrency(data.amount_returned || linkedLiquidationPrefill.amount_returned) : ''],
+                ['Mode of Return', data.mode_of_return || linkedLiquidationPrefill.mode_of_return || ''],
             ],
             ibtf: [
                 ['Workflow', record.workflow_status || ''],
@@ -7475,6 +7594,77 @@
                                 </tr>
                             </table>
                         </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    function renderPdaExpandedPreviewDetails(record) {
+        const data = record.data || {};
+        const payrollPeriodLabel = getLookupLabel('payroll_period', data.payroll_period_id) || record.record_title || 'Payroll Period';
+        const metricRows = [
+            ['Period Start', formatDate(data.period_start || '') || 'N/A'],
+            ['Period End', formatDate(data.period_end || '') || 'N/A'],
+            ['Payroll Start', formatDate(data.payroll_start || '') || 'N/A'],
+            ['Payroll End', formatDate(data.payroll_end || '') || 'N/A'],
+            ['Pay Date', formatDate(data.pay_date || '') || 'N/A'],
+            ['Employees Included', data.employee_count || '0'],
+            ['Basic Salary', data.basic_salary_total ? formatCurrency(data.basic_salary_total) : '0.00'],
+            ['Gross Pay', data.gross_pay_total ? formatCurrency(data.gross_pay_total) : '0.00'],
+            ['Benefits', data.benefits_total ? formatCurrency(data.benefits_total) : '0.00'],
+            ['Allowances', data.allowances_total ? formatCurrency(data.allowances_total) : '0.00'],
+            ['Deductions', data.deductions_total ? formatCurrency(data.deductions_total) : '0.00'],
+            ['Night Differential', data.night_differential_total ? formatCurrency(data.night_differential_total) : '0.00'],
+            ['Holiday Pay', data.holiday_pay_total ? formatCurrency(data.holiday_pay_total) : '0.00'],
+            ['Net Payroll', data.total_payroll_amount ? formatCurrency(data.total_payroll_amount) : '0.00'],
+            ['Department / Coverage', data.department || 'N/A'],
+            ['Funding Bank Account', getLookupLabel('bank_account', data.funding_bank_account_id) || data.funding_bank_account_id || 'N/A'],
+            ['Payroll Expense Account', getLookupLabel('chart_account', data.payroll_expense_coa_id) || data.payroll_expense_coa_id || 'N/A'],
+        ];
+        const supportingSummary = String(data.supporting_payroll_summary || '').trim();
+        const employeeBreakdown = String(data.employee_payroll_breakdown || '').trim();
+        const remarks = String(data.remarks || '').trim();
+
+        return `
+            <div class="rounded-2xl border border-gray-200 bg-white shadow-sm">
+                <div class="border-b border-gray-100 bg-slate-50 px-4 py-3">
+                    <div class="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                            <p class="text-[11px] uppercase tracking-[0.18em] text-blue-700">Payroll Details</p>
+                            <h4 class="mt-1 text-[16px] font-semibold text-gray-900">${escapeHtml(payrollPeriodLabel)}</h4>
+                        </div>
+                        <span class="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-[11px] font-semibold text-blue-700">PDA</span>
+                    </div>
+                </div>
+                <div class="p-4">
+                    <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                        ${metricRows.map(([label, value]) => `
+                            <div class="rounded-xl border border-gray-100 bg-slate-50 px-4 py-3">
+                                <p class="text-[10px] uppercase tracking-[0.18em] text-gray-500">${escapeHtml(label)}</p>
+                                <p class="mt-2 text-[14px] font-semibold text-gray-900 break-words">${escapeHtml(value)}</p>
+                            </div>
+                        `).join('')}
+                    </div>
+                    <div class="mt-4 grid gap-4 xl:grid-cols-2">
+                        ${supportingSummary ? `
+                            <div class="rounded-xl border border-gray-100 bg-white px-4 py-4">
+                                <p class="text-[11px] uppercase tracking-[0.18em] text-gray-500">Supporting Payroll Summary</p>
+                                <p class="mt-3 whitespace-pre-wrap text-sm leading-7 text-gray-800">${escapeHtml(supportingSummary)}</p>
+                            </div>
+                        ` : ''}
+                        ${employeeBreakdown ? `
+                            <div class="rounded-xl border border-gray-100 bg-white px-4 py-4 ${supportingSummary ? '' : 'xl:col-span-2'}">
+                                <p class="text-[11px] uppercase tracking-[0.18em] text-gray-500">Employee Payroll Breakdown</p>
+                                <pre class="mt-3 whitespace-pre-wrap break-words rounded-lg bg-slate-50 p-4 text-sm leading-7 text-gray-800">${escapeHtml(employeeBreakdown)}</pre>
+                            </div>
+                        ` : ''}
+                        ${remarks ? `
+                            <div class="rounded-xl border border-gray-100 bg-white px-4 py-4 ${supportingSummary || employeeBreakdown ? 'xl:col-span-2' : ''}">
+                                <p class="text-[11px] uppercase tracking-[0.18em] text-gray-500">Remarks</p>
+                                <p class="mt-3 whitespace-pre-wrap text-sm leading-7 text-gray-800">${escapeHtml(remarks)}</p>
+                            </div>
+                        ` : ''}
                     </div>
                 </div>
             </div>
@@ -7802,11 +7992,14 @@
                     { title: 'Reimbursement Details', fieldNames: ['requester_mode', 'requester_employee_id', 'requestor', 'linked_lr_id', 'expense_details', 'amount', 'reimbursement_payment_details', 'manual_liquidation_entry', 'reimbursement_mode', ...errPaymentFieldNames, 'remarks'] },
                 ];
             case 'dv':
+                const dvSourceType = String(data.source_document_type || '').trim().toLowerCase();
+                const dvFieldValue = (fieldName) => data[fieldName] ?? '';
+                const filterDvFields = (fieldNames, section = 'voucher') => fieldNames.filter((fieldName) => shouldRenderDvField(fieldName, dvFieldValue(fieldName), dvSourceType, section));
                 return [
-                    { title: 'Voucher Details', fieldNames: ['source_document_type', 'source_document_id', 'payee_type', 'payee_name', 'supplier_id', 'amount', 'payment_type', 'disbursement_type'] },
+                    { title: 'Voucher Details', fieldNames: filterDvFields(['source_document_type', 'source_document_id', 'payee_type', 'payee_name', 'supplier_id', 'amount', 'payment_type', 'disbursement_type']) },
                     { title: 'Breakdown / Line Items', renderer: () => renderDvPreviewLineItems(record) },
-                    { title: 'Funding & Notes', fieldNames: ['bank_account_id', 'coa_id', 'fund_source', 'department', 'reference_number', 'purpose', 'remarks'] },
-                    { title: 'Tax & Receipt', fieldNames: ['withholding_tax', 'vat_amount', 'net_amount', 'currency', 'exchange_rate', 'received_by_name', 'date_received'] },
+                    { title: 'Funding & Notes', fieldNames: filterDvFields(['bank_account_id', 'coa_id', 'fund_source', 'department', 'reference_number', 'purpose', 'remarks']) },
+                    { title: 'Tax & Receipt', fieldNames: filterDvFields(['withholding_tax', 'vat_amount', 'net_amount', 'currency', 'exchange_rate', 'received_by_name', 'date_received'], 'tax') },
                 ];
             case 'pda':
                 return [
@@ -7867,6 +8060,14 @@
                 { title: 'Authorized Representative', fieldNames: ['representative_full_name', 'designation', 'phone_number', 'representative_email_address'] },
                 { title: 'Billing & Payment', fieldNames: filterSupplierPreviewFields(['billing_address', 'accounting_contact_person', 'accounting_contact_number', 'accounting_email_address', 'payment_terms', 'payment_terms_other', 'preferred_payment_method', 'preferred_payment_method_other', 'online_payment_details', 'bank_name', 'bank_branch', 'bank_account_name', 'bank_account_number', 'swift_code']) },
                 { title: 'Acknowledgment', fieldNames: filterSupplierPreviewFields(['person_accomplishing_full_name', 'person_accomplishing_position', 'id_type', 'id_type_other', 'id_number', 'date_signed']) },
+            ];
+        }
+
+        if (record.module_key === 'pda') {
+            return [
+                { type: 'pda_payroll_period', title: 'Payroll Period' },
+                { title: 'Payroll Totals', fieldNames: ['total_payroll_amount', 'employee_count', 'basic_salary_total', 'gross_pay_total', 'benefits_total', 'allowances_total', 'deductions_total', 'night_differential_total', 'holiday_pay_total'] },
+                { title: 'Funding Details', fieldNames: ['department', 'funding_bank_account_id', 'payroll_expense_coa_id'] },
             ];
         }
 
@@ -8547,17 +8748,59 @@
         `;
     }
 
+    function getLiquidationPreviewSummaryLookup(record) {
+        const data = record?.data || {};
+        const rows = Array.isArray(data.line_items)
+            ? data.line_items.filter((item) => item && Object.values(item).some((value) => String(value ?? '').trim() !== ''))
+            : [];
+
+        let subtotal = 0;
+        let discountTotal = 0;
+        let taxTotal = 0;
+        let shippingTotal = 0;
+        let whtTotal = 0;
+        let grandTotal = 0;
+
+        rows.forEach((row) => {
+            const quantity = numericAmount(row.quantity || 0);
+            const amount = numericAmount(row.amount || 0);
+            const rowSubtotal = quantity * amount;
+            const discountPercent = parseFloat(String(row.discount || '0').replace('%', '')) || 0;
+            const manualDiscount = numericAmount(row.discount_amount || 0);
+            const discountAmount = discountPercent > 0 ? rowSubtotal * (discountPercent / 100) : manualDiscount;
+            const shippingAmount = numericAmount(row.shipping_amount || 0);
+            const taxAmount = numericAmount(row.tax_amount || 0);
+            const whtAmount = numericAmount(row.wht_amount || 0);
+            const rowTotal = rowSubtotal - discountAmount + shippingAmount + taxAmount - whtAmount;
+
+            subtotal += rowSubtotal;
+            discountTotal += discountAmount;
+            taxTotal += taxAmount;
+            shippingTotal += shippingAmount;
+            whtTotal += whtAmount;
+            grandTotal += rowTotal;
+        });
+
+        const actualExpenses = numericAmount(data.actual_expenses || data.grand_total || record?.amount || 0);
+
+        return {
+            hasDetailedBreakdown: rows.length > 0,
+            subtotal: subtotal.toFixed(2),
+            discount_total: discountTotal.toFixed(2),
+            tax_total: taxTotal.toFixed(2),
+            shipping_total: shippingTotal.toFixed(2),
+            wht_total: whtTotal.toFixed(2),
+            grand_total: (rows.length > 0 ? grandTotal : actualExpenses).toFixed(2),
+            actual_expenses: actualExpenses.toFixed(2),
+            remarks: String(data.remarks || '').trim(),
+            purpose: String(data.purpose || '').trim(),
+        };
+    }
+
     function renderLiquidationPreviewSummary(record) {
         const data = record?.data || {};
         const statusMeta = getLiquidationStatusMeta(data.variance || 0);
-        const summaryLookup = {
-            subtotal: data.subtotal || '0.00',
-            discount_total: data.discount_total || '0.00',
-            tax_total: data.tax_total || '0.00',
-            shipping_total: data.shipping_total || '0.00',
-            wht_total: data.wht_total || '0.00',
-            grand_total: data.grand_total || record.amount || '0.00',
-        };
+        const summaryLookup = getLiquidationPreviewSummaryLookup(record);
 
         return `
             <div class="mt-5 grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -8578,14 +8821,19 @@
 
                 <div class="rounded-xl border border-gray-200 bg-slate-50 p-4">
                     <div class="mt-2 space-y-2 text-sm">
-                        ${[
-                            ['Subtotal', summaryLookup.subtotal],
-                            ['Discount Total', summaryLookup.discount_total],
-                            ['Tax Total', summaryLookup.tax_total],
-                            ['Shipping Total', summaryLookup.shipping_total],
-                            ['WHT Total', summaryLookup.wht_total],
-                            ['Grand Total', summaryLookup.grand_total],
-                        ].map(([label, value]) => `
+                        ${(summaryLookup.hasDetailedBreakdown
+                            ? [
+                                ['Subtotal', summaryLookup.subtotal],
+                                ['Discount Total', summaryLookup.discount_total],
+                                ['Tax Total', summaryLookup.tax_total],
+                                ['Shipping Total', summaryLookup.shipping_total],
+                                ['WHT Total', summaryLookup.wht_total],
+                                ['Grand Total', summaryLookup.grand_total],
+                            ]
+                            : [
+                                ['Actual Expenses', summaryLookup.actual_expenses],
+                            ]
+                        ).map(([label, value]) => `
                             <div class="flex items-center justify-between gap-4 border-b border-dashed border-gray-200 pb-2 last:border-b-0">
                                 <span class="text-gray-500">${escapeHtml(label)}</span>
                                 <span class="font-semibold text-gray-900">${escapeHtml(String(value || '0.00'))}</span>
@@ -8598,12 +8846,14 @@
                     <div class="mt-2 space-y-3 text-sm">
                         <div class="flex items-start justify-between gap-4 border-b border-dashed border-gray-200 pb-2">
                             <span class="text-gray-500">Justification / Business Need</span>
-                            <span class="font-medium text-gray-900 text-right break-words max-w-[60%]">${escapeHtml(data.purpose || 'N/A')}</span>
+                            <span class="font-medium text-gray-900 text-right break-words max-w-[60%]">${escapeHtml(summaryLookup.purpose || 'N/A')}</span>
                         </div>
-                        <div class="flex items-start justify-between gap-4">
-                            <span class="text-gray-500">Remarks</span>
-                            <span class="font-medium text-gray-900 text-right break-words max-w-[60%]">${escapeHtml(data.remarks || 'N/A')}</span>
-                        </div>
+                        ${summaryLookup.remarks ? `
+                            <div class="flex items-start justify-between gap-4">
+                                <span class="text-gray-500">Remarks</span>
+                                <span class="font-medium text-gray-900 text-right break-words max-w-[60%]">${escapeHtml(summaryLookup.remarks)}</span>
+                            </div>
+                        ` : ''}
                     </div>
                 </div>
             </div>
@@ -8910,6 +9160,8 @@
             const varianceInput = form.querySelector('input[name="data[variance]"]');
             const varianceIndicatorInput = form.querySelector('input[name="data[variance_indicator]"]');
             const caAmountInput = form.querySelector('input[name="data[total_cash_advance]"]');
+            const isEditingActualExpenses = Boolean(actualExpensesInput && document.activeElement?.isSameNode(actualExpensesInput));
+            const rawActualExpensesValue = String(actualExpensesInput?.value || '').trim();
             const caAmount = parseFloat(caAmountInput?.value || '0') || 0;
             const manualActualExpenses = parseFloat(actualExpensesInput?.value || '0');
             const hasMeaningfulRows = rows.some((row) => Array.from(row.querySelectorAll('[data-pr-line-item-field]')).some((input) => {
@@ -8966,7 +9218,7 @@
             financeFormValues['data[grand_total]'] = financeFormValues.grand_total;
             financeFormValues.line_items_total = grandTotal.toFixed(2);
             financeFormValues['data[line_items_total]'] = financeFormValues.line_items_total;
-            financeFormValues.actual_expenses = actualExpenses.toFixed(2);
+            financeFormValues.actual_expenses = isEditingActualExpenses ? rawActualExpensesValue : actualExpenses.toFixed(2);
             financeFormValues['data[actual_expenses]'] = financeFormValues.actual_expenses;
             financeFormValues.variance = variance.toFixed(2);
             financeFormValues['data[variance]'] = financeFormValues.variance;
@@ -10161,7 +10413,15 @@
                         ['department', departmentValue],
                         ['superior', superiorValue],
                         ['superior_email', superiorEmailValue],
+                        ['subtotal', values.subtotal || values.actual_expenses || '0.00'],
+                        ['discount_total', values.discount_total || '0.00'],
+                        ['tax_total', values.tax_total || '0.00'],
+                        ['shipping_total', values.shipping_total || '0.00'],
+                        ['wht_total', values.wht_total || '0.00'],
+                        ['grand_total', values.grand_total || values.actual_expenses || '0.00'],
                         ['line_items_total', lineItemsTotal],
+                        ['variance', values.variance || '0.00'],
+                        ['variance_indicator', values.variance_indicator || 'Balanced'],
                     ].map(([name, value]) => `
                         <input type="hidden" name="data[${name}]" value="${escapeHtml(value || '')}">
                     `).join('')}
@@ -10216,17 +10476,6 @@
 
                 return `
                     ${renderLinkedLiquidationBranchPanel(linkedLrRecord, 'err', values)}
-                    <div class="md:col-span-2 rounded-xl border border-amber-200 bg-amber-50/60 p-4">
-                        <div class="flex flex-wrap items-start justify-between gap-3">
-                            <div>
-                                <h4 class="text-sm font-semibold uppercase tracking-[0.24em] text-amber-800">Test Helper</h4>
-                                <p class="mt-2 text-xs text-gray-600">Load sample pre-ERR shortage data to test the ERR create flow without needing a live shortage LR.</p>
-                            </div>
-                            <button type="button" onclick="window.financeModule.loadErrTestDraft()" class="rounded-lg border border-amber-300 bg-white px-4 py-2 text-sm font-medium text-amber-800 hover:bg-amber-100">
-                                Load Sample Pre-ERR Data
-                            </button>
-                        </div>
-                    </div>
                     <div class="md:col-span-2 rounded-xl border border-blue-100 bg-blue-50/40 p-4">
                         <h4 class="text-sm font-semibold uppercase tracking-[0.24em] text-blue-700">Reimbursement Details</h4>
                         <p class="mt-2 text-xs text-gray-500">Choose Own Request to auto-fill your account details, or Request for Another to enter someone else&apos;s information.</p>
@@ -10561,6 +10810,8 @@
                     [textField('disbursement_status', 'Disbursement Status', { readOnly: true }), disbursementStatusValue],
                     [numberField('projected_balance_after_payment', 'Projected Balance After Payment', { readOnly: true }), values.projected_balance_after_payment],
                 ], 'snapshot');
+                const bankAccountRequired = effectivePaymentTypeValue === 'Check'
+                    || ['po', 'ca', 'pda', 'ibtf'].includes(String(resolvedSourceTypeValue || '').trim().toLowerCase());
                 const voucherFieldHtml = renderDvFieldList([
                     [textField('payee_type', 'Payee Type', { readOnly: true }), payeeTypeValue],
                     [textField('payee_name', 'Payee', { readOnly: true }), payeeNameValue],
@@ -10568,7 +10819,7 @@
                     [numberField('amount', 'Amount'), effectiveAmountValue],
                     [textField('payment_type', 'Payment Type', { readOnly: true }), effectivePaymentTypeValue],
                     [textField('disbursement_type', 'Disbursement Type', { readOnly: true }), effectiveDisbursementTypeValue],
-                    [selectField('bank_account_id', 'Bank Account', { source: 'bank_account', required: true }), effectiveBankAccountValue],
+                    [selectField('bank_account_id', 'Bank Account', { source: 'bank_account', required: bankAccountRequired }), effectiveBankAccountValue],
                     [textField('coa_id', 'Account', { readOnly: true }), effectiveCoaValue],
                     [textField('fund_source', 'Fund Source / Project', { readOnly: true }), effectiveFundSourceValue],
                     [textField('department', 'Department', { readOnly: true }), effectiveDepartmentValue],
@@ -11111,6 +11362,22 @@
             }
 
             formValues[key] = value;
+        });
+        Object.entries(financeFormValues || {}).forEach(([key, value]) => {
+            if (value === undefined || value === null) {
+                return;
+            }
+
+            const directKey = String(key);
+            const dataKey = directKey.startsWith('data[') ? directKey : `data[${directKey}]`;
+
+            if (!Object.prototype.hasOwnProperty.call(formValues, directKey) || blank(formValues[directKey])) {
+                formValues[directKey] = value;
+            }
+
+            if (!Object.prototype.hasOwnProperty.call(formValues, dataKey) || blank(formValues[dataKey])) {
+                formValues[dataKey] = value;
+            }
         });
         const recordNumber = $('recordNumberInput').value.trim();
         const recordDate = $('recordDateInput').value;
@@ -11976,7 +12243,7 @@
                 normalizedSourceType,
                 'snapshot'
             ));
-            const voucherPairs = [
+            const voucherDetailPairs = [
                 ['Linked Source Document Type', normalizedSourceType ? String(normalizedSourceType).toUpperCase() : 'Not filled yet'],
                 ['Linked Source Document', sourceDocumentLabel],
                 ['Payee Type', fieldValue('payee_type')],
@@ -11985,22 +12252,7 @@
                 ['Amount', fieldValue('amount', '0.00')],
                 ['Payment Type', fieldValue('payment_type')],
                 ['Disbursement Type', fieldValue('disbursement_type')],
-                ['Bank Account', displayLookup('bank_account', formValues['data[bank_account_id]'])],
-                ['Account', displayLookup('chart_account', formValues['data[coa_id]'])],
-                ['Fund Source / Project', fieldValue('fund_source')],
-                ['Department', fieldValue('department')],
-                ['Reference Number', fieldValue('reference_number')],
-                ['Purpose', fieldValue('purpose')],
                 ['Payment Date', fieldValue('payment_date')],
-                ['Due Date', fieldValue('due_date')],
-                ['Withholding Tax (EWT)', fieldValue('withholding_tax', '0.00')],
-                ['VAT', fieldValue('vat_amount', '0.00')],
-                ['Net Amount', fieldValue('net_amount', '0.00')],
-                ['Currency', fieldValue('currency', 'PHP')],
-                ['Exchange Rate', fieldValue('exchange_rate', '1.00')],
-                ['Received By', fieldValue('received_by_name')],
-                ['Date Received', fieldValue('date_received')],
-                ['Remarks', fieldValue('remarks')],
             ].filter(([label, value]) => shouldRenderDvField(
                 ({
                     'Linked Source Document Type': 'source_document_type',
@@ -12011,14 +12263,46 @@
                     'Amount': 'amount',
                     'Payment Type': 'payment_type',
                     'Disbursement Type': 'disbursement_type',
+                    'Payment Date': 'payment_date',
+                })[label],
+                value,
+                normalizedSourceType,
+                'voucher'
+            ));
+            const fundingNotePairs = [
+                ['Bank Account', displayLookup('bank_account', formValues['data[bank_account_id]'])],
+                ['Account', displayLookup('chart_account', formValues['data[coa_id]'])],
+                ['Fund Source / Project', fieldValue('fund_source')],
+                ['Department', fieldValue('department')],
+                ['Reference Number', fieldValue('reference_number')],
+                ['Purpose', fieldValue('purpose')],
+                ['Due Date', fieldValue('due_date')],
+                ['Remarks', fieldValue('remarks')],
+            ].filter(([label, value]) => shouldRenderDvField(
+                ({
                     'Bank Account': 'bank_account_id',
                     'Account': 'coa_id',
                     'Fund Source / Project': 'fund_source',
                     'Department': 'department',
                     'Reference Number': 'reference_number',
                     'Purpose': 'purpose',
-                    'Payment Date': 'payment_date',
                     'Due Date': 'due_date',
+                    'Remarks': 'remarks',
+                })[label],
+                value,
+                normalizedSourceType,
+                'voucher'
+            ));
+            const taxReceiptPairs = [
+                ['Withholding Tax (EWT)', fieldValue('withholding_tax', '0.00')],
+                ['VAT', fieldValue('vat_amount', '0.00')],
+                ['Net Amount', fieldValue('net_amount', '0.00')],
+                ['Currency', fieldValue('currency', 'PHP')],
+                ['Exchange Rate', fieldValue('exchange_rate', '1.00')],
+                ['Received By', fieldValue('received_by_name')],
+                ['Date Received', fieldValue('date_received')],
+            ].filter(([label, value]) => shouldRenderDvField(
+                ({
                     'Withholding Tax (EWT)': 'withholding_tax',
                     'VAT': 'vat_amount',
                     'Net Amount': 'net_amount',
@@ -12026,11 +12310,10 @@
                     'Exchange Rate': 'exchange_rate',
                     'Received By': 'received_by_name',
                     'Date Received': 'date_received',
-                    'Remarks': 'remarks',
                 })[label],
                 value,
                 normalizedSourceType,
-                ['Withholding Tax (EWT)', 'VAT', 'Net Amount', 'Currency', 'Exchange Rate', 'Received By', 'Date Received'].includes(label) ? 'tax' : 'voucher'
+                'tax'
             ));
             const renderPairGrid = (pairs) => `
                 <div class="grid grid-cols-1 md:grid-cols-2">
@@ -12213,8 +12496,24 @@
                             <div class="bg-gray-50 px-4 py-2 border-b border-gray-300">
                                 <h4 class="text-[12px] font-semibold uppercase tracking-[0.26em] text-gray-700">Voucher Details</h4>
                             </div>
-                            ${renderPairGrid(voucherPairs)}
+                            ${renderPairGrid(voucherDetailPairs)}
                         </div>
+
+                        <div class="relative border-t border-gray-300">
+                            <div class="bg-gray-50 px-4 py-2 border-b border-gray-300">
+                                <h4 class="text-[12px] font-semibold uppercase tracking-[0.26em] text-gray-700">Funding & Notes</h4>
+                            </div>
+                            ${renderPairGrid(fundingNotePairs)}
+                        </div>
+
+                        ${taxReceiptPairs.length ? `
+                            <div class="relative border-t border-gray-300">
+                                <div class="bg-gray-50 px-4 py-2 border-b border-gray-300">
+                                    <h4 class="text-[12px] font-semibold uppercase tracking-[0.26em] text-gray-700">Tax & Receipt</h4>
+                                </div>
+                                ${renderPairGrid(taxReceiptPairs)}
+                            </div>
+                        ` : ''}
 
                         ${renderDvDrawerBreakdown()}
                     </div>
@@ -12474,6 +12773,18 @@
 
         if (!resolvedSourceRecord) return;
 
+        const sourceModuleKey = String(resolvedSourceRecord.module_key || '').trim().toLowerCase();
+        const sourceDocumentType = String(resolvedSourceRecord.data?.source_document_type || '').trim().toLowerCase();
+        if (sourceModuleKey === 'dv' && sourceDocumentType !== 'po') {
+            showFinanceToast('Asset / Inventory records can only be created from a Purchase Order or a PO-based DV.', 'warning');
+            return;
+        }
+
+        if (!['po', 'dv'].includes(sourceModuleKey)) {
+            showFinanceToast('Asset / Inventory records can only be created from a Purchase Order or a PO-based DV.', 'warning');
+            return;
+        }
+
         const sourceData = resolvedSourceRecord.data || {};
         const linkedPoRecord = sourceData.linked_po_id ? (getRecordById(sourceData.linked_po_id) || getRecordByLookupValue('po', sourceData.linked_po_id)) : null;
         const linkedDvRecord = sourceData.linked_dv_id ? (getRecordById(sourceData.linked_dv_id) || getRecordByLookupValue('dv', sourceData.linked_dv_id)) : null;
@@ -12640,53 +12951,56 @@
             || sourceRecord.user
             || bootstrap.currentUserName
             || '';
-        const setField = (name, value) => {
-            const input = form.querySelector(`[name="data[${name}]"]`);
-            if (input && input.type !== 'hidden') {
-                input.value = value ?? '';
-            } else if (input) {
-                input.value = value ?? '';
-            }
-
-            financeFormValues = financeFormValues || {};
-            financeFormValues[name] = value ?? '';
-            financeFormValues[`data[${name}]`] = value ?? '';
-        };
-
         financeFormValues = financeFormValues || {};
         const totalCashAdvance = parseFloat(sourceRecord.amount || sourceData.amount_requested || sourceData.total_cash_advance || '0') || 0;
         const initialActualExpenses = parseFloat(sourceData.actual_expenses || sourceData.grand_total || totalCashAdvance) || 0;
         const initialVariance = totalCashAdvance - initialActualExpenses;
         const initialVarianceIndicator = initialVariance > 0 ? 'Overage' : (initialVariance < 0 ? 'Shortage' : 'Balanced');
-        setField('total_cash_advance', sourceRecord.amount || sourceData.amount_requested || '');
-        setField('requester_mode', requesterMode);
-        setField('requester_employee_id', sourceData.requester_employee_id || requesterDefaults.requester_employee_id || '');
-        setField('requestor', requesterName);
-        setField('purpose', sourceData.purpose || sourceData.justification || '');
-        setField('employee_id', sourceData.employee_id || requesterDefaults.employee_id || '');
-        setField('employee_name', sourceData.employee_name || requesterName);
-        setField('employee_email', sourceData.employee_email || requesterDefaults.employee_email || '');
-        setField('contact_number', sourceData.contact_number || requesterDefaults.contact_number || '');
-        setField('position', sourceData.position || requesterDefaults.position || '');
-        setField('department', sourceData.department || requesterDefaults.department || '');
-        setField('superior', sourceData.superior || requesterDefaults.superior || '');
-        setField('superior_email', sourceData.superior_email || requesterDefaults.superior_email || '');
-        setField('for_client', sourceData.for_client || 'N/A');
-        setField('client_names', sourceData.client_names || '');
-        setField('coa_id', sourceData.coa_id || '');
-        setField('linked_dv_id', sourceData.linked_dv_id || '');
-        setField('actual_expenses', initialActualExpenses.toFixed(2));
-        setField('subtotal', initialActualExpenses.toFixed(2));
-        setField('discount_total', '0.00');
-        setField('tax_total', '0.00');
-        setField('shipping_total', '0.00');
-        setField('wht_total', '0.00');
-        setField('grand_total', initialActualExpenses.toFixed(2));
-        setField('variance', initialVariance.toFixed(2));
-        setField('variance_indicator', initialVarianceIndicator);
+        const fetchedValues = {
+            linked_ca_id: sourceId,
+            total_cash_advance: sourceRecord.amount || sourceData.amount_requested || '',
+            requester_mode: requesterMode,
+            requester_employee_id: sourceData.requester_employee_id || requesterDefaults.requester_employee_id || '',
+            requestor: requesterName,
+            purpose: sourceData.purpose || sourceData.justification || '',
+            employee_id: sourceData.employee_id || requesterDefaults.employee_id || '',
+            employee_name: sourceData.employee_name || requesterName,
+            employee_email: sourceData.employee_email || requesterDefaults.employee_email || '',
+            contact_number: sourceData.contact_number || requesterDefaults.contact_number || '',
+            position: sourceData.position || requesterDefaults.position || '',
+            department: sourceData.department || requesterDefaults.department || '',
+            superior: sourceData.superior || requesterDefaults.superior || '',
+            superior_email: sourceData.superior_email || requesterDefaults.superior_email || '',
+            for_client: sourceData.for_client || 'N/A',
+            client_names: sourceData.client_names || '',
+            coa_id: sourceData.coa_id || '',
+            linked_dv_id: sourceData.linked_dv_id || '',
+            actual_expenses: initialActualExpenses.toFixed(2),
+            subtotal: initialActualExpenses.toFixed(2),
+            discount_total: '0.00',
+            tax_total: '0.00',
+            shipping_total: '0.00',
+            wht_total: '0.00',
+            grand_total: initialActualExpenses.toFixed(2),
+            variance: initialVariance.toFixed(2),
+            variance_indicator: initialVarianceIndicator,
+        };
 
-        financeDraftContext = null;
+        Object.entries(fetchedValues).forEach(([name, value]) => {
+            financeFormValues[name] = value ?? '';
+            financeFormValues[`data[${name}]`] = value ?? '';
+        });
+
+        financeDraftContext = {
+            moduleKey: 'lr',
+            linkedRecord: sourceRecord,
+            prefill: {
+                ...(financeDraftContext?.moduleKey === 'lr' ? financeDraftContext.prefill || {} : {}),
+                ...fetchedValues,
+            },
+        };
         pendingLiquidationBranchDraft = null;
+        renderFinanceForm(currentEditRecordId ? getRecordById(currentEditRecordId) : null);
         updatePrTotals();
         renderDrawerPreview();
         showFinanceToast('CA details loaded. Shortage or overage will be calculated from this liquidation report.', 'success');
@@ -13688,12 +14002,14 @@
                 : `/finance/${record.id}/preview-pdf?t=${previewCacheKey}`);
         const previewFooterHtml = !templateMode && currentPreviewTab === 'details' ? `
             <div class="mt-4 space-y-4">
+                ${record.module_key === 'pda' ? renderPdaExpandedPreviewDetails(record) : ''}
                 ${renderFinanceNotesCard(record, { context: 'details' })}
                 ${renderAuditControlCallout(record)}
             </div>
         ` : '';
         const templateFooterHtml = templateMode ? `
             <div class="mt-4 space-y-4">
+                ${record.module_key === 'pda' ? renderPdaExpandedPreviewDetails(record) : ''}
                 ${renderFinanceNotesCard(record, { context: 'template' })}
             </div>
         ` : '';
@@ -13706,7 +14022,6 @@
                 `
                 : (record.module_key === 'dv' ? renderDvTemplatePoItemsFooter(record) : ''))
             : '';
-
         $('previewDocument').innerHTML = `
             <div class="mx-auto w-full max-w-[100%] overflow-hidden">
                 <div class="rounded-[24px] border border-gray-200 bg-slate-100 p-4">
@@ -14077,6 +14392,34 @@
             }
         }
 
+        if (record.module_key === 'lr' && !isFinalWorkflow) {
+            const data = record.data || {};
+            const caAmount = numericAmount(data.total_cash_advance || data.amount_requested || record.amount || 0);
+            const lineItems = Array.isArray(data.line_items) ? data.line_items.filter((item) => item && Object.values(item).some((value) => String(value ?? '').trim() !== '')) : [];
+            const lineItemsTotal = lineItems.reduce((sum, item) => {
+                const quantity = numericAmount(item.quantity || 0);
+                const amount = numericAmount(item.amount || 0);
+                const rowSubtotal = quantity * amount;
+                const discountPercent = parseFloat(String(item.discount || '0').replace('%', '')) || 0;
+                const manualDiscount = numericAmount(item.discount_amount || 0);
+                const discountAmount = discountPercent > 0 ? rowSubtotal * (discountPercent / 100) : manualDiscount;
+                const shippingAmount = numericAmount(item.shipping_amount || 0);
+                const taxAmount = numericAmount(item.tax_amount || 0);
+                const whtAmount = numericAmount(item.wht_amount || 0);
+                return sum + rowSubtotal - discountAmount + shippingAmount + taxAmount - whtAmount;
+            }, 0);
+            const actualExpenses = lineItemsTotal > 0
+                ? lineItemsTotal
+                : numericAmount(data.actual_expenses || data.grand_total || caAmount || 0);
+            const effectiveActualExpenses = lineItemsTotal <= 0 && actualExpenses <= 0 && caAmount > 0 ? caAmount : actualExpenses;
+            const variance = caAmount - effectiveActualExpenses;
+            const varianceIndicator = variance > 0 ? 'Overage' : (variance < 0 ? 'Shortage' : 'Balanced');
+
+            if (varianceIndicator === 'Shortage' || varianceIndicator === 'Overage') {
+                actions.push(`<button type="button" onclick="window.financeModule.openPreviewLiquidationBranch(${record.id})" class="w-full bg-indigo-600 text-white rounded-md py-2 hover:bg-indigo-700">${varianceIndicator === 'Shortage' ? 'Create ERR' : 'Create CRF'}</button>`);
+            }
+        }
+
         if (record.can_submit) {
             actions.push(`<button type="button" onclick="window.financeModule.submitFinanceRecord(${record.id})" class="w-full bg-blue-600 text-white rounded-md py-2 hover:bg-blue-700">Submit for Review</button>`);
         }
@@ -14104,12 +14447,13 @@
 
         const disbursementButtonStatus = String(record?.data?.next_action || record?.next_action || '').trim();
         const disbursementRelationshipStatus = String(record?.relationship_status || record?.data?.relationship_status || '').trim();
+        const linkedDisbursementVoucherId = record?.linked_dv_id || record?.data?.linked_dv_id || '';
         const showCreateDisbursementVoucher = ['po', 'err', 'pda', 'ibtf'].includes(record.module_key)
             && !isFinalWorkflow
+            && !linkedDisbursementVoucherId
             && (
                 disbursementButtonStatus === 'Create Disbursement Voucher'
-                || matchesAny(disbursementRelationshipStatus.toLowerCase(), ['awaiting disbursement voucher', 'awaiting disbursement', 'pending disbursement', 'approved for payment', 'partially disbursed'])
-                || isApprovedWorkflow
+                || matchesAny(disbursementRelationshipStatus.toLowerCase(), ['awaiting disbursement voucher', 'awaiting disbursement', 'partially disbursed'])
             );
 
         if (showCreateDisbursementVoucher) {
@@ -14605,6 +14949,23 @@
         }
         formData.set('module_key', currentModuleKey);
         formData.set('data[completion_mode]', sendToSupplier ? 'send_to_supplier' : 'complete_internally');
+        if (currentModuleKey === 'lr') {
+            const liquidationDerivedFields = {
+                'data[subtotal]': financeFormValues['data[subtotal]'] || financeFormValues.subtotal || formData.get('data[actual_expenses]') || '0.00',
+                'data[discount_total]': financeFormValues['data[discount_total]'] || financeFormValues.discount_total || '0.00',
+                'data[tax_total]': financeFormValues['data[tax_total]'] || financeFormValues.tax_total || '0.00',
+                'data[shipping_total]': financeFormValues['data[shipping_total]'] || financeFormValues.shipping_total || '0.00',
+                'data[wht_total]': financeFormValues['data[wht_total]'] || financeFormValues.wht_total || '0.00',
+                'data[grand_total]': financeFormValues['data[grand_total]'] || financeFormValues.grand_total || formData.get('data[actual_expenses]') || '0.00',
+                'data[line_items_total]': financeFormValues['data[line_items_total]'] || financeFormValues.line_items_total || '0.00',
+                'data[variance]': financeFormValues['data[variance]'] || financeFormValues.variance || '0.00',
+                'data[variance_indicator]': financeFormValues['data[variance_indicator]'] || financeFormValues.variance_indicator || 'Balanced',
+            };
+
+            Object.entries(liquidationDerivedFields).forEach(([key, value]) => {
+                formData.set(key, value);
+            });
+        }
 
         if (sendToSupplier && currentModuleKey === 'supplier') {
             const supplierEmail = String(formData.get('data[email_address]') || '').trim();
@@ -15324,6 +15685,7 @@
         saveDropdownSettings,
         fetchLiquidationSource,
         openPendingLiquidationBranch,
+        openPreviewLiquidationBranch,
         dismissPendingLiquidationBranch,
         openLookupSelector,
         closeLookupSelector,
@@ -15355,7 +15717,6 @@
         openFinanceNoteDialog,
         closeFinanceNoteDialog,
         submitFinanceNoteDialog,
-        loadErrTestDraft,
         revertFinanceRecord,
         archiveFinanceRecord,
         requestDeleteFinanceRecord,

@@ -1442,11 +1442,21 @@
                         <tr>
                             <td>
                                 <div class="detail-label">Requester Option</div>
-                                <div class="detail-value">{{ data_get($record->data, 'requester_mode') === 'own_request' ? 'Own Request' : (data_get($record->data, 'requester_mode') === 'request_for_another' ? 'Request for Another' : 'N/A') }}</div>
+                                <div class="detail-value">{{ data_get($linkedLiquidationContext, 'requester_mode') === 'own_request' ? 'Own Request' : (data_get($linkedLiquidationContext, 'requester_mode') === 'request_for_another' ? 'Request for Another' : 'N/A') }}</div>
                             </td>
                             <td>
                                 <div class="detail-label">Requestor</div>
-                                <div class="detail-value">{{ data_get($record->data, 'requestor') ?: 'N/A' }}</div>
+                                <div class="detail-value">{{ data_get($linkedLiquidationContext, 'requestor') ?: 'N/A' }}</div>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <div class="detail-label">Linked LR</div>
+                                <div class="detail-value">{{ data_get($linkedLiquidationContext, 'linked_lr_label') ?: 'N/A' }}</div>
+                            </td>
+                            <td>
+                                <div class="detail-label">{{ $record->module_key === 'err' ? 'Amount' : 'Amount Returned' }}</div>
+                                <div class="detail-value">{{ data_get($linkedLiquidationContext, 'amount') ?: '0.00' }}</div>
                             </td>
                         </tr>
                     </table>
