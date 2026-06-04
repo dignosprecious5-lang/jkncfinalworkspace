@@ -793,10 +793,6 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
 
     // Kept only for old/static view reference; main /corporate/lgu route is handled by PermitController below.
     Route::view('/corporate/lgu-static', 'corporate.lgu')->name('corporate.lgu.static');
-    Route::view('/corporate/accounting', 'corporate.accounting')->name('corporate.accounting');
-    Route::view('/corporate/banking', 'corporate.banking')->name('corporate.banking');
-    Route::view('/corporate/legal', 'corporate.legal')->name('corporate.legal');
-    Route::view('/corporate/operations', 'corporate.operations')->name('corporate.operations');
     /*
     |--------------------------------------------------------------------------
     | CORPORATE CORRESPONDENCE MODULE
@@ -984,6 +980,19 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::put('/permits/{id}/update', [PermitController::class, 'update'])->name('permits.update');
     Route::post('/permits/{id}/upload-document', [PermitController::class, 'uploadDocument'])->name('permits.upload.document');
     Route::post('/permits/{id}/submit', [PermitController::class, 'submit'])->name('permits.submit');
+
+    /*
+    |--------------------------------------------------------------------------
+    | CORPORATE SIDE NAV ROUTES
+    |--------------------------------------------------------------------------
+    | These named routes are used by layouts/app.blade.php.
+    | Keep them defined so opening any Corporate page will not crash with:
+    | Route [corporate.accounting] not defined.
+    */
+    Route::view('/corporate/accounting', 'corporate.accounting')->name('corporate.accounting');
+    Route::view('/corporate/banking', 'corporate.banking')->name('corporate.banking');
+    Route::view('/corporate/legal', 'corporate.legal')->name('corporate.legal');
+    Route::view('/corporate/operations', 'corporate.operations')->name('corporate.operations');
 
     /*
     |--------------------------------------------------------------------------
