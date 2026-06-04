@@ -44,6 +44,10 @@
                                     <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;">{{ $correspondence->subject ?? 'N/A' }}</td>
                                 </tr>
                                 <tr>
+                                    <td style="padding:10px 12px;background:#f9fafb;border-bottom:1px solid #e5e7eb;font-weight:bold;">Approval Step</td>
+                                    <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;">{{ $level ?? 'Approval' }}</td>
+                                </tr>
+                                <tr>
                                     <td style="padding:10px 12px;background:#f9fafb;border-bottom:1px solid #e5e7eb;font-weight:bold;">From</td>
                                     <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;">{{ $correspondence->from_name ?? 'N/A' }}</td>
                                 </tr>
