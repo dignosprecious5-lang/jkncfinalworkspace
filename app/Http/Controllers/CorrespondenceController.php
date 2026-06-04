@@ -430,7 +430,7 @@ class CorrespondenceController extends Controller
     private function activeEmployeeApprovers()
     {
         if (class_exists(Employee::class) && Schema::hasTable((new Employee())->getTable())) {
-            return Employee::query()
+            return Employee::query()->with('user')
                 ->orderBy('id')
                 ->get()
                 ->map(fn($employee) => $this->formatEmployeeApprover($employee))
@@ -450,6 +450,55 @@ class CorrespondenceController extends Controller
                 'position' => $user->role ?: 'Management',
                 'department' => 'Management',
             ]);
+    }
+
+
+
+    private function readableEmailValue($value): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        if (is_string($value)) {
+            $decoded = json_decode($value, true);
+
+            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                foreach (['work_email', 'company_email', 'email', 'personal_email', 'official_email'] as $key) {
+                    if (!empty($decoded[$key]) && filter_var($decoded[$key], FILTER_VALIDATE_EMAIL)) {
+                        return $decoded[$key];
+                    }
+                }
+
+                return null;
+            }
+
+            return filter_var($value, FILTER_VALIDATE_EMAIL) ? $value : null;
+        }
+
+        if (is_array($value)) {
+            foreach (['work_email', 'company_email', 'email', 'personal_email', 'official_email'] as $key) {
+                if (!empty($value[$key]) && filter_var($value[$key], FILTER_VALIDATE_EMAIL)) {
+                    return $value[$key];
+                }
+            }
+
+            return null;
+        }
+
+        if (is_object($value)) {
+            foreach (['work_email', 'company_email', 'email', 'personal_email', 'official_email'] as $key) {
+                if (isset($value->{$key}) && filter_var($value->{$key}, FILTER_VALIDATE_EMAIL)) {
+                    return $value->{$key};
+                }
+            }
+
+            if (isset($value->user) && is_object($value->user) && isset($value->user->email) && filter_var($value->user->email, FILTER_VALIDATE_EMAIL)) {
+                return $value->user->email;
+            }
+        }
+
+        return null;
     }
 
 
@@ -626,7 +675,7 @@ class CorrespondenceController extends Controller
             'id' => $employee->id,
             'user_id' => $employee->user_id ?? null,
             'name' => $name,
-            'email' => $employee->email ?? null,
+            'email' => $this->readableEmailValue($employee),
             'position' => $position,
             'department' => $department,
         ];
@@ -713,7 +762,7 @@ class CorrespondenceController extends Controller
             'id' => $officer->id,
             'user_id' => null,
             'name' => $officer->officer_name ?: 'Unnamed Officer',
-            'email' => $officer->email ?? null,
+            'email' => $this->readableEmailValue($officer),
             'position' => $position,
             // LEVEL 2 is from GIS Directors/Officers, so this intentionally uses Office of the.
             'department' => 'Office of the ' . $position,
