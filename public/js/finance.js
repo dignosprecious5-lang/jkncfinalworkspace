@@ -3528,10 +3528,48 @@
         return linkedRecords[0] || null;
     }
 
+    function getLiquidationBranchMetrics(linkedLrRecord) {
+        const data = linkedLrRecord?.data || {};
+        const linkedCaRecord = data.linked_ca_id ? (getRecordById(data.linked_ca_id) || getRecordByLookupValue('ca', data.linked_ca_id)) : null;
+        const linkedCaData = linkedCaRecord?.data || {};
+        const lineItems = Array.isArray(data.line_items) ? data.line_items.filter((item) => item && Object.values(item).some((value) => String(value ?? '').trim() !== '')) : [];
+        const lineItemsTotal = lineItems.reduce((sum, item) => {
+            const quantity = numericAmount(item.quantity || 0);
+            const amount = numericAmount(item.amount || 0);
+            const rowSubtotal = quantity * amount;
+            const discountPercent = parseFloat(String(item.discount || '0').replace('%', '')) || 0;
+            const manualDiscount = numericAmount(item.discount_amount || 0);
+            const discountAmount = discountPercent > 0 ? rowSubtotal * (discountPercent / 100) : manualDiscount;
+            const shippingAmount = numericAmount(item.shipping_amount || 0);
+            const taxAmount = numericAmount(item.tax_amount || 0);
+            const whtAmount = numericAmount(item.wht_amount || 0);
+            return sum + rowSubtotal - discountAmount + shippingAmount + taxAmount - whtAmount;
+        }, 0);
+        const totalCashAdvance = numericAmount(data.total_cash_advance || data.amount_requested || linkedLrRecord?.amount || linkedCaRecord?.amount || linkedCaData.amount_requested || 0);
+        const actualExpenses = lineItemsTotal > 0
+            ? lineItemsTotal
+            : numericAmount(data.actual_expenses || data.grand_total || totalCashAdvance || 0);
+        const effectiveActualExpenses = lineItemsTotal <= 0 && actualExpenses <= 0 && totalCashAdvance > 0
+            ? totalCashAdvance
+            : actualExpenses;
+        const variance = totalCashAdvance - effectiveActualExpenses;
+        const indicator = variance > 0 ? 'Overage' : (variance < 0 ? 'Shortage' : 'Balanced');
+
+        return {
+            linkedCaRecord,
+            linkedCaData,
+            lineItemsTotal,
+            totalCashAdvance,
+            actualExpenses: effectiveActualExpenses,
+            variance,
+            indicator,
+        };
+    }
+
     function buildLiquidationBranchDraft(linkedLrRecord) {
-        const variance = parseFloat(linkedLrRecord?.data?.variance || '0') || 0;
+        const metrics = getLiquidationBranchMetrics(linkedLrRecord);
         const linkedLrData = linkedLrRecord?.data || {};
-        const linkedCaLabel = getLookupLabel('ca', linkedLrRecord?.data?.linked_ca_id) || linkedLrRecord?.data?.linked_ca_id || 'N/A';
+        const linkedCaLabel = getLookupLabel('ca', linkedLrData.linked_ca_id) || linkedLrData.linked_ca_id || 'N/A';
         const detailsText = Array.isArray(linkedLrRecord?.data?.line_items) && linkedLrRecord.data.line_items.length
             ? linkedLrRecord.data.line_items
                 .map((item) => [item.item_id, item.description, item.category].filter(Boolean).join(' - '))
@@ -3551,8 +3589,8 @@
             superior_email: linkedLrData.superior_email || '',
         };
 
-        if (variance < 0) {
-            const amount = Math.abs(variance).toFixed(2);
+        if (metrics.indicator === 'Shortage') {
+            const amount = Math.abs(metrics.variance).toFixed(2);
             return {
                 moduleKey: 'err',
                 linkedRecord: linkedLrRecord,
@@ -3570,8 +3608,8 @@
             };
         }
 
-        if (variance > 0) {
-            const amount = Math.abs(variance).toFixed(2);
+        if (metrics.indicator === 'Overage') {
+            const amount = Math.abs(metrics.variance).toFixed(2);
             return {
                 moduleKey: 'crf',
                 linkedRecord: linkedLrRecord,
@@ -3595,7 +3633,8 @@
     function getLinkedLiquidationRecord(linkedLrId, expectedIndicator = '') {
         const record = getRecordById(linkedLrId) || getRecordByLookupValue('lr', linkedLrId);
         if (!record || record.module_key !== 'lr') return null;
-        if (expectedIndicator && String(record.data?.variance_indicator || '') !== expectedIndicator) return null;
+        const metrics = getLiquidationBranchMetrics(record);
+        if (expectedIndicator && metrics.indicator !== expectedIndicator) return null;
         return record;
     }
 
@@ -3608,8 +3647,8 @@
     function renderLinkedLiquidationBranchPanel(linkedLrRecord, moduleKey, values = {}) {
         if (!linkedLrRecord) return '';
 
-        const variance = (numericAmount(linkedLrRecord?.data?.total_cash_advance || 0) - numericAmount(linkedLrRecord?.data?.actual_expenses || 0)).toFixed(2);
-        const statusMeta = getLiquidationStatusMeta(variance);
+        const metrics = getLiquidationBranchMetrics(linkedLrRecord);
+        const statusMeta = getLiquidationStatusMeta(metrics.variance);
         const indicator = statusMeta.label;
         const isShortage = statusMeta.indicator === 'Shortage';
         const borderClass = isShortage ? 'border-red-100 bg-red-50/40' : 'border-emerald-100 bg-emerald-50/40';
@@ -3630,7 +3669,6 @@
                 </div>
                 <div class="mt-4 space-y-4">
                     ${renderLiquidationReportSection(linkedLrRecord, values)}
-                    ${renderLiquidationPreviewTable(linkedLrRecord)}
                     ${renderLiquidationPreviewSummary(linkedLrRecord)}
                 </div>
             </div>
@@ -3711,6 +3749,47 @@
         document.querySelector('[data-pending-liquidation-panel]')?.remove();
         renderDrawerPreview();
         showFinanceToast('Staying on the liquidation report.', 'info');
+    }
+
+    function loadErrTestDraft() {
+        const sampleRecord = {
+            id: 'err-test-lr',
+            record_number: 'LR-TEST-SHORTAGE',
+            record_title: 'Sample Shortage LR',
+            data: {
+                linked_ca_id: 'ca-test',
+                total_cash_advance: '10000.00',
+                actual_expenses: '11500.00',
+                variance: '-1500.00',
+                variance_indicator: 'Shortage',
+                requester_mode: 'own_request',
+                requestor: bootstrap.currentUserName || 'Test User',
+                employee_id: bootstrap.currentUserId ? `EMP-${bootstrap.currentUserId}` : 'EMP-TEST',
+                employee_name: bootstrap.currentUserName || 'Test User',
+                employee_email: bootstrap.currentUserEmail || '',
+                contact_number: '',
+                position: 'Finance Associate',
+                department: 'Finance',
+                superior: 'Finance Manager',
+                superior_email: '',
+                purpose: 'Test pre-ERR data for shortage workflow',
+                remarks: 'Sample pre-ERR data loaded for testing.',
+                mode_of_release: 'Bank Transfer',
+                bank_account_id: '',
+            },
+        };
+
+        const draft = buildLiquidationBranchDraft(sampleRecord);
+        if (!draft || draft.moduleKey !== 'err') {
+            showFinanceToast('Unable to build test ERR draft.', 'error');
+            return;
+        }
+
+        financeDraftContext = draft;
+        changeModule('err');
+        openFinanceDrawer();
+        renderDrawerPreview();
+        showFinanceToast('Loaded sample pre-ERR data for testing.', 'success');
     }
 
     function getDraftValue(name, record = null) {
@@ -8593,6 +8672,17 @@
         const clientNames = fallbackValues['data[client_names]'] || data.client_names || linkedCaData.client_names || 'N/A';
         const lineItemsTotal = fallbackValues['data[line_items_total]'] || data.line_items_total || '0.00';
         const actualExpenses = fallbackValues['data[actual_expenses]'] || data.actual_expenses || '0.00';
+        const requesterMode = fallbackValues['data[requester_mode]'] || data.requester_mode || 'own_request';
+        const requestor = fallbackValues['data[requestor]'] || data.requestor || 'N/A';
+        const requesterEmployeeId = fallbackValues['data[requester_employee_id]'] || data.requester_employee_id || 'N/A';
+        const employeeId = fallbackValues['data[employee_id]'] || data.employee_id || 'N/A';
+        const employeeName = fallbackValues['data[employee_name]'] || data.employee_name || 'N/A';
+        const employeeEmail = fallbackValues['data[employee_email]'] || data.employee_email || 'N/A';
+        const contactNumber = fallbackValues['data[contact_number]'] || data.contact_number || 'N/A';
+        const position = fallbackValues['data[position]'] || data.position || 'N/A';
+        const department = fallbackValues['data[department]'] || data.department || 'N/A';
+        const superior = fallbackValues['data[superior]'] || data.superior || 'N/A';
+        const superiorEmail = fallbackValues['data[superior_email]'] || data.superior_email || 'N/A';
         const variance = (numericAmount(totalCashAdvance || 0) - numericAmount(actualExpenses || 0)).toFixed(2);
         const statusMeta = getLiquidationStatusMeta(variance);
         const varianceIndicator = statusMeta.label;
@@ -8603,15 +8693,15 @@
                     <div>
                         <p class="text-[11px] uppercase tracking-[0.26em] ${statusMeta.text}">Liquidation Value Statement</p>
                         <p class="mt-1 text-lg font-semibold text-gray-900">${escapeHtml(varianceIndicator)}</p>
-                        <p class="mt-1 text-sm text-gray-700">Built from the slider fields and the current item totals.</p>
+                        <p class="mt-1 text-sm text-gray-700">Built from the CA reference, the liquidation expense total, and the current item totals.</p>
                     </div>
                     <span class="inline-flex rounded-full px-3 py-1 text-xs font-semibold ${statusMeta.badge}">${escapeHtml(statusMeta.label)}</span>
                 </div>
 
-                <div class="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[1.35fr_0.85fr]">
+                <div class="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[1.2fr_0.8fr]">
                     <div class="rounded-xl border border-white/80 bg-white p-4">
                         <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                            <div class="rounded-xl border border-gray-100 bg-slate-50 px-3 py-3">
+                            <div class="rounded-xl border border-gray-100 bg-slate-50 px-3 py-3 sm:col-span-2">
                                 <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">CA Reference No.</p>
                                 <p class="mt-1 text-sm font-semibold text-gray-900 break-words">${escapeHtml(linkedCaLabel)}</p>
                             </div>
@@ -8620,40 +8710,34 @@
                                 <p class="mt-1 text-sm font-semibold text-gray-900">${escapeHtml(formatCurrency(totalCashAdvance))}</p>
                             </div>
                             <div class="rounded-xl border border-gray-100 bg-slate-50 px-3 py-3">
+                                <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">Actual Expenses</p>
+                                <p class="mt-1 text-sm font-semibold text-gray-900">${escapeHtml(formatCurrency(actualExpenses))}</p>
+                            </div>
+                            <div class="rounded-xl border border-gray-100 bg-slate-50 px-3 py-3">
                                 <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">Line Items Total</p>
                                 <p class="mt-1 text-sm font-semibold text-gray-900">${escapeHtml(formatCurrency(lineItemsTotal))}</p>
                             </div>
                             <div class="rounded-xl border border-gray-100 bg-slate-50 px-3 py-3">
-                                <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">For Client?</p>
-                                <p class="mt-1 text-sm font-semibold text-gray-900 break-words">${escapeHtml(forClient)}</p>
+                                <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">Variance</p>
+                                <p class="mt-1 text-sm font-semibold text-gray-900">${escapeHtml(formatCurrency(variance))}</p>
                             </div>
                             <div class="rounded-xl border border-gray-100 bg-slate-50 px-3 py-3 sm:col-span-2">
-                                <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">Client Name(s)</p>
-                                <p class="mt-1 text-sm font-semibold text-gray-900 break-words">${escapeHtml(clientNames)}</p>
-                            </div>
-                            <div class="rounded-xl border border-gray-100 bg-slate-50 px-3 py-3">
-                                <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">Actual Expenses</p>
-                                <p class="mt-1 text-sm font-semibold text-gray-900">${escapeHtml(formatCurrency(actualExpenses))}</p>
-                            </div>
-                        </div>
-
-                        <div class="mt-4 rounded-xl border border-dashed border-blue-200 bg-blue-50/60 px-4 py-4">
-                            <p class="text-[11px] uppercase tracking-[0.24em] text-blue-700">Calculation Band</p>
-                            <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
-                                <div>
-                                    <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">CA Amount</p>
-                                    <p class="mt-1 text-sm font-semibold text-gray-900">${escapeHtml(formatCurrency(totalCashAdvance))}</p>
-                                </div>
-                                <div>
-                                    <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">Less Actual Expenses</p>
-                                    <p class="mt-1 text-sm font-semibold text-gray-900">- ${escapeHtml(formatCurrency(actualExpenses))}</p>
-                                </div>
-                                <div>
-                                    <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">Variance</p>
-                                    <p class="mt-1 text-sm font-semibold text-gray-900">${escapeHtml(formatCurrency(variance))}</p>
+                                <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">Calculation Band</p>
+                                <div class="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                                    <div>
+                                        <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">CA Amount</p>
+                                        <p class="mt-1 text-sm font-semibold text-gray-900">${escapeHtml(formatCurrency(totalCashAdvance))}</p>
+                                    </div>
+                                    <div>
+                                        <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">Less Actual Expenses</p>
+                                        <p class="mt-1 text-sm font-semibold text-gray-900">- ${escapeHtml(formatCurrency(actualExpenses))}</p>
+                                    </div>
+                                    <div>
+                                        <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">Variance</p>
+                                        <p class="mt-1 text-sm font-semibold text-gray-900">${escapeHtml(formatCurrency(variance))}</p>
+                                    </div>
                                 </div>
                             </div>
-                            <p class="mt-3 text-sm font-semibold text-gray-900">Line Items Total = Sum of all item totals</p>
                         </div>
                     </div>
 
@@ -8672,10 +8756,45 @@
                                 <p class="mt-1 text-sm font-medium text-gray-900 break-words">${escapeHtml(fallbackValues['data[purpose]'] || data.purpose || 'N/A')}</p>
                             </div>
                             <div class="rounded-xl border border-gray-100 bg-slate-50 px-3 py-3">
+                                <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">Requested By</p>
+                                <p class="mt-1 text-sm font-medium text-gray-900 break-words">${escapeHtml(requestor)}</p>
+                            </div>
+                            <div class="rounded-xl border border-gray-100 bg-slate-50 px-3 py-3">
                                 <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">Remarks</p>
                                 <p class="mt-1 text-sm font-medium text-gray-900 break-words">${escapeHtml(fallbackValues['data[remarks]'] || data.remarks || 'N/A')}</p>
                             </div>
                         </div>
+                    </div>
+                </div>
+
+                <div class="mt-4 rounded-xl border border-white/80 bg-white p-4">
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                            <p class="text-[11px] uppercase tracking-[0.24em] text-gray-500">Requester & Client Context</p>
+                            <p class="mt-1 text-sm text-gray-600">This is the request-side information that travels with the CA liquidation.</p>
+                        </div>
+                        <div class="rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-xs font-semibold text-gray-600">${escapeHtml(requesterMode === 'request_for_another' ? 'Request for Another' : 'Own Request')}</div>
+                    </div>
+                    <div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                        ${[
+                            ['Requester Option', requesterMode === 'request_for_another' ? 'Request for Another' : 'Own Request'],
+                            ['Requester Employee ID', requesterEmployeeId],
+                            ['Employee ID', employeeId],
+                            ['Employee Name', employeeName],
+                            ['Employee Email', employeeEmail],
+                            ['Contact #', contactNumber],
+                            ['Position', position],
+                            ['Department', department],
+                            ['Superior', superior],
+                            ['Superior Email', superiorEmail],
+                            ['For Client?', forClient],
+                            ['Client Name(s)', clientNames],
+                        ].map(([label, value]) => `
+                            <div class="rounded-xl border border-gray-100 bg-slate-50 px-3 py-3">
+                                <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">${escapeHtml(label)}</p>
+                                <p class="mt-1 text-sm font-semibold text-gray-900 break-words">${escapeHtml(value)}</p>
+                            </div>
+                        `).join('')}
                     </div>
                 </div>
             </div>
@@ -9964,7 +10083,13 @@
 
                 return `
                     <div class="md:col-span-2 rounded-xl border border-blue-100 bg-blue-50/40 p-4">
-                        <h4 class="text-sm font-semibold uppercase tracking-[0.24em] text-blue-700">Liquidation Details</h4>
+                        <div class="flex flex-wrap items-start justify-between gap-3">
+                            <div>
+                                <h4 class="text-sm font-semibold uppercase tracking-[0.24em] text-blue-700">Cash Advance Liquidation</h4>
+                                <p class="mt-2 text-xs text-gray-500">This section is tailored for CA liquidation. The CA reference and the actual expense total drive the status.</p>
+                            </div>
+                            <div class="rounded-full border border-blue-100 bg-white px-3 py-1 text-xs font-semibold text-blue-700">${escapeHtml(hiddenVarianceIndicator || 'Balanced')}</div>
+                        </div>
                         <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div class="md:col-span-2 rounded-lg border border-gray-200 bg-white px-4 py-3">
                                 <p class="text-xs uppercase tracking-[0.24em] text-gray-500">Source</p>
@@ -9986,11 +10111,9 @@
                             <div class="md:col-span-2">
                                 ${renderDynamicField(textareaField('purpose', 'Justification / Business Need', { required: true, fullWidth: true }), purposeValue, values)}
                             </div>
-                            <div>
-                                ${renderDynamicField(textField('for_client', 'For Client?', { readOnly: true }), forClientValue, values)}
-                            </div>
-                            <div>
-                                ${renderDynamicField(textField('client_names', 'Client Name(s)', { readOnly: true }), clientNamesValue, values)}
+                            <div class="md:col-span-2 rounded-lg border border-blue-100 bg-blue-50/50 px-4 py-3">
+                                <p class="text-xs uppercase tracking-[0.24em] text-blue-700">Client Context</p>
+                                <p class="mt-2 text-sm text-gray-700">For Client and Client Name(s) are shown in the report preview below so the CA context stays grouped together.</p>
                             </div>
                         </div>
                     </div>
@@ -10012,7 +10135,7 @@
 
                     <div class="md:col-span-2 rounded-xl border border-gray-200 bg-white p-4">
                         <h4 class="text-sm font-semibold uppercase tracking-[0.24em] text-gray-700">Liquidation Expenses</h4>
-                        <p class="mt-2 text-xs text-gray-500">Enter the total actual expenses for this Cash Advance. Itemized lines are not required.</p>
+                        <p class="mt-2 text-xs text-gray-500">Enter the total actual expenses for this Cash Advance. Itemized lines are optional and can be added later.</p>
                         <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                                 <label class="block text-xs font-semibold uppercase tracking-[0.18em] text-gray-500 mb-1">Actual Expenses</label>
@@ -10021,8 +10144,9 @@
                         </div>
                     </div>
 
-                    <div class="md:col-span-2">
-                        ${renderPrCostSummary(activeRecord)}
+                    <div class="md:col-span-2 rounded-xl border border-blue-100 bg-blue-50/40 p-4">
+                        <h4 class="text-sm font-semibold uppercase tracking-[0.24em] text-blue-700">Liquidation Summary</h4>
+                        <p class="mt-2 text-xs text-gray-500">Balanced means the CA amount and actual expenses match. Overage and shortage are calculated automatically from those values.</p>
                     </div>
 
                     ${[
@@ -10092,6 +10216,17 @@
 
                 return `
                     ${renderLinkedLiquidationBranchPanel(linkedLrRecord, 'err', values)}
+                    <div class="md:col-span-2 rounded-xl border border-amber-200 bg-amber-50/60 p-4">
+                        <div class="flex flex-wrap items-start justify-between gap-3">
+                            <div>
+                                <h4 class="text-sm font-semibold uppercase tracking-[0.24em] text-amber-800">Test Helper</h4>
+                                <p class="mt-2 text-xs text-gray-600">Load sample pre-ERR shortage data to test the ERR create flow without needing a live shortage LR.</p>
+                            </div>
+                            <button type="button" onclick="window.financeModule.loadErrTestDraft()" class="rounded-lg border border-amber-300 bg-white px-4 py-2 text-sm font-medium text-amber-800 hover:bg-amber-100">
+                                Load Sample Pre-ERR Data
+                            </button>
+                        </div>
+                    </div>
                     <div class="md:col-span-2 rounded-xl border border-blue-100 bg-blue-50/40 p-4">
                         <h4 class="text-sm font-semibold uppercase tracking-[0.24em] text-blue-700">Reimbursement Details</h4>
                         <p class="mt-2 text-xs text-gray-500">Choose Own Request to auto-fill your account details, or Request for Another to enter someone else&apos;s information.</p>
@@ -11218,6 +11353,14 @@
                 variance: formValues['data[variance]'] || '0.00',
                 variance_indicator: formValues['data[variance_indicator]'] || 'Balanced',
             };
+            const lrSummaryItems = [
+                ['Number', recordNumber || 'N/A'],
+                ['Liquidating Person', recordTitleValue || 'N/A'],
+                ['Date', recordDate || 'N/A'],
+                ['Time', recordTime || 'N/A'],
+                ['CA Reference No.', summaryValues.ca_reference_no],
+                ['Status', summaryValues.variance_indicator],
+            ];
             formValues['data[line_items_total]'] = summaryValues.line_items_total;
 
             $('drawerPreview').innerHTML = `
@@ -11240,7 +11383,7 @@
                         </div>
 
                         <div class="relative grid grid-cols-2 border-t border-gray-300 text-sm">
-                            ${summaryItems.map(([label, value], index) => `
+                            ${lrSummaryItems.map(([label, value], index) => `
                                 <div class="${index % 2 === 0 ? 'border-r' : ''} ${index > 1 ? 'border-t' : ''} border-gray-300 px-4 py-3">
                                     <p class="text-[11px] uppercase tracking-[0.22em] text-gray-500">${escapeHtml(label)}</p>
                                     <p class="mt-1 text-[15px] font-semibold text-gray-900 break-words">${escapeHtml(value)}</p>
@@ -11269,28 +11412,6 @@
                                     <p class="text-[11px] uppercase tracking-[0.22em] text-gray-500">Justification / Business Need</p>
                                     <p class="mt-2 min-h-[20px] border-b border-gray-300 text-[14px] font-semibold text-gray-900 break-words">${escapeHtml(formValues['data[purpose]'] || 'Not filled yet')}</p>
                                 </div>
-                                <div class="border-r border-t border-gray-300 px-4 py-3">
-                                    <p class="text-[11px] uppercase tracking-[0.22em] text-gray-500">For Client?</p>
-                                    <p class="mt-2 min-h-[20px] border-b border-gray-300 text-[14px] font-semibold text-gray-900 break-words">${escapeHtml(summaryValues.for_client)}</p>
-                                </div>
-                                <div class="border-t border-gray-300 px-4 py-3">
-                                    <p class="text-[11px] uppercase tracking-[0.22em] text-gray-500">Client Name(s)</p>
-                                    <p class="mt-2 min-h-[20px] border-b border-gray-300 text-[14px] font-semibold text-gray-900 break-words">${escapeHtml(summaryValues.client_names)}</p>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="relative border-t border-gray-300">
-                            <div class="bg-gray-50 px-4 py-2 border-b border-gray-300">
-                                <h4 class="text-[12px] font-semibold uppercase tracking-[0.26em] text-gray-700">Requester Details</h4>
-                            </div>
-                            <div class="grid grid-cols-1 md:grid-cols-2">
-                                ${['employee_id', 'employee_name', 'employee_email', 'contact_number', 'position', 'department', 'superior', 'superior_email'].map((fieldName, index) => `
-                                    <div class="${index % 2 === 0 ? 'border-r' : ''} ${index > 1 ? 'border-t' : ''} border-gray-300 px-4 py-3">
-                                        <p class="text-[11px] uppercase tracking-[0.22em] text-gray-500">${escapeHtml(fieldName.replace(/_/g, ' ').replace(/\b\w/g, (m) => m.toUpperCase()))}</p>
-                                        <p class="mt-2 min-h-[20px] border-b border-gray-300 text-[14px] font-semibold text-gray-900 break-words">${escapeHtml(formValues[`data[${fieldName}]`] || 'Not filled yet')}</p>
-                                    </div>
-                                `).join('')}
                             </div>
                         </div>
 
@@ -13915,12 +14036,12 @@
             }
         }
 
-        if (record.module_key === 'ca' && !isFinalWorkflow) {
+        if (record.module_key === 'ca') {
             const canOpenDisbursementVoucher = matchesAny(nextAction, ['create disbursement voucher'])
                 || matchesAny(relationshipStatus, ['awaiting disbursement', 'pending disbursement', 'approved for release', 'partially disbursed']);
             const canOpenLiquidationReport = matchesAny(nextAction, ['submit liquidation report'])
                 || matchesAny(relationshipStatus, ['awaiting liquidation', 'awaiting liquidation approval', 'disbursed']);
-            if (canOpenDisbursementVoucher) {
+            if (canOpenDisbursementVoucher && !isFinalWorkflow) {
                 actions.push(`<button type="button" onclick="window.financeModule.openDisbursementVoucherFromSource(${record.id}, event)" class="w-full bg-indigo-600 text-white rounded-md py-2 hover:bg-indigo-700">Create Disbursement Voucher</button>`);
             }
             if (canOpenLiquidationReport) {
@@ -14448,6 +14569,17 @@
         if (currentModuleKey === 'ca') {
             syncCashAdvanceHiddenRequestor();
             updateCashAdvanceReleaseValues();
+        }
+        if (currentModuleKey === 'lr') {
+            updatePrTotals();
+            const caAmount = parseFloat(form.querySelector('input[name="data[total_cash_advance]"]')?.value || '0') || 0;
+            const actualExpenses = parseFloat(form.querySelector('input[name="data[actual_expenses]"]')?.value || '0') || 0;
+            const variance = caAmount - actualExpenses;
+            const varianceIndicator = variance > 0 ? 'Overage' : (variance < 0 ? 'Shortage' : 'Balanced');
+            const varianceInput = form.querySelector('input[name="data[variance]"]');
+            const varianceIndicatorInput = form.querySelector('input[name="data[variance_indicator]"]');
+            if (varianceInput) varianceInput.value = variance.toFixed(2);
+            if (varianceIndicatorInput) varianceIndicatorInput.value = varianceIndicator;
         }
         const formData = new FormData(form);
         const token = currentCsrfToken();
@@ -15223,6 +15355,7 @@
         openFinanceNoteDialog,
         closeFinanceNoteDialog,
         submitFinanceNoteDialog,
+        loadErrTestDraft,
         revertFinanceRecord,
         archiveFinanceRecord,
         requestDeleteFinanceRecord,
