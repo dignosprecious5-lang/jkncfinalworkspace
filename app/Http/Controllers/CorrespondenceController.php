@@ -58,14 +58,18 @@ class CorrespondenceController extends Controller
     public function data(Request $request)
     {
         /*
-         * Corporate Correspondence page shows all active/non-archived records.
-         * Admin Correspondence Dashboard is the only page that separates Submitted /
-         * Accepted / Reverted / Archived.
+         * Corporate > Correspondence is a public/normal corporate list.
+         * It should only show approved correspondence.
+         * Admin Correspondence Dashboard is the place for Pending / Submitted / Reverted / Archived.
          */
         $query = Correspondence::with('creator')
             ->where(function ($q) {
                 $q->where('is_archived', false)
                     ->orWhereNull('is_archived');
+            })
+            ->where(function ($q) {
+                $q->where('approval_status', 'Approved')
+                    ->orWhere('workflow_status', 'Accepted');
             });
 
         if ($request->filled('type') && $request->type !== 'All') {
@@ -75,13 +79,6 @@ class CorrespondenceController extends Controller
         return $query->latest()
             ->get()
             ->map(function (Correspondence $item) {
-                $workflowStatus = $item->workflow_status ?: 'Submitted';
-                $approvalStatus = $item->approval_status ?: 'Pending';
-
-                if ($workflowStatus === 'Archived' && !$item->is_archived && $approvalStatus === 'Approved') {
-                    $workflowStatus = 'Accepted';
-                }
-
                 return [
                     'id' => $item->id,
                     'ref_no' => $item->ref_no ?: 'COR-' . str_pad((string) $item->id, 5, '0', STR_PAD_LEFT),
@@ -99,8 +96,8 @@ class CorrespondenceController extends Controller
                     'deadline' => $item->deadline ? $item->deadline->format('M d, Y') : null,
                     'sent_via' => $item->sent_via,
                     'status' => $item->status,
-                    'workflow_status' => $workflowStatus,
-                    'approval_status' => $approvalStatus,
+                    'workflow_status' => 'Accepted',
+                    'approval_status' => 'Approved',
                     'review_note' => $item->review_note,
                     'user' => $item->creator?->name ?: ($item->user ?: 'System'),
                     'can_submit' => false,
@@ -438,8 +435,8 @@ class CorrespondenceController extends Controller
             });
 
         /*
-         * Use Corporate > Corporate Formation > GIS.
-         * Ignore Account > Company > Corporate Formation > GIS records when the table has company_id.
+         * Use Corporate > Corporate Formation > GIS only.
+         * Ignore Account > Company > Corporate Formation > GIS records when company_id exists.
          */
         if (Schema::hasColumn($gisTable, 'company_id')) {
             $query->whereNull('company_id');

@@ -98,7 +98,7 @@
                         Corporate Governance
                     </p>
                     <h1 class="text-[30px] font-semibold text-gray-900 leading-none">Correspondence</h1>
-                    <p class="text-sm text-gray-500 mt-2">Create, track, and download official corporate correspondence.</p>
+                    <p class="text-sm text-gray-500 mt-2">View approved official corporate correspondence.</p>
                 </div>
 
                 <button
@@ -110,25 +110,6 @@
                     <i class="fas fa-plus"></i>
                     Add Correspondence
                 </button>
-            </div>
-
-            <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 mt-5">
-                <div class="rounded-xl border border-blue-100 bg-white px-4 py-3 shadow-sm">
-                    <p class="text-xs font-semibold uppercase text-gray-500">Total Active</p>
-                    <p id="statTotal" class="mt-1 text-2xl font-bold text-gray-900">0</p>
-                </div>
-                <div class="rounded-xl border border-green-100 bg-white px-4 py-3 shadow-sm">
-                    <p class="text-xs font-semibold uppercase text-gray-500">Approved</p>
-                    <p id="statApproved" class="mt-1 text-2xl font-bold text-green-700">0</p>
-                </div>
-                <div class="rounded-xl border border-blue-100 bg-white px-4 py-3 shadow-sm">
-                    <p class="text-xs font-semibold uppercase text-gray-500">Submitted</p>
-                    <p id="statSubmitted" class="mt-1 text-2xl font-bold text-blue-700">0</p>
-                </div>
-                <div class="rounded-xl border border-yellow-100 bg-white px-4 py-3 shadow-sm">
-                    <p class="text-xs font-semibold uppercase text-gray-500">Needs Action</p>
-                    <p id="statNeedsAction" class="mt-1 text-2xl font-bold text-yellow-700">0</p>
-                </div>
             </div>
         </div>
 
@@ -171,7 +152,6 @@
                                 <th class="px-4 py-3 font-semibold">To / For</th>
                                 <th class="px-4 py-3 font-semibold">From</th>
                                 <th class="px-4 py-3 font-semibold">Subject</th>
-                                <th class="px-4 py-3 font-semibold">Workflow</th>
                                 <th class="px-4 py-3 font-semibold">Approval</th>
                                 <th class="px-4 py-3 font-semibold text-center">Action</th>
                             </tr>
@@ -472,7 +452,7 @@
                             Cancel
                         </button>
 
-                        <button id="saveCorrespondenceBtn" type="button" onclick="addCorrespondence().then(success => { if (success) { setTimeout(() => closeAddSection(), 700); } })" class="flex-1 bg-blue-600 text-white rounded-lg py-2.5 text-sm font-medium hover:bg-blue-700 transition">
+                        <button id="saveCorrespondenceBtn" type="button" onclick="addCorrespondence().then(success => { if (success) { closeAddSection(); } })" class="flex-1 bg-blue-600 text-white rounded-lg py-2.5 text-sm font-medium hover:bg-blue-700 transition">
                             Save
                         </button>
                     </div>
@@ -914,21 +894,8 @@ async function fetchCorrespondence() {
 }
 
 
-function workflowBadge(status) {
-    const s = status || '—';
-    const cls = {
-        'Accepted': 'bg-green-50 text-green-700 border-green-100',
-        'Submitted': 'bg-blue-50 text-blue-700 border-blue-100',
-        'Reverted': 'bg-yellow-50 text-yellow-700 border-yellow-100',
-        'Archived': 'bg-gray-100 text-gray-700 border-gray-200',
-        'Uploaded': 'bg-orange-50 text-orange-700 border-orange-100'
-    }[s] || 'bg-gray-50 text-gray-600 border-gray-200';
-
-    return `<span class="inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${cls}">${s}</span>`;
-}
-
 function approvalBadge(status) {
-    const s = status || '—';
+    const s = status || 'Approved';
     const cls = {
         'Approved': 'bg-green-50 text-green-700 border-green-100',
         'Pending': 'bg-blue-50 text-blue-700 border-blue-100',
@@ -937,23 +904,6 @@ function approvalBadge(status) {
     }[s] || 'bg-gray-50 text-gray-600 border-gray-200';
 
     return `<span class="inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${cls}">${s}</span>`;
-}
-
-function updateCorrespondenceStats(rows) {
-    const total = rows.length;
-    const approved = rows.filter(item => item.approval_status === 'Approved').length;
-    const submitted = rows.filter(item => item.workflow_status === 'Submitted').length;
-    const needsAction = rows.filter(item => ['Pending', 'Needs Revision', 'Rejected'].includes(item.approval_status)).length;
-
-    const set = (id, value) => {
-        const el = document.getElementById(id);
-        if (el) el.textContent = value;
-    };
-
-    set('statTotal', total);
-    set('statApproved', approved);
-    set('statSubmitted', submitted);
-    set('statNeedsAction', needsAction);
 }
 
 function filterCorrespondenceRows(rows) {
@@ -969,7 +919,6 @@ function filterCorrespondenceRows(rows) {
         item.to_for,
         item.from_name,
         item.subject,
-        item.workflow_status,
         item.approval_status
     ].some(value => String(value || '').toLowerCase().includes(q)));
 }
@@ -1046,30 +995,28 @@ async function renderTable() {
     const tableBody = document.getElementById('tableBody');
     tableBody.innerHTML = `
         <tr>
-            <td colspan="10" class="px-4 py-10 text-center text-gray-500">
-                Loading correspondence records...
+            <td colspan="9" class="px-4 py-10 text-center text-gray-500">
+                Loading approved correspondence...
             </td>
         </tr>
     `;
 
     const data = await fetchCorrespondence();
-    const filteredRows = filterCorrespondenceRows(data || []);
-    correspondenceRows = filteredRows;
+    correspondenceRows = filterCorrespondenceRows(data || []);
 
-    updateCorrespondenceStats(data || []);
     updateStatusMessage();
     setActiveTab();
 
     if (!correspondenceRows.length) {
         tableBody.innerHTML = `
             <tr>
-                <td colspan="10" class="px-4 py-16">
+                <td colspan="9" class="px-4 py-16">
                     <div class="mx-auto max-w-md text-center">
                         <div class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-blue-600">
                             <i class="fas fa-envelope-open-text"></i>
                         </div>
-                        <h3 class="text-base font-semibold text-gray-900">No correspondence records found</h3>
-                        <p class="mt-1 text-sm text-gray-500">Approved and submitted active correspondence will appear here.</p>
+                        <h3 class="text-base font-semibold text-gray-900">No approved correspondence found</h3>
+                        <p class="mt-1 text-sm text-gray-500">Only approved correspondence will appear on this corporate page.</p>
                     </div>
                 </td>
             </tr>
@@ -1086,9 +1033,8 @@ async function renderTable() {
                 <td class="px-4 py-3 text-gray-700 max-w-[230px] truncate" title="${item.company_name ?? ''}">${item.company_name ?? ''}</td>
                 <td class="px-4 py-3 text-gray-700 max-w-[180px] truncate" title="${item.to_for ?? ''}">${item.to_for ?? ''}</td>
                 <td class="px-4 py-3 text-gray-700 max-w-[160px] truncate" title="${item.from_name ?? ''}">${item.from_name ?? ''}</td>
-                <td class="px-4 py-3 text-gray-900 max-w-[240px] truncate font-medium" title="${item.subject ?? ''}">${item.subject ?? ''}</td>
-                <td class="px-4 py-3 whitespace-nowrap">${workflowBadge(item.workflow_status)}</td>
-                <td class="px-4 py-3 whitespace-nowrap">${approvalBadge(item.approval_status)}</td>
+                <td class="px-4 py-3 text-gray-900 max-w-[260px] truncate font-medium" title="${item.subject ?? ''}">${item.subject ?? ''}</td>
+                <td class="px-4 py-3 whitespace-nowrap">${approvalBadge(item.approval_status || 'Approved')}</td>
                 <td class="px-4 py-3 text-center">
                     <button type="button" onclick="event.stopPropagation(); openPreview(${index})" class="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50">
                         View
