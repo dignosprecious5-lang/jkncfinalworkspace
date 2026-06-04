@@ -5571,10 +5571,16 @@
     function selectLookupSelectorValue(value, label) {
         if (!activeLookupSelector) return;
 
-        const hidden = document.querySelector(`[data-lookup-selector-hidden="${activeLookupSelector.fieldName}"]`);
-        const display = document.querySelector(`[data-lookup-selector-display="${activeLookupSelector.fieldName}"]`);
-        if (hidden) hidden.value = value || '';
-        if (display) display.textContent = label || '';
+        const normalizedValue = value || '';
+        const normalizedLabel = label || '';
+        document.querySelectorAll(`[data-lookup-selector-hidden="${activeLookupSelector.fieldName}"]`).forEach((hidden) => {
+            hidden.value = normalizedValue;
+        });
+        document.querySelectorAll(`[data-lookup-selector-display="${activeLookupSelector.fieldName}"]`).forEach((display) => {
+            display.textContent = normalizedLabel;
+        });
+        financeFormValues[activeLookupSelector.fieldName] = normalizedValue;
+        financeFormValues[`data[${activeLookupSelector.fieldName}]`] = normalizedValue;
 
         closeLookupSelector();
         renderDrawerPreview();
@@ -15326,19 +15332,47 @@
                 || form.querySelector('[name="data[mode_of_return]"]')?.value
                 || ''
             ).trim();
+            const cashReceiverValue = String(
+                financeFormValues['data[cash_receiver_name]']
+                || financeFormValues.cash_receiver_name
+                || form.querySelector('[name="data[cash_receiver_name]"]')?.value
+                || ''
+            ).trim();
+            const recipientBankAccountValue = String(
+                financeFormValues['data[recipient_bank_account]']
+                || financeFormValues.recipient_bank_account
+                || form.querySelector('[name="data[recipient_bank_account]"]')?.value
+                || ''
+            ).trim();
+            const recipientBankNumberValue = String(
+                financeFormValues['data[recipient_bank_number]']
+                || financeFormValues.recipient_bank_number
+                || form.querySelector('[name="data[recipient_bank_number]"]')?.value
+                || ''
+            ).trim();
+            const coaValue = String(
+                financeFormValues['data[coa_id]']
+                || financeFormValues.coa_id
+                || form.querySelector('[name="data[coa_id]"]')?.value
+                || ''
+            ).trim();
 
             if (amountReturnedValue) {
                 formData.set('data[amount_returned]', amountReturnedValue);
             }
 
             if (modeOfReturnValue === 'Cash') {
+                formData.set('data[cash_receiver_name]', cashReceiverValue);
                 formData.delete('data[recipient_bank_account]');
                 formData.delete('data[recipient_bank_number]');
                 formData.delete('data[coa_id]');
             } else if (modeOfReturnValue === 'Bank Transfer') {
+                formData.set('data[recipient_bank_account]', recipientBankAccountValue);
+                formData.set('data[recipient_bank_number]', recipientBankNumberValue);
                 formData.delete('data[cash_receiver_name]');
                 formData.delete('data[coa_id]');
             } else if (modeOfReturnValue === 'Check') {
+                formData.set('data[coa_id]', coaValue);
                 formData.delete('data[cash_receiver_name]');
                 formData.delete('data[recipient_bank_account]');
                 formData.delete('data[recipient_bank_number]');
