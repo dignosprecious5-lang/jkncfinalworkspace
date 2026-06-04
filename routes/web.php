@@ -815,6 +815,12 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::post('/correspondence/{id}/approve', [CorrespondenceController::class, 'approve'])->name('correspondence.approve');
     Route::post('/correspondence/{id}/revise', [CorrespondenceController::class, 'revise'])->name('correspondence.revise');
     Route::post('/correspondence/{id}/reject', [CorrespondenceController::class, 'reject'])->name('correspondence.reject');
+    Route::get('/correspondence/{id}/email-approve', [CorrespondenceController::class, 'approveFromEmail'])
+        ->name('correspondence.email.approve')
+        ->middleware('signed');
+    Route::get('/correspondence/{id}/email-reject', [CorrespondenceController::class, 'rejectFromEmail'])
+        ->name('correspondence.email.reject')
+        ->middleware('signed');
     Route::post('/correspondence/{id}/archive', [CorrespondenceController::class, 'archive'])->name('correspondence.archive');
     Route::post('/correspondence/{id}/unarchive', [CorrespondenceController::class, 'unarchive'])->name('correspondence.unarchive');
 
@@ -981,26 +987,16 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
 
     /*
     |--------------------------------------------------------------------------
-    | LEGACY DETAIL ROUTES / LEGAL / ACCOUNTING / BANKING / OPERATIONS
+    | CORRESPONDENCE / LEGAL / ACCOUNTING / BANKING / OPERATIONS
     |--------------------------------------------------------------------------
-    |
-    | IMPORTANT:
-    | Do not define another GET /correspondence/data here.
-    | The real JSON endpoint is already registered above as:
-    | Route::get('/correspondence/data', [CorrespondenceController::class, 'data'])
-    |
-    | The old duplicate route pointed /correspondence/data to index(), so the
-    | browser loaded the Correspondence page UI instead of JSON.
-    |
     */
-    Route::get('/correspondence/{id}', [CorrespondenceController::class, 'show'])
-        ->whereNumber('id')
-        ->name('correspondence.show');
-    Route::put('/correspondence/{id}/update', [CorrespondenceController::class, 'update'])
-        ->whereNumber('id')
-        ->name('correspondence.update');
-    Route::get('/correspondence/draft-preview/{slug}', [CorrespondenceController::class, 'showDraftPreview'])
-        ->name('correspondence.draft-preview');
+    Route::get('/correspondence/legacy-data', [CorrespondenceController::class, 'index'])->name('correspondence.data.legacy');
+    Route::post('/correspondence', [CorrespondenceController::class, 'store'])->name('correspondence.store.legacy');
+    Route::get('/correspondence/{id}', [CorrespondenceController::class, 'show'])->name('correspondence.show');
+    Route::put('/correspondence/{id}/update', [CorrespondenceController::class, 'update'])->name('correspondence.update');
+    Route::post('/correspondence/{id}/submit', [CorrespondenceController::class, 'submit'])->name('correspondence.submit.legacy');
+    Route::get('/correspondence/draft-preview/{slug}', [CorrespondenceController::class, 'showDraftPreview'])->name('correspondence.draft-preview');
+    Route::get('/correspondence/template/{slug}/{id}', [CorrespondenceController::class, 'showTemplate'])->name('correspondence.template.legacy');
 
     Route::get('/legal/data', [LegalController::class, 'index'])->name('legal.index');
     Route::post('/legal/store', [LegalController::class, 'store'])->name('legal.store');
