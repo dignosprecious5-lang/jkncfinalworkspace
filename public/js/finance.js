@@ -1589,8 +1589,7 @@
                 selectField('requester_employee_id', 'Employee List', { source: 'employee', placeholder: 'Select employee profile' }),
                 textField('requestor', 'Returnee', { required: true }),
                 selectField('linked_lr_id', 'Linked LR', { source: 'lr_overage', required: true }),
-                numberField('amount_returned', 'Amount Returned', { required: true }),
-                checkboxField('manual_liquidation_entry', 'Manually edit return details', { fullWidth: true, help: 'Use this when the linked liquidation needs to be reviewed or entered again manually.' }),
+                numberField('amount_returned', 'Amount Returned', { required: true, readOnly: true }),
                 selectField('mode_of_return', 'Mode of Return', {
                     options: [
                         { value: 'Cash', label: 'Cash' },
@@ -1598,7 +1597,9 @@
                         { value: 'Check', label: 'Check' },
                     ],
                 }),
-                selectField('receiving_bank_account_id', 'Receiving Bank / Cash Account', { source: 'bank_account' }),
+                textField('cash_receiver_name', 'Name of Receiver'),
+                textField('recipient_bank_account', 'Bank Account'),
+                textField('recipient_bank_number', 'Bank Number'),
                 selectField('coa_id', 'Account from Chart of Accounts', { source: 'chart_account' }),
                 textField('reference_number', 'Reference Number'),
                 textareaField('remarks', 'Remarks'),
@@ -3612,6 +3613,10 @@
         const metrics = getLiquidationBranchMetrics(linkedLrRecord);
         const linkedLrData = linkedLrRecord?.data || {};
         const linkedCaLabel = getLookupLabel('ca', linkedLrData.linked_ca_id) || linkedLrData.linked_ca_id || 'N/A';
+        const linkedRequesterMode = String(linkedLrData.requester_mode || 'own_request').trim() || 'own_request';
+        const ownRequesterDefaults = getPrRequesterDefaults();
+        const linkedRequesterDefaults = getEmployeeRequesterDefaults(linkedLrData.requester_employee_id || '');
+        const shouldUseOwnRequester = linkedRequesterMode !== 'request_for_another';
         const detailsText = Array.isArray(linkedLrRecord?.data?.line_items) && linkedLrRecord.data.line_items.length
             ? linkedLrRecord.data.line_items
                 .map((item) => [item.item_id, item.description, item.category].filter(Boolean).join(' - '))
@@ -3619,16 +3624,35 @@
                 .join(', ')
             : (linkedLrRecord?.data?.expense_line_items || linkedLrRecord?.data?.purpose || linkedLrRecord?.record_title || '');
         const requesterPrefill = {
-            requester_employee_id: linkedLrData.requester_employee_id || '',
-            requestor: linkedLrData.requestor || linkedLrData.employee_name || bootstrap.currentUserName || '',
-            employee_id: linkedLrData.employee_id || '',
-            employee_name: linkedLrData.employee_name || linkedLrData.requestor || bootstrap.currentUserName || '',
-            employee_email: linkedLrData.employee_email || '',
-            contact_number: linkedLrData.contact_number || '',
-            position: linkedLrData.position || '',
-            department: linkedLrData.department || '',
-            superior: linkedLrData.superior || '',
-            superior_email: linkedLrData.superior_email || '',
+            requester_mode: linkedRequesterMode,
+            requester_employee_id: shouldUseOwnRequester ? '' : (linkedLrData.requester_employee_id || ''),
+            requestor: shouldUseOwnRequester
+                ? (ownRequesterDefaults.requestor || bootstrap.currentUserName || '')
+                : (linkedRequesterDefaults.requestor || linkedLrData.requestor || linkedLrData.employee_name || bootstrap.currentUserName || ''),
+            employee_id: shouldUseOwnRequester
+                ? (ownRequesterDefaults.employee_id || '')
+                : (linkedRequesterDefaults.employee_id || linkedLrData.employee_id || ''),
+            employee_name: shouldUseOwnRequester
+                ? (ownRequesterDefaults.employee_name || ownRequesterDefaults.requestor || bootstrap.currentUserName || '')
+                : (linkedRequesterDefaults.employee_name || linkedLrData.employee_name || linkedLrData.requestor || bootstrap.currentUserName || ''),
+            employee_email: shouldUseOwnRequester
+                ? (ownRequesterDefaults.employee_email || '')
+                : (linkedRequesterDefaults.employee_email || linkedLrData.employee_email || ''),
+            contact_number: shouldUseOwnRequester
+                ? (ownRequesterDefaults.contact_number || '')
+                : (linkedRequesterDefaults.contact_number || linkedLrData.contact_number || ''),
+            position: shouldUseOwnRequester
+                ? (ownRequesterDefaults.position || '')
+                : (linkedRequesterDefaults.position || linkedLrData.position || ''),
+            department: shouldUseOwnRequester
+                ? (ownRequesterDefaults.department || '')
+                : (linkedRequesterDefaults.department || linkedLrData.department || ''),
+            superior: shouldUseOwnRequester
+                ? (ownRequesterDefaults.superior || '')
+                : (linkedRequesterDefaults.superior || linkedLrData.superior || ''),
+            superior_email: shouldUseOwnRequester
+                ? (ownRequesterDefaults.superior_email || '')
+                : (linkedRequesterDefaults.superior_email || linkedLrData.superior_email || ''),
         };
 
         if (metrics.indicator === 'Shortage') {
@@ -3638,7 +3662,6 @@
                 linkedRecord: linkedLrRecord,
                 prefill: {
                     linked_lr_id: linkedLrRecord.id,
-                    requester_mode: 'own_request',
                     ...requesterPrefill,
                     expense_details: detailsText || `Shortage from ${linkedCaLabel}`,
                     amount,
@@ -3657,7 +3680,6 @@
                 linkedRecord: linkedLrRecord,
                 prefill: {
                     linked_lr_id: linkedLrRecord.id,
-                    requester_mode: 'own_request',
                     ...requesterPrefill,
                     amount_returned: amount,
                     mode_of_return: linkedLrRecord?.data?.mode_of_return || 'Cash',
@@ -5225,6 +5247,121 @@
         });
     }
 
+    function syncCrfModeOfReturnFields() {
+        if (currentModuleKey !== 'crf') return;
+
+        const form = $('financeForm');
+        const mode = String(form?.querySelector('[name="data[mode_of_return]"]')?.value || '').trim();
+        const cashReceiverWrapper = form?.querySelector('[data-finance-field="cash_receiver_name"]');
+        const cashReceiverInput = form?.querySelector('[name="data[cash_receiver_name]"]');
+        const bankNameWrapper = form?.querySelector('[data-finance-field="recipient_bank_account"]');
+        const bankNameInput = form?.querySelector('[name="data[recipient_bank_account]"]');
+        const bankNumberWrapper = form?.querySelector('[data-finance-field="recipient_bank_number"]');
+        const bankNumberInput = form?.querySelector('[name="data[recipient_bank_number]"]');
+        const coaWrapper = form?.querySelector('[data-finance-field="coa_id"]');
+        const coaInput = form?.querySelector('[name="data[coa_id]"]');
+        const needsCashReceiver = mode === 'Cash';
+        const needsBankTransferFields = mode === 'Bank Transfer';
+        const needsCoa = mode === 'Check';
+
+        if (cashReceiverWrapper) {
+            cashReceiverWrapper.classList.toggle('hidden', !needsCashReceiver);
+        }
+
+        if (bankNameWrapper) {
+            bankNameWrapper.classList.toggle('hidden', !needsBankTransferFields);
+        }
+        if (bankNumberWrapper) {
+            bankNumberWrapper.classList.toggle('hidden', !needsBankTransferFields);
+        }
+        if (coaWrapper) {
+            coaWrapper.classList.toggle('hidden', !needsCoa);
+        }
+
+        if (cashReceiverInput) {
+            cashReceiverInput.required = needsCashReceiver;
+            cashReceiverInput.disabled = !needsCashReceiver;
+            if (!needsCashReceiver) {
+                cashReceiverInput.value = '';
+                financeFormValues.cash_receiver_name = '';
+                financeFormValues['data[cash_receiver_name]'] = '';
+            }
+        }
+
+        if (bankNameInput) {
+            bankNameInput.required = needsBankTransferFields;
+            bankNameInput.disabled = !needsBankTransferFields;
+            if (!needsBankTransferFields) {
+                bankNameInput.value = '';
+                financeFormValues.recipient_bank_account = '';
+                financeFormValues['data[recipient_bank_account]'] = '';
+            }
+        }
+
+        if (bankNumberInput) {
+            bankNumberInput.required = needsBankTransferFields;
+            bankNumberInput.disabled = !needsBankTransferFields;
+            if (!needsBankTransferFields) {
+                bankNumberInput.value = '';
+                financeFormValues.recipient_bank_number = '';
+                financeFormValues['data[recipient_bank_number]'] = '';
+            }
+        }
+
+        if (coaInput) {
+            coaInput.required = needsCoa;
+            coaInput.disabled = !needsCoa;
+            if (!needsCoa) {
+                coaInput.value = '';
+                financeFormValues.coa_id = '';
+                financeFormValues['data[coa_id]'] = '';
+            }
+        }
+    }
+
+    function syncFinanceRecordTitleAutofill(record = null) {
+        const recordTitleInput = $('recordTitleInput');
+        if (!recordTitleInput) return;
+
+        let suggestion = '';
+
+        if (currentModuleKey === 'lr') {
+            suggestion = String(
+                $('financeForm')?.querySelector('[name="data[employee_name]"]')?.value
+                || $('financeForm')?.querySelector('[name="data[requestor]"]')?.value
+                || financeFormValues?.['data[employee_name]']
+                || financeFormValues?.employee_name
+                || financeFormValues?.['data[requestor]']
+                || financeFormValues?.requestor
+                || bootstrap.currentUserName
+                || ''
+            ).trim();
+        } else if (currentModuleKey === 'dv') {
+            suggestion = String(
+                $('financeForm')?.querySelector('[name="data[payee_name]"]')?.value
+                || $('financeForm')?.querySelector('[name="data[source_payee_name]"]')?.value
+                || $('financeForm')?.querySelector('[name="data[source_requester]"]')?.value
+                || financeFormValues?.['data[payee_name]']
+                || financeFormValues?.payee_name
+                || financeFormValues?.['data[source_payee_name]']
+                || financeFormValues?.source_payee_name
+                || financeFormValues?.['data[source_requester]']
+                || financeFormValues?.source_requester
+                || bootstrap.currentUserName
+                || ''
+            ).trim();
+        }
+
+        if (!suggestion) return;
+
+        const currentValue = String(recordTitleInput.value || '').trim();
+        const previousSuggestion = String(recordTitleInput.dataset.autofillSuggestion || '').trim();
+        if (!currentValue || currentValue === previousSuggestion) {
+            recordTitleInput.value = suggestion;
+        }
+        recordTitleInput.dataset.autofillSuggestion = suggestion;
+    }
+
     function renderDynamicField(field, value, formValues = {}) {
         const required = field.required ? 'required' : '';
         const label = escapeHtml(field.label);
@@ -6661,6 +6798,11 @@
 
         return {
             supplier_id: data.supplier_id || '',
+            item_name: data.item_name || firstLineItem.item || firstLineItem.name || firstLineItem.description || '',
+            item_code: data.item_code || '',
+            sku: data.sku || '',
+            barcode: data.barcode || '',
+            qr_code: data.qr_code || '',
             asset_description: firstLineItem.description || data.asset_description || data.purpose || record?.record_title || '',
             asset_category: firstLineItem.category || data.asset_category || data.linked_item_type || '',
             serial_number: data.serial_number || '',
@@ -6677,6 +6819,72 @@
             asset_coa_id: data.asset_coa_id || data.coa_id || '',
             remarks: data.remarks || '',
         };
+    }
+
+    function buildArfSuggestionToken(value) {
+        return String(value || '')
+            .toUpperCase()
+            .replace(/[^A-Z0-9]+/g, ' ')
+            .trim()
+            .split(/\s+/)
+            .filter(Boolean)
+            .slice(0, 3)
+            .map((part) => part.slice(0, 6))
+            .join('-');
+    }
+
+    function getArfIdentifierSuggestions(form) {
+        const classification = String(form?.querySelector('[name="data[item_classification]"]')?.value || 'Fixed Asset').trim();
+        const itemName = String(form?.querySelector('[name="data[item_name]"]')?.value || '').trim();
+        const assetCategory = String(form?.querySelector('[name="data[asset_category]"]')?.value || '').trim();
+        const assetDescription = String(form?.querySelector('[name="data[asset_description]"]')?.value || '').trim();
+        const assetCode = String(form?.querySelector('[name="data[asset_code]"]')?.value || '').trim();
+        const recordNumber = String($('recordNumberInput')?.value || '').trim();
+        const prefix = classification === 'Consumable Inventory' ? 'CI' : 'FA';
+        const baseToken = buildArfSuggestionToken(itemName || assetCategory || assetDescription || assetCode || 'ITEM') || 'ITEM';
+        const numericSuffix = String(assetCode || recordNumber || '')
+            .replace(/[^0-9]+/g, '')
+            .slice(-4)
+            .padStart(4, '0');
+        const fallbackSuffix = numericSuffix || '0001';
+
+        return {
+            item_code: `${prefix}-${baseToken}-${fallbackSuffix}`,
+            sku: baseToken,
+            qr_code: `JKC-${prefix}-${fallbackSuffix}`,
+            barcodePlaceholder: 'Use printed vendor barcode if available',
+        };
+    }
+
+    function syncArfIdentifierSuggestions() {
+        if (currentModuleKey !== 'arf') return;
+
+        const form = $('financeForm');
+        if (!form) return;
+
+        const suggestions = getArfIdentifierSuggestions(form);
+        const syncSuggestion = (fieldName, suggestion, { fillValue = true, placeholder = '' } = {}) => {
+            const input = form.querySelector(`[name="data[${fieldName}]"]`);
+            if (!input) return;
+
+            const currentValue = String(input.value || '').trim();
+            const previousSuggestion = String(input.dataset.arfSuggestion || '').trim();
+
+            if (placeholder) {
+                input.placeholder = placeholder;
+            }
+
+            if (fillValue && suggestion && (!currentValue || currentValue === previousSuggestion)) {
+                setFinanceFieldValue(form, fieldName, suggestion);
+            }
+
+            input.dataset.arfSuggestion = suggestion || '';
+        };
+
+        syncSuggestion('item_code', suggestions.item_code, { placeholder: suggestions.item_code });
+        syncSuggestion('sku', suggestions.sku, { placeholder: suggestions.sku });
+        syncSuggestion('qr_code', suggestions.qr_code, { placeholder: suggestions.qr_code });
+        syncSuggestion('barcode', '', { fillValue: false, placeholder: suggestions.barcodePlaceholder });
     }
 
     function syncArfLinkedDocumentFields({ preserveExisting = false } = {}) {
@@ -6721,7 +6929,7 @@
             financeFormValues['data[linked_po_id]'] = linkedDvRecord.data.source_document_id;
         }
 
-        ['supplier_id', 'asset_description', 'asset_category', 'serial_number', 'model', 'beginning_quantity', 'current_quantity', 'reserved_quantity', 'unit_cost', 'average_cost', 'last_purchase_cost', 'acquisition_cost', 'total_cost', 'acquisition_date', 'asset_coa_id', 'remarks'].forEach((fieldName) => {
+        ['supplier_id', 'item_name', 'item_code', 'sku', 'barcode', 'qr_code', 'asset_description', 'asset_category', 'serial_number', 'model', 'beginning_quantity', 'current_quantity', 'reserved_quantity', 'unit_cost', 'average_cost', 'last_purchase_cost', 'acquisition_cost', 'total_cost', 'acquisition_date', 'asset_coa_id', 'remarks'].forEach((fieldName) => {
             const input = form.querySelector(`[name="data[${fieldName}]"]`);
             const currentValue = String(input?.value || '').trim();
             if (!input) return;
@@ -6737,6 +6945,7 @@
             titleInput.value = linkedPoRecord?.record_title || linkedDvRecord?.record_title || currentTitle;
         }
 
+        syncArfIdentifierSuggestions();
         renderDrawerPreview();
     }
 
@@ -6809,6 +7018,7 @@
                 }
             });
             ['depreciable_amount', 'annual_depreciation', 'monthly_depreciation', 'accumulated_depreciation', 'net_book_value'].forEach((fieldName) => setValue(fieldName, 0));
+            syncArfIdentifierSuggestions();
             return;
         }
 
@@ -6827,6 +7037,7 @@
         setValue('monthly_depreciation', monthlyDepreciation);
         setValue('accumulated_depreciation', accumulatedDepreciation);
         setValue('net_book_value', Math.max(acquisitionCost - accumulatedDepreciation, 0));
+        syncArfIdentifierSuggestions();
     }
 
     function getBankAccountCodeValue(bankAccountId) {
@@ -9849,6 +10060,18 @@
                 show = shouldShowSpecifyOtherField(field.name, formValues);
             }
 
+            if (isRequestOwnershipModule()) {
+                const requesterMode = String(
+                    formValues['data[requester_mode]']
+                    || formValues.requester_mode
+                    || 'own_request'
+                ).trim();
+
+                if (field.name === 'requester_employee_id') {
+                    show = requesterMode === 'request_for_another';
+                }
+            }
+
             if (currentModuleKey === 'err') {
                 const mode = formValues['data[reimbursement_mode]'] || formValues.reimbursement_mode || '';
                 const modeFields = ['cash_receiver_name', 'recipient_bank_account', 'recipient_bank_number', 'bank_account_id'];
@@ -9856,6 +10079,20 @@
                     Cash: ['cash_receiver_name'],
                     'Bank Transfer': ['recipient_bank_account', 'recipient_bank_number'],
                     Check: ['bank_account_id'],
+                }[mode] || [];
+
+                if (modeFields.includes(field.name)) {
+                    show = visibleModeFields.includes(field.name);
+                }
+            }
+
+            if (currentModuleKey === 'crf') {
+                const mode = formValues['data[mode_of_return]'] || formValues.mode_of_return || '';
+                const modeFields = ['cash_receiver_name', 'recipient_bank_account', 'recipient_bank_number', 'coa_id'];
+                const visibleModeFields = {
+                    Cash: ['cash_receiver_name'],
+                    'Bank Transfer': ['recipient_bank_account', 'recipient_bank_number'],
+                    Check: ['coa_id'],
                 }[mode] || [];
 
                 if (modeFields.includes(field.name)) {
@@ -9965,6 +10202,16 @@
             if (reimbursementModeSelect) {
                 reimbursementModeSelect.addEventListener('change', () => {
                     syncErrReimbursementModeFields();
+                    renderDrawerPreview();
+                });
+            }
+        }
+
+        if (currentModuleKey === 'crf') {
+            const modeOfReturnSelect = form.querySelector('select[name="data[mode_of_return]"]');
+            if (modeOfReturnSelect) {
+                modeOfReturnSelect.addEventListener('change', () => {
+                    syncCrfModeOfReturnFields();
                     renderDrawerPreview();
                 });
             }
@@ -10111,7 +10358,7 @@
                 });
             }
 
-            ['item_classification', 'current_quantity', 'reserved_quantity', 'accepted_quantity', 'beginning_quantity', 'unit_cost', 'acquisition_cost', 'residual_value', 'useful_life'].forEach((fieldName) => {
+            ['item_classification', 'item_name', 'asset_category', 'asset_description', 'asset_code', 'current_quantity', 'reserved_quantity', 'accepted_quantity', 'beginning_quantity', 'unit_cost', 'acquisition_cost', 'residual_value', 'useful_life'].forEach((fieldName) => {
                 const input = form.querySelector(`[name="data[${fieldName}]"]`);
                 if (input) {
                     input.addEventListener('input', () => {
@@ -10126,6 +10373,7 @@
             });
 
             updateArfCalculatedFields();
+            syncArfIdentifierSuggestions();
         }
     }
 
@@ -10240,7 +10488,7 @@
         setSupplierFormLayout(record);
         const recordTitleWrapper = $('recordTitleInput')?.closest('#recordCoreFields > div');
         if (recordTitleWrapper) {
-            recordTitleWrapper.classList.toggle('hidden', currentModuleKey === 'pr');
+            recordTitleWrapper.classList.toggle('hidden', ['pr', 'err', 'crf'].includes(currentModuleKey));
         }
 
         const supplierFields = moduleConfig.fields.filter((field) => field.name !== 'completion_mode');
@@ -10505,10 +10753,11 @@
                 const requestorValue = getDraftValue('requestor', record);
                 const amountReturnedValue = getDraftValue('amount_returned', record);
                 const modeOfReturnValue = getDraftValue('mode_of_return', record);
-                const receivingBankValue = getDraftValue('receiving_bank_account_id', record);
+                const cashReceiverNameValue = getDraftValue('cash_receiver_name', record);
+                const recipientBankAccountValue = getDraftValue('recipient_bank_account', record);
+                const recipientBankNumberValue = getDraftValue('recipient_bank_number', record);
                 const coaValue = getDraftValue('coa_id', record);
                 const referenceNumberValue = getDraftValue('reference_number', record);
-                const manualLiquidationEntry = getDraftValue('manual_liquidation_entry', record);
                 const remarksValue = getDraftValue('remarks', record);
                 const linkedLrRecord = draftLinkedRecord || getLinkedLiquidationRecord(linkedLrId, 'Overage');
                 const linkedPrefill = linkedLrRecord ? getLiquidationBranchPrefill('crf', linkedLrRecord) : {};
@@ -10519,18 +10768,20 @@
                 values['data[requester_mode]'] = requesterModeValue;
                 values.requestor = requestorValue || linkedPrefill.requestor || '';
                 values['data[requestor]'] = values.requestor;
-                values.amount_returned = amountReturnedValue || linkedPrefill.amount_returned || '';
+                values.amount_returned = linkedPrefill.amount_returned || amountReturnedValue || '';
                 values['data[amount_returned]'] = values.amount_returned;
                 values.mode_of_return = modeOfReturnValue || linkedPrefill.mode_of_return || '';
                 values['data[mode_of_return]'] = values.mode_of_return;
-                values.receiving_bank_account_id = receivingBankValue || linkedPrefill.receiving_bank_account_id || '';
-                values['data[receiving_bank_account_id]'] = values.receiving_bank_account_id;
+                values.cash_receiver_name = cashReceiverNameValue || linkedPrefill.cash_receiver_name || '';
+                values['data[cash_receiver_name]'] = values.cash_receiver_name;
+                values.recipient_bank_account = recipientBankAccountValue || linkedPrefill.recipient_bank_account || '';
+                values['data[recipient_bank_account]'] = values.recipient_bank_account;
+                values.recipient_bank_number = recipientBankNumberValue || linkedPrefill.recipient_bank_number || '';
+                values['data[recipient_bank_number]'] = values.recipient_bank_number;
                 values.coa_id = coaValue || linkedPrefill.coa_id || '';
                 values['data[coa_id]'] = values.coa_id;
                 values.reference_number = referenceNumberValue || linkedPrefill.reference_number || '';
                 values['data[reference_number]'] = values.reference_number;
-                values.manual_liquidation_entry = manualLiquidationEntry;
-                values['data[manual_liquidation_entry]'] = manualLiquidationEntry;
                 values.remarks = remarksValue || linkedPrefill.remarks || '';
                 values['data[remarks]'] = values.remarks;
 
@@ -10540,7 +10791,7 @@
                         <h4 class="text-sm font-semibold uppercase tracking-[0.24em] text-blue-700">Return Details</h4>
                         <p class="mt-2 text-xs text-gray-500">Choose Own Request to auto-fill your account details, or Request for Another to enter someone else&apos;s information.</p>
                         <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                            ${renderFieldsByNames(moduleConfig, ['requester_mode', 'requester_employee_id', 'requestor', 'linked_lr_id', 'amount_returned', 'manual_liquidation_entry', 'mode_of_return', 'receiving_bank_account_id', 'coa_id', 'reference_number', 'remarks'], values, record)}
+                            ${renderFieldsByNames(moduleConfig, ['requester_mode', 'requester_employee_id', 'requestor', 'linked_lr_id', 'amount_returned', 'mode_of_return', 'cash_receiver_name', 'recipient_bank_account', 'recipient_bank_number', 'coa_id', 'reference_number', 'remarks'], values, record)}
                         </div>
                     </div>
                 `;
@@ -11315,6 +11566,7 @@
         wireDynamicFieldEvents();
         syncConditionalDynamicFields(existingAttachments);
         syncErrReimbursementModeFields();
+        syncCrfModeOfReturnFields();
         if (currentModuleKey === 'pr') {
             syncPrRequestDetails({ preserveExisting: true });
         }
@@ -11341,6 +11593,7 @@
             renderBankAccountLookupList(activeBankAccountLookupQuery);
         }
         forceFillOwnRequesterDetails({ preserveExisting: true });
+        syncFinanceRecordTitleAutofill(record);
         bindPurchaseRequestLineItems();
         renderDrawerPreview();
     }
@@ -11387,7 +11640,7 @@
         const recordTitleValue = $('recordTitleInput').value.trim() || generateDefaultRecordTitle(currentModuleKey);
         const summaryItems = [
             ['Number', recordNumber || 'N/A'],
-            ...(currentModuleKey === 'pr' ? [] : [[moduleConfig.recordTitleLabel || 'Name', recordTitleValue || 'N/A']]),
+            ...(['pr', 'err', 'crf'].includes(currentModuleKey) ? [] : [[moduleConfig.recordTitleLabel || 'Name', recordTitleValue || 'N/A']]),
             ['Date', recordDate || 'N/A'],
             ['Time', recordTime || 'N/A'],
             ...(shouldShowGenericAmount(currentModuleKey) ? [['Amount', amount || '0.00']] : []),
@@ -11691,6 +11944,87 @@
                             </div>
                         </div>
 
+                    </div>
+                </div>
+            `;
+            return;
+        }
+
+        if (currentModuleKey === 'crf') {
+            const requesterModeValue = String(formValues['data[requester_mode]'] || '').trim();
+            const requesterModeLabel = requesterModeValue === 'request_for_another' ? 'Request for Another' : 'Own Request';
+            const modeOfReturnValue = String(formValues['data[mode_of_return]'] || '').trim();
+            const showSelectedEmployee = requesterModeValue === 'request_for_another';
+            const showCashReceiver = modeOfReturnValue === 'Cash';
+            const showBankTransferFields = modeOfReturnValue === 'Bank Transfer';
+            const showCoaAccount = modeOfReturnValue === 'Check';
+            const sectionCell = (label, value, extraClasses = '') => `
+                <div class="${extraClasses} px-4 py-3">
+                    <p class="text-[11px] uppercase tracking-[0.22em] text-gray-500">${escapeHtml(label)}</p>
+                    <p class="mt-2 min-h-[20px] border-b border-gray-300 text-[14px] font-semibold text-gray-900 break-words">${escapeHtml(value || 'Not filled yet')}</p>
+                </div>
+            `;
+            const renderSection = (title, cells) => `
+                <div class="relative border-t border-gray-300">
+                    <div class="bg-gray-50 px-4 py-2 border-b border-gray-300">
+                        <h4 class="text-[12px] font-semibold uppercase tracking-[0.26em] text-gray-700">${escapeHtml(title)}</h4>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2">
+                        ${cells.join('')}
+                    </div>
+                </div>
+            `;
+
+            $('drawerPreview').innerHTML = `
+                <div class="rounded-2xl border border-slate-200 bg-slate-100 p-4">
+                    <div class="mb-3 flex items-center justify-between rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-medium text-slate-500 shadow-sm">
+                        <span>PDF Holder</span>
+                        <span>Live Preview</span>
+                    </div>
+                    <div class="mx-auto max-w-[760px] overflow-hidden rounded-[6px] border border-gray-300 bg-white shadow-lg">
+                        <div class="relative px-5 py-5 text-center border-b border-gray-300 bg-white">
+                            <div class="mx-auto flex items-center justify-center rounded-xl bg-white px-4 py-2">
+                                <img src="${companyLogo}" alt="${escapeHtml(companyName)}" class="block h-24 w-auto max-w-[220px] object-contain">
+                            </div>
+                            <div class="mt-3 text-[16px] font-semibold leading-tight text-gray-900">${escapeHtml(companyName)}</div>
+                            <div class="text-[10px] font-medium tracking-[0.3em] text-gray-500">${escapeHtml(companyLegalName)}</div>
+                        </div>
+
+                        <div class="relative bg-blue-700 px-4 py-2 text-center text-[12px] font-semibold uppercase tracking-[0.32em] text-white">
+                            ${escapeHtml(titleLabel)}
+                        </div>
+
+                        <div class="relative grid grid-cols-2 border-t border-gray-300 text-sm">
+                            ${summaryItems.map(([label, value], index) => `
+                                <div class="${index % 2 === 0 ? 'border-r' : ''} ${index > 1 ? 'border-t' : ''} border-gray-300 px-4 py-3">
+                                    <p class="text-[11px] uppercase tracking-[0.22em] text-gray-500">${escapeHtml(label)}</p>
+                                    <p class="mt-1 text-[15px] font-semibold text-gray-900 break-words">${escapeHtml(value)}</p>
+                                </div>
+                            `).join('')}
+                        </div>
+
+                        ${renderSection('Details', [
+                            sectionCell('Requester Option', requesterModeLabel, 'border-r border-gray-300'),
+                            ...(showSelectedEmployee
+                                ? [sectionCell('Employee List', getLookupLabel('employee', formValues['data[requester_employee_id]']) || formValues['data[requester_employee_id]'] || 'Not filled yet')]
+                                : [sectionCell('Linked LR', getLookupLabel('lr', formValues['data[linked_lr_id]']) || formValues['data[linked_lr_id]'] || 'Not filled yet')]),
+                            sectionCell('Returnee', formValues['data[requestor]'] || 'Not filled yet', 'border-r border-t border-gray-300'),
+                            ...(showSelectedEmployee
+                                ? [sectionCell('Linked LR', getLookupLabel('lr', formValues['data[linked_lr_id]']) || formValues['data[linked_lr_id]'] || 'Not filled yet', 'border-t border-gray-300')]
+                                : [sectionCell('Amount Returned', formValues['data[amount_returned]'] ? formatCurrency(formValues['data[amount_returned]']) : 'Not filled yet', 'border-t border-gray-300')]),
+                            ...(showSelectedEmployee
+                                ? [sectionCell('Amount Returned', formValues['data[amount_returned]'] ? formatCurrency(formValues['data[amount_returned]']) : 'Not filled yet', 'border-r border-t border-gray-300')]
+                                : [sectionCell('Mode of Return', modeOfReturnValue || 'Not filled yet', 'border-r border-t border-gray-300')]),
+                            ...(showSelectedEmployee ? [sectionCell('Mode of Return', modeOfReturnValue || 'Not filled yet', 'border-t border-gray-300')] : []),
+                            ...(showCashReceiver ? [sectionCell('Name of Receiver', formValues['data[cash_receiver_name]'] || 'Not filled yet', 'border-r border-t border-gray-300')] : []),
+                            ...(showCashReceiver ? [sectionCell('Reference Number', formValues['data[reference_number]'] || 'Not filled yet', 'border-t border-gray-300')] : []),
+                            ...(showBankTransferFields ? [sectionCell('Bank Account', formValues['data[recipient_bank_account]'] || 'Not filled yet', 'border-r border-t border-gray-300')] : []),
+                            ...(showBankTransferFields ? [sectionCell('Bank Number', formValues['data[recipient_bank_number]'] || 'Not filled yet', 'border-t border-gray-300')] : []),
+                            ...(showCoaAccount ? [sectionCell('Account from Chart of Accounts', getLookupLabel('chart_account', formValues['data[coa_id]']) || formValues['data[coa_id]'] || 'Not filled yet', 'border-r border-t border-gray-300')] : []),
+                            ...(showCoaAccount ? [sectionCell('Reference Number', formValues['data[reference_number]'] || 'Not filled yet', 'border-t border-gray-300')] : []),
+                            ...((!showCashReceiver && !showBankTransferFields && !showCoaAccount) ? [sectionCell('Reference Number', formValues['data[reference_number]'] || 'Not filled yet', 'border-r border-t border-gray-300')] : []),
+                            sectionCell('Remarks', formValues['data[remarks]'] || 'Not filled yet', 'border-t border-gray-300 md:col-span-2'),
+                        ])}
                     </div>
                 </div>
             `;
@@ -12183,6 +12517,13 @@
 
                 return getLookupLabel(sourceKey, normalizedValue) || normalizedValue || fallback;
             };
+            const normalizePreviewComparisonValue = (value) => String(value ?? '').trim().toLowerCase();
+            const mainPayeeTypeValue = fieldValue('payee_type', '');
+            const mainPayeeValue = fieldValue('payee_name', '');
+            const sourcePayeeTypeValue = fieldValue('source_payee_type', '');
+            const sourcePayeeValue = fieldValue('source_payee_name', '');
+            const showDistinctSourcePayeeType = normalizePreviewComparisonValue(sourcePayeeTypeValue) !== normalizePreviewComparisonValue(mainPayeeTypeValue);
+            const showDistinctSourcePayee = normalizePreviewComparisonValue(sourcePayeeValue) !== normalizePreviewComparisonValue(mainPayeeValue);
             const snapshotPairs = [
                 ['Source Record Number', fieldValue('source_record_number')],
                 ['Source Record Date', fieldValue('source_record_date')],
@@ -12196,8 +12537,8 @@
                 ['Approval Status', fieldValue('source_approval_status')],
                 ['Approved By', fieldValue('source_approved_by_name')],
                 ['Approved At', fieldValue('source_approved_at')],
-                ['Payee Type', fieldValue('source_payee_type')],
-                ['Payee', fieldValue('source_payee_name')],
+                ['Payee Type', showDistinctSourcePayeeType ? sourcePayeeTypeValue : ''],
+                ['Payee', showDistinctSourcePayee ? sourcePayeeValue : ''],
                 ['Supplier Information', fieldValue('source_supplier_name')],
                 ['Employee Information', fieldValue('source_employee_name')],
                 ['Current Balance', fieldValue('source_current_balance', '0.00')],
@@ -14394,6 +14735,8 @@
 
         if (record.module_key === 'lr' && !isFinalWorkflow) {
             const data = record.data || {};
+            const lrApproved = ['Accepted'].includes(String(record.workflow_status || '').trim())
+                || ['Approved'].includes(String(record.approval_status || '').trim());
             const caAmount = numericAmount(data.total_cash_advance || data.amount_requested || record.amount || 0);
             const lineItems = Array.isArray(data.line_items) ? data.line_items.filter((item) => item && Object.values(item).some((value) => String(value ?? '').trim() !== '')) : [];
             const lineItemsTotal = lineItems.reduce((sum, item) => {
@@ -14415,9 +14758,13 @@
             const variance = caAmount - effectiveActualExpenses;
             const varianceIndicator = variance > 0 ? 'Overage' : (variance < 0 ? 'Shortage' : 'Balanced');
 
-            if (varianceIndicator === 'Shortage' || varianceIndicator === 'Overage') {
+            if (lrApproved && (varianceIndicator === 'Shortage' || varianceIndicator === 'Overage')) {
                 actions.push(`<button type="button" onclick="window.financeModule.openPreviewLiquidationBranch(${record.id})" class="w-full bg-indigo-600 text-white rounded-md py-2 hover:bg-indigo-700">${varianceIndicator === 'Shortage' ? 'Create ERR' : 'Create CRF'}</button>`);
             }
+        }
+
+        if (record.can_edit) {
+            actions.push(`<button type="button" onclick="window.financeModule.openFinanceDrawer(window.financeModule.getRecordById(${record.id}))" class="w-full border border-blue-300 text-blue-700 rounded-md py-2 hover:bg-blue-50">Edit</button>`);
         }
 
         if (record.can_submit) {
@@ -14965,6 +15312,42 @@
             Object.entries(liquidationDerivedFields).forEach(([key, value]) => {
                 formData.set(key, value);
             });
+        }
+        if (currentModuleKey === 'crf') {
+            const amountReturnedValue = String(
+                financeFormValues['data[amount_returned]']
+                || financeFormValues.amount_returned
+                || form.querySelector('input[name="data[amount_returned]"]')?.value
+                || ''
+            ).trim();
+            const modeOfReturnValue = String(
+                financeFormValues['data[mode_of_return]']
+                || financeFormValues.mode_of_return
+                || form.querySelector('[name="data[mode_of_return]"]')?.value
+                || ''
+            ).trim();
+
+            if (amountReturnedValue) {
+                formData.set('data[amount_returned]', amountReturnedValue);
+            }
+
+            if (modeOfReturnValue === 'Cash') {
+                formData.delete('data[recipient_bank_account]');
+                formData.delete('data[recipient_bank_number]');
+                formData.delete('data[coa_id]');
+            } else if (modeOfReturnValue === 'Bank Transfer') {
+                formData.delete('data[cash_receiver_name]');
+                formData.delete('data[coa_id]');
+            } else if (modeOfReturnValue === 'Check') {
+                formData.delete('data[cash_receiver_name]');
+                formData.delete('data[recipient_bank_account]');
+                formData.delete('data[recipient_bank_number]');
+            } else {
+                formData.delete('data[cash_receiver_name]');
+                formData.delete('data[recipient_bank_account]');
+                formData.delete('data[recipient_bank_number]');
+                formData.delete('data[coa_id]');
+            }
         }
 
         if (sendToSupplier && currentModuleKey === 'supplier') {

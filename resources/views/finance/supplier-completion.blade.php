@@ -9,7 +9,7 @@
 <body class="bg-slate-50 min-h-screen">
 @php
     $data = $record['data'] ?? [];
-    $isCompleted = filled($record['supplier_completed_at'] ?? null);
+    $isCompleted = filled($record['supplier_completed_at'] ?? null) && (($record['workflow_status'] ?? 'Uploaded') !== 'Reverted');
     $dataValue = fn ($key, $default = '') => old("data.$key", data_get($data, $key, $default));
     $supplierLabels = $supplierLabels ?? [];
     $supplierLabel = fn ($key, $default) => $supplierLabels[$key] ?? $default;

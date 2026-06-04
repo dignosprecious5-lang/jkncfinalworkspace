@@ -861,7 +861,52 @@ class FinanceController extends Controller
     {
         return $this->currentUserHasFinanceWideAccess()
             || ($this->currentUserCanAccessFinanceModule($record->module_key) && (int) $record->submitted_by === (int) Auth::id())
+            || $this->currentUserOwnsFinanceRevisionRequest($record)
             || $this->currentUserIsFinanceApprover($record);
+    }
+
+    private function financeRequesterUserId(FinanceRecord $record): ?int
+    {
+        if (! Schema::hasTable('employees')) {
+            return null;
+        }
+
+        if ((string) data_get($record->data ?? [], 'requester_mode', 'own_request') !== 'request_for_another') {
+            return null;
+        }
+
+        $employeeId = data_get($record->data ?? [], 'requester_employee_id');
+
+        if (blank($employeeId)) {
+            return null;
+        }
+
+        $employee = Employee::query()
+            ->select(['id', 'user_id'])
+            ->find($employeeId);
+
+        if (! $employee || blank($employee->user_id)) {
+            return null;
+        }
+
+        return (int) $employee->user_id;
+    }
+
+    private function currentUserOwnsFinanceRevisionRequest(FinanceRecord $record): bool
+    {
+        if (! Auth::check()) {
+            return false;
+        }
+
+        if (! $this->currentUserCanAccessFinanceModule($record->module_key)) {
+            return false;
+        }
+
+        if (($record->workflow_status ?? 'Uploaded') !== 'Reverted') {
+            return false;
+        }
+
+        return (int) ($this->financeRequesterUserId($record) ?? 0) === (int) Auth::id();
     }
 
     private function currentUserHasApprovedFinanceRecord(FinanceRecord $record): bool
@@ -5057,7 +5102,10 @@ SVG;
         }
 
         return $this->currentUserCanAccessFinanceModule($record->module_key)
-            && (int) $record->submitted_by === (int) Auth::id()
+            && (
+                (int) $record->submitted_by === (int) Auth::id()
+                || $this->currentUserOwnsFinanceRevisionRequest($record)
+            )
             && in_array($record->workflow_status ?? 'Uploaded', ['Uploaded', 'Reverted'], true);
     }
 
@@ -5068,7 +5116,10 @@ SVG;
         }
 
         return $this->currentUserCanAccessFinanceModule($record->module_key)
-            && (int) $record->submitted_by === (int) Auth::id()
+            && (
+                (int) $record->submitted_by === (int) Auth::id()
+                || $this->currentUserOwnsFinanceRevisionRequest($record)
+            )
             && in_array($record->workflow_status ?? 'Uploaded', ['Uploaded', 'Reverted'], true);
     }
 
@@ -7256,7 +7307,11 @@ SVG;
             ],
             'service' => [
                 'data.supplier_id' => ['required', $this->acceptedLinkedRecordRule('supplier')],
-                'data.coa_id' => ['required', $this->acceptedLinkedRecordRule('chart_account')],
+                'data.coa_id' => [
+                    'required_unless:data.mode_of_return,Cash',
+                    'nullable',
+                    $this->acceptedLinkedRecordRule('chart_account'),
+                ],
                 'data.products_services_provided' => 'nullable|string|max:2000',
                 'data.tax_type' => 'nullable|in:VAT,Expanded Withholding Tax,VAT Exempt,Zero Rated,Zero-Rated,Non-VAT,N/A',
             ],
@@ -7439,8 +7494,10 @@ SVG;
                 'data.linked_lr_id' => ['required', $this->acceptedLinkedRecordRule('lr', ['variance_indicator' => 'Overage'])],
                 'data.amount_returned' => 'required|numeric|min:0',
                 'data.manual_liquidation_entry' => 'nullable|boolean',
-                'data.receiving_bank_account_id' => ['required', $this->acceptedLinkedRecordRule('bank_account')],
-                'data.coa_id' => ['required', $this->acceptedLinkedRecordRule('chart_account')],
+                'data.cash_receiver_name' => 'required_if:data.mode_of_return,Cash|nullable|string|max:255',
+                'data.recipient_bank_account' => 'required_if:data.mode_of_return,Bank Transfer|nullable|string|max:255',
+                'data.recipient_bank_number' => 'required_if:data.mode_of_return,Bank Transfer|nullable|string|max:255',
+                'data.coa_id' => ['required_if:data.mode_of_return,Check', 'nullable', $this->acceptedLinkedRecordRule('chart_account')],
             ],
             'ibtf' => [
                 'data.source_bank_account_id' => ['required', $this->acceptedLinkedRecordRule('bank_account')],
@@ -9190,6 +9247,7 @@ SVG;
             'review_note' => $reason,
             'data' => $data,
             'status' => 'Reverted',
+            'supplier_completed_at' => $financeRecord->module_key === 'supplier' ? null : $financeRecord->supplier_completed_at,
         ]);
         $this->syncFinanceRelationshipLifecycle($financeRecord);
         $financeRecord = $financeRecord->fresh();
@@ -9885,7 +9943,7 @@ SVG;
             ->where('share_token', $token)
             ->firstOrFail();
 
-        if (filled($record->supplier_completed_at)) {
+        if (filled($record->supplier_completed_at) && ($record->workflow_status ?? 'Uploaded') !== 'Reverted') {
             return redirect()
                 ->route('finance.supplier.completion', $token)
                 ->with('success', 'Supplier information has already been submitted.');
