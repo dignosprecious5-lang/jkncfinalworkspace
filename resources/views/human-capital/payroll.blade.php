@@ -1,6 +1,9 @@
 @extends('layouts.app')
 
 @section('content')
+@php
+    $canManagePayroll = request()->user()?->isAdmin() || request()->user()?->isSuperAdmin();
+@endphp
 <div x-data="payrollPage()" class="w-full px-6 mt-4 h-[calc(100vh-100px)] flex flex-col">
     <div class="bg-white rounded-xl border border-gray-200 flex flex-col flex-grow min-h-0">
         <div class="flex items-center justify-between px-4 py-3 border-b shrink-0 gap-4">
@@ -9,6 +12,7 @@
             </div>
 
             <button
+                x-show="activeTab !== 'summaries'"
                 type="button"
                 @click="openAddSection(activeTab)"
                 class="bg-blue-600 text-white px-6 py-2 rounded text-sm shrink-0 hover:bg-blue-700 transition"
@@ -65,6 +69,9 @@
                                 <th class="p-3 text-left font-medium">Date Created</th>
                                 <th class="p-3 text-left font-medium">Policy No.</th>
                                 <th class="p-3 text-left font-medium">Basis</th>
+                                @if($canManagePayroll)
+                                    <th class="p-3 text-left font-medium w-36">Actions</th>
+                                @endif
                             </tr>
                         </thead>
                         <tbody class="bg-white">
@@ -87,10 +94,39 @@
                                             -
                                         @endif
                                     </td>
+                                    @if($canManagePayroll)
+                                        <td class="p-3 align-top">
+                                            <div class="flex items-center gap-2">
+                                                <button
+                                                    type="button"
+                                                    @click="openEditSection('salary_grades', @js([
+                                                        "id" => $item->id,
+                                                        "code" => $item->code,
+                                                        "name" => $item->name,
+                                                        "payment_type" => $item->payment_type,
+                                                        "monthly_basic_pay" => $item->monthly_basic_pay,
+                                                        "applicable_daily_rate" => $item->applicable_daily_rate,
+                                                        "date_created" => optional($item->date_created)->format("Y-m-d"),
+                                                        "policy_number" => $item->policy_number,
+                                                    ]))"
+                                                    class="rounded border border-blue-200 px-3 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-50"
+                                                >
+                                                    Edit
+                                                </button>
+                                                <form action="{{ route('human-capital.payroll.salary-grades.destroy', $item) }}" method="POST" onsubmit="return confirm('Delete this salary grade?')">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                    <button type="submit" class="rounded border border-red-200 px-3 py-1 text-xs font-semibold text-red-700 hover:bg-red-50">
+                                                        Delete
+                                                    </button>
+                                                </form>
+                                            </div>
+                                        </td>
+                                    @endif
                                 </tr>
                             @empty
                                 <tr class="border-t">
-                                    <td colspan="11" class="p-10 text-center text-gray-400 italic">No salary grades yet.</td>
+                                    <td colspan="{{ $canManagePayroll ? 12 : 11 }}" class="p-10 text-center text-gray-400 italic">No salary grades yet.</td>
                                 </tr>
                             @endforelse
                         </tbody>
@@ -109,6 +145,9 @@
                                 <th class="p-3 text-left font-medium">Date Created</th>
                                 <th class="p-3 text-left font-medium">Policy No.</th>
                                 <th class="p-3 text-left font-medium">Basis</th>
+                                @if($canManagePayroll)
+                                    <th class="p-3 text-left font-medium w-36">Actions</th>
+                                @endif
                             </tr>
                         </thead>
                         <tbody class="bg-white">
@@ -137,10 +176,38 @@
                                             -
                                         @endif
                                     </td>
+                                    @if($canManagePayroll)
+                                        <td class="p-3 align-top">
+                                            <div class="flex items-center gap-2">
+                                                <button
+                                                    type="button"
+                                                    @click="openEditSection('levels', @js([
+                                                        "id" => $item->id,
+                                                        "salary_grade_id" => $item->salary_grade_id,
+                                                        "level_name" => $item->level_name,
+                                                        "work_schedule_label" => $item->work_schedule_label,
+                                                        "hours_per_day" => $item->hours_per_day,
+                                                        "date_created" => optional($item->date_created)->format("Y-m-d"),
+                                                        "policy_number" => $item->policy_number,
+                                                    ]))"
+                                                    class="rounded border border-blue-200 px-3 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-50"
+                                                >
+                                                    Edit
+                                                </button>
+                                                <form action="{{ route('human-capital.payroll.levels.destroy', $item) }}" method="POST" onsubmit="return confirm('Delete this payroll level?')">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                    <button type="submit" class="rounded border border-red-200 px-3 py-1 text-xs font-semibold text-red-700 hover:bg-red-50">
+                                                        Delete
+                                                    </button>
+                                                </form>
+                                            </div>
+                                        </td>
+                                    @endif
                                 </tr>
                             @empty
                                 <tr class="border-t">
-                                    <td colspan="8" class="p-10 text-center text-gray-400 italic">No payroll levels yet.</td>
+                                    <td colspan="{{ $canManagePayroll ? 9 : 8 }}" class="p-10 text-center text-gray-400 italic">No payroll levels yet.</td>
                                 </tr>
                             @endforelse
                         </tbody>
@@ -160,6 +227,9 @@
                                 <th class="p-3 text-left font-medium">Policy No.</th>
                                 <th class="p-3 text-left font-medium">Date Created</th>
                                 <th class="p-3 text-left font-medium">Basis</th>
+                                @if($canManagePayroll)
+                                    <th class="p-3 text-left font-medium w-36">Actions</th>
+                                @endif
                             </tr>
                         </thead>
                         <tbody class="bg-white">
@@ -180,10 +250,41 @@
                                             -
                                         @endif
                                     </td>
+                                    @if($canManagePayroll)
+                                        <td class="p-3 align-top">
+                                            <div class="flex items-center gap-2">
+                                                <button
+                                                    type="button"
+                                                    @click="openEditSection('benefits', @js([
+                                                        "id" => $item->id,
+                                                        "salary_grade_id" => $item->salary_grade_id,
+                                                        "payroll_level_id" => $item->payroll_level_id,
+                                                        "name" => $item->name,
+                                                        "type" => $item->type,
+                                                        "rate" => $item->rate,
+                                                        "value" => $item->value,
+                                                        "is_active" => $item->is_active,
+                                                        "date_created" => optional($item->date_created)->format("Y-m-d"),
+                                                        "policy_number" => $item->policy_number,
+                                                    ]))"
+                                                    class="rounded border border-blue-200 px-3 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-50"
+                                                >
+                                                    Edit
+                                                </button>
+                                                <form action="{{ route('human-capital.payroll.benefits.destroy', $item) }}" method="POST" onsubmit="return confirm('Delete this benefit?')">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                    <button type="submit" class="rounded border border-red-200 px-3 py-1 text-xs font-semibold text-red-700 hover:bg-red-50">
+                                                        Delete
+                                                    </button>
+                                                </form>
+                                            </div>
+                                        </td>
+                                    @endif
                                 </tr>
                             @empty
                                 <tr class="border-t">
-                                    <td colspan="9" class="p-10 text-center text-gray-400 italic">No benefits yet.</td>
+                                    <td colspan="{{ $canManagePayroll ? 10 : 9 }}" class="p-10 text-center text-gray-400 italic">No benefits yet.</td>
                                 </tr>
                             @endforelse
                         </tbody>
@@ -203,6 +304,9 @@
                                 <th class="p-3 text-left font-medium">Policy No.</th>
                                 <th class="p-3 text-left font-medium">Date Created</th>
                                 <th class="p-3 text-left font-medium">Basis</th>
+                                @if($canManagePayroll)
+                                    <th class="p-3 text-left font-medium w-36">Actions</th>
+                                @endif
                             </tr>
                         </thead>
                         <tbody class="bg-white">
@@ -223,10 +327,41 @@
                                             -
                                         @endif
                                     </td>
+                                    @if($canManagePayroll)
+                                        <td class="p-3 align-top">
+                                            <div class="flex items-center gap-2">
+                                                <button
+                                                    type="button"
+                                                    @click="openEditSection('allowances', @js([
+                                                        "id" => $item->id,
+                                                        "salary_grade_id" => $item->salary_grade_id,
+                                                        "payroll_level_id" => $item->payroll_level_id,
+                                                        "name" => $item->name,
+                                                        "type" => $item->type,
+                                                        "rate" => $item->rate,
+                                                        "value" => $item->value,
+                                                        "is_active" => $item->is_active,
+                                                        "date_created" => optional($item->date_created)->format("Y-m-d"),
+                                                        "policy_number" => $item->policy_number,
+                                                    ]))"
+                                                    class="rounded border border-blue-200 px-3 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-50"
+                                                >
+                                                    Edit
+                                                </button>
+                                                <form action="{{ route('human-capital.payroll.allowances.destroy', $item) }}" method="POST" onsubmit="return confirm('Delete this allowance?')">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                    <button type="submit" class="rounded border border-red-200 px-3 py-1 text-xs font-semibold text-red-700 hover:bg-red-50">
+                                                        Delete
+                                                    </button>
+                                                </form>
+                                            </div>
+                                        </td>
+                                    @endif
                                 </tr>
                             @empty
                                 <tr class="border-t">
-                                    <td colspan="9" class="p-10 text-center text-gray-400 italic">No allowances yet.</td>
+                                    <td colspan="{{ $canManagePayroll ? 10 : 9 }}" class="p-10 text-center text-gray-400 italic">No allowances yet.</td>
                                 </tr>
                             @endforelse
                         </tbody>
@@ -246,6 +381,9 @@
                                 <th class="p-3 text-left font-medium">Policy No.</th>
                                 <th class="p-3 text-left font-medium">Date Created</th>
                                 <th class="p-3 text-left font-medium">Basis</th>
+                                @if($canManagePayroll)
+                                    <th class="p-3 text-left font-medium w-36">Actions</th>
+                                @endif
                             </tr>
                         </thead>
                         <tbody class="bg-white">
@@ -266,10 +404,41 @@
                                             -
                                         @endif
                                     </td>
+                                    @if($canManagePayroll)
+                                        <td class="p-3 align-top">
+                                            <div class="flex items-center gap-2">
+                                                <button
+                                                    type="button"
+                                                    @click="openEditSection('deductions', @js([
+                                                        "id" => $item->id,
+                                                        "salary_grade_id" => $item->salary_grade_id,
+                                                        "payroll_level_id" => $item->payroll_level_id,
+                                                        "name" => $item->name,
+                                                        "type" => $item->type,
+                                                        "rate" => $item->rate,
+                                                        "value" => $item->value,
+                                                        "is_active" => $item->is_active,
+                                                        "date_created" => optional($item->date_created)->format("Y-m-d"),
+                                                        "policy_number" => $item->policy_number,
+                                                    ]))"
+                                                    class="rounded border border-blue-200 px-3 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-50"
+                                                >
+                                                    Edit
+                                                </button>
+                                                <form action="{{ route('human-capital.payroll.deductions.destroy', $item) }}" method="POST" onsubmit="return confirm('Delete this deduction?')">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                    <button type="submit" class="rounded border border-red-200 px-3 py-1 text-xs font-semibold text-red-700 hover:bg-red-50">
+                                                        Delete
+                                                    </button>
+                                                </form>
+                                            </div>
+                                        </td>
+                                    @endif
                                 </tr>
                             @empty
                                 <tr class="border-t">
-                                    <td colspan="9" class="p-10 text-center text-gray-400 italic">No deductions yet.</td>
+                                    <td colspan="{{ $canManagePayroll ? 10 : 9 }}" class="p-10 text-center text-gray-400 italic">No deductions yet.</td>
                                 </tr>
                             @endforelse
                         </tbody>
@@ -290,6 +459,9 @@
                                 <th class="p-3 text-left font-medium">Policy No.</th>
                                 <th class="p-3 text-left font-medium">Date Created</th>
                                 <th class="p-3 text-left font-medium">Basis</th>
+                                @if($canManagePayroll)
+                                    <th class="p-3 text-left font-medium w-36">Actions</th>
+                                @endif
                             </tr>
                         </thead>
                         <tbody class="bg-white">
@@ -311,10 +483,40 @@
                                             -
                                         @endif
                                     </td>
+                                    @if($canManagePayroll)
+                                        <td class="p-3 align-top">
+                                            <div class="flex items-center gap-2">
+                                                <button
+                                                    type="button"
+                                                    @click="openEditSection('holidays', @js([
+                                                        "id" => $item->id,
+                                                        "salary_grade_id" => $item->salary_grade_id,
+                                                        "payroll_level_id" => $item->payroll_level_id,
+                                                        "name" => $item->name,
+                                                        "holiday_date" => optional($item->holiday_date)->format("Y-m-d"),
+                                                        "holiday_category" => $item->holiday_category ?: $item->holiday_type,
+                                                        "percentage" => $item->percentage,
+                                                        "date_created" => optional($item->date_created)->format("Y-m-d"),
+                                                        "policy_number" => $item->policy_number,
+                                                    ]))"
+                                                    class="rounded border border-blue-200 px-3 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-50"
+                                                >
+                                                    Edit
+                                                </button>
+                                                <form action="{{ route('human-capital.payroll.holidays.destroy', $item) }}" method="POST" onsubmit="return confirm('Delete this holiday?')">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                    <button type="submit" class="rounded border border-red-200 px-3 py-1 text-xs font-semibold text-red-700 hover:bg-red-50">
+                                                        Delete
+                                                    </button>
+                                                </form>
+                                            </div>
+                                        </td>
+                                    @endif
                                 </tr>
                             @empty
                                 <tr class="border-t">
-                                    <td colspan="10" class="p-10 text-center text-gray-400 italic">No holidays yet.</td>
+                                    <td colspan="{{ $canManagePayroll ? 11 : 10 }}" class="p-10 text-center text-gray-400 italic">No holidays yet.</td>
                                 </tr>
                             @endforelse
                         </tbody>
@@ -334,6 +536,9 @@
                                 <th class="p-3 text-left font-medium">Date Created</th>
                                 <th class="p-3 text-left font-medium">Policy No.</th>
                                 <th class="p-3 text-left font-medium">Basis</th>
+                                @if($canManagePayroll)
+                                    <th class="p-3 text-left font-medium w-36">Actions</th>
+                                @endif
                             </tr>
                         </thead>
                         <tbody class="bg-white">
@@ -354,10 +559,43 @@
                                             -
                                         @endif
                                     </td>
+                                    @if($canManagePayroll)
+                                        <td class="p-3 align-top">
+                                            <div class="flex items-center gap-2">
+                                                <button
+                                                    type="button"
+                                                    @click="openEditSection('periods', @js([
+                                                        "id" => $item->id,
+                                                        "name" => $item->name,
+                                                        "period_start" => optional($item->period_start)->format("Y-m-d"),
+                                                        "period_end" => optional($item->period_end)->format("Y-m-d"),
+                                                        "payroll_start" => optional($item->payroll_start)->format("Y-m-d"),
+                                                        "payroll_end" => optional($item->payroll_end)->format("Y-m-d"),
+                                                        "pay_date" => optional($item->pay_date)->format("Y-m-d"),
+                                                        "dispute_start" => optional($item->dispute_start)->format("Y-m-d"),
+                                                        "dispute_end" => optional($item->dispute_end)->format("Y-m-d"),
+                                                        "status" => $item->status,
+                                                        "date_created" => optional($item->date_created)->format("Y-m-d"),
+                                                        "policy_number" => $item->policy_number,
+                                                    ]))"
+                                                    class="rounded border border-blue-200 px-3 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-50"
+                                                >
+                                                    Edit
+                                                </button>
+                                                <form action="{{ route('human-capital.payroll.periods.destroy', $item) }}" method="POST" onsubmit="return confirm('Delete this payroll period?')">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                    <button type="submit" class="rounded border border-red-200 px-3 py-1 text-xs font-semibold text-red-700 hover:bg-red-50">
+                                                        Delete
+                                                    </button>
+                                                </form>
+                                            </div>
+                                        </td>
+                                    @endif
                                 </tr>
                             @empty
                                 <tr class="border-t">
-                                    <td colspan="9" class="p-10 text-center text-gray-400 italic">No payroll periods yet.</td>
+                                    <td colspan="{{ $canManagePayroll ? 10 : 9 }}" class="p-10 text-center text-gray-400 italic">No payroll periods yet.</td>
                                 </tr>
                             @endforelse
                         </tbody>
@@ -373,6 +611,9 @@
                                 <th class="p-3 text-left font-medium w-40">Salary Grade</th>
                                 <th class="p-3 text-left font-medium w-32">Override</th>
                                 <th class="p-3 text-left font-medium w-28">Night Diff</th>
+                                @if($canManagePayroll)
+                                    <th class="p-3 text-left font-medium w-36">Actions</th>
+                                @endif
                             </tr>
                         </thead>
                         <tbody class="bg-white">
@@ -383,10 +624,36 @@
                                     <td class="p-3 text-gray-900 align-top">{{ $item->payrollLevel?->salaryGrade?->name }}</td>
                                     <td class="p-3 text-gray-900 align-top">{{ $item->basic_salary_override ? 'PHP '.number_format($item->basic_salary_override, 2) : '-' }}</td>
                                     <td class="p-3 text-gray-900 align-top">{{ $item->night_differential_enabled ? 'Enabled' : 'Disabled' }}</td>
+                                    @if($canManagePayroll)
+                                        <td class="p-3 align-top">
+                                            <div class="flex items-center gap-2">
+                                                <button
+                                                    type="button"
+                                                    @click="openEditSection('profiles', @js([
+                                                        "id" => $item->id,
+                                                        "employee_id" => $item->employee_id,
+                                                        "payroll_level_id" => $item->payroll_level_id,
+                                                        "basic_salary_override" => $item->basic_salary_override,
+                                                        "night_differential_enabled" => $item->night_differential_enabled,
+                                                    ]))"
+                                                    class="rounded border border-blue-200 px-3 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-50"
+                                                >
+                                                    Edit
+                                                </button>
+                                                <form action="{{ route('human-capital.payroll.profiles.destroy', $item) }}" method="POST" onsubmit="return confirm('Delete this employee payroll profile?')">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                    <button type="submit" class="rounded border border-red-200 px-3 py-1 text-xs font-semibold text-red-700 hover:bg-red-50">
+                                                        Delete
+                                                    </button>
+                                                </form>
+                                            </div>
+                                        </td>
+                                    @endif
                                 </tr>
                             @empty
                                 <tr class="border-t">
-                                    <td colspan="5" class="p-10 text-center text-gray-400 italic">No employee payroll profiles yet.</td>
+                                    <td colspan="{{ $canManagePayroll ? 6 : 5 }}" class="p-10 text-center text-gray-400 italic">No employee payroll profiles yet.</td>
                                 </tr>
                             @endforelse
                         </tbody>
@@ -422,6 +689,9 @@
                                     <th class="p-3 text-left font-medium w-32">Deductions</th>
                                     <th class="p-3 text-left font-medium w-32">Net Pay</th>
                                     <th class="p-3 text-left font-medium w-28">Payslip</th>
+                                    @if($canManagePayroll)
+                                        <th class="p-3 text-left font-medium w-36">Actions</th>
+                                    @endif
                                 </tr>
                             </thead>
                             <tbody class="bg-white">
@@ -437,10 +707,41 @@
                                                 View Payslip
                                             </a>
                                         </td>
+                                        @if($canManagePayroll)
+                                            <td class="p-3 align-top">
+                                                <div class="flex items-center gap-2">
+                                                    <button
+                                                        type="button"
+                                                        @click="openEditSection('summaries', @js([
+                                                            "id" => $item->id,
+                                                            "payroll_level_id" => $item->payroll_level_id,
+                                                            "gross_pay" => $item->gross_pay,
+                                                            "total_benefits" => $item->total_benefits,
+                                                            "total_allowances" => $item->total_allowances,
+                                                            "total_deductions" => $item->total_deductions,
+                                                            "night_differential_amount" => $item->night_differential_amount,
+                                                            "holiday_pay_amount" => $item->holiday_pay_amount,
+                                                            "net_pay" => $item->net_pay,
+                                                            "status" => $item->status,
+                                                        ]))"
+                                                        class="rounded border border-blue-200 px-3 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-50"
+                                                    >
+                                                        Edit
+                                                    </button>
+                                                    <form action="{{ route('human-capital.payroll.summaries.destroy', $item) }}" method="POST" onsubmit="return confirm('Delete this payroll summary?')">
+                                                        @csrf
+                                                        @method('DELETE')
+                                                        <button type="submit" class="rounded border border-red-200 px-3 py-1 text-xs font-semibold text-red-700 hover:bg-red-50">
+                                                            Delete
+                                                        </button>
+                                                    </form>
+                                                </div>
+                                            </td>
+                                        @endif
                                     </tr>
                                 @empty
                                     <tr class="border-t">
-                                        <td colspan="6" class="p-10 text-center text-gray-400 italic">No payroll summaries yet.</td>
+                                        <td colspan="{{ $canManagePayroll ? 7 : 6 }}" class="p-10 text-center text-gray-400 italic">No payroll summaries yet.</td>
                                     </tr>
                                 @endforelse
                             </tbody>
@@ -913,11 +1214,64 @@
                             Enable Night Differential
                         </label>
                     </form>
+
+                    <form x-show="activeForm === 'summaries'" x-ref="summariesForm" action="#" method="POST" class="space-y-4">
+                        @csrf
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Payroll Level</label>
+                            <select name="payroll_level_id" class="w-full border rounded-md p-2 bg-white text-gray-900" required>
+                                @foreach($payrollLevels as $level)
+                                    <option value="{{ $level->id }}">
+                                        {{ $level->level_name }} - {{ $level->salaryGrade?->name }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium mb-1">Gross Pay</label>
+                                <input type="number" step="0.01" name="gross_pay" class="w-full border rounded-md p-2 bg-white text-gray-900" required>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium mb-1">Total Benefits</label>
+                                <input type="number" step="0.01" name="total_benefits" class="w-full border rounded-md p-2 bg-white text-gray-900" required>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium mb-1">Total Allowances</label>
+                                <input type="number" step="0.01" name="total_allowances" class="w-full border rounded-md p-2 bg-white text-gray-900" required>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium mb-1">Total Deductions</label>
+                                <input type="number" step="0.01" name="total_deductions" class="w-full border rounded-md p-2 bg-white text-gray-900" required>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium mb-1">Night Differential</label>
+                                <input type="number" step="0.01" name="night_differential_amount" class="w-full border rounded-md p-2 bg-white text-gray-900" required>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium mb-1">Holiday Pay</label>
+                                <input type="number" step="0.01" name="holiday_pay_amount" class="w-full border rounded-md p-2 bg-white text-gray-900" required>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium mb-1">Net Pay</label>
+                                <input type="number" step="0.01" name="net_pay" class="w-full border rounded-md p-2 bg-white text-gray-900" required>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium mb-1">Status</label>
+                                <select name="status" class="w-full border rounded-md p-2 bg-white text-gray-900" required>
+                                    <option value="generated">Generated</option>
+                                    <option value="approved">Approved</option>
+                                    <option value="released">Released</option>
+                                </select>
+                            </div>
+                        </div>
+                    </form>
                         </div>
 
                         <div class="p-6 border-t flex gap-2 shrink-0 bg-white">
                             <button type="button" @click="closeAddSection()" class="flex-1 border rounded py-2">Cancel</button>
-                            <button type="button" @click="submitActiveForm()" class="flex-1 bg-blue-600 text-white rounded py-2 hover:bg-blue-700 transition">Save</button>
+                            <button type="button" @click="submitActiveForm()" x-text="editing ? 'Update' : 'Save'" class="flex-1 bg-blue-600 text-white rounded py-2 hover:bg-blue-700 transition"></button>
                         </div>
                     </div>
                 </div>
@@ -957,9 +1311,49 @@ function payrollPage() {
             'level_name' => $item->level_name,
             'computation_type' => $item->computation_type,
         ])),
+        formRoutes: @js([
+            'salary_grades' => [
+                'store' => route('human-capital.payroll.salary-grades.store'),
+                'update' => route('human-capital.payroll.salary-grades.update', '__ID__'),
+            ],
+            'levels' => [
+                'store' => route('human-capital.payroll.levels.store'),
+                'update' => route('human-capital.payroll.levels.update', '__ID__'),
+            ],
+            'benefits' => [
+                'store' => route('human-capital.payroll.benefits.store'),
+                'update' => route('human-capital.payroll.benefits.update', '__ID__'),
+            ],
+            'allowances' => [
+                'store' => route('human-capital.payroll.allowances.store'),
+                'update' => route('human-capital.payroll.allowances.update', '__ID__'),
+            ],
+            'deductions' => [
+                'store' => route('human-capital.payroll.deductions.store'),
+                'update' => route('human-capital.payroll.deductions.update', '__ID__'),
+            ],
+            'holidays' => [
+                'store' => route('human-capital.payroll.holidays.store'),
+                'update' => route('human-capital.payroll.holidays.update', '__ID__'),
+            ],
+            'periods' => [
+                'store' => route('human-capital.payroll.periods.store'),
+                'update' => route('human-capital.payroll.periods.update', '__ID__'),
+            ],
+            'profiles' => [
+                'store' => route('human-capital.payroll.profiles.store'),
+                'update' => route('human-capital.payroll.profiles.update', '__ID__'),
+            ],
+            'summaries' => [
+                'store' => '#',
+                'update' => route('human-capital.payroll.summaries.update', '__ID__'),
+            ],
+        ]),
         activeTab: 'salary_grades',
         showSlider: false,
         activeForm: null,
+        editing: false,
+        editingId: null,
         sliderTitle: 'Add Entry',
         sliderError: '',
         previewFileUrl: '',
@@ -989,6 +1383,8 @@ function payrollPage() {
             this.activeForm = section;
             this.sliderTitle = this.getFormTitle(section);
             this.sliderError = '';
+            this.editing = false;
+            this.editingId = null;
 
             if (section === 'levels') {
                 this.syncLevelComputationType();
@@ -997,6 +1393,38 @@ function payrollPage() {
             this.showSlider = true;
 
             this.$nextTick(() => {
+                const form = this.activeFormElement();
+                if (form) {
+                    form.reset();
+                    form.action = this.formRoutes[section]?.store || form.action;
+                    this.removeMethodOverride(form);
+                    this.resetFormState(section);
+                }
+
+                requestAnimationFrame(() => {
+                    this.$refs.addPanel.classList.remove('translate-x-full');
+                });
+            });
+        },
+
+        openEditSection(section, record) {
+            this.activeForm = section;
+            this.editing = true;
+            this.editingId = record.id;
+            this.sliderTitle = this.getFormTitle(section).replace('Add', 'Edit').replace('Assign', 'Edit');
+            this.sliderError = '';
+            this.showSlider = true;
+
+            this.$nextTick(() => {
+                const form = this.activeFormElement();
+                if (!form) return;
+
+                form.reset();
+                form.action = (this.formRoutes[section]?.update || '').replace('__ID__', record.id);
+                this.ensureMethodOverride(form, 'PUT');
+                this.resetFormState(section);
+                this.fillForm(section, record, form);
+
                 requestAnimationFrame(() => {
                     this.$refs.addPanel.classList.remove('translate-x-full');
                 });
@@ -1014,7 +1442,104 @@ function payrollPage() {
                 this.showSlider = false;
                 this.activeForm = null;
                 this.sliderError = '';
+                this.editing = false;
+                this.editingId = null;
             }, 300);
+        },
+
+        activeFormElement() {
+            const refs = this.formRefMap();
+            const ref = refs[this.activeForm];
+            return ref ? this.$refs[ref] : null;
+        },
+
+        formRefMap() {
+            return {
+                salary_grades: 'salaryGradeForm',
+                levels: 'levelFormRef',
+                benefits: 'benefitsForm',
+                allowances: 'allowancesForm',
+                deductions: 'deductionsForm',
+                holidays: 'holidaysForm',
+                periods: 'periodsForm',
+                profiles: 'profilesForm',
+                summaries: 'summariesForm',
+            };
+        },
+
+        ensureMethodOverride(form, method) {
+            this.removeMethodOverride(form);
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = '_method';
+            input.value = method;
+            form.appendChild(input);
+        },
+
+        removeMethodOverride(form) {
+            form.querySelectorAll('input[name="_method"]').forEach((input) => input.remove());
+        },
+
+        resetFormState(section) {
+            if (section === 'salary_grades') {
+                this.salaryGradeForm = { payment_type: 'monthly', monthly_basic_pay: '', applicable_daily_rate: '' };
+            }
+            if (section === 'levels') {
+                this.levelForm = { salary_grade_id: '', computation_type: '' };
+            }
+            if (['benefits', 'allowances', 'deductions'].includes(section)) {
+                this.componentForms[section] = { salary_grade_id: '', payroll_level_id: '', type: 'fixed', rate: '', value: '' };
+            }
+            if (section === 'holidays') {
+                this.holidayForm = { salary_grade_id: '', payroll_level_id: '', percentage: '' };
+            }
+        },
+
+        setField(form, name, value) {
+            const field = form.querySelector(`[name="${name}"]`);
+            if (!field) return;
+
+            if (field.type === 'checkbox') {
+                field.checked = Boolean(value);
+                return;
+            }
+
+            field.value = value ?? '';
+            field.dispatchEvent(new Event('input', { bubbles: true }));
+            field.dispatchEvent(new Event('change', { bubbles: true }));
+        },
+
+        fillForm(section, record, form) {
+            Object.entries(record || {}).forEach(([key, value]) => {
+                this.setField(form, key, value);
+            });
+
+            if (section === 'salary_grades') {
+                this.salaryGradeForm.payment_type = record.payment_type || 'monthly';
+                this.salaryGradeForm.monthly_basic_pay = record.monthly_basic_pay ?? '';
+                this.salaryGradeForm.applicable_daily_rate = record.applicable_daily_rate ?? '';
+            }
+
+            if (section === 'levels') {
+                this.levelForm.salary_grade_id = String(record.salary_grade_id || '');
+                this.syncLevelComputationType();
+            }
+
+            if (['benefits', 'allowances', 'deductions'].includes(section)) {
+                this.componentForms[section] = {
+                    salary_grade_id: String(record.salary_grade_id || ''),
+                    payroll_level_id: String(record.payroll_level_id || ''),
+                    type: record.type || 'fixed',
+                    rate: record.type === 'percentage' ? (record.rate ?? '') : '',
+                    value: record.type === 'fixed' ? (record.value ?? record.rate ?? '') : '',
+                };
+            }
+
+            if (section === 'holidays') {
+                this.holidayForm.salary_grade_id = String(record.salary_grade_id || '');
+                this.holidayForm.payroll_level_id = String(record.payroll_level_id || '');
+                this.holidayForm.percentage = record.percentage ?? '';
+            }
         },
 
         getFormTitle(section) {
@@ -1027,6 +1552,7 @@ function payrollPage() {
                 holidays: 'Add Holiday',
                 periods: 'Add Payroll Date',
                 profiles: 'Assign Payroll to Employee',
+                summaries: 'Edit Payroll Summary',
             };
 
             return titles[section] || 'Add Entry';
@@ -1149,17 +1675,7 @@ function payrollPage() {
         submitActiveForm() {
             this.sliderError = '';
 
-            const refs = {
-                salary_grades: 'salaryGradeForm',
-                levels: 'levelFormRef',
-                benefits: 'benefitsForm',
-                allowances: 'allowancesForm',
-                deductions: 'deductionsForm',
-                holidays: 'holidaysForm',
-                periods: 'periodsForm',
-                profiles: 'profilesForm',
-            };
-
+            const refs = this.formRefMap();
             const formRef = refs[this.activeForm];
             const form = formRef ? this.$refs[formRef] : null;
 

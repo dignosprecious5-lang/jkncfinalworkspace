@@ -21,6 +21,20 @@ use Illuminate\Validation\ValidationException;
 
 class PayrollController extends Controller
 {
+    private const WORK_SCHEDULE_LABELS = [
+        'Monday to Sunday - 8:00 AM to 5:00 PM',
+        'Monday to Saturday - 8:00 AM to 5:00 PM',
+        'Monday to Friday - 8:00 AM to 5:00 PM',
+        'Monday to Sunday â€“ 8:00 AM to 5:00 PM',
+        'Monday to Saturday â€“ 8:00 AM to 5:00 PM',
+        'Monday to Friday â€“ 8:00 AM to 5:00 PM',
+        'Shifting Schedule',
+        'Night Shift',
+        'Hybrid',
+        'Work From Home',
+        'Flexible',
+    ];
+
     public function index()
     {
         return view('human-capital.payroll', [
@@ -39,88 +53,44 @@ class PayrollController extends Controller
 
     public function storeSalaryGrade(Request $request)
     {
-        $validated = $request->validate([
-            'code' => ['required', 'string', 'max:50'],
-            'name' => ['required', 'string', 'max:100'],
-            'payment_type' => ['required', Rule::in(['daily', 'monthly'])],
-            'monthly_basic_pay' => ['nullable', 'numeric', 'min:0'],
-            'applicable_daily_rate' => ['nullable', 'numeric', 'min:0'],
-            'date_created' => ['required', 'date'],
-            'policy_number' => ['nullable', 'string', 'max:100'],
-            'basis_file' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png,doc,docx', 'max:10240'],
-        ]);
-
-        if ($validated['payment_type'] === 'monthly' && ! is_numeric($validated['monthly_basic_pay'] ?? null)) {
-            throw ValidationException::withMessages([
-                'monthly_basic_pay' => 'Monthly basic pay is required for monthly paid salary grades.',
-            ]);
-        }
-
-        if ($validated['payment_type'] === 'daily' && ! is_numeric($validated['applicable_daily_rate'] ?? null)) {
-            throw ValidationException::withMessages([
-                'applicable_daily_rate' => 'Applicable daily rate is required for daily paid salary grades.',
-            ]);
-        }
-
-        $figures = $this->computeSalaryGradeFigures(
-            $validated['payment_type'],
-            $validated['monthly_basic_pay'] ?? null,
-            $validated['applicable_daily_rate'] ?? null
-        );
-
-        SalaryGrade::create([
-            'code' => $validated['code'],
-            'name' => $validated['name'],
-            'payment_type' => $validated['payment_type'],
-            'monthly_basic_pay' => $figures['monthly_basic_pay'],
-            'applicable_daily_rate' => $figures['applicable_daily_rate'],
-            'hourly_rate' => $figures['hourly_rate'],
-            'minute_rate' => $figures['minute_rate'],
-            'yearly_rate' => $figures['yearly_rate'],
-            'date_created' => $validated['date_created'],
-            'policy_number' => $validated['policy_number'] ?? null,
-            'basis_file_path' => $this->storeBasisFile($request, 'salary-grades'),
-        ]);
+        SalaryGrade::create($this->salaryGradePayload($request));
 
         return back()->with('success', 'Salary grade added successfully.');
     }
 
+    public function updateSalaryGrade(Request $request, SalaryGrade $salaryGrade)
+    {
+        $salaryGrade->update($this->salaryGradePayload($request, $salaryGrade->basis_file_path));
+
+        return back()->with('success', 'Salary grade updated successfully.');
+    }
+
+    public function destroySalaryGrade(SalaryGrade $salaryGrade)
+    {
+        $salaryGrade->delete();
+
+        return back()->with('success', 'Salary grade deleted successfully.');
+    }
+
     public function storePayrollLevel(Request $request)
     {
-        $validated = $request->validate([
-            'salary_grade_id' => ['required', 'exists:salary_grades,id'],
-            'level_name' => ['required', 'string', 'max:100'],
-            'work_schedule_label' => ['required', Rule::in([
-                'Monday to Sunday – 8:00 AM to 5:00 PM',
-                'Monday to Saturday – 8:00 AM to 5:00 PM',
-                'Monday to Friday – 8:00 AM to 5:00 PM',
-                'Shifting Schedule',
-                'Night Shift',
-                'Hybrid',
-                'Work From Home',
-                'Flexible',
-            ])],
-            'hours_per_day' => ['required', 'numeric', 'min:1'],
-            'date_created' => ['required', 'date'],
-            'policy_number' => ['nullable', 'string', 'max:100'],
-            'basis_file' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png,doc,docx', 'max:10240'],
-        ]);
-
-        $salaryGrade = SalaryGrade::findOrFail($validated['salary_grade_id']);
-
-        PayrollLevel::create([
-            'salary_grade_id' => $salaryGrade->id,
-            'level_name' => $validated['level_name'],
-            'computation_type' => $salaryGrade->payment_type,
-            'work_schedule' => $this->mapPayrollWorkScheduleCode($validated['work_schedule_label']),
-            'work_schedule_label' => $validated['work_schedule_label'],
-            'hours_per_day' => $validated['hours_per_day'],
-            'date_created' => $validated['date_created'],
-            'policy_number' => $validated['policy_number'] ?? null,
-            'basis_file_path' => $this->storeBasisFile($request, 'levels'),
-        ]);
+        PayrollLevel::create($this->payrollLevelPayload($request));
 
         return back()->with('success', 'Payroll level added successfully.');
+    }
+
+    public function updatePayrollLevel(Request $request, PayrollLevel $level)
+    {
+        $level->update($this->payrollLevelPayload($request, $level->basis_file_path));
+
+        return back()->with('success', 'Payroll level updated successfully.');
+    }
+
+    public function destroyPayrollLevel(PayrollLevel $level)
+    {
+        $level->delete();
+
+        return back()->with('success', 'Payroll level deleted successfully.');
     }
 
     public function storeBenefit(Request $request)
@@ -128,9 +98,37 @@ class PayrollController extends Controller
         return $this->storeLinkedValueItem($request, PayrollBenefit::class, 'Benefit added successfully.');
     }
 
+    public function updateBenefit(Request $request, PayrollBenefit $benefit)
+    {
+        $benefit->update($this->linkedValuePayload($request, PayrollBenefit::class, $benefit->basis_file_path));
+
+        return back()->with('success', 'Benefit updated successfully.');
+    }
+
+    public function destroyBenefit(PayrollBenefit $benefit)
+    {
+        $benefit->delete();
+
+        return back()->with('success', 'Benefit deleted successfully.');
+    }
+
     public function storeAllowance(Request $request)
     {
         return $this->storeLinkedValueItem($request, PayrollAllowance::class, 'Allowance added successfully.');
+    }
+
+    public function updateAllowance(Request $request, PayrollAllowance $allowance)
+    {
+        $allowance->update($this->linkedValuePayload($request, PayrollAllowance::class, $allowance->basis_file_path));
+
+        return back()->with('success', 'Allowance updated successfully.');
+    }
+
+    public function destroyAllowance(PayrollAllowance $allowance)
+    {
+        $allowance->delete();
+
+        return back()->with('success', 'Allowance deleted successfully.');
     }
 
     public function storeDeduction(Request $request)
@@ -138,102 +136,86 @@ class PayrollController extends Controller
         return $this->storeLinkedValueItem($request, PayrollDeduction::class, 'Deduction added successfully.');
     }
 
+    public function updateDeduction(Request $request, PayrollDeduction $deduction)
+    {
+        $deduction->update($this->linkedValuePayload($request, PayrollDeduction::class, $deduction->basis_file_path));
+
+        return back()->with('success', 'Deduction updated successfully.');
+    }
+
+    public function destroyDeduction(PayrollDeduction $deduction)
+    {
+        $deduction->delete();
+
+        return back()->with('success', 'Deduction deleted successfully.');
+    }
+
     public function storeHoliday(Request $request)
     {
-        $validated = $request->validate([
-            'salary_grade_id' => ['required', 'exists:salary_grades,id'],
-            'payroll_level_id' => ['required', 'exists:payroll_levels,id'],
-            'name' => ['required', 'string', 'max:150'],
-            'holiday_date' => ['required', 'date'],
-            'holiday_category' => ['required', Rule::in([
-                'regular',
-                'special',
-                'regular_non_working',
-                'special_non_working',
-            ])],
-            'percentage' => ['required', 'numeric', 'min:0'],
-            'date_created' => ['required', 'date'],
-            'policy_number' => ['nullable', 'string', 'max:100'],
-            'basis_file' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png,doc,docx', 'max:10240'],
-        ]);
-
-        $salaryGrade = SalaryGrade::findOrFail($validated['salary_grade_id']);
-        $this->assertLevelBelongsToGrade($validated['payroll_level_id'], $salaryGrade->id);
-
-        $holidayType = str_starts_with($validated['holiday_category'], 'regular') ? 'regular' : 'special';
-        $holidayValue = round((float) $salaryGrade->applicable_daily_rate * ((float) $validated['percentage'] / 100), 2);
-
-        PayrollHoliday::create([
-            'salary_grade_id' => $salaryGrade->id,
-            'payroll_level_id' => $validated['payroll_level_id'],
-            'name' => $validated['name'],
-            'holiday_date' => $validated['holiday_date'],
-            'holiday_type' => $holidayType,
-            'holiday_category' => $validated['holiday_category'],
-            'percentage' => $validated['percentage'],
-            'holiday_value' => $holidayValue,
-            'multiplier' => round((float) $validated['percentage'] / 100, 2),
-            'date_created' => $validated['date_created'],
-            'policy_number' => $validated['policy_number'] ?? null,
-            'basis_file_path' => $this->storeBasisFile($request, 'holidays'),
-        ]);
+        PayrollHoliday::create($this->holidayPayload($request));
 
         return back()->with('success', 'Holiday added successfully.');
     }
 
+    public function updateHoliday(Request $request, PayrollHoliday $holiday)
+    {
+        $holiday->update($this->holidayPayload($request, $holiday->basis_file_path));
+
+        return back()->with('success', 'Holiday updated successfully.');
+    }
+
+    public function destroyHoliday(PayrollHoliday $holiday)
+    {
+        $holiday->delete();
+
+        return back()->with('success', 'Holiday deleted successfully.');
+    }
+
     public function storePayrollPeriod(Request $request)
     {
-        $validated = $request->validate([
-            'name' => ['required', 'string', 'max:100'],
-            'period_start' => ['required', 'date'],
-            'period_end' => ['required', 'date', 'after_or_equal:period_start'],
-            'payroll_start' => ['required', 'date', 'after_or_equal:period_end'],
-            'payroll_end' => ['required', 'date', 'after_or_equal:payroll_start'],
-            'pay_date' => ['required', 'date', 'after_or_equal:payroll_end'],
-            'dispute_start' => ['required', 'date'],
-            'dispute_end' => ['required', 'date', 'after_or_equal:dispute_start'],
-            'date_created' => ['required', 'date'],
-            'policy_number' => ['nullable', 'string', 'max:100'],
-            'basis_file' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png,doc,docx', 'max:10240'],
-            'status' => ['required', 'in:draft,open,processed'],
-        ]);
-
-        PayrollPeriod::create([
-            'name' => $validated['name'],
-            'period_start' => $validated['period_start'],
-            'period_end' => $validated['period_end'],
-            'payroll_start' => $validated['payroll_start'],
-            'payroll_end' => $validated['payroll_end'],
-            'payroll_date' => $validated['payroll_start'],
-            'pay_date' => $validated['pay_date'],
-            'dispute_start' => $validated['dispute_start'],
-            'dispute_end' => $validated['dispute_end'],
-            'date_created' => $validated['date_created'],
-            'policy_number' => $validated['policy_number'] ?? null,
-            'basis_file_path' => $this->storeBasisFile($request, 'periods'),
-            'status' => $validated['status'],
-        ]);
+        PayrollPeriod::create($this->periodPayload($request));
 
         return back()->with('success', 'Payroll period added successfully.');
     }
 
+    public function updatePayrollPeriod(Request $request, PayrollPeriod $period)
+    {
+        $period->update($this->periodPayload($request, $period->basis_file_path));
+
+        return back()->with('success', 'Payroll period updated successfully.');
+    }
+
+    public function destroyPayrollPeriod(PayrollPeriod $period)
+    {
+        $period->delete();
+
+        return back()->with('success', 'Payroll period deleted successfully.');
+    }
+
     public function storeEmployeeProfile(Request $request)
     {
-        $validated = $request->validate([
-            'employee_id' => ['required', 'exists:employees,id'],
-            'payroll_level_id' => ['required', 'exists:payroll_levels,id'],
-            'basic_salary_override' => ['nullable', 'numeric', 'min:0'],
-            'night_differential_enabled' => ['nullable', 'boolean'],
-        ]);
-
-        $validated['night_differential_enabled'] = $request->boolean('night_differential_enabled');
+        $payload = $this->employeeProfilePayload($request);
 
         EmployeePayrollProfile::updateOrCreate(
-            ['employee_id' => $validated['employee_id']],
-            $validated
+            ['employee_id' => $payload['employee_id']],
+            $payload
         );
 
         return back()->with('success', 'Employee payroll profile saved successfully.');
+    }
+
+    public function updateEmployeeProfile(Request $request, EmployeePayrollProfile $profile)
+    {
+        $profile->update($this->employeeProfilePayload($request));
+
+        return back()->with('success', 'Employee payroll profile updated successfully.');
+    }
+
+    public function destroyEmployeeProfile(EmployeePayrollProfile $profile)
+    {
+        $profile->delete();
+
+        return back()->with('success', 'Employee payroll profile deleted successfully.');
     }
 
     public function generateSummary(Request $request, PayrollCalculator $calculator)
@@ -304,7 +286,117 @@ class PayrollController extends Controller
         return view('human-capital.payroll-payslip', compact('summary'));
     }
 
+    public function updateSummary(Request $request, PayrollSummary $summary)
+    {
+        $validated = $request->validate([
+            'payroll_level_id' => ['required', 'exists:payroll_levels,id'],
+            'gross_pay' => ['required', 'numeric', 'min:0'],
+            'total_benefits' => ['required', 'numeric', 'min:0'],
+            'total_allowances' => ['required', 'numeric', 'min:0'],
+            'total_deductions' => ['required', 'numeric', 'min:0'],
+            'night_differential_amount' => ['required', 'numeric', 'min:0'],
+            'holiday_pay_amount' => ['required', 'numeric', 'min:0'],
+            'net_pay' => ['required', 'numeric', 'min:0'],
+            'status' => ['required', Rule::in(['generated', 'approved', 'released'])],
+        ]);
+
+        $level = PayrollLevel::findOrFail($validated['payroll_level_id']);
+        $validated['computation_type'] = $level->computation_type;
+
+        $summary->update($validated);
+
+        return back()->with('success', 'Payroll summary updated successfully.');
+    }
+
+    public function destroySummary(PayrollSummary $summary)
+    {
+        $summary->items()->delete();
+        $summary->delete();
+
+        return back()->with('success', 'Payroll summary deleted successfully.');
+    }
+
     private function storeLinkedValueItem(Request $request, string $modelClass, string $successMessage)
+    {
+        $modelClass::create($this->linkedValuePayload($request, $modelClass));
+
+        return back()->with('success', $successMessage);
+    }
+
+    private function salaryGradePayload(Request $request, ?string $existingBasisFile = null): array
+    {
+        $validated = $request->validate([
+            'code' => ['required', 'string', 'max:50'],
+            'name' => ['required', 'string', 'max:100'],
+            'payment_type' => ['required', Rule::in(['daily', 'monthly'])],
+            'monthly_basic_pay' => ['nullable', 'numeric', 'min:0'],
+            'applicable_daily_rate' => ['nullable', 'numeric', 'min:0'],
+            'date_created' => ['required', 'date'],
+            'policy_number' => ['nullable', 'string', 'max:100'],
+            'basis_file' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png,doc,docx', 'max:10240'],
+        ]);
+
+        if ($validated['payment_type'] === 'monthly' && ! is_numeric($validated['monthly_basic_pay'] ?? null)) {
+            throw ValidationException::withMessages([
+                'monthly_basic_pay' => 'Monthly basic pay is required for monthly paid salary grades.',
+            ]);
+        }
+
+        if ($validated['payment_type'] === 'daily' && ! is_numeric($validated['applicable_daily_rate'] ?? null)) {
+            throw ValidationException::withMessages([
+                'applicable_daily_rate' => 'Applicable daily rate is required for daily paid salary grades.',
+            ]);
+        }
+
+        $figures = $this->computeSalaryGradeFigures(
+            $validated['payment_type'],
+            $validated['monthly_basic_pay'] ?? null,
+            $validated['applicable_daily_rate'] ?? null
+        );
+
+        return [
+            'code' => $validated['code'],
+            'name' => $validated['name'],
+            'payment_type' => $validated['payment_type'],
+            'monthly_basic_pay' => $figures['monthly_basic_pay'],
+            'applicable_daily_rate' => $figures['applicable_daily_rate'],
+            'hourly_rate' => $figures['hourly_rate'],
+            'minute_rate' => $figures['minute_rate'],
+            'yearly_rate' => $figures['yearly_rate'],
+            'date_created' => $validated['date_created'],
+            'policy_number' => $validated['policy_number'] ?? null,
+            'basis_file_path' => $this->storeBasisFile($request, 'salary-grades') ?: $existingBasisFile,
+        ];
+    }
+
+    private function payrollLevelPayload(Request $request, ?string $existingBasisFile = null): array
+    {
+        $validated = $request->validate([
+            'salary_grade_id' => ['required', 'exists:salary_grades,id'],
+            'level_name' => ['required', 'string', 'max:100'],
+            'work_schedule_label' => ['required', Rule::in(self::WORK_SCHEDULE_LABELS)],
+            'hours_per_day' => ['required', 'numeric', 'min:1'],
+            'date_created' => ['required', 'date'],
+            'policy_number' => ['nullable', 'string', 'max:100'],
+            'basis_file' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png,doc,docx', 'max:10240'],
+        ]);
+
+        $salaryGrade = SalaryGrade::findOrFail($validated['salary_grade_id']);
+
+        return [
+            'salary_grade_id' => $salaryGrade->id,
+            'level_name' => $validated['level_name'],
+            'computation_type' => $salaryGrade->payment_type,
+            'work_schedule' => $this->mapPayrollWorkScheduleCode($validated['work_schedule_label']),
+            'work_schedule_label' => $validated['work_schedule_label'],
+            'hours_per_day' => $validated['hours_per_day'],
+            'date_created' => $validated['date_created'],
+            'policy_number' => $validated['policy_number'] ?? null,
+            'basis_file_path' => $this->storeBasisFile($request, 'levels') ?: $existingBasisFile,
+        ];
+    }
+
+    private function linkedValuePayload(Request $request, string $modelClass, ?string $existingBasisFile = null): array
     {
         $validated = $request->validate([
             'salary_grade_id' => ['required', 'exists:salary_grades,id'],
@@ -330,7 +422,7 @@ class PayrollController extends Controller
             ? round((float) $salaryGrade->monthly_basic_pay * ($rate / 100), 2)
             : round((float) ($validated['value'] ?? 0), 2);
 
-        $modelClass::create([
+        return [
             'salary_grade_id' => $salaryGrade->id,
             'payroll_level_id' => $validated['payroll_level_id'],
             'name' => $validated['name'],
@@ -340,10 +432,97 @@ class PayrollController extends Controller
             'is_active' => $request->boolean('is_active', true),
             'date_created' => $validated['date_created'],
             'policy_number' => $validated['policy_number'] ?? null,
-            'basis_file_path' => $this->storeBasisFile($request, strtolower(class_basename($modelClass)).'s'),
+            'basis_file_path' => $this->storeBasisFile($request, strtolower(class_basename($modelClass)).'s') ?: $existingBasisFile,
+        ];
+    }
+
+    private function holidayPayload(Request $request, ?string $existingBasisFile = null): array
+    {
+        $validated = $request->validate([
+            'salary_grade_id' => ['required', 'exists:salary_grades,id'],
+            'payroll_level_id' => ['required', 'exists:payroll_levels,id'],
+            'name' => ['required', 'string', 'max:150'],
+            'holiday_date' => ['required', 'date'],
+            'holiday_category' => ['required', Rule::in([
+                'regular',
+                'special',
+                'regular_non_working',
+                'special_non_working',
+            ])],
+            'percentage' => ['required', 'numeric', 'min:0'],
+            'date_created' => ['required', 'date'],
+            'policy_number' => ['nullable', 'string', 'max:100'],
+            'basis_file' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png,doc,docx', 'max:10240'],
         ]);
 
-        return back()->with('success', $successMessage);
+        $salaryGrade = SalaryGrade::findOrFail($validated['salary_grade_id']);
+        $this->assertLevelBelongsToGrade($validated['payroll_level_id'], $salaryGrade->id);
+
+        $holidayType = str_starts_with($validated['holiday_category'], 'regular') ? 'regular' : 'special';
+        $holidayValue = round((float) $salaryGrade->applicable_daily_rate * ((float) $validated['percentage'] / 100), 2);
+
+        return [
+            'salary_grade_id' => $salaryGrade->id,
+            'payroll_level_id' => $validated['payroll_level_id'],
+            'name' => $validated['name'],
+            'holiday_date' => $validated['holiday_date'],
+            'holiday_type' => $holidayType,
+            'holiday_category' => $validated['holiday_category'],
+            'percentage' => $validated['percentage'],
+            'holiday_value' => $holidayValue,
+            'multiplier' => round((float) $validated['percentage'] / 100, 2),
+            'date_created' => $validated['date_created'],
+            'policy_number' => $validated['policy_number'] ?? null,
+            'basis_file_path' => $this->storeBasisFile($request, 'holidays') ?: $existingBasisFile,
+        ];
+    }
+
+    private function periodPayload(Request $request, ?string $existingBasisFile = null): array
+    {
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:100'],
+            'period_start' => ['required', 'date'],
+            'period_end' => ['required', 'date', 'after_or_equal:period_start'],
+            'payroll_start' => ['required', 'date', 'after_or_equal:period_end'],
+            'payroll_end' => ['required', 'date', 'after_or_equal:payroll_start'],
+            'pay_date' => ['required', 'date', 'after_or_equal:payroll_end'],
+            'dispute_start' => ['required', 'date'],
+            'dispute_end' => ['required', 'date', 'after_or_equal:dispute_start'],
+            'date_created' => ['required', 'date'],
+            'policy_number' => ['nullable', 'string', 'max:100'],
+            'basis_file' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png,doc,docx', 'max:10240'],
+            'status' => ['required', 'in:draft,open,processed'],
+        ]);
+
+        return [
+            'name' => $validated['name'],
+            'period_start' => $validated['period_start'],
+            'period_end' => $validated['period_end'],
+            'payroll_start' => $validated['payroll_start'],
+            'payroll_end' => $validated['payroll_end'],
+            'payroll_date' => $validated['payroll_start'],
+            'pay_date' => $validated['pay_date'],
+            'dispute_start' => $validated['dispute_start'],
+            'dispute_end' => $validated['dispute_end'],
+            'date_created' => $validated['date_created'],
+            'policy_number' => $validated['policy_number'] ?? null,
+            'basis_file_path' => $this->storeBasisFile($request, 'periods') ?: $existingBasisFile,
+            'status' => $validated['status'],
+        ];
+    }
+
+    private function employeeProfilePayload(Request $request): array
+    {
+        $validated = $request->validate([
+            'employee_id' => ['required', 'exists:employees,id'],
+            'payroll_level_id' => ['required', 'exists:payroll_levels,id'],
+            'basic_salary_override' => ['nullable', 'numeric', 'min:0'],
+            'night_differential_enabled' => ['nullable', 'boolean'],
+        ]);
+
+        $validated['night_differential_enabled'] = $request->boolean('night_differential_enabled');
+
+        return $validated;
     }
 
     private function computeSalaryGradeFigures(string $paymentType, ?float $monthlyBasicPay, ?float $dailyRate): array
@@ -380,16 +559,15 @@ class PayrollController extends Controller
         }
     }
 
-
-private function mapPayrollWorkScheduleCode(?string $label): ?string
-{
-    return match ($label) {
-        'Monday to Sunday – 8:00 AM to 5:00 PM' => 'every_day',
-        'Monday to Saturday – 8:00 AM to 5:00 PM' => 'no_sunday',
-        'Monday to Friday – 8:00 AM to 5:00 PM' => 'no_sat_sun',
-        default => null,
-    };
-}
+    private function mapPayrollWorkScheduleCode(?string $label): ?string
+    {
+        return match ($label) {
+            'Monday to Sunday - 8:00 AM to 5:00 PM', 'Monday to Sunday â€“ 8:00 AM to 5:00 PM' => 'every_day',
+            'Monday to Saturday - 8:00 AM to 5:00 PM', 'Monday to Saturday â€“ 8:00 AM to 5:00 PM' => 'no_sunday',
+            'Monday to Friday - 8:00 AM to 5:00 PM', 'Monday to Friday â€“ 8:00 AM to 5:00 PM' => 'no_sat_sun',
+            default => null,
+        };
+    }
 
     private function storeBasisFile(Request $request, string $directory): ?string
     {
