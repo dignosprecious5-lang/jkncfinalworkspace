@@ -101,7 +101,7 @@
         </div>
 
         <div class="footer">
-            John Kelly & Company Human Capital
+            John Kelly &amp; Company (JK&amp;C Inc.) Human Capital
         </div>
     </div>
 </body>

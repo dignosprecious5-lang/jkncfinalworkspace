@@ -441,6 +441,16 @@
                     <input name="assigned_associate" id="regular_assigned_associate" value="{{ old('assigned_associate') }}" autocomplete="off" data-employee-search-input class="h-11 w-full rounded-xl border border-gray-300 px-4 text-sm text-gray-900">
                     <div class="absolute z-20 mt-1 hidden w-full rounded-xl border border-gray-200 bg-white shadow-lg" data-employee-search-results></div>
                 </div>
+                <div class="relative md:col-span-2" data-employee-picker>
+                    <label class="mb-2 block text-sm font-medium text-gray-700">Sales &amp; Marketing</label>
+                    <input name="sales_marketing" id="regular_sales_marketing" value="{{ old('sales_marketing') }}" autocomplete="off" data-employee-search-input class="h-11 w-full rounded-xl border border-gray-300 px-4 text-sm text-gray-900">
+                    <div class="absolute z-20 mt-1 hidden w-full rounded-xl border border-gray-200 bg-white shadow-lg" data-employee-search-results></div>
+                </div>
+                <div class="relative md:col-span-2" data-employee-picker>
+                    <label class="mb-2 block text-sm font-medium text-gray-700">Finance</label>
+                    <input name="finance" id="regular_finance" value="{{ old('finance') }}" autocomplete="off" data-employee-search-input class="h-11 w-full rounded-xl border border-gray-300 px-4 text-sm text-gray-900">
+                    <div class="absolute z-20 mt-1 hidden w-full rounded-xl border border-gray-200 bg-white shadow-lg" data-employee-search-results></div>
+                </div>
                 <div class="md:col-span-2">
                     <label class="mb-2 block text-sm font-medium text-gray-700">RSAT Activities / Requirements</label>
                     <textarea name="engagement_requirements_text" rows="5" class="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm text-gray-900" placeholder="One requirement per line">{{ old('engagement_requirements_text') }}</textarea>
@@ -591,6 +601,8 @@
             setValue('regular_assigned_project_manager', record.assigned_project_manager || '');
             setValue('regular_assigned_consultant', record.assigned_consultant || '');
             setValue('regular_assigned_associate', record.assigned_associate || '');
+            setValue('regular_sales_marketing', record.sales_marketing || '');
+            setValue('regular_finance', record.finance || '');
             setValue('regular_client_confirmation_name', record.client_confirmation_name || record.client_name || '');
             setValue('regular_service_area', record.service_area || '');
             setValue('regular_services', record.services || '');
@@ -918,7 +930,7 @@
         serviceChecks.forEach((item) => item.addEventListener('change', syncSelections));
         productChecks.forEach((item) => item.addEventListener('change', syncSelections));
         templateSelect?.addEventListener('change', renderRegularTemplatePreview);
-        ['regular_client_name', 'regular_business_name', 'regular_client_confirmation_name', 'regular_assigned_project_manager', 'regular_assigned_consultant', 'regular_assigned_associate'].forEach((id) => {
+        ['regular_client_name', 'regular_business_name', 'regular_client_confirmation_name', 'regular_assigned_project_manager', 'regular_assigned_consultant', 'regular_assigned_associate', 'regular_sales_marketing', 'regular_finance'].forEach((id) => {
             document.getElementById(id)?.addEventListener('input', renderRegularTemplatePreview);
         });
 

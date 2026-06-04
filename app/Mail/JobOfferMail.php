@@ -29,7 +29,7 @@ class JobOfferMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Job Offer - John Kelly & Company',
+            subject: 'Job Offer - John Kelly & Company (JK&C Inc.)',
         );
     }
 

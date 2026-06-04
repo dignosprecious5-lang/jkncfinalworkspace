@@ -281,7 +281,7 @@
                 <div class="subtitle">John Kelly &amp; Company (JK&amp;C Inc.)</div>
             </div>
             @if (file_exists($logoPath))
-                <img src="{{ $logoPath }}" class="logo" alt="John Kelly & Company">
+                <img src="{{ $logoPath }}" class="logo" alt="John Kelly &amp; Company (JK&amp;C Inc.)">
             @endif
             <div class="clear"></div>
         </div>
@@ -294,7 +294,7 @@
         </div>
 
         <p>Dear {{ $applicantName }},</p>
-        <p>John Kelly &amp; Company (JK&amp;C INC.) is pleased to offer employment under the terms and conditions stated in this Job Offer.</p>
+        <p>John Kelly &amp; Company (JK&amp;C Inc.) is pleased to offer employment under the terms and conditions stated in this Job Offer.</p>
         <p>This Job Offer is confidential and subject to Company policies, procedures, memoranda, notices, resolutions, directives, lawful instructions, management prerogative, and applicable laws.</p>
 
         <div class="section-bar">Position Information</div>

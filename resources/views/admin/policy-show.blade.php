@@ -30,15 +30,6 @@
                     >
                         Attachment
                     </button>
-
-                    <button
-                        type="button"
-                        @click="activeTab = 'audit'"
-                        class="rounded-lg px-4 py-2 text-sm font-semibold transition"
-                        :class="activeTab === 'audit' ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-50'"
-                    >
-                        Audit Tracker
-                    </button>
                 </div>
             </div>
 
@@ -50,7 +41,7 @@
                         {{-- COVER PAGE --}}
                         <section class="policy-cover-page">
                             <div class="cover-logo">
-                                <img src="{{ $policyLogoUrl ?? asset('images/jk-logo.png') }}" alt="John Kelly & Company Logo">
+                                <img src="{{ asset('images/jk-logo.png') }}" alt="John Kelly & Company Logo">
                             </div>
 
                             <div class="cover-company">
@@ -203,121 +194,6 @@
                 </div>
             </div>
         </div>
-
-
-            {{-- AUDIT TRACKER TAB --}}
-            <div x-show="activeTab === 'audit'" x-cloak>
-                <div class="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
-                    <div class="px-5 py-4 border-b border-gray-200">
-                        <h3 class="text-base font-semibold text-gray-900">Audit Tracker</h3>
-                        <p class="text-xs text-gray-500 mt-1">
-                            Tracks admin actions, system user, date/time, IP address, and policy status changes.
-                        </p>
-                    </div>
-
-                    <div class="p-5">
-                        @php
-                            $auditItems = $policyAudits ?? collect();
-                        @endphp
-
-                        @if($auditItems->isNotEmpty())
-                            <div class="relative">
-                                <div class="absolute left-[13px] top-0 bottom-0 w-px bg-gray-200"></div>
-
-                                <div class="space-y-5">
-                                    @foreach($auditItems as $audit)
-                                        @php
-                                            $actionClasses = match($audit->action) {
-                                                'approved' => 'bg-green-100 text-green-700 ring-green-200',
-                                                'rejected' => 'bg-red-100 text-red-700 ring-red-200',
-                                                'revision_requested' => 'bg-yellow-100 text-yellow-700 ring-yellow-200',
-                                                'archived' => 'bg-gray-200 text-gray-700 ring-gray-300',
-                                                'unarchived' => 'bg-blue-100 text-blue-700 ring-blue-200',
-                                                'updated' => 'bg-indigo-100 text-indigo-700 ring-indigo-200',
-                                                'submitted' => 'bg-sky-100 text-sky-700 ring-sky-200',
-                                                default => 'bg-slate-100 text-slate-700 ring-slate-200',
-                                            };
-                                        @endphp
-
-                                        <div class="relative pl-10">
-                                            <div class="absolute left-0 top-1.5 h-7 w-7 rounded-full bg-white ring-4 ring-gray-100 flex items-center justify-center">
-                                                <span class="h-2.5 w-2.5 rounded-full bg-blue-600"></span>
-                                            </div>
-
-                                            <div class="rounded-xl border border-gray-200 bg-gray-50 p-4">
-                                                <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-                                                    <div class="min-w-0">
-                                                        <div class="flex flex-wrap items-center gap-2">
-                                                            <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1 {{ $actionClasses }}">
-                                                                {{ ucwords(str_replace('_', ' ', $audit->action)) }}
-                                                            </span>
-
-                                                            <span class="text-xs text-gray-500">
-                                                                {{ optional($audit->created_at)->format('M d, Y h:i A') }}
-                                                            </span>
-                                                        </div>
-
-                                                        <p class="mt-2 text-sm font-medium text-gray-800">
-                                                            {{ $audit->description ?? 'Policy action recorded.' }}
-                                                        </p>
-
-                                                        <div class="mt-3 grid grid-cols-1 gap-2 text-xs text-gray-600 md:grid-cols-2">
-                                                            <div>
-                                                                <span class="font-semibold text-gray-500">Performed by:</span>
-                                                                {{ $audit->user->name ?? 'System / Unknown User' }}
-                                                            </div>
-
-                                                            <div>
-                                                                <span class="font-semibold text-gray-500">User ID:</span>
-                                                                {{ $audit->user_id ?? '-' }}
-                                                            </div>
-
-                                                            <div>
-                                                                <span class="font-semibold text-gray-500">IP Address:</span>
-                                                                {{ $audit->ip_address ?? '-' }}
-                                                            </div>
-
-                                                            <div class="min-w-0">
-                                                                <span class="font-semibold text-gray-500">Device:</span>
-                                                                <span class="break-words">{{ $audit->user_agent ?? '-' }}</span>
-                                                            </div>
-                                                        </div>
-
-                                                        @if(!empty($audit->new_values))
-                                                            <details class="mt-3 rounded-lg border border-gray-200 bg-white p-3">
-                                                                <summary class="cursor-pointer text-xs font-semibold text-gray-600">
-                                                                    View Snapshot
-                                                                </summary>
-
-                                                                <div class="mt-3 grid grid-cols-1 gap-2 text-xs text-gray-600 md:grid-cols-2">
-                                                                    <div><span class="font-semibold">Status:</span> {{ $audit->new_values['workflow_status'] ?? '-' }}</div>
-                                                                    <div><span class="font-semibold">Approval:</span> {{ $audit->new_values['approval_status'] ?? '-' }}</div>
-                                                                    <div><span class="font-semibold">Reviewed By:</span> {{ $audit->new_values['reviewed_by'] ?? '-' }}</div>
-                                                                    <div><span class="font-semibold">Approved By:</span> {{ $audit->new_values['approved_by'] ?? '-' }}</div>
-                                                                    <div><span class="font-semibold">Code:</span> {{ $audit->new_values['code'] ?? '-' }}</div>
-                                                                    <div><span class="font-semibold">Version:</span> {{ $audit->new_values['version'] ?? '-' }}</div>
-                                                                </div>
-                                                            </details>
-                                                        @endif
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    @endforeach
-                                </div>
-                            </div>
-                        @else
-                            <div class="rounded-xl border border-dashed border-gray-300 bg-gray-50 p-12 text-center">
-                                <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-gray-400">
-                                    <i class="fas fa-history text-lg"></i>
-                                </div>
-                                <h3 class="mt-4 text-base font-semibold text-gray-800">No audit records yet</h3>
-                                <p class="mt-1 text-sm text-gray-500">Audit entries will appear here once actions are performed.</p>
-                            </div>
-                        @endif
-                    </div>
-                </div>
-            </div>
 
         {{-- RIGHT ADMIN DETAILS --}}
         <div class="w-[30%]">
@@ -507,11 +383,12 @@
 
                 {{-- DOWNLOAD PDF --}}
                 <a href="{{ route('policies.preview', [
+                        'policy_id' => $policy->id,
                         'policy' => $policy->policy,
                         'policy_subtitle' => $policy->policy_subtitle,
                         'code' => $policy->code,
                         'version' => $policy->version,
-                        'effectivity_date' => $policy->effectivity_date,
+                        'effectivity_date' => $policy->effectivity_date ? \Carbon\Carbon::parse($policy->effectivity_date)->format('Y-m-d') : null,
                         'prepared_by' => $policy->prepared_by,
                         'reviewed_by' => $policy->reviewed_by,
                         'approved_by' => $policy->approved_by,
@@ -821,19 +698,56 @@
     }
 
 
-    /* Policy module default font */
+    /* Policy body Quill paragraph indentation */
+    .policy-preview-body .ql-indent-1,
+    .description-content .ql-indent-1,
+    #policy-preview-sheet .ql-indent-1 { padding-left: 3em !important; }
+
+    .policy-preview-body .ql-indent-2,
+    .description-content .ql-indent-2,
+    #policy-preview-sheet .ql-indent-2 { padding-left: 6em !important; }
+
+    .policy-preview-body .ql-indent-3,
+    .description-content .ql-indent-3,
+    #policy-preview-sheet .ql-indent-3 { padding-left: 9em !important; }
+
+    .policy-preview-body .ql-indent-4,
+    .description-content .ql-indent-4,
+    #policy-preview-sheet .ql-indent-4 { padding-left: 12em !important; }
+
+    .policy-preview-body .ql-indent-5,
+    .description-content .ql-indent-5,
+    #policy-preview-sheet .ql-indent-5 { padding-left: 15em !important; }
+
+    .policy-preview-body .ql-indent-6,
+    .description-content .ql-indent-6,
+    #policy-preview-sheet .ql-indent-6 { padding-left: 18em !important; }
+
+    .policy-preview-body .ql-indent-7,
+    .description-content .ql-indent-7,
+    #policy-preview-sheet .ql-indent-7 { padding-left: 21em !important; }
+
+    .policy-preview-body .ql-indent-8,
+    .description-content .ql-indent-8,
+    #policy-preview-sheet .ql-indent-8 { padding-left: 24em !important; }
+
+
+    /* Georgia default font for Policy document/editor */
     .policy-paper,
     .policy-paper *,
     #policy-preview-sheet,
     #policy-preview-sheet *,
-    .description-content,
-    .description-content *,
     .policy-preview-body,
-    .policy-preview-body * {
+    .policy-preview-body *,
+    .description-content,
+    .description-content * {
         font-family: Georgia, "Times New Roman", serif !important;
     }
 
-    /* Quill editor Georgia font option */
+    #policy-editor .ql-editor {
+        font-family: Georgia, "Times New Roman", serif !important;
+    }
+
     .ql-font-georgia,
     .ql-font-georgia * {
         font-family: Georgia, "Times New Roman", serif !important;
@@ -858,116 +772,6 @@
     .ql-picker.ql-font .ql-picker-label[data-value="monospace"]::before,
     .ql-picker.ql-font .ql-picker-item[data-value="monospace"]::before {
         content: "Monospace";
-    }
-
-    #policy-editor .ql-editor {
-        font-family: Georgia, "Times New Roman", serif !important;
-    }
-
-
-    /* Quill alignment support for live preview, show pages, and PDF */
-    .ql-align-left {
-        text-align: left !important;
-    }
-
-    .ql-align-center {
-        text-align: center !important;
-    }
-
-    .ql-align-right {
-        text-align: right !important;
-    }
-
-    .ql-align-justify {
-        text-align: justify !important;
-        text-justify: inter-word;
-    }
-
-    .description-content .ql-align-left,
-    .policy-preview-body .ql-align-left,
-    #policy-preview-sheet .ql-align-left {
-        text-align: left !important;
-    }
-
-    .description-content .ql-align-center,
-    .policy-preview-body .ql-align-center,
-    #policy-preview-sheet .ql-align-center {
-        text-align: center !important;
-    }
-
-    .description-content .ql-align-right,
-    .policy-preview-body .ql-align-right,
-    #policy-preview-sheet .ql-align-right {
-        text-align: right !important;
-    }
-
-    .description-content .ql-align-justify,
-    .policy-preview-body .ql-align-justify,
-    #policy-preview-sheet .ql-align-justify {
-        text-align: justify !important;
-        text-justify: inter-word;
-    }
-
-
-    /* Quill indentation support for live preview, show pages, and PDF */
-    .ql-indent-1 { padding-left: 3em !important; }
-    .ql-indent-2 { padding-left: 6em !important; }
-    .ql-indent-3 { padding-left: 9em !important; }
-    .ql-indent-4 { padding-left: 12em !important; }
-    .ql-indent-5 { padding-left: 15em !important; }
-    .ql-indent-6 { padding-left: 18em !important; }
-    .ql-indent-7 { padding-left: 21em !important; }
-    .ql-indent-8 { padding-left: 24em !important; }
-
-    .description-content .ql-indent-1,
-    .policy-preview-body .ql-indent-1,
-    #policy-preview-sheet .ql-indent-1 { padding-left: 3em !important; }
-
-    .description-content .ql-indent-2,
-    .policy-preview-body .ql-indent-2,
-    #policy-preview-sheet .ql-indent-2 { padding-left: 6em !important; }
-
-    .description-content .ql-indent-3,
-    .policy-preview-body .ql-indent-3,
-    #policy-preview-sheet .ql-indent-3 { padding-left: 9em !important; }
-
-    .description-content .ql-indent-4,
-    .policy-preview-body .ql-indent-4,
-    #policy-preview-sheet .ql-indent-4 { padding-left: 12em !important; }
-
-    .description-content .ql-indent-5,
-    .policy-preview-body .ql-indent-5,
-    #policy-preview-sheet .ql-indent-5 { padding-left: 15em !important; }
-
-    .description-content .ql-indent-6,
-    .policy-preview-body .ql-indent-6,
-    #policy-preview-sheet .ql-indent-6 { padding-left: 18em !important; }
-
-    .description-content .ql-indent-7,
-    .policy-preview-body .ql-indent-7,
-    #policy-preview-sheet .ql-indent-7 { padding-left: 21em !important; }
-
-    .description-content .ql-indent-8,
-    .policy-preview-body .ql-indent-8,
-    #policy-preview-sheet .ql-indent-8 { padding-left: 24em !important; }
-
-
-    /* Preserve manual spacing/tabs from the document editor */
-    .policy-preview-body,
-    .description-content {
-        white-space: normal !important;
-    }
-
-    .policy-preview-body p,
-    .policy-preview-body div,
-    .description-content p,
-    .description-content div {
-        white-space: pre-wrap !important;
-    }
-
-    .policy-preview-body span,
-    .description-content span {
-        white-space: pre-wrap !important;
     }
 
 </style>

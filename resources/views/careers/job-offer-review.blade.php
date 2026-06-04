@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Job Offer - John Kelly & Company</title>
+    <title>Job Offer - John Kelly &amp; Company (JK&amp;C Inc.)</title>
     <style>
         * {
             box-sizing: border-box;
@@ -534,7 +534,7 @@
             <article class="a4-page">
                 <div class="page-number">Page 1</div>
                 <header class="doc-header">
-                    <img src="{{ asset('images/FINAL_LOGO.jpg') }}" onerror="this.src='{{ asset('images/imaglogo.png') }}'" alt="John Kelly & Company" class="brand-logo">
+                    <img src="{{ asset('images/FINAL_LOGO.jpg') }}" onerror="this.src='{{ asset('images/imaglogo.png') }}'" alt="John Kelly &amp; Company (JK&amp;C Inc.)" class="brand-logo">
                     <div>
                         <div class="doc-title">Job Offer</div>
                         <div class="brand-name">John Kelly &amp; Company (JK&amp;C Inc.)</div>
@@ -555,7 +555,7 @@
                 </div>
 
                 <p>Dear {{ $applicantName }},</p>
-                <p>John Kelly &amp; Company (JK&amp;C INC.) is pleased to offer employment under the terms and conditions stated in this Job Offer.</p>
+                <p>John Kelly &amp; Company (JK&amp;C Inc.) is pleased to offer employment under the terms and conditions stated in this Job Offer.</p>
                 <p>This Job Offer is confidential and subject to Company policies, procedures, memoranda, notices, resolutions, directives, lawful instructions, management prerogative, and applicable laws.</p>
 
                 <div class="section-bar">Position Information</div>
@@ -576,7 +576,7 @@
                     <div class="page-number">Page {{ $pageIndex + 2 }}</div>
                     <header class="doc-header">
                         <div class="brand-name" style="color: #1e3a8a;">Job Offer</div>
-                        <div class="brand-name">John Kelly &amp; Company</div>
+                        <div class="brand-name">John Kelly &amp; Company (JK&amp;C Inc.)</div>
                     </header>
 
                     <h2>Terms and Conditions</h2>

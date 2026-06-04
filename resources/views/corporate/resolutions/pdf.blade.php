@@ -124,6 +124,13 @@
         return implode("\n", $html);
     };
 
+
+    $dompdfFooterLeft = trim(strtoupper($resolutionNumberLabel) . ' ' . $resolutionNumber . ' - ' . strtoupper($companyName));
+    $dompdfFooterLeft = html_entity_decode((string) $dompdfFooterLeft, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $dompdfFooterLeft = preg_replace('/\s+/', ' ', $dompdfFooterLeft);
+    if (mb_strlen($dompdfFooterLeft) > 90) {
+        $dompdfFooterLeft = mb_substr($dompdfFooterLeft, 0, 87) . '...';
+    }
 @endphp
 <!DOCTYPE html>
 <html lang="en">
@@ -133,7 +140,7 @@
     <style>
         @page {
             size: A4;
-            margin: 16mm 18mm 18mm 18mm;
+            margin: 16mm 18mm 18mm 24mm;
         }
 
         * {
@@ -291,10 +298,10 @@
             margin-top: 32px;
             line-height: 1.35;
         }
-    </style>
+</style>
 </head>
 <body>
-    <div class="header">
+<div class="header">
         @if($gisLogoDataUri)
             <img src="{{ $gisLogoDataUri }}" class="gis-logo" alt="Company Logo">
         @else
@@ -363,7 +370,7 @@
     <div class="notary-page">
         @if ($chairmanName)
             <p>
-                IN WITNESS WHEREOF, I, <strong><u>{{ $chairmanName }}</u></strong>, in my capacity as Chairman of the Board, have signed these presents this ___ day of _______, 20 at _____________________.
+                IN WITNESS WHEREOF, I, <strong><u>{{ $chairmanName }}</u></strong>, in my capacity as Chairman of the Board, have signed these presents this ___ day of _______, 20__ at _____________________.
             </p>
 
             <div class="signature-center" style="margin-top: 34px;">
@@ -372,7 +379,7 @@
             </div>
         @else
             <p>
-                IN WITNESS WHEREOF, I, __________________________, in my capacity as Chairman of the Board, have signed these presents this ___ day of _______, 20 at _____________________.
+                IN WITNESS WHEREOF, I, __________________________, in my capacity as Chairman of the Board, have signed these presents this ___ day of _______, 20__ at _____________________.
             </p>
 
             <div class="signature-center" style="margin-top: 34px;">
@@ -382,7 +389,7 @@
         @endif
 
         <p style="margin-top: 34px;">
-            <strong>SUBSCRIBED AND SWORN TO BEFORE ME,</strong> a Notary Public for and in ______________________ this ___ day of _______, 20.
+            <strong>SUBSCRIBED AND SWORN TO BEFORE ME,</strong> a Notary Public for and in ______________________ this ___ day of _______, 20__.
             Affiant presented to me __________________________ issued at __________________________.
         </p>
 
@@ -409,7 +416,7 @@
     if (isset($pdf)) {
         $font = $fontMetrics->get_font("Times-Roman", "normal");
         $boldFont = $fontMetrics->get_font("Times-Roman", "bold");
-        $footerLeft = @json($dompdfFooterLeft);
+        $footerLeft = {!! var_export($dompdfFooterLeft, true) !!};
 
         $pdf->line(40, 800, 555, 800, [0, 0, 0], 0.4);
         $pdf->page_text(40, 808, $footerLeft, $font, 8, [0, 0, 0]);

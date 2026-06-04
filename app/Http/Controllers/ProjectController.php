@@ -193,6 +193,8 @@ class ProjectController extends Controller
             'assigned_project_manager' => ['nullable', 'string', 'max:255'],
             'assigned_consultant' => ['nullable', 'string', 'max:255'],
             'assigned_associate' => ['nullable', 'string', 'max:255'],
+            'sales_marketing' => ['nullable', 'string', 'max:255'],
+            'finance' => ['nullable', 'string', 'max:255'],
             'client_confirmation_name' => ['nullable', 'string', 'max:255'],
             'scope_summary' => ['nullable', 'string', 'max:2000'],
             'engagement_requirements_text' => ['nullable', 'string', 'max:4000'],
@@ -312,6 +314,10 @@ class ProjectController extends Controller
                 'source_mode' => $validated['source_mode'] ?? ($linkedDeal ? 'deal' : 'manual'),
                 'template_id' => $selectedTemplate?->id,
                 'template_name' => $selectedTemplate?->name,
+                'internal_assignments' => [
+                    'sales_marketing' => $validated['sales_marketing'] ?? null,
+                    'finance' => $validated['finance'] ?? null,
+                ],
             ],
             'opened_at' => now(),
         ]);
@@ -338,6 +344,7 @@ class ProjectController extends Controller
             ),
             'routing' => $this->manualRoutingRows(),
             'clearance' => $this->manualClearancePayload(
+                $validated['sales_marketing'] ?? null,
                 $validated['assigned_consultant'] ?? null,
                 $validated['assigned_associate'] ?? null
             ),
@@ -1834,12 +1841,25 @@ class ProjectController extends Controller
     {
         $fallback = $this->manualInternalApprovalPayload(
             $validated['assigned_project_manager'] ?? null,
+            $validated['sales_marketing'] ?? null,
+            $validated['finance'] ?? null,
             $validated['assigned_consultant'] ?? null,
             $validated['assigned_associate'] ?? null,
             $validated['prepared_by_default'] ?? null
         );
 
-        return array_replace_recursive($fallback, array_filter($templateApproval, fn ($value) => $value !== null));
+        $merged = array_replace_recursive($fallback, array_filter($templateApproval, fn ($value) => $value !== null));
+        if (filled($validated['sales_marketing'] ?? null)) {
+            $merged['sales_marketing'] = $validated['sales_marketing'];
+        }
+        if (filled($validated['finance'] ?? null)) {
+            $merged['finance'] = $validated['finance'];
+        }
+        if (blank($merged['president'] ?? null) || ($merged['president'] ?? null) === 'President') {
+            $merged['president'] = 'John Kelly Abalde';
+        }
+
+        return $merged;
     }
 
     private function defaultStartKycRequirementsForProject(Project $project): array
@@ -1853,7 +1873,20 @@ class ProjectController extends Controller
         $bifDocs = (array) ($company?->latestBif?->client_requirement_documents ?? []);
         $showForeignRows = $kycContext['show_foreign_rows'];
 
-        $hasBif = fn (string $key): bool => $bifApproved && filled(data_get($bifDocs, $key.'.path'));
+        $hasBif = function (string $key) use ($bifApproved, $bifDocs): bool {
+            if (! $bifApproved) {
+                return false;
+            }
+
+            $document = data_get($bifDocs, $key);
+            if ($key === 'sole_representative_ids_document') {
+                $files = array_values(array_filter((array) $document, fn ($item) => is_array($item) && filled($item['path'] ?? $item['file_path'] ?? null)));
+
+                return count($files) >= 2;
+            }
+
+            return filled(data_get($document, 'path') ?? data_get($document, 'file_path'));
+        };
         $status = fn (bool $complete): string => $complete ? 'provided' : 'pending';
 
         $sole = [
@@ -2164,7 +2197,7 @@ class ProjectController extends Controller
         ];
     }
 
-    private function manualClearancePayload(?string $assignedConsultant, ?string $assignedAssociate): array
+    private function manualClearancePayload(?string $salesMarketing, ?string $assignedConsultant, ?string $assignedAssociate): array
     {
         return [
             'assigned_team_lead' => '',
@@ -2173,7 +2206,7 @@ class ProjectController extends Controller
             'lead_consultant_signature' => '',
             'lead_associate_assigned' => $assignedAssociate ?? '',
             'lead_associate_signature' => '',
-            'sales_marketing' => 'Sales & Marketing',
+            'sales_marketing' => $salesMarketing ?? '',
             'sales_marketing_signature' => '',
             'record_custodian_name' => 'Record Custodian',
             'record_custodian_signature' => '',
@@ -2182,17 +2215,17 @@ class ProjectController extends Controller
         ];
     }
 
-    private function manualInternalApprovalPayload(?string $assignedProjectManager, ?string $assignedConsultant, ?string $assignedAssociate, ?string $preparedByDefault = null): array
+    private function manualInternalApprovalPayload(?string $assignedProjectManager, ?string $salesMarketing, ?string $finance, ?string $assignedConsultant, ?string $assignedAssociate, ?string $preparedByDefault = null): array
     {
         return [
             'prepared_by' => $preparedByDefault ?: ($assignedProjectManager ?: $assignedConsultant),
             'reviewed_by' => $assignedProjectManager ?: ($assignedConsultant ?: 'Admin'),
             'referred_by_closed_by' => null,
-            'sales_marketing' => 'Sales & Marketing',
+            'sales_marketing' => $salesMarketing,
             'lead_consultant' => $assignedConsultant,
             'lead_associate_assigned' => $assignedAssociate,
-            'finance' => 'Finance',
-            'president' => 'President',
+            'finance' => $finance,
+            'president' => 'John Kelly Abalde',
             'record_custodian' => 'Record Custodian',
             'date_recorded' => now()->toDateString(),
             'date_signed' => null,
@@ -2397,6 +2430,7 @@ class ProjectController extends Controller
                     'assigned_project_manager' => $deal->assigned_consultant,
                     'assigned_consultant' => $deal->assigned_consultant,
                     'assigned_associate' => $deal->assigned_associate,
+                    'sales_marketing' => $deal->internal_sales_marketing,
                     'client_confirmation_name' => $clientName,
                     'engagement_type' => $deal->engagement_type,
                 ];

@@ -25,7 +25,7 @@ class ChecklistSubmissionMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Pre-employment Requirements Upload - John Kelly & Company',
+            subject: 'Pre-employment Requirements Upload - John Kelly & Company (JK&C Inc.)',
         );
     }
 

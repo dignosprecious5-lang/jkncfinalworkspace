@@ -9,7 +9,7 @@
         body { font-family: Arial, sans-serif; font-size: 11px; color: #111827; margin: 0; }
         .page { width: 100%; min-height: 257mm; }
         .corp-header { text-align: center; margin-bottom: 18mm; color: #000; }
-        .corp-logo { width: 70px; max-height: 70px; object-fit: contain; margin: 0 auto 4px auto; display: block; }
+        .corp-logo { width: 155px; max-width: 155px; max-height: 100px; object-fit: contain; margin: 0 auto 6px auto; display: block; }
         .corp-name { font-family: Georgia, 'Times New Roman', serif; font-size: 22px; font-weight: 700; text-transform: uppercase; line-height: 1.15; }
         .corp-reg, .corp-address { font-family: Georgia, 'Times New Roman', serif; font-size: 12px; font-weight: 700; line-height: 1.25; text-transform: uppercase; }
         .title { text-align: center; font-size: 25px; font-weight: 800; margin-bottom: 18px; color: #0037a6; font-family: Georgia, 'Times New Roman', serif; }

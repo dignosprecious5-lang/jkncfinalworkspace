@@ -2,16 +2,41 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\HandlesCorporateRepositoryRecords;
 use App\Models\Accounting;
-use App\Models\User;
-use App\Notifications\AccountingNotification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Notification;
-use Throwable;
 
 class AccountingController extends Controller
 {
+    use HandlesCorporateRepositoryRecords;
+
+    public const REPORT_TYPES = [
+        'Audited Financial Statements',
+        'Unaudited Financial Statements',
+        'Statement of Financial Position / Balance Sheet',
+        'Statement of Comprehensive Income / Income Statement',
+        'Statement of Changes in Equity',
+        'Statement of Cash Flows',
+        'Notes to Financial Statements',
+        'Trial Balance',
+        'General Ledger',
+        'Subsidiary Ledger',
+        'Accounts Receivable Report',
+        'Accounts Payable Report',
+        'Aging Report',
+        'Bank Reconciliation Report',
+        'Cash Position Report',
+        'Expense Report',
+        'Revenue Report',
+        'Collection Report',
+        'Disbursement Report',
+        'Budget Report',
+        'Financial Analysis Report',
+        'Management Report',
+        'Other',
+    ];
+
     private function canApproveCorporate(): bool
     {
         return Auth::check() && Auth::user()->hasPermission('approve_corporate');
@@ -27,187 +52,43 @@ class AccountingController extends Controller
             && in_array($record->workflow_status ?? 'Uploaded', ['Uploaded', 'Reverted'], true);
     }
 
-    private function canApproveRecord(Accounting $record): bool
-    {
-        return $this->canApproveCorporate()
-            && in_array($record->workflow_status ?? 'Uploaded', ['Submitted', 'On Hold'], true);
-    }
-
-    private function canRevertRecord(Accounting $record): bool
-    {
-        return $this->canApproveCorporate()
-            && in_array($record->workflow_status ?? 'Uploaded', ['Submitted', 'On Hold'], true);
-    }
-
-    private function canHoldRecord(Accounting $record): bool
-    {
-        return $this->canApproveCorporate()
-            && in_array($record->workflow_status ?? 'Uploaded', ['Submitted'], true);
-    }
-
-    private function getAccountingApprovers()
-    {
-        return User::query()
-            ->whereHas('permissions', function ($query) {
-                $query->where('name', 'approve_corporate');
-            })
-            ->where('id', '!=', Auth::id())
-            ->get();
-    }
-
-    private function getNotificationRecipients(Accounting $record, string $action)
-    {
-        $submitter = $record->submitted_by ? User::query()->find($record->submitted_by) : null;
-        $approvers = $this->getAccountingApprovers();
-
-        $recipients = match ($action) {
-            'submitted' => $approvers->merge($submitter ? [$submitter] : []),
-            'approved' => collect($submitter ? [$submitter] : []),
-            'reverted' => collect($submitter ? [$submitter] : []),
-            'held' => collect($submitter ? [$submitter] : []),
-            'updated' => in_array($record->workflow_status ?? 'Uploaded', ['Submitted', 'On Hold'], true)
-                ? $approvers->merge($submitter ? [$submitter] : [])
-                : collect($submitter ? [$submitter] : []),
-            default => collect($submitter ? [$submitter] : []),
-        };
-
-        return $recipients
-            ->filter()
-            ->unique('id')
-            ->reject(fn (User $user) => Auth::check() && (int) $user->id === (int) Auth::id())
-            ->values();
-    }
-
-    private function sendAccountingNotification(Accounting $record, string $action, ?string $reviewNote = null): void
-    {
-        $freshRecord = $record->fresh() ?: $record;
-        $recipients = $this->getNotificationRecipients($freshRecord, $action);
-
-        if ($recipients->isEmpty()) {
-            return;
-        }
-
-        $recordLabel = trim(implode(' - ', array_filter([
-            $freshRecord->statement_type,
-            $freshRecord->client,
-            optional($freshRecord->date)->format('Y-m-d'),
-        ]))) ?: ('Accounting Record #' . $freshRecord->id);
-
-        [$title, $body, $buttonLabel] = match ($action) {
-            'submitted' => [
-                'Accounting Record Submitted: ' . $recordLabel,
-                'An accounting record has been submitted and is ready for review.',
-                'Review Record',
-            ],
-            'approved' => [
-                'Accounting Record Approved: ' . $recordLabel,
-                'An accounting record has been approved.',
-                'View Record',
-            ],
-            'reverted' => [
-                'Accounting Record Returned for Revision: ' . $recordLabel,
-                'An accounting record has been returned for revision.',
-                'View Record',
-            ],
-            'held' => [
-                'Accounting Record Placed on Hold: ' . $recordLabel,
-                'An accounting record has been placed on hold.',
-                'View Record',
-            ],
-            'updated' => [
-                'Accounting Record Updated: ' . $recordLabel,
-                'An accounting record has been updated.',
-                'View Record',
-            ],
-            default => [
-                'Accounting Record Notification: ' . $recordLabel,
-                'An accounting record requires attention.',
-                'View Record',
-            ],
-        };
-
-        try {
-            Notification::send($recipients, new AccountingNotification(
-                recordId: $freshRecord->id,
-                action: $action,
-                title: $title,
-                body: $body,
-                buttonLabel: $buttonLabel,
-                url: route('corporate.accounting.show', $freshRecord->id),
-                reviewNote: $reviewNote
-            ));
-        } catch (Throwable $exception) {
-            report($exception);
-        }
-    }
-
-    private function transformRecord(Accounting $record): array
-    {
-        return [
-            'id' => $record->id,
-            'statement_type' => $record->statement_type,
-            'client' => $record->client,
-            'tin' => $record->tin,
-            'date' => optional($record->date)->format('Y-m-d'),
-            'user' => $record->user,
-            'submitted_by' => $record->submitted_by,
-            'status' => $record->status ?? 'Active',
-            'workflow_status' => $record->workflow_status ?? 'Uploaded',
-            'approval_status' => $record->approval_status ?? 'Pending',
-            'approved_by' => $record->approved_by,
-            'approved_at' => optional($record->approved_at)->format('Y-m-d H:i:s'),
-            'review_note' => $record->review_note,
-            'document_name' => $record->document_name,
-            'document_path' => $record->document_path,
-            'can_edit' => $this->canEditRecord($record),
-            'can_submit' => (
-                (int) $record->submitted_by === (int) Auth::id()
-                && in_array($record->workflow_status ?? 'Uploaded', ['Uploaded', 'Reverted'], true)
-            ),
-            'can_approve' => $this->canApproveRecord($record),
-            'can_revert' => $this->canRevertRecord($record),
-            'can_hold' => $this->canHoldRecord($record),
-        ];
-    }
-
     public function page()
     {
-        return view('corporate.accounting');
+        return view('corporate.accounting', [
+            'companyDefaults' => $this->latestCorporateCompany(),
+            'reportTypes' => self::REPORT_TYPES,
+            'statuses' => ['Draft', 'Pending', 'Submitted', 'Approved', 'Rejected', 'Completed'],
+        ]);
     }
 
     public function index(Request $request)
     {
-        $statementType = $request->get('statement_type');
-        $workflowStatus = $request->get('workflow_status');
-
         $query = Accounting::query();
 
-        if (!$this->canApproveCorporate()) {
+        if (! $this->canApproveCorporate()) {
             $query->where('submitted_by', Auth::id());
         }
 
-        if ($statementType && $statementType !== 'All Statement Types') {
-            $query->where('statement_type', $statementType);
+        if ($request->filled('report_type') && $request->report_type !== 'All Report Types') {
+            $query->where('statement_type', $request->report_type);
         }
 
-        if ($workflowStatus && $workflowStatus !== 'all') {
-            $query->where('workflow_status', ucfirst($workflowStatus));
+        if ($request->filled('workflow_status') && $request->workflow_status !== 'all') {
+            $query->where('workflow_status', ucfirst($request->workflow_status));
         }
 
-        $data = $query->orderByDesc('date')
-            ->orderByDesc('created_at')
-            ->get()
-            ->map(fn($row) => $this->transformRecord($row))
-            ->values();
-
-        return response()->json($data);
+        return response()->json(
+            $query->orderByDesc('date')->orderByDesc('created_at')->get()
+                ->map(fn (Accounting $row) => $this->transformRecord($row))
+                ->values()
+        );
     }
 
     public function show($id)
     {
         $record = Accounting::findOrFail($id);
 
-        if (!$this->canApproveCorporate() && (int) $record->submitted_by !== (int) Auth::id()) {
+        if (! $this->canApproveCorporate() && (int) $record->submitted_by !== (int) Auth::id()) {
             abort(403, 'Unauthorized');
         }
 
@@ -216,40 +97,43 @@ class AccountingController extends Controller
 
     public function store(Request $request)
     {
-        $request->validate([
-            'statement_type' => 'required|in:PNL,Balance Sheet,Cash Flow,Income Statement,AFS',
-            'client' => 'required|string|max:255',
-            'tin' => 'nullable|string|max:255',
-            'date' => 'required|date',
-            'document' => 'required|file|mimes:pdf,jpg,jpeg,png|max:10240',
-        ]);
-
-        $file = $request->file('document');
-        $path = $file->store('accounting_documents', 'public');
-
+        $validated = $this->validatedPayload($request);
+        $company = $this->latestCorporateCompany();
+        $user = $this->currentUserLabel($request);
         $isApprover = $this->canApproveCorporate();
+        $draftDocuments = $this->storeDocumentSet($request, 'draft_documents', 'corporate/accounting/drafts');
+        $approvedDocuments = $this->storeDocumentSet($request, 'approved_documents', 'corporate/accounting/approved');
+        $primaryDocument = $draftDocuments[0] ?? $approvedDocuments[0] ?? null;
 
         $entry = Accounting::create([
-            'statement_type' => $request->statement_type,
-            'client' => $request->client,
-            'tin' => $request->tin,
-            'date' => $request->date,
-            'user' => Auth::check() ? Auth::user()->name : 'Unknown User',
+            'company_id' => $company['company_id'],
+            'company_name' => $company['company_name'],
+            'statement_type' => $this->resolveOtherChoice($validated['report_type'], $validated['report_type_other'] ?? null),
+            'client' => $company['company_name'],
+            'tin' => null,
+            'date' => $validated['report_date'],
+            'reporting_period_from' => $validated['reporting_period_from'] ?? null,
+            'reporting_period_to' => $validated['reporting_period_to'] ?? null,
+            'user' => $user,
             'submitted_by' => Auth::id(),
-            'status' => 'Active',
-            'workflow_status' => $isApprover ? 'Accepted' : 'Uploaded',
+            'status' => $validated['status'] ?? 'Pending',
+            'draft_documents' => $draftDocuments,
+            'approved_documents' => $approvedDocuments,
+            'uploaded_by' => $user,
+            'date_uploaded_at' => now(),
+            'last_updated_by' => $user,
+            'last_updated_at' => now(),
+            'workflow_status' => $isApprover ? 'Accepted' : 'Submitted',
             'approval_status' => $isApprover ? 'Approved' : 'Pending',
             'approved_by' => $isApprover ? Auth::id() : null,
             'approved_at' => $isApprover ? now() : null,
             'review_note' => null,
-            'document_name' => $file->getClientOriginalName(),
-            'document_path' => 'storage/' . $path,
+            'document_name' => $primaryDocument['name'] ?? null,
+            'document_path' => $primaryDocument['path'] ?? null,
         ]);
 
         return response()->json([
-            'message' => $isApprover
-                ? 'Accounting entry saved successfully.'
-                : 'Accounting entry saved as uploaded record.',
+            'message' => 'Accounting report saved successfully.',
             'data' => $this->transformRecord($entry),
         ], 201);
     }
@@ -258,52 +142,35 @@ class AccountingController extends Controller
     {
         $record = Accounting::findOrFail($id);
 
-        if (!$this->canEditRecord($record)) {
+        if (! $this->canEditRecord($record)) {
             abort(403, 'This record can no longer be edited.');
         }
 
-        $request->validate([
-            'statement_type' => 'required|in:PNL,Balance Sheet,Cash Flow,Income Statement,AFS',
-            'client' => 'required|string|max:255',
-            'tin' => 'nullable|string|max:255',
-            'date' => 'required|date',
+        $validated = $this->validatedPayload($request, false);
+        $user = $this->currentUserLabel($request);
+        $draftDocuments = $this->appendDocuments($record->draft_documents, $this->storeDocumentSet($request, 'draft_documents', 'corporate/accounting/drafts'));
+        $approvedDocuments = $this->appendDocuments($record->approved_documents, $this->storeDocumentSet($request, 'approved_documents', 'corporate/accounting/approved'));
+        $primaryDocument = $draftDocuments[0] ?? $approvedDocuments[0] ?? null;
+
+        $record->update([
+            'statement_type' => $this->resolveOtherChoice($validated['report_type'], $validated['report_type_other'] ?? null),
+            'date' => $validated['report_date'],
+            'reporting_period_from' => $validated['reporting_period_from'] ?? null,
+            'reporting_period_to' => $validated['reporting_period_to'] ?? null,
+            'status' => $validated['status'] ?? $record->status,
+            'draft_documents' => $draftDocuments,
+            'approved_documents' => $approvedDocuments,
+            'last_updated_by' => $user,
+            'last_updated_at' => now(),
+            'document_name' => $primaryDocument['name'] ?? $record->document_name,
+            'document_path' => $primaryDocument['path'] ?? $record->document_path,
+            'approval_status' => ($record->workflow_status ?? 'Uploaded') === 'Reverted' ? 'Pending' : $record->approval_status,
+            'review_note' => ($record->workflow_status ?? 'Uploaded') === 'Reverted' ? null : $record->review_note,
         ]);
 
-        $payload = [
-            'statement_type' => $request->statement_type,
-            'client' => $request->client,
-            'tin' => $request->tin,
-            'date' => $request->date,
-        ];
-
-        if ($request->hasFile('document')) {
-            $request->validate([
-                'document' => 'file|mimes:pdf,jpg,jpeg,png|max:10240',
-            ]);
-
-            $file = $request->file('document');
-            $path = $file->store('accounting_documents', 'public');
-
-            $payload['document_name'] = $file->getClientOriginalName();
-            $payload['document_path'] = 'storage/' . $path;
-        }
-
-        if (($record->workflow_status ?? 'Uploaded') === 'Reverted') {
-            $payload['approval_status'] = 'Pending';
-            $payload['review_note'] = null;
-        }
-
-        $record->update($payload);
-        $record = $record->fresh();
-
-        // Send notification for updated record
-        if (in_array($record->workflow_status ?? 'Uploaded', ['Submitted', 'On Hold'], true)) {
-            $this->sendAccountingNotification($record, 'updated');
-        }
-
         return response()->json([
-            'message' => 'Accounting entry updated successfully.',
-            'data' => $this->transformRecord($record),
+            'message' => 'Accounting report updated successfully.',
+            'data' => $this->transformRecord($record->fresh()),
         ]);
     }
 
@@ -315,10 +182,8 @@ class AccountingController extends Controller
             abort(403, 'Unauthorized');
         }
 
-        if (!in_array($record->workflow_status ?? 'Uploaded', ['Uploaded', 'Reverted'], true)) {
-            return response()->json([
-                'message' => 'Only uploaded or reverted records can be submitted.'
-            ], 422);
+        if (! in_array($record->workflow_status ?? 'Uploaded', ['Uploaded', 'Reverted'], true)) {
+            return response()->json(['message' => 'Only uploaded or reverted records can be submitted.'], 422);
         }
 
         $record->update([
@@ -327,101 +192,55 @@ class AccountingController extends Controller
             'review_note' => null,
         ]);
 
-        $record = $record->fresh();
-
-        // Send notification to approvers
-        $this->sendAccountingNotification($record, 'submitted');
-
         return response()->json([
-            'message' => 'Accounting entry submitted for approval successfully.',
-            'data' => $this->transformRecord($record),
+            'message' => 'Accounting report submitted for approval successfully.',
+            'data' => $this->transformRecord($record->fresh()),
         ]);
     }
 
-    public function approve(Request $request, $id)
+    private function validatedPayload(Request $request, bool $documentsOptional = true): array
     {
-        $record = Accounting::findOrFail($id);
-
-        if (!$this->canApproveRecord($record)) {
-            abort(403, 'This record cannot be approved at this time.');
-        }
-
-        $record->update([
-            'workflow_status' => 'Accepted',
-            'approval_status' => 'Approved',
-            'approved_by' => Auth::id(),
-            'approved_at' => now(),
-            'review_note' => null,
-        ]);
-
-        $record = $record->fresh();
-
-        // Send notification to submitter
-        $this->sendAccountingNotification($record, 'approved');
-
-        return response()->json([
-            'message' => 'Accounting entry approved successfully.',
-            'data' => $this->transformRecord($record),
-        ]);
+        return $request->validate(array_merge([
+            'report_type' => ['required', 'string', 'max:255'],
+            'report_type_other' => ['nullable', 'string', 'max:255'],
+            'report_date' => ['required', 'date'],
+            'reporting_period_from' => ['nullable', 'date'],
+            'reporting_period_to' => ['nullable', 'date', 'after_or_equal:reporting_period_from'],
+            'status' => ['nullable', 'string', 'max:255'],
+        ], $this->commonDocumentValidation()));
     }
 
-    public function revert(Request $request, $id)
+    private function transformRecord(Accounting $record): array
     {
-        $record = Accounting::findOrFail($id);
+        $draftDocuments = $this->documentLinks($record->draft_documents);
+        $approvedDocuments = $this->documentLinks($record->approved_documents);
 
-        if (!$this->canRevertRecord($record)) {
-            abort(403, 'This record cannot be reverted at this time.');
-        }
-
-        $request->validate([
-            'review_note' => 'required|string|max:1000',
-        ]);
-
-        $record->update([
-            'workflow_status' => 'Reverted',
-            'approval_status' => 'Needs Revision',
-            'approved_by' => Auth::id(),
-            'approved_at' => now(),
-            'review_note' => $request->review_note,
-        ]);
-
-        $record = $record->fresh();
-
-        // Send notification with review note to submitter
-        $this->sendAccountingNotification($record, 'reverted', $request->review_note);
-
-        return response()->json([
-            'message' => 'Accounting entry reverted for revision.',
-            'data' => $this->transformRecord($record),
-        ]);
-    }
-
-    public function hold(Request $request, $id)
-    {
-        $record = Accounting::findOrFail($id);
-
-        if (!$this->canHoldRecord($record)) {
-            abort(403, 'This record cannot be placed on hold at this time.');
-        }
-
-        $request->validate([
-            'review_note' => 'required|string|max:1000',
-        ]);
-
-        $record->update([
-            'workflow_status' => 'On Hold',
-            'approval_status' => 'On Hold',
-            'review_note' => $request->review_note,
-        ]);
-
-        $record = $record->fresh();
-
-        // Send notification with review note to submitter
-        $this->sendAccountingNotification($record, 'held', $request->review_note);
-
-        return response()->json([
-            'message' => 'Accounting entry placed on hold.',
-            'data' => $this->transformRecord($record),
-        ]);
+        return [
+            'id' => $record->id,
+            'company' => $record->company_name ?: $record->client,
+            'report_type' => $record->statement_type,
+            'report_date' => optional($record->date)->format('Y-m-d'),
+            'reporting_period_from' => optional($record->reporting_period_from)->format('Y-m-d'),
+            'reporting_period_to' => optional($record->reporting_period_to)->format('Y-m-d'),
+            'reporting_period' => trim(collect([
+                optional($record->reporting_period_from)->format('Y-m-d'),
+                optional($record->reporting_period_to)->format('Y-m-d'),
+            ])->filter()->implode(' to ')),
+            'uploaded_by' => $record->uploaded_by ?: $record->user,
+            'date_uploaded' => $record->date_uploaded_at?->format('Y-m-d H:i:s') ?: $record->created_at?->format('Y-m-d H:i:s'),
+            'last_updated_by' => $record->last_updated_by,
+            'last_updated_date' => $record->last_updated_at?->format('Y-m-d H:i:s') ?: $record->updated_at?->format('Y-m-d H:i:s'),
+            'status' => $record->status ?? 'Pending',
+            'workflow_status' => $record->workflow_status ?? 'Uploaded',
+            'approval_status' => $record->approval_status ?? 'Pending',
+            'review_note' => $record->review_note,
+            'document_name' => $record->document_name,
+            'document_url' => $draftDocuments[0]['url'] ?? $approvedDocuments[0]['url'] ?? $this->publicDocumentUrl($record->document_path),
+            'draft_documents' => $draftDocuments,
+            'approved_documents' => $approvedDocuments,
+            'can_edit' => $this->canEditRecord($record),
+            'can_submit' => (int) $record->submitted_by === (int) Auth::id()
+                && in_array($record->workflow_status ?? 'Uploaded', ['Uploaded', 'Reverted'], true),
+        ];
     }
 }

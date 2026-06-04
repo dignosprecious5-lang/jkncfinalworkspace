@@ -5,6 +5,7 @@
 @php
     $sectionRibbonPartial = $sectionRibbonPartial ?? 'corporate.partials.section-ribbon';
     $draftUrl = $generatedDraftUrl ?? null;
+    $draftDownloadUrl = $generatedDraftDownloadUrl ?? $draftUrl;
     $documentUrl = $certificate->document_path ? route('uploads.show', ['path' => $certificate->document_path]) : null;
     $corporateContext = $corporateContext ?? [];
     $resolution = $certificate->resolution;
@@ -140,6 +141,15 @@
         font-weight: 700;
     }
 
+    .certificate-purpose-heading {
+        margin: 18px 0 22px 0;
+        text-align: center;
+        font-size: 17px;
+        line-height: 1.45;
+        font-weight: 700;
+        text-transform: uppercase;
+    }
+
 </style>
 
 <div class="w-full px-4 sm:px-6 lg:px-8 mt-4" x-data="{ activeVersion: 'draft', activeDraftPane: 'live' }">
@@ -189,7 +199,7 @@
                                         <p>That, per corporate records, at the <span data-preview="certificate-meeting-type">{{ $certificate->type_of_meeting ?: 'Special' }}</span> Meeting of the <span data-preview="certificate-governing-body">{{ $certificate->governing_body ?: 'Board of Directors' }}</span> of the Corporation held on <strong data-preview="certificate-meeting-date">{{ $meetingDate }}</strong>, and recorded under Minutes Ref. <strong>{{ $certificate->minutes_ref ?: '-' }}</strong>, the following corporate action was duly approved and recorded in the Minute Book, a legal quorum being present and voting, viz:</p>
 
                                         <div class="my-6 text-center font-bold uppercase" data-preview="certificate-resolution-title">{{ $certificate->resolution_no ? $resolutionLabel . $certificate->resolution_no : 'CERTIFIED MINUTES EXTRACT' }}</div>
-                                        <p><strong data-preview="certificate-purpose">{{ $certificatePurpose }}</strong></p>
+                                        <div class="certificate-purpose-heading" data-preview="certificate-purpose">{{ $certificatePurpose }}</div>
                                         <div data-preview="certificate-body" class="min-h-[180px] corporate-resolution-body">{!! $formatResolutionBodyForDisplay($certificateBody) !!}</div>
 
                                         <p>That, the foregoing resolution shall be in full force and effect unless revoked by the Board of Directors. Moreover, the foregoing resolution is in accordance and does not in any way contravene any provision of the Articles of Incorporation or By-Laws of the Corporation.</p>
@@ -229,7 +239,10 @@
                                             <div class="text-sm font-semibold text-gray-900">Built Draft PDF</div>
                                             <div class="text-xs text-gray-500">This is the generated PDF version of the certificate.</div>
                                         </div>
-                                        <a href="{{ $draftUrl }}" target="_blank" class="inline-flex rounded-lg bg-slate-800 px-4 py-2 text-sm font-medium text-white hover:bg-black">Open in New Tab</a>
+                                        <div class="flex flex-wrap gap-2">
+                                            <a href="{{ $draftUrl }}" target="_blank" class="inline-flex rounded-lg bg-slate-800 px-4 py-2 text-sm font-medium text-white hover:bg-black">Open in New Tab</a>
+                                            <a href="{{ $draftDownloadUrl }}" target="_blank" class="inline-flex rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Download PDF</a>
+                                        </div>
                                     </div>
                                     <iframe src="{{ $draftUrl }}" class="w-full h-[700px] border-0 bg-white"></iframe>
                                 </div>

@@ -102,7 +102,7 @@
         <div class="content">
             <p>Dear <span class="name">{{ $candidateName }}</span>,</p>
             
-            <p>As part of our recruitment process at John Kelly & Company, we would like to invite you to take the following assessment:</p>
+            <p>As part of our recruitment process at John Kelly &amp; Company (JK&amp;C Inc.), we would like to invite you to take the following assessment:</p>
             
             <div class="test-box">
                 <span class="test-label">Assessment Type</span>
@@ -115,17 +115,17 @@
                 <a href="{{ $testUrl }}" class="btn" style="color: #ffffff !important;">Start Assessment Test</a>
             </div>
             
-            <p>The link will remain active for the next 48 hours. For concerns, please contact the Finance Department of JK&amp;C Inc.</p>
+            <p>The link will remain active for the next 48 hours.</p>
             
             <p>Good luck!</p>
             
             <p>Best regards,<br>
             <strong>Human Capital Team</strong><br>
-            John Kelly & Company</p>
+            John Kelly &amp; Company (JK&amp;C Inc.)</p>
         </div>
         <div class="footer">
-            &copy; {{ date('Y') }} John Kelly & Company. All rights reserved.<br>
-            For concerns, please contact the Finance Department of JK&amp;C Inc.
+            &copy; {{ date('Y') }} John Kelly &amp; Company (JK&amp;C Inc.). All rights reserved.<br>
+            This is an automated message, please do not reply directly to this email.
         </div>
     </div>
 </body>

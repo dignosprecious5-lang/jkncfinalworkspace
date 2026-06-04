@@ -162,12 +162,12 @@ class CorporateApprovalController extends Controller
             'sec-aoi' => $record->corporation_name ?? '',
             'bylaws' => $record->corporation_name ?? '',
             'gis' => $record->corporation_name ?? '',
-            'lgu' => ($record->permit_type ?? 'LGU Permit') . ' - ' . ($record->document_type ?? ''),
-            'accounting' => ($record->client ?? 'Accounting Record') . ' - ' . ($record->statement_type ?? ''),
-            'banking' => ($record->client ?? 'Banking Record') . ' - ' . ($record->bank ?? ''),
-            'operations' => ($record->client ?? 'Operations Record') . ' - ' . ($record->operation_type ?? ''),
+            'lgu' => trim(($record->company_name ?? 'Company') . ' - ' . ($record->permit_type ?? 'LGU Permit')),
+            'accounting' => trim(($record->company_name ?? $record->client ?? 'Company') . ' - ' . ($record->statement_type ?? 'Accounting Report')),
+            'banking' => trim(($record->company_name ?? $record->client ?? 'Company') . ' - ' . ($record->bank ?? 'Banking Record')),
+            'operations' => trim(($record->company_name ?? $record->client ?? 'Company') . ' - ' . ($record->document_title ?? $record->operation_type ?? 'Operations Record')),
             'correspondence' => ($record->type ?? 'Correspondence') . ' - ' . ($record->subject ?? ''),
-            'legal' => ($record->client ?? 'Legal Record') . ' - ' . ($record->legal_type ?? ''),
+            'legal' => trim(($record->company_name ?? $record->client ?? 'Company') . ' - ' . ($record->document_title ?? $record->document_type ?? $record->legal_type ?? 'Legal Record')),
             'transmittal' => ($record->mode ?? 'Transmittal') . ' - ' . ($record->transmittal_no ?? ('TRN-' . $record->id)),
             default => '',
         };
@@ -177,11 +177,11 @@ class CorporateApprovalController extends Controller
     {
         return match ($module) {
             'lgu' => $record->permit_number ?? '',
-            'accounting' => $record->tin ?? '',
-            'banking' => $record->tin ?? '',
-            'operations' => $record->tin ?? '',
+            'accounting' => $record->statement_type ?? '',
+            'banking' => $record->bank_doc ?? '',
+            'operations' => $record->document_type ?? '',
             'correspondence' => $record->tin ?? '',
-            'legal' => $record->tin ?? '',
+            'legal' => $record->document_type ?? $record->legal_type ?? '',
             'transmittal' => $record->transmittal_no ?? '',
             default => $record->company_reg_no ?? '',
         };
@@ -384,13 +384,14 @@ class CorporateApprovalController extends Controller
             $items->push((object) [
                 'id' => $row->id,
                 'module' => 'LGU',
-                'title' => ($row->permit_type ?? 'LGU Permit') . ' - ' . ($row->document_type ?? ''),
+                'title' => trim(($row->company_name ?? 'Company') . ' - ' . ($row->permit_type ?? 'LGU Permit')),
                 'company_reg_no' => $row->permit_number,
-                'uploaded_by' => $row->user,
-                'date_uploaded' => $row->created_at ? $row->created_at->format('Y-m-d') : '',
+                'uploaded_by' => $row->uploaded_by ?: $row->user,
+                'date_uploaded' => $row->date_uploaded_at ? $row->date_uploaded_at->format('Y-m-d') : ($row->created_at ? $row->created_at->format('Y-m-d') : ''),
                 'status' => $workflow,
                 'approval_status' => $row->approval_status,
-                'show_route' => route('corporate.lgu'),
+                'show_route' => route('corporate.lgu', ['record' => $row->id, 'tab' => strtolower($workflow)]),
+                'preview_route' => route('permits.show', $row->id),
                 'approve_route' => route('corporate.approvals.approve', ['module' => 'lgu', 'id' => $row->id]),
                 'reject_route' => route('corporate.approvals.reject', ['module' => 'lgu', 'id' => $row->id]),
                 'revise_route' => route('corporate.approvals.revise', ['module' => 'lgu', 'id' => $row->id]),
@@ -405,13 +406,14 @@ class CorporateApprovalController extends Controller
             $items->push((object) [
                 'id' => $row->id,
                 'module' => 'Accounting',
-                'title' => ($row->client ?? 'Accounting Record') . ' - ' . ($row->statement_type ?? ''),
-                'company_reg_no' => $row->tin ?? '',
-                'uploaded_by' => $row->user,
-                'date_uploaded' => $row->date ? \Carbon\Carbon::parse($row->date)->format('Y-m-d') : '',
+                'title' => trim(($row->company_name ?? $row->client ?? 'Company') . ' - ' . ($row->statement_type ?? 'Accounting Report')),
+                'company_reg_no' => $row->statement_type ?? '',
+                'uploaded_by' => $row->uploaded_by ?: $row->user,
+                'date_uploaded' => $row->date_uploaded_at ? $row->date_uploaded_at->format('Y-m-d') : ($row->date ? \Carbon\Carbon::parse($row->date)->format('Y-m-d') : ''),
                 'status' => $workflow,
                 'approval_status' => $row->approval_status,
-                'show_route' => route('accounting', ['record' => $row->id, 'tab' => strtolower($workflow)]),
+                'show_route' => route('corporate.accounting', ['record' => $row->id, 'tab' => strtolower($workflow)]),
+                'preview_route' => route('corporate.accounting.show', $row->id),
                 'approve_route' => route('corporate.approvals.approve', ['module' => 'accounting', 'id' => $row->id]),
                 'reject_route' => route('corporate.approvals.reject', ['module' => 'accounting', 'id' => $row->id]),
                 'revise_route' => route('corporate.approvals.revise', ['module' => 'accounting', 'id' => $row->id]),
@@ -426,13 +428,14 @@ class CorporateApprovalController extends Controller
             $items->push((object) [
                 'id' => $row->id,
                 'module' => 'Banking',
-                'title' => ($row->client ?? 'Banking Record') . ' - ' . ($row->bank ?? ''),
-                'company_reg_no' => $row->tin ?? '',
-                'uploaded_by' => $row->user,
-                'date_uploaded' => $row->date_uploaded ? \Carbon\Carbon::parse($row->date_uploaded)->format('Y-m-d') : '',
+                'title' => trim(($row->company_name ?? $row->client ?? 'Company') . ' - ' . ($row->bank ?? 'Banking Record')),
+                'company_reg_no' => $row->bank_doc ?? '',
+                'uploaded_by' => $row->uploaded_by ?: $row->user,
+                'date_uploaded' => $row->date_uploaded_at ? $row->date_uploaded_at->format('Y-m-d') : ($row->date_uploaded ? \Carbon\Carbon::parse($row->date_uploaded)->format('Y-m-d') : ''),
                 'status' => $workflow,
                 'approval_status' => $row->approval_status,
-                'show_route' => route('banking', ['record' => $row->id, 'tab' => strtolower($workflow)]),
+                'show_route' => route('corporate.banking', ['record' => $row->id, 'tab' => strtolower($workflow)]),
+                'preview_route' => route('banking.show', $row->id),
                 'approve_route' => route('corporate.approvals.approve', ['module' => 'banking', 'id' => $row->id]),
                 'reject_route' => route('corporate.approvals.reject', ['module' => 'banking', 'id' => $row->id]),
                 'revise_route' => route('corporate.approvals.revise', ['module' => 'banking', 'id' => $row->id]),
@@ -447,13 +450,14 @@ class CorporateApprovalController extends Controller
             $items->push((object) [
                 'id' => $row->id,
                 'module' => 'Operations',
-                'title' => ($row->client ?? 'Operations Record') . ' - ' . ($row->operation_type ?? ''),
-                'company_reg_no' => $row->tin ?? '',
-                'uploaded_by' => $row->user,
-                'date_uploaded' => $row->date_uploaded ? \Carbon\Carbon::parse($row->date_uploaded)->format('Y-m-d') : '',
+                'title' => trim(($row->company_name ?? $row->client ?? 'Company') . ' - ' . ($row->document_title ?? $row->operation_type ?? 'Operations Record')),
+                'company_reg_no' => $row->document_type ?? '',
+                'uploaded_by' => $row->uploaded_by ?: $row->user,
+                'date_uploaded' => $row->date_uploaded_at ? $row->date_uploaded_at->format('Y-m-d') : ($row->date_uploaded ? \Carbon\Carbon::parse($row->date_uploaded)->format('Y-m-d') : ''),
                 'status' => $workflow,
                 'approval_status' => $row->approval_status,
-                'show_route' => route('operations', ['record' => $row->id, 'tab' => strtolower($workflow)]),
+                'show_route' => route('corporate.operations', ['record' => $row->id, 'tab' => strtolower($workflow)]),
+                'preview_route' => route('operations.show', $row->id),
                 'approve_route' => route('corporate.approvals.approve', ['module' => 'operations', 'id' => $row->id]),
                 'reject_route' => route('corporate.approvals.reject', ['module' => 'operations', 'id' => $row->id]),
                 'revise_route' => route('corporate.approvals.revise', ['module' => 'operations', 'id' => $row->id]),
@@ -465,20 +469,28 @@ class CorporateApprovalController extends Controller
             $workflow = $this->normalizeWorkflow($row);
             if (!$this->canAppearInAdminDashboard($workflow)) continue;
 
+            /*
+             * Correspondence now has its own dedicated Admin Correspondence dashboard.
+             * Keep it visible here for monitoring/searching only, but do not approve/reject/revise it here.
+             * This prevents duplicate approval logic between Corporate Approval Dashboard and Admin Correspondence.
+             */
             $items->push((object) [
                 'id' => $row->id,
                 'module' => 'Correspondence',
                 'title' => ($row->type ?? 'Correspondence') . ' - ' . ($row->subject ?? ''),
-                'company_reg_no' => $row->tin ?? '',
-                'uploaded_by' => $row->user,
-                'date_uploaded' => $row->uploaded_date ? \Carbon\Carbon::parse($row->uploaded_date)->format('Y-m-d') : '',
+                'company_reg_no' => $row->registration_number ?: ($row->tin ?? ''),
+                'uploaded_by' => $row->creator?->name ?: ($row->user ?: $row->submitted_by),
+                'date_uploaded' => $row->correspondence_date
+                    ? \Carbon\Carbon::parse($row->correspondence_date)->format('Y-m-d')
+                    : ($row->created_at ? $row->created_at->format('Y-m-d') : ''),
                 'status' => $workflow,
                 'approval_status' => $row->approval_status,
-                'show_route' => route('correspondence', ['record' => $row->id, 'tab' => strtolower($workflow)]),
-                'approve_route' => route('corporate.approvals.approve', ['module' => 'correspondence', 'id' => $row->id]),
-                'reject_route' => route('corporate.approvals.reject', ['module' => 'correspondence', 'id' => $row->id]),
-                'revise_route' => route('corporate.approvals.revise', ['module' => 'correspondence', 'id' => $row->id]),
-                'archive_route' => route('corporate.approvals.archive', ['module' => 'correspondence', 'id' => $row->id]),
+                'show_route' => route('admin.correspondence.show', $row->id),
+                'approve_route' => null,
+                'reject_route' => null,
+                'revise_route' => null,
+                'archive_route' => null,
+                'supports_actions' => false,
             ]);
         }
 
@@ -489,13 +501,14 @@ class CorporateApprovalController extends Controller
             $items->push((object) [
                 'id' => $row->id,
                 'module' => 'Legal',
-                'title' => ($row->client ?? 'Legal Record') . ' - ' . ($row->legal_type ?? ''),
-                'company_reg_no' => $row->tin ?? '',
-                'uploaded_by' => $row->user,
-                'date_uploaded' => $row->date ? \Carbon\Carbon::parse($row->date)->format('Y-m-d') : '',
+                'title' => trim(($row->company_name ?? $row->client ?? 'Company') . ' - ' . ($row->document_title ?? $row->document_type ?? $row->legal_type ?? 'Legal Record')),
+                'company_reg_no' => $row->document_type ?? $row->legal_type ?? '',
+                'uploaded_by' => $row->uploaded_by ?: $row->user,
+                'date_uploaded' => $row->date_uploaded_at ? $row->date_uploaded_at->format('Y-m-d') : ($row->date ? \Carbon\Carbon::parse($row->date)->format('Y-m-d') : ''),
                 'status' => $workflow,
                 'approval_status' => $row->approval_status,
-                'show_route' => route('legal', ['record' => $row->id, 'tab' => strtolower($workflow)]),
+                'show_route' => route('corporate.legal', ['record' => $row->id, 'tab' => strtolower($workflow)]),
+                'preview_route' => route('legal.show', $row->id),
                 'approve_route' => route('corporate.approvals.approve', ['module' => 'legal', 'id' => $row->id]),
                 'reject_route' => route('corporate.approvals.reject', ['module' => 'legal', 'id' => $row->id]),
                 'revise_route' => route('corporate.approvals.revise', ['module' => 'legal', 'id' => $row->id]),
@@ -503,26 +516,7 @@ class CorporateApprovalController extends Controller
             ]);
         }
 
-        foreach (Transmittal::latest()->get() as $row) {
-            $workflow = $this->normalizeWorkflow($row);
-            if (!$this->canAppearInAdminDashboard($workflow)) continue;
 
-            $items->push((object) [
-                'id' => $row->id,
-                'module' => 'Transmittal',
-                'title' => ($row->mode ?? 'Transmittal') . ' - ' . ($row->transmittal_no ?? ('TRN-' . $row->id)),
-                'company_reg_no' => $row->transmittal_no ?? '',
-                'uploaded_by' => $row->submitted_by,
-                'date_uploaded' => $row->transmittal_date ? \Carbon\Carbon::parse($row->transmittal_date)->format('Y-m-d') : '',
-                'status' => $workflow,
-                'approval_status' => $row->approval_status,
-                'show_route' => route('transmittal.index'),
-                'approve_route' => route('corporate.approvals.approve', ['module' => 'transmittal', 'id' => $row->id]),
-                'reject_route' => route('corporate.approvals.reject', ['module' => 'transmittal', 'id' => $row->id]),
-                'revise_route' => route('corporate.approvals.revise', ['module' => 'transmittal', 'id' => $row->id]),
-                'archive_route' => route('corporate.approvals.archive', ['module' => 'transmittal', 'id' => $row->id]),
-            ]);
-        }
 
         foreach (Notice::latest()->get() as $row) {
             if (empty($row->document_path)) {
@@ -699,42 +693,56 @@ class CorporateApprovalController extends Controller
     }
 
     public function approve($module, $id)
-{
-    $this->authorizeApprover();
+    {
 
-    $record = $this->resolveModel($module, $id);
+        if ($module === 'correspondence') {
+            return redirect()
+                ->route('admin.correspondence.dashboard')
+                ->with('error', 'Correspondence approvals are handled in the Admin Correspondence dashboard.');
+        }
 
-    if ($response = $this->ensureSubmittedForDecision($record)) {
-        return $response;
+        $this->authorizeApprover();
+
+        $record = $this->resolveModel($module, $id);
+
+        if ($response = $this->ensureSubmittedForDecision($record)) {
+            return $response;
+        }
+
+        $updateData = [
+            'approval_status' => 'Approved',
+            'workflow_status' => 'Accepted',
+            'approved_by' => Auth::id(),
+            'approved_at' => now(),
+            'review_note' => null,
+        ];
+
+        if ($module === 'transmittal') {
+            $updateData['approved_by_name'] = Auth::user()?->name ?? 'Admin User';
+        }
+
+        $record->update($updateData);
+
+        if ($module === 'transmittal') {
+            $this->generateTransmittalReceipt($record);
+            $record->refresh()->load(['items', 'receipt']);
+            $this->sendTransmittalDeliveryEmail($record);
+        }
+
+        $this->sendStatusEmail($record, $module, 'Approved', null);
+
+        return back()->with('success', 'Record approved successfully.');
     }
-
-    $updateData = [
-        'approval_status' => 'Approved',
-        'workflow_status' => 'Accepted',
-        'approved_by' => Auth::id(),
-        'approved_at' => now(),
-        'review_note' => null,
-    ];
-
-    if ($module === 'transmittal') {
-        $updateData['approved_by_name'] = Auth::user()?->name ?? 'Admin User';
-    }
-
-    $record->update($updateData);
-
-    if ($module === 'transmittal') {
-        $this->generateTransmittalReceipt($record);
-        $record->refresh()->load(['items', 'receipt']);
-        $this->sendTransmittalDeliveryEmail($record);
-    }
-
-    $this->sendStatusEmail($record, $module, 'Approved', null);
-
-    return back()->with('success', 'Record approved successfully.');
-}
 
     public function reject(Request $request, $module, $id)
     {
+
+        if ($module === 'correspondence') {
+            return redirect()
+                ->route('admin.correspondence.dashboard')
+                ->with('error', 'Correspondence approvals are handled in the Admin Correspondence dashboard.');
+        }
+
         $this->authorizeApprover();
 
         $record = $this->resolveModel($module, $id);
@@ -758,6 +766,13 @@ class CorporateApprovalController extends Controller
 
     public function revise(Request $request, $module, $id)
     {
+
+        if ($module === 'correspondence') {
+            return redirect()
+                ->route('admin.correspondence.dashboard')
+                ->with('error', 'Correspondence approvals are handled in the Admin Correspondence dashboard.');
+        }
+
         $this->authorizeApprover();
 
         $record = $this->resolveModel($module, $id);
@@ -781,6 +796,13 @@ class CorporateApprovalController extends Controller
 
     public function archive($module, $id)
     {
+
+        if ($module === 'correspondence') {
+            return redirect()
+                ->route('admin.correspondence.dashboard')
+                ->with('error', 'Correspondence approvals are handled in the Admin Correspondence dashboard.');
+        }
+
         $this->authorizeApprover();
 
         $record = $this->resolveModel($module, $id);

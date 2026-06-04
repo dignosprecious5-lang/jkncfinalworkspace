@@ -11,7 +11,7 @@
 
         body {
             margin: 0;
-            font-family: "Times New Roman", DejaVu Serif, serif;
+            font-family: Georgia, "Times New Roman", DejaVu Serif, serif;
             font-size: 13px;
             line-height: 1.45;
             color: #222;
@@ -97,7 +97,7 @@
         .body-content span,
         .body-content td,
         .body-content th {
-            font-family: "Times New Roman", DejaVu Serif, serif !important;
+            font-family: Georgia, "Times New Roman", DejaVu Serif, serif !important;
         }
 
         .body-content p,
@@ -228,7 +228,137 @@
             text-align: left;
             line-height: 1.22;
         }
-    </style>
+
+        /* Stable Quill document body support */
+        .body-content {
+            overflow-wrap: break-word;
+            word-break: normal;
+        }
+
+        .body-content .ql-align-left { text-align: left !important; }
+        .body-content .ql-align-center { text-align: center !important; }
+        .body-content .ql-align-right { text-align: right !important; }
+        .body-content .ql-align-justify {
+            text-align: justify !important;
+            text-justify: inter-word;
+        }
+
+        .body-content .ql-indent-1 { margin-left: 3em !important; padding-left: 0 !important; text-indent: 0 !important; }
+        .body-content .ql-indent-2 { margin-left: 6em !important; padding-left: 0 !important; text-indent: 0 !important; }
+        .body-content .ql-indent-3 { margin-left: 9em !important; padding-left: 0 !important; text-indent: 0 !important; }
+        .body-content .ql-indent-4 { margin-left: 12em !important; padding-left: 0 !important; text-indent: 0 !important; }
+        .body-content .ql-indent-5 { margin-left: 15em !important; padding-left: 0 !important; text-indent: 0 !important; }
+        .body-content .ql-indent-6 { margin-left: 18em !important; padding-left: 0 !important; text-indent: 0 !important; }
+        .body-content .ql-indent-7 { margin-left: 21em !important; padding-left: 0 !important; text-indent: 0 !important; }
+        .body-content .ql-indent-8 { margin-left: 24em !important; padding-left: 0 !important; text-indent: 0 !important; }
+
+        .body-content table,
+        .townhall-pdf-table {
+            width: 100% !important;
+            max-width: 100% !important;
+            border-collapse: collapse !important;
+            table-layout: fixed !important;
+            margin: 3mm 0 4mm 0 !important;
+            page-break-inside: auto !important;
+        }
+
+        .body-content tr,
+        .townhall-pdf-table tr {
+            page-break-inside: avoid !important;
+            page-break-after: auto !important;
+        }
+
+        .body-content th,
+        .body-content td,
+        .townhall-pdf-table th,
+        .townhall-pdf-table td {
+            border: 1px solid #888 !important;
+            padding: 2.2mm 2.8mm !important;
+            vertical-align: top !important;
+            white-space: normal !important;
+            word-break: normal !important;
+            overflow-wrap: break-word !important;
+            text-align: left !important;
+        }
+
+        .body-content td p,
+        .body-content th p,
+        .body-content td div,
+        .body-content th div,
+        .body-content td span,
+        .body-content th span {
+            margin: 0 !important;
+            padding: 0 !important;
+            white-space: normal !important;
+            word-break: normal !important;
+            overflow-wrap: break-word !important;
+        }
+
+
+    /* Town Hall stable body containment + Georgia default */
+    .memo-page,
+    .memo-edit-preview,
+    .memo-page *,
+    .memo-edit-preview *,
+    .preview-body,
+    .preview-body *,
+    .memo-page-body,
+    .memo-page-body *,
+    .memo-body-block,
+    .memo-body-block *,
+    #editor .ql-editor,
+    #editor .ql-editor * {
+        font-family: Georgia, "Times New Roman", serif !important;
+    }
+
+    .memo-page-body,
+    .memo-page-body p,
+    .memo-page-body div,
+    .memo-page-body span,
+    .memo-page-body li,
+    .memo-body-block,
+    .memo-body-block p,
+    .memo-body-block div,
+    .memo-body-block span,
+    .memo-body-block li,
+    .preview-body,
+    .preview-body p,
+    .preview-body div,
+    .preview-body span,
+    .preview-body li {
+        max-width: 100% !important;
+        white-space: normal !important;
+        overflow-wrap: anywhere !important;
+        word-break: break-word !important;
+    }
+
+    .ql-font-georgia,
+    .ql-font-georgia * {
+        font-family: Georgia, "Times New Roman", serif !important;
+    }
+
+    .ql-picker.ql-font .ql-picker-label[data-value="georgia"]::before,
+    .ql-picker.ql-font .ql-picker-item[data-value="georgia"]::before {
+        content: "Georgia";
+        font-family: Georgia, "Times New Roman", serif;
+    }
+
+    .ql-picker.ql-font .ql-picker-label[data-value="serif"]::before,
+    .ql-picker.ql-font .ql-picker-item[data-value="serif"]::before {
+        content: "Serif";
+    }
+
+    .ql-picker.ql-font .ql-picker-label[data-value="sans-serif"]::before,
+    .ql-picker.ql-font .ql-picker-item[data-value="sans-serif"]::before {
+        content: "Sans Serif";
+    }
+
+    .ql-picker.ql-font .ql-picker-label[data-value="monospace"]::before,
+    .ql-picker.ql-font .ql-picker-item[data-value="monospace"]::before {
+        content: "Monospace";
+    }
+
+</style>
 </head>
 <body>
     @php

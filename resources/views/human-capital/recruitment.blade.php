@@ -1093,7 +1093,7 @@
 
                             {{-- Form Header with Logo --}}
                             <div class="flex items-center justify-center pb-4 pt-2 border-b border-gray-400">
-                                <img src="{{ asset('images/imaglogo.png') }}" onerror="this.src='{{ asset('images/imag1logo.jpg') }}'" alt="John Kelly & Company" class="h-14 w-auto object-contain mix-blend-multiply">
+                                <img src="{{ asset('images/imaglogo.png') }}" onerror="this.src='{{ asset('images/imag1logo.jpg') }}'" alt="John Kelly &amp; Company (JK&amp;C Inc.)" class="h-14 w-auto object-contain mix-blend-multiply">
                             </div>
 
                             {{-- Title --}}
@@ -1391,7 +1391,7 @@
                 <template x-if="viewData">
                 <div id="mrf-doc-view" class="border border-gray-300 bg-white p-4 mx-auto w-[794px] shrink-0">
                     <div class="flex items-center justify-center pb-4 pt-2 border-b border-gray-300">
-                        <img src="{{ asset('images/imaglogo.png') }}" onerror="this.src='{{ asset('images/imag1logo.jpg') }}'" alt="John Kelly & Company" class="h-14 w-auto object-contain mix-blend-multiply">
+                        <img src="{{ asset('images/imaglogo.png') }}" onerror="this.src='{{ asset('images/imag1logo.jpg') }}'" alt="John Kelly &amp; Company (JK&amp;C Inc.)" class="h-14 w-auto object-contain mix-blend-multiply">
                     </div>
                     <div class="bg-blue-700 text-white text-center font-bold py-2 text-sm tracking-widest uppercase border-gray-300">Manpower Request Form</div>
 
@@ -1638,7 +1638,7 @@
                             <div class="grid grid-cols-2 gap-4">
                                 <div class="col-span-2">
                                     <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Company Name</label>
-                                    <input type="text" x-model="jpfForm.companyName" placeholder="John Kelly & Company" class="w-full text-sm px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-100 outline-none bg-white">
+                                    <input type="text" x-model="jpfForm.companyName" placeholder="John Kelly & Company (JK&C Inc.)" class="w-full text-sm px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-100 outline-none bg-white">
                                 </div>
 
                                 <div class="col-span-2">
@@ -2059,7 +2059,7 @@
                         <div id="jpf-doc-create" class="border border-gray-400 text-[10px] text-gray-800 font-sans w-[794px] shrink-0 leading-tight mx-auto shadow-sm bg-white p-6 min-h-[1000px]">
                             {{-- Form Header with Logo --}}
                             <div class="flex items-center justify-center pb-4 pt-2 border-b border-gray-400">
-                                <img src="{{ asset('images/imaglogo.png') }}" onerror="this.src='{{ asset('images/imag1logo.jpg') }}'" alt="John Kelly & Company" class="h-14 w-auto object-contain mix-blend-multiply">
+                                <img src="{{ asset('images/imaglogo.png') }}" onerror="this.src='{{ asset('images/imag1logo.jpg') }}'" alt="John Kelly &amp; Company (JK&amp;C Inc.)" class="h-14 w-auto object-contain mix-blend-multiply">
                             </div>
 
                             {{-- Title --}}
@@ -2466,7 +2466,7 @@
                         <div class="flex flex-col h-full">
                             {{-- Form Header with Logo --}}
                             <div class="flex items-center justify-center pb-4 pt-2 border-b border-gray-400">
-                                <img src="{{ asset('images/imaglogo.png') }}" onerror="this.src='{{ asset('images/imag1logo.jpg') }}'" alt="John Kelly & Company" class="h-14 w-auto object-contain mix-blend-multiply">
+                                <img src="{{ asset('images/imaglogo.png') }}" onerror="this.src='{{ asset('images/imag1logo.jpg') }}'" alt="John Kelly &amp; Company (JK&amp;C Inc.)" class="h-14 w-auto object-contain mix-blend-multiply">
                             </div>
 
                             {{-- Title --}}
@@ -2513,7 +2513,7 @@
                                     <div class="p-3 grid grid-cols-1 gap-y-2 text-[11px]">
                                         <div class="flex items-center gap-2">
                                             <span class="font-bold w-40 shrink-0">Company Name:</span>
-                                            <span class="border-b border-gray-300 flex-1 min-h-[1rem]" x-text="viewJpfData.company_name || 'John Kelly & Company'"></span>
+                                            <span class="border-b border-gray-300 flex-1 min-h-[1rem]" x-text="viewJpfData.company_name || 'John Kelly & Company (JK&C Inc.)'"></span>
                                         </div>
                                         <div class="flex items-center gap-2">
                                             <span class="font-bold w-40 shrink-0">Office / Branch / Site:</span>
@@ -3029,7 +3029,7 @@
                             
                             <div class="mt-20 pt-8 border-t border-gray-100 flex justify-between items-center opacity-50">
                                 <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Internal Candidate Record</p>
-                                <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">John Kelly & Company</p>
+                                <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">John Kelly &amp; Company (JK&amp;C Inc.)</p>
                             </div>
                         </div>
                     </div>
@@ -3174,7 +3174,7 @@
                                         
                                         <div class="pt-20 border-t border-gray-100 flex justify-between items-center opacity-30">
                                             <p class="text-[8px] font-black uppercase tracking-widest">Candidate Record</p>
-                                            <p class="text-[8px] font-black uppercase tracking-widest">John Kelly & Company</p>
+                                            <p class="text-[8px] font-black uppercase tracking-widest">John Kelly &amp; Company (JK&amp;C Inc.)</p>
                                         </div>
                                     </div>
                                 </div>
@@ -3375,7 +3375,7 @@
                                         
                                         <div class="pt-20 border-t border-gray-100 flex justify-between items-center opacity-30">
                                             <p class="text-[8px] font-black uppercase tracking-widest">Assessment Record</p>
-                                            <p class="text-[8px] font-black uppercase tracking-widest">John Kelly & Company</p>
+                                            <p class="text-[8px] font-black uppercase tracking-widest">John Kelly &amp; Company (JK&amp;C Inc.)</p>
                                         </div>
                                     </div>
                                 </div>
@@ -4007,10 +4007,10 @@
                         <div class="mx-auto job-offer-a4-stack space-y-6">
                         <div class="job-offer-a4-page">
                             <div class="flex items-center justify-between border-b-2 border-blue-900 pb-4">
-                                <img src="{{ asset('images/FINAL_LOGO.jpg') }}" onerror="this.src='{{ asset('images/imaglogo.png') }}'" alt="John Kelly & Company" class="h-16 w-auto object-contain">
+                                <img src="{{ asset('images/FINAL_LOGO.jpg') }}" onerror="this.src='{{ asset('images/imaglogo.png') }}'" alt="John Kelly &amp; Company (JK&amp;C Inc.)" class="h-16 w-auto object-contain">
                                 <div class="text-right">
                                     <h1 class="text-2xl font-black tracking-widest text-blue-900">JOB OFFER</h1>
-                                    <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">John Kelly & Company (JK&C Inc.)</p>
+                                    <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">John Kelly &amp; Company (JK&amp;C Inc.)</p>
                                 </div>
                             </div>
 
@@ -4022,7 +4022,7 @@
                             </div>
 
                             <p class="mt-6">Dear <span x-text="jobOfferDocumentDetails().applicantName"></span>,</p>
-                            <p class="mt-4">John Kelly & Company (JK&C INC.) is pleased to offer employment under the terms and conditions stated in this Job Offer.</p>
+                            <p class="mt-4">John Kelly &amp; Company (JK&amp;C Inc.) is pleased to offer employment under the terms and conditions stated in this Job Offer.</p>
                             <p class="mt-3">This Job Offer is confidential and subject to Company policies, procedures, memoranda, notices, resolutions, directives, lawful instructions, management prerogative, and applicable laws.</p>
 
                             <h2 class="mt-7 bg-blue-900 px-3 py-2 text-white text-[12px] font-black uppercase tracking-widest">Position Information</h2>
@@ -4141,10 +4141,10 @@
                                     <div class="mx-auto job-offer-a4-stack space-y-6">
                                     <div class="job-offer-a4-page">
                                         <div class="flex items-center justify-between border-b-2 border-blue-900 pb-4">
-                                            <img src="{{ asset('images/FINAL_LOGO.jpg') }}" onerror="this.src='{{ asset('images/imaglogo.png') }}'" alt="John Kelly & Company" class="h-16 w-auto object-contain">
+                                            <img src="{{ asset('images/FINAL_LOGO.jpg') }}" onerror="this.src='{{ asset('images/imaglogo.png') }}'" alt="John Kelly &amp; Company (JK&amp;C Inc.)" class="h-16 w-auto object-contain">
                                             <div class="text-right">
                                                 <h1 class="text-2xl font-black tracking-widest text-blue-900">JOB OFFER</h1>
-                                                <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">John Kelly & Company (JK&C Inc.)</p>
+                                                <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">John Kelly &amp; Company (JK&amp;C Inc.)</p>
                                             </div>
                                         </div>
 
@@ -4156,7 +4156,7 @@
                                         </div>
 
                                         <p class="mt-6">Dear <span x-text="jobOfferDocumentDetails(viewJobOfferData).applicantName"></span>,</p>
-                                        <p class="mt-4">John Kelly & Company (JK&C INC.) is pleased to offer employment under the terms and conditions stated in this Job Offer.</p>
+                                        <p class="mt-4">John Kelly &amp; Company (JK&amp;C Inc.) is pleased to offer employment under the terms and conditions stated in this Job Offer.</p>
                                         <p class="mt-3">This Job Offer is confidential and subject to Company policies, procedures, memoranda, notices, resolutions, directives, lawful instructions, management prerogative, and applicable laws.</p>
 
                                         <h2 class="mt-7 bg-blue-900 px-3 py-2 text-white text-[12px] font-black uppercase tracking-widest">Position Information</h2>
@@ -6254,7 +6254,7 @@ onJpfPayrollLevelChange() {
             const sets = {
                 'First Interview': [
                     'Please walk us through your background and most relevant work experience.',
-                    'What interests you about this role and John Kelly & Company?',
+                    'What interests you about this role and John Kelly & Company (JK&C Inc.)?',
                     'Which skills make you a strong match for this position?',
                     'Describe a professional challenge you handled well.',
                     'What are your availability and salary expectations?',

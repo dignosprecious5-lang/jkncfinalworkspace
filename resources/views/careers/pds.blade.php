@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Personal Data Sheet | John Kelly & Company</title>
+    <title>Personal Data Sheet | John Kelly &amp; Company (JK&amp;C Inc.)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -31,25 +31,38 @@
             border-color: #1d4ed8 !important;
             box-shadow: 0 0 0 3px rgba(29, 78, 216, .12) !important;
         }
+
+        footer {
+            background: #ffffff;
+            color: #000000;
+            padding: 3rem 2rem 2rem;
+            border-top: 1px solid #f1f2f2;
+            box-shadow: 0 -8px 24px rgba(16, 45, 121, 0.04);
+            font-family: Arial, Helvetica, sans-serif;
+        }
+
+        .footer-content {
+            max-width: 1280px;
+            margin: 0 auto;
+        }
+
+        .footer-divider {
+            border-top: 1px solid #f1f2f2;
+            margin: 0;
+            padding-top: 2rem;
+        }
+
+        .footer-bottom {
+            text-align: center;
+            color: #000000;
+            font-size: 0.9rem;
+        }
     </style>
 </head>
 <body class="bg-slate-100 text-slate-950">
     <div class="min-h-screen px-4 py-8 sm:px-6 lg:px-8" x-data="publicPDS()">
         <div class="mx-auto max-w-5xl">
-            {{-- Header --}}
             <div class="mb-8 overflow-hidden rounded-2xl border border-blue-100 bg-white shadow-sm">
-                <div class="flex flex-col gap-6 border-b border-slate-200 px-6 py-6 sm:flex-row sm:items-center sm:justify-between">
-                    <div class="flex items-center gap-4">
-                        <img src="{{ asset('images/FINAL_LOGO.jpg') }}" onerror="this.src='{{ asset('images/imaglogo.png') }}'" alt="John Kelly & Company" class="h-16 w-auto object-contain">
-                        <div>
-                            <p class="text-[10px] font-black uppercase tracking-[0.28em] text-blue-700">John Kelly & Company</p>
-                            <h1 class="mt-1 text-3xl font-black uppercase tracking-tight text-slate-950">Personal Data Sheet</h1>
-                        </div>
-                    </div>
-                    <div class="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-950">
-                        Review the pre-filled details, update anything needed, then submit.
-                    </div>
-                </div>
                 @if(!empty($jobOffer))
                     <div class="bg-slate-50 px-6 py-5">
                         <p class="mb-3 text-xs font-black uppercase tracking-widest text-blue-700">Accepted Job Offer Details</p>
@@ -74,6 +87,7 @@
 
             <div class="bg-white rounded-2xl shadow-xl border border-slate-200 mb-12">
                 <div class="p-8 sm:p-12">
+                    <h1 class="mb-6 text-2xl font-black uppercase tracking-tight text-slate-950">Personal Data Sheet</h1>
                     <form @submit.prevent="submitPds()" class="flex-1 overflow-y-auto px-5 py-4 space-y-5">
 
         <div>
@@ -257,12 +271,18 @@
                 </div>
             </div>
             
-            {{-- Footer --}}
-            <div class="text-center text-gray-300 text-[11px] font-black uppercase tracking-[0.4em]">
-                © {{ date('Y') }} John Kelly & Company
-            </div>
         </div>
     </div>
+
+    <footer>
+        <div class="footer-content">
+            <div class="footer-divider">
+                <div class="footer-bottom">
+                    <p>&copy; 2025 - {{ date('Y') }} John Kelly & Company (JK&C Inc.). All rights reserved. | Careers Portal</p>
+                </div>
+            </div>
+        </div>
+    </footer>
 
     <script>
     function publicPDS() {

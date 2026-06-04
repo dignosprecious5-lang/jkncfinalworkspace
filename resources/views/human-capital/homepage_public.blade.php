@@ -8,13 +8,11 @@
     <meta name="og:title" content="John Kelly & Company">
     <meta name="og:image" content="{{ asset('images/FINAL_LOGO.jpg') }}">
     <meta name="og:url" content="{{ config('app.url') }}">
-    <meta name="og:description" content="Build your career with John Kelly & Company (JKNC). Join a consulting firm that empowers businesses and transforms visions across industries.">
-    <meta name="description" content="Build your career with John Kelly & Company (JKNC). Join a consulting firm that empowers businesses and transforms visions across industries.">
-    <meta name="author" content="JKNC">
+    <meta name="og:description" content="Build your career with John Kelly & Company (JK&C Inc.). Join a consulting firm that empowers businesses and transforms visions across industries.">
+    <meta name="description" content="Build your career with John Kelly & Company (JK&C Inc.). Join a consulting firm that empowers businesses and transforms visions across industries.">
+    <meta name="author" content="JK&C">
 
     <link rel="icon" type="image/png" href="{{ asset('images/image.png') }}">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-
     <style>
         * {
             margin: 0;
@@ -27,10 +25,11 @@
         }
 
         body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            font-family: Arial, Helvetica, sans-serif;
             line-height: 1.6;
-            color: #1f2937;
+            color: #000000;
             overflow-x: hidden;
+            background: #ffffff;
         }
 
         /* Navigation */
@@ -67,7 +66,7 @@
 
         .nav-menu a {
             font-weight: 500;
-            color: #374151;
+            color: #000000;
             text-decoration: none;
             transition: color 0.3s ease;
             font-size: 0.95rem;
@@ -76,7 +75,7 @@
         }
 
         .nav-menu a:hover {
-            color: #2563eb;
+            color: #1d54e2;
         }
 
         /* Hero Section */
@@ -128,7 +127,7 @@
         .section-title {
             font-size: clamp(2rem, 5vw, 3.5rem);
             font-weight: 800;
-            color: #1f2937;
+            color: #000000;
             margin-bottom: 1rem;
             letter-spacing: -0.01em;
         }
@@ -148,7 +147,7 @@
         .divider {
             width: 60px;
             height: 4px;
-            background: linear-gradient(to right, #2563eb, #1e40af);
+            background: linear-gradient(to right, #1d54e2, #102d79);
             margin: 1.5rem auto 0;
             border-radius: 2px;
         }
@@ -184,8 +183,8 @@
 
         .job-badge {
             display: inline-block;
-            background: #dbeafe;
-            color: #1e40af;
+            background: #f1f2f2;
+            color: #102d79;
             padding: 0.5rem 1rem;
             border-radius: 6px;
             font-size: 0.875rem;
@@ -197,7 +196,7 @@
         .job-card h3 {
             font-size: 1.5rem;
             font-weight: 700;
-            color: #1f2937;
+            color: #000000;
             margin-bottom: 0.75rem;
         }
 
@@ -236,7 +235,7 @@
         }
 
         .btn-apply {
-            background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
+            background: linear-gradient(135deg, #1d54e2 0%, #102d79 100%);
             color: white;
             width: 100%;
         }
@@ -247,7 +246,7 @@
         }
 
         .btn-primary {
-            background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
+            background: linear-gradient(135deg, #1d54e2 0%, #102d79 100%);
             color: white;
             padding: 1rem 2.5rem;
             font-size: 1rem;
@@ -281,7 +280,7 @@
         .benefit-icon {
             width: 70px;
             height: 70px;
-            background: linear-gradient(135deg, #dbeafe, #bfdbfe);
+            background: linear-gradient(135deg, #f1f2f2, #ffffff);
             border-radius: 12px;
             display: flex;
             align-items: center;
@@ -292,13 +291,13 @@
         .benefit-icon svg {
             width: 36px;
             height: 36px;
-            color: #1e40af;
+            color: #102d79;
         }
 
         .benefit-card h3 {
             font-size: 1.25rem;
             font-weight: 700;
-            color: #1f2937;
+            color: #000000;
             margin-bottom: 0.75rem;
         }
 
@@ -310,9 +309,11 @@
 
         /* Footer */
         footer {
-            background: #111827;
-            color: #d1d5db;
-            padding: 4rem 2rem 2rem;
+            background: #ffffff;
+            color: #000000;
+            padding: 3rem 2rem 2rem;
+            border-top: 1px solid #f1f2f2;
+            box-shadow: 0 -8px 24px rgba(16, 45, 121, 0.04);
         }
 
         .footer-content {
@@ -325,17 +326,18 @@
             grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
             gap: 2.5rem;
             margin-bottom: 2rem;
+            padding-top: 0.25rem;
         }
 
         .footer-section h4 {
             font-size: 1.125rem;
             font-weight: 700;
-            color: white;
+            color: #102d79;
             margin-bottom: 1.5rem;
         }
 
         .footer-section p {
-            color: #9ca3af;
+            color: #000000;
             font-size: 0.95rem;
             line-height: 1.6;
             margin-bottom: 1rem;
@@ -350,14 +352,14 @@
         }
 
         .footer-section a {
-            color: #9ca3af;
+            color: #102d79;
             text-decoration: none;
             transition: color 0.3s ease;
             font-size: 0.95rem;
         }
 
         .footer-section a:hover {
-            color: #2563eb;
+            color: #1d54e2;
         }
 
         .social-links {
@@ -378,7 +380,7 @@
         }
 
         .social-links a:hover {
-            background: #2563eb;
+            background: #1d54e2;
         }
 
         .social-links svg {
@@ -395,14 +397,14 @@
         }
 
         .footer-divider {
-            border-top: 1px solid #374151;
+            border-top: 1px solid #f1f2f2;
             margin: 2rem 0;
             padding-top: 2rem;
         }
 
         .footer-bottom {
             text-align: center;
-            color: #9ca3af;
+            color: #000000;
             font-size: 0.9rem;
         }
 
@@ -413,7 +415,7 @@
             bottom: 2rem;
             width: 50px;
             height: 50px;
-            background: linear-gradient(135deg, #2563eb, #1e40af);
+            background: linear-gradient(135deg, #1d54e2, #102d79);
             color: white;
             border-radius: 50%;
             display: none;
@@ -607,13 +609,13 @@
                 <!-- Business Hours -->
                 <div class="footer-section">
                     <h4>Business Hours</h4>
-                    <p><strong style="color: white;">Monday - Friday:</strong> 10:00 AM - 7:00 PM</p>
+                    <p><strong>Monday - Friday:</strong> 10:00 AM - 7:00 PM</p>
                 </div>
             </div>
 
             <div class="footer-divider">
                 <div class="footer-bottom">
-                    <p>&copy; {{ date('Y') }} John Kelly & Company (JK&C). All rights reserved. | Careers Portal</p>
+                    <p>&copy; 2025 - {{ date('Y') }} John Kelly & Company (JK&C Inc.). All rights reserved. | Careers Portal</p>
                 </div>
             </div>
         </div>
@@ -664,3 +666,4 @@
     </script>
 </body>
 </html>
+

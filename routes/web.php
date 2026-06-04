@@ -563,8 +563,6 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::get('/policies/preview-pdf', [PolicyController::class, 'previewPdf'])->name('policies.preview');
     Route::get('/policies/{id}', [PolicyController::class, 'show'])->name('policies.show');
     Route::get('/policies/{id}/edit', [PolicyController::class, 'edit'])->name('policies.edit');
-    Route::get('/policies/{id}/edit', [PolicyController::class, 'edit'])
-        ->name('policies.edit');
 
     Route::put('/policies/{id}', [PolicyController::class, 'update'])
         ->name('policies.update');
@@ -707,6 +705,7 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::get('/company/{company}/corporate-formation/minutes', [CompanyCorporateRecordController::class, 'minutes'])->name('company.corporate-formation.minutes');
     Route::post('/company/{company}/corporate-formation/minutes', [CompanyCorporateRecordController::class, 'storeMinute'])->name('company.corporate-formation.minutes.store');
     Route::get('/company/{company}/corporate-formation/minutes/{minute}', [CompanyCorporateRecordController::class, 'showMinute'])->name('company.corporate-formation.minutes.preview');
+    Route::get('/company/{company}/corporate-formation/minutes/{minute}/download', [CompanyCorporateRecordController::class, 'downloadMinutePdf'])->name('company.corporate-formation.minutes.download');
     Route::match(['put', 'patch'], '/company/{company}/corporate-formation/minutes/{minute}', [CompanyCorporateRecordController::class, 'updateMinute'])->name('company.corporate-formation.minutes.update');
     Route::post('/company/{company}/corporate-formation/minutes/{minute}/approve', [CompanyCorporateRecordController::class, 'approveMinute'])->name('company.corporate-formation.minutes.approve');
     Route::post('/company/{company}/corporate-formation/minutes/{minute}/workspace-save', [CompanyCorporateRecordController::class, 'saveMinuteWorkspace'])->name('company.corporate-formation.minutes.workspace-save');
@@ -716,11 +715,13 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::get('/company/{company}/corporate-formation/resolutions', [CompanyCorporateRecordController::class, 'resolutions'])->name('company.corporate-formation.resolutions');
     Route::post('/company/{company}/corporate-formation/resolutions', [CompanyCorporateRecordController::class, 'storeResolution'])->name('company.corporate-formation.resolutions.store');
     Route::get('/company/{company}/corporate-formation/resolutions/{resolution}', [CompanyCorporateRecordController::class, 'showResolution'])->name('company.corporate-formation.resolutions.preview');
+    Route::get('/company/{company}/corporate-formation/resolutions/{resolution}/download', [CompanyCorporateRecordController::class, 'downloadResolutionPdf'])->name('company.corporate-formation.resolutions.download');
     Route::match(['put', 'patch'], '/company/{company}/corporate-formation/resolutions/{resolution}', [CompanyCorporateRecordController::class, 'updateResolution'])->name('company.corporate-formation.resolutions.update');
     Route::delete('/company/{company}/corporate-formation/resolutions/{resolution}', [CompanyCorporateRecordController::class, 'destroyResolution'])->name('company.corporate-formation.resolutions.destroy');
     Route::get('/company/{company}/corporate-formation/secretary-certificates', [CompanyCorporateRecordController::class, 'secretaryCertificates'])->name('company.corporate-formation.secretary-certificates');
     Route::post('/company/{company}/corporate-formation/secretary-certificates', [CompanyCorporateRecordController::class, 'storeSecretaryCertificate'])->name('company.corporate-formation.secretary-certificates.store');
     Route::get('/company/{company}/corporate-formation/secretary-certificates/{certificate}', [CompanyCorporateRecordController::class, 'showSecretaryCertificate'])->name('company.corporate-formation.secretary-certificates.preview');
+    Route::get('/company/{company}/corporate-formation/secretary-certificates/{certificate}/download', [CompanyCorporateRecordController::class, 'downloadSecretaryCertificatePdf'])->name('company.corporate-formation.secretary-certificates.download');
     Route::match(['put', 'patch'], '/company/{company}/corporate-formation/secretary-certificates/{certificate}', [CompanyCorporateRecordController::class, 'updateSecretaryCertificate'])->name('company.corporate-formation.secretary-certificates.update');
     Route::delete('/company/{company}/corporate-formation/secretary-certificates/{certificate}', [CompanyCorporateRecordController::class, 'destroySecretaryCertificate'])->name('company.corporate-formation.secretary-certificates.destroy');
     Route::post('/company/{company}/corporate-formation/gis', [CompanyCorporateFormationController::class, 'storeGis'])->name('company.corporate-formation.gis.store');
@@ -816,12 +817,42 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::post('/corporate/bylaws/{id}/upload-notary-file', [BylawController::class, 'uploadNotaryFile'])->name('corporate.bylaws.upload.notary');
     Route::post('/corporate/bylaws/{id}/submit', [BylawController::class, 'submit'])->name('corporate.bylaws.submit');
 
-    Route::view('/corporate/lgu', 'corporate.lgu')->name('corporate.lgu');
-    Route::view('/corporate/accounting', 'corporate.accounting')->name('corporate.accounting');
-    Route::view('/corporate/banking', 'corporate.banking')->name('corporate.banking');
-    Route::view('/corporate/legal', 'corporate.legal')->name('corporate.legal');
-    Route::view('/corporate/operations', 'corporate.operations')->name('corporate.operations');
-    Route::view('/corporate/correspondence', 'corporate.correspondence')->name('corporate.correspondence');
+    // Kept only for old/static view reference; main /corporate/lgu route is handled by PermitController below.
+    Route::view('/corporate/lgu-static', 'corporate.lgu')->name('corporate.lgu.static');
+    Route::get('/corporate/accounting', [AccountingController::class, 'page'])->name('corporate.accounting');
+    Route::get('/corporate/banking', [BankingController::class, 'page'])->name('corporate.banking');
+    Route::get('/corporate/legal', [LegalController::class, 'page'])->name('corporate.legal');
+    Route::get('/corporate/operations', [OperationController::class, 'page'])->name('corporate.operations');
+    /*
+    |--------------------------------------------------------------------------
+    | CORPORATE CORRESPONDENCE MODULE
+    |--------------------------------------------------------------------------
+    */
+    Route::get('/corporate/correspondence', [CorrespondenceController::class, 'index'])->name('correspondence');
+    Route::redirect('/correspondence/index', '/corporate/correspondence')->name('correspondence.index.redirect');
+    Route::get('/corporate/correspondence/index', [CorrespondenceController::class, 'index'])->name('correspondence.index');
+    Route::get('/correspondence/data', [CorrespondenceController::class, 'data'])->name('correspondence.data');
+    Route::post('/correspondence', [CorrespondenceController::class, 'store'])->name('correspondence.store');
+    Route::post('/correspondence/{id}/submit', [CorrespondenceController::class, 'submit'])->name('correspondence.submit');
+
+    Route::get('/correspondence/template/{type}/{id}', [CorrespondenceController::class, 'template'])->name('correspondence.template');
+    Route::get('/correspondence/{id}/download-pdf', [CorrespondenceController::class, 'downloadPdf'])->name('correspondence.download');
+
+    Route::post('/correspondence/{id}/approve', [CorrespondenceController::class, 'approve'])->name('correspondence.approve');
+    Route::post('/correspondence/{id}/revise', [CorrespondenceController::class, 'revise'])->name('correspondence.revise');
+    Route::post('/correspondence/{id}/reject', [CorrespondenceController::class, 'reject'])->name('correspondence.reject');
+    Route::get('/correspondence/{id}/email-approve', [CorrespondenceController::class, 'approveFromEmail'])
+        ->name('correspondence.email.approve')
+        ->middleware('signed');
+    Route::get('/correspondence/{id}/email-reject', [CorrespondenceController::class, 'rejectFromEmail'])
+        ->name('correspondence.email.reject')
+        ->middleware('signed');
+    Route::post('/correspondence/{id}/archive', [CorrespondenceController::class, 'archive'])->name('correspondence.archive');
+    Route::post('/correspondence/{id}/unarchive', [CorrespondenceController::class, 'unarchive'])->name('correspondence.unarchive');
+
+    Route::get('/admin/correspondence', [CorrespondenceController::class, 'submittedDashboard'])->name('admin.correspondence.dashboard');
+    Route::get('/admin/correspondence/{id}', [CorrespondenceController::class, 'showAdmin'])->name('admin.correspondence.show');
+
     Route::view('/corporate/ubo', 'corporate.ubo-form')->name('corporate.ubo');
 
     /*
@@ -833,7 +864,7 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::redirect('/banking', '/corporate/banking')->name('banking');
     Route::redirect('/legal', '/corporate/legal')->name('legal');
     Route::redirect('/operations', '/corporate/operations')->name('operations');
-    Route::redirect('/correspondence', '/corporate/correspondence')->name('correspondence');
+    Route::redirect('/correspondence', '/corporate/correspondence')->name('correspondence.redirect');
 
     /*
     |--------------------------------------------------------------------------
@@ -935,6 +966,7 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::get('/corporate/minutes', [MinuteController::class, 'index'])->name('minutes');
     Route::get('/corporate/minutes/create', [MinuteController::class, 'create'])->name('minutes.create');
     Route::post('/corporate/minutes', [MinuteController::class, 'store'])->name('minutes.store');
+    Route::get('/corporate/minutes/{minute}/download', [MinuteController::class, 'downloadPdf'])->name('minutes.download');
     Route::get('/corporate/minutes/{minute}', [MinuteController::class, 'show'])->name('minutes.preview');
     Route::get('/corporate/minutes/{minute}/edit', [MinuteController::class, 'edit'])->name('minutes.edit');
     Route::put('/corporate/minutes/{minute}', [MinuteController::class, 'update'])->name('minutes.update');
@@ -985,13 +1017,13 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     | CORRESPONDENCE / LEGAL / ACCOUNTING / BANKING / OPERATIONS
     |--------------------------------------------------------------------------
     */
-    Route::get('/correspondence/data', [CorrespondenceController::class, 'index'])->name('correspondence.data');
-    Route::post('/correspondence', [CorrespondenceController::class, 'store'])->name('correspondence.store');
+    Route::get('/correspondence/legacy-data', [CorrespondenceController::class, 'index'])->name('correspondence.data.legacy');
+    Route::post('/correspondence', [CorrespondenceController::class, 'store'])->name('correspondence.store.legacy');
     Route::get('/correspondence/{id}', [CorrespondenceController::class, 'show'])->name('correspondence.show');
     Route::put('/correspondence/{id}/update', [CorrespondenceController::class, 'update'])->name('correspondence.update');
-    Route::post('/correspondence/{id}/submit', [CorrespondenceController::class, 'submit'])->name('correspondence.submit');
+    Route::post('/correspondence/{id}/submit', [CorrespondenceController::class, 'submit'])->name('correspondence.submit.legacy');
     Route::get('/correspondence/draft-preview/{slug}', [CorrespondenceController::class, 'showDraftPreview'])->name('correspondence.draft-preview');
-    Route::get('/correspondence/template/{slug}/{id}', [CorrespondenceController::class, 'showTemplate'])->name('correspondence.template');
+    Route::get('/correspondence/template/{slug}/{id}', [CorrespondenceController::class, 'showTemplate'])->name('correspondence.template.legacy');
 
     Route::get('/legal/data', [LegalController::class, 'index'])->name('legal.index');
     Route::post('/legal/store', [LegalController::class, 'store'])->name('legal.store');
@@ -1000,7 +1032,6 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::post('/legal/{id}/submit', [LegalController::class, 'submit'])->name('legal.submit');
 
     Route::prefix('corporate')->name('corporate.')->group(function () {
-        Route::get('/accounting', [AccountingController::class, 'page'])->name('accounting.index');
         Route::get('/accounting/data', [AccountingController::class, 'index'])->name('accounting.data');
         Route::post('/accounting', [AccountingController::class, 'store'])->name('accounting.store');
         Route::get('/accounting/{id}', [AccountingController::class, 'show'])->name('accounting.show');
@@ -1062,6 +1093,18 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     |--------------------------------------------------------------------------
     */
     Route::get('/transmittal', [TransmittalController::class, 'index'])->name('transmittal.index');
+
+    Route::get('/admin/transmittal-dashboard', [TransmittalController::class, 'dashboard'])
+        ->name('admin.transmittal.dashboard');
+
+    Route::post('/transmittal/{transmittal}/dashboard-approve', [TransmittalController::class, 'dashboardApprove'])
+        ->name('transmittal.dashboard.approve');
+
+    Route::post('/transmittal/{transmittal}/dashboard-revise', [TransmittalController::class, 'dashboardRevise'])
+        ->name('transmittal.dashboard.revise');
+
+    Route::post('/transmittal/{transmittal}/dashboard-reject', [TransmittalController::class, 'dashboardReject'])
+        ->name('transmittal.dashboard.reject');
     Route::get('/transmittal/create/project/{project}', [TransmittalController::class, 'createFromProject'])->name('transmittal.create.project');
     Route::get('/transmittal/create/regular/{regular}', [TransmittalController::class, 'createFromRegular'])->name('transmittal.create.regular');
     Route::get('/transmittal/data', [TransmittalController::class, 'data'])->name('transmittal.data');

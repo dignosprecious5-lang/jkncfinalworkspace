@@ -95,8 +95,10 @@ class TownHallController extends Controller
             ->orderBy('last_name')
             ->get();
 
+        // Level 1 approvers now come from Employee Profile.
+        // Level 2 approvers remain from the latest approved GIS Directors / Officers list.
+        $managementApprovers = $this->activeEmployeeApprovers();
         $gisApprovers = $this->gisApprovers();
-        $managementApprovers = $gisApprovers;
         $executiveApprovers = $gisApprovers;
         $executiveApprover = $gisApprovers->first() ?? $this->resolveExecutiveApprover();
 
@@ -315,8 +317,10 @@ class TownHallController extends Controller
             ->orderBy('last_name')
             ->get();
 
+        // Level 1 approvers now come from Employee Profile.
+        // Level 2 approvers remain from the latest approved GIS Directors / Officers list.
+        $managementApprovers = $this->activeEmployeeApprovers();
         $gisApprovers = $this->gisApprovers();
-        $managementApprovers = $gisApprovers;
         $executiveApprovers = $gisApprovers;
         $executiveApprover = $gisApprovers->first() ?? $this->resolveExecutiveApprover();
 
@@ -1100,6 +1104,123 @@ class TownHallController extends Controller
 
 
 
+
+    private function normalizeTownHallPdfTables(string $html): string
+    {
+        return preg_replace_callback('/<table\b[^>]*>.*?<\/table>/is', function ($matches) {
+            $tableHtml = $matches[0];
+            $rows = [];
+
+            if (preg_match_all('/<tr\b[^>]*>(.*?)<\/tr>/is', $tableHtml, $rowMatches)) {
+                foreach ($rowMatches[1] as $rowHtml) {
+                    $cells = [];
+
+                    if (preg_match_all('/<(td|th)\b[^>]*>(.*?)<\/\1>/is', $rowHtml, $cellMatches, PREG_SET_ORDER)) {
+                        foreach ($cellMatches as $cellMatch) {
+                            $tag = strtolower($cellMatch[1]) === 'th' ? 'th' : 'td';
+                            $content = $cellMatch[2];
+
+                            $content = preg_replace('/<colgroup\b[^>]*>.*?<\/colgroup>/is', '', $content);
+                            $content = preg_replace('/<col\b[^>]*\/?>/is', '', $content);
+                            $content = preg_replace('/<span\b[^>]*(qlbt|table-better|quill-better-table|ql-table)[^>]*>.*?<\/span>/is', '', $content);
+                            $content = preg_replace('/<div\b[^>]*(qlbt|table-better|quill-better-table|ql-table)[^>]*>.*?<\/div>/is', '', $content);
+
+                            $content = preg_replace('/\sstyle=("|\')(.*?)\1/is', '', $content);
+                            $content = str_replace(['&amp;nbsp;', '&nbsp;', "\u{00A0}"], ' ', $content);
+                            $content = preg_replace('/[ \t]{2,}/u', ' ', $content);
+
+                            if (trim(strip_tags($content)) === '') {
+                                $content = '&nbsp;';
+                            }
+
+                            $cells[] = [
+                                'tag' => $tag,
+                                'content' => $content,
+                            ];
+                        }
+                    }
+
+                    if (!empty($cells)) {
+                        $rows[] = $cells;
+                    }
+                }
+            }
+
+            if (empty($rows)) {
+                return $tableHtml;
+            }
+
+            $maxColumns = max(array_map('count', $rows));
+            $maxColumns = max(1, min($maxColumns, 12));
+            $cellWidth = round(100 / $maxColumns, 4);
+
+            $safeTable = '<table class="townhall-pdf-table" style="width:100%;border-collapse:collapse;table-layout:fixed;">';
+
+            foreach ($rows as $row) {
+                $safeTable .= '<tr>';
+
+                for ($i = 0; $i < $maxColumns; $i++) {
+                    $cell = $row[$i] ?? ['tag' => 'td', 'content' => '&nbsp;'];
+                    $tag = $cell['tag'];
+
+                    $safeTable .= '<' . $tag . ' style="width:' . $cellWidth . '%;border:1px solid #888;padding:2.2mm 2.8mm;vertical-align:top;text-align:left;">'
+                        . $cell['content']
+                        . '</' . $tag . '>';
+                }
+
+                $safeTable .= '</tr>';
+            }
+
+            $safeTable .= '</table>';
+
+            return $safeTable;
+        }, $html);
+    }
+
+    private function inlineTownHallPdfIndentStyles(string $html): string
+    {
+        return preg_replace_callback('/<([a-z0-9]+)\b([^>]*)class=("|\')([^"\']*\bql-indent-([1-8])\b[^"\']*)\3([^>]*)>/i', function ($matches) {
+            $tag = $matches[1];
+            $beforeClass = $matches[2];
+            $quote = $matches[3];
+            $classes = $matches[4];
+            $level = (int) $matches[5];
+            $afterClass = $matches[6];
+
+            $indentEm = $level * 3;
+            $attrs = $beforeClass . 'class=' . $quote . $classes . $quote . $afterClass;
+
+            if (preg_match('/\sstyle=("|\')(.*?)\1/is', $attrs, $styleMatch)) {
+                $existingStyle = rtrim($styleMatch[2], ';');
+                $newStyle = $existingStyle . '; margin-left:' . $indentEm . 'em; padding-left:0; text-indent:0;';
+                $attrs = preg_replace('/\sstyle=("|\')(.*?)\1/is', ' style="' . e($newStyle) . '"', $attrs, 1);
+            } else {
+                $attrs .= ' style="margin-left:' . $indentEm . 'em; padding-left:0; text-indent:0;"';
+            }
+
+            return '<' . $tag . $attrs . '>';
+        }, $html);
+    }
+
+    private function prepareTownHallMessageForPdf(?string $html): string
+    {
+        $html = (string) ($html ?: '<p style="color:#9ca3af;">No memorandum body provided.</p>');
+
+        // Normalize spacing without manually splitting words.
+        $html = str_replace(['&amp;nbsp;', '&nbsp;', "\u{00A0}"], ' ', $html);
+        $html = preg_replace('/[ \t]{2,}/u', ' ', $html);
+
+        // Remove Quill/table-better sizing so DomPDF uses stable CSS.
+        $html = preg_replace('/<colgroup\b[^>]*>.*?<\/colgroup>/is', '', $html);
+        $html = preg_replace('/<col\b[^>]*\/?>/is', '', $html);
+
+        $html = $this->normalizeTownHallPdfTables($html);
+        $html = $this->inlineTownHallPdfIndentStyles($html);
+
+        return $html;
+    }
+
+
     private function buildTownHallPdf(
         TownHallCommunication $communication,
         ?int $totalPages = null,
@@ -1107,12 +1228,15 @@ class TownHallController extends Controller
     ) {
         $dateGenerated = $dateGenerated ?: now()->format('F d, Y h:i A');
 
+        $communication = clone $communication;
+        $communication->message = $this->prepareTownHallMessageForPdf($communication->message);
+
         return Pdf::loadView('townhall.show-pdf', compact('communication', 'totalPages', 'dateGenerated'))
             ->setPaper('a4', 'portrait')
             ->setOptions([
                 'isHtml5ParserEnabled' => true,
                 'isRemoteEnabled' => true,
-                'defaultFont' => 'DejaVu Sans',
+                'defaultFont' => 'Georgia',
             ]);
     }
 
@@ -1335,7 +1459,7 @@ class TownHallController extends Controller
             'name' => $officer->officer_name ?: 'Unnamed Officer',
             'email' => $officer->email,
             'position' => $position,
-            'department' => 'Department of the ' . $position,
+            'department' => 'Office of the ' . $position,
             'gis_id' => $officer->gis_id,
         ];
     }
@@ -1361,18 +1485,30 @@ class TownHallController extends Controller
 
     private function activeEmployeeApprovers()
     {
-        if (!class_exists(Employee::class)) {
+        if (!class_exists(Employee::class) || !Schema::hasTable((new Employee())->getTable())) {
             return collect();
         }
 
-        return Employee::query()
-            ->whereNotNull('user_id')
-            ->where(function ($query) {
-                $query->whereNull('employment_status')
+        $query = Employee::query();
+
+        if (Schema::hasColumn((new Employee())->getTable(), 'user_id')) {
+            $query->whereNotNull('user_id');
+        }
+
+        if (Schema::hasColumn((new Employee())->getTable(), 'employment_status')) {
+            $query->where(function ($statusQuery) {
+                $statusQuery->whereNull('employment_status')
                     ->orWhereIn('employment_status', ['Active', 'active', 'Regular', 'regular', 'Probationary', 'probationary']);
-            })
-            ->orderBy('last_name')
-            ->orderBy('first_name')
+            });
+        }
+
+        foreach (['last_name', 'first_name', 'id'] as $column) {
+            if (Schema::hasColumn((new Employee())->getTable(), $column)) {
+                $query->orderBy($column);
+            }
+        }
+
+        return $query
             ->get()
             ->map(function ($employee) {
                 return $this->formatEmployeeApprover($employee);
@@ -1383,12 +1519,15 @@ class TownHallController extends Controller
 
     private function buildApprovalData($managementApproverId, $executiveApproverId = null): array
     {
-        $management = $this->getGisApproverData($managementApproverId);
+        // Level 1 - From Management: Employee Profile
+        $management = $this->getEmployeeApproverData($managementApproverId);
+
+        // Level 2 - From Executive Management: GIS Director / Officer
         $executive = $this->getGisApproverData($executiveApproverId);
 
         return [
             'management_approver_id' => $management['id'] ?? null,
-            'management_approver_user_id' => null,
+            'management_approver_user_id' => $management['user_id'] ?? null,
             'management_approver_name' => $management['name'] ?? null,
             'management_approver_position' => $management['position'] ?? null,
             'management_approver_department' => $management['department'] ?? null,
@@ -1396,7 +1535,7 @@ class TownHallController extends Controller
             'management_approved_at' => null,
 
             'executive_approver_id' => $executive['id'] ?? null,
-            'executive_approver_user_id' => null,
+            'executive_approver_user_id' => $executive['user_id'] ?? null,
             'executive_approver_name' => $executive['name'] ?? null,
             'executive_approver_position' => $executive['position'] ?? null,
             'executive_approver_department' => $executive['department'] ?? null,
@@ -1440,18 +1579,25 @@ class TownHallController extends Controller
             $employee->middle_name ?? null,
             $employee->last_name ?? null,
             $employee->suffix ?? null,
+            $employee->name_extension ?? null,
         ])->filter()->implode(' '));
+
+        if (!$name && !empty($employee->name)) {
+            $name = $employee->name;
+        }
 
         if (!$name && !empty($employee->user_id)) {
             $name = User::whereKey($employee->user_id)->value('name');
         }
 
+        $department = $this->resolveDepartmentName($employee->department_id ?? null);
+
         return [
             'id' => $employee->id,
-            'user_id' => $employee->user_id,
+            'user_id' => $employee->user_id ?? null,
             'name' => $name ?: 'Unnamed Employee',
-            'position' => $employee->position ?: '—',
-            'department' => $this->resolveDepartmentName($employee->department_id ?? null),
+            'position' => $employee->position ?: ($employee->job_title ?? '—'),
+            'department' => $department,
         ];
     }
 

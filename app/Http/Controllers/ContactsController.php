@@ -600,11 +600,11 @@ class ContactsController extends Controller
 
         if ($isAdminAutoApprover) {
             $attributes = array_merge($attributes, [
-                'kyc_status' => 'Verified',
-                'cif_status' => 'approved',
-                'cif_submitted_at' => $contactModel->cif_submitted_at ?? now(),
-                'cif_reviewed_at' => now(),
-                'cif_reviewed_by' => $request->user()?->name,
+                'kyc_status' => 'Pending Verification',
+                'cif_status' => 'pending',
+                'cif_submitted_at' => now(),
+                'cif_reviewed_at' => null,
+                'cif_reviewed_by' => null,
                 'cif_rejection_reason' => null,
             ]);
         }
@@ -920,6 +920,42 @@ class ContactsController extends Controller
             'cif_no' => $contact->cif_no ?: ($validated['cif_no'] ?? null),
             'tin' => $validated['tin'] ?? null,
         ]);
+        $contact->refresh();
+
+        $statusPayload = $this->filterPersistableContactAttributes([
+            'kyc_status' => 'Pending Verification',
+            'cif_status' => 'pending',
+            'cif_submitted_at' => now(),
+            'cif_reviewed_at' => null,
+            'cif_reviewed_by' => null,
+            'cif_rejection_reason' => null,
+        ]);
+
+        if (! empty($statusPayload)) {
+            $contact->forceFill($statusPayload)->save();
+        }
+
+        $cifData = $this->loadCifData($contact);
+        $cifData['date_verified'] = '';
+        $cifData['verified_by'] = '';
+        $cifData['change_request_status'] = '';
+        $cifData['change_request_note'] = '';
+        $cifData['change_requested_at'] = '';
+        $cifData['change_requested_by'] = '';
+        $cifData['change_reviewed_at'] = '';
+        $cifData['change_reviewed_by'] = '';
+        $cifData['change_rejection_reason'] = '';
+        $this->saveCifDataToStorage($contact, $cifData);
+
+        ContactHistoryLogger::log($contact->id, [
+            'type' => 'kyc',
+            'title' => 'KYC submitted for verification',
+            'description' => 'Client Information Form submitted from secure client link',
+            'extra_label' => 'Status',
+            'extra_value' => 'Pending Verification',
+            'user_name' => trim((string) $request->input('sig_name_left', '')) ?: 'Client',
+            'user_initials' => $this->initialsForHistory(trim((string) $request->input('sig_name_left', '')) ?: 'Client'),
+        ]);
 
         if ($this->prefersJsonResponse($request)) {
             return response()->json([
@@ -1184,32 +1220,6 @@ class ContactsController extends Controller
 
         $this->saveCifDataToStorage($contactModel, $nextCifData);
 
-        if ($this->isKycReviewer($request->user()) && Schema::hasColumn('contacts', 'cif_status')) {
-            $approvedPayload = $this->filterPersistableContactAttributes([
-                'kyc_status' => 'Verified',
-                'cif_status' => 'approved',
-                'cif_reviewed_at' => now(),
-                'cif_reviewed_by' => $request->user()?->name ?? ($contactModel->owner_name ?: 'System'),
-                'cif_rejection_reason' => null,
-            ]);
-
-            if (! empty($approvedPayload)) {
-                $contactModel->forceFill($approvedPayload)->save();
-            }
-
-            $nextCifData['kyc_status'] = 'Verified';
-            $nextCifData['date_verified'] = now()->toDateString();
-            $nextCifData['verified_by'] = $request->user()?->name ?? ($contactModel->owner_name ?: 'System');
-            $nextCifData['change_request_status'] = '';
-            $nextCifData['change_request_note'] = '';
-            $nextCifData['change_requested_at'] = '';
-            $nextCifData['change_requested_by'] = '';
-            $nextCifData['change_reviewed_at'] = '';
-            $nextCifData['change_reviewed_by'] = '';
-            $nextCifData['change_rejection_reason'] = '';
-            $this->saveCifDataToStorage($contactModel, $nextCifData);
-        }
-
         ContactHistoryLogger::log($contactModel->id, [
             'type' => 'kyc',
             'title' => 'Client intake form updated',
@@ -1221,8 +1231,6 @@ class ContactsController extends Controller
         ]);
 
         if (
-            ! $this->isKycReviewer($request->user())
-            &&
             Schema::hasColumn('contacts', 'cif_status')
             && $this->hasCifDataChanges($existingCifData, $nextCifData)
             && in_array(Str::lower((string) ($contactModel->cif_status ?? 'draft')), ['approved', 'pending', 'rejected'], true)
@@ -1237,6 +1245,16 @@ class ContactsController extends Controller
             $nextCifData['change_reviewed_at'] = '';
             $nextCifData['change_reviewed_by'] = '';
             $this->saveCifDataToStorage($contactModel, $nextCifData);
+
+            ContactHistoryLogger::log($contactModel->id, [
+                'type' => 'kyc',
+                'title' => 'KYC returned to approval',
+                'description' => 'Client Information Form edits were submitted for admin review',
+                'extra_label' => 'Status',
+                'extra_value' => 'Pending Verification',
+                'user_name' => $request->user()?->name ?? ($contactModel->owner_name ?: 'System'),
+                'user_initials' => $this->initialsForHistory($request->user()?->name ?? ($contactModel->owner_name ?: 'System')),
+            ]);
         }
 
         $this->syncContactKycSnapshot($contactModel, [
@@ -2251,7 +2269,7 @@ class ContactsController extends Controller
             'present_address_line1' => $contact->contact_address,
             'date_of_birth' => optional($contact->date_of_birth)->toDateString() ?? '',
             'gender' => $this->normalizeContactGender($contact->sex),
-            'nature_of_work_business' => $contact->position,
+            'nature_of_work_business' => $contact->nature_of_business ?: ($cifData['nature_of_work_business'] ?? null),
             'tin' => $contact->tin ?? '',
             'referred_by_footer' => $creatorName,
             'referred_date' => $contactCreatedDate,
@@ -2294,7 +2312,7 @@ class ContactsController extends Controller
             'contact_address' => $validated['present_address_line1'] ?? $contact->contact_address,
             'date_of_birth' => $validated['date_of_birth'] ?? $contact->date_of_birth,
             'sex' => $validated['gender'] ?? $contact->sex,
-            'position' => $validated['nature_of_work_business'] ?? $contact->position,
+            'nature_of_business' => $validated['nature_of_work_business'] ?? $contact->nature_of_business,
             'tin' => $validated['tin'] ?? $contact->tin,
             'email' => $validated['email'] ?? $contact->email,
             'phone' => $validated['mobile'] ?? $contact->phone,
@@ -2374,9 +2392,9 @@ class ContactsController extends Controller
     private function resetContactKycForResubmission(Contact $contact): void
     {
         $draftResetPayload = $this->filterPersistableContactAttributes([
-            'cif_status' => 'draft',
-            'kyc_status' => 'Not Submitted',
-            'cif_submitted_at' => null,
+            'cif_status' => 'pending',
+            'kyc_status' => 'Pending Verification',
+            'cif_submitted_at' => now(),
             'cif_reviewed_at' => null,
             'cif_reviewed_by' => null,
             'cif_rejection_reason' => null,

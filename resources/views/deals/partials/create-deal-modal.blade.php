@@ -1,4 +1,4 @@
-﻿
+
 @php
     $formAction = $formAction ?? route('deals.store');
     $formMethod = strtoupper($formMethod ?? 'POST');
@@ -959,17 +959,15 @@
                                 <div class="relative" data-employee-picker><label for="internal_sales_marketing" class="mb-1 block text-sm font-medium text-gray-700">Sales & Marketing</label><input id="internal_sales_marketing" name="internal_sales_marketing" value="{{ old('internal_sales_marketing', $draft['internal_sales_marketing'] ?? '') }}" autocomplete="off" data-employee-search-input class="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"><div class="absolute z-20 mt-1 hidden w-full rounded-lg border border-gray-200 bg-white shadow-lg" data-employee-search-results></div><p class="mt-1 text-xs text-gray-500">Search existing employees or type manually.</p></div>
                                 <div class="relative" data-employee-picker><label for="lead_consultant" class="mb-1 block text-sm font-medium text-gray-700">Lead Consultant</label><input id="lead_consultant" name="lead_consultant" value="{{ old('lead_consultant', $draft['lead_consultant'] ?? '') }}" autocomplete="off" data-employee-search-input class="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"><div class="absolute z-20 mt-1 hidden w-full rounded-lg border border-gray-200 bg-white shadow-lg" data-employee-search-results></div><p class="mt-1 text-xs text-gray-500">Defaults to the assigned consultant if left blank.</p></div>
                                 <div class="relative" data-employee-picker><label for="lead_associate_assigned" class="mb-1 block text-sm font-medium text-gray-700">Lead Associate Assigned</label><input id="lead_associate_assigned" name="lead_associate_assigned" value="{{ old('lead_associate_assigned', $draft['lead_associate_assigned'] ?? '') }}" autocomplete="off" data-employee-search-input class="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"><div class="absolute z-20 mt-1 hidden w-full rounded-lg border border-gray-200 bg-white shadow-lg" data-employee-search-results></div><p class="mt-1 text-xs text-gray-500">Defaults to the assigned associate if left blank.</p></div>
-                                <div>
-                                    <label for="assigned_finance_user_id" class="mb-1 block text-sm font-medium text-gray-700">Finance</label>
-                                    <select id="assigned_finance_user_id" name="assigned_finance_user_id" class="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" onchange="this.form.querySelector('[name=internal_finance]').value = this.options[this.selectedIndex]?.dataset.name || ''">
-                                        <option value="">Assign finance</option>
-                                        @foreach ($financeUsers as $financeUser)
-                                            <option value="{{ $financeUser['id'] }}" data-name="{{ $financeUser['name'] }}" @selected($selectedFinanceUserId === (int) $financeUser['id'])>
-                                                {{ $financeUser['name'] }}{{ filled($financeUser['email'] ?? null) ? ' - '.$financeUser['email'] : '' }}
-                                            </option>
-                                        @endforeach
-                                    </select>
-                                    <div class="relative mt-2" data-employee-picker><input type="text" id="internal_finance" name="internal_finance" value="{{ old('internal_finance', $draft['internal_finance'] ?? '') }}" placeholder="Or type finance name manually" autocomplete="off" data-employee-search-input class="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"><div class="absolute z-20 mt-1 hidden w-full rounded-lg border border-gray-200 bg-white shadow-lg" data-employee-search-results></div><p class="mt-1 text-xs text-gray-500">Search existing employees. If none appears, you can still type manually.</p></div>
+                                @php
+                                    $financeUserNameFallback = $selectedFinanceUserId ? (collect($financeUsers)->firstWhere('id', $selectedFinanceUserId)['name'] ?? '') : '';
+                                @endphp
+                                <div class="relative" data-employee-picker data-search-source="users">
+                                    <label for="internal_finance" class="mb-1 block text-sm font-medium text-gray-700">Finance</label>
+                                    <input type="hidden" name="assigned_finance_user_id" id="assigned_finance_user_id" value="{{ $selectedFinanceUserId ?: '' }}" data-employee-id-input>
+                                    <input type="text" id="internal_finance" name="internal_finance" value="{{ old('internal_finance', $draft['internal_finance'] ?? $financeUserNameFallback) }}" placeholder="Search user or type email manually" autocomplete="off" data-employee-search-input class="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
+                                    <div class="absolute z-20 mt-1 hidden w-full rounded-lg border border-gray-200 bg-white shadow-lg" data-employee-search-results></div>
+                                    <p class="mt-1 text-xs text-gray-500">Search existing registered users. If none appears, you can still type email manually.</p>
                                 </div>
                                 <div class="relative" data-employee-picker><label for="internal_president" class="mb-1 block text-sm font-medium text-gray-700">President</label><input id="internal_president" name="internal_president" value="{{ $defaultPresident }}" autocomplete="off" data-employee-search-input class="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"><div class="absolute z-20 mt-1 hidden w-full rounded-lg border border-gray-200 bg-white shadow-lg" data-employee-search-results></div><p class="mt-1 text-xs text-gray-500">Defaults to John Kelly.</p></div>
                             </div>
@@ -1011,6 +1009,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const saveBtn = document.getElementById('saveDealBtn');
     const plannedStartDateInput = document.getElementById('planned_start_date');
     const confirmedDeliveryDateInput = document.getElementById('confirmed_delivery_date');
+    const estimatedCompletionDateInput = document.getElementById('estimated_completion_date');
     const estimatedDurationInput = document.getElementById('estimated_duration');
     const feeInputs = [
         document.querySelector('[name="estimated_professional_fee"]'),
@@ -1028,6 +1027,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const contactRecords = @json($contactRecords);
     const companyRecords = @json($companyRecords ?? []);
     const employeeRecords = @json($employeeOptions ?? []);
+    const financeUserRecords = @json($financeUsers ?? []);
     const servicePricing = @json($servicePricing);
     const serviceRequirementCatalog = @json($serviceRequirementCatalog ?? []);
     const productPricing = @json($productPricing);
@@ -1088,6 +1088,10 @@ document.addEventListener('DOMContentLoaded', function () {
         const associate = document.getElementById('assigned_associate');
         const leadConsultant = document.getElementById('lead_consultant');
         const leadAssociate = document.getElementById('lead_associate_assigned');
+        const referredClosedBy = document.getElementById('referred_closed_by');
+        const salesMarketing = document.getElementById('internal_sales_marketing');
+
+        const sourceRecord = selectedBusinessRecord || selectedContactRecord;
 
         if (preparedBy && preparedBy.value.trim() === '') {
             preparedBy.value = @json($currentUserName);
@@ -1097,8 +1101,28 @@ document.addEventListener('DOMContentLoaded', function () {
             internalDate.value = @json($defaultInternalDate);
         }
 
+        if (consultant && consultant.value.trim() === '' && sourceRecord?.consultant_lead) {
+            consultant.value = sourceRecord.consultant_lead.trim();
+        }
+
+        if (associate && associate.value.trim() === '' && sourceRecord?.lead_associate) {
+            associate.value = sourceRecord.lead_associate.trim();
+        }
+
+        if (referredClosedBy && referredClosedBy.value.trim() === '' && sourceRecord?.referred_by) {
+            referredClosedBy.value = sourceRecord.referred_by.trim();
+        }
+
+        if (salesMarketing && salesMarketing.value.trim() === '' && sourceRecord?.sales_marketing) {
+            salesMarketing.value = sourceRecord.sales_marketing.trim();
+        }
+
         if (president && president.value.trim() === '') {
-            president.value = 'John Kelly';
+            if (sourceRecord?.president_use_only_name && sourceRecord.president_use_only_name.trim() !== '') {
+                president.value = sourceRecord.president_use_only_name.trim();
+            } else {
+                president.value = 'John Kelly';
+            }
         }
 
         if (leadConsultant && leadConsultant.value.trim() === '' && consultant?.value.trim()) {
@@ -1114,7 +1138,6 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         if (clientSignature && clientSignature.value.trim() === '') {
-            const sourceRecord = selectedBusinessRecord || selectedContactRecord;
             const derivedName = sourceRecord ? buildClientDisplayName(sourceRecord) : '';
             if (derivedName !== '') {
                 clientSignature.value = derivedName;
@@ -1129,17 +1152,26 @@ document.addEventListener('DOMContentLoaded', function () {
     const renderEmployeeSearchResults = (picker, keyword = '') => {
         const input = picker?.querySelector('[data-employee-search-input]');
         const results = picker?.querySelector('[data-employee-search-results]');
+        const hiddenIdInput = picker?.querySelector('[data-employee-id-input]');
+        
         if (!input || !results) {
             return;
         }
 
         const query = keyword.trim().toLowerCase();
-        const matches = employeeRecords.filter((record) => {
+        const searchSource = picker.dataset.searchSource || 'employees';
+        const sourceArray = searchSource === 'users' ? financeUserRecords : employeeRecords;
+
+        const matches = sourceArray.filter((record) => {
             if (query === '') {
                 return true;
             }
 
-            const blob = [
+            const blob = searchSource === 'users' ? [
+                record.name,
+                record.email,
+                record.role,
+            ].join(' ').toLowerCase() : [
                 record.name,
                 record.employee_code,
                 record.position,
@@ -1151,7 +1183,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }).slice(0, 8);
 
         if (matches.length === 0) {
-            results.innerHTML = '<div class="px-3 py-2 text-sm text-gray-500">No existing employee. You can still type manually.</div>';
+            results.innerHTML = `<div class="px-3 py-2 text-sm text-gray-500">No existing ${searchSource === 'users' ? 'user' : 'employee'}. You can still type manually.</div>`;
             results.classList.remove('hidden');
             return;
         }
@@ -1160,9 +1192,18 @@ document.addEventListener('DOMContentLoaded', function () {
             const button = document.createElement('button');
             button.type = 'button';
             button.className = 'block w-full border-b border-gray-100 px-3 py-2 text-left last:border-b-0 hover:bg-blue-50';
-            button.innerHTML = `<div class="text-sm font-medium text-gray-800">${record.name || ''}</div><div class="text-xs text-gray-500">${[record.employee_code, record.position, record.department].filter(Boolean).join(' • ') || (record.email || '')}</div>`;
+            
+            if (searchSource === 'users') {
+                button.innerHTML = `<div class="text-sm font-medium text-gray-800">${record.name || ''}</div><div class="text-xs text-gray-500">${[record.role, record.email].filter(Boolean).join(' • ') || ''}</div>`;
+            } else {
+                button.innerHTML = `<div class="text-sm font-medium text-gray-800">${record.name || ''}</div><div class="text-xs text-gray-500">${[record.employee_code, record.position, record.department].filter(Boolean).join(' • ') || (record.email || '')}</div>`;
+            }
+            
             button.addEventListener('click', () => {
                 input.value = record.name || '';
+                if (hiddenIdInput) {
+                    hiddenIdInput.value = record.id;
+                }
                 hideEmployeeSearchResults(picker);
                 syncInternalApprovalAutofill();
                 input.dispatchEvent(new Event('change', { bubbles: true }));
@@ -1176,12 +1217,16 @@ document.addEventListener('DOMContentLoaded', function () {
     const initEmployeeSearchPickers = () => {
         Array.from(document.querySelectorAll('[data-employee-picker]')).forEach((picker) => {
             const input = picker.querySelector('[data-employee-search-input]');
+            const hiddenIdInput = picker.querySelector('[data-employee-id-input]');
             if (!input) {
                 return;
             }
 
             input.addEventListener('focus', () => renderEmployeeSearchResults(picker, input.value));
-            input.addEventListener('input', () => renderEmployeeSearchResults(picker, input.value));
+            input.addEventListener('input', () => {
+                if (hiddenIdInput) hiddenIdInput.value = '';
+                renderEmployeeSearchResults(picker, input.value);
+            });
             input.addEventListener('change', syncInternalApprovalAutofill);
             input.addEventListener('keydown', (event) => {
                 if (event.key === 'Escape') {
@@ -1531,6 +1576,15 @@ document.addEventListener('DOMContentLoaded', function () {
         const total = Math.max((professional + government + support + totalServiceFee + totalProductFee + otherTotal) - discount, 0);
         totalInput.value = total > 0 ? total.toFixed(2) : '';
     };
+
+    if (estimatedCompletionDateInput && confirmedDeliveryDateInput) {
+        estimatedCompletionDateInput.addEventListener('change', () => {
+            if (confirmedDeliveryDateInput.value.trim() === '') {
+                confirmedDeliveryDateInput.value = estimatedCompletionDateInput.value;
+                confirmedDeliveryDateInput.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+        });
+    }
 
     plannedStartDateInput?.addEventListener('change', syncEstimatedDuration);
     confirmedDeliveryDateInput?.addEventListener('change', syncEstimatedDuration);
@@ -2259,12 +2313,13 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!field) {
             return;
         }
-        const normalizedValue = value === null || value === undefined || String(value).trim() === ''
-            ? fallback
-            : value;
+        const cleanedValue = value === null || value === undefined ? '' : String(value).trim();
+        const normalizedValue = cleanedValue === '' ? fallback : cleanedValue;
+        
         if (field.tagName === 'SELECT') {
-            const hasOption = Array.from(field.options).some((option) => option.value === (normalizedValue || ''));
-            field.value = hasOption ? (normalizedValue || '') : '';
+            const targetVal = String(normalizedValue || '').trim().toLowerCase();
+            const matchOption = Array.from(field.options).find((option) => option.value.trim().toLowerCase() === targetVal);
+            field.value = matchOption ? matchOption.value : '';
             return;
         }
         field.value = normalizedValue || '';
@@ -2319,7 +2374,8 @@ document.addEventListener('DOMContentLoaded', function () {
             if (['first_name', 'middle_initial', 'last_name'].includes(key)) {
                 return;
             }
-            setFieldValue(fieldId, record[key] || '');
+            const fallback = ['deal_salutation', 'deal_sex', 'deal_name_extension'].includes(fieldId) ? '-' : '';
+            setFieldValue(fieldId, record[key] || '', fallback);
         });
 
         applyClientRequirementStatusMap(record.client_requirement_status_map || {});

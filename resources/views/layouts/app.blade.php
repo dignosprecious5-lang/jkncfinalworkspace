@@ -63,6 +63,7 @@
             $user->isAdmin() ||
             $user->hasPermission('access_admin_dashboard') ||
             $user->hasPermission('approve_townhall') ||
+            $user->hasPermission('approve_corporate') ||
             $user->hasPermission('manage_users');
 
         $adminLandingRoute = null;
@@ -73,6 +74,10 @@
             $adminLandingRoute = route('admin.finance.dashboard');
         } elseif ($user->hasPermission('access_admin_dashboard') || $user->hasPermission('approve_townhall')) {
             $adminLandingRoute = route('admin.dashboard');
+        } elseif ($user->hasPermission('approve_corporate')) {
+            $adminLandingRoute = \Illuminate\Support\Facades\Route::has('admin.correspondence.dashboard')
+                ? route('admin.correspondence.dashboard')
+                : route('admin.corporate.dashboard');
         }
 
         $isHumanCapitalSection =
@@ -350,8 +355,8 @@
                         <a href="{{ route('corporate') }}"
                            title="Corporate"
                            :class="expanded ? 'justify-start px-3' : 'justify-center px-0'"
-                           class="flex items-center gap-3 py-2.5 rounded-xl transition border {{ request()->routeIs('corporate*') || request()->routeIs('stock-transfer-book*') || request()->routeIs('bir-tax*') || request()->routeIs('natgov*') || request()->routeIs('notices*') || request()->routeIs('minutes*') || request()->routeIs('resolutions*') || request()->routeIs('secretary-certificates*') ? 'bg-blue-50 text-blue-700 border-blue-100 font-semibold' : 'border-transparent text-gray-700 hover:bg-gray-50 hover:text-gray-900' }}">
-                            <span class="h-8 w-8 shrink-0 rounded-lg flex items-center justify-center {{ request()->routeIs('corporate*') || request()->routeIs('stock-transfer-book*') || request()->routeIs('bir-tax*') || request()->routeIs('natgov*') || request()->routeIs('notices*') || request()->routeIs('minutes*') || request()->routeIs('resolutions*') || request()->routeIs('secretary-certificates*') ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500' }}"><i class="fas fa-building text-xs"></i></span>
+                           class="flex items-center gap-3 py-2.5 rounded-xl transition border {{ request()->routeIs('corporate*') || request()->routeIs('stock-transfer-book*') || request()->routeIs('bir-tax*') || request()->routeIs('natgov*') || request()->routeIs('notices*') || request()->routeIs('minutes*') || request()->routeIs('resolutions*') || request()->routeIs('secretary-certificates*') || request()->routeIs('correspondence*') ? 'bg-blue-50 text-blue-700 border-blue-100 font-semibold' : 'border-transparent text-gray-700 hover:bg-gray-50 hover:text-gray-900' }}">
+                            <span class="h-8 w-8 shrink-0 rounded-lg flex items-center justify-center {{ request()->routeIs('corporate*') || request()->routeIs('stock-transfer-book*') || request()->routeIs('bir-tax*') || request()->routeIs('natgov*') || request()->routeIs('notices*') || request()->routeIs('minutes*') || request()->routeIs('resolutions*') || request()->routeIs('secretary-certificates*') || request()->routeIs('correspondence*') ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500' }}"><i class="fas fa-building text-xs"></i></span>
                             <span x-show="expanded" x-transition.opacity.duration.200ms class="flex-1 whitespace-nowrap">Corporate</span>
                         </a>
                     @endif
@@ -557,6 +562,14 @@
                                {{ request()->routeIs('admin.corporate.dashboard') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
                                 Corporate
                             </a>
+
+                            @if(\Illuminate\Support\Facades\Route::has('admin.correspondence.dashboard'))
+                                <a href="{{ route('admin.correspondence.dashboard') }}"
+                                   class="block px-3 py-2 rounded-lg transition
+                                   {{ request()->routeIs('admin.correspondence.*') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
+                                    Correspondence
+                                </a>
+                            @endif
                         @endif
 
                         <a href="{{ route('admin.policies.index') }}"
@@ -578,6 +591,14 @@
                                class="block px-3 py-2 rounded-lg transition
                                {{ request()->routeIs('admin.human-capital.dashboard') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
                                 Human Capital
+                            </a>
+                        @endif
+
+                        @if((Auth::user()->isAdmin() || Auth::user()->isSuperAdmin() || Auth::user()->hasPermission('approve_corporate')) && \Illuminate\Support\Facades\Route::has('admin.transmittal.dashboard'))
+                            <a href="{{ route('admin.transmittal.dashboard') }}"
+                            class="block px-3 py-2 rounded-lg transition
+                            {{ request()->routeIs('admin.transmittal.dashboard') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
+                                Transmittal
                             </a>
                         @endif
 
@@ -1175,7 +1196,7 @@
                 || request()->routeIs('banking')
                 || request()->routeIs('legal')
                 || request()->routeIs('operations')
-                || request()->routeIs('correspondence')
+                || request()->routeIs('correspondence*')
             )
         )
             <aside x-data="{ scrollCorporateNav(amount) { this.$refs.corporateNav?.scrollBy({ top: amount, behavior: 'smooth' }); } }"
@@ -1250,37 +1271,37 @@
 
                         <a href="{{ route('corporate.lgu') }}"
                            class="block px-3 py-2 rounded-lg transition
-                           {{ request()->is('corporate/lgu') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
+                           {{ request()->routeIs('corporate.lgu') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
                             LGU
                         </a>
 
-                        <a href="{{ route('accounting') }}"
+                        <a href="{{ route('corporate.accounting') }}"
                            class="block px-3 py-2 rounded-lg transition
-                           {{ request()->is('accounting') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
+                           {{ request()->routeIs('corporate.accounting') || request()->routeIs('corporate.accounting.*') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
                             Accounting
                         </a>
 
-                        <a href="{{ route('banking') }}"
+                        <a href="{{ route('corporate.banking') }}"
                            class="block px-3 py-2 rounded-lg transition
-                           {{ request()->is('banking') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
+                           {{ request()->routeIs('corporate.banking') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
                             Banking
                         </a>
 
-                        <a href="{{ route('legal') }}"
+                        <a href="{{ route('corporate.legal') }}"
                            class="block px-3 py-2 rounded-lg transition
-                           {{ request()->is('legal') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
+                           {{ request()->routeIs('corporate.legal') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
                             Legal
                         </a>
 
-                        <a href="{{ route('operations') }}"
+                        <a href="{{ route('corporate.operations') }}"
                            class="block px-3 py-2 rounded-lg transition
-                           {{ request()->is('operations') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
+                           {{ request()->routeIs('corporate.operations') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
                             Operations
                         </a>
 
                         <a href="{{ route('correspondence') }}"
                            class="block px-3 py-2 rounded-lg transition
-                           {{ request()->is('correspondence') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
+                           {{ request()->routeIs('correspondence*') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
                             Correspondence
                         </a>
                     </div>

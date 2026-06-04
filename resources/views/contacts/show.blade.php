@@ -231,7 +231,7 @@
                                 <div class="border-b border-gray-100 px-4 py-3">
                                     <h3 class="text-base font-semibold text-gray-900">Actions</h3>
                                 </div>
-                                <div class="space-y-2 px-4 py-4">
+                                <div id="contactKycActionPanel" class="space-y-2 px-4 py-4">
                                     @if (! $canReviewKyc)
                                         @if ($cifStatus === 'approved')
                                             <button type="button" disabled class="h-10 w-full cursor-not-allowed rounded-lg bg-green-100 text-sm font-medium text-green-700 border border-green-200">Approved</button>
@@ -832,11 +832,11 @@
                             const statusRaw = payload.statusRaw || 'Not Submitted';
                             const statusInit = statusRaw === 'Verified' ? 'Approved' : statusRaw;
                             const specimenSignatureExists = Boolean(payload.specimenSignatureExists);
-                            const kycRequirementState = payload.kycRequirementState || {};
-                            const requiredKycRequirementKeys = payload.requiredKycRequirementKeys || [];
+                            let kycRequirementState = payload.kycRequirementState || {};
+                            let requiredKycRequirementKeys = payload.requiredKycRequirementKeys || [];
                             const kycRequirementLabels = payload.kycRequirementLabels || {};
-                            const cifSignedDocument = payload.cifSignedDocument || null;
-                            const cifDocumentDefaults = payload.cifDocumentDefaults || {};
+                            let cifSignedDocument = payload.cifSignedDocument || null;
+                            let cifDocumentDefaults = payload.cifDocumentDefaults || {};
                             const specimenSignatureRoutes = payload.specimenSignatureRoutes || {};
                             let kyc = {
                                 cif: payload.kyc?.cif || '',
@@ -852,6 +852,8 @@
                             let currentFiles = [];
                             let currentIndex = 0;
                             let currentDocs = [];
+                            let refreshSequence = 0;
+                            const syncEventName = 'jknc:kyc-sync';
                             const liveFeedback = document.getElementById('contactKycLiveFeedback');
                             const sendSuccessOverlay = document.getElementById('contactSendSuccessOverlay');
                             const sendSuccessCard = document.getElementById('contactSendSuccessCard');
@@ -948,7 +950,45 @@
                             const isCifEditActive = () => !!document.querySelector(activeCifEditFormSelector);
                             const isCifEditDirty = () => !!document.querySelector(`${activeCifEditFormSelector}[data-cif-dirty="1"]`);
                             const shouldSkipCifRefresh = () => isCifEditActive() || isCifEditDirty();
-                            const refreshKycFragments = async () => {
+                            const normalizeKycStatus = (status) => {
+                                const normalized = String(status || '').trim();
+                                return normalized === 'Verified' ? 'Approved' : (normalized || 'Not Submitted');
+                            };
+                            const applyKycPayload = (nextPayload) => {
+                                if (!nextPayload || typeof nextPayload !== 'object') return;
+
+                                const nextStatus = normalizeKycStatus(nextPayload.statusRaw || kyc.status);
+                                const nextKyc = nextPayload.kyc || {};
+                                const has = (key) => Object.prototype.hasOwnProperty.call(nextKyc, key);
+
+                                kyc = {
+                                    ...kyc,
+                                    cif: has('cif') ? (nextKyc.cif || kyc.cif || '') : kyc.cif,
+                                    tin: has('tin') ? (nextKyc.tin || kyc.tin || '') : kyc.tin,
+                                    status: nextStatus,
+                                    dateVerified: has('dateVerified') ? (nextKyc.dateVerified || '') : kyc.dateVerified,
+                                    verifiedBy: has('verifiedBy') ? (nextKyc.verifiedBy || '') : kyc.verifiedBy,
+                                    submitted: ['Pending Verification','For Review','Approved','Rejected', 'Verified'].includes(nextStatus),
+                                };
+
+                                if (nextPayload.kycRequirementState) {
+                                    kycRequirementState = nextPayload.kycRequirementState;
+                                }
+                                if (Array.isArray(nextPayload.requiredKycRequirementKeys)) {
+                                    requiredKycRequirementKeys = nextPayload.requiredKycRequirementKeys;
+                                }
+                                if (Object.prototype.hasOwnProperty.call(nextPayload, 'cifSignedDocument')) {
+                                    cifSignedDocument = nextPayload.cifSignedDocument || null;
+                                }
+                                if (nextPayload.cifDocumentDefaults) {
+                                    cifDocumentDefaults = nextPayload.cifDocumentDefaults;
+                                }
+                                if (Array.isArray(nextPayload.logs)) {
+                                    logs = nextPayload.logs;
+                                }
+                            };
+                            const refreshKycFragments = async (options = {}) => {
+                                const sequence = ++refreshSequence;
                                 try {
                                     const refreshUrl = new URL(window.location.href);
                                     refreshUrl.searchParams.set('tab', 'kyc');
@@ -959,16 +999,29 @@
                                     });
                                     if (!response.ok) return;
                                     const html = await response.text();
+                                    if (sequence !== refreshSequence) return;
                                     const parser = new DOMParser();
                                     const doc = parser.parseFromString(html, 'text/html');
+                                    const nextPayload = (() => {
+                                        try {
+                                            return JSON.parse(doc.getElementById('kycTabPayload')?.textContent || '{}');
+                                        } catch (error) {
+                                            return {};
+                                        }
+                                    })();
+                                    applyKycPayload(nextPayload);
                                     replaceHtmlIfPresent('contactHeaderSummary', doc);
                                     replaceHtmlIfPresent('contactHeaderBreadcrumb', doc);
                                     if (!shouldSkipCifRefresh()) {
                                         replaceHtmlIfPresent('contactCifDocumentContent', doc);
                                     }
                                     replaceHtmlIfPresent('contactKycInfoCard', doc);
+                                    if (options.refreshActions) {
+                                        replaceHtmlIfPresent('contactKycActionPanel', doc);
+                                    }
                                     replaceHtmlIfPresent('contactKycRequirementsList', doc);
                                     syncHeaderBadgeFromDom(doc);
+                                    render();
                                 } catch (error) {
                                 }
                             };
@@ -1278,6 +1331,23 @@
                                 showSendSuccess(sessionClientEmail, 'secure client form');
                             }
 
+                            const handleKycSyncEvent = (detail) => {
+                                if (!detail || detail.module !== 'contacts' || String(detail.id || '') !== @json((string) $contact->id)) return;
+                                refreshKycFragments({ refreshActions: true });
+                            };
+                            let syncChannel = null;
+                            if ('BroadcastChannel' in window) {
+                                syncChannel = new BroadcastChannel(syncEventName);
+                                syncChannel.addEventListener('message', (event) => handleKycSyncEvent(event.data));
+                            }
+                            window.addEventListener('storage', (event) => {
+                                if (event.key !== syncEventName || !event.newValue) return;
+                                try {
+                                    handleKycSyncEvent(JSON.parse(event.newValue));
+                                } catch (error) {
+                                }
+                            });
+
                             q('sendCifForm')?.addEventListener('submit', async (event) => {
                                 event.preventDefault();
                                 try {
@@ -1316,7 +1386,7 @@
                                     addLog(`KYC submitted for verification by ${mockUser}`);
                                     showFeedback(payload.message, payload.warning ? 'warning' : 'success');
                                     render();
-                                    refreshKycFragments();
+                                    refreshKycFragments({ refreshActions: true });
                                 } catch (error) {
                                     showFeedback(error.message, 'error');
                                 }
@@ -1330,7 +1400,7 @@
                                     addLog(`KYC approved by ${mockUser}`);
                                     showFeedback(payload.message, 'success');
                                     render();
-                                    refreshKycFragments();
+                                    refreshKycFragments({ refreshActions: true });
                                 } catch (error) {
                                     showFeedback(error.message, 'error');
                                 }
@@ -1345,7 +1415,7 @@
                                     showFeedback(payload.message, 'success');
                                     close(q('rejectKycModal'));
                                     render();
-                                    refreshKycFragments();
+                                    refreshKycFragments({ refreshActions: true });
                                 } catch (error) {
                                     showFeedback(error.message, 'error');
                                 }
@@ -1356,7 +1426,7 @@
                                 try {
                                     const payload = await submitJsonForm(event.currentTarget, { fallbackError: 'Unable to submit the change request.' });
                                     showFeedback(payload.message, 'success');
-                                    refreshKycFragments();
+                                    refreshKycFragments({ refreshActions: true });
                                 } catch (error) {
                                     showFeedback(error.message, 'error');
                                 }
@@ -1367,7 +1437,7 @@
                                 try {
                                     const payload = await submitJsonForm(event.currentTarget, { fallbackError: 'Unable to approve the change request.' });
                                     showFeedback(payload.message, 'success');
-                                    refreshKycFragments();
+                                    refreshKycFragments({ refreshActions: true });
                                 } catch (error) {
                                     showFeedback(error.message, 'error');
                                 }
@@ -1378,7 +1448,7 @@
                                 try {
                                     const payload = await submitJsonForm(event.currentTarget, { fallbackError: 'Unable to reject the change request.' });
                                     showFeedback(payload.message, 'success');
-                                    refreshKycFragments();
+                                    refreshKycFragments({ refreshActions: true });
                                 } catch (error) {
                                     showFeedback(error.message, 'error');
                                 }

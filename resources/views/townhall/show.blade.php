@@ -404,7 +404,7 @@
         font-weight: 600;
         letter-spacing: 0.04em;
         color: #555;
-        font-family: "Times New Roman", Georgia, serif;
+        font-family: Georgia, "Times New Roman", serif;
         margin: 0;
     }
 
@@ -413,7 +413,7 @@
         font-size: 14px;
         line-height: 1.35;
         color: #111827;
-        font-family: "Times New Roman", Georgia, serif;
+        font-family: Georgia, "Times New Roman", serif;
     }
 
     .memo-page-meta p {
@@ -433,7 +433,7 @@
     .memo-page-body div,
     .memo-page-body td,
     .memo-page-body th {
-        font-family: "Times New Roman", Georgia, serif !important;
+        font-family: Georgia, "Times New Roman", serif !important;
         color: #111827;
     }
 
@@ -482,7 +482,7 @@
 
     .memo-page-footer {
         margin-top: 40px;
-        font-family: "Times New Roman", Georgia, serif;
+        font-family: Georgia, "Times New Roman", serif;
         color: #1f2937;
     }
 
@@ -550,12 +550,12 @@
         font-size: 14px;
         line-height: 1.45;
         text-align: justify;
-        font-family: "Times New Roman", Georgia, serif;
+        font-family: Georgia, "Times New Roman", serif;
     }
 
     .approval-routing {
         margin-top: 26px;
-        font-family: "Times New Roman", Georgia, serif;
+        font-family: Georgia, "Times New Roman", serif;
         font-size: 13px;
         line-height: 1.25;
         color: #111827;
@@ -578,6 +578,147 @@
         margin-top: 4px;
         font-weight: 700;
         font-size: 12px;
+    }
+
+
+    /* Stable document editor/body support */
+    #editor .ql-editor,
+    .preview-body,
+    .memo-page-body,
+    .memo-body-block {
+        font-family: Georgia, "Times New Roman", serif !important;
+    }
+
+    #editor .ql-editor .ql-indent-1,
+    .preview-body .ql-indent-1,
+    .memo-page-body .ql-indent-1,
+    .memo-body-block .ql-indent-1 { padding-left: 3em !important; }
+
+    #editor .ql-editor .ql-indent-2,
+    .preview-body .ql-indent-2,
+    .memo-page-body .ql-indent-2,
+    .memo-body-block .ql-indent-2 { padding-left: 6em !important; }
+
+    #editor .ql-editor .ql-indent-3,
+    .preview-body .ql-indent-3,
+    .memo-page-body .ql-indent-3,
+    .memo-body-block .ql-indent-3 { padding-left: 9em !important; }
+
+    #editor .ql-editor .ql-indent-4,
+    .preview-body .ql-indent-4,
+    .memo-page-body .ql-indent-4,
+    .memo-body-block .ql-indent-4 { padding-left: 12em !important; }
+
+    #editor .ql-editor .ql-indent-5,
+    .preview-body .ql-indent-5,
+    .memo-page-body .ql-indent-5,
+    .memo-body-block .ql-indent-5 { padding-left: 15em !important; }
+
+    #editor .ql-editor .ql-indent-6,
+    .preview-body .ql-indent-6,
+    .memo-page-body .ql-indent-6,
+    .memo-body-block .ql-indent-6 { padding-left: 18em !important; }
+
+    #editor .ql-editor .ql-indent-7,
+    .preview-body .ql-indent-7,
+    .memo-page-body .ql-indent-7,
+    .memo-body-block .ql-indent-7 { padding-left: 21em !important; }
+
+    #editor .ql-editor .ql-indent-8,
+    .preview-body .ql-indent-8,
+    .memo-page-body .ql-indent-8,
+    .memo-body-block .ql-indent-8 { padding-left: 24em !important; }
+
+    #editor .ql-editor table,
+    .preview-body table,
+    .memo-page-body table,
+    .memo-body-block table {
+        width: 100% !important;
+        max-width: 100% !important;
+        table-layout: fixed !important;
+        border-collapse: collapse !important;
+        border-spacing: 0 !important;
+        margin: 12px 0 !important;
+    }
+
+    #editor .ql-editor th,
+    #editor .ql-editor td,
+    .preview-body th,
+    .preview-body td,
+    .memo-page-body th,
+    .memo-page-body td,
+    .memo-body-block th,
+    .memo-body-block td {
+        border: 1px solid #94a3b8 !important;
+        padding: 10px 12px !important;
+        vertical-align: top !important;
+        white-space: normal !important;
+        word-break: normal !important;
+        overflow-wrap: break-word !important;
+    }
+
+
+    /* Town Hall stable body containment + Georgia default */
+    .memo-page,
+    .memo-edit-preview,
+    .memo-page *,
+    .memo-edit-preview *,
+    .preview-body,
+    .preview-body *,
+    .memo-page-body,
+    .memo-page-body *,
+    .memo-body-block,
+    .memo-body-block *,
+    #editor .ql-editor,
+    #editor .ql-editor * {
+        font-family: Georgia, "Times New Roman", serif !important;
+    }
+
+    .memo-page-body,
+    .memo-page-body p,
+    .memo-page-body div,
+    .memo-page-body span,
+    .memo-page-body li,
+    .memo-body-block,
+    .memo-body-block p,
+    .memo-body-block div,
+    .memo-body-block span,
+    .memo-body-block li,
+    .preview-body,
+    .preview-body p,
+    .preview-body div,
+    .preview-body span,
+    .preview-body li {
+        max-width: 100% !important;
+        white-space: normal !important;
+        overflow-wrap: anywhere !important;
+        word-break: break-word !important;
+    }
+
+    .ql-font-georgia,
+    .ql-font-georgia * {
+        font-family: Georgia, "Times New Roman", serif !important;
+    }
+
+    .ql-picker.ql-font .ql-picker-label[data-value="georgia"]::before,
+    .ql-picker.ql-font .ql-picker-item[data-value="georgia"]::before {
+        content: "Georgia";
+        font-family: Georgia, "Times New Roman", serif;
+    }
+
+    .ql-picker.ql-font .ql-picker-label[data-value="serif"]::before,
+    .ql-picker.ql-font .ql-picker-item[data-value="serif"]::before {
+        content: "Serif";
+    }
+
+    .ql-picker.ql-font .ql-picker-label[data-value="sans-serif"]::before,
+    .ql-picker.ql-font .ql-picker-item[data-value="sans-serif"]::before {
+        content: "Sans Serif";
+    }
+
+    .ql-picker.ql-font .ql-picker-label[data-value="monospace"]::before,
+    .ql-picker.ql-font .ql-picker-item[data-value="monospace"]::before {
+        content: "Monospace";
     }
 
 </style>

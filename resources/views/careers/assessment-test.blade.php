@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Assessment Test | John Kelly & Company</title>
+    <title>Assessment Test | John Kelly &amp; Company (JK&amp;C Inc.)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     <style>
@@ -15,7 +15,7 @@
         <div class="max-w-4xl mx-auto">
             <div class="bg-white rounded-3xl shadow-xl border border-gray-100 overflow-hidden">
                 <div class="bg-blue-700 px-8 py-8 text-white">
-                    <p class="text-xs font-black uppercase tracking-[0.25em] text-blue-100">John Kelly & Company</p>
+                    <p class="text-xs font-black uppercase tracking-[0.25em] text-blue-100">John Kelly &amp; Company (JK&amp;C Inc.)</p>
                     <h1 class="text-3xl font-black mt-2">Assessment Test</h1>
                     <p class="text-blue-100 mt-2">Please answer the questions below honestly and carefully.</p>
                 </div>

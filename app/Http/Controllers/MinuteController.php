@@ -83,9 +83,33 @@ class MinuteController extends Controller
             'backRoute' => route('minutes'),
             'editRoute' => route('minutes.edit', $minute),
             'deleteRoute' => route('minutes.destroy', $minute),
-            'templatePreviewUrl' => $templatePreviewPath ? route('uploads.show', ['path' => $templatePreviewPath]) : null,
-            'templatePreviewDownloadUrl' => $templatePreviewPath ? route('uploads.show', ['path' => $templatePreviewPath, 'download' => 1]) : null,
+            'templatePreviewUrl' => route('minutes.download', $minute),
+            'templatePreviewDownloadUrl' => route('minutes.download', [$minute, 'download' => 1]),
             'corporateContext' => $this->corporateContextForMinute($minute),
+        ]);
+    }
+
+    public function downloadPdf(Request $request, Minute $minute)
+    {
+        abort_if($minute->company_id !== null, 404);
+
+        $minute->loadMissing('notice.attendees');
+        $path = $this->generateTemplatePreviewPdf($minute);
+
+        abort_unless($path && Storage::disk('public')->exists($path), 404);
+
+        $filename = $this->minutePdfFilename($minute);
+        $absolutePath = Storage::disk('public')->path($path);
+
+        if ($request->boolean('download')) {
+            return response()->download($absolutePath, $filename, [
+                'Content-Type' => 'application/pdf',
+            ]);
+        }
+
+        return response()->file($absolutePath, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="' . addslashes($filename) . '"',
         ]);
     }
 
@@ -433,8 +457,8 @@ class MinuteController extends Controller
             'script_file_filename' => $minute->script_file_path ? basename($minute->script_file_path) : null,
             'recording_notes' => $minute->recording_notes,
             'script_text' => $minute->script_text,
-            'template_preview_url' => $templatePreviewPath ? route('uploads.show', ['path' => $templatePreviewPath]) : null,
-            'template_preview_download_url' => $templatePreviewPath ? route('uploads.show', ['path' => $templatePreviewPath, 'download' => 1]) : null,
+            'template_preview_url' => route('minutes.download', $minute),
+            'template_preview_download_url' => route('minutes.download', [$minute, 'download' => 1]),
             'recording_clips' => collect($minute->recording_clips ?? [])->map(fn ($path) => [
                 'id' => $path,
                 'url' => route('uploads.show', ['path' => $path]),
@@ -517,7 +541,7 @@ class MinuteController extends Controller
     {
         $pdf = Pdf::loadView($view, $data)
             ->setPaper('a4')
-            ->setOptions(['isPhpEnabled' => true]);
+            ->setOptions(['isPhpEnabled' => true, 'isRemoteEnabled' => true]);
 
         Storage::disk('public')->delete($targetPath);
         Storage::disk('public')->put($targetPath, $pdf->output());
@@ -527,13 +551,26 @@ class MinuteController extends Controller
 
     private function generateTemplatePreviewPdf(Minute $minute): ?string
     {
-        $targetPath = 'uploads/minutes/template-preview-' . $minute->id . '.pdf';
+        $targetPath = 'generated-previews/minutes/' . $this->safeMinuteReference($minute) . '-draft.pdf';
 
         return $this->generatePdfPreview('corporate.minutes.pdf', [
             'minute' => $minute,
             'minutesDocumentTitle' => strtoupper(trim('Minutes of the ' . ($minute->type_of_meeting ?: 'Special') . ' ' . ($minute->governing_body ?: 'Meeting'))),
             'corporateContext' => $this->corporateContextForMinute($minute),
         ], $targetPath);
+    }
+
+    private function safeMinuteReference(Minute $minute): string
+    {
+        $reference = trim((string) ($minute->minutes_ref ?: $minute->id ?: 'document'));
+        $reference = preg_replace('/[^A-Za-z0-9._-]+/', '-', $reference) ?: 'document';
+
+        return trim($reference, '-_.') ?: 'document';
+    }
+
+    private function minutePdfFilename(Minute $minute): string
+    {
+        return 'minutes-' . $this->safeMinuteReference($minute) . '.pdf';
     }
 
     private function syncRecordingClips(Request $request, Minute $minute): array

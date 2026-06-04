@@ -757,7 +757,7 @@
             <div class="border border-gray-200 rounded-lg mb-4 text-[10px] pb-4 mt-4 bg-gray-50 px-4 pt-3">
                 <div class="text-blue-800 font-bold uppercase tracking-wider text-xs mb-2">IV. DECLARATION AND DATA PRIVACY CONSENT</div>
                 <p class="mb-2 text-gray-600">I certify that the information provided herein is true, complete, and accurate to the best of my knowledge.</p>
-                <p class="mb-3 text-gray-600">I understand and consent that pursuant to Republic Act No. 10173 (Data Privacy Act of 2012), the information provided in this Personal Data Sheet will be collected, processed, and retained by John Kelly & Company and its authorized representatives for lawful employment and compliance purposes.</p>
+                <p class="mb-3 text-gray-600">I understand and consent that pursuant to Republic Act No. 10173 (Data Privacy Act of 2012), the information provided in this Personal Data Sheet will be collected, processed, and retained by John Kelly &amp; Company (JK&amp;C Inc.) and its authorized representatives for lawful employment and compliance purposes.</p>
                 
                 <div class="flex items-center gap-2">
                     <div class="w-3 h-3 border border-gray-400 rounded-sm flex items-center justify-center bg-white">
@@ -1195,6 +1195,7 @@
         <label class="block text-xs font-semibold text-gray-600 mb-1">Reporting Manager</label>
         <input type="text" x-model="empRegForm.manager"
             class="w-full text-sm px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none">
+        <p class="text-[11px] text-gray-400 mt-1">Auto-filled from the Job Offer reporting line when available. You may edit before registration.</p>
     </div>
 </div>
 <div class="pt-4 border-t flex justify-end gap-3 pb-2">
@@ -2268,6 +2269,7 @@ onEmpRegChecklistChange() {
         this.empRegForm.personalEmail = '';
         this.empRegForm.basicSalary = '';
         this.empRegForm.payrollType = '';
+        this.empRegForm.manager = '';
         return;
     }
 
@@ -2279,6 +2281,7 @@ onEmpRegChecklistChange() {
     this.empRegForm.startDate = selected.startDate || '';
     this.empRegForm.basicSalary = this.extractSalaryAmount(selected.jobOfferSalary || '');
     this.empRegForm.payrollType = this.inferPayrollType(selected.jobOfferEmploymentType || '');
+    this.empRegForm.manager = selected.jobOfferReportingManager || selected.reportingManager || '';
 },
 
 extractSalaryAmount(value) {
@@ -2494,11 +2497,17 @@ inferPayrollType(value) {
         generateEmployeeId() {
             const existing = this.data['Employee Registration'] ?? [];
             const used = new Set(existing.map(item => String(item.employeeId || item.employee_id || '')));
+            const firstDigitPool = ['1', '2', '3', '5', '7', '8', '9'];
+            const digitPool = ['0', '1', '2', '3', '5', '7', '8', '9'];
             let id = '';
 
             do {
-                id = String(Math.floor(10000 + Math.random() * 90000));
-            } while (used.has(id));
+                id = firstDigitPool[Math.floor(Math.random() * firstDigitPool.length)];
+
+                while (id.length < 5) {
+                    id += digitPool[Math.floor(Math.random() * digitPool.length)];
+                }
+            } while (used.has(id) || id.includes('13') || id.includes('31'));
 
             return id;
         },

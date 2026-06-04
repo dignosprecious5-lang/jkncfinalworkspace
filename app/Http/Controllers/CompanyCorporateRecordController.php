@@ -71,6 +71,7 @@ class CompanyCorporateRecordController extends Controller
         $notice = Notice::create($data);
         $this->syncGeneratedNoticePdf($notice, $bodyHtml, $hasUploadedDocument);
         $this->syncNoticeAttendeesFromLatestGis($notice);
+        $this->syncManualNoticeGuests($notice->fresh(), $request->input('guests', []));
 
         return redirect()->route('company.corporate-formation.notices', $company)->with('success', 'Notice created.');
     }
@@ -122,7 +123,7 @@ class CompanyCorporateRecordController extends Controller
             'notice' => $noticeRecord,
             'bodyHtml' => $noticeRecord->body_html,
             ...$viewData,
-        ])->setPaper('a4');
+        ])->setPaper('a4')->setOptions(['isPhpEnabled' => true, 'isRemoteEnabled' => true]);
 
         $filename = 'notice-' . Str::slug($noticeRecord->notice_number ?: 'meeting') . '.pdf';
 
@@ -131,6 +132,59 @@ class CompanyCorporateRecordController extends Controller
         }
 
         return $pdf->stream($filename);
+    }
+
+
+    public function downloadMinutePdf(Request $request, int $company, int $minute)
+    {
+        $this->findCompanyOrAbort($request, $company);
+        $minuteRecord = $this->findCompanyMinute($company, $minute);
+        $minuteRecord->loadMissing('notice.attendees');
+
+        $path = $this->generateCompanyMinuteTemplatePreviewPdf($minuteRecord);
+        $filename = $this->companyDocumentPdfFilename('minutes', $minuteRecord->minutes_ref ?: $minuteRecord->id);
+
+        return $this->streamOrDownloadCompanyPdf($path, $filename, $request->boolean('download'));
+    }
+
+    public function downloadResolutionPdf(Request $request, int $company, int $resolution)
+    {
+        $this->findCompanyOrAbort($request, $company);
+        $resolutionRecord = $this->findCompanyResolution($company, $resolution);
+        $resolutionRecord->loadMissing(['minute.notice.attendees', 'notice.attendees', 'secretaryCertificates']);
+
+        $path = $this->generateResolutionPdf(
+            $resolutionRecord,
+            'generated-previews/resolutions/' . ($resolutionRecord->resolution_no ?: $resolutionRecord->id) . '-body-built.pdf'
+        );
+        $filename = $this->companyDocumentPdfFilename('resolution', $resolutionRecord->resolution_no ?: $resolutionRecord->id);
+
+        return $this->streamOrDownloadCompanyPdf($path, $filename, $request->boolean('download'));
+    }
+
+    public function downloadSecretaryCertificatePdf(Request $request, int $company, int $certificate)
+    {
+        $companyData = $this->findCompanyOrAbort($request, $company);
+        $certificateRecord = $this->findCompanySecretaryCertificate($company, $certificate);
+        $certificateRecord->loadMissing([
+            'notice.attendees',
+            'resolution.notice.attendees',
+            'resolution.minute.notice.attendees',
+            'minute.notice.attendees',
+        ]);
+
+        $corporateContext = $this->companyCorporateContextForCertificate($certificateRecord, $company, $companyData);
+        $path = $this->generatePdfPreview(
+            'corporate.secretary-certificates.pdf',
+            [
+                'certificate' => $certificateRecord,
+                'corporateContext' => $corporateContext,
+            ],
+            'generated-previews/secretary-certificates/' . ($certificateRecord->certificate_no ?: $certificateRecord->id) . '-draft.pdf'
+        );
+        $filename = $this->companyDocumentPdfFilename('secretary-certificate', $certificateRecord->certificate_no ?: $certificateRecord->id);
+
+        return $this->streamOrDownloadCompanyPdf($path, $filename, $request->boolean('download'));
     }
 
     public function uploadOriginalNotice(Request $request, int $company, int $notice): RedirectResponse
@@ -171,6 +225,7 @@ class CompanyCorporateRecordController extends Controller
         $noticeRecord->update($data);
         $this->syncGeneratedNoticePdf($noticeRecord->fresh(), $bodyHtml, $hasUploadedDocument);
         $this->syncNoticeAttendeesFromLatestGis($noticeRecord->fresh());
+        $this->syncManualNoticeGuests($noticeRecord->fresh(), $request->input('guests', []));
 
         return redirect()->route('company.corporate-formation.notices', $company)->with('success', 'Notice updated.');
     }
@@ -253,6 +308,8 @@ class CompanyCorporateRecordController extends Controller
         $minuteRecord->load('notice.attendees');
         $noticeRecord = $minuteRecord->notice;
         $templatePreviewPath = $this->generateCompanyMinuteTemplatePreviewPdf($minuteRecord);
+        $baseViewData = $this->companyViewData($companyData, $company);
+        $corporateContext = $baseViewData['corporateContext'] ?? [];
 
         return view('corporate.minutes.preview', [
             'minute' => $minuteRecord,
@@ -262,13 +319,15 @@ class CompanyCorporateRecordController extends Controller
             'workspaceSaveUrl' => route('company.corporate-formation.minutes.workspace-save', [$company, $minuteRecord->id]),
             'finalAudioSaveUrl' => route('company.corporate-formation.minutes.final-audio', [$company, $minuteRecord->id]),
             'finalSaveUrl' => route('company.corporate-formation.minutes.final-save', [$company, $minuteRecord->id]),
-            'templatePreviewUrl' => $templatePreviewPath ? route('uploads.show', ['path' => $templatePreviewPath]) : null,
-            'templatePreviewDownloadUrl' => $templatePreviewPath ? route('uploads.show', ['path' => $templatePreviewPath, 'download' => 1]) : null,
+            'templatePreviewUrl' => route('company.corporate-formation.minutes.download', [$company, $minuteRecord->id]),
+            'templatePreviewDownloadUrl' => route('company.corporate-formation.minutes.download', [$company, $minuteRecord->id, 'download' => 1]),
             'sectionRibbonPartial' => 'company.partials.corporate-formation-ribbon',
             'sendRoute' => $noticeRecord
                 ? route('company.corporate-formation.notices.send', [$company, $noticeRecord->id])
                 : null,
-            ...$this->companyViewData($companyData, $company),
+            ...$baseViewData,
+            // Keep this AFTER companyViewData so it will not be overwritten by the generic company context.
+            'corporateContext' => $corporateContext,
         ]);
     }
 
@@ -494,6 +553,9 @@ class CompanyCorporateRecordController extends Controller
             $resolutionRecord->setAttribute('chairman', $document['chairman']['name']);
         }
 
+        $baseViewData = $this->companyViewData($companyData, $company);
+        $corporateContext = $baseViewData['corporateContext'] ?? [];
+
         $generatedBodyPreviewPath = $this->generateResolutionPdf(
             $resolutionRecord,
             'generated-previews/resolutions/' . ($resolutionRecord->resolution_no ?: $resolutionRecord->id) . '-body-built.pdf'
@@ -507,12 +569,14 @@ class CompanyCorporateRecordController extends Controller
             'editRoute' => route('company.corporate-formation.resolutions.preview', [$company, $resolutionRecord->id]),
             'updateRoute' => route('company.corporate-formation.resolutions.update', [$company, $resolutionRecord->id]),
             'deleteRoute' => route('company.corporate-formation.resolutions.destroy', [$company, $resolutionRecord->id]),
-            'downloadRoute' => $generatedBodyPreviewPath ? route('uploads.show', ['path' => $generatedBodyPreviewPath, 'download' => 1]) : null,
+            'downloadRoute' => route('company.corporate-formation.resolutions.download', [$company, $resolutionRecord->id, 'download' => 1]),
             'sectionRibbonPartial' => 'company.partials.corporate-formation-ribbon',
             'sendRoute' => $noticeRecord
                 ? route('company.corporate-formation.notices.send', [$company, $noticeRecord->id])
                 : null,
-            ...$this->companyViewData($companyData, $company),
+            ...$baseViewData,
+            // Keep this AFTER companyViewData so it will not be overwritten by the generic company context.
+            'corporateContext' => $corporateContext,
         ]);
     }
 
@@ -592,20 +656,35 @@ class CompanyCorporateRecordController extends Controller
     {
         $companyData = $this->findCompanyOrAbort($request, $company);
         $certificateRecord = $this->findCompanySecretaryCertificate($company, $certificate);
-        $certificateRecord->load(['notice', 'resolution.notice', 'minute.notice']);
+
+        $certificateRecord->load([
+            'notice.attendees',
+            'resolution.notice.attendees',
+            'resolution.minute.notice.attendees',
+            'minute.notice.attendees',
+        ]);
+
         $noticeRecord = $certificateRecord->notice
             ?? optional($certificateRecord->resolution)->notice
             ?? optional($certificateRecord->minute)->notice;
 
+        $baseViewData = $this->companyViewData($companyData, $company);
+        $corporateContext = $this->companyCorporateContextForCertificate($certificateRecord, $company, $companyData);
+
         $generatedDraftPath = $this->generatePdfPreview(
             'corporate.secretary-certificates.pdf',
-            ['certificate' => $certificateRecord],
+            [
+                'certificate' => $certificateRecord,
+                'corporateContext' => $corporateContext,
+            ],
             'generated-previews/secretary-certificates/' . ($certificateRecord->certificate_no ?: $certificateRecord->id) . '-draft.pdf'
         );
 
         return view('corporate.secretary-certificates.preview', [
             'certificate' => $certificateRecord,
-            'generatedDraftUrl' => $generatedDraftPath ? route('uploads.show', ['path' => $generatedDraftPath]) : null,
+            'corporateContext' => $corporateContext,
+            'generatedDraftUrl' => route('company.corporate-formation.secretary-certificates.download', [$company, $certificateRecord->id]),
+            'generatedDraftDownloadUrl' => route('company.corporate-formation.secretary-certificates.download', [$company, $certificateRecord->id, 'download' => 1]),
             'backRoute' => route('company.corporate-formation.secretary-certificates', $company),
             'editRoute' => route('company.corporate-formation.secretary-certificates.preview', [$company, $certificateRecord->id]),
             'updateRoute' => route('company.corporate-formation.secretary-certificates.update', [$company, $certificateRecord->id]),
@@ -614,7 +693,9 @@ class CompanyCorporateRecordController extends Controller
             'sendRoute' => $noticeRecord
                 ? route('company.corporate-formation.notices.send', [$company, $noticeRecord->id])
                 : null,
-            ...$this->companyViewData($companyData, $company),
+            ...$baseViewData,
+            // Keep this AFTER companyViewData so it will not be overwritten by the generic company context.
+            'corporateContext' => $corporateContext,
         ]);
     }
 
@@ -638,6 +719,61 @@ class CompanyCorporateRecordController extends Controller
         $this->findCompanySecretaryCertificate($company, $certificate)->delete();
 
         return redirect()->route('company.corporate-formation.secretary-certificates', $company)->with('success', 'Secretary certificate deleted.');
+    }
+
+
+
+    /**
+     * Local override for the shared PDF preview generator.
+     * The corporate document PDF blades use DomPDF page_text() / CSS page counters,
+     * so PHP support must be enabled or the visible page footer will not render.
+     */
+    private function generatePdfPreview(string $view, array $data, string $targetPath): ?string
+    {
+        try {
+            $pdf = Pdf::loadView($view, $data)
+                ->setPaper('a4')
+                ->setOptions([
+                    'isPhpEnabled' => true,
+                    'isRemoteEnabled' => true,
+                ]);
+
+            Storage::disk('public')->delete($targetPath);
+            Storage::disk('public')->put($targetPath, $pdf->output());
+
+            return $targetPath;
+        } catch (\Throwable $e) {
+            report($e);
+
+            return null;
+        }
+    }
+
+    private function companyDocumentPdfFilename(string $prefix, $reference): string
+    {
+        $reference = trim((string) ($reference ?: 'document'));
+        $reference = preg_replace('/[^A-Za-z0-9._-]+/', '-', $reference) ?: 'document';
+        $reference = trim($reference, '-_.');
+
+        return $prefix . '-' . ($reference ?: 'document') . '.pdf';
+    }
+
+    private function streamOrDownloadCompanyPdf(?string $path, string $filename, bool $download = false)
+    {
+        abort_unless($path && Storage::disk('public')->exists($path), 404);
+
+        $absolutePath = Storage::disk('public')->path($path);
+
+        if ($download) {
+            return response()->download($absolutePath, $filename, [
+                'Content-Type' => 'application/pdf',
+            ]);
+        }
+
+        return response()->file($absolutePath, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="' . addslashes($filename) . '"',
+        ]);
     }
 
     private function validateNoticeData(Request $request): array
@@ -723,6 +859,9 @@ class CompanyCorporateRecordController extends Controller
             'directors' => ['nullable', 'string', 'max:255'],
             'chairman' => ['nullable', 'string', 'max:255'],
             'secretary' => ['nullable', 'string', 'max:255'],
+            'secretary_address' => ['nullable', 'string', 'max:1000'],
+            'secretary_tin' => ['nullable', 'string', 'max:255'],
+            'notarial_place' => ['nullable', 'string', 'max:1000'],
             'notary_doc_no' => ['nullable', 'string', 'max:255'],
             'notary_page_no' => ['nullable', 'string', 'max:255'],
             'notary_book_no' => ['nullable', 'string', 'max:255'],
@@ -756,6 +895,9 @@ class CompanyCorporateRecordController extends Controller
             'date_of_meeting' => ['nullable', 'date'],
             'location' => ['nullable', 'string', 'max:255'],
             'secretary' => ['nullable', 'string', 'max:255'],
+            'secretary_address' => ['nullable', 'string', 'max:1000'],
+            'secretary_tin' => ['nullable', 'string', 'max:255'],
+            'notarial_place' => ['nullable', 'string', 'max:1000'],
             'notary_doc_no' => ['nullable', 'string', 'max:255'],
             'notary_page_no' => ['nullable', 'string', 'max:255'],
             'notary_book_no' => ['nullable', 'string', 'max:255'],
@@ -813,7 +955,7 @@ class CompanyCorporateRecordController extends Controller
             $data['notice_id'] = $resolution->notice_id;
             $data['notice_ref'] = $resolution->notice_ref;
             $data['resolution_no'] = $resolution->resolution_no;
-            $data['resolution_body'] = $data['resolution_body'] ?: $resolution->resolution_body;
+            $data['resolution_body'] = $data['resolution_body'] ?: $this->completeCompanyResolutionBody($resolution);
             $data['governing_body'] = $resolution->governing_body;
             $data['type_of_meeting'] = $resolution->type_of_meeting;
             $data['meeting_no'] = $resolution->meeting_no;
@@ -881,6 +1023,106 @@ class CompanyCorporateRecordController extends Controller
             ->where('resolution_id', $resolution->id)
             ->get()
             ->each(fn (SecretaryCertificate $certificate) => $certificate->update($shared));
+    }
+
+    private function companyCorporateContextForCertificate(SecretaryCertificate $certificate, int $company, array $companyData = []): array
+    {
+        $certificate->loadMissing([
+            'notice',
+            'resolution.notice',
+            'resolution.minute.notice',
+            'minute.notice',
+        ]);
+
+        $resolution = $certificate->resolution;
+        $minute = $certificate->minute ?: $resolution?->minute;
+        $notice = $certificate->notice ?: $resolution?->notice ?: $minute?->notice;
+
+        if ($companyData === []) {
+            $companyRecord = Company::find($company);
+            $companyData = $companyRecord
+                ? $companyRecord->toArray()
+                : (collect($this->defaultCompanies())->firstWhere('id', $company) ?: []);
+        }
+
+        $base = $this->companyViewData($companyData, $company);
+        $gis = $this->latestCompanyGisForDocuments($company);
+
+        if ($gis) {
+            $gis->loadMissing(['directors', 'stockholders']);
+        }
+
+        $companyName = $base['corporateContext']['company_name']
+            ?? $base['companyName']
+            ?? $gis?->corporation_name
+            ?? '________________';
+
+        $companyRegNo = $base['corporateContext']['company_reg_no']
+            ?? $base['companyRegNo']
+            ?? $gis?->company_reg_no
+            ?? '________________';
+
+        $companyAddress = $base['corporateContext']['company_address']
+            ?? $base['companyAddress']
+            ?? $gis?->principal_address
+            ?? $gis?->business_address
+            ?? '________________';
+
+        $secretaryName = $certificate->secretary
+            ?: $resolution?->secretary
+            ?: $minute?->secretary
+            ?: 'Corporate Secretary';
+
+        $secretaryTin = data_get($certificate, 'secretary_tin');
+
+        $savedSecretaryAddress = trim((string) data_get($certificate, 'secretary_address', ''));
+        $secretaryAddress = ($savedSecretaryAddress !== '' && !Str::contains(Str::lower($savedSecretaryAddress), 'principal office of the corporation'))
+            ? $savedSecretaryAddress
+            : ($companyAddress ?: '________________');
+
+        $resolvedBody = $resolution
+            ? $this->completeCompanyResolutionBody($resolution)
+            : ($certificate->resolution_body ?: $certificate->purpose);
+
+        $resolvedPurpose = $certificate->purpose
+            ?: $resolution?->board_resolution
+            ?: ($certificate->resolution_no ? 'Resolution ' . $certificate->resolution_no : 'Certified Resolution');
+
+        return [
+            ...($base['corporateContext'] ?? []),
+            'gis' => $gis,
+            'company_name' => $companyName,
+            'companyName' => $companyName,
+            'corporation_name' => $companyName,
+            'company_reg_no' => $companyRegNo,
+            'companyRegNo' => $companyRegNo,
+            'company_address' => $companyAddress,
+            'companyAddress' => $companyAddress,
+            'logo_path' => $base['corporateContext']['logo_path'] ?? $gis?->logo_path,
+            'logoPath' => $base['corporateContext']['logo_path'] ?? $gis?->logo_path,
+            'secretary_name' => $secretaryName,
+            'secretary_tin' => $secretaryTin,
+            'secretary_address' => $secretaryAddress,
+            'notarial_place' => data_get($certificate, 'notarial_place')
+                ?: $this->companyGuessNotarialPlace($certificate->location ?: $resolution?->location ?: $minute?->location ?: $companyAddress),
+            'resolution_body' => $resolvedBody,
+            'purpose' => $resolvedPurpose,
+        ];
+    }
+
+    private function companyGuessNotarialPlace(?string $value): string
+    {
+        $value = trim((string) $value);
+
+        if ($value === '') {
+            return 'Philippines';
+        }
+
+        if (str_contains(Str::lower($value), 'philippines')) {
+            return $value;
+        }
+
+        return $value . ', Philippines';
     }
 
     private function companyResolutionDocumentData(Resolution $resolution, int $company, array $companyData = []): array
@@ -1291,8 +1533,8 @@ class CompanyCorporateRecordController extends Controller
             'script_file_filename' => $minute->script_file_path ? basename($minute->script_file_path) : null,
             'recording_notes' => $minute->recording_notes,
             'script_text' => $minute->script_text,
-            'template_preview_url' => $templatePreviewPath ? route('uploads.show', ['path' => $templatePreviewPath]) : null,
-            'template_preview_download_url' => $templatePreviewPath ? route('uploads.show', ['path' => $templatePreviewPath, 'download' => 1]) : null,
+            'template_preview_url' => route('company.corporate-formation.minutes.download', [$company, $minute->id]),
+            'template_preview_download_url' => route('company.corporate-formation.minutes.download', [$company, $minute->id, 'download' => 1]),
             'recording_clips' => collect($minute->recording_clips ?? [])->map(fn ($path) => [
                 'id' => $path,
                 'url' => route('uploads.show', ['path' => $path]),
@@ -1527,70 +1769,26 @@ class CompanyCorporateRecordController extends Controller
             $resolution->setAttribute('chairman', $document['chairman']['name']);
         }
 
-        $html = view('corporate.resolutions.pdf', [
-            'resolution' => $resolution,
-            'document' => $document,
-            ...$viewData,
-        ])->render();
+        try {
+            $pdf = Pdf::loadView('corporate.resolutions.pdf', [
+                'resolution' => $resolution,
+                'document' => $document,
+                ...$viewData,
+            ])->setPaper('a4')->setOptions([
+                'isPhpEnabled' => true,
+                'isRemoteEnabled' => true,
+            ]);
 
-        $resolution->setAttribute('resolution_body', $originalBody);
-        $resolution->setAttribute('directors', $originalDirectors);
-        $resolution->setAttribute('chairman', $originalChairman);
-        $tempDirectory = storage_path('app/temp');
-        if (!is_dir($tempDirectory)) {
-            mkdir($tempDirectory, 0777, true);
+            $targetPath = $targetPath ?: 'uploads/resolutions/' . ($resolution->resolution_no ?: 'draft-resolution') . '.pdf';
+            Storage::disk('public')->delete($targetPath);
+            Storage::disk('public')->put($targetPath, $pdf->output());
+
+            return $targetPath;
+        } finally {
+            $resolution->setAttribute('resolution_body', $originalBody);
+            $resolution->setAttribute('directors', $originalDirectors);
+            $resolution->setAttribute('chairman', $originalChairman);
         }
-
-        $basename = 'resolution-' . Str::slug($resolution->resolution_no ?: 'draft-resolution');
-        $htmlPath = $tempDirectory . DIRECTORY_SEPARATOR . $basename . '-' . Str::uuid() . '.html';
-        $pdfPath = $tempDirectory . DIRECTORY_SEPARATOR . $basename . '-' . Str::uuid() . '.pdf';
-        $profilePath = $tempDirectory . DIRECTORY_SEPARATOR . $basename . '-profile-' . Str::uuid();
-
-        file_put_contents($htmlPath, $html);
-        if (!is_dir($profilePath)) {
-            mkdir($profilePath, 0777, true);
-        }
-
-        $process = new Process([
-            $browserBinary,
-            '--headless',
-            '--disable-gpu',
-            '--user-data-dir=' . $profilePath,
-            '--no-first-run',
-            '--no-default-browser-check',
-            '--disable-crash-reporter',
-            '--disable-features=Crashpad',
-            '--noerrdialogs',
-            '--allow-file-access-from-files',
-            '--disable-web-security',
-            '--print-to-pdf=' . $pdfPath,
-            '--no-pdf-header-footer',
-            'file:///' . str_replace(DIRECTORY_SEPARATOR, '/', $htmlPath),
-        ]);
-
-        $process->setTimeout(60);
-        $process->setEnv([
-            'TEMP' => $tempDirectory,
-            'TMP' => $tempDirectory,
-            'LOCALAPPDATA' => $tempDirectory,
-            'APPDATA' => $tempDirectory,
-        ]);
-        $process->run();
-
-        @unlink($htmlPath);
-        $this->deleteDirectory($profilePath);
-        if (!file_exists($pdfPath) || filesize($pdfPath) === 0) {
-            @unlink($pdfPath);
-
-            return null;
-        }
-
-        $targetPath = $targetPath ?: 'uploads/resolutions/' . ($resolution->resolution_no ?: 'draft-resolution') . '.pdf';
-        Storage::disk('public')->delete($targetPath);
-        Storage::disk('public')->put($targetPath, file_get_contents($pdfPath));
-        @unlink($pdfPath);
-
-        return $targetPath;
     }
 
     private function browserBinary(): ?string
@@ -1864,6 +2062,61 @@ class CompanyCorporateRecordController extends Controller
         });
     }
 
+
+    private function syncManualNoticeGuests(Notice $notice, array $guests): void
+    {
+        // Remove the old manual guest rows for this notice, then recreate them
+        // from the Add Notice/Edit Notice drawer. Auto-loaded GIS attendees are
+        // not touched because they use source_type director_officer/stockholder.
+        $notice->attendees()->where('source_type', 'guest')->delete();
+
+        $rows = collect($guests)
+            ->map(function ($guest) {
+                if (!is_array($guest)) {
+                    return null;
+                }
+
+                $name = trim((string) ($guest['name'] ?? $guest['guest_name'] ?? $guest['full_name'] ?? ''));
+                $email = trim((string) ($guest['email'] ?? $guest['guest_email'] ?? ''));
+                $position = trim((string) ($guest['position'] ?? $guest['role'] ?? $guest['title'] ?? 'Guest'));
+
+                if ($name === '' && $email === '') {
+                    return null;
+                }
+
+                if ($name === '') {
+                    $name = $email;
+                }
+
+                return [
+                    'name' => $name,
+                    'email' => $email !== '' ? $email : null,
+                    'position' => $position !== '' ? $position : 'Guest',
+                ];
+            })
+            ->filter()
+            ->values();
+
+        if ($rows->isEmpty()) {
+            return;
+        }
+
+        $baseSortOrder = (int) $notice->attendees()->where('source_type', '<>', 'guest')->max('sort_order');
+
+        $rows->each(function (array $row, int $index) use ($notice, $baseSortOrder) {
+            NoticeAttendee::create([
+                'notice_id' => $notice->id,
+                'source_type' => 'guest',
+                'source_id' => $index + 1,
+                'name' => $row['name'],
+                'position' => $row['position'],
+                'email' => $row['email'],
+                'is_selected' => filled($row['email']),
+                'sort_order' => $baseSortOrder + $index + 1,
+            ]);
+        });
+    }
+
     private function noticePdfBinary(Notice $notice): string
     {
         $notice->loadMissing('attendees');
@@ -1885,7 +2138,7 @@ class CompanyCorporateRecordController extends Controller
             'notice' => $notice,
             'bodyHtml' => $notice->body_html,
             ...$viewData,
-        ])->setPaper('a4')->output();
+        ])->setPaper('a4')->setOptions(['isPhpEnabled' => true, 'isRemoteEnabled' => true])->output();
     }
 
 }

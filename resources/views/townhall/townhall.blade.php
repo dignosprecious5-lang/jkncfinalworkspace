@@ -471,7 +471,7 @@
                         <div class="rounded-lg border border-blue-100 bg-white p-3">
                             <p class="text-xs font-bold uppercase tracking-wide text-blue-700">Approval Workflow</p>
                             <p class="mt-1 text-xs text-gray-500">
-                                Level 1 and Level 2 approvers are selected from the latest approved GIS Directors / Officers list. Officers with N/A or blank officer type are hidden.
+                                Level 1 approver is selected from Employee Profile. Level 2 approver is selected from the latest approved GIS Directors / Officers list. GIS officers with N/A or blank officer type are hidden.
                             </p>
                         </div>
 
@@ -484,7 +484,7 @@
                                 required
                                 class="w-full border border-blue-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500"
                             >
-                                <option value="">Select GIS director/officer</option>
+                                <option value="">Select active employee approver</option>
                                 @foreach($managementApprovers as $approver)
                                     <option value="{{ $approver['id'] }}">
                                         {{ $approver['name'] }} — {{ $approver['position'] }} • {{ $approver['department'] }}
@@ -510,7 +510,7 @@
                                 class="w-full border border-blue-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500"
                             >
                                 <option value="">Select GIS director/officer</option>
-                                @foreach(($executiveApprovers ?? $managementApprovers) as $approver)
+                                @foreach(($executiveApprovers ?? collect()) as $approver)
                                     <option value="{{ $approver['id'] }}">
                                         {{ $approver['name'] }} — {{ $approver['position'] }} • {{ $approver['department'] }}
                                     </option>
@@ -522,7 +522,7 @@
                             <p class="text-xs font-bold uppercase text-blue-700 mb-2">From Executive Management</p>
                             <p><span class="font-semibold">Name:</span> <span x-text="previewExecutiveName || '—'"></span></p>
                             <p><span class="font-semibold">Position:</span> <span x-text="previewExecutivePosition || '—'"></span></p>
-                            <p><span class="font-semibold">Department:</span> <span x-text="previewExecutiveDepartment || '—'"></span></p>
+                            <p><span class="font-semibold">Office:</span> <span x-text="previewExecutiveDepartment || '—'"></span></p>
                         </div>
                     </div>
 
@@ -872,7 +872,7 @@
         font-size: 15px;
         line-height: 1.85;
         color: #111827;
-        font-family: "Calibri", "Arial", sans-serif;
+        font-family: Georgia, "Times New Roman", serif;
     }
 
     #editor .ql-editor.ql-blank::before {
@@ -1043,7 +1043,7 @@
         font-weight: 600;
         letter-spacing: 0.04em;
         color: #555;
-        font-family: "Times New Roman", Georgia, serif;
+        font-family: Georgia, "Times New Roman", serif;
         margin: 0;
     }
 
@@ -1052,7 +1052,7 @@
         font-size: 14px;
         line-height: 1.3;
         color: #111827;
-        font-family: "Times New Roman", Georgia, serif;
+        font-family: Georgia, "Times New Roman", serif;
     }
 
     .memo-page-divider {
@@ -1064,7 +1064,7 @@
         font-size: 14px;
         line-height: 1.7;
         color: #111827;
-        font-family: "Times New Roman", Georgia, serif;
+        font-family: Georgia, "Times New Roman", serif;
     }
 
     .memo-page-body p {
@@ -1073,7 +1073,7 @@
 
     .memo-page-footer {
         margin-top: 40px;
-        font-family: "Times New Roman", Georgia, serif;
+        font-family: Georgia, "Times New Roman", serif;
         color: #1f2937;
     }
 
@@ -1101,7 +1101,7 @@
 
     .memo-body-block,
     .memo-body-block * {
-        font-family: "Times New Roman", Georgia, serif !important;
+        font-family: Georgia, "Times New Roman", serif !important;
     }
 
     .memo-effectivity {
@@ -1109,12 +1109,12 @@
         font-size: 14px;
         line-height: 1.45;
         text-align: justify;
-        font-family: "Times New Roman", Georgia, serif;
+        font-family: Georgia, "Times New Roman", serif;
     }
 
     .approval-routing {
         margin-top: 26px;
-        font-family: "Times New Roman", Georgia, serif;
+        font-family: Georgia, "Times New Roman", serif;
         font-size: 13px;
         line-height: 1.25;
         color: #111827;
@@ -1137,6 +1137,147 @@
         margin-top: 4px;
         font-weight: 700;
         font-size: 12px;
+    }
+
+
+    /* Stable document editor/body support */
+    #editor .ql-editor,
+    .preview-body,
+    .memo-page-body,
+    .memo-body-block {
+        font-family: Georgia, "Times New Roman", serif !important;
+    }
+
+    #editor .ql-editor .ql-indent-1,
+    .preview-body .ql-indent-1,
+    .memo-page-body .ql-indent-1,
+    .memo-body-block .ql-indent-1 { padding-left: 3em !important; }
+
+    #editor .ql-editor .ql-indent-2,
+    .preview-body .ql-indent-2,
+    .memo-page-body .ql-indent-2,
+    .memo-body-block .ql-indent-2 { padding-left: 6em !important; }
+
+    #editor .ql-editor .ql-indent-3,
+    .preview-body .ql-indent-3,
+    .memo-page-body .ql-indent-3,
+    .memo-body-block .ql-indent-3 { padding-left: 9em !important; }
+
+    #editor .ql-editor .ql-indent-4,
+    .preview-body .ql-indent-4,
+    .memo-page-body .ql-indent-4,
+    .memo-body-block .ql-indent-4 { padding-left: 12em !important; }
+
+    #editor .ql-editor .ql-indent-5,
+    .preview-body .ql-indent-5,
+    .memo-page-body .ql-indent-5,
+    .memo-body-block .ql-indent-5 { padding-left: 15em !important; }
+
+    #editor .ql-editor .ql-indent-6,
+    .preview-body .ql-indent-6,
+    .memo-page-body .ql-indent-6,
+    .memo-body-block .ql-indent-6 { padding-left: 18em !important; }
+
+    #editor .ql-editor .ql-indent-7,
+    .preview-body .ql-indent-7,
+    .memo-page-body .ql-indent-7,
+    .memo-body-block .ql-indent-7 { padding-left: 21em !important; }
+
+    #editor .ql-editor .ql-indent-8,
+    .preview-body .ql-indent-8,
+    .memo-page-body .ql-indent-8,
+    .memo-body-block .ql-indent-8 { padding-left: 24em !important; }
+
+    #editor .ql-editor table,
+    .preview-body table,
+    .memo-page-body table,
+    .memo-body-block table {
+        width: 100% !important;
+        max-width: 100% !important;
+        table-layout: fixed !important;
+        border-collapse: collapse !important;
+        border-spacing: 0 !important;
+        margin: 12px 0 !important;
+    }
+
+    #editor .ql-editor th,
+    #editor .ql-editor td,
+    .preview-body th,
+    .preview-body td,
+    .memo-page-body th,
+    .memo-page-body td,
+    .memo-body-block th,
+    .memo-body-block td {
+        border: 1px solid #94a3b8 !important;
+        padding: 10px 12px !important;
+        vertical-align: top !important;
+        white-space: normal !important;
+        word-break: normal !important;
+        overflow-wrap: break-word !important;
+    }
+
+
+    /* Town Hall stable body containment + Georgia default */
+    .memo-page,
+    .memo-edit-preview,
+    .memo-page *,
+    .memo-edit-preview *,
+    .preview-body,
+    .preview-body *,
+    .memo-page-body,
+    .memo-page-body *,
+    .memo-body-block,
+    .memo-body-block *,
+    #editor .ql-editor,
+    #editor .ql-editor * {
+        font-family: Georgia, "Times New Roman", serif !important;
+    }
+
+    .memo-page-body,
+    .memo-page-body p,
+    .memo-page-body div,
+    .memo-page-body span,
+    .memo-page-body li,
+    .memo-body-block,
+    .memo-body-block p,
+    .memo-body-block div,
+    .memo-body-block span,
+    .memo-body-block li,
+    .preview-body,
+    .preview-body p,
+    .preview-body div,
+    .preview-body span,
+    .preview-body li {
+        max-width: 100% !important;
+        white-space: normal !important;
+        overflow-wrap: anywhere !important;
+        word-break: break-word !important;
+    }
+
+    .ql-font-georgia,
+    .ql-font-georgia * {
+        font-family: Georgia, "Times New Roman", serif !important;
+    }
+
+    .ql-picker.ql-font .ql-picker-label[data-value="georgia"]::before,
+    .ql-picker.ql-font .ql-picker-item[data-value="georgia"]::before {
+        content: "Georgia";
+        font-family: Georgia, "Times New Roman", serif;
+    }
+
+    .ql-picker.ql-font .ql-picker-label[data-value="serif"]::before,
+    .ql-picker.ql-font .ql-picker-item[data-value="serif"]::before {
+        content: "Serif";
+    }
+
+    .ql-picker.ql-font .ql-picker-label[data-value="sans-serif"]::before,
+    .ql-picker.ql-font .ql-picker-item[data-value="sans-serif"]::before {
+        content: "Sans Serif";
+    }
+
+    .ql-picker.ql-font .ql-picker-label[data-value="monospace"]::before,
+    .ql-picker.ql-font .ql-picker-item[data-value="monospace"]::before {
+        content: "Monospace";
     }
 
 </style>
@@ -1712,6 +1853,10 @@ document.addEventListener('DOMContentLoaded', function () {
     const alpineData = rootEl ? Alpine.$data(rootEl) : null;
 
     if (editorEl && hiddenInput && form && window.Quill && window.QuillTableBetter) {
+        const Font = Quill.import('formats/font');
+        Font.whitelist = ['georgia', 'serif', 'sans-serif', 'monospace'];
+        Quill.register(Font, true);
+
         Quill.register({
             'modules/table-better': QuillTableBetter
         }, true);
@@ -1721,7 +1866,7 @@ document.addEventListener('DOMContentLoaded', function () {
             placeholder: 'Write the formal communication here...',
             modules: {
                 toolbar: [
-                    [{ font: [] }, { size: ['small', false, 'large', 'huge'] }],
+                    [{ font: ['georgia', 'serif', 'sans-serif', 'monospace'] }, { size: ['small', false, 'large', 'huge'] }],
                     [{ header: [1, 2, 3, false] }],
                     ['bold', 'italic', 'underline', 'strike'],
                     [{ script: 'sub' }, { script: 'super' }],
@@ -1740,10 +1885,68 @@ document.addEventListener('DOMContentLoaded', function () {
                     toolbarTable: true
                 },
                 keyboard: {
-                    bindings: QuillTableBetter.keyboardBindings
+                    bindings: {
+                        ...QuillTableBetter.keyboardBindings,
+
+                        townhallTabIndent: {
+                            key: 9,
+                            handler: function(range, context) {
+                                if (range) {
+                                    this.quill.format('indent', '+1', Quill.sources.USER);
+                                }
+                                return false;
+                            }
+                        },
+
+                        townhallShiftTabOutdent: {
+                            key: 9,
+                            shiftKey: true,
+                            handler: function(range, context) {
+                                if (range) {
+                                    this.quill.format('indent', '-1', Quill.sources.USER);
+                                }
+                                return false;
+                            }
+                        }
+                    }
+                },
+                table: false,
+                'table-better': {
+                    language: 'en_US',
+                    menus: ['column', 'row', 'merge', 'table', 'cell', 'wrap', 'copy', 'delete'],
+                    toolbarTable: true
+                },
+                keyboard: {
+                    bindings: {
+                        ...QuillTableBetter.keyboardBindings,
+
+                        townhallTabIndent: {
+                            key: 9,
+                            handler: function(range, context) {
+                                if (range) {
+                                    this.quill.format('indent', '+1', Quill.sources.USER);
+                                }
+                                return false;
+                            }
+                        },
+
+                        townhallShiftTabOutdent: {
+                            key: 9,
+                            shiftKey: true,
+                            handler: function(range, context) {
+                                if (range) {
+                                    this.quill.format('indent', '-1', Quill.sources.USER);
+                                }
+                                return false;
+                            }
+                        }
+                    }
                 }
             }
         });
+        quill.root.style.fontFamily = 'Georgia, "Times New Roman", serif';
+        quill.format('font', 'georgia');
+
 
         const oldMessage = {!! json_encode(old('message')) !!};
 
@@ -1761,9 +1964,9 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         if (oldMessage) {
-            const delta = quill.clipboard.convert({ html: oldMessage });
-            quill.setContents(delta);
-            hiddenInput.value = oldMessage;
+            quill.root.innerHTML = oldMessage;
+            quill.update('silent');
+            hiddenInput.value = quill.root.innerHTML;
 
             if (alpineData) {
                 alpineData.previewBody = oldMessage;

@@ -37,7 +37,7 @@
         }
         .doc {
             width: 100%;
-            border: 1px solid #000;
+            border: 0;
         }
         .line {
             border-bottom: 1px solid #000;
@@ -46,20 +46,32 @@
         .specimen-print-document {
             width: 100%;
         }
+        .specimen-print-document > table {
+            height: 100%;
+        }
         @media print {
-            .no-print { display: none !important; }
-            @page { margin: 6mm; size: A4 portrait; }
-            body { background: #fff; }
-            .print-shell { margin: 0; max-width: none; padding: 0; }
-            .document-page { box-shadow: none; }
             .specimen-print-document {
-                max-width: none !important;
-                width: 100% !important;
-                transform: scale(0.93);
-                transform-origin: top center;
+                border: 0 !important;
+            }
+
+            .specimen-print-document > table {
+                height: 100% !important;
+            }
+
+            .specimen-print-document table {
+                line-height: 1.08 !important;
+            }
+
+            .specimen-print-document td {
+                padding: 2px 3px !important;
+            }
+
+            .specimen-print-document .line {
+                min-height: 11px !important;
             }
         }
     </style>
+    @include('partials.a4-fit-to-page')
 </head>
 <body>
 @php
@@ -74,7 +86,7 @@
     $logo = asset('images/imaglogo.png');
 @endphp
 
-<div class="print-shell">
+<div class="print-shell a4-fit-shell">
     @unless (!empty($embedMode))
         <div class="no-print mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3">
             <div>
@@ -88,7 +100,7 @@
                     Back
                 </button>
 
-                <button type="button" onclick="window.print()"
+                <button type="button" onclick="window.printA4FitPage()"
                     class="inline-flex h-10 items-center rounded-full bg-blue-600 px-4 text-sm font-medium text-white hover:bg-blue-700">
                     Print / Save as PDF
                 </button>
@@ -96,7 +108,8 @@
         </div>
     @endunless
 
-<div class="doc document-page specimen-print-document">
+<div class="document-page a4-fit-page" data-a4-fit-inset-mm="1" data-a4-fit-safety-scale="1" data-a4-fit-fill-page="true">
+<div class="doc specimen-print-document a4-fit-content" data-a4-fit-inset-mm="1" data-a4-fit-safety-scale="1" data-a4-fit-fill-page="true">
     <table>
         <tr>
             <td width="20%" style="border-right:0; border-bottom:0; padding:6px 6px 2px 6px;">
@@ -391,18 +404,25 @@
         </tr>
     </table>
 </div>
+</div>
 
     @if (!empty($autoPrint))
         <script>
             window.addEventListener('load', function () {
-                window.print();
+                window.setTimeout(function () {
+                    window.printA4FitPage();
+                }, 150);
             });
         </script>
     @else
         <script>
             const params = new URLSearchParams(window.location.search);
             if (params.get('autoprint') === '1') {
-                window.onload = () => window.print();
+                window.addEventListener('load', function () {
+                    window.setTimeout(function () {
+                        window.printA4FitPage();
+                    }, 150);
+                });
             }
         </script>
     @endif
