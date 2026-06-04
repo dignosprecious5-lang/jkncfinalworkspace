@@ -13,6 +13,8 @@ use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Log;
 
 class CorrespondenceController extends Controller
 {
@@ -154,9 +156,12 @@ class CorrespondenceController extends Controller
             'ref_no' => 'COR-' . str_pad((string) $record->id, 5, '0', STR_PAD_LEFT),
         ]);
 
+        $record = $record->fresh(['creator']);
+        $this->notifyCorrespondenceApprovers($record);
+
         return response()->json([
-            'message' => 'Correspondence saved successfully.',
-            'record' => $record->fresh(),
+            'message' => 'Correspondence submitted successfully. Email notifications were sent to available approver emails.',
+            'record' => $record,
         ]);
     }
 
@@ -225,6 +230,8 @@ class CorrespondenceController extends Controller
             'review_note' => null,
         ]);
 
+        $this->notifyCorrespondenceCreator($record->fresh(['creator']), 'approved');
+
         return back()->with('success', 'Correspondence approved successfully.');
     }
 
@@ -237,6 +244,8 @@ class CorrespondenceController extends Controller
             'approval_status' => 'Needs Revision',
             'review_note' => $request->input('review_note', 'Needs revision.'),
         ]);
+
+        $this->notifyCorrespondenceCreator($record->fresh(['creator']), 'returned for revision', $record->review_note);
 
         return back()->with('success', 'Correspondence returned for revision.');
     }
@@ -321,6 +330,8 @@ class CorrespondenceController extends Controller
             'approved_by' => Auth::id(),
             'approved_at' => now(),
         ]);
+
+        $this->notifyCorrespondenceCreator($record->fresh(['creator']), 'rejected', $record->review_note);
 
         return back()->with('success', 'Correspondence rejected successfully.');
     }
@@ -626,7 +637,7 @@ class CorrespondenceController extends Controller
             'id' => $employee->id,
             'user_id' => $employee->user_id ?? null,
             'name' => $name,
-            'email' => $employee->email ?? null,
+            'email' => $employee->email ?? ($employee->user->email ?? null),
             'position' => $position,
             'department' => $department,
         ];
@@ -749,6 +760,7 @@ class CorrespondenceController extends Controller
             'management_approver_id' => $management['id'] ?? null,
             'management_approver_user_id' => $management['user_id'] ?? null,
             'management_approver_name' => $management['name'] ?? null,
+            'management_approver_email' => $management['email'] ?? null,
             'management_approver_position' => $management['position'] ?? null,
             'management_approver_department' => $management['department'] ?? null,
             'management_approval_status' => 'Pending',
@@ -756,11 +768,121 @@ class CorrespondenceController extends Controller
             'executive_approver_id' => $executive['id'] ?? null,
             'executive_approver_user_id' => $executive['user_id'] ?? null,
             'executive_approver_name' => $executive['name'] ?? null,
+            'executive_approver_email' => $executive['email'] ?? null,
             'executive_approver_position' => $executive['position'] ?? null,
             'executive_approver_department' => $executive['department'] ?? null,
             'executive_approval_status' => 'Pending',
         ];
     }
+
+
+    private function sendCorrespondenceNotification(?string $email, string $subject, string $message): void
+    {
+        $email = trim((string) $email);
+
+        if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            return;
+        }
+
+        try {
+            Mail::raw($message, function ($mail) use ($email, $subject) {
+                $mail->to($email)->subject($subject);
+            });
+        } catch (\Throwable $e) {
+            Log::warning('Correspondence email notification failed.', [
+                'email' => $email,
+                'subject' => $subject,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    private function correspondenceAdminLink(Correspondence $record): string
+    {
+        try {
+            if (\Illuminate\Support\Facades\Route::has('admin.correspondence.show')) {
+                return route('admin.correspondence.show', $record->id);
+            }
+        } catch (\Throwable $e) {
+            // Use fallback below.
+        }
+
+        return url('/admin/correspondence/' . $record->id);
+    }
+
+    private function correspondenceUserLink(Correspondence $record): string
+    {
+        try {
+            if (\Illuminate\Support\Facades\Route::has('correspondence')) {
+                return route('correspondence');
+            }
+        } catch (\Throwable $e) {
+            // Use fallback below.
+        }
+
+        return url('/corporate/correspondence');
+    }
+
+    private function notifyCorrespondenceApprovers(Correspondence $record): void
+    {
+        $ref = $record->ref_no ?: 'COR-' . str_pad((string) $record->id, 5, '0', STR_PAD_LEFT);
+        $link = $this->correspondenceAdminLink($record);
+
+        $baseMessage = "A corporate correspondence has been submitted for approval.\n\n"
+            . "Reference No.: {$ref}\n"
+            . "Type: " . ($record->type ?: 'N/A') . "\n"
+            . "Company: " . ($record->company_name ?: 'N/A') . "\n"
+            . "Subject: " . ($record->subject ?: 'N/A') . "\n"
+            . "From: " . ($record->from_name ?: 'N/A') . "\n"
+            . "To/For: " . (($record->to_for_label ?: 'To') . ': ' . ($record->to_for ?: 'N/A')) . "\n\n"
+            . "Review here:\n{$link}\n\n"
+            . "This is an automated notification.";
+
+        $this->sendCorrespondenceNotification(
+            $record->management_approver_email,
+            "Level 1 Approval Needed: {$ref}",
+            "Hello " . ($record->management_approver_name ?: 'Level 1 Approver') . ",\n\n" . $baseMessage
+        );
+
+        $this->sendCorrespondenceNotification(
+            $record->executive_approver_email,
+            "Level 2 Approval Needed: {$ref}",
+            "Hello " . ($record->executive_approver_name ?: 'Level 2 Approver') . ",\n\n" . $baseMessage
+        );
+    }
+
+    private function notifyCorrespondenceCreator(Correspondence $record, string $status, ?string $note = null): void
+    {
+        $creatorEmail = $record->creator?->email ?? null;
+
+        if (!$creatorEmail) {
+            return;
+        }
+
+        $ref = $record->ref_no ?: 'COR-' . str_pad((string) $record->id, 5, '0', STR_PAD_LEFT);
+        $link = $this->correspondenceUserLink($record);
+
+        $message = "Your corporate correspondence has been {$status}.\n\n"
+            . "Reference No.: {$ref}\n"
+            . "Type: " . ($record->type ?: 'N/A') . "\n"
+            . "Subject: " . ($record->subject ?: 'N/A') . "\n"
+            . "Workflow Status: " . ($record->workflow_status ?: 'N/A') . "\n"
+            . "Approval Status: " . ($record->approval_status ?: 'N/A') . "\n";
+
+        if ($note) {
+            $message .= "\nReview Note:\n{$note}\n";
+        }
+
+        $message .= "\nOpen Correspondence:\n{$link}\n\n"
+            . "This is an automated notification.";
+
+        $this->sendCorrespondenceNotification(
+            $creatorEmail,
+            "Correspondence {$status}: {$ref}",
+            $message
+        );
+    }
+
 
     private function normalizeCorrespondencePdfTables(string $html): string
     {

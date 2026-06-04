@@ -54,6 +54,7 @@ return new class extends Migration
                 $table->unsignedBigInteger('management_approver_id')->nullable();
                 $table->unsignedBigInteger('management_approver_user_id')->nullable();
                 $table->string('management_approver_name')->nullable();
+                $table->string('management_approver_email')->nullable();
                 $table->string('management_approver_position')->nullable();
                 $table->string('management_approver_department')->nullable();
                 $table->string('management_approval_status')->nullable();
@@ -62,6 +63,7 @@ return new class extends Migration
                 $table->unsignedBigInteger('executive_approver_id')->nullable();
                 $table->unsignedBigInteger('executive_approver_user_id')->nullable();
                 $table->string('executive_approver_name')->nullable();
+                $table->string('executive_approver_email')->nullable();
                 $table->string('executive_approver_position')->nullable();
                 $table->string('executive_approver_department')->nullable();
                 $table->string('executive_approval_status')->nullable();
@@ -114,6 +116,7 @@ return new class extends Migration
             $this->addColumnIfMissing($table, $tableName, 'management_approver_id', fn($table) => $table->unsignedBigInteger('management_approver_id')->nullable());
             $this->addColumnIfMissing($table, $tableName, 'management_approver_user_id', fn($table) => $table->unsignedBigInteger('management_approver_user_id')->nullable());
             $this->addColumnIfMissing($table, $tableName, 'management_approver_name', fn($table) => $table->string('management_approver_name')->nullable());
+            $this->addColumnIfMissing($table, $tableName, 'management_approver_email', fn($table) => $table->string('management_approver_email')->nullable());
             $this->addColumnIfMissing($table, $tableName, 'management_approver_position', fn($table) => $table->string('management_approver_position')->nullable());
             $this->addColumnIfMissing($table, $tableName, 'management_approver_department', fn($table) => $table->string('management_approver_department')->nullable());
             $this->addColumnIfMissing($table, $tableName, 'management_approval_status', fn($table) => $table->string('management_approval_status')->nullable());
@@ -122,6 +125,7 @@ return new class extends Migration
             $this->addColumnIfMissing($table, $tableName, 'executive_approver_id', fn($table) => $table->unsignedBigInteger('executive_approver_id')->nullable());
             $this->addColumnIfMissing($table, $tableName, 'executive_approver_user_id', fn($table) => $table->unsignedBigInteger('executive_approver_user_id')->nullable());
             $this->addColumnIfMissing($table, $tableName, 'executive_approver_name', fn($table) => $table->string('executive_approver_name')->nullable());
+            $this->addColumnIfMissing($table, $tableName, 'executive_approver_email', fn($table) => $table->string('executive_approver_email')->nullable());
             $this->addColumnIfMissing($table, $tableName, 'executive_approver_position', fn($table) => $table->string('executive_approver_position')->nullable());
             $this->addColumnIfMissing($table, $tableName, 'executive_approver_department', fn($table) => $table->string('executive_approver_department')->nullable());
             $this->addColumnIfMissing($table, $tableName, 'executive_approval_status', fn($table) => $table->string('executive_approval_status')->nullable());
