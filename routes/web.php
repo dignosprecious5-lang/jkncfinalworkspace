@@ -981,16 +981,26 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
 
     /*
     |--------------------------------------------------------------------------
-    | CORRESPONDENCE / LEGAL / ACCOUNTING / BANKING / OPERATIONS
+    | LEGACY DETAIL ROUTES / LEGAL / ACCOUNTING / BANKING / OPERATIONS
     |--------------------------------------------------------------------------
+    |
+    | IMPORTANT:
+    | Do not define another GET /correspondence/data here.
+    | The real JSON endpoint is already registered above as:
+    | Route::get('/correspondence/data', [CorrespondenceController::class, 'data'])
+    |
+    | The old duplicate route pointed /correspondence/data to index(), so the
+    | browser loaded the Correspondence page UI instead of JSON.
+    |
     */
-    Route::get('/correspondence/data', [CorrespondenceController::class, 'index'])->name('correspondence.data.legacy');
-    Route::post('/correspondence', [CorrespondenceController::class, 'store'])->name('correspondence.store.legacy');
-    Route::get('/correspondence/{id}', [CorrespondenceController::class, 'show'])->name('correspondence.show');
-    Route::put('/correspondence/{id}/update', [CorrespondenceController::class, 'update'])->name('correspondence.update');
-    Route::post('/correspondence/{id}/submit', [CorrespondenceController::class, 'submit'])->name('correspondence.submit.legacy');
-    Route::get('/correspondence/draft-preview/{slug}', [CorrespondenceController::class, 'showDraftPreview'])->name('correspondence.draft-preview');
-    Route::get('/correspondence/template/{slug}/{id}', [CorrespondenceController::class, 'showTemplate'])->name('correspondence.template.legacy');
+    Route::get('/correspondence/{id}', [CorrespondenceController::class, 'show'])
+        ->whereNumber('id')
+        ->name('correspondence.show');
+    Route::put('/correspondence/{id}/update', [CorrespondenceController::class, 'update'])
+        ->whereNumber('id')
+        ->name('correspondence.update');
+    Route::get('/correspondence/draft-preview/{slug}', [CorrespondenceController::class, 'showDraftPreview'])
+        ->name('correspondence.draft-preview');
 
     Route::get('/legal/data', [LegalController::class, 'index'])->name('legal.index');
     Route::post('/legal/store', [LegalController::class, 'store'])->name('legal.store');
