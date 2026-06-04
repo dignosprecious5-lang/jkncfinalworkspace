@@ -223,7 +223,7 @@
                 <p class="signature-line">{{ $correspondence->from_name ?: ($correspondence->creator?->name ?? 'System Super Admin') }}</p>
                 <p class="signature-line">Position</p>
                 <p class="signature-line">—</p>
-                <p class="signature-line">Prepared on: Date and Time</p>
+                <p class="signature-line">Prepared on: {{ optional($correspondence->created_at)->format('F d, Y h:i A') ?: 'Date and Time' }}</p>
             </div>
 
         <div class="signature-section">
@@ -231,7 +231,7 @@
                 <p class="signature-line">{{ $correspondence->management_approver_name ?: 'Name' }}</p>
                 <p class="signature-line">{{ $correspondence->management_approver_position ?: 'Position' }}</p>
                 <p class="signature-line">{{ $correspondence->management_approver_department ?: 'Department' }}</p>
-                <p class="signature-line">Approved on: Date and Time</p>
+                <p class="signature-line">Approved on: {{ optional($correspondence->management_approved_at)->format('F d, Y h:i A') ?: 'Date and Time' }}</p>
             </div>
 
         <div class="signature-section">
@@ -239,7 +239,7 @@
                 <p class="signature-line">{{ $correspondence->executive_approver_name ?: 'Name' }}</p>
                 <p class="signature-line">{{ $correspondence->executive_approver_position ?: 'Position' }}</p>
                 <p class="signature-line">Executive Management</p>
-                <p class="signature-line">Approved on: Date and Time</p>
+                <p class="signature-line">Approved on: {{ optional($correspondence->executive_approved_at)->format('F d, Y h:i A') ?: 'Date and Time' }}</p>
             </div>
 
             <p class="computer-generated-note">
