@@ -1180,31 +1180,31 @@
 
                         <a href="{{ route('corporate.lgu') }}"
                            class="block px-3 py-2 rounded-lg transition
-                           {{ request()->is('corporate/lgu') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
+                           {{ request()->routeIs('corporate.lgu') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
                             LGU
                         </a>
 
-                        <a href="{{ route('accounting') }}"
+                        <a href="{{ route('corporate.accounting') }}"
                            class="block px-3 py-2 rounded-lg transition
-                           {{ request()->is('accounting') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
+                           {{ request()->routeIs('corporate.accounting') || request()->routeIs('corporate.accounting.*') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
                             Accounting
                         </a>
 
-                        <a href="{{ route('banking') }}"
+                        <a href="{{ route('corporate.banking') }}"
                            class="block px-3 py-2 rounded-lg transition
-                           {{ request()->is('banking') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
+                           {{ request()->routeIs('corporate.banking') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
                             Banking
                         </a>
 
-                        <a href="{{ route('legal') }}"
+                        <a href="{{ route('corporate.legal') }}"
                            class="block px-3 py-2 rounded-lg transition
-                           {{ request()->is('legal') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
+                           {{ request()->routeIs('corporate.legal') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
                             Legal
                         </a>
 
-                        <a href="{{ route('operations') }}"
+                        <a href="{{ route('corporate.operations') }}"
                            class="block px-3 py-2 rounded-lg transition
-                           {{ request()->is('operations') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
+                           {{ request()->routeIs('corporate.operations') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
                             Operations
                         </a>
 
