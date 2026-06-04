@@ -64,9 +64,9 @@ class CorrespondenceController extends Controller
         }
 
         /*
-         * Corporate side should show all active correspondence, including Approved/Accepted.
-         * Admin dashboard is the only place that should separate Submitted / Accepted / Reverted / Archived.
-         * This prevents an approved correspondence from disappearing from the corporate list.
+         * Corporate Correspondence page should show all active/non-archived records.
+         * Admin Correspondence Dashboard is the only page that should filter by Submitted /
+         * Accepted / Reverted / Archived.
          */
         $query->where('is_archived', false);
 
@@ -102,6 +102,7 @@ class CorrespondenceController extends Controller
     {
         $validated = $request->validate([
             'type' => ['required', 'string', 'max:100', 'in:' . implode(',', $this->correspondenceTypes)],
+            'correspondence_date' => ['nullable', 'date'],
             'tin' => ['nullable', 'string', 'max:100'],
             'to_for_label' => ['nullable', 'string', 'max:10', 'in:To,For'],
             'to_for' => ['nullable', 'string', 'max:255'],
@@ -127,7 +128,7 @@ class CorrespondenceController extends Controller
 
         $record = Correspondence::create(array_merge($validated, [
             'ref_no' => null,
-            'correspondence_date' => now()->format('Y-m-d'),
+            'correspondence_date' => $validated['correspondence_date'] ?? now()->format('Y-m-d'),
             'company_name' => $companyInfo['company_name'],
             'registration_number' => $companyInfo['registration_number'],
             'principal_address' => $companyInfo['principal_address'],
@@ -137,6 +138,8 @@ class CorrespondenceController extends Controller
             'status' => 'Open',
             'workflow_status' => 'Submitted',
             'approval_status' => 'Pending',
+            'is_archived' => false,
+            'archived_at' => null,
             'submitted_at' => now(),
             'management_approval_status' => 'Pending',
             'executive_approval_status' => 'Pending',
@@ -237,6 +240,8 @@ class CorrespondenceController extends Controller
         $record->update([
             'workflow_status' => 'Reverted',
             'approval_status' => 'Needs Revision',
+            'is_archived' => false,
+            'archived_at' => null,
             'review_note' => $request->input('review_note', 'Needs revision.'),
         ]);
 
@@ -319,6 +324,8 @@ class CorrespondenceController extends Controller
         $record->update([
             'workflow_status' => 'Reverted',
             'approval_status' => 'Rejected',
+            'is_archived' => false,
+            'archived_at' => null,
             'review_note' => $request->input('review_note', 'Rejected.'),
             'approved_by' => Auth::id(),
             'approved_at' => now(),
