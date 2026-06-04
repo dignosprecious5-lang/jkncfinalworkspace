@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Correspondence;
+use App\Mail\CorrespondenceApprovalNotification;
 use App\Models\Contact;
 use App\Models\DirectorOfficer;
 use App\Models\Employee;
@@ -12,6 +13,8 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\DB;
 
