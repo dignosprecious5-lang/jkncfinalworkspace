@@ -728,9 +728,6 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     |--------------------------------------------------------------------------
     */
     Route::get('/corporate', [GisController::class, 'companyInfo'])->name('corporate');
-    Route::get('/corporate/accounting', [AccountingController::class, 'page'])->name('corporate.accounting');
-
-    Route::get('/corporate/accounting-index', [AccountingController::class, 'page'])->name('corporate.accounting.index');
 
     Route::get('/corporate/company-general-information', [GisController::class, 'companyInfo'])->name('corporate.companyinfo');
 
@@ -1018,13 +1015,16 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::post('/legal/{id}/submit', [LegalController::class, 'submit'])->name('legal.submit');
 
     Route::prefix('corporate')->name('corporate.')->group(function () {
-        Route::get('/accounting', [AccountingController::class, 'page'])->name('accounting.index');
+        Route::get('/accounting', [AccountingController::class, 'page'])->name('accounting');
         Route::get('/accounting/data', [AccountingController::class, 'index'])->name('accounting.data');
         Route::post('/accounting', [AccountingController::class, 'store'])->name('accounting.store');
         Route::get('/accounting/{id}', [AccountingController::class, 'show'])->name('accounting.show');
         Route::put('/accounting/{id}/update', [AccountingController::class, 'update'])->name('accounting.update');
         Route::post('/accounting/{id}/submit', [AccountingController::class, 'submit'])->name('accounting.submit');
     });
+
+    // Backward-compatible alias only; main sidebar route is corporate.accounting.
+    Route::get('/corporate/accounting-index', [AccountingController::class, 'page'])->name('corporate.accounting.index');
 
     Route::get('/finance', [FinanceController::class, 'index'])->name('finance');
     Route::post('/finance/dropdown-settings', [FinanceController::class, 'updateDropdownSettings'])->name('finance.dropdown-settings.update');
