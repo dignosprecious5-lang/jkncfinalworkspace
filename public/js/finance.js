@@ -1532,7 +1532,6 @@
                 textField('currency', 'Currency'),
                 numberField('exchange_rate', 'Exchange Rate'),
                 textField('received_by_name', 'Received By'),
-                textField('received_by_signature', 'Signature'),
                 dateField('date_received', 'Date Received'),
                 textareaField('remarks', 'Remarks'),
             ],
@@ -2157,6 +2156,8 @@
         const values = record?.data || {};
         const state = buildCashAdvancePaymentState(values);
         const next = state.nextPaymentRow;
+        const canRecordPayment = Boolean(next && (bootstrap.canApproveFinance || record.can_edit || record.can_review || record.can_approve));
+        const authorizationNote = 'Only authorized finance roles (Treasurer, President, or Approver) may record payments after approval.';
 
         return `
             <div data-ca-preview-payment-root="${escapeHtml(record.id)}" class="rounded-2xl border border-blue-100 bg-blue-50/50 p-4">
@@ -2164,12 +2165,13 @@
                     <h4 class="text-[15px] font-semibold text-gray-900">Cash Advance Payment Tracking</h4>
                     <span class="rounded-full bg-white px-3 py-1 text-xs font-semibold text-blue-700">${escapeHtml(state.status)}</span>
                 </div>
+                <p class="mt-2 text-xs text-blue-700">${escapeHtml(authorizationNote)}</p>
                 <div class="mt-4 space-y-4">
                     ${renderCashAdvancePaymentSummaryPanel(values, { compact: true })}
                     ${renderCashAdvancePaymentTrackerPanel(values, { compact: true })}
-                    <div class="rounded-xl border ${next && record.can_edit ? 'border-emerald-200 bg-white' : 'border-gray-200 bg-gray-50'} p-4">
+                    <div class="rounded-xl border ${canRecordPayment ? 'border-emerald-200 bg-white' : 'border-gray-200 bg-gray-50'} p-4">
                         <h5 class="text-sm font-semibold text-gray-900">Record Cash Advance Payment</h5>
-                        ${next && record.can_edit ? `
+                        ${canRecordPayment ? `
                             <div class="mt-4 grid grid-cols-1 gap-3">
                                 <div class="grid grid-cols-1 gap-3">
                                     <div>
@@ -3071,21 +3073,36 @@
     function getRecordByLookupValue(moduleKey, value) {
         const normalizedValue = String(value || '').trim();
         if (!normalizedValue) return null;
+        const normalizedModuleKey = String(moduleKey || '').trim().toLowerCase();
 
-        const sourcePool = financeSourceRecords.length ? financeSourceRecords : financeRecords;
+        const sourcePools = financeSourceRecords.length
+            ? [financeSourceRecords, financeRecords]
+            : [financeRecords];
 
-        return sourcePool.find((record) => {
-            if (moduleKey && record.module_key !== moduleKey) {
-                return false;
+        for (const pool of sourcePools) {
+            const match = pool.find((record) => {
+                if (normalizedModuleKey && String(record.module_key || '').toLowerCase() !== normalizedModuleKey) {
+                    return false;
+                }
+
+                return [
+                    record.id,
+                    record.record_number,
+                    record.record_title,
+                    record.display_label,
+                    getVisibleRecordTitle(record),
+                    record.record_number && getVisibleRecordTitle(record)
+                        ? `${record.record_number} - ${getVisibleRecordTitle(record)}`
+                        : '',
+                ].some((candidate) => String(candidate || '').trim() === normalizedValue);
+            });
+
+            if (match) {
+                return match;
             }
+        }
 
-            return [
-                record.id,
-                record.record_number,
-                record.record_title,
-                record.display_label,
-            ].some((candidate) => String(candidate || '').trim() === normalizedValue);
-        }) || null;
+        return null;
     }
 
     function getFieldValue(record, fieldName) {
@@ -3116,7 +3133,7 @@
             linked_lr_id: 'lr',
             linked_crf_id: 'crf',
             master_item_id: (record.data && record.data.master_item_type) ? record.data.master_item_type : null,
-            source_document_id: (record.data && record.data.source_document_type) ? record.data.source_document_type : null,
+            source_document_id: (record.data && record.data.source_document_id) ? record.data.source_document_id : null,
         };
         const values = keys.map((key) => {
             const value = getFieldValue(record, key);
@@ -3765,6 +3782,124 @@
         return fieldsByModule[sourceType] || ['record_number', 'record_title', 'record_date', 'amount', 'remarks'];
     }
 
+    function getDvSourceAwareFieldSets(sourceType = '') {
+        const normalizedSourceType = String(sourceType || '').trim().toLowerCase();
+        const commonSnapshot = new Set([
+            'source_record_number',
+            'source_record_date',
+            'source_requester',
+            'source_department',
+            'source_project',
+            'source_cost_center',
+            'source_fund_source',
+            'source_amount',
+            'source_approval_status',
+            'source_approved_by_name',
+            'source_approved_at',
+            'source_status',
+            'source_workflow_status',
+            'source_relationship_status',
+            'total_disbursed_amount',
+            'percentage_paid',
+            'disbursement_status',
+            'projected_balance_after_payment',
+        ]);
+        const commonVoucher = new Set([
+            'source_document_type',
+            'source_document_id',
+            'payee_type',
+            'payee_name',
+            'amount',
+            'payment_type',
+            'disbursement_type',
+            'reference_number',
+            'purpose',
+            'payment_date',
+            'currency',
+            'remarks',
+        ]);
+        const commonTax = new Set([
+            'withholding_tax',
+            'vat_amount',
+            'net_amount',
+            'currency',
+            'exchange_rate',
+        ]);
+
+        const sourceSpecific = {
+            po: {
+                snapshot: ['source_supplier_name', 'source_payee_type', 'source_payee_name'],
+                voucher: ['supplier_id', 'bank_account_id', 'coa_id', 'fund_source', 'department', 'due_date'],
+                tax: ['received_by_name', 'date_received'],
+            },
+            ca: {
+                snapshot: ['source_employee_name', 'source_payee_type', 'source_payee_name', 'source_remaining_balance', 'source_current_balance', 'source_reserved_balance', 'source_available_balance'],
+                voucher: ['bank_account_id', 'coa_id', 'fund_source', 'department', 'due_date'],
+                tax: ['received_by_name', 'date_received'],
+            },
+            err: {
+                snapshot: ['source_employee_name', 'source_payee_type', 'source_payee_name', 'source_remaining_balance', 'source_current_balance', 'source_reserved_balance', 'source_available_balance'],
+                voucher: ['bank_account_id', 'coa_id', 'fund_source', 'department', 'due_date'],
+                tax: ['received_by_name', 'date_received'],
+            },
+            pda: {
+                snapshot: ['source_payee_type', 'source_payee_name'],
+                voucher: ['bank_account_id', 'coa_id', 'department', 'due_date'],
+                tax: ['received_by_name', 'date_received'],
+            },
+            ibtf: {
+                snapshot: ['source_payee_type', 'source_payee_name'],
+                voucher: ['bank_account_id', 'coa_id', 'fund_source', 'department', 'due_date'],
+                tax: [],
+            },
+        }[normalizedSourceType] || {
+            snapshot: ['source_payee_type', 'source_payee_name'],
+            voucher: ['bank_account_id', 'coa_id', 'fund_source', 'department', 'due_date'],
+            tax: ['received_by_name', 'date_received'],
+        };
+
+        return {
+            snapshot: new Set([...commonSnapshot, ...sourceSpecific.snapshot]),
+            voucher: new Set([...commonVoucher, ...sourceSpecific.voucher]),
+            tax: new Set([...commonTax, ...sourceSpecific.tax]),
+            alwaysVisible: new Set([
+                'source_document_type',
+                'source_document_id',
+                'source_record_number',
+                'source_record_date',
+                'source_amount',
+                'source_approval_status',
+                'source_status',
+                'source_workflow_status',
+                'amount',
+                'payment_type',
+                'disbursement_type',
+                'payment_date',
+                'currency',
+                'net_amount',
+            ]),
+        };
+    }
+
+    function shouldRenderDvField(fieldName, value, sourceType = '', section = 'voucher') {
+        const fieldSets = getDvSourceAwareFieldSets(sourceType);
+        const sectionSet = fieldSets[section] || fieldSets.voucher;
+
+        if (!sectionSet.has(fieldName)) {
+            return false;
+        }
+
+        if (fieldSets.alwaysVisible.has(fieldName)) {
+            return true;
+        }
+
+        if (Array.isArray(value)) {
+            return value.some((item) => !blank(item));
+        }
+
+        return !blank(value);
+    }
+
     function getDvSourceDocumentSnapshot(sourceType, sourceRecord = null) {
         const data = sourceRecord?.data || {};
         const amount = [
@@ -3801,7 +3936,9 @@
             data.supplier_name,
             data.supplier_submitted_by_name,
             data.representative_full_name,
+            data.payee_name,
             sourceRecord?.supplier_name,
+            sourceRecord?.payee_name,
         ].find((value) => !blank(value)) || '';
 
         const employeeName = [
@@ -3859,7 +3996,7 @@
             source_approval_status: sourceRecord?.approval_status || 'Pending',
             source_approved_by_name: sourceRecord?.approved_by_name || data.approved_by_name || '',
             source_approved_at: sourceRecord?.approved_at || data.approved_at || '',
-            source_supplier_name: supplierName || (payeeInfo.payee_type === 'Supplier' ? payeeInfo.payee_name : ''),
+            source_supplier_name: supplierName || payeeInfo.payee_name || '',
             source_employee_name: employeeName,
             source_payee_type: payeeInfo.payee_type,
             source_payee_name: payeeInfo.payee_name,
@@ -3963,14 +4100,62 @@
         return option ? String(option.id ?? option.value ?? '') : '';
     }
 
-    function getDvSourceBankAccountId(data = {}) {
-        return [
+    function getBankAccountIdByLinkedChartAccount(chartAccountId) {
+        const normalizedChartAccountId = String(chartAccountId || '').trim();
+        if (!normalizedChartAccountId) {
+            return '';
+        }
+
+        const sourcePools = financeSourceRecords.length
+            ? [financeSourceRecords, financeRecords]
+            : [financeRecords];
+
+        for (const pool of sourcePools) {
+            const match = pool.find((record) => {
+                if (record.module_key !== 'bank_account') {
+                    return false;
+                }
+
+                return String(record?.data?.linked_coa_id || '').trim() === normalizedChartAccountId;
+            });
+
+            if (match) {
+                return String(match.id || '');
+            }
+        }
+
+        return '';
+    }
+
+    function getDvSourceBankAccountId(data = {}, chartAccountId = '') {
+        const directBankAccountId = [
             data.bank_account_id,
             data.funding_bank_account_id,
             data.receiving_bank_account_id,
             data.source_bank_account_id,
             data.destination_bank_account_id,
-        ].find((value) => !blank(value)) || firstLookupValue('bank_account');
+        ].find((value) => !blank(value));
+
+        if (directBankAccountId) {
+            return directBankAccountId;
+        }
+
+        const chartAccountCandidates = [
+            chartAccountId,
+            data.paid_through,
+            data.coa_id,
+            data.payroll_expense_coa_id,
+            data.asset_coa_id,
+        ];
+
+        for (const candidate of chartAccountCandidates) {
+            const linkedBankAccountId = getBankAccountIdByLinkedChartAccount(candidate);
+            if (linkedBankAccountId) {
+                return linkedBankAccountId;
+            }
+        }
+
+        return '';
     }
 
     function getDvAccountCode(value) {
@@ -4083,7 +4268,8 @@
     function resolveDvSourceRecord(sourceType, selectEl) {
         const selectedValue = String(selectEl?.value || '').trim();
         const selectedText = String(selectEl?.selectedOptions?.[0]?.textContent || '').trim();
-        const sourceOptions = financeLookupOptions[sourceType] || [];
+        const normalizedSourceType = String(sourceType || '').trim().toLowerCase();
+        const sourceOptions = financeLookupOptions[normalizedSourceType] || financeLookupOptions[sourceType] || [];
 
         const optionMatch = sourceOptions.find((option) => {
             const candidates = [
@@ -4107,7 +4293,7 @@
         ].filter(Boolean);
 
         for (const candidate of candidateValues) {
-            const match = getRecordByLookupValue(sourceType, candidate)
+            const match = getRecordByLookupValue(normalizedSourceType, candidate)
                 || getRecordByLookupValue('', candidate)
                 || getRecordById(candidate);
             if (match) {
@@ -4319,8 +4505,6 @@
             data.acquisition_cost,
         ].find((value) => !blank(value));
 
-        const bankAccountId = getDvSourceBankAccountId(data);
-
         const paymentType = normalizeDvPaymentType([
             payload.payment_type,
             data.payment_type,
@@ -4335,9 +4519,15 @@
             data.coa_id,
             data.payroll_expense_coa_id,
             data.asset_coa_id,
+            data.paid_through,
         ].find((value) => !blank(value)) || firstLookupValue('chart_account');
 
-        const supplierId = payload.supplier_id || data.supplier_id || '';
+        const supplierId = [
+            payload.supplier_id,
+            data.supplier_id,
+            data.linked_pr_supplier_id,
+            data.source_supplier_id,
+        ].find((value) => !blank(value)) || '';
         const purpose = [
             payload.purpose,
             data.purpose,
@@ -4353,6 +4543,11 @@
         const recordTitle = getVisibleRecordTitle(sourceRecord) || referenceNumber || '';
         const sourceSnapshot = getDvSourceDocumentSnapshot(moduleKey, sourceRecord);
         const payeeInfo = getDvSourceDocumentPayeeInfo(moduleKey, sourceRecord);
+        const currency = payload.currency || data.currency || 'PHP';
+        const sourceRequesterName = sourceSnapshot.source_requester || data.requestor || data.employee_name || sourceSnapshot.source_employee_name || payeeInfo.payee_name || bootstrap.currentUserName || '';
+        const defaultTaxAmount = moduleKey === 'ca' ? '0.00' : '';
+        const defaultExchangeRate = currency === 'PHP' ? '1.00' : '';
+        const defaultDateReceived = moduleKey === 'ca' ? todayDateValue() : '';
         const currentBalance = numericAmount(sourceSnapshot.source_current_balance || sourceSnapshot.source_amount || amount || 0);
         const reservedBalance = numericAmount(sourceSnapshot.source_reserved_balance || sourceSnapshot.total_disbursed_amount || 0);
         const availableBalance = numericAmount(sourceSnapshot.source_available_balance || sourceSnapshot.source_remaining_balance || 0);
@@ -4370,6 +4565,16 @@
         const accountingBalanceDifference = Math.abs(accountingTotals.debit - accountingTotals.credit).toFixed(2);
         const accountingBalanceStatus = numericAmount(accountingBalanceDifference) < 0.01 ? 'Balanced' : 'Unbalanced';
 
+        const bankAccountId = [
+            payload.bank_account_id,
+            data.bank_account_id,
+            data.funding_bank_account_id,
+            data.receiving_bank_account_id,
+            data.source_bank_account_id,
+            data.destination_bank_account_id,
+            getBankAccountIdByLinkedChartAccount(data.paid_through || data.coa_id || data.payroll_expense_coa_id || data.asset_coa_id),
+        ].find((value) => !blank(value)) || '';
+
         const prefill = {
             source_document_type: moduleKey,
             source_document_id: sourceRecord?.id || '',
@@ -4386,13 +4591,12 @@
             payment_date: paymentDate,
             due_date: data.due_date || data.needed_date || data.expected_delivery_date || data.pay_date || data.acquisition_date || '',
             reference_number: referenceNumber,
-            withholding_tax: data.withholding_tax || data.wht_amount || data.wht_total || '',
-            vat_amount: data.vat_amount || data.tax_amount || data.tax_total || '',
-            currency: data.currency || 'PHP',
-            exchange_rate: data.exchange_rate || '',
-            received_by_name: data.received_by_name || '',
-            received_by_signature: data.received_by_signature || '',
-            date_received: data.date_received || '',
+            withholding_tax: payload.withholding_tax || data.withholding_tax || data.wht_amount || data.wht_total || defaultTaxAmount,
+            vat_amount: payload.vat_amount || data.vat_amount || data.tax_amount || data.tax_total || defaultTaxAmount,
+            currency,
+            exchange_rate: payload.exchange_rate || data.exchange_rate || defaultExchangeRate,
+            received_by_name: payload.received_by_name || data.received_by_name || sourceRequesterName,
+            date_received: payload.date_received || data.date_received || defaultDateReceived,
             remarks: payload.remarks || data.remarks || '',
             payee_type: payeeInfo.payee_type || '',
             payee_name: payeeInfo.payee_name || '',
@@ -4400,6 +4604,13 @@
             reserved_balance: reservedBalance ? reservedBalance.toFixed(2) : '',
             available_balance: availableBalance ? availableBalance.toFixed(2) : '',
             projected_balance_after_payment: projectedBalanceAfterPayment.toFixed(2),
+            accounting_balance_status: accountingBalanceStatus,
+            accounting_balance_warning: accountingBalanceStatus === 'Unbalanced'
+                ? 'Total Debit must equal Total Credit before the Disbursement Voucher can be approved.'
+                : '',
+            total_debit_amount: totalDebit,
+            total_credit_amount: totalCredit,
+            accounting_balance_difference: accountingBalanceDifference,
             ...sourceSnapshot,
         };
 
@@ -4435,14 +4646,14 @@
         const form = $('financeForm');
         if (!form) return;
 
-        ['source_document_id', 'supplier_id', 'payee_type', 'payee_name', 'amount', 'bank_account_id', 'coa_id', 'payment_type', 'disbursement_type', 'fund_source', 'department', 'purpose', 'payment_date', 'due_date', 'withholding_tax', 'vat_amount', 'net_amount', 'currency', 'exchange_rate', 'received_by_name', 'received_by_signature', 'date_received', 'reference_number', 'remarks', 'source_record_number', 'source_record_date', 'source_requester', 'source_department', 'source_project', 'source_cost_center', 'source_fund_source', 'source_amount', 'source_remaining_balance', 'source_current_balance', 'source_reserved_balance', 'source_available_balance', 'source_approval_status', 'source_approved_by_name', 'source_approved_at', 'source_supplier_name', 'source_employee_name', 'source_payee_type', 'source_payee_name', 'source_status', 'source_workflow_status', 'source_relationship_status', 'total_disbursed_amount', 'percentage_paid', 'disbursement_status', 'projected_balance_after_payment', 'fund_availability_status', 'fund_availability_warning', 'fund_availability_requested_amount', 'fund_availability_available_balance', 'fund_availability_checked_at', 'fund_availability_checked_by', 'fund_availability_checked_by_name', 'fund_availability_policy_allows_approval', 'accounting_balance_status', 'accounting_balance_warning', 'total_debit_amount', 'total_credit_amount', 'accounting_balance_difference', 'accounting_balance_checked_at', 'accounting_balance_checked_by', 'accounting_balance_checked_by_name'].forEach((fieldName) => {
+        ['source_document_id', 'supplier_id', 'payee_type', 'payee_name', 'amount', 'bank_account_id', 'coa_id', 'payment_type', 'disbursement_type', 'fund_source', 'department', 'purpose', 'payment_date', 'due_date', 'withholding_tax', 'vat_amount', 'net_amount', 'currency', 'exchange_rate', 'received_by_name', 'date_received', 'reference_number', 'remarks', 'source_record_number', 'source_record_date', 'source_requester', 'source_department', 'source_project', 'source_cost_center', 'source_fund_source', 'source_amount', 'source_remaining_balance', 'source_current_balance', 'source_reserved_balance', 'source_available_balance', 'source_approval_status', 'source_approved_by_name', 'source_approved_at', 'source_supplier_name', 'source_employee_name', 'source_payee_type', 'source_payee_name', 'source_status', 'source_workflow_status', 'source_relationship_status', 'total_disbursed_amount', 'percentage_paid', 'disbursement_status', 'projected_balance_after_payment', 'fund_availability_status', 'fund_availability_warning', 'fund_availability_requested_amount', 'fund_availability_available_balance', 'fund_availability_checked_at', 'fund_availability_checked_by', 'fund_availability_checked_by_name', 'fund_availability_policy_allows_approval', 'accounting_balance_status', 'accounting_balance_warning', 'total_debit_amount', 'total_credit_amount', 'accounting_balance_difference', 'accounting_balance_checked_at', 'accounting_balance_checked_by', 'accounting_balance_checked_by_name'].forEach((fieldName) => {
             const input = form.querySelector(`[name="data[${fieldName}]"]`);
             if (input) {
                 input.value = '';
             }
         });
         financeFormValues = financeFormValues || {};
-        ['source_document_id', 'supplier_id', 'payee_type', 'payee_name', 'amount', 'bank_account_id', 'coa_id', 'payment_type', 'disbursement_type', 'fund_source', 'department', 'purpose', 'payment_date', 'due_date', 'withholding_tax', 'vat_amount', 'net_amount', 'currency', 'exchange_rate', 'received_by_name', 'received_by_signature', 'date_received', 'reference_number', 'remarks', 'source_record_number', 'source_record_date', 'source_requester', 'source_department', 'source_project', 'source_cost_center', 'source_fund_source', 'source_amount', 'source_remaining_balance', 'source_current_balance', 'source_reserved_balance', 'source_available_balance', 'source_approval_status', 'source_approved_by_name', 'source_approved_at', 'source_supplier_name', 'source_employee_name', 'source_payee_type', 'source_payee_name', 'source_status', 'source_workflow_status', 'source_relationship_status', 'total_disbursed_amount', 'percentage_paid', 'disbursement_status', 'projected_balance_after_payment', 'fund_availability_status', 'fund_availability_warning', 'fund_availability_requested_amount', 'fund_availability_available_balance', 'fund_availability_checked_at', 'fund_availability_checked_by', 'fund_availability_checked_by_name', 'fund_availability_policy_allows_approval', 'accounting_balance_status', 'accounting_balance_warning', 'total_debit_amount', 'total_credit_amount', 'accounting_balance_difference', 'accounting_balance_checked_at', 'accounting_balance_checked_by', 'accounting_balance_checked_by_name'].forEach((fieldName) => {
+        ['source_document_id', 'supplier_id', 'payee_type', 'payee_name', 'amount', 'bank_account_id', 'coa_id', 'payment_type', 'disbursement_type', 'fund_source', 'department', 'purpose', 'payment_date', 'due_date', 'withholding_tax', 'vat_amount', 'net_amount', 'currency', 'exchange_rate', 'received_by_name', 'date_received', 'reference_number', 'remarks', 'source_record_number', 'source_record_date', 'source_requester', 'source_department', 'source_project', 'source_cost_center', 'source_fund_source', 'source_amount', 'source_remaining_balance', 'source_current_balance', 'source_reserved_balance', 'source_available_balance', 'source_approval_status', 'source_approved_by_name', 'source_approved_at', 'source_supplier_name', 'source_employee_name', 'source_payee_type', 'source_payee_name', 'source_status', 'source_workflow_status', 'source_relationship_status', 'total_disbursed_amount', 'percentage_paid', 'disbursement_status', 'projected_balance_after_payment', 'fund_availability_status', 'fund_availability_warning', 'fund_availability_requested_amount', 'fund_availability_available_balance', 'fund_availability_checked_at', 'fund_availability_checked_by', 'fund_availability_checked_by_name', 'fund_availability_policy_allows_approval', 'accounting_balance_status', 'accounting_balance_warning', 'total_debit_amount', 'total_credit_amount', 'accounting_balance_difference', 'accounting_balance_checked_at', 'accounting_balance_checked_by', 'accounting_balance_checked_by_name'].forEach((fieldName) => {
             financeFormValues[fieldName] = '';
             financeFormValues[`data[${fieldName}]`] = '';
         });
@@ -4498,13 +4709,11 @@
             fund_availability_checked_by: prefill?.prefill?.fund_availability_checked_by || '',
             fund_availability_checked_by_name: prefill?.prefill?.fund_availability_checked_by_name || '',
             fund_availability_policy_allows_approval: prefill?.prefill?.fund_availability_policy_allows_approval || '',
-            accounting_balance_status: accountingBalanceStatus,
-            accounting_balance_warning: accountingBalanceStatus === 'Unbalanced'
-                ? 'Total Debit must equal Total Credit before the Disbursement Voucher can be approved.'
-                : '',
-            total_debit_amount: totalDebit,
-            total_credit_amount: totalCredit,
-            accounting_balance_difference: accountingBalanceDifference,
+            accounting_balance_status: prefill?.prefill?.accounting_balance_status || '',
+            accounting_balance_warning: prefill?.prefill?.accounting_balance_warning || '',
+            total_debit_amount: prefill?.prefill?.total_debit_amount || '',
+            total_credit_amount: prefill?.prefill?.total_credit_amount || '',
+            accounting_balance_difference: prefill?.prefill?.accounting_balance_difference || '',
             payee_type: prefill?.prefill?.payee_type || '',
             payee_name: prefill?.prefill?.payee_name || '',
             supplier_id: prefill?.prefill?.supplier_id || '',
@@ -4523,7 +4732,6 @@
             currency: prefill?.prefill?.currency || 'PHP',
             exchange_rate: prefill?.prefill?.exchange_rate || '',
             received_by_name: prefill?.prefill?.received_by_name || '',
-            received_by_signature: prefill?.prefill?.received_by_signature || '',
             date_received: prefill?.prefill?.date_received || '',
             reference_number: prefill?.prefill?.reference_number || '',
             remarks: prefill?.prefill?.remarks || '',
@@ -4606,7 +4814,6 @@
         setField('currency', payload.currency);
         setField('exchange_rate', payload.exchange_rate);
         setField('received_by_name', payload.received_by_name);
-        setField('received_by_signature', payload.received_by_signature);
         setField('date_received', payload.date_received);
         setField('reference_number', payload.reference_number);
         setField('remarks', payload.remarks);
@@ -4628,7 +4835,7 @@
 
         replaceDvLineItemsTable(payload.line_items || []);
         updateDvNetAmount();
-        renderDvSourceDocumentInfo(payload.source_document_type, sourceRecord);
+        renderDvSourceDocumentInfo(payload.source_document_type, sourceRecord || draftLinkedRecord);
         renderDrawerPreview();
     }
 
@@ -4659,30 +4866,42 @@
         target.innerHTML = getDvSourceDocumentInfoHtml(sourceType, sourceRecord);
     }
 
-    function applyDvSourceDocumentSelection(sourceType, sourceId) {
+    async function applyDvSourceDocumentSelection(sourceType, sourceId) {
         const form = $('financeForm');
         if (!form) return;
 
         const sourceTypeSelect = form.querySelector('select[name="data[source_document_type]"]');
         const select = $('dvSourceDocumentSelect');
-        const sourceRecord = sourceId ? resolveDvSourceRecord(sourceType, select) : null;
-        const resolvedSourceType = sourceType || sourceRecord?.module_key || '';
+        const normalizedSourceId = String(sourceId || '').trim();
+        const selectedOptionRecordId = String(select?.selectedOptions?.[0]?.dataset?.recordId || '').trim();
+        const normalizedSourceType = String(sourceType || '').trim().toLowerCase();
+        const sourceRecord = normalizedSourceId
+            ? (getRecordById(selectedOptionRecordId || normalizedSourceId)
+                || getRecordByLookupValue(normalizedSourceType, selectedOptionRecordId || normalizedSourceId)
+                || getRecordByLookupValue(normalizedSourceType, normalizedSourceId)
+                || resolveDvSourceRecord(normalizedSourceType, select))
+            : null;
+        let resolvedSourceRecord = sourceRecord;
+        if (!resolvedSourceRecord) {
+            resolvedSourceRecord = await fetchFinanceRecordById(selectedOptionRecordId || normalizedSourceId);
+        }
+        const resolvedSourceType = normalizedSourceType || resolvedSourceRecord?.module_key || '';
         if (sourceTypeSelect && resolvedSourceType) {
             sourceTypeSelect.value = resolvedSourceType;
         }
         renderDvSourceDocumentOptions(resolvedSourceType, sourceId);
         if (select) {
-            select.value = String(sourceId || '');
+            select.value = normalizedSourceId;
         }
 
-        financeDraftContext = sourceRecord ? {
+        financeDraftContext = resolvedSourceRecord ? {
             moduleKey: 'dv',
-            linkedRecord: sourceRecord,
-            prefill: getDvFieldPayload(resolvedSourceType, sourceRecord, sourceId),
+            linkedRecord: resolvedSourceRecord,
+            prefill: getDvFieldPayload(resolvedSourceType, resolvedSourceRecord, sourceId),
         } : null;
         renderFinanceForm(currentEditRecordId ? getRecordById(currentEditRecordId) : null);
         requestAnimationFrame(() => {
-            hydrateDvVoucherFields(resolvedSourceType, sourceRecord, sourceId);
+            hydrateDvVoucherFields(resolvedSourceType, resolvedSourceRecord, sourceId);
         });
     }
 
@@ -5092,10 +5311,14 @@
         }).join('');
     }
 
-    function getPrLineItemRows(record) {
-        const draftLineItems = Array.isArray(financeFormValues?.line_items) && financeFormValues.line_items.length
-            ? financeFormValues.line_items
-            : (Array.isArray(financeDraftContext?.prefill?.line_items) ? financeDraftContext.prefill.line_items : []);
+    function getPrLineItemRows(record, { preferDraftLineItems = true } = {}) {
+        const draftLineItems = preferDraftLineItems
+            ? (
+                Array.isArray(financeFormValues?.line_items) && financeFormValues.line_items.length
+                    ? financeFormValues.line_items
+                    : (Array.isArray(financeDraftContext?.prefill?.line_items) ? financeDraftContext.prefill.line_items : [])
+            )
+            : [];
         const lineItems = draftLineItems.length
             ? draftLineItems
             : (Array.isArray(record?.data?.line_items) ? record.data.line_items : []);
@@ -5667,8 +5890,273 @@
         }];
     }
 
+    function getDvSourceRecordForDisplay(record = null) {
+        const form = $('financeForm');
+        const sourceType = String(
+            form?.querySelector('[name="data[source_document_type]"]')?.value
+            || record?.data?.source_document_type
+            || ''
+        ).trim().toLowerCase();
+        const sourceId = String(
+            form?.querySelector('[name="data[source_document_id]"]')?.value
+            || record?.data?.source_document_id
+            || ''
+        ).trim();
+
+        if (!sourceType || !sourceId) {
+            return null;
+        }
+
+        return getRecordById(sourceId)
+            || getRecordByLookupValue(sourceType, sourceId)
+            || (financeDraftContext?.moduleKey === 'dv' ? financeDraftContext.linkedRecord : null)
+            || null;
+    }
+
+    function renderDvLineItemHiddenInputs(rows) {
+        return rows.map((row, index) => `
+            <input type="hidden" name="data[line_items][${index}][description]" value="${escapeHtml(row.description || '')}">
+            <input type="hidden" name="data[line_items][${index}][account_code]" value="${escapeHtml(row.account_code || '')}">
+            <input type="hidden" name="data[line_items][${index}][debit]" value="${escapeHtml(row.debit || '')}">
+            <input type="hidden" name="data[line_items][${index}][credit]" value="${escapeHtml(row.credit || '')}">
+        `).join('');
+    }
+
+    function getDvPoSourceLineItems(sourceRecord) {
+        return getNormalizedLineItems(sourceRecord, { preferDraftLineItems: false })
+            .filter((row) => row && Object.values(row).some((value) => String(value || '').trim() !== ''));
+    }
+
+    function renderDvPoSourceLineItemCards(rows, options = {}) {
+        const previewMode = Boolean(options.preview);
+        const emptyClass = previewMode
+            ? 'finance-preview-muted'
+            : 'rounded-2xl border border-dashed border-gray-200 bg-slate-50 p-4 text-sm text-gray-500';
+        const emptyMarkup = previewMode
+            ? '<p class="finance-preview-muted">No line items were found on the linked Purchase Order.</p>'
+            : 'No line items were found on the linked Purchase Order.';
+
+        if (!rows.length) {
+            return previewMode ? emptyMarkup : `<div class="${emptyClass}">${emptyMarkup}</div>`;
+        }
+
+        return rows.map((row, index) => {
+            const quantity = Number(row.quantity || 0);
+            const unitCost = Number(row.amount || 0);
+            const lineBaseTotal = quantity * unitCost;
+            const lineTotal = row.total || lineBaseTotal;
+            const subtotal = row.subtotal || lineBaseTotal;
+            const taxBase = Math.max(lineBaseTotal - Number(row.discount_amount || 0), 0);
+            const taxType = normalizeFinanceTaxType(row.tax_type || 'N/A');
+            const taxImpact = getFinanceLineItemTaxImpact(row.tax_type || 'N/A', taxBase).label;
+
+            if (previewMode) {
+                return `
+                    <div class="finance-preview-box" style="margin-top:12px;">
+                        <div class="finance-preview-inner">
+                            <div style="border:1px solid #dbe2ea;border-radius:10px;padding:10px;background:linear-gradient(180deg,#ffffff 0%,#f8fafc 100%);">
+                                <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;">
+                                    <div style="min-width:0;flex:1 1 auto;">
+                                        <p class="finance-preview-label">PO Item</p>
+                                        <p class="finance-preview-value" style="margin:4px 0 0;font-size:11px;line-height:1.35;">${escapeHtml(row.item_id || row.description || 'N/A')}</p>
+                                        <p class="finance-preview-muted" style="margin:5px 0 0;">${escapeHtml(row.category || 'N/A')} | ${escapeHtml(formatPrQuantity(quantity))} pcs</p>
+                                    </div>
+                                    <div style="flex:0 0 auto;border:1px solid #dbeafe;border-radius:999px;background:#eff6ff;padding:4px 8px;text-align:right;">
+                                        <p class="finance-preview-label" style="color:#2563eb;">Total</p>
+                                        <p class="finance-preview-value" style="margin:2px 0 0;color:#1d4ed8;">${escapeHtml(formatCurrency(lineTotal))}</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div style="margin-top:8px;border:1px solid #dbe2ea;border-radius:10px;background:#fff;overflow:hidden;">
+                                <div style="padding:8px 10px;border-bottom:1px solid #eef2f7;background:#f8fafc;">
+                                    <p class="finance-preview-label" style="color:#2563eb;">Item Details</p>
+                                </div>
+                                <div style="padding:6px 10px;">
+                                    ${[
+                                        ['Description', row.description || 'N/A'],
+                                        ['Unit Cost', formatCurrency(unitCost)],
+                                        ['Tax Classification', taxType],
+                                        ['Tax Impact', taxImpact],
+                                    ].map(([label, value], rowIndex) => `
+                                        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;${rowIndex ? 'border-top:1px solid #f1f5f9;' : ''}padding:${rowIndex ? '7px 0 0' : '0 0 0'};margin:${rowIndex ? '7px 0 0' : '0'};">
+                                            <p class="finance-preview-label" style="flex:0 0 42%;">${escapeHtml(label)}</p>
+                                            <p class="finance-preview-value" style="flex:1 1 auto;margin:0;text-align:right;">${escapeHtml(value)}</p>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                            <div style="margin-top:8px;border:1px solid #dbe2ea;border-radius:10px;background:#fff;overflow:hidden;">
+                                <div style="padding:8px 10px;border-bottom:1px solid #eef2f7;background:#f8fafc;">
+                                    <p class="finance-preview-label" style="color:#2563eb;">Cost Summary</p>
+                                </div>
+                                <div style="padding:6px 10px;">
+                                    ${[
+                                        ['Subtotal', formatCurrency(subtotal)],
+                                        ['Discount', formatCurrency(row.discount_amount || 0)],
+                                        ['Shipping', formatCurrency(row.shipping_amount || 0)],
+                                        ['Tax', formatCurrency(row.tax_amount || 0)],
+                                        ['WHT', formatCurrency(row.wht_amount || 0)],
+                                        ['Grand Total', formatCurrency(lineTotal)],
+                                    ].map(([label, value], rowIndex) => `
+                                        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;${rowIndex ? 'border-top:1px solid #f1f5f9;' : ''}padding:${rowIndex ? '7px 0 0' : '0 0 0'};margin:${rowIndex ? '7px 0 0' : '0'};">
+                                            <p class="finance-preview-label" style="flex:0 0 42%;">${escapeHtml(label)}</p>
+                                            <p class="finance-preview-value" style="flex:1 1 auto;margin:0;text-align:right;">${escapeHtml(value)}</p>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                            <div style="margin-top:8px;border:1px dashed #cbd5e1;border-radius:10px;background:#f8fafc;padding:8px 10px;">
+                                <p class="finance-preview-label">Formula</p>
+                                <p class="finance-preview-value" style="margin:4px 0 0;">${escapeHtml(`${formatPrQuantity(quantity)} x ${formatCurrency(unitCost)} = ${formatCurrency(lineTotal)}`)}</p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            return `
+                <div class="rounded-2xl border border-gray-200 bg-slate-50 p-4">
+                    <div class="flex items-center justify-between gap-3">
+                        <div class="flex items-center gap-3">
+                            <span class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 text-sm font-semibold text-white">${index + 1}</span>
+                            <div>
+                                <p class="text-sm font-semibold text-gray-800">${escapeHtml(row.item_id || row.description || 'N/A')}</p>
+                                <p class="text-xs text-gray-500">${escapeHtml(row.category || 'N/A')} | ${escapeHtml(formatPrQuantity(quantity))} pcs</p>
+                            </div>
+                        </div>
+                        <span class="rounded-full bg-white px-3 py-1 text-sm font-semibold text-gray-900">${escapeHtml(formatCurrency(lineTotal))}</span>
+                    </div>
+                    <div class="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
+                        <div class="rounded-xl border border-white/80 bg-white px-3 py-2">
+                            <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">Description</p>
+                            <p class="mt-1 text-sm text-gray-900 break-words">${escapeHtml(row.description || 'N/A')}</p>
+                        </div>
+                        <div class="rounded-xl border border-white/80 bg-white px-3 py-2">
+                            <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">Unit Cost</p>
+                            <p class="mt-1 text-sm font-semibold text-gray-900">${escapeHtml(formatCurrency(unitCost))}</p>
+                        </div>
+                        <div class="rounded-xl border border-white/80 bg-white px-3 py-2">
+                            <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">Line Total</p>
+                            <p class="mt-1 text-sm font-semibold text-gray-900">${escapeHtml(formatCurrency(lineTotal))}</p>
+                        </div>
+                        <div class="rounded-xl border border-white/80 bg-white px-3 py-2">
+                            <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">Tax Classification</p>
+                            <p class="mt-1 text-sm font-semibold text-gray-900 break-words">${escapeHtml(taxType)}</p>
+                        </div>
+                        <div class="rounded-xl border border-white/80 bg-white px-3 py-2">
+                            <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">Tax Impact</p>
+                            <p class="mt-1 text-sm font-semibold text-gray-900 break-words">${escapeHtml(taxImpact)}</p>
+                        </div>
+                    </div>
+                    <div class="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                        ${[
+                            ['Subtotal', subtotal],
+                            ['Discount', row.discount_amount || '0.00'],
+                            ['Shipping', row.shipping_amount || '0.00'],
+                            ['Tax', row.tax_amount || '0.00'],
+                            ['WHT', row.wht_amount || '0.00'],
+                            ['Item Total', lineTotal],
+                        ].map(([label, value]) => `
+                            <div class="rounded-xl border border-white/80 bg-white px-3 py-2">
+                                <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">${escapeHtml(label)}</p>
+                                <p class="mt-1 text-sm font-semibold text-gray-900">${escapeHtml(formatCurrency(value || 0))}</p>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    function renderDvPoSourceLineItems(sourceRecord, generatedRows = []) {
+        const rows = getDvPoSourceLineItems(sourceRecord);
+
+        return `
+            <div class="md:col-span-2 rounded-xl border border-gray-200 bg-white p-4" data-dv-line-items-section>
+                <div class="flex items-start justify-between gap-3">
+                    <div>
+                        <h4 class="text-sm font-semibold uppercase tracking-[0.24em] text-gray-700">Items / Cost Details</h4>
+                        <p class="mt-1 text-xs text-gray-500">Displaying the original Purchase Order itemized layout from the linked source document.</p>
+                    </div>
+                    <span class="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">PO Source Format</span>
+                </div>
+                <div class="mt-4 space-y-3">
+                    ${renderDvPoSourceLineItemCards(rows)}
+                </div>
+                ${renderDvLineItemHiddenInputs(generatedRows)}
+            </div>
+        `;
+    }
+
+    function renderDvTemplatePoItemsFooter(record) {
+        const sourceType = String(record?.data?.source_document_type || '').trim().toLowerCase();
+        const sourceId = String(record?.data?.source_document_id || '').trim();
+        if (sourceType === 'po' && sourceId) {
+            const sourceRecord = getRecordById(sourceId) || getRecordByLookupValue(sourceType, sourceId);
+            if (!sourceRecord) {
+                return '';
+            }
+
+            const rows = getDvPoSourceLineItems(sourceRecord);
+            return `
+                <div class="mt-4 rounded-[24px] border border-gray-200 bg-white p-4">
+                    <div class="mb-4">
+                        <h4 class="text-[20px] font-semibold text-gray-900">Items / Cost Details</h4>
+                        <p class="mt-1 text-sm text-gray-500">A cleaner breakdown of each item and its calculated total.</p>
+                    </div>
+                    <div class="space-y-3">
+                        ${renderDvPoSourceLineItemCards(rows)}
+                    </div>
+                </div>
+            `;
+        }
+
+        const rows = Array.isArray(record?.data?.line_items) ? record.data.line_items : [];
+        const cleanRows = rows.filter((row) => row && Object.values(row).some((value) => String(value || '').trim() !== ''));
+
+        if (!cleanRows.length) {
+            return '';
+        }
+
+        return `
+            <div class="mt-4 rounded-[24px] border border-gray-200 bg-white p-4">
+                <div class="mb-4">
+                    <h4 class="text-[20px] font-semibold text-gray-900">Breakdown / Line Items</h4>
+                    <p class="mt-1 text-sm text-gray-500">Voucher debit and credit rows shown outside the PDF holder for easier review.</p>
+                </div>
+                <div class="overflow-hidden rounded-xl border border-gray-200 bg-white">
+                    <table class="w-full text-sm">
+                        <thead class="bg-gray-50 text-left text-[11px] uppercase tracking-[0.18em] text-gray-500">
+                            <tr>
+                                <th class="px-4 py-3">Description</th>
+                                <th class="px-4 py-3">Account Code</th>
+                                <th class="px-4 py-3">Debit</th>
+                                <th class="px-4 py-3">Credit</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${cleanRows.map((row) => `
+                                <tr class="border-t border-gray-100">
+                                    <td class="px-4 py-3 font-medium text-gray-900">${escapeHtml(row.description || 'N/A')}</td>
+                                    <td class="px-4 py-3 text-gray-900">${escapeHtml(row.account_code || 'N/A')}</td>
+                                    <td class="px-4 py-3 text-gray-900">${escapeHtml(formatCurrency(row.debit || 0))}</td>
+                                    <td class="px-4 py-3 text-gray-900">${escapeHtml(formatCurrency(row.credit || 0))}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+    }
+
     function renderDvLineItemsTable(record = null) {
         const rows = getDvLineItemRows(record);
+        const sourceRecord = getDvSourceRecordForDisplay(record);
+        const sourceType = String(sourceRecord?.module_key || record?.data?.source_document_type || '').trim().toLowerCase();
+        if (sourceType === 'po' && sourceRecord) {
+            return renderDvPoSourceLineItems(sourceRecord, rows);
+        }
         const lockSourceFields = currentModuleKey === 'dv';
         const isLocked = Boolean(financeFormLockedReadOnly);
         const sourceFieldAttr = lockSourceFields || isLocked ? 'readonly' : '';
@@ -5710,7 +6198,7 @@
     }
 
     function collectDvLineItems() {
-        const rows = Array.from(document.querySelectorAll('[data-dv-line-item-row]')).map((row) => {
+        const formRows = Array.from(document.querySelectorAll('[data-dv-line-item-row]')).map((row) => {
             const getValue = (field) => row.querySelector(`[data-dv-line-item-field="${field}"]`)?.value || '';
             return {
                 description: getValue('description'),
@@ -5720,6 +6208,7 @@
             };
         });
 
+        const rows = formRows.length ? formRows : (Array.isArray(financeFormValues?.dv_line_items) ? financeFormValues.dv_line_items : []);
         financeFormValues.dv_line_items = rows;
         return rows;
     }
@@ -5764,8 +6253,8 @@
         setFinanceFieldValue(form, 'net_amount', netAmount, { readOnly: true });
     }
 
-    function getNormalizedLineItems(record) {
-        const rows = getPrLineItemRows(record);
+    function getNormalizedLineItems(record, { preferDraftLineItems = true } = {}) {
+        const rows = getPrLineItemRows(record, { preferDraftLineItems });
         return rows.map((row) => ({
             item_id: row.item_id || '',
             description: row.description || '',
@@ -5824,12 +6313,32 @@
     function getPoAutofillValuesFromLinkedRecord(linkedPrRecord) {
         const data = linkedPrRecord?.data || {};
         const supplierCounts = getPoLinkedPrSupplierCounts(linkedPrRecord);
+        const lineItems = getNormalizedLineItems(linkedPrRecord, { preferDraftLineItems: false }).map((row) => ({
+            item_module: row.item_module || '',
+            item_record_id: row.item_record_id || '',
+            item_id: row.item_id || '',
+            description: row.description || '',
+            category: row.category || '',
+            quantity: row.quantity || '',
+            amount: row.amount || '',
+            subtotal: row.subtotal || row.total || '',
+            discount: row.discount || '0%',
+            discount_amount: row.discount_amount || '',
+            shipping_amount: row.shipping_amount || '',
+            tax_type: row.tax_type || 'N/A',
+            tax_amount: row.tax_amount || '',
+            wht_amount: row.wht_amount || '',
+            total: row.total || '',
+            supplier_id: row.supplier_id || '',
+            client_id: row.client_id || '',
+        }));
 
         return {
             supplier_id: data.supplier_id || supplierCounts[0]?.id || '',
             project: data.project || data.project_name || data.project_code || '',
             cost_center: data.cost_center || data.cost_center_code || data.cost_center_name || '',
             coa_id: data.coa_id || '',
+            line_items: lineItems,
             linked_pr_supplier_summary: linkedPrRecord?.record_number || '',
         };
     }
@@ -5889,14 +6398,30 @@
         }
 
         const sourceData = linkedPrRecord.data || {};
-        const sourceLineItems = getNormalizedLineItems(linkedPrRecord);
+        const sourceLineItems = getNormalizedLineItems(linkedPrRecord, { preferDraftLineItems: false });
         const supplierCounts = getPoLinkedPrSupplierCounts(linkedPrRecord);
         const primarySupplierId = sourceData.supplier_id || supplierCounts[0]?.id || '';
         const hasCurrentLineValues = Array.from(form.querySelectorAll('[data-pr-line-item-row] [data-pr-line-item-field]'))
             .some((input) => String(input.value || '').trim() !== '');
+        const linkedPrPrefill = {
+            linked_pr_id: linkedPrId,
+            supplier_id: primarySupplierId,
+            project: sourceData.project || sourceData.project_name || sourceData.project_code || '',
+            cost_center: sourceData.cost_center || sourceData.cost_center_code || sourceData.cost_center_name || '',
+            coa_id: sourceData.coa_id || '',
+            remarks: sourceData.remarks || '',
+            linked_pr_supplier_summary: linkedPrRecord.record_number || '',
+            line_items: sourceLineItems.map((row) => ({ ...row })),
+        };
 
         if (!preserveExisting || !String(form.querySelector('select[name="data[supplier_id]"]')?.value || '').trim()) {
             setFinanceFieldValue(form, 'supplier_id', primarySupplierId);
+        }
+        if (!preserveExisting || !String(form.querySelector('input[name="data[project]"]')?.value || '').trim()) {
+            setFinanceFieldValue(form, 'project', linkedPrPrefill.project);
+        }
+        if (!preserveExisting || !String(form.querySelector('input[name="data[cost_center]"]')?.value || '').trim()) {
+            setFinanceFieldValue(form, 'cost_center', linkedPrPrefill.cost_center);
         }
         if (!preserveExisting || !String(form.querySelector('select[name="data[coa_id]"]')?.value || '').trim()) {
             setFinanceFieldValue(form, 'coa_id', sourceData.coa_id || '');
@@ -5914,6 +6439,13 @@
 
         if (sourceLineItems.length && (!preserveExisting || !hasCurrentLineValues)) {
             replaceCurrentLineItemSection(sourceLineItems);
+        }
+
+        if (financeDraftContext?.moduleKey === 'po' && financeDraftContext.prefill) {
+            financeDraftContext.prefill = {
+                ...financeDraftContext.prefill,
+                ...linkedPrPrefill,
+            };
         }
 
         updatePoLinkedPrSupplierSummary(linkedPrRecord);
@@ -6625,10 +7157,16 @@
                 ['Workflow', record.workflow_status || ''],
                 ['Approval', previewApprovalLabel(record) || ''],
                 ['Requester Option', data.requester_mode || ''],
+                ['Requested By', data.requestor || getLookupLabel('employee', data.requester_employee_id) || ''],
                 ['Linked CA', getLookupLabel('ca', data.linked_ca_id) || ''],
                 ['Linked DV', getLookupLabel('dv', data.linked_dv_id) || ''],
                 ['Linked CRF', getLookupLabel('crf', data.linked_crf_id) || ''],
                 ['Total Cash Advance', data.total_cash_advance ? formatCurrency(data.total_cash_advance) : ''],
+                ['Actual Expenses', data.actual_expenses ? formatCurrency(data.actual_expenses) : ''],
+                ['Variance', data.variance ? formatCurrency(data.variance) : ''],
+                ['Variance Indicator', data.variance_indicator || ''],
+                ['For Client', data.for_client || ''],
+                ['Client Name(s)', data.client_names || ''],
                 ['Attachments', getAttachmentSummaryValue(record)],
                 ['Purpose', data.purpose || ''],
             ],
@@ -7053,6 +7591,15 @@
     function renderDvPreviewLineItems(record) {
         const rows = Array.isArray(record?.data?.line_items) ? record.data.line_items : [];
         const cleanRows = rows.filter((row) => row && Object.values(row).some((value) => String(value || '').trim() !== ''));
+        const sourceType = String(record?.data?.source_document_type || '').trim().toLowerCase();
+        const sourceId = String(record?.data?.source_document_id || '').trim();
+        const sourceRecord = sourceType === 'po' && sourceId
+            ? (getRecordById(sourceId) || getRecordByLookupValue(sourceType, sourceId))
+            : null;
+
+        if (sourceType === 'po' && sourceRecord) {
+            return '';
+        }
 
         return `
             <div class="finance-preview-box">
@@ -7079,6 +7626,21 @@
                 </div>
             </div>
         `;
+    }
+
+    function getPreviewLineItemRows(record) {
+        const cleanRows = getPrLineItemRows(record, { preferDraftLineItems: record?.module_key !== 'po' }).filter((row) => row && Object.values(row).some((value) => String(value || '').trim() !== ''));
+        if (cleanRows.length || record?.module_key !== 'po') {
+            return cleanRows;
+        }
+
+        const linkedPrId = record?.data?.linked_pr_id || getFieldValue(record, 'linked_pr_id');
+        const linkedPrRecord = linkedPrId ? (getRecordById(linkedPrId) || getRecordByLookupValue('pr', linkedPrId)) : null;
+        if (!linkedPrRecord) {
+            return cleanRows;
+        }
+
+        return getPrLineItemRows(linkedPrRecord, { preferDraftLineItems: false }).filter((row) => row && Object.values(row).some((value) => String(value || '').trim() !== ''));
     }
 
     function getModulePreviewSections(record) {
@@ -7131,7 +7693,7 @@
                 return [
                     { title: 'Request Overview', fieldNames: ['record_number', 'record_title', 'requestor', 'priority', 'needed_date', 'amount', 'record_date', 'workflow_status', 'approval_status'] },
                     { title: 'Connected Records', fieldNames: ['linked_po_id', 'linked_dv_id'] },
-                    { title: 'Request Details', fieldNames: ['requester_mode', 'requester_employee_id', 'for_client', 'pr_reason_categories', 'request_type'] },
+                    { title: 'Request Details', fieldNames: ['requester_mode', 'requester_employee_id', 'for_client', 'pr_reason_categories'] },
                     { title: 'Requester Details', fieldNames: ['requestor', 'employee_name', 'employee_id', 'employee_email', 'contact_number', 'position', 'department', 'superior', 'superior_email'] },
                     { title: 'Items / Cost Details', renderer: () => renderPrPreviewTable(record) },
                     { type: 'notes', renderer: () => renderFinanceReviewNotesSection(record) },
@@ -7165,7 +7727,7 @@
                     { title: 'Voucher Details', fieldNames: ['source_document_type', 'source_document_id', 'payee_type', 'payee_name', 'supplier_id', 'amount', 'payment_type', 'disbursement_type'] },
                     { title: 'Breakdown / Line Items', renderer: () => renderDvPreviewLineItems(record) },
                     { title: 'Funding & Notes', fieldNames: ['bank_account_id', 'coa_id', 'fund_source', 'department', 'reference_number', 'purpose', 'remarks'] },
-                    { title: 'Tax & Receipt', fieldNames: ['withholding_tax', 'vat_amount', 'net_amount', 'currency', 'exchange_rate', 'received_by_name', 'received_by_signature', 'date_received'] },
+                    { title: 'Tax & Receipt', fieldNames: ['withholding_tax', 'vat_amount', 'net_amount', 'currency', 'exchange_rate', 'received_by_name', 'date_received'] },
                 ];
             case 'pda':
                 return [
@@ -7209,12 +7771,12 @@
 
         if (record.module_key === 'pr') {
             return [
-                { title: 'Request Details', fieldNames: ['request_type', 'priority', 'needed_date', 'for_client', 'pr_reason_categories'] },
+                { title: 'Request Details', fieldNames: ['priority', 'needed_date', 'for_client', 'pr_reason_categories'] },
                 { title: 'Requester Details', fieldNames: ['requester_mode', 'requester_employee_id', 'requestor', 'employee_id', 'employee_name', 'employee_email', 'contact_number', 'position', 'department', 'superior', 'superior_email'] },
                 { title: 'Vendor / Supplier Details', fieldNames: ['supplier_id', 'new_vendor', 'vendor_id_number', 'vendors_tin', 'company_name', 'vendor_address', 'city', 'province', 'zip', 'vendor_phone', 'vendor_email'] },
                 { title: 'Project Allocation', fieldNames: ['project', 'cost_center'] },
                 { title: 'Items / Cost Details', renderer: () => renderPrPreviewTable(record) },
-                { title: 'Purpose & Notes', fieldNames: ['coa_id', 'purpose', 'remarks'] },
+                { title: 'Purpose & Notes', fieldNames: ['purpose', 'remarks'] },
             ];
         }
 
@@ -7570,6 +8132,10 @@
         const values = record ? record.data || {} : {};
         if (isLiquidationModule()) {
             const statusMeta = getLiquidationStatusMeta(values.variance || record?.data?.variance || 0);
+            const totalCashAdvance = financeFormValues.total_cash_advance ?? values.total_cash_advance ?? '0.00';
+            const lineItemsTotal = financeFormValues.line_items_total ?? values.line_items_total ?? values.grand_total ?? '0.00';
+            const actualExpenses = financeFormValues.actual_expenses ?? values.actual_expenses ?? values.grand_total ?? '0.00';
+            const variance = financeFormValues.variance ?? values.variance ?? '0.00';
             return `
                 <div data-liquidation-status-panel class="rounded-xl border ${statusMeta.border} ${statusMeta.bg} p-4">
                     <div class="flex flex-wrap items-center justify-between gap-3">
@@ -7597,23 +8163,30 @@
                     </div>
                 </div>
                 <div class="rounded-xl border border-gray-200 bg-slate-50 p-4">
-                    <h5 class="text-sm font-semibold text-gray-700">Cost Summary</h5>
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+                        <h5 class="text-sm font-semibold text-gray-700">Liquidation Summary</h5>
+                        <p class="text-xs text-gray-500">Cash-advance focused totals for this liquidation.</p>
+                    </div>
                     <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                         ${[
-                            ['subtotal', 'Subtotal'],
-                            ['discount_total', 'Discount Total'],
-                            ['tax_total', 'Tax Total'],
-                            ['shipping_total', 'Shipping Total'],
-                            ['wht_total', 'WHT Total'],
-                            ['grand_total', 'Grand Total'],
-                        ].map(([name, label]) => `
-                            <div>
-                                <label class="block text-sm font-medium mb-1">${escapeHtml(label)}</label>
-                                <input type="number" step="0.01" min="0" name="data[${name}]" value="${escapeHtml(financeFormValues[name] ?? values[name] ?? '')}" class="w-full border rounded-md p-2 bg-white" ${name === 'subtotal' || name === 'grand_total' ? 'readonly' : ''}>
+                            ['Total Cash Advance', totalCashAdvance],
+                            ['Line Items Total', lineItemsTotal],
+                            ['Actual Expenses', actualExpenses],
+                            ['Variance', variance],
+                        ].map(([label, value]) => `
+                            <div class="rounded-lg border border-white/80 bg-white px-4 py-3">
+                                <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">${escapeHtml(label)}</p>
+                                <p class="mt-1 text-lg font-semibold text-gray-900">${escapeHtml(formatCurrency(value || 0))}</p>
                             </div>
                         `).join('')}
                     </div>
-                    <input type="hidden" name="data[actual_expenses]" value="${escapeHtml(financeFormValues.actual_expenses ?? values.actual_expenses ?? '')}">
+                    <input type="hidden" name="data[subtotal]" value="${escapeHtml(financeFormValues.subtotal ?? values.subtotal ?? '')}">
+                    <input type="hidden" name="data[discount_total]" value="${escapeHtml(financeFormValues.discount_total ?? values.discount_total ?? '')}">
+                    <input type="hidden" name="data[tax_total]" value="${escapeHtml(financeFormValues.tax_total ?? values.tax_total ?? '')}">
+                    <input type="hidden" name="data[shipping_total]" value="${escapeHtml(financeFormValues.shipping_total ?? values.shipping_total ?? '')}">
+                    <input type="hidden" name="data[wht_total]" value="${escapeHtml(financeFormValues.wht_total ?? values.wht_total ?? '')}">
+                    <input type="hidden" name="data[grand_total]" value="${escapeHtml(financeFormValues.grand_total ?? values.grand_total ?? '')}">
+                    <input type="hidden" name="data[line_items_total]" value="${escapeHtml(financeFormValues.line_items_total ?? values.line_items_total ?? '')}">
                     <input type="hidden" name="data[variance]" value="${escapeHtml(financeFormValues.variance ?? values.variance ?? '')}">
                     <input type="hidden" name="data[variance_indicator]" value="${escapeHtml(financeFormValues.variance_indicator ?? values.variance_indicator ?? '')}">
                 </div>
@@ -7686,13 +8259,47 @@
     }
 
     function renderPrPreviewTable(record) {
-        const rows = getPrLineItemRows(record);
+        const rows = getPreviewLineItemRows(record);
         const productLookup = financeLookupOptions.product || [];
         const lookupLabel = (id) => {
             const match = productLookup.find((option) => String(option.id) === String(id));
             return match ? match.label : (id || 'N/A');
         };
-        const summaryLookup = {
+        const computedTotals = rows.reduce((totals, row) => {
+            const quantity = Number(row.quantity || 0) || 0;
+            const amount = Number(row.amount || 0) || 0;
+            const subtotal = Number(row.subtotal || quantity * amount || 0) || 0;
+            const discountAmount = Number(row.discount_amount || 0) || 0;
+            const shippingAmount = Number(row.shipping_amount || 0) || 0;
+            const taxAmount = Number(row.tax_amount || 0) || 0;
+            const whtAmount = Number(row.wht_amount || 0) || 0;
+            const lineTotal = Number(row.total || subtotal - discountAmount + shippingAmount + taxAmount - whtAmount || 0) || 0;
+
+            totals.subtotal += subtotal;
+            totals.discount_amount += discountAmount;
+            totals.shipping_amount += shippingAmount;
+            totals.tax_amount += taxAmount;
+            totals.wht_amount += whtAmount;
+            totals.grand_total += lineTotal;
+            return totals;
+        }, {
+            subtotal: 0,
+            discount_amount: 0,
+            shipping_amount: 0,
+            tax_amount: 0,
+            wht_amount: 0,
+            grand_total: 0,
+        });
+        const summaryLookup = rows.length ? {
+            subtotal: computedTotals.subtotal.toFixed(2),
+            discount: record.data?.discount || '0%',
+            discount_amount: computedTotals.discount_amount.toFixed(2),
+            shipping_amount: computedTotals.shipping_amount.toFixed(2),
+            tax_type: record.data?.tax_type || 'N/A',
+            tax_amount: computedTotals.tax_amount.toFixed(2),
+            wht_amount: computedTotals.wht_amount.toFixed(2),
+            grand_total: computedTotals.grand_total.toFixed(2),
+        } : {
             subtotal: record.amount || '0.00',
             discount: record.data?.discount || '0%',
             discount_amount: record.data?.discount_amount || '0.00',
@@ -7713,7 +8320,7 @@
                 </div>
 
                 <div class="mt-4 space-y-3">
-                    ${rows.map((row, index) => `
+                    ${rows.length ? rows.map((row, index) => `
                         <div class="rounded-2xl border border-gray-200 bg-slate-50 p-4">
                             <div class="flex items-center justify-between gap-3">
                                 <div class="flex items-center gap-3">
@@ -7763,7 +8370,11 @@
                                 `).join('')}
                             </div>
                         </div>
-                    `).join('')}
+                    `).join('') : `
+                        <div class="rounded-2xl border border-dashed border-gray-200 bg-slate-50 p-4 text-sm text-gray-500">
+                            No line items were brought over from the linked Purchase Request yet.
+                        </div>
+                    `}
                 </div>
 
                 <div class="mt-5 grid grid-cols-1 gap-4 xl:grid-cols-2">
@@ -7974,10 +8585,12 @@
     function renderLiquidationReportSection(record, fallbackValues = {}) {
         const data = record?.data || {};
         const linkedCaId = fallbackValues['data[linked_ca_id]'] || data.linked_ca_id || '';
+        const linkedCaRecord = linkedCaId ? (getRecordById(linkedCaId) || getRecordByLookupValue('ca', linkedCaId)) : null;
+        const linkedCaData = linkedCaRecord?.data || {};
         const linkedCaLabel = getLookupLabel('ca', linkedCaId) || linkedCaId || 'N/A';
-        const totalCashAdvance = fallbackValues['data[total_cash_advance]'] || data.total_cash_advance || '0.00';
-        const forClient = fallbackValues['data[for_client]'] || data.for_client || 'N/A';
-        const clientNames = fallbackValues['data[client_names]'] || data.client_names || 'N/A';
+        const totalCashAdvance = fallbackValues['data[total_cash_advance]'] || data.total_cash_advance || linkedCaRecord?.amount || linkedCaData.amount_requested || '0.00';
+        const forClient = fallbackValues['data[for_client]'] || data.for_client || linkedCaData.for_client || 'N/A';
+        const clientNames = fallbackValues['data[client_names]'] || data.client_names || linkedCaData.client_names || 'N/A';
         const lineItemsTotal = fallbackValues['data[line_items_total]'] || data.line_items_total || '0.00';
         const actualExpenses = fallbackValues['data[actual_expenses]'] || data.actual_expenses || '0.00';
         const variance = (numericAmount(totalCashAdvance || 0) - numericAmount(actualExpenses || 0)).toFixed(2);
@@ -8092,6 +8705,7 @@
         if (!isLineItemModule()) return;
 
         const rows = Array.from(document.querySelectorAll('[data-pr-line-item-row]'));
+        financeFormValues = financeFormValues || {};
         let subtotal = 0;
         let discountAmountTotal = 0;
         let shippingAmountTotal = 0;
@@ -8179,9 +8793,23 @@
             const caAmountInput = form.querySelector('input[name="data[total_cash_advance]"]');
             const caAmount = parseFloat(caAmountInput?.value || '0') || 0;
             const manualActualExpenses = parseFloat(actualExpensesInput?.value || '0');
-            const actualExpenses = Number.isFinite(manualActualExpenses) && String(actualExpensesInput?.value || '').trim() !== ''
+            const hasMeaningfulRows = rows.some((row) => Array.from(row.querySelectorAll('[data-pr-line-item-field]')).some((input) => {
+                const field = input.getAttribute('data-pr-line-item-field');
+                if (field === 'discount') {
+                    return String(input.value || '0%').trim() !== '0%';
+                }
+                if (field === 'tax_type') {
+                    return normalizeFinanceTaxType(input.value || 'N/A') !== 'N/A';
+                }
+
+                return String(input.value || '').trim() !== '';
+            }));
+            const hasManualActualExpenses = Number.isFinite(manualActualExpenses) && String(actualExpensesInput?.value || '').trim() !== '';
+            const useManualExpensesOnly = !hasMeaningfulRows && hasManualActualExpenses;
+            const actualExpenses = useManualExpensesOnly
                 ? manualActualExpenses
-                : grandTotal;
+                : (hasManualActualExpenses ? manualActualExpenses : grandTotal);
+            const effectiveSubtotal = useManualExpensesOnly ? manualActualExpenses : subtotal;
             const variance = caAmount - actualExpenses;
             const statusMeta = getLiquidationStatusMeta(variance);
             const statusPanel = form.querySelector('[data-liquidation-status-panel]');
@@ -8193,18 +8821,38 @@
             const routeActions = form.querySelector('[data-liquidation-route-actions]');
             const routeOpenButton = form.querySelector('[data-liquidation-route-open]');
 
-            if (subtotalInput) subtotalInput.value = subtotal.toFixed(2);
+            if (subtotalInput) subtotalInput.value = effectiveSubtotal.toFixed(2);
             if (discountInput && !document.activeElement?.isSameNode(discountInput)) discountInput.value = discountAmountTotal.toFixed(2);
             if (taxInput && !document.activeElement?.isSameNode(taxInput)) taxInput.value = taxAmountTotal.toFixed(2);
             if (shippingInput && !document.activeElement?.isSameNode(shippingInput)) shippingInput.value = shippingAmountTotal.toFixed(2);
             if (whtInput && !document.activeElement?.isSameNode(whtInput)) whtInput.value = whtAmountTotal.toFixed(2);
             if (grandTotalInput) grandTotalInput.value = actualExpenses.toFixed(2);
-            if (actualExpensesInput && rows.length > 0 && !document.activeElement?.isSameNode(actualExpensesInput)) actualExpensesInput.value = actualExpenses.toFixed(2);
+            if (actualExpensesInput && hasMeaningfulRows && !document.activeElement?.isSameNode(actualExpensesInput)) actualExpensesInput.value = actualExpenses.toFixed(2);
             if (varianceInput) varianceInput.value = variance.toFixed(2);
             if (varianceIndicatorInput) {
                 varianceIndicatorInput.value = statusMeta.indicator;
             }
-            if (amountInput) amountInput.value = grandTotal.toFixed(2);
+            if (amountInput) amountInput.value = actualExpenses.toFixed(2);
+            financeFormValues.subtotal = effectiveSubtotal.toFixed(2);
+            financeFormValues['data[subtotal]'] = financeFormValues.subtotal;
+            financeFormValues.discount_total = discountAmountTotal.toFixed(2);
+            financeFormValues['data[discount_total]'] = financeFormValues.discount_total;
+            financeFormValues.tax_total = taxAmountTotal.toFixed(2);
+            financeFormValues['data[tax_total]'] = financeFormValues.tax_total;
+            financeFormValues.shipping_total = shippingAmountTotal.toFixed(2);
+            financeFormValues['data[shipping_total]'] = financeFormValues.shipping_total;
+            financeFormValues.wht_total = whtAmountTotal.toFixed(2);
+            financeFormValues['data[wht_total]'] = financeFormValues.wht_total;
+            financeFormValues.grand_total = actualExpenses.toFixed(2);
+            financeFormValues['data[grand_total]'] = financeFormValues.grand_total;
+            financeFormValues.line_items_total = grandTotal.toFixed(2);
+            financeFormValues['data[line_items_total]'] = financeFormValues.line_items_total;
+            financeFormValues.actual_expenses = actualExpenses.toFixed(2);
+            financeFormValues['data[actual_expenses]'] = financeFormValues.actual_expenses;
+            financeFormValues.variance = variance.toFixed(2);
+            financeFormValues['data[variance]'] = financeFormValues.variance;
+            financeFormValues.variance_indicator = statusMeta.indicator;
+            financeFormValues['data[variance_indicator]'] = financeFormValues.variance_indicator;
             if (statusPanel) {
                 statusPanel.className = `rounded-xl border p-4 ${statusMeta.border} ${statusMeta.bg}`;
             }
@@ -9252,14 +9900,26 @@
                 const linkedCaId = getDraftValue('linked_ca_id', record);
                 const totalCashAdvance = getDraftValue('total_cash_advance', record);
                 const purposeValue = getDraftValue('purpose', record);
-                const lineItemsTotal = Array.isArray(activeRecord?.data?.line_items)
-                    ? activeRecord.data.line_items.reduce((sum, item) => sum + (parseFloat(item?.total || '0') || 0), 0).toFixed(2)
-                    : '0.00';
+                const lineItemsTotal = getDraftValue('line_items_total', record)
+                    || (Array.isArray(activeRecord?.data?.line_items)
+                        ? activeRecord.data.line_items.reduce((sum, item) => sum + (parseFloat(item?.total || '0') || 0), 0).toFixed(2)
+                        : '0.00');
                 const hiddenActualExpenses = getDraftValue('actual_expenses', record);
                 const hiddenVariance = getDraftValue('variance', record);
                 const hiddenVarianceIndicator = getDraftValue('variance_indicator', record);
+                const requesterModeValue = getDraftValue('requester_mode', record) || 'own_request';
+                const requesterEmployeeIdValue = getDraftValue('requester_employee_id', record);
+                const requestorValue = getDraftValue('requestor', record);
                 const forClientValue = getDraftValue('for_client', record);
                 const clientNamesValue = getDraftValue('client_names', record);
+                const employeeIdValue = getDraftValue('employee_id', record);
+                const employeeNameValue = getDraftValue('employee_name', record);
+                const employeeEmailValue = getDraftValue('employee_email', record);
+                const contactNumberValue = getDraftValue('contact_number', record);
+                const positionValue = getDraftValue('position', record);
+                const departmentValue = getDraftValue('department', record);
+                const superiorValue = getDraftValue('superior', record);
+                const superiorEmailValue = getDraftValue('superior_email', record);
 
                 values.linked_ca_id = linkedCaId;
                 values['data[linked_ca_id]'] = linkedCaId;
@@ -9275,10 +9935,32 @@
                 values['data[variance]'] = hiddenVariance;
                 values.variance_indicator = hiddenVarianceIndicator;
                 values['data[variance_indicator]'] = hiddenVarianceIndicator;
+                values.requester_mode = requesterModeValue;
+                values['data[requester_mode]'] = requesterModeValue;
+                values.requester_employee_id = requesterEmployeeIdValue;
+                values['data[requester_employee_id]'] = requesterEmployeeIdValue;
+                values.requestor = requestorValue;
+                values['data[requestor]'] = requestorValue;
                 values.for_client = forClientValue;
                 values['data[for_client]'] = forClientValue;
                 values.client_names = clientNamesValue;
                 values['data[client_names]'] = clientNamesValue;
+                values.employee_id = employeeIdValue;
+                values['data[employee_id]'] = employeeIdValue;
+                values.employee_name = employeeNameValue;
+                values['data[employee_name]'] = employeeNameValue;
+                values.employee_email = employeeEmailValue;
+                values['data[employee_email]'] = employeeEmailValue;
+                values.contact_number = contactNumberValue;
+                values['data[contact_number]'] = contactNumberValue;
+                values.position = positionValue;
+                values['data[position]'] = positionValue;
+                values.department = departmentValue;
+                values['data[department]'] = departmentValue;
+                values.superior = superiorValue;
+                values['data[superior]'] = superiorValue;
+                values.superior_email = superiorEmailValue;
+                values['data[superior_email]'] = superiorEmailValue;
 
                 return `
                     <div class="md:col-span-2 rounded-xl border border-blue-100 bg-blue-50/40 p-4">
@@ -9343,6 +10025,22 @@
                         ${renderPrCostSummary(activeRecord)}
                     </div>
 
+                    ${[
+                        ['requester_mode', requesterModeValue],
+                        ['requester_employee_id', requesterEmployeeIdValue],
+                        ['requestor', requestorValue],
+                        ['employee_id', employeeIdValue],
+                        ['employee_name', employeeNameValue],
+                        ['employee_email', employeeEmailValue],
+                        ['contact_number', contactNumberValue],
+                        ['position', positionValue],
+                        ['department', departmentValue],
+                        ['superior', superiorValue],
+                        ['superior_email', superiorEmailValue],
+                        ['line_items_total', lineItemsTotal],
+                    ].map(([name, value]) => `
+                        <input type="hidden" name="data[${name}]" value="${escapeHtml(value || '')}">
+                    `).join('')}
                     <input type="hidden" name="data[coa_id]" value="${escapeHtml(record ? getModuleFieldValue(record, { name: 'coa_id' }) || '' : (values['data[coa_id]'] || ''))}">
                     <input type="hidden" name="data[linked_dv_id]" value="${escapeHtml(record ? getModuleFieldValue(record, { name: 'linked_dv_id' }) || '' : (values['data[linked_dv_id]'] || ''))}">
                 `;
@@ -9467,29 +10165,28 @@
             if (currentModuleKey === 'dv') {
                 const sourceTypeValue = getDraftValue('source_document_type', record);
                 const sourceDocumentValue = getDraftValue('source_document_id', record);
-                const supplierValue = getDraftValue('supplier_id', record);
-                const amountValue = getDraftValue('amount', record);
-                const paymentTypeValue = getDraftValue('payment_type', record);
-                const disbursementTypeValue = getDraftValue('disbursement_type', record) || paymentTypeValue || 'Cash';
-                const bankAccountValue = getDraftValue('bank_account_id', record);
-                const coaValue = getDraftValue('coa_id', record);
-                const fundSourceValue = getDraftValue('fund_source', record);
-                const departmentValue = getDraftValue('department', record);
-                const referenceNumberValue = getDraftValue('reference_number', record);
-                const purposeValue = getDraftValue('purpose', record);
-                const paymentDateValue = getDraftValue('payment_date', record) || todayDateValue();
-                const dueDateValue = getDraftValue('due_date', record);
+                const supplierDraftValue = getDraftValue('supplier_id', record);
+                const amountDraftValue = getDraftValue('amount', record);
+                const paymentTypeDraftValue = getDraftValue('payment_type', record);
+                const disbursementTypeDraftValue = getDraftValue('disbursement_type', record) || paymentTypeDraftValue || 'Cash';
+                const bankAccountDraftValue = getDraftValue('bank_account_id', record);
+                const coaDraftValue = getDraftValue('coa_id', record);
+                const fundSourceDraftValue = getDraftValue('fund_source', record);
+                const departmentDraftValue = getDraftValue('department', record);
+                const referenceNumberDraftValue = getDraftValue('reference_number', record);
+                const purposeDraftValue = getDraftValue('purpose', record);
+                const paymentDateDraftValue = getDraftValue('payment_date', record) || todayDateValue();
+                const dueDateDraftValue = getDraftValue('due_date', record);
                 const withholdingTaxValue = getDraftValue('withholding_tax', record);
                 const vatAmountValue = getDraftValue('vat_amount', record);
                 const netAmountValue = getDraftValue('net_amount', record);
                 const currencyValue = getDraftValue('currency', record) || 'PHP';
                 const exchangeRateValue = getDraftValue('exchange_rate', record);
                 const receivedByNameValue = getDraftValue('received_by_name', record);
-                const receivedBySignatureValue = getDraftValue('received_by_signature', record);
                 const dateReceivedValue = getDraftValue('date_received', record);
-                const remarksValue = getDraftValue('remarks', record);
-                const sourceRecordNumberValue = getDraftValue('source_record_number', record);
-                const sourceRecordDateValue = getDraftValue('source_record_date', record);
+                const remarksDraftValue = getDraftValue('remarks', record);
+                const sourceRecordNumberDraftValue = getDraftValue('source_record_number', record);
+                const sourceRecordDateDraftValue = getDraftValue('source_record_date', record);
                 let sourceRequesterValue = getDraftValue('source_requester', record);
                 let sourceDepartmentSnapshotValue = getDraftValue('source_department', record);
                 let sourceProjectValue = getDraftValue('source_project', record);
@@ -9504,19 +10201,23 @@
                 let sourceEmployeeNameValue = getDraftValue('source_employee_name', record);
                 let sourcePayeeTypeValue = getDraftValue('source_payee_type', record);
                 let sourcePayeeNameValue = getDraftValue('source_payee_name', record);
-                let sourceStatusValue = getDraftValue('source_status', record);
-                let sourceWorkflowStatusValue = getDraftValue('source_workflow_status', record);
-                let sourceRelationshipStatusValue = getDraftValue('source_relationship_status', record);
-                let totalDisbursedAmountValue = getDraftValue('total_disbursed_amount', record);
-                let percentagePaidValue = getDraftValue('percentage_paid', record);
-                let disbursementStatusValue = getDraftValue('disbursement_status', record);
-                let payeeTypeValue = getDraftValue('payee_type', record);
-                let payeeNameValue = getDraftValue('payee_name', record);
-                const sourceRecord = sourceDocumentValue ? (getRecordByLookupValue(sourceTypeValue, sourceDocumentValue) || getRecordById(sourceDocumentValue) || getRecordByLookupValue('', sourceDocumentValue)) : null;
-                const resolvedSourceTypeValue = sourceTypeValue || sourceRecord?.module_key || '';
-                const sourceSnapshotPrefill = sourceRecord
-                    ? (getDvSourceDocumentPrefill(resolvedSourceTypeValue, sourceRecord)?.prefill || {})
-                    : {};
+            let sourceStatusValue = getDraftValue('source_status', record);
+            let sourceWorkflowStatusValue = getDraftValue('source_workflow_status', record);
+            let sourceRelationshipStatusValue = getDraftValue('source_relationship_status', record);
+            let totalDisbursedAmountValue = getDraftValue('total_disbursed_amount', record);
+            let percentagePaidValue = getDraftValue('percentage_paid', record);
+            let disbursementStatusValue = getDraftValue('disbursement_status', record);
+            let payeeTypeValue = getDraftValue('payee_type', record);
+            let payeeNameValue = getDraftValue('payee_name', record);
+            const sourceRecord = sourceDocumentValue ? (getRecordByLookupValue(sourceTypeValue, sourceDocumentValue) || getRecordById(sourceDocumentValue) || getRecordByLookupValue('', sourceDocumentValue)) : null;
+            const resolvedSourceRecord = sourceRecord || draftLinkedRecord || null;
+            const resolvedSourceTypeValue = sourceTypeValue || resolvedSourceRecord?.module_key || '';
+            const sourceSnapshotPrefill = resolvedSourceRecord
+                ? (getDvSourceDocumentPrefill(resolvedSourceTypeValue, resolvedSourceRecord)?.prefill || {})
+                : {};
+                const showSupplierField = !blank(supplierDraftValue) || resolvedSourceTypeValue === 'po';
+                // DVs created from a CA still need an explicit disbursement bank account.
+                const showBankAccountField = true;
                 const sourceValue = (fieldName, fallback = '') => {
                     const draftValue = getDraftValue(fieldName, record);
                     if (!blank(draftValue)) {
@@ -9530,12 +10231,6 @@
 
                     return fallback;
                 };
-                const receiptDefault = sourceTypeValue === 'ca' ? todayDateValue() : '';
-                const receivedByDefault = sourceRequesterValue || sourceEmployeeNameValue || payeeNameValue || bootstrap.currentUserName || '';
-                const withholdingTaxDefault = sourceTypeValue === 'ca' ? '0.00' : '';
-                const vatAmountDefault = sourceTypeValue === 'ca' ? '0.00' : '';
-                const exchangeRateDefault = currencyValue === 'PHP' ? '1.00' : '';
-
                 sourceRequesterValue = sourceValue('source_requester', sourceRequesterValue);
                 sourceDepartmentSnapshotValue = sourceValue('source_department', sourceDepartmentSnapshotValue);
                 sourceProjectValue = sourceValue('source_project', sourceProjectValue);
@@ -9558,66 +10253,84 @@
                 disbursementStatusValue = sourceValue('disbursement_status', disbursementStatusValue);
                 payeeTypeValue = sourceValue('payee_type', payeeTypeValue);
                 payeeNameValue = sourceValue('payee_name', payeeNameValue);
+                const receiptDefault = resolvedSourceTypeValue === 'ca' ? todayDateValue() : '';
+                const receivedByDefault = sourceRequesterValue || sourceEmployeeNameValue || payeeNameValue || bootstrap.currentUserName || '';
+                const withholdingTaxDefault = resolvedSourceTypeValue === 'ca' ? '0.00' : '';
+                const vatAmountDefault = resolvedSourceTypeValue === 'ca' ? '0.00' : '';
+                const effectiveSupplierValue = sourceValue('supplier_id', supplierDraftValue);
+                const effectiveAmountValue = sourceValue('amount', amountDraftValue);
+                const effectivePaymentTypeValue = sourceValue('payment_type', paymentTypeDraftValue || 'Cash');
+                const effectiveDisbursementTypeValue = sourceValue('disbursement_type', disbursementTypeDraftValue || effectivePaymentTypeValue || 'Cash');
+                const effectiveBankAccountValue = sourceValue('bank_account_id', bankAccountDraftValue);
+                const effectiveCoaValue = sourceValue('coa_id', coaDraftValue);
+                const effectiveFundSourceValue = sourceValue('fund_source', fundSourceDraftValue);
+                const effectiveDepartmentValue = sourceValue('department', departmentDraftValue);
+                const effectiveReferenceNumberValue = sourceValue('reference_number', referenceNumberDraftValue);
+                const effectivePurposeValue = sourceValue('purpose', purposeDraftValue);
+                const effectivePaymentDateValue = sourceValue('payment_date', paymentDateDraftValue || todayDateValue());
+                const effectiveDueDateValue = sourceValue('due_date', dueDateDraftValue);
+                const effectiveRemarksValue = sourceValue('remarks', remarksDraftValue);
+                const effectiveSourceRecordNumberValue = sourceValue('source_record_number', sourceRecordNumberDraftValue);
+                const effectiveSourceRecordDateValue = sourceValue('source_record_date', sourceRecordDateDraftValue);
+                const effectiveCurrencyValue = sourceValue('currency', currencyValue || 'PHP');
+                const exchangeRateDefault = effectiveCurrencyValue === 'PHP' ? '1.00' : '';
                 const effectiveWithholdingTaxValue = blank(withholdingTaxValue) ? withholdingTaxDefault : withholdingTaxValue;
                 const effectiveVatAmountValue = blank(vatAmountValue) ? vatAmountDefault : vatAmountValue;
                 const effectiveExchangeRateValue = blank(exchangeRateValue) ? exchangeRateDefault : exchangeRateValue;
                 const effectiveReceivedByNameValue = blank(receivedByNameValue) ? receivedByDefault : receivedByNameValue;
                 const effectiveDateReceivedValue = blank(dateReceivedValue) ? receiptDefault : dateReceivedValue;
-                const effectiveReceivedBySignatureValue = blank(receivedBySignatureValue) ? '' : receivedBySignatureValue;
                 const effectiveNetAmountValue = blank(netAmountValue)
-                    ? Math.max(numericAmount(amountValue || sourceAmountValue || 0) + numericAmount(effectiveVatAmountValue) - numericAmount(effectiveWithholdingTaxValue), 0).toFixed(2)
+                    ? Math.max(numericAmount(effectiveAmountValue || sourceAmountValue || 0) + numericAmount(effectiveVatAmountValue) - numericAmount(effectiveWithholdingTaxValue), 0).toFixed(2)
                     : netAmountValue;
 
                 values.source_document_type = resolvedSourceTypeValue;
                 values['data[source_document_type]'] = resolvedSourceTypeValue;
                 values.source_document_id = sourceDocumentValue;
                 values['data[source_document_id]'] = sourceDocumentValue;
-                values.supplier_id = supplierValue;
-                values['data[supplier_id]'] = supplierValue;
-                values.amount = amountValue;
-                values['data[amount]'] = amountValue;
-                values.payment_type = paymentTypeValue;
-                values['data[payment_type]'] = paymentTypeValue;
-                values.disbursement_type = disbursementTypeValue;
-                values['data[disbursement_type]'] = disbursementTypeValue;
-                values.bank_account_id = bankAccountValue;
-                values['data[bank_account_id]'] = bankAccountValue;
-                values.coa_id = coaValue;
-                values['data[coa_id]'] = coaValue;
-                values.fund_source = fundSourceValue;
-                values['data[fund_source]'] = fundSourceValue;
-                values.department = departmentValue;
-                values['data[department]'] = departmentValue;
-                values.reference_number = referenceNumberValue;
-                values['data[reference_number]'] = referenceNumberValue;
-                values.purpose = purposeValue;
-                values['data[purpose]'] = purposeValue;
-                values.payment_date = paymentDateValue;
-                values['data[payment_date]'] = paymentDateValue;
-                values.due_date = dueDateValue;
-                values['data[due_date]'] = dueDateValue;
+                values.supplier_id = effectiveSupplierValue;
+                values['data[supplier_id]'] = effectiveSupplierValue;
+                values.amount = effectiveAmountValue;
+                values['data[amount]'] = effectiveAmountValue;
+                values.payment_type = effectivePaymentTypeValue;
+                values['data[payment_type]'] = effectivePaymentTypeValue;
+                values.disbursement_type = effectiveDisbursementTypeValue;
+                values['data[disbursement_type]'] = effectiveDisbursementTypeValue;
+                values.bank_account_id = effectiveBankAccountValue;
+                values['data[bank_account_id]'] = effectiveBankAccountValue;
+                values.coa_id = effectiveCoaValue;
+                values['data[coa_id]'] = effectiveCoaValue;
+                values.fund_source = effectiveFundSourceValue;
+                values['data[fund_source]'] = effectiveFundSourceValue;
+                values.department = effectiveDepartmentValue;
+                values['data[department]'] = effectiveDepartmentValue;
+                values.reference_number = effectiveReferenceNumberValue;
+                values['data[reference_number]'] = effectiveReferenceNumberValue;
+                values.purpose = effectivePurposeValue;
+                values['data[purpose]'] = effectivePurposeValue;
+                values.payment_date = effectivePaymentDateValue;
+                values['data[payment_date]'] = effectivePaymentDateValue;
+                values.due_date = effectiveDueDateValue;
+                values['data[due_date]'] = effectiveDueDateValue;
                 values.withholding_tax = effectiveWithholdingTaxValue;
                 values['data[withholding_tax]'] = effectiveWithholdingTaxValue;
                 values.vat_amount = effectiveVatAmountValue;
                 values['data[vat_amount]'] = effectiveVatAmountValue;
                 values.net_amount = effectiveNetAmountValue;
                 values['data[net_amount]'] = effectiveNetAmountValue;
-                values.currency = currencyValue;
-                values['data[currency]'] = currencyValue;
+                values.currency = effectiveCurrencyValue;
+                values['data[currency]'] = effectiveCurrencyValue;
                 values.exchange_rate = effectiveExchangeRateValue;
                 values['data[exchange_rate]'] = effectiveExchangeRateValue;
                 values.received_by_name = effectiveReceivedByNameValue;
                 values['data[received_by_name]'] = effectiveReceivedByNameValue;
-                values.received_by_signature = effectiveReceivedBySignatureValue;
-                values['data[received_by_signature]'] = effectiveReceivedBySignatureValue;
                 values.date_received = effectiveDateReceivedValue;
                 values['data[date_received]'] = effectiveDateReceivedValue;
-                values.remarks = remarksValue;
-                values['data[remarks]'] = remarksValue;
-                values.source_record_number = sourceRecordNumberValue;
-                values['data[source_record_number]'] = sourceRecordNumberValue;
-                values.source_record_date = sourceRecordDateValue;
-                values['data[source_record_date]'] = sourceRecordDateValue;
+                values.remarks = effectiveRemarksValue;
+                values['data[remarks]'] = effectiveRemarksValue;
+                values.source_record_number = effectiveSourceRecordNumberValue;
+                values['data[source_record_number]'] = effectiveSourceRecordNumberValue;
+                values.source_record_date = effectiveSourceRecordDateValue;
+                values['data[source_record_date]'] = effectiveSourceRecordDateValue;
                 values.source_requester = sourceValue('source_requester', sourceRequesterValue);
                 values['data[source_requester]'] = sourceRequesterValue;
                 values.source_department = sourceValue('source_department', sourceDepartmentSnapshotValue);
@@ -9679,6 +10392,66 @@
                 values.line_items = draftLineItems;
                 values['data[dv_line_items]'] = draftLineItems;
                 values['data[line_items]'] = draftLineItems;
+                const renderDvFieldList = (items, section) => items
+                    .map(([field, value]) => shouldRenderDvField(field.name, value, resolvedSourceTypeValue, section)
+                        ? renderDynamicField(field, value, values)
+                        : '')
+                    .filter(Boolean)
+                    .join('');
+                const snapshotFieldHtml = renderDvFieldList([
+                    [textField('source_record_number', 'Source Record Number', { readOnly: true }), effectiveSourceRecordNumberValue],
+                    [dateField('source_record_date', 'Source Record Date', { readOnly: true }), effectiveSourceRecordDateValue],
+                    [textField('source_requester', 'Requester', { readOnly: true }), sourceRequesterValue],
+                    [textField('source_department', 'Department', { readOnly: true }), sourceDepartmentSnapshotValue],
+                    [textField('source_project', 'Project', { readOnly: true }), sourceProjectValue],
+                    [textField('source_cost_center', 'Cost Center', { readOnly: true }), sourceCostCenterValue],
+                    [textField('source_fund_source', 'Fund Source', { readOnly: true }), sourceFundSourceSnapshotValue],
+                    [numberField('source_amount', 'Amount', { readOnly: true }), sourceAmountValue],
+                    [numberField('source_remaining_balance', 'Remaining Balance', { readOnly: true }), sourceRemainingBalanceValue],
+                    [textField('source_approval_status', 'Approval Status', { readOnly: true }), sourceApprovalStatusValue],
+                    [textField('source_approved_by_name', 'Approved By', { readOnly: true }), sourceApprovedByNameValue],
+                    [textField('source_approved_at', 'Approved At', { readOnly: true }), sourceApprovedAtValue],
+                    [textField('source_payee_type', 'Payee Type', { readOnly: true }), sourcePayeeTypeValue],
+                    [textField('source_payee_name', 'Payee', { readOnly: true }), sourcePayeeNameValue],
+                    [textField('source_supplier_name', 'Supplier Information', { readOnly: true }), sourceSupplierNameValue],
+                    [textField('source_employee_name', 'Employee Information', { readOnly: true }), sourceEmployeeNameValue],
+                    [numberField('source_current_balance', 'Current Balance', { readOnly: true }), values.source_current_balance],
+                    [numberField('source_reserved_balance', 'Reserved Balance', { readOnly: true }), values.source_reserved_balance],
+                    [numberField('source_available_balance', 'Available Balance', { readOnly: true }), values.source_available_balance],
+                    [textField('source_status', 'Status', { readOnly: true }), sourceStatusValue],
+                    [textField('source_workflow_status', 'Workflow Status', { readOnly: true }), sourceWorkflowStatusValue],
+                    [textField('source_relationship_status', 'Relationship Status', { readOnly: true }), sourceRelationshipStatusValue],
+                    [numberField('total_disbursed_amount', 'Total Disbursed Amount', { readOnly: true }), totalDisbursedAmountValue],
+                    [numberField('percentage_paid', 'Percentage Paid', { readOnly: true }), percentagePaidValue],
+                    [textField('disbursement_status', 'Disbursement Status', { readOnly: true }), disbursementStatusValue],
+                    [numberField('projected_balance_after_payment', 'Projected Balance After Payment', { readOnly: true }), values.projected_balance_after_payment],
+                ], 'snapshot');
+                const voucherFieldHtml = renderDvFieldList([
+                    [textField('payee_type', 'Payee Type', { readOnly: true }), payeeTypeValue],
+                    [textField('payee_name', 'Payee', { readOnly: true }), payeeNameValue],
+                    [textField('supplier_id', 'Supplier', { readOnly: true }), effectiveSupplierValue],
+                    [numberField('amount', 'Amount'), effectiveAmountValue],
+                    [textField('payment_type', 'Payment Type', { readOnly: true }), effectivePaymentTypeValue],
+                    [textField('disbursement_type', 'Disbursement Type', { readOnly: true }), effectiveDisbursementTypeValue],
+                    [selectField('bank_account_id', 'Bank Account', { source: 'bank_account', required: true }), effectiveBankAccountValue],
+                    [textField('coa_id', 'Account', { readOnly: true }), effectiveCoaValue],
+                    [textField('fund_source', 'Fund Source / Project', { readOnly: true }), effectiveFundSourceValue],
+                    [textField('department', 'Department', { readOnly: true }), effectiveDepartmentValue],
+                    [textField('reference_number', 'Reference Number', { readOnly: true }), effectiveReferenceNumberValue],
+                    [textareaField('purpose', 'Purpose', { readOnly: true }), effectivePurposeValue],
+                    [dateField('payment_date', 'Payment Date', { readOnly: true }), effectivePaymentDateValue],
+                    [dateField('due_date', 'Due Date', { readOnly: true }), effectiveDueDateValue],
+                    [textareaField('remarks', 'Remarks'), effectiveRemarksValue],
+                ], 'voucher');
+                const taxReceiptFieldHtml = renderDvFieldList([
+                    [numberField('withholding_tax', 'Withholding Tax (EWT)', { readOnly: true }), effectiveWithholdingTaxValue],
+                    [numberField('vat_amount', 'VAT', { readOnly: true }), effectiveVatAmountValue],
+                    [numberField('net_amount', 'Net Amount', { readOnly: true }), effectiveNetAmountValue],
+                    [textField('currency', 'Currency', { readOnly: true }), effectiveCurrencyValue],
+                    [numberField('exchange_rate', 'Exchange Rate', { readOnly: true }), effectiveExchangeRateValue],
+                    [textField('received_by_name', 'Received By', { readOnly: true }), effectiveReceivedByNameValue],
+                    [dateField('date_received', 'Date Received', { readOnly: true }), effectiveDateReceivedValue],
+                ], 'tax');
 
                 return `
                     <div class="md:col-span-2 rounded-xl border border-blue-100 bg-blue-50/40 p-4">
@@ -9711,7 +10484,7 @@
                             </div>
                     <div class="md:col-span-2">
                         <div id="dvSourceDocumentInfo">
-                                    ${getDvSourceDocumentInfoHtml(resolvedSourceTypeValue, sourceRecord)}
+                                    ${getDvSourceDocumentInfoHtml(resolvedSourceTypeValue, resolvedSourceRecord)}
                         </div>
                     </div>
                 </div>
@@ -9721,32 +10494,7 @@
                         <h4 class="text-sm font-semibold uppercase tracking-[0.24em] text-gray-700">Source Record Snapshot</h4>
                         <p class="mt-2 text-xs text-gray-500">These values are copied from the selected source document and remain read-only.</p>
                         <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                            ${renderDynamicField(textField('source_record_number', 'Source Record Number', { readOnly: true }), sourceRecordNumberValue, values)}
-                            ${renderDynamicField(dateField('source_record_date', 'Source Record Date', { readOnly: true }), sourceRecordDateValue, values)}
-                            ${renderDynamicField(textField('source_requester', 'Requester', { readOnly: true }), sourceRequesterValue, values)}
-                            ${renderDynamicField(textField('source_department', 'Department', { readOnly: true }), sourceDepartmentSnapshotValue, values)}
-                            ${renderDynamicField(textField('source_project', 'Project', { readOnly: true }), sourceProjectValue, values)}
-                            ${renderDynamicField(textField('source_cost_center', 'Cost Center', { readOnly: true }), sourceCostCenterValue, values)}
-                            ${renderDynamicField(textField('source_fund_source', 'Fund Source', { readOnly: true }), sourceFundSourceSnapshotValue, values)}
-                            ${renderDynamicField(numberField('source_amount', 'Amount', { readOnly: true }), sourceAmountValue, values)}
-                            ${renderDynamicField(numberField('source_remaining_balance', 'Remaining Balance', { readOnly: true }), sourceRemainingBalanceValue, values)}
-                            ${renderDynamicField(textField('source_approval_status', 'Approval Status', { readOnly: true }), sourceApprovalStatusValue, values)}
-                            ${renderDynamicField(textField('source_approved_by_name', 'Approved By', { readOnly: true }), sourceApprovedByNameValue, values)}
-                            ${renderDynamicField(textField('source_approved_at', 'Approved At', { readOnly: true }), sourceApprovedAtValue, values)}
-                            ${renderDynamicField(textField('source_payee_type', 'Payee Type', { readOnly: true }), sourcePayeeTypeValue, values)}
-                            ${renderDynamicField(textField('source_payee_name', 'Payee', { readOnly: true }), sourcePayeeNameValue, values)}
-                            ${renderDynamicField(textField('source_supplier_name', 'Supplier Information', { readOnly: true }), sourceSupplierNameValue, values)}
-                            ${renderDynamicField(textField('source_employee_name', 'Employee Information', { readOnly: true }), sourceEmployeeNameValue, values)}
-                            ${renderDynamicField(numberField('source_current_balance', 'Current Balance', { readOnly: true }), values.source_current_balance, values)}
-                            ${renderDynamicField(numberField('source_reserved_balance', 'Reserved Balance', { readOnly: true }), values.source_reserved_balance, values)}
-                            ${renderDynamicField(numberField('source_available_balance', 'Available Balance', { readOnly: true }), values.source_available_balance, values)}
-                            ${renderDynamicField(textField('source_status', 'Status', { readOnly: true }), sourceStatusValue, values)}
-                            ${renderDynamicField(textField('source_workflow_status', 'Workflow Status', { readOnly: true }), sourceWorkflowStatusValue, values)}
-                            ${renderDynamicField(textField('source_relationship_status', 'Relationship Status', { readOnly: true }), sourceRelationshipStatusValue, values)}
-                            ${renderDynamicField(numberField('total_disbursed_amount', 'Total Disbursed Amount', { readOnly: true }), totalDisbursedAmountValue, values)}
-                            ${renderDynamicField(numberField('percentage_paid', 'Percentage Paid', { readOnly: true }), percentagePaidValue, values)}
-                            ${renderDynamicField(textField('disbursement_status', 'Disbursement Status', { readOnly: true }), disbursementStatusValue, values)}
-                            ${renderDynamicField(numberField('projected_balance_after_payment', 'Projected Balance After Payment', { readOnly: true }), values.projected_balance_after_payment, values)}
+                            ${snapshotFieldHtml}
                         </div>
                     </div>
 
@@ -9754,54 +10502,8 @@
                         <h4 class="text-sm font-semibold uppercase tracking-[0.24em] text-gray-700">Voucher Details</h4>
                         <p class="mt-2 text-xs text-gray-500">These values are generated from the selected source document.</p>
                         <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                ${renderDynamicField(textField('payee_type', 'Payee Type', { readOnly: true }), payeeTypeValue, values)}
-                            </div>
-                            <div>
-                                ${renderDynamicField(textField('payee_name', 'Payee', { readOnly: true }), payeeNameValue, values)}
-                            </div>
-                            <div>
-                                ${renderDynamicField(textField('supplier_id', 'Supplier', { readOnly: true }), supplierValue, values)}
-                            </div>
-                            <div>
-                                ${renderDynamicField(numberField('amount', 'Amount'), amountValue, values)}
-                            </div>
-                            <div>
-                                ${renderDynamicField(textField('payment_type', 'Payment Type', { readOnly: true }), paymentTypeValue, values)}
-                            </div>
-                            <div>
-                                ${renderDynamicField(textField('disbursement_type', 'Disbursement Type', { readOnly: true }), disbursementTypeValue, values)}
-                            </div>
-                            <div>
-                                ${renderDynamicField(textField('bank_account_id', 'Bank Account', { readOnly: true }), bankAccountValue, values)}
-                            </div>
-                            <div>
-                                ${renderDynamicField(textField('coa_id', 'Account', { readOnly: true }), coaValue, values)}
-                            </div>
-                            <div>
-                                ${renderDynamicField(textField('fund_source', 'Fund Source / Project', { readOnly: true }), fundSourceValue, values)}
-                            </div>
-                            <div>
-                                ${renderDynamicField(textField('department', 'Department', { readOnly: true }), departmentValue, values)}
-                            </div>
-                            <div>
-                                ${renderDynamicField(textField('reference_number', 'Reference Number', { readOnly: true }), referenceNumberValue, values)}
-                            </div>
-                            <div class="md:col-span-2">
-                                ${renderDynamicField(textareaField('purpose', 'Purpose', { readOnly: true }), purposeValue, values)}
-                            </div>
-                            <div>
-                                ${renderDynamicField(dateField('payment_date', 'Payment Date', { readOnly: true }), paymentDateValue, values)}
-                            </div>
-                            <div>
-                                ${renderDynamicField(dateField('due_date', 'Due Date', { readOnly: true }), dueDateValue, values)}
-                            </div>
-                            <div class="md:col-span-2">
-                                ${renderDynamicField(textareaField('remarks', 'Remarks', { readOnly: true }), remarksValue, values)}
-                            </div>
+                            ${voucherFieldHtml}
                         </div>
-                        <input type="hidden" name="data[source_document_id]" value="${escapeHtml(sourceDocumentValue)}">
-                        <input type="hidden" name="data[source_document_type]" value="${escapeHtml(resolvedSourceTypeValue)}">
                     </div>
 
                     ${renderDvLineItemsTable(record)}
@@ -9809,14 +10511,7 @@
                     <div class="md:col-span-2 rounded-xl border border-gray-200 bg-white p-4">
                         <h4 class="text-sm font-semibold uppercase tracking-[0.24em] text-gray-700">Tax, Currency & Receipt</h4>
                         <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                            ${renderDynamicField(numberField('withholding_tax', 'Withholding Tax (EWT)', { readOnly: true }), effectiveWithholdingTaxValue, values)}
-                            ${renderDynamicField(numberField('vat_amount', 'VAT', { readOnly: true }), effectiveVatAmountValue, values)}
-                            ${renderDynamicField(numberField('net_amount', 'Net Amount', { readOnly: true }), effectiveNetAmountValue, values)}
-                            ${renderDynamicField(textField('currency', 'Currency', { readOnly: true }), currencyValue, values)}
-                            ${renderDynamicField(numberField('exchange_rate', 'Exchange Rate', { readOnly: true }), effectiveExchangeRateValue, values)}
-                            ${renderDynamicField(textField('received_by_name', 'Received By', { readOnly: true }), effectiveReceivedByNameValue, values)}
-                            ${renderDynamicField(textField('received_by_signature', 'Signature', { readOnly: true }), effectiveReceivedBySignatureValue, values)}
-                            ${renderDynamicField(dateField('date_received', 'Date Received', { readOnly: true }), effectiveDateReceivedValue, values)}
+                            ${taxReceiptFieldHtml}
                         </div>
                     </div>
                 `;
@@ -10025,6 +10720,9 @@
                 const linkedPrId = getDraftValue('linked_pr_id', record);
                 const linkedPrRecord = getRecordById(linkedPrId) || getRecordByLookupValue('pr', linkedPrId);
                 const linkedPrAutofill = getPoAutofillValuesFromLinkedRecord(linkedPrRecord);
+                const draftLineItems = Array.isArray(getDraftValue('line_items', record))
+                    ? getDraftValue('line_items', record).map((row) => ({ ...row }))
+                    : (Array.isArray(linkedPrAutofill.line_items) ? linkedPrAutofill.line_items.map((row) => ({ ...row })) : []);
                 const supplierValue = getDraftValue('supplier_id', record) || linkedPrAutofill.supplier_id;
                 const projectValue = getDraftValue('project', record) || linkedPrAutofill.project;
                 const costCenterValue = getDraftValue('cost_center', record) || linkedPrAutofill.cost_center;
@@ -10042,14 +10740,19 @@
                 values['data[linked_pr_id]'] = linkedPrId;
                 values.linked_pr_supplier_summary = supplierSummary;
                 values['data[linked_pr_supplier_summary]'] = supplierSummary;
+                financeFormValues.line_items = draftLineItems;
+                values.line_items = draftLineItems;
+                values['data[line_items]'] = draftLineItems;
 
                 return `
                     <div class="md:col-span-2 rounded-xl border border-blue-100 bg-blue-50/40 p-4">
                         <h4 class="text-sm font-semibold uppercase tracking-[0.24em] text-blue-700">Order Details</h4>
                         <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                            ${renderFieldsByNames(moduleConfig, ['linked_pr_id', 'supplier_id', 'project', 'cost_center', 'expected_delivery_date', 'delivery_address', 'terms_and_conditions'], values, record)}
+                            ${renderFieldsByNames(moduleConfig, ['linked_pr_id', 'project', 'cost_center', 'expected_delivery_date', 'delivery_address', 'terms_and_conditions'], values, record)}
                         </div>
                     </div>
+
+                    <input type="hidden" name="data[supplier_id]" value="${escapeHtml(values['data[supplier_id]'] || '')}">
 
                     ${renderPoLinkedPrSupplierSummary(linkedPrRecord)}
 
@@ -10496,12 +11199,15 @@
                 amount: row.querySelector('[data-pr-line-item-field="amount"]')?.value || '',
                 total: row.querySelector('[data-pr-line-item-field="total"]')?.value || '',
             }));
+            const linkedCaId = formValues['data[linked_ca_id]'] || '';
+            const linkedCaRecord = linkedCaId ? (getRecordById(linkedCaId) || getRecordByLookupValue('ca', linkedCaId)) : null;
+            const linkedCaData = linkedCaRecord?.data || {};
 
             const summaryValues = {
-                ca_reference_no: getLookupLabel('ca', formValues['data[linked_ca_id]']) || formValues['data[linked_ca_id]'] || 'N/A',
-                ca_amount: formValues['data[total_cash_advance]'] || '0.00',
-                for_client: formValues['data[for_client]'] || 'N/A',
-                client_names: formValues['data[client_names]'] || 'N/A',
+                ca_reference_no: getLookupLabel('ca', linkedCaId) || linkedCaId || 'N/A',
+                ca_amount: formValues['data[total_cash_advance]'] || linkedCaRecord?.amount || linkedCaData.amount_requested || '0.00',
+                for_client: formValues['data[for_client]'] || linkedCaData.for_client || 'N/A',
+                client_names: formValues['data[client_names]'] || linkedCaData.client_names || 'N/A',
                 line_items_total: rows.reduce((sum, row) => sum + (parseFloat(row.total || '0') || 0), 0).toFixed(2),
                 subtotal: formValues['data[subtotal]'] || '0.00',
                 discount_total: formValues['data[discount_total]'] || '0.00',
@@ -10621,6 +11327,22 @@
                 supplier_id: row.querySelector('[data-pr-line-item-field="supplier_id"]')?.value || '',
                 client_id: row.querySelector('[data-pr-line-item-field="client_id"]')?.value || '',
             }));
+            const sectionCell = (label, value, extraClasses = '') => `
+                <div class="${extraClasses} px-4 py-3">
+                    <p class="text-[11px] uppercase tracking-[0.22em] text-gray-500">${escapeHtml(label)}</p>
+                    <p class="mt-2 min-h-[20px] border-b border-gray-300 text-[14px] font-semibold text-gray-900 break-words">${escapeHtml(value || 'Not filled yet')}</p>
+                </div>
+            `;
+            const renderSection = (title, cells) => `
+                <div class="relative border-t border-gray-300">
+                    <div class="bg-gray-50 px-4 py-2 border-b border-gray-300">
+                        <h4 class="text-[12px] font-semibold uppercase tracking-[0.26em] text-gray-700">${escapeHtml(title)}</h4>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2">
+                        ${cells.join('')}
+                    </div>
+                </div>
+            `;
 
             $('drawerPreview').innerHTML = `
                 <div class="rounded-2xl border border-slate-200 bg-slate-100 p-4">
@@ -10646,30 +11368,26 @@
                                 <div class="${index % 2 === 0 ? 'border-r' : ''} ${index > 1 ? 'border-t' : ''} border-gray-300 px-4 py-3">
                                     <p class="text-[11px] uppercase tracking-[0.22em] text-gray-500">${escapeHtml(label)}</p>
                                     <p class="mt-1 text-[15px] font-semibold text-gray-900 break-words">${escapeHtml(value)}</p>
-                                </div>
-                            `).join('')}
-                        </div>
+                            </div>
+                        `).join('')}
+                    </div>
 
-                        <div class="relative border-t border-gray-300">
-                            <div class="bg-gray-50 px-4 py-2 border-b border-gray-300">
-                                <h4 class="text-[12px] font-semibold uppercase tracking-[0.26em] text-gray-700">Order Details</h4>
-                            </div>
-                            <div class="grid grid-cols-1 md:grid-cols-2">
-                                ${[
-                                    ['Linked PR', getLookupLabel('pr', formValues['data[linked_pr_id]']) || formValues['data[linked_pr_id]'] || 'Not filled yet'],
-                                    ['Supplier', getLookupLabel('supplier', formValues['data[supplier_id]']) || formValues['data[supplier_id]'] || 'Not filled yet'],
-                                    ['Expected Delivery Date', formValues['data[expected_delivery_date]'] || 'Not filled yet'],
-                                    ['Delivery Address', formValues['data[delivery_address]'] || 'Not filled yet'],
-                                    ['Terms and Conditions', formValues['data[terms_and_conditions]'] || 'Not filled yet'],
-                                    ['Account', getLookupLabel('chart_account', formValues['data[coa_id]']) || formValues['data[coa_id]'] || 'Not filled yet'],
-                                ].map(([label, value], index) => `
-                                    <div class="${index % 2 === 0 ? 'border-r' : ''} ${index > 1 ? 'border-t' : ''} border-gray-300 px-4 py-3">
-                                        <p class="text-[11px] uppercase tracking-[0.22em] text-gray-500">${escapeHtml(label)}</p>
-                                        <p class="mt-2 min-h-[20px] border-b border-gray-300 text-[14px] font-semibold text-gray-900 break-words">${escapeHtml(value)}</p>
-                                    </div>
-                                `).join('')}
-                            </div>
-                        </div>
+                    ${renderSection('Order Details', [
+                        sectionCell('Linked PR', getLookupLabel('pr', formValues['data[linked_pr_id]']) || formValues['data[linked_pr_id]'] || 'Not filled yet', 'border-r border-gray-300'),
+                        sectionCell('Supplier', getLookupLabel('supplier', formValues['data[supplier_id]']) || formValues['data[supplier_id]'] || 'Not filled yet'),
+                        sectionCell('Project', formValues['data[project]'] || 'Not filled yet', 'border-r border-t border-gray-300'),
+                        sectionCell('Cost Center', formValues['data[cost_center]'] || 'Not filled yet', 'border-t border-gray-300'),
+                        sectionCell('Items / Services Type', formValues['data[linked_item_type]'] || 'Not filled yet', 'border-r border-t border-gray-300'),
+                        sectionCell('Items / Services', getLookupLabel(formValues['data[linked_item_type]'] || 'product', formValues['data[linked_item_id]']) || formValues['data[linked_item_id]'] || 'Not filled yet', 'border-t border-gray-300'),
+                        sectionCell('Quantity', formValues['data[quantity]'] || 'Not filled yet', 'border-r border-t border-gray-300'),
+                        sectionCell('Unit Cost', formValues['data[unit_cost]'] ? formatCurrency(formValues['data[unit_cost]']) : 'Not filled yet', 'border-t border-gray-300'),
+                        sectionCell('Total Amount', formValues['data[total_amount]'] ? formatCurrency(formValues['data[total_amount]']) : 'Not filled yet', 'border-r border-t border-gray-300'),
+                        sectionCell('Account', getLookupLabel('chart_account', formValues['data[coa_id]']) || formValues['data[coa_id]'] || 'Not filled yet', 'border-t border-gray-300'),
+                        sectionCell('Expected Delivery Date', formValues['data[expected_delivery_date]'] || 'Not filled yet', 'border-r border-t border-gray-300'),
+                        sectionCell('Delivery Address', formValues['data[delivery_address]'] || 'Not filled yet', 'border-t border-gray-300'),
+                        sectionCell('Terms and Conditions', formValues['data[terms_and_conditions]'] || 'Not filled yet', 'border-r border-t border-gray-300 md:col-span-2'),
+                        sectionCell('Remarks', formValues['data[remarks]'] || 'Not filled yet', 'border-r border-t border-gray-300 md:col-span-2'),
+                    ])}
 
                         <div class="relative border-t border-gray-300">
                             <div class="bg-gray-50 px-4 py-2 border-b border-gray-300">
@@ -10708,15 +11426,6 @@
                                 </table>
                             </div>
                         </div>
-
-                        <div class="relative border-t border-gray-300">
-                            <div class="bg-gray-50 px-4 py-2 border-b border-gray-300">
-                                <h4 class="text-[12px] font-semibold uppercase tracking-[0.26em] text-gray-700">Remarks</h4>
-                            </div>
-                            <div class="px-4 py-3">
-                                <p class="mt-2 min-h-[20px] border-b border-gray-300 text-[14px] font-semibold text-gray-900 break-words">${escapeHtml(formValues['data[remarks]'] || 'Not filled yet')}</p>
-                            </div>
-                        </div>
                     </div>
                 </div>
             `;
@@ -10736,6 +11445,41 @@
                 paid_through: getLookupLabel('chart_account', paidThroughValue) || paidThroughValue || 'N/A',
                 ca_payment_entries: collectCashAdvancePaymentEntriesFromForm(),
             };
+            const requesterModeValue = String(formValues['data[requester_mode]'] || '').trim();
+            const requesterModeLabel = requesterModeValue === 'own_request'
+                ? 'Own Request'
+                : (requesterModeValue === 'request_for_another' ? 'Request for Another' : 'Not filled yet');
+            const selectedEmployeeLabel = getLookupLabel('employee', formValues['data[requester_employee_id]']) || formValues['data[requester_employee_id]'] || 'Not filled yet';
+            const usageCategoryValues = Array.from($('financeForm').querySelectorAll('input[name="data[usage_categories][]"]:checked'))
+                .map((input) => String(input.value || '').trim())
+                .filter(Boolean);
+            const usageCategoryLabel = usageCategoryValues.length ? usageCategoryValues.join(', ') : 'Not filled yet';
+            const hasOtherBusinessPurpose = String(formValues['data[cash_advance_type]'] || '').trim() === 'Other Business Purpose';
+            const hasOtherExpense = usageCategoryValues.includes('Other Expense');
+            const declarations = [
+                ['Official Business Cash Advance', $('financeForm').querySelector('input[name="data[official_business_cash_advance]"]')?.checked ? 'Yes' : 'No'],
+                ['Employee Cash Advance - Personal Purpose', $('financeForm').querySelector('input[name="data[employee_cash_advance_personal]"]')?.checked ? 'Yes' : 'No'],
+                ['Liquidation Non-Compliance', $('financeForm').querySelector('input[name="data[liquidation_non_compliance]"]')?.checked ? 'Yes' : 'No'],
+                ['Automatic Salary Deduction Authorization', $('financeForm').querySelector('input[name="data[automatic_salary_deduction_authorization]"]')?.checked ? 'Yes' : 'No'],
+                ['Final Pay Deduction Authorization', $('financeForm').querySelector('input[name="data[final_pay_deduction_authorization]"]')?.checked ? 'Yes' : 'No'],
+                ['Policy Acknowledgment', $('financeForm').querySelector('input[name="data[policy_acknowledgment]"]')?.checked ? 'Yes' : 'No'],
+            ];
+            const sectionCell = (label, value, extraClasses = '') => `
+                <div class="${extraClasses} px-4 py-3">
+                    <p class="text-[11px] uppercase tracking-[0.22em] text-gray-500">${escapeHtml(label)}</p>
+                    <p class="mt-2 min-h-[20px] border-b border-gray-300 text-[14px] font-semibold text-gray-900 break-words">${escapeHtml(value || 'Not filled yet')}</p>
+                </div>
+            `;
+            const renderSection = (title, cells) => `
+                <div class="relative border-t border-gray-300">
+                    <div class="bg-gray-50 px-4 py-2 border-b border-gray-300">
+                        <h4 class="text-[12px] font-semibold uppercase tracking-[0.26em] text-gray-700">${escapeHtml(title)}</h4>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2">
+                        ${cells.join('')}
+                    </div>
+                </div>
+            `;
             $('drawerPreview').innerHTML = `
                 <div class="rounded-2xl border border-slate-200 bg-slate-100 p-4">
                     <div class="mb-3 flex items-center justify-between rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-medium text-slate-500 shadow-sm">
@@ -10776,89 +11520,53 @@
                             </div>
                         </div>
 
-                        <div class="relative border-t border-gray-300">
-                            <div class="bg-gray-50 px-4 py-2 border-b border-gray-300">
-                                <h4 class="text-[12px] font-semibold uppercase tracking-[0.26em] text-gray-700">Request Details</h4>
-                            </div>
-                            <div class="grid grid-cols-1 md:grid-cols-2">
-                                <div class="border-r border-gray-300 px-4 py-3">
-                                    <p class="text-[11px] uppercase tracking-[0.22em] text-gray-500">Date Needed</p>
-                                    <p class="mt-2 min-h-[20px] border-b border-gray-300 text-[14px] font-semibold text-gray-900 break-words">${escapeHtml(formValues['data[needed_date]'] || 'Not filled yet')}</p>
-                                </div>
-                                <div class="px-4 py-3">
-                                    <p class="text-[11px] uppercase tracking-[0.22em] text-gray-500">Priority</p>
-                                    <p class="mt-2 min-h-[20px] border-b border-gray-300 text-[14px] font-semibold text-gray-900 break-words">${escapeHtml(formValues['data[priority]'] || 'Not filled yet')}</p>
-                                </div>
-                                <div class="border-r border-gray-300 px-4 py-3">
-                                    <p class="text-[11px] uppercase tracking-[0.22em] text-gray-500">Cash Advance Type</p>
-                                    <p class="mt-2 min-h-[20px] border-b border-gray-300 text-[14px] font-semibold text-gray-900 break-words">${escapeHtml(formValues['data[cash_advance_type]'] || 'Not filled yet')}</p>
-                                </div>
-                                <div class="px-4 py-3">
-                                    <p class="text-[11px] uppercase tracking-[0.22em] text-gray-500">For Client?</p>
-                                    <p class="mt-2 min-h-[20px] border-b border-gray-300 text-[14px] font-semibold text-gray-900 break-words">${escapeHtml(formValues['data[for_client]'] || 'Not filled yet')}</p>
-                                </div>
-                            </div>
-                        </div>
+                        ${renderSection('Request Details', [
+                            sectionCell('Requester Option', requesterModeLabel, 'border-r border-gray-300'),
+                            sectionCell('Selected Employee', selectedEmployeeLabel),
+                            sectionCell('Employee ID', formValues['data[employee_id]'] || 'Not filled yet', 'border-r border-t border-gray-300'),
+                            sectionCell('Employee Name', formValues['data[employee_name]'] || 'Not filled yet', 'border-t border-gray-300'),
+                            sectionCell('Email', formValues['data[employee_email]'] || 'Not filled yet', 'border-r border-t border-gray-300'),
+                            sectionCell('Contact #', formValues['data[contact_number]'] || 'Not filled yet', 'border-t border-gray-300'),
+                            sectionCell('Position', formValues['data[position]'] || 'Not filled yet', 'border-r border-t border-gray-300'),
+                            sectionCell('Department', formValues['data[department]'] || 'Not filled yet', 'border-t border-gray-300'),
+                            sectionCell('Superior', formValues['data[superior]'] || 'Not filled yet', 'border-r border-t border-gray-300'),
+                            sectionCell('Superior Email', formValues['data[superior_email]'] || 'Not filled yet', 'border-t border-gray-300'),
+                            sectionCell('Needed Date', formValues['data[needed_date]'] || 'Not filled yet', 'border-r border-t border-gray-300'),
+                            sectionCell('Priority', formValues['data[priority]'] || 'Not filled yet', 'border-t border-gray-300'),
+                            sectionCell('Cash Advance Type', formValues['data[cash_advance_type]'] || 'Not filled yet', 'border-r border-t border-gray-300'),
+                            sectionCell('For Client?', formValues['data[for_client]'] || 'Not filled yet', 'border-t border-gray-300'),
+                            sectionCell('Client Name(s)', formValues['data[client_names]'] || 'Not filled yet', 'border-r border-t border-gray-300'),
+                            sectionCell('Amount Requested', summaryValues.amount_requested, 'border-t border-gray-300'),
+                            sectionCell('Release Schedule', summaryValues.release_schedule, 'border-r border-t border-gray-300'),
+                            sectionCell('Number of Releases', summaryValues.release_count, 'border-t border-gray-300'),
+                            sectionCell('Amount per Release', summaryValues.amount_per_release, 'border-r border-t border-gray-300'),
+                            sectionCell('Cash Release Date', summaryValues.cash_release_date || 'Not filled yet', 'border-t border-gray-300'),
+                            sectionCell('Cash Release Time', summaryValues.cash_release_time || 'Not filled yet', 'border-r border-t border-gray-300'),
+                            sectionCell('Mode of Release', summaryValues.mode_of_release || 'Not filled yet', 'border-t border-gray-300'),
+                            sectionCell('Paid Through', summaryValues.paid_through, 'border-r border-t border-gray-300'),
+                            sectionCell('Justification / Business Need', formValues['data[purpose]'] || 'Not filled yet', 'border-t border-gray-300 md:col-span-2'),
+                            sectionCell('Cash Advance Usage / Expense Categories', usageCategoryLabel, 'border-r border-t border-gray-300 md:col-span-2'),
+                            ...(hasOtherBusinessPurpose ? [sectionCell('Other Business Purpose - Specify', formValues['data[other_business_purpose_specify]'] || 'Not filled yet', 'border-r border-t border-gray-300 md:col-span-2')] : []),
+                            ...(hasOtherExpense ? [sectionCell('Other Expense - Specify', formValues['data[other_expense_specify]'] || 'Not filled yet', 'border-r border-t border-gray-300 md:col-span-2')] : []),
+                        ])}
 
-                        <div class="relative border-t border-gray-300">
-                            <div class="bg-gray-50 px-4 py-2 border-b border-gray-300">
-                                <h4 class="text-[12px] font-semibold uppercase tracking-[0.26em] text-gray-700">Cash Advance Details</h4>
-                            </div>
-                            <div class="grid grid-cols-1 md:grid-cols-2">
-                                <div class="border-r border-gray-300 px-4 py-3">
-                                    <p class="text-[11px] uppercase tracking-[0.22em] text-gray-500">Amount Requested</p>
-                                    <p class="mt-2 min-h-[20px] border-b border-gray-300 text-[14px] font-semibold text-gray-900 break-words">${escapeHtml(summaryValues.amount_requested)}</p>
-                                </div>
-                                <div class="px-4 py-3">
-                                    <p class="text-[11px] uppercase tracking-[0.22em] text-gray-500">Mode of Release</p>
-                                    <p class="mt-2 min-h-[20px] border-b border-gray-300 text-[14px] font-semibold text-gray-900 break-words">${escapeHtml(summaryValues.mode_of_release)}</p>
-                                </div>
-                                <div class="border-r border-t border-gray-300 px-4 py-3">
-                                    <p class="text-[11px] uppercase tracking-[0.22em] text-gray-500">Release Schedule</p>
-                                    <p class="mt-2 min-h-[20px] border-b border-gray-300 text-[14px] font-semibold text-gray-900 break-words">${escapeHtml(summaryValues.release_schedule)}</p>
-                                </div>
-                                <div class="border-t border-gray-300 px-4 py-3">
-                                    <p class="text-[11px] uppercase tracking-[0.22em] text-gray-500">Number of Releases</p>
-                                    <p class="mt-2 min-h-[20px] border-b border-gray-300 text-[14px] font-semibold text-gray-900 break-words">${escapeHtml(summaryValues.release_count)}</p>
-                                </div>
-                                <div class="border-r border-t border-gray-300 px-4 py-3">
-                                    <p class="text-[11px] uppercase tracking-[0.22em] text-gray-500">Amount per Release</p>
-                                    <p class="mt-2 min-h-[20px] border-b border-gray-300 text-[14px] font-semibold text-gray-900 break-words">${escapeHtml(summaryValues.amount_per_release)}</p>
-                                </div>
-                                <div class="border-r border-t border-gray-300 px-4 py-3">
-                                    <p class="text-[11px] uppercase tracking-[0.22em] text-gray-500">Cash Release Date / Time</p>
-                                    <p class="mt-2 min-h-[20px] border-b border-gray-300 text-[14px] font-semibold text-gray-900 break-words">${escapeHtml([summaryValues.cash_release_date, summaryValues.cash_release_time].filter((value) => value && value !== 'N/A').join(' ') || 'N/A')}</p>
-                                </div>
-                                <div class="border-t border-gray-300 px-4 py-3">
-                                    <p class="text-[11px] uppercase tracking-[0.22em] text-gray-500">Paid Through</p>
-                                    <p class="mt-2 min-h-[20px] border-b border-gray-300 text-[14px] font-semibold text-gray-900 break-words">${escapeHtml(summaryValues.paid_through)}</p>
-                                </div>
-                                ${(String(formValues['data[cash_advance_type]'] || '').trim() === 'Other Business Purpose' || (Array.isArray(formValues['data[usage_categories][]']) ? formValues['data[usage_categories][]'] : []).map((item) => String(item).trim()).includes('Other Expense'))
-                                    ? `
-                                <div class="border-r border-t border-gray-300 px-4 py-3">
-                                    <p class="text-[11px] uppercase tracking-[0.22em] text-gray-500">Other Business Purpose</p>
-                                    <p class="mt-2 min-h-[20px] border-b border-gray-300 text-[14px] font-semibold text-gray-900 break-words">${escapeHtml(formValues['data[other_business_purpose_specify]'] || formValues['data[other_expense_specify]'] || 'Not filled yet')}</p>
-                                </div>
-                                    `
-                                    : ''}
-                            </div>
-                        </div>
+                        ${renderSection('Requester Details', [
+                            sectionCell('Selected Employee', selectedEmployeeLabel, 'border-r border-gray-300'),
+                            sectionCell('Employee ID', formValues['data[employee_id]'] || 'Not filled yet'),
+                            sectionCell('Employee Name', formValues['data[employee_name]'] || 'Not filled yet', 'border-r border-t border-gray-300'),
+                            sectionCell('Email', formValues['data[employee_email]'] || 'Not filled yet', 'border-t border-gray-300'),
+                            sectionCell('Contact #', formValues['data[contact_number]'] || 'Not filled yet', 'border-r border-t border-gray-300'),
+                            sectionCell('Position', formValues['data[position]'] || 'Not filled yet', 'border-t border-gray-300'),
+                            sectionCell('Department', formValues['data[department]'] || 'Not filled yet', 'border-r border-t border-gray-300'),
+                            sectionCell('Superior', formValues['data[superior]'] || 'Not filled yet', 'border-t border-gray-300'),
+                            sectionCell('Superior Email', formValues['data[superior_email]'] || 'Not filled yet', 'border-r border-t border-gray-300 md:col-span-2'),
+                        ])}
 
-                        <div class="relative border-t border-gray-300">
-                            <div class="bg-gray-50 px-4 py-2 border-b border-gray-300">
-                                <h4 class="text-[12px] font-semibold uppercase tracking-[0.26em] text-gray-700">Justification & Notes</h4>
-                            </div>
-                            <div class="grid grid-cols-1 md:grid-cols-2">
-                                <div class="border-r border-gray-300 px-4 py-3">
-                                    <p class="text-[11px] uppercase tracking-[0.22em] text-gray-500">Justification / Business Need</p>
-                                    <p class="mt-2 min-h-[20px] border-b border-gray-300 text-[14px] font-semibold text-gray-900 break-words">${escapeHtml(formValues['data[purpose]'] || 'Not filled yet')}</p>
-                                </div>
-                                <div class="px-4 py-3">
-                                    <p class="text-[11px] uppercase tracking-[0.22em] text-gray-500">Remarks</p>
-                                    <p class="mt-2 min-h-[20px] border-b border-gray-300 text-[14px] font-semibold text-gray-900 break-words">${escapeHtml(formValues['data[remarks]'] || 'Not filled yet')}</p>
-                                </div>
-                            </div>
-                        </div>
+                        ${renderSection('Declarations & Authorizations', declarations.map(([label, value], index) => sectionCell(label, value, `${index % 2 === 0 ? 'border-r ' : ''}${index > 1 ? 'border-t ' : ''}border-gray-300`)))}
+
+                        ${renderSection('Funding & Notes', [
+                            sectionCell('Remarks', formValues['data[remarks]'] || 'Not filled yet', 'border-r border-gray-300 md:col-span-2'),
+                        ])}
                     </div>
                 </div>
             `;
@@ -10892,6 +11600,36 @@
                 wht_amount: $('financeForm').querySelector('input[name="data[wht_amount]"]')?.value || '0.00',
                 grand_total: $('financeForm').querySelector('input[name="data[grand_total]"]')?.value || '0.00',
             };
+            const requesterModeValue = String(formValues['data[requester_mode]'] || '').trim();
+            const requesterModeLabel = requesterModeValue === 'own_request'
+                ? 'Own Request'
+                : (requesterModeValue === 'request_for_another' ? 'Request for Another' : 'Not filled yet');
+            const reasonValues = Array.from($('financeForm').querySelectorAll('input[name="data[pr_reason_categories][]"]:checked'))
+                .map((input) => String(input.value || '').trim())
+                .filter(Boolean);
+            const reasonLabel = reasonValues.length ? reasonValues.join(', ') : 'Not filled yet';
+            const priorityLabel = formValues['data[priority]'] || 'Not filled yet';
+            const neededDateLabel = formValues['data[needed_date]'] || 'Not filled yet';
+            const forClientLabel = formValues['data[for_client]'] || 'Not filled yet';
+            const projectLabel = formValues['data[project]'] || 'Not filled yet';
+            const costCenterLabel = formValues['data[cost_center]'] || 'Not filled yet';
+            const supplierLabel = getLookupLabel('supplier', formValues['data[supplier_id]']) || formValues['data[supplier_id]'] || 'Not filled yet';
+            const sectionCell = (label, value, extraClasses = '') => `
+                <div class="${extraClasses} px-4 py-3">
+                    <p class="text-[11px] uppercase tracking-[0.22em] text-gray-500">${escapeHtml(label)}</p>
+                    <p class="mt-2 min-h-[20px] border-b border-gray-300 text-[14px] font-semibold text-gray-900 break-words">${escapeHtml(value || 'Not filled yet')}</p>
+                </div>
+            `;
+            const renderSection = (title, cells) => `
+                <div class="relative border-t border-gray-300">
+                    <div class="bg-gray-50 px-4 py-2 border-b border-gray-300">
+                        <h4 class="text-[12px] font-semibold uppercase tracking-[0.26em] text-gray-700">${escapeHtml(title)}</h4>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2">
+                        ${cells.join('')}
+                    </div>
+                </div>
+            `;
 
             $('drawerPreview').innerHTML = `
                 <div class="rounded-2xl border border-slate-200 bg-slate-100 p-4">
@@ -10920,6 +11658,45 @@
                             </div>
                         `).join('')}
                     </div>
+
+                    ${renderSection('Request Details', [
+                        sectionCell('Priority', priorityLabel, 'border-r border-gray-300'),
+                        sectionCell('Needed Date', neededDateLabel),
+                        sectionCell('Is this for a client?', forClientLabel, 'border-r border-t border-gray-300'),
+                        sectionCell('Reason (tick all that apply)', reasonLabel, 'border-t border-gray-300 md:col-span-2'),
+                    ])}
+
+                    ${renderSection('Requester Details', [
+                        sectionCell('Requester Option', requesterModeLabel, 'border-r border-gray-300'),
+                        sectionCell('Selected Employee', getLookupLabel('employee', formValues['data[requester_employee_id]']) || formValues['data[requester_employee_id]'] || 'Not filled yet'),
+                        sectionCell('Employee Name', formValues['data[requestor]'] || formValues['data[employee_name]'] || 'Not filled yet', 'border-r border-t border-gray-300'),
+                        sectionCell('Employee ID', formValues['data[employee_id]'] || 'Not filled yet', 'border-t border-gray-300'),
+                        sectionCell('Email', formValues['data[employee_email]'] || 'Not filled yet', 'border-r border-t border-gray-300'),
+                        sectionCell('Contact #', formValues['data[contact_number]'] || 'Not filled yet', 'border-t border-gray-300'),
+                        sectionCell('Position', formValues['data[position]'] || 'Not filled yet', 'border-r border-t border-gray-300'),
+                        sectionCell('Department', formValues['data[department]'] || 'Not filled yet', 'border-t border-gray-300'),
+                        sectionCell('Superior', formValues['data[superior]'] || 'Not filled yet', 'border-r border-t border-gray-300'),
+                        sectionCell('Superior Email', formValues['data[superior_email]'] || 'Not filled yet', 'border-t border-gray-300'),
+                    ])}
+
+                    ${renderSection('Vendor / Supplier Details', [
+                        sectionCell('Supplier', supplierLabel, 'border-r border-gray-300'),
+                        sectionCell('New Vendor?', formValues['data[new_vendor]'] || 'Not filled yet'),
+                        sectionCell('Vendor ID Number', formValues['data[vendor_id_number]'] || 'Not filled yet', 'border-r border-t border-gray-300'),
+                        sectionCell('Vendors TIN#', formValues['data[vendors_tin]'] || 'Not filled yet', 'border-t border-gray-300'),
+                        sectionCell('Company', formValues['data[company_name]'] || 'Not filled yet', 'border-r border-t border-gray-300'),
+                        sectionCell('Address', formValues['data[vendor_address]'] || 'Not filled yet', 'border-t border-gray-300'),
+                        sectionCell('City', formValues['data[city]'] || 'Not filled yet', 'border-r border-t border-gray-300'),
+                        sectionCell('Province', formValues['data[province]'] || 'Not filled yet', 'border-t border-gray-300'),
+                        sectionCell('Zip', formValues['data[zip]'] || 'Not filled yet', 'border-r border-t border-gray-300'),
+                        sectionCell('Phone Number', formValues['data[vendor_phone]'] || 'Not filled yet', 'border-t border-gray-300'),
+                        sectionCell('Email', formValues['data[vendor_email]'] || 'Not filled yet', 'border-r border-t border-gray-300 md:col-span-2'),
+                    ])}
+
+                    ${renderSection('Project Allocation', [
+                        sectionCell('Project', projectLabel, 'border-r border-gray-300'),
+                        sectionCell('Cost Center', costCenterLabel),
+                    ])}
 
                     <div class="relative border-t border-gray-300">
                         <div class="bg-gray-50 px-4 py-2 border-b border-gray-300">
@@ -10981,21 +11758,344 @@
                 </div>
                     </div>
 
+                    ${renderSection('Purpose & Notes', [
+                        sectionCell('Purpose / Justification', $('financeForm').querySelector('textarea[name="data[purpose]"]')?.value || 'Not filled yet', 'border-r border-gray-300'),
+                        sectionCell('Remarks', $('financeForm').querySelector('textarea[name="data[remarks]"]')?.value || 'Not filled yet'),
+                    ])}
+                </div>
+            `;
+            return;
+        }
+
+        if (currentModuleKey === 'dv') {
+            const sourceType = String(formValues['data[source_document_type]'] || '').trim();
+            const normalizedSourceType = sourceType.toLowerCase();
+            const sourceDocumentId = String(formValues['data[source_document_id]'] || '').trim();
+            const sourceDocumentLabel = getLookupLabel(sourceType, sourceDocumentId)
+                || $('dvSourceDocumentSelect')?.selectedOptions?.[0]?.textContent?.trim()
+                || sourceDocumentId
+                || 'Not filled yet';
+            const dvRows = Array.isArray(financeFormValues?.dv_line_items) ? financeFormValues.dv_line_items : [];
+            const dvSourceRecord = sourceDocumentId
+                ? (getRecordById(sourceDocumentId) || getRecordByLookupValue(normalizedSourceType, sourceDocumentId))
+                : null;
+            const fieldValue = (fieldName, fallback = 'Not filled yet') => {
+                const value = formValues[`data[${fieldName}]`];
+                if (Array.isArray(value)) {
+                    return value.length ? value.join(', ') : fallback;
+                }
+
+                return String(value ?? '').trim() !== '' ? value : fallback;
+            };
+            const displayLookup = (sourceKey, value, fallback = 'Not filled yet') => {
+                const normalizedValue = Array.isArray(value) ? value[0] : value;
+                if (String(normalizedValue ?? '').trim() === '') {
+                    return fallback;
+                }
+
+                return getLookupLabel(sourceKey, normalizedValue) || normalizedValue || fallback;
+            };
+            const snapshotPairs = [
+                ['Source Record Number', fieldValue('source_record_number')],
+                ['Source Record Date', fieldValue('source_record_date')],
+                ['Requester', fieldValue('source_requester')],
+                ['Department', fieldValue('source_department')],
+                ['Project', fieldValue('source_project')],
+                ['Cost Center', fieldValue('source_cost_center')],
+                ['Fund Source', fieldValue('source_fund_source')],
+                ['Amount', fieldValue('source_amount', '0.00')],
+                ['Remaining Balance', fieldValue('source_remaining_balance', '0.00')],
+                ['Approval Status', fieldValue('source_approval_status')],
+                ['Approved By', fieldValue('source_approved_by_name')],
+                ['Approved At', fieldValue('source_approved_at')],
+                ['Payee Type', fieldValue('source_payee_type')],
+                ['Payee', fieldValue('source_payee_name')],
+                ['Supplier Information', fieldValue('source_supplier_name')],
+                ['Employee Information', fieldValue('source_employee_name')],
+                ['Current Balance', fieldValue('source_current_balance', '0.00')],
+                ['Reserved Balance', fieldValue('source_reserved_balance', '0.00')],
+                ['Available Balance', fieldValue('source_available_balance', '0.00')],
+                ['Status', fieldValue('source_status')],
+                ['Workflow Status', fieldValue('source_workflow_status')],
+                ['Relationship Status', fieldValue('source_relationship_status')],
+                ['Total Disbursed Amount', fieldValue('total_disbursed_amount', '0.00')],
+                ['Percentage Paid', fieldValue('percentage_paid', '0.00')],
+                ['Disbursement Status', fieldValue('disbursement_status')],
+                ['Projected Balance After Payment', fieldValue('projected_balance_after_payment', '0.00')],
+            ].filter(([label, value]) => shouldRenderDvField(
+                ({
+                    'Source Record Number': 'source_record_number',
+                    'Source Record Date': 'source_record_date',
+                    'Requester': 'source_requester',
+                    'Department': 'source_department',
+                    'Project': 'source_project',
+                    'Cost Center': 'source_cost_center',
+                    'Fund Source': 'source_fund_source',
+                    'Amount': 'source_amount',
+                    'Remaining Balance': 'source_remaining_balance',
+                    'Approval Status': 'source_approval_status',
+                    'Approved By': 'source_approved_by_name',
+                    'Approved At': 'source_approved_at',
+                    'Payee Type': 'source_payee_type',
+                    'Payee': 'source_payee_name',
+                    'Supplier Information': 'source_supplier_name',
+                    'Employee Information': 'source_employee_name',
+                    'Current Balance': 'source_current_balance',
+                    'Reserved Balance': 'source_reserved_balance',
+                    'Available Balance': 'source_available_balance',
+                    'Status': 'source_status',
+                    'Workflow Status': 'source_workflow_status',
+                    'Relationship Status': 'source_relationship_status',
+                    'Total Disbursed Amount': 'total_disbursed_amount',
+                    'Percentage Paid': 'percentage_paid',
+                    'Disbursement Status': 'disbursement_status',
+                    'Projected Balance After Payment': 'projected_balance_after_payment',
+                })[label],
+                value,
+                normalizedSourceType,
+                'snapshot'
+            ));
+            const voucherPairs = [
+                ['Linked Source Document Type', normalizedSourceType ? String(normalizedSourceType).toUpperCase() : 'Not filled yet'],
+                ['Linked Source Document', sourceDocumentLabel],
+                ['Payee Type', fieldValue('payee_type')],
+                ['Payee', fieldValue('payee_name')],
+                ['Supplier', displayLookup('supplier', formValues['data[supplier_id]'])],
+                ['Amount', fieldValue('amount', '0.00')],
+                ['Payment Type', fieldValue('payment_type')],
+                ['Disbursement Type', fieldValue('disbursement_type')],
+                ['Bank Account', displayLookup('bank_account', formValues['data[bank_account_id]'])],
+                ['Account', displayLookup('chart_account', formValues['data[coa_id]'])],
+                ['Fund Source / Project', fieldValue('fund_source')],
+                ['Department', fieldValue('department')],
+                ['Reference Number', fieldValue('reference_number')],
+                ['Purpose', fieldValue('purpose')],
+                ['Payment Date', fieldValue('payment_date')],
+                ['Due Date', fieldValue('due_date')],
+                ['Withholding Tax (EWT)', fieldValue('withholding_tax', '0.00')],
+                ['VAT', fieldValue('vat_amount', '0.00')],
+                ['Net Amount', fieldValue('net_amount', '0.00')],
+                ['Currency', fieldValue('currency', 'PHP')],
+                ['Exchange Rate', fieldValue('exchange_rate', '1.00')],
+                ['Received By', fieldValue('received_by_name')],
+                ['Date Received', fieldValue('date_received')],
+                ['Remarks', fieldValue('remarks')],
+            ].filter(([label, value]) => shouldRenderDvField(
+                ({
+                    'Linked Source Document Type': 'source_document_type',
+                    'Linked Source Document': 'source_document_id',
+                    'Payee Type': 'payee_type',
+                    'Payee': 'payee_name',
+                    'Supplier': 'supplier_id',
+                    'Amount': 'amount',
+                    'Payment Type': 'payment_type',
+                    'Disbursement Type': 'disbursement_type',
+                    'Bank Account': 'bank_account_id',
+                    'Account': 'coa_id',
+                    'Fund Source / Project': 'fund_source',
+                    'Department': 'department',
+                    'Reference Number': 'reference_number',
+                    'Purpose': 'purpose',
+                    'Payment Date': 'payment_date',
+                    'Due Date': 'due_date',
+                    'Withholding Tax (EWT)': 'withholding_tax',
+                    'VAT': 'vat_amount',
+                    'Net Amount': 'net_amount',
+                    'Currency': 'currency',
+                    'Exchange Rate': 'exchange_rate',
+                    'Received By': 'received_by_name',
+                    'Date Received': 'date_received',
+                    'Remarks': 'remarks',
+                })[label],
+                value,
+                normalizedSourceType,
+                ['Withholding Tax (EWT)', 'VAT', 'Net Amount', 'Currency', 'Exchange Rate', 'Received By', 'Date Received'].includes(label) ? 'tax' : 'voucher'
+            ));
+            const renderPairGrid = (pairs) => `
+                <div class="grid grid-cols-1 md:grid-cols-2">
+                    ${pairs.map(([label, value], index) => `
+                        <div class="${index % 2 === 0 ? 'border-r' : ''} ${index > 1 ? 'border-t' : ''} border-gray-300 px-4 py-3">
+                            <p class="text-[11px] uppercase tracking-[0.22em] text-gray-500">${escapeHtml(label)}</p>
+                            <p class="mt-2 min-h-[20px] border-b border-gray-300 text-[14px] font-semibold text-gray-900 break-words">${escapeHtml(value)}</p>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+            const renderDvDrawerBreakdown = () => {
+                if (normalizedSourceType === 'po' && dvSourceRecord) {
+                    const poRows = getDvPoSourceLineItems(dvSourceRecord);
+
+                    return `
+                        <div class="relative border-t border-gray-300">
+                            <div class="bg-gray-50 px-4 py-2 border-b border-gray-300">
+                                <h4 class="text-[12px] font-semibold uppercase tracking-[0.26em] text-gray-700">Items / Cost Details</h4>
+                            </div>
+                            <div class="p-4">
+                                <p class="mb-3 text-[11px] text-gray-500">Displaying the original Purchase Order itemized layout from the linked source document.</p>
+                                ${poRows.length ? poRows.map((row, index) => {
+                                    const quantity = Number(row.quantity || 0);
+                                    const unitCost = Number(row.amount || 0);
+                                    const lineBaseTotal = quantity * unitCost;
+                                    const lineTotal = row.total || lineBaseTotal;
+                                    const subtotal = row.subtotal || lineBaseTotal;
+                                    const taxBase = Math.max(lineBaseTotal - Number(row.discount_amount || 0), 0);
+                                    const taxType = normalizeFinanceTaxType(row.tax_type || 'N/A');
+                                    const taxImpact = getFinanceLineItemTaxImpact(row.tax_type || 'N/A', taxBase).label;
+
+                                    return `
+                                        <div class="${index > 0 ? 'mt-4 ' : ''}overflow-hidden rounded-[6px] border border-gray-300 bg-white">
+                                            <div class="flex items-center justify-between border-b border-gray-300 bg-slate-50 px-4 py-3">
+                                                <div>
+                                                    <p class="text-[13px] font-semibold text-gray-900">${escapeHtml(row.item_id || row.description || 'N/A')}</p>
+                                                    <p class="mt-1 text-[11px] text-gray-500">${escapeHtml(row.category || 'N/A')} | ${escapeHtml(formatPrQuantity(quantity))} pcs</p>
+                                                </div>
+                                                <p class="text-[13px] font-semibold text-gray-900">${escapeHtml(formatCurrency(lineTotal))}</p>
+                                            </div>
+                                            <table class="w-full border-collapse text-sm">
+                                                <tbody>
+                                                    <tr>
+                                                        <td class="border border-gray-300 px-3 py-2">
+                                                            <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">Description</p>
+                                                            <p class="mt-1 text-[13px] font-semibold text-gray-900">${escapeHtml(row.description || 'N/A')}</p>
+                                                        </td>
+                                                        <td class="border border-gray-300 px-3 py-2">
+                                                            <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">Unit Cost</p>
+                                                            <p class="mt-1 text-[13px] font-semibold text-gray-900">${escapeHtml(formatCurrency(unitCost))}</p>
+                                                        </td>
+                                                        <td class="border border-gray-300 px-3 py-2">
+                                                            <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">Line Total</p>
+                                                            <p class="mt-1 text-[13px] font-semibold text-gray-900">${escapeHtml(formatCurrency(lineTotal))}</p>
+                                                        </td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td class="border border-gray-300 px-3 py-2">
+                                                            <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">Tax Classification</p>
+                                                            <p class="mt-1 text-[13px] font-semibold text-gray-900">${escapeHtml(taxType)}</p>
+                                                        </td>
+                                                        <td class="border border-gray-300 px-3 py-2">
+                                                            <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">Tax Impact</p>
+                                                            <p class="mt-1 text-[13px] font-semibold text-gray-900">${escapeHtml(taxImpact)}</p>
+                                                        </td>
+                                                        <td class="border border-gray-300 px-3 py-2"></td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td class="border border-gray-300 px-3 py-2">
+                                                            <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">Subtotal</p>
+                                                            <p class="mt-1 text-[13px] font-semibold text-gray-900">${escapeHtml(formatCurrency(subtotal))}</p>
+                                                        </td>
+                                                        <td class="border border-gray-300 px-3 py-2">
+                                                            <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">Discount</p>
+                                                            <p class="mt-1 text-[13px] font-semibold text-gray-900">${escapeHtml(formatCurrency(row.discount_amount || 0))}</p>
+                                                        </td>
+                                                        <td class="border border-gray-300 px-3 py-2">
+                                                            <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">Shipping</p>
+                                                            <p class="mt-1 text-[13px] font-semibold text-gray-900">${escapeHtml(formatCurrency(row.shipping_amount || 0))}</p>
+                                                        </td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td class="border border-gray-300 px-3 py-2">
+                                                            <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">Tax</p>
+                                                            <p class="mt-1 text-[13px] font-semibold text-gray-900">${escapeHtml(formatCurrency(row.tax_amount || 0))}</p>
+                                                        </td>
+                                                        <td class="border border-gray-300 px-3 py-2">
+                                                            <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">WHT</p>
+                                                            <p class="mt-1 text-[13px] font-semibold text-gray-900">${escapeHtml(formatCurrency(row.wht_amount || 0))}</p>
+                                                        </td>
+                                                        <td class="border border-gray-300 px-3 py-2">
+                                                            <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">Item Total</p>
+                                                            <p class="mt-1 text-[13px] font-semibold text-gray-900">${escapeHtml(formatCurrency(lineTotal))}</p>
+                                                        </td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    `;
+                                }).join('') : `
+                                    <p class="text-sm italic text-gray-500">No line items were found on the linked Purchase Order.</p>
+                                `}
+                            </div>
+                        </div>
+                    `;
+                }
+
+                return `
                     <div class="relative border-t border-gray-300">
                         <div class="bg-gray-50 px-4 py-2 border-b border-gray-300">
-                            <h4 class="text-[12px] font-semibold uppercase tracking-[0.26em] text-gray-700">Purpose & Notes</h4>
+                            <h4 class="text-[12px] font-semibold uppercase tracking-[0.26em] text-gray-700">Breakdown / Line Items</h4>
                         </div>
-                        <div class="grid grid-cols-1 md:grid-cols-2">
-                            <div class="border-r border-gray-300 px-4 py-3">
-                                <p class="text-[11px] uppercase tracking-[0.22em] text-gray-500">Purpose / Justification</p>
-                                <p class="mt-2 min-h-[20px] border-b border-gray-300 text-[14px] font-semibold text-gray-900 break-words">${escapeHtml($('financeForm').querySelector('textarea[name="data[purpose]"]')?.value || 'Not filled yet')}</p>
+                        <div class="p-4">
+                            ${dvRows.length ? `
+                                <table class="w-full border-collapse text-sm">
+                                    <thead>
+                                        <tr class="bg-gray-50">
+                                            <th class="border border-gray-300 px-3 py-2 text-left text-[11px] uppercase tracking-[0.2em] text-gray-500">Description</th>
+                                            <th class="border border-gray-300 px-3 py-2 text-left text-[11px] uppercase tracking-[0.2em] text-gray-500">Account Code</th>
+                                            <th class="border border-gray-300 px-3 py-2 text-left text-[11px] uppercase tracking-[0.2em] text-gray-500">Debit</th>
+                                            <th class="border border-gray-300 px-3 py-2 text-left text-[11px] uppercase tracking-[0.2em] text-gray-500">Credit</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${dvRows.map((row) => `
+                                            <tr>
+                                                <td class="border border-gray-300 px-3 py-2 text-[13px] font-semibold text-gray-900">${escapeHtml(row.description || 'N/A')}</td>
+                                                <td class="border border-gray-300 px-3 py-2 text-[13px] font-semibold text-gray-900">${escapeHtml(row.account_code || 'N/A')}</td>
+                                                <td class="border border-gray-300 px-3 py-2 text-[13px] font-semibold text-gray-900">${escapeHtml(formatCurrency(row.debit || 0))}</td>
+                                                <td class="border border-gray-300 px-3 py-2 text-[13px] font-semibold text-gray-900">${escapeHtml(formatCurrency(row.credit || 0))}</td>
+                                            </tr>
+                                        `).join('')}
+                                    </tbody>
+                                </table>
+                            ` : `
+                                <p class="text-sm italic text-gray-500">No line items added yet.</p>
+                            `}
+                        </div>
+                    </div>
+                `;
+            };
+
+            $('drawerPreview').innerHTML = `
+                <div class="rounded-2xl border border-slate-200 bg-slate-100 p-4">
+                    <div class="mb-3 flex items-center justify-between rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-medium text-slate-500 shadow-sm">
+                        <span>PDF Holder</span>
+                        <span>Live Preview</span>
+                    </div>
+                    <div class="mx-auto max-w-[760px] overflow-hidden rounded-[6px] border border-gray-300 bg-white shadow-lg">
+                        <div class="relative px-5 py-5 text-center border-b border-gray-300 bg-white">
+                            <div class="mx-auto flex items-center justify-center rounded-xl bg-white px-4 py-2">
+                                <img src="${companyLogo}" alt="${escapeHtml(companyName)}" class="block h-24 w-auto max-w-[220px] object-contain">
                             </div>
-                            <div class="px-4 py-3">
-                                <p class="text-[11px] uppercase tracking-[0.22em] text-gray-500">Remarks</p>
-                                <p class="mt-2 min-h-[20px] border-b border-gray-300 text-[14px] font-semibold text-gray-900 break-words">${escapeHtml($('financeForm').querySelector('textarea[name="data[remarks]"]')?.value || 'Not filled yet')}</p>
+                            <div class="mt-3 text-[16px] font-semibold leading-tight text-gray-900">${escapeHtml(companyName)}</div>
+                            <div class="text-[10px] font-medium tracking-[0.3em] text-gray-500">${escapeHtml(companyLegalName)}</div>
+                        </div>
+
+                        <div class="relative bg-blue-700 px-4 py-2 text-center text-[12px] font-semibold uppercase tracking-[0.32em] text-white">
+                            ${escapeHtml(titleLabel)}
+                        </div>
+
+                        <div class="relative grid grid-cols-2 border-t border-gray-300 text-sm">
+                            ${summaryItems.map(([label, value], index) => `
+                                <div class="${index % 2 === 0 ? 'border-r' : ''} ${index > 1 ? 'border-t' : ''} border-gray-300 px-4 py-3">
+                                    <p class="text-[11px] uppercase tracking-[0.22em] text-gray-500">${escapeHtml(label)}</p>
+                                    <p class="mt-1 text-[15px] font-semibold text-gray-900 break-words">${escapeHtml(value)}</p>
+                                </div>
+                            `).join('')}
+                        </div>
+
+                        <div class="relative border-t border-gray-300">
+                            <div class="bg-gray-50 px-4 py-2 border-b border-gray-300">
+                                <h4 class="text-[12px] font-semibold uppercase tracking-[0.26em] text-gray-700">Source Record Snapshot</h4>
                             </div>
+                            ${renderPairGrid(snapshotPairs)}
                         </div>
+
+                        <div class="relative border-t border-gray-300">
+                            <div class="bg-gray-50 px-4 py-2 border-b border-gray-300">
+                                <h4 class="text-[12px] font-semibold uppercase tracking-[0.26em] text-gray-700">Voucher Details</h4>
+                            </div>
+                            ${renderPairGrid(voucherPairs)}
                         </div>
+
+                        ${renderDvDrawerBreakdown()}
                     </div>
                 </div>
             `;
@@ -11156,6 +12256,17 @@
         }
     }
 
+    function openReleaseFundsFlow(recordId) {
+        const record = getRecordById(recordId);
+        if (!record) {
+            showFinanceToast('Unable to load the selected record for fund release.', 'error');
+            return;
+        }
+
+        openFinanceDrawer(record);
+        showFinanceToast('Complete the release details, then click Save to record fund release.', 'info');
+    }
+
     function openPurchaseOrderFromSource(sourceRecord) {
         const resolvedSourceRecord = typeof sourceRecord === 'object' && sourceRecord !== null
             ? sourceRecord
@@ -11169,6 +12280,7 @@
             linked_pr_id: resolvedSourceRecord.id,
             supplier_id: sourceData.supplier_id || poAutofill.supplier_id || '',
             coa_id: sourceData.coa_id || poAutofill.coa_id || '',
+            line_items: Array.isArray(poAutofill.line_items) ? poAutofill.line_items.map((row) => ({ ...row })) : [],
             expected_delivery_date: sourceData.expected_delivery_date || '',
             delivery_address: sourceData.delivery_address || '',
             terms_and_conditions: sourceData.terms_and_conditions || '',
@@ -11187,23 +12299,49 @@
         if (!resolvedSourceRecord) return;
 
         const sourceData = resolvedSourceRecord.data || {};
+        const requesterMode = sourceData.requester_mode || 'own_request';
+        const requesterDefaults = requesterMode === 'request_for_another'
+            ? (getEmployeeRequesterDefaults(sourceData.requester_employee_id) || {})
+            : getPrRequesterDefaults();
+        const requesterName = sourceData.requestor
+            || sourceData.employee_name
+            || requesterDefaults.requestor
+            || requesterDefaults.employee_name
+            || resolvedSourceRecord.user
+            || bootstrap.currentUserName
+            || '';
+        const totalCashAdvance = parseFloat(resolvedSourceRecord.amount || sourceData.amount_requested || sourceData.total_cash_advance || '0') || 0;
+        const initialActualExpenses = parseFloat(sourceData.actual_expenses || sourceData.grand_total || totalCashAdvance) || 0;
+        const initialVariance = totalCashAdvance - initialActualExpenses;
+        const initialVarianceIndicator = initialVariance > 0 ? 'Overage' : (initialVariance < 0 ? 'Shortage' : 'Balanced');
+
         openFinanceDraftFromSource('lr', resolvedSourceRecord, {
             linked_ca_id: resolvedSourceRecord.id,
             total_cash_advance: resolvedSourceRecord.amount || sourceData.amount_requested || '',
-            requester_mode: sourceData.requester_mode || 'own_request',
-            requestor: sourceData.requestor || resolvedSourceRecord.user || bootstrap.currentUserName || '',
+            requester_mode: requesterMode,
+            requester_employee_id: sourceData.requester_employee_id || requesterDefaults.requester_employee_id || '',
+            requestor: requesterName,
             purpose: sourceData.purpose || sourceData.justification || '',
-            employee_id: sourceData.employee_id || '',
-            employee_name: sourceData.employee_name || resolvedSourceRecord.user || bootstrap.currentUserName || '',
-            employee_email: sourceData.employee_email || '',
-            contact_number: sourceData.contact_number || '',
-            position: sourceData.position || '',
-            department: sourceData.department || '',
-            superior: sourceData.superior || '',
-            superior_email: sourceData.superior_email || '',
+            employee_id: sourceData.employee_id || requesterDefaults.employee_id || '',
+            employee_name: sourceData.employee_name || requesterName,
+            employee_email: sourceData.employee_email || requesterDefaults.employee_email || '',
+            contact_number: sourceData.contact_number || requesterDefaults.contact_number || '',
+            position: sourceData.position || requesterDefaults.position || '',
+            department: sourceData.department || requesterDefaults.department || '',
+            superior: sourceData.superior || requesterDefaults.superior || '',
+            superior_email: sourceData.superior_email || requesterDefaults.superior_email || '',
             for_client: sourceData.for_client || 'N/A',
             client_names: sourceData.client_names || '',
             coa_id: sourceData.coa_id || '',
+            actual_expenses: initialActualExpenses.toFixed(2),
+            subtotal: initialActualExpenses.toFixed(2),
+            discount_total: '0.00',
+            tax_total: '0.00',
+            shipping_total: '0.00',
+            wht_total: '0.00',
+            grand_total: initialActualExpenses.toFixed(2),
+            variance: initialVariance.toFixed(2),
+            variance_indicator: initialVarianceIndicator,
             record_title: `LR for ${resolvedSourceRecord.record_number || 'CA'}`,
         }, 'CA details loaded into a new Liquidation Report.');
     }
@@ -11273,6 +12411,10 @@
             console.error('Unable to build DV payload from source record:', error);
         }
 
+        const fallbackCurrency = sourceData.currency || payload.currency || 'PHP';
+        const fallbackReceivedByName = sourceData.received_by_name || sourceData.requestor || sourceData.employee_name || sourceData.payee_name || resolvedSourceRecord.user || bootstrap.currentUserName || '';
+        const fallbackTaxAmount = resolvedSourceRecord.module_key === 'ca' ? '0.00' : '';
+        const fallbackDateReceived = resolvedSourceRecord.module_key === 'ca' ? todayDateValue() : '';
         const fallbackPrefill = {
             source_document_type: resolvedSourceRecord.module_key || '',
             source_document_id: resolvedSourceRecord.id || '',
@@ -11291,7 +12433,7 @@
             source_approval_status: resolvedSourceRecord.approval_status || sourceData.approval_status || '',
             source_approved_by_name: sourceData.approved_by_name || '',
             source_approved_at: sourceData.approved_at || '',
-            source_supplier_name: sourceData.supplier_name || (sourceData.payee_type === 'Supplier' ? sourceData.payee_name || resolvedSourceRecord.record_title : ''),
+            source_supplier_name: sourceData.supplier_name || sourceData.payee_name || (sourceData.payee_type === 'Supplier' ? sourceData.payee_name || resolvedSourceRecord.record_title : ''),
             source_employee_name: sourceData.employee_name || resolvedSourceRecord.user || bootstrap.currentUserName || '',
             source_payee_type: sourceData.payee_type || '',
             source_payee_name: sourceData.payee_name || '',
@@ -11299,9 +12441,9 @@
             source_workflow_status: resolvedSourceRecord.workflow_status || sourceData.workflow_status || '',
             source_relationship_status: resolvedSourceRecord.relationship_status || sourceData.relationship_status || '',
             amount: resolvedSourceRecord.amount || sourceData.amount || sourceData.amount_requested || sourceData.total_cash_advance || sourceData.amount_returned || sourceData.total_payroll_amount || sourceData.acquisition_cost || '',
-            supplier_id: sourceData.supplier_id || '',
-            bank_account_id: sourceData.bank_account_id || '',
-            coa_id: sourceData.coa_id || sourceData.asset_coa_id || sourceData.payroll_expense_coa_id || '',
+            supplier_id: sourceData.supplier_id || sourceData.linked_pr_supplier_id || payload.supplier_id || '',
+            bank_account_id: sourceData.bank_account_id || sourceData.funding_bank_account_id || sourceData.receiving_bank_account_id || sourceData.source_bank_account_id || sourceData.destination_bank_account_id || payload.bank_account_id || '',
+            coa_id: sourceData.coa_id || sourceData.asset_coa_id || sourceData.payroll_expense_coa_id || sourceData.paid_through || payload.coa_id || '',
             payee_type: sourceData.payee_type || '',
             payee_name: sourceData.payee_name || sourceData.requestor || sourceData.employee_name || resolvedSourceRecord.user || bootstrap.currentUserName || '',
             payment_type: sourceData.payment_type || sourceData.mode_of_release || sourceData.mode_of_return || 'Cash',
@@ -11311,21 +12453,20 @@
             purpose: sourceData.purpose || sourceData.justification || sourceData.reason || sourceData.remarks || '',
             payment_date: sourceData.payment_date || resolvedSourceRecord.record_date || todayDateValue(),
             due_date: sourceData.due_date || sourceData.needed_date || sourceData.expected_delivery_date || sourceData.pay_date || sourceData.acquisition_date || '',
-            withholding_tax: sourceData.withholding_tax || sourceData.wht_amount || sourceData.wht_total || '',
-            vat_amount: sourceData.vat_amount || sourceData.tax_amount || sourceData.tax_total || '',
-            currency: sourceData.currency || 'PHP',
-            exchange_rate: sourceData.exchange_rate || '',
-            received_by_name: sourceData.received_by_name || '',
-            received_by_signature: sourceData.received_by_signature || '',
-            date_received: sourceData.date_received || '',
+            withholding_tax: sourceData.withholding_tax || sourceData.wht_amount || sourceData.wht_total || fallbackTaxAmount,
+            vat_amount: sourceData.vat_amount || sourceData.tax_amount || sourceData.tax_total || fallbackTaxAmount,
+            currency: fallbackCurrency,
+            exchange_rate: sourceData.exchange_rate || (fallbackCurrency === 'PHP' ? '1.00' : ''),
+            received_by_name: fallbackReceivedByName,
+            date_received: sourceData.date_received || fallbackDateReceived,
             reference_number: sourceData.reference_number || resolvedSourceRecord.record_number || '',
             remarks: sourceData.remarks || '',
             record_title: `DV for ${resolvedSourceRecord.record_number || resolvedSourceRecord.module_label || 'Source'}`,
         };
 
         openFinanceDraftFromSource('dv', resolvedSourceRecord, {
-            ...payload,
             ...fallbackPrefill,
+            ...payload,
             record_title: `DV for ${resolvedSourceRecord.record_number || resolvedSourceRecord.module_label || 'Source'}`,
         }, `${resolvedSourceRecord.module_label || 'Source'} details loaded into a new Disbursement Voucher.`);
     }
@@ -11367,6 +12508,17 @@
         }
 
         const sourceData = sourceRecord.data || {};
+        const requesterMode = sourceData.requester_mode || 'own_request';
+        const requesterDefaults = requesterMode === 'request_for_another'
+            ? (getEmployeeRequesterDefaults(sourceData.requester_employee_id) || {})
+            : getPrRequesterDefaults();
+        const requesterName = sourceData.requestor
+            || sourceData.employee_name
+            || requesterDefaults.requestor
+            || requesterDefaults.employee_name
+            || sourceRecord.user
+            || bootstrap.currentUserName
+            || '';
         const setField = (name, value) => {
             const input = form.querySelector(`[name="data[${name}]"]`);
             if (input && input.type !== 'hidden') {
@@ -11381,22 +12533,36 @@
         };
 
         financeFormValues = financeFormValues || {};
+        const totalCashAdvance = parseFloat(sourceRecord.amount || sourceData.amount_requested || sourceData.total_cash_advance || '0') || 0;
+        const initialActualExpenses = parseFloat(sourceData.actual_expenses || sourceData.grand_total || totalCashAdvance) || 0;
+        const initialVariance = totalCashAdvance - initialActualExpenses;
+        const initialVarianceIndicator = initialVariance > 0 ? 'Overage' : (initialVariance < 0 ? 'Shortage' : 'Balanced');
         setField('total_cash_advance', sourceRecord.amount || sourceData.amount_requested || '');
-        setField('requester_mode', sourceData.requester_mode || 'own_request');
-        setField('requestor', sourceData.requestor || sourceRecord.user || bootstrap.currentUserName || '');
+        setField('requester_mode', requesterMode);
+        setField('requester_employee_id', sourceData.requester_employee_id || requesterDefaults.requester_employee_id || '');
+        setField('requestor', requesterName);
         setField('purpose', sourceData.purpose || sourceData.justification || '');
-        setField('employee_id', sourceData.employee_id || '');
-        setField('employee_name', sourceData.employee_name || sourceRecord.user || bootstrap.currentUserName || '');
-        setField('employee_email', sourceData.employee_email || '');
-        setField('contact_number', sourceData.contact_number || '');
-        setField('position', sourceData.position || '');
-        setField('department', sourceData.department || '');
-        setField('superior', sourceData.superior || '');
-        setField('superior_email', sourceData.superior_email || '');
+        setField('employee_id', sourceData.employee_id || requesterDefaults.employee_id || '');
+        setField('employee_name', sourceData.employee_name || requesterName);
+        setField('employee_email', sourceData.employee_email || requesterDefaults.employee_email || '');
+        setField('contact_number', sourceData.contact_number || requesterDefaults.contact_number || '');
+        setField('position', sourceData.position || requesterDefaults.position || '');
+        setField('department', sourceData.department || requesterDefaults.department || '');
+        setField('superior', sourceData.superior || requesterDefaults.superior || '');
+        setField('superior_email', sourceData.superior_email || requesterDefaults.superior_email || '');
         setField('for_client', sourceData.for_client || 'N/A');
         setField('client_names', sourceData.client_names || '');
         setField('coa_id', sourceData.coa_id || '');
         setField('linked_dv_id', sourceData.linked_dv_id || '');
+        setField('actual_expenses', initialActualExpenses.toFixed(2));
+        setField('subtotal', initialActualExpenses.toFixed(2));
+        setField('discount_total', '0.00');
+        setField('tax_total', '0.00');
+        setField('shipping_total', '0.00');
+        setField('wht_total', '0.00');
+        setField('grand_total', initialActualExpenses.toFixed(2));
+        setField('variance', initialVariance.toFixed(2));
+        setField('variance_indicator', initialVarianceIndicator);
 
         financeDraftContext = null;
         pendingLiquidationBranchDraft = null;
@@ -11406,7 +12572,45 @@
     }
 
     function getRecordById(id) {
-        return financeRecords.find((record) => String(record.id) === String(id));
+        const normalizedId = String(id || '').trim();
+        if (!normalizedId) return null;
+
+        return financeRecords.find((record) => String(record.id) === normalizedId)
+            || financeSourceRecords.find((record) => String(record.id) === normalizedId);
+    }
+
+    async function fetchFinanceRecordById(id) {
+        const normalizedId = String(id || '').trim();
+        if (!normalizedId) return null;
+
+        const cachedRecord = getRecordById(normalizedId);
+        if (cachedRecord) {
+            return cachedRecord;
+        }
+
+        try {
+            const res = await fetch(`/finance/${normalizedId}`, {
+                cache: 'no-store',
+                headers: {
+                    'Accept': 'application/json',
+                },
+            });
+
+            if (!res.ok) {
+                return null;
+            }
+
+            const data = await res.json();
+            if (!data || !data.id) {
+                return null;
+            }
+
+            upsertFinanceRecord(data);
+            return data;
+        } catch (error) {
+            console.error('Unable to fetch finance record for DV source selection:', error);
+            return null;
+        }
     }
 
     function normalizeAttachmentUrl(path) {
@@ -12372,6 +13576,15 @@
                 ${renderFinanceNotesCard(record, { context: 'template' })}
             </div>
         ` : '';
+        const templateItemsFooterHtml = templateMode
+            ? (['pr', 'po'].includes(record.module_key)
+                ? `
+                    <div class="mt-4">
+                        ${renderPrPreviewTable(record)}
+                    </div>
+                `
+                : (record.module_key === 'dv' ? renderDvTemplatePoItemsFooter(record) : ''))
+            : '';
 
         $('previewDocument').innerHTML = `
             <div class="mx-auto w-full max-w-[100%] overflow-hidden">
@@ -12397,20 +13610,74 @@
                 </div>
                 ${previewFooterHtml}
                 ${templateFooterHtml}
+                ${templateItemsFooterHtml}
                 <div id="financePreviewPdfSource" class="fixed top-0 left-0 w-[816px] bg-white" style="transform: translateX(-120vw); pointer-events: none;" aria-hidden="true"></div>
             </div>
         `;
     }
 
     function renderFinanceProgressTracker(record) {
-        const steps = Array.isArray(record?.data?.transaction_progress) ? record.data.transaction_progress : [];
+        const isApprovedRecord = (candidate) => Boolean(candidate && (candidate.workflow_status === 'Accepted' || candidate.approval_status === 'Approved'));
+        let steps = Array.isArray(record?.data?.transaction_progress) ? record.data.transaction_progress : [];
+        let relationshipStatus = record?.relationship_status || record?.data?.relationship_status || 'In Progress';
+
+        if (record?.module_key === 'lr') {
+            const data = record?.data || {};
+            const caAmount = numericAmount(data.total_cash_advance || data.amount_requested || record?.amount || 0);
+            const lineItems = Array.isArray(data.line_items) ? data.line_items.filter((item) => item && Object.values(item).some((value) => String(value ?? '').trim() !== '')) : [];
+            const lineItemsTotal = lineItems.reduce((sum, item) => {
+                const quantity = numericAmount(item.quantity || 0);
+                const amount = numericAmount(item.amount || 0);
+                const rowSubtotal = quantity * amount;
+                const discountPercent = parseFloat(String(item.discount || '0').replace('%', '')) || 0;
+                const manualDiscount = numericAmount(item.discount_amount || 0);
+                const discountAmount = discountPercent > 0 ? rowSubtotal * (discountPercent / 100) : manualDiscount;
+                const shippingAmount = numericAmount(item.shipping_amount || 0);
+                const taxAmount = numericAmount(item.tax_amount || 0);
+                const whtAmount = numericAmount(item.wht_amount || 0);
+                return sum + rowSubtotal - discountAmount + shippingAmount + taxAmount - whtAmount;
+            }, 0);
+            const actualExpenses = lineItemsTotal > 0
+                ? lineItemsTotal
+                : numericAmount(data.actual_expenses || data.grand_total || caAmount || 0);
+            const effectiveActualExpenses = lineItemsTotal <= 0 && actualExpenses <= 0 && caAmount > 0 ? caAmount : actualExpenses;
+            const variance = caAmount - effectiveActualExpenses;
+            const varianceIndicator = variance > 0 ? 'Overage' : (variance < 0 ? 'Shortage' : 'Balanced');
+            const cashReturnRequired = varianceIndicator === 'Overage';
+            const errRequired = varianceIndicator === 'Shortage';
+            const linkedCrfId = record?.linked_crf_id || data?.linked_crf_id || '';
+            const linkedErrId = record?.linked_err_id || data?.linked_err_id || '';
+            const linkedCrfRecord = linkedCrfId ? getRecordById(linkedCrfId) : null;
+            const linkedErrRecord = linkedErrId ? getRecordById(linkedErrId) : null;
+            const submitted = Boolean(record?.submitted_at || data?.submitted_at || isApprovedRecord(record));
+            const approved = isApprovedRecord(record);
+            const cashReturnCreated = cashReturnRequired ? Boolean(linkedCrfRecord) : false;
+            const cashReturnApproved = cashReturnRequired ? isApprovedRecord(linkedCrfRecord) : false;
+            const errCreated = errRequired ? Boolean(linkedErrRecord) : false;
+            const errApproved = errRequired ? isApprovedRecord(linkedErrRecord) : false;
+            const completed = approved && (!cashReturnRequired || cashReturnApproved) && (!errRequired || errApproved);
+            relationshipStatus = record?.relationship_status || record?.data?.relationship_status || (cashReturnRequired ? 'Awaiting Cash Return' : (errRequired ? 'Awaiting ERR' : (approved ? 'Completed' : 'Draft')));
+
+            steps = [
+                { label: 'Liquidation Report Submitted', completed: submitted },
+                { label: 'Liquidation Report Approved', completed: approved },
+                ...(cashReturnRequired ? [
+                    { label: 'Cash Return Created', completed: cashReturnCreated },
+                    { label: 'Cash Return Approved', completed: cashReturnApproved },
+                ] : errRequired ? [
+                    { label: 'ERR Created', completed: errCreated },
+                    { label: 'ERR Approved', completed: errApproved },
+                ] : []),
+                { label: 'Transaction Completed', completed },
+            ];
+        }
+
         if (!steps.length) return '';
-        const relationshipStatus = record?.relationship_status || record?.data?.relationship_status || 'In Progress';
 
         return `
             <div class="rounded-2xl border border-slate-200 bg-white p-4">
                 <div class="flex flex-wrap items-center justify-between gap-3">
-                    <h4 class="text-[15px] font-semibold text-gray-900">Transaction Progress</h4>
+                    <h4 class="text-[15px] font-semibold text-gray-900">${record?.module_key === 'lr' ? 'Liquidation Progress' : 'Transaction Progress'}</h4>
                     <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">${escapeHtml(relationshipStatus)}</span>
                 </div>
                 <div class="mt-4 space-y-2">
@@ -12437,7 +13704,9 @@
         const moduleConfig = getModuleConfig(record.module_key);
         const attachments = Array.isArray(record.attachments) ? record.attachments : [];
         const templateSections = getTemplatePreviewSections(record);
+        const moveItemsBelowPdf = currentPreviewTab === 'template' && ['pr', 'po', 'dv'].includes(record.module_key);
         const templateSectionCards = templateSections
+            .filter((section) => !(moveItemsBelowPdf && section && ['Items / Cost Details', 'Breakdown / Line Items'].includes(section.title)))
             .map((section) => renderPreviewSectionCard(record, moduleConfig, section))
             .filter(Boolean)
             .join('');
@@ -12659,7 +13928,23 @@
             }
         }
 
-        if ((record.module_key === 'po' || record.module_key === 'dv') && !isFinalWorkflow) {
+        const canReleaseDvFunds = record.module_key === 'dv'
+            && !isFinalWorkflow
+            && Boolean(record.can_edit)
+            && (
+                matchesAny(nextAction, ['release funds'])
+                || matchesAny(relationshipStatus, ['approved', 'approved for payment'])
+            );
+
+        if (canReleaseDvFunds) {
+            actions.push(`<button type="button" onclick="window.financeModule.openReleaseFundsFlow(${record.id})" class="w-full bg-emerald-600 text-white rounded-md py-2 hover:bg-emerald-700">Release Funds</button>`);
+        }
+
+        const dvSourceType = String(record?.data?.source_document_type || '').trim().toLowerCase();
+        const canCreateAssetFromSource = record.module_key === 'po'
+            || (record.module_key === 'dv' && dvSourceType === 'po');
+
+        if (canCreateAssetFromSource && !isFinalWorkflow) {
             actions.push(`<button type="button" onclick="window.financeModule.openAssetRecordFromSource(${record.id})" class="w-full bg-indigo-600 text-white rounded-md py-2 hover:bg-indigo-700">Create Asset / Inventory File</button>`);
         }
 
@@ -13915,6 +15200,7 @@
         toggleRecordNumberEditMode,
         changePreviewTab,
         openFinanceDrawer,
+        openReleaseFundsFlow,
         openFinanceDraftFromSource,
         openPurchaseOrderFromSource,
         openLiquidationReportFromSource,

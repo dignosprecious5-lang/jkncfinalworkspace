@@ -262,6 +262,7 @@
             border: 1px solid #dbe2ea;
             border-radius: 8px;
             overflow: hidden;
+            page-break-inside: avoid;
         }
 
         .section-box .section-title {
@@ -298,6 +299,7 @@
             background: #f8fafc;
             padding: 5px 6px;
             margin-bottom: 4px;
+            page-break-inside: avoid;
         }
 
         .pr-line-head {
@@ -449,6 +451,7 @@
             background: #f8fafc;
             padding: 5px 6px;
             margin-bottom: 5px;
+            page-break-inside: avoid;
         }
 
         .po-supplier-head {
@@ -1017,7 +1020,7 @@
                 ->values();
         @endphp
 
-        @if($isTemplatePreview && $fieldPreviewSections->isNotEmpty())
+        @if($isTemplatePreview && $fieldPreviewSections->isNotEmpty() && !in_array($record->module_key, ['pr', 'po'], true))
             @foreach($fieldPreviewSections as $section)
                 <div class="section-box">
                     <div class="section-title">{{ data_get($section, 'title', 'Details') }}</div>
@@ -1113,11 +1116,96 @@
         @if($record->module_key === 'dv')
             @php
                 $dvLineItems = array_values(array_filter((array) data_get($record->data, 'line_items', []), fn ($item) => is_array($item) && collect($item)->contains(fn ($value) => !blank($value))));
+                $dvSourceType = strtolower((string) ($dvSourceDocumentType ?? data_get($record->data, 'source_document_type', '')));
+                $dvSourceItems = array_values(array_filter((array) ($dvSourceLineItems ?? []), fn ($item) => is_array($item)));
             @endphp
             <div class="section-box">
-                <div class="section-title">Breakdown / Line Items</div>
+                <div class="section-title">{{ $dvSourceType === 'po' ? 'Items / Cost Details' : 'Breakdown / Line Items' }}</div>
                 <div class="section-body">
-                    @if(count($dvLineItems))
+                    @if($dvSourceType === 'po')
+                        <div class="muted" style="margin-bottom:8px;">Displaying the original Purchase Order itemized layout from the linked source document.</div>
+                        @if(count($dvSourceItems))
+                            <div class="pr-line-list">
+                                @foreach($dvSourceItems as $index => $item)
+                                    <div class="pr-line-card">
+                                        <div class="pr-line-head">
+                                            <div>
+                                                <span class="pr-line-index">{{ $index + 1 }}</span>
+                                                <span class="pr-line-title">{{ $item['item'] }}</span>
+                                                <div class="pr-line-meta">{{ $item['category'] }} | Qty: {{ $item['quantity'] }}</div>
+                                            </div>
+                                            <div class="pr-line-total">{{ $item['total'] }}</div>
+                                        </div>
+                                        <div class="pr-line-grid">
+                                            <div class="pr-line-fields">
+                                                <div class="pr-line-field">
+                                                    <div class="pr-field-label">Description</div>
+                                                    <div class="pr-field-value">{{ $item['description'] }}</div>
+                                                </div>
+                                                <div class="pr-line-field">
+                                                    <div class="pr-field-label">Unit Cost</div>
+                                                    <div class="pr-field-value">{{ $item['amount'] }}</div>
+                                                </div>
+                                                <div class="pr-line-field">
+                                                    <div class="pr-field-label">Line Total</div>
+                                                    <div class="pr-field-value">{{ $item['total'] }}</div>
+                                                </div>
+                                            </div>
+                                            <div class="pr-line-summary">
+                                                <div class="pr-summary-panel">
+                                                    <div class="pr-summary-title">Cost Summary</div>
+                                                    <div class="pr-summary-subtitle">Each item keeps its original PO values.</div>
+                                                    <div class="pr-summary-stack">
+                                                        <div class="pr-summary-full">
+                                                            <div class="pr-field-label">Subtotal</div>
+                                                            <div class="pr-field-value">{{ $item['subtotal'] ?? $item['total'] }}</div>
+                                                        </div>
+                                                        <div class="pr-summary-row">
+                                                            <div class="pr-summary-cell">
+                                                                <div class="pr-field-label">Discount</div>
+                                                                <div class="pr-field-value">{{ $item['discount'] ?? '0%' }}</div>
+                                                            </div>
+                                                            <div class="pr-summary-cell">
+                                                                <div class="pr-field-label">Discount Amount</div>
+                                                                <div class="pr-field-value">{{ $item['discount_amount'] ?? '0.00' }}</div>
+                                                            </div>
+                                                        </div>
+                                                        <div class="pr-summary-row">
+                                                            <div class="pr-summary-cell">
+                                                                <div class="pr-field-label">Shipping</div>
+                                                                <div class="pr-field-value">{{ $item['shipping_amount'] ?? '0.00' }}</div>
+                                                            </div>
+                                                            <div class="pr-summary-cell">
+                                                                <div class="pr-field-label">Tax (VAT/Non-VAT/N/A)</div>
+                                                                <div class="pr-field-value">{{ $item['tax_type'] ?? 'N/A' }}</div>
+                                                            </div>
+                                                        </div>
+                                                        <div class="pr-summary-row">
+                                                            <div class="pr-summary-cell">
+                                                                <div class="pr-field-label">Tax Amount</div>
+                                                                <div class="pr-field-value">{{ $item['tax_amount'] ?? '0.00' }}</div>
+                                                            </div>
+                                                            <div class="pr-summary-cell">
+                                                                <div class="pr-field-label">WHT</div>
+                                                                <div class="pr-field-value">{{ $item['wht_amount'] ?? '0.00' }}</div>
+                                                            </div>
+                                                        </div>
+                                                        <div class="pr-summary-full">
+                                                            <div class="pr-field-label">Grand Total</div>
+                                                            <div class="pr-field-value">{{ $item['total'] }}</div>
+                                                        </div>
+                                                        <div class="pr-summary-formula">{{ $item['quantity'] }} x {{ $item['amount'] }} = {{ $item['total'] }}</div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                @endforeach
+                            </div>
+                        @else
+                            <div class="muted">No line items were found on the linked Purchase Order.</div>
+                        @endif
+                    @elseif(count($dvLineItems))
                         <table class="detail-table">
                             <tr>
                                 <td><div class="detail-label">Description</div></td>
@@ -1171,28 +1259,8 @@
                                                         <div class="lr-metric-value">{{ $liquidationReport['ca_reference_no'] ?? 'N/A' }}</div>
                                                     </td>
                                                     <td>
-                                                        <div class="lr-metric-label">CA Amount</div>
-                                                        <div class="lr-metric-value">{{ $liquidationReport['ca_amount'] ?? '0.00' }}</div>
-                                                    </td>
-                                                </tr>
-                                                <tr>
-                                                    <td>
-                                                        <div class="lr-metric-label">Line Items Total</div>
-                                                        <div class="lr-metric-value">{{ $liquidationReport['line_items_total'] ?? '0.00' }}</div>
-                                                    </td>
-                                                    <td>
-                                                        <div class="lr-metric-label">For Client?</div>
-                                                        <div class="lr-metric-value">{{ $liquidationReport['for_client'] ?? 'N/A' }}</div>
-                                                    </td>
-                                                </tr>
-                                                <tr>
-                                                    <td>
-                                                        <div class="lr-metric-label">Client Name(s)</div>
-                                                        <div class="lr-metric-value">{{ $liquidationReport['client_names'] ?? 'N/A' }}</div>
-                                                    </td>
-                                                    <td>
-                                                        <div class="lr-metric-label">Actual Expenses</div>
-                                                        <div class="lr-metric-value">{{ $liquidationReport['actual_expenses'] ?? '0.00' }}</div>
+                                                        <div class="lr-metric-label">Requested By</div>
+                                                        <div class="lr-metric-value">{{ $liquidationReport['employee_name'] ?? 'N/A' }}</div>
                                                     </td>
                                                 </tr>
                                             </table>
@@ -1226,12 +1294,6 @@
                                                     <td>
                                                         <div class="lr-metric-label">Variance Indicator</div>
                                                         <div class="lr-metric-value">{{ $liquidationReport['variance_indicator'] ?? 'Balanced' }}</div>
-                                                    </td>
-                                                </tr>
-                                                <tr>
-                                                    <td>
-                                                        <div class="lr-metric-label">Status Note</div>
-                                                        <div class="lr-metric-value">{{ $liquidationReport['status_label'] ?? 'Balanced' }}</div>
                                                     </td>
                                                 </tr>
                                                 <tr>
@@ -1393,125 +1455,139 @@
         @endif
 
         @if($record->module_key === 'po')
-            <div class="section-box">
-                <div class="section-title">Items / Cost Details</div>
-                <div class="section-body">
-                    @if(count($lineItems))
-                        @foreach($poSupplierGroups as $group)
-                            <div class="po-supplier-card">
-                                <table class="po-supplier-head">
-                                    <tr>
-                                        <td style="width:78%;">
-                                            <div class="pr-summary-title">Supplier</div>
-                                            <div class="pr-line-title">{{ $group['supplier_label'] ?: 'Unspecified Supplier' }}</div>
-                                            <div class="pr-line-meta">{{ $group['items_count'] ?? count($group['items'] ?? []) }} item(s) in this purchase order section</div>
-                                        </td>
-                                        <td style="width:22%; text-align:right;">
-                                            <div class="pr-line-total">{{ $group['group_total'] ?? '0.00' }}</div>
-                                        </td>
-                                    </tr>
-                                </table>
+            @php
+                $poTemplateSections = collect($previewSections ?? [])
+                    ->filter(fn ($section) => in_array(data_get($section, 'type'), ['fields', 'line_items'], true))
+                    ->values();
+            @endphp
+            @foreach($poTemplateSections as $section)
+                <div class="section-box">
+                    <div class="section-title">{{ data_get($section, 'title', 'Details') }}</div>
+                    <div class="section-body">
+                        @if(data_get($section, 'type') === 'line_items')
+                            @if(count($lineItems))
+                                @foreach($poSupplierGroups as $group)
+                                    <div class="po-supplier-card">
+                                        <table class="po-supplier-head">
+                                            <tr>
+                                                <td style="width:78%;">
+                                                    <div class="pr-summary-title">Supplier</div>
+                                                    <div class="pr-line-title">{{ $group['supplier_label'] ?: 'Unspecified Supplier' }}</div>
+                                                    <div class="pr-line-meta">{{ $group['items_count'] ?? count($group['items'] ?? []) }} item(s) in this purchase order section</div>
+                                                </td>
+                                                <td style="width:22%; text-align:right;">
+                                                    <div class="pr-line-total">{{ $group['group_total'] ?? '0.00' }}</div>
+                                                </td>
+                                            </tr>
+                                        </table>
 
-                                <div class="pr-line-list">
-                                    @foreach(($group['items'] ?? []) as $index => $item)
-                                        <div class="pr-line-card">
-                                            <div class="pr-line-head">
-                                                <div>
-                                                    <span class="pr-line-index">{{ $index + 1 }}</span>
-                                                    <span class="pr-line-title">{{ $item['item'] }}</span>
-                                                    <div class="pr-line-meta">{{ $item['category'] }} | Qty: {{ $item['quantity'] }}</div>
-                                                </div>
-                                                <div class="pr-line-total">{{ $item['total'] }}</div>
-                                            </div>
-                                            <div class="pr-line-grid">
-                                                <div class="pr-line-fields">
-                                                    <div class="pr-line-field">
-                                                        <div class="pr-field-label">Description</div>
-                                                        <div class="pr-field-value">{{ $item['description'] }}</div>
+                                        <div class="pr-line-list">
+                                            @foreach(($group['items'] ?? []) as $index => $item)
+                                                <div class="pr-line-card">
+                                                    <div class="pr-line-head">
+                                                        <div>
+                                                            <span class="pr-line-index">{{ $index + 1 }}</span>
+                                                            <span class="pr-line-title">{{ $item['item'] }}</span>
+                                                            <div class="pr-line-meta">{{ $item['category'] }} | Qty: {{ $item['quantity'] }}</div>
+                                                        </div>
+                                                        <div class="pr-line-total">{{ $item['total'] }}</div>
                                                     </div>
-                                                    <div class="pr-line-field">
-                                                        <div class="pr-field-label">Unit Cost</div>
-                                                        <div class="pr-field-value">{{ $item['amount'] }}</div>
-                                                    </div>
-                                                    <div class="pr-line-field">
-                                                        <div class="pr-field-label">Line Total</div>
-                                                        <div class="pr-field-value">{{ $item['total'] }}</div>
-                                                    </div>
-                                                </div>
-                                                <div class="pr-line-summary">
-                                                    <div class="pr-summary-panel">
-                                                        <div class="pr-summary-title">Cost Summary</div>
-                                                        <div class="pr-summary-subtitle">Each item has its own adjustment values.</div>
-                                                        <div class="pr-summary-stack">
-                                                            <div class="pr-summary-full">
-                                                                <div class="pr-field-label">Subtotal</div>
-                                                                <div class="pr-field-value">{{ $item['subtotal'] ?? $item['total'] }}</div>
+                                                    <div class="pr-line-grid">
+                                                        <div class="pr-line-fields">
+                                                            <div class="pr-line-field">
+                                                                <div class="pr-field-label">Description</div>
+                                                                <div class="pr-field-value">{{ $item['description'] }}</div>
                                                             </div>
-                                                            <div class="pr-summary-row">
-                                                                <div class="pr-summary-cell">
-                                                                    <div class="pr-field-label">Discount</div>
-                                                                    <div class="pr-field-value">{{ $item['discount'] ?? '0%' }}</div>
-                                                                </div>
-                                                                <div class="pr-summary-cell">
-                                                                    <div class="pr-field-label">Discount Amount</div>
-                                                                    <div class="pr-field-value">{{ $item['discount_amount'] ?? '0.00' }}</div>
-                                                                </div>
+                                                            <div class="pr-line-field">
+                                                                <div class="pr-field-label">Unit Cost</div>
+                                                                <div class="pr-field-value">{{ $item['amount'] }}</div>
                                                             </div>
-                                                            <div class="pr-summary-row">
-                                                                <div class="pr-summary-cell">
-                                                                    <div class="pr-field-label">Shipping</div>
-                                                                    <div class="pr-field-value">{{ $item['shipping_amount'] ?? '0.00' }}</div>
-                                                                </div>
-                                                                <div class="pr-summary-cell">
-                                                                    <div class="pr-field-label">Tax (VAT/Non-VAT/N/A)</div>
-                                                                    <div class="pr-field-value">{{ $item['tax_type'] ?? 'N/A' }}</div>
-                                                                </div>
-                                                            </div>
-                                                            <div class="pr-summary-row">
-                                                                <div class="pr-summary-cell">
-                                                                    <div class="pr-field-label">Tax Amount</div>
-                                                                    <div class="pr-field-value">{{ $item['tax_amount'] ?? '0.00' }}</div>
-                                                                </div>
-                                                                <div class="pr-summary-cell">
-                                                                    <div class="pr-field-label">WHT</div>
-                                                                    <div class="pr-field-value">{{ $item['wht_amount'] ?? '0.00' }}</div>
-                                                                </div>
-                                                            </div>
-                                                            <div class="pr-summary-full">
-                                                                <div class="pr-field-label">Grand Total</div>
+                                                            <div class="pr-line-field">
+                                                                <div class="pr-field-label">Line Total</div>
                                                                 <div class="pr-field-value">{{ $item['total'] }}</div>
                                                             </div>
-                                                            <div class="pr-summary-formula">{{ $item['quantity'] }} x {{ $item['amount'] }} = {{ $item['total'] }}</div>
+                                                        </div>
+                                                        <div class="pr-line-summary">
+                                                            <div class="pr-summary-panel">
+                                                                <div class="pr-summary-title">Cost Summary</div>
+                                                                <div class="pr-summary-subtitle">Each item has its own adjustment values.</div>
+                                                                <div class="pr-summary-stack">
+                                                                    <div class="pr-summary-full">
+                                                                        <div class="pr-field-label">Subtotal</div>
+                                                                        <div class="pr-field-value">{{ $item['subtotal'] ?? $item['total'] }}</div>
+                                                                    </div>
+                                                                    <div class="pr-summary-row">
+                                                                        <div class="pr-summary-cell">
+                                                                            <div class="pr-field-label">Discount</div>
+                                                                            <div class="pr-field-value">{{ $item['discount'] ?? '0%' }}</div>
+                                                                        </div>
+                                                                        <div class="pr-summary-cell">
+                                                                            <div class="pr-field-label">Discount Amount</div>
+                                                                            <div class="pr-field-value">{{ $item['discount_amount'] ?? '0.00' }}</div>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div class="pr-summary-row">
+                                                                        <div class="pr-summary-cell">
+                                                                            <div class="pr-field-label">Shipping</div>
+                                                                            <div class="pr-field-value">{{ $item['shipping_amount'] ?? '0.00' }}</div>
+                                                                        </div>
+                                                                        <div class="pr-summary-cell">
+                                                                            <div class="pr-field-label">Tax (VAT/Non-VAT/N/A)</div>
+                                                                            <div class="pr-field-value">{{ $item['tax_type'] ?? 'N/A' }}</div>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div class="pr-summary-row">
+                                                                        <div class="pr-summary-cell">
+                                                                            <div class="pr-field-label">Tax Amount</div>
+                                                                            <div class="pr-field-value">{{ $item['tax_amount'] ?? '0.00' }}</div>
+                                                                        </div>
+                                                                        <div class="pr-summary-cell">
+                                                                            <div class="pr-field-label">WHT</div>
+                                                                            <div class="pr-field-value">{{ $item['wht_amount'] ?? '0.00' }}</div>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div class="pr-summary-full">
+                                                                        <div class="pr-field-label">Grand Total</div>
+                                                                        <div class="pr-field-value">{{ $item['total'] }}</div>
+                                                                    </div>
+                                                                    <div class="pr-summary-formula">{{ $item['quantity'] }} x {{ $item['amount'] }} = {{ $item['total'] }}</div>
+                                                                </div>
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 </div>
-                                            </div>
+                                            @endforeach
                                         </div>
+                                    </div>
+                                @endforeach
+                            @else
+                                <div class="muted">No line items added yet.</div>
+                            @endif
+                        @else
+                            @php $rows = data_get($section, 'rows', []); @endphp
+                            @if(count($rows))
+                                <table class="detail-table">
+                                    @foreach(array_chunk($rows, 2) as $pair)
+                                        <tr>
+                                            @foreach($pair as $detail)
+                                                <td>
+                                                    <div class="detail-label">{{ $detail['label'] }}</div>
+                                                    <div class="detail-value">{{ $detail['value'] }}</div>
+                                                </td>
+                                            @endforeach
+                                            @for($pad = count($pair); $pad < 2; $pad++)
+                                                <td></td>
+                                            @endfor
+                                        </tr>
                                     @endforeach
-                                </div>
-                            </div>
-                        @endforeach
-                    @else
-                        <div class="muted">No line items added yet.</div>
-                    @endif
-
-                    <div class="section-title" style="margin-top: 12px;">Purpose & Notes</div>
-                    <div class="pr-notes-wrap" style="margin-top: 8px;">
-                        <div class="pr-summary-card">
-                            <div class="pr-field-label">Primary Supplier</div>
-                            <div class="pr-field-value">{{ data_get($record->data, 'supplier_id') ?: 'N/A' }}</div>
-                        </div>
-                        <div class="pr-summary-card">
-                            <div class="pr-field-label">Purpose</div>
-                            <div class="pr-field-value">{{ data_get($record->data, 'purpose') ?: 'N/A' }}</div>
-                        </div>
-                        <div class="pr-summary-card">
-                            <div class="pr-field-label">Remarks</div>
-                            <div class="pr-field-value">{{ data_get($record->data, 'remarks') ?: 'N/A' }}</div>
-                        </div>
+                                </table>
+                            @else
+                                <div class="muted">No details provided.</div>
+                            @endif
+                        @endif
                     </div>
                 </div>
-            </div>
+            @endforeach
         @endif
 
         @if($record->module_key === 'arf')

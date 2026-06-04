@@ -321,6 +321,8 @@
             border-radius: 8px;
             background: #f8fafc;
             padding: 6px 7px;
+            break-inside: avoid;
+            page-break-inside: avoid;
         }
 
         .pr-line-head {
@@ -588,6 +590,8 @@
             border-radius: 8px;
             background: #f8fafc;
             padding: 6px;
+            break-inside: avoid;
+            page-break-inside: avoid;
         }
 
         .po-supplier-head {
@@ -957,8 +961,96 @@
                     @elseif(data_get($section, 'type') === 'dv_line_items')
                         @php
                             $dvLineItems = array_values(array_filter((array) data_get($record->data, 'line_items', []), fn ($item) => is_array($item) && collect($item)->contains(fn ($value) => !blank($value))));
+                            $dvSourceType = strtolower((string) ($dvSourceDocumentType ?? data_get($record->data, 'source_document_type', '')));
+                            $dvSourceItems = array_values(array_filter((array) ($dvSourceLineItems ?? []), fn ($item) => is_array($item)));
                         @endphp
-                        @if(count($dvLineItems))
+                        @if($dvSourceType === 'po')
+                            <p class="note">Displaying the original Purchase Order itemized layout from the linked source document.</p>
+                            @if(count($dvSourceItems))
+                                <div class="pr-line-list">
+                                    @foreach($dvSourceItems as $index => $item)
+                                        <div class="pr-line-card">
+                                            <div class="pr-line-head">
+                                                <div style="display:flex; gap:10px; align-items:flex-start;">
+                                                    <div class="pr-line-index">{{ $index + 1 }}</div>
+                                                    <div>
+                                                        <div class="pr-line-title">{{ $item['item'] }}</div>
+                                                        <div class="pr-line-meta">{{ $item['category'] }} | Qty: {{ $item['quantity'] }}</div>
+                                                    </div>
+                                                </div>
+                                                <div class="pr-line-total">{{ $item['total'] }}</div>
+                                            </div>
+                                            <div class="pr-line-grid">
+                                                <div class="pr-line-fields">
+                                                    <div class="pr-field-card">
+                                                        <p class="pr-field-label">Description</p>
+                                                        <p class="pr-field-value">{{ $item['description'] }}</p>
+                                                    </div>
+                                                    <div class="pr-field-card">
+                                                        <p class="pr-field-label">Unit Cost</p>
+                                                        <p class="pr-field-value">{{ $item['amount'] }}</p>
+                                                    </div>
+                                                    <div class="pr-field-card">
+                                                        <p class="pr-field-label">Line Total</p>
+                                                        <p class="pr-field-value">{{ $item['total'] }}</p>
+                                                    </div>
+                                                    <div class="pr-field-card">
+                                                        <p class="pr-field-label">Tax Classification</p>
+                                                        <p class="pr-field-value">{{ $item['tax_type'] ?? 'N/A' }}</p>
+                                                    </div>
+                                                </div>
+                                                <div class="pr-summary-panel">
+                                                    <div class="pr-summary-head">
+                                                        <div>
+                                                            <p class="pr-summary-title">Cost Summary</p>
+                                                            <p class="pr-summary-subtitle">Each item keeps its original PO values.</p>
+                                                        </div>
+                                                    </div>
+                                                    <div class="pr-summary-stack">
+                                                        <div class="pr-summary-full pr-field-card">
+                                                            <p class="pr-field-label">Subtotal</p>
+                                                            <p class="pr-field-value">{{ $item['subtotal'] ?? $item['total'] }}</p>
+                                                        </div>
+                                                        <div class="pr-summary-row">
+                                                            <div class="pr-field-card">
+                                                                <p class="pr-field-label">Discount</p>
+                                                                <p class="pr-field-value">{{ $item['discount'] ?? '0%' }}</p>
+                                                            </div>
+                                                            <div class="pr-field-card">
+                                                                <p class="pr-field-label">Discount Amount</p>
+                                                                <p class="pr-field-value">{{ $item['discount_amount'] ?? '0.00' }}</p>
+                                                            </div>
+                                                        </div>
+                                                        <div class="pr-summary-row">
+                                                            <div class="pr-field-card">
+                                                                <p class="pr-field-label">Shipping</p>
+                                                                <p class="pr-field-value">{{ $item['shipping_amount'] ?? '0.00' }}</p>
+                                                            </div>
+                                                            <div class="pr-field-card">
+                                                                <p class="pr-field-label">Tax Amount</p>
+                                                                <p class="pr-field-value">{{ $item['tax_amount'] ?? '0.00' }}</p>
+                                                            </div>
+                                                        </div>
+                                                        <div class="pr-summary-row">
+                                                            <div class="pr-field-card">
+                                                                <p class="pr-field-label">WHT</p>
+                                                                <p class="pr-field-value">{{ $item['wht_amount'] ?? '0.00' }}</p>
+                                                            </div>
+                                                            <div class="pr-field-card">
+                                                                <p class="pr-field-label">Item Total</p>
+                                                                <p class="pr-field-value">{{ $item['total'] }}</p>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    @endforeach
+                                </div>
+                            @else
+                                <p class="muted">No line items were found on the linked Purchase Order.</p>
+                            @endif
+                        @elseif(count($dvLineItems))
                             <table class="details">
                                 <tr>
                                     <td><p class="label">Description</p></td>
@@ -1122,24 +1214,8 @@
                                                 <p class="lr-metric-value">{{ $liquidationReport['ca_reference_no'] ?? 'N/A' }}</p>
                                             </div>
                                             <div class="lr-metric">
-                                                <p class="lr-metric-label">CA Amount</p>
-                                                <p class="lr-metric-value">{{ $liquidationReport['ca_amount'] ?? '0.00' }}</p>
-                                            </div>
-                                            <div class="lr-metric">
-                                                <p class="lr-metric-label">Line Items Total</p>
-                                                <p class="lr-metric-value">{{ $liquidationReport['line_items_total'] ?? '0.00' }}</p>
-                                            </div>
-                                            <div class="lr-metric">
-                                                <p class="lr-metric-label">For Client?</p>
-                                                <p class="lr-metric-value">{{ $liquidationReport['for_client'] ?? 'N/A' }}</p>
-                                            </div>
-                                            <div class="lr-metric">
-                                                <p class="lr-metric-label">Client Name(s)</p>
-                                                <p class="lr-metric-value">{{ $liquidationReport['client_names'] ?? 'N/A' }}</p>
-                                            </div>
-                                            <div class="lr-metric">
-                                                <p class="lr-metric-label">Actual Expenses</p>
-                                                <p class="lr-metric-value">{{ $liquidationReport['actual_expenses'] ?? '0.00' }}</p>
+                                                <p class="lr-metric-label">Requested By</p>
+                                                <p class="lr-metric-value">{{ $liquidationReport['employee_name'] ?? 'N/A' }}</p>
                                             </div>
                                         </div>
 
@@ -1176,10 +1252,6 @@
                                             <div class="lr-note-card">
                                                 <p class="lr-metric-label">Remarks</p>
                                                 <p class="lr-metric-value">{{ $liquidationReport['remarks'] ?? 'N/A' }}</p>
-                                            </div>
-                                            <div class="lr-note-card">
-                                                <p class="lr-metric-label">Requested By</p>
-                                                <p class="lr-metric-value">{{ $liquidationReport['employee_name'] ?? 'N/A' }}</p>
                                             </div>
                                         </div>
                                     </div>

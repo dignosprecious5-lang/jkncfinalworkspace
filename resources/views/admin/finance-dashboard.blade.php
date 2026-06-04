@@ -215,7 +215,7 @@
                                         @endif
 
                                         <a href="{{ route('finance.preview.html', $record) }}" target="_blank" class="px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 transition">Preview</a>
-                                        <a href="{{ route('finance', ['module' => $record->module_key]) }}" class="px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 transition">Open Module</a>
+                                        <a href="{{ route('finance.record.open', $record) }}" class="px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 transition">Open Module</a>
                                     </div>
                                 </td>
                             </tr>
