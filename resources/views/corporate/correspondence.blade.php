@@ -1024,6 +1024,9 @@ async function renderTable() {
         return;
     }
 
+    // Remove the temporary loading row before adding real records.
+    tableBody.innerHTML = '';
+
     correspondenceRows.forEach((item, index) => {
         tableBody.innerHTML += `
             <tr class="hover:bg-blue-50/40 cursor-pointer transition" onclick="openPreview(${index})">
