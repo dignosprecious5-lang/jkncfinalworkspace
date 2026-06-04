@@ -2,14 +2,79 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\HandlesCorporateRepositoryRecords;
+use App\Http\Controllers\Concerns\SyncsDeadlineTownHallMemo;
 use App\Models\Permit;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Storage;
 
 class PermitController extends Controller
 {
+    use HandlesCorporateRepositoryRecords;
+    use SyncsDeadlineTownHallMemo;
+
+    public const PERMIT_TYPES = [
+        'Business Permit',
+        "Mayor's Permit",
+        'Barangay Business Clearance',
+        'Barangay Clearance',
+        'Community Tax Certificate / Cedula',
+        'Building Permit',
+        'Occupancy Permit',
+        'Demolition Permit',
+        'Fencing Permit',
+        'Excavation Permit',
+        'Electrical Permit',
+        'Mechanical Permit',
+        'Plumbing Permit',
+        'Electronics Permit',
+        'Sanitary Permit',
+        'Fire Safety Inspection Certificate',
+        'Fire Clearance',
+        'Zoning Clearance',
+        'Locational Clearance',
+        'Development Permit',
+        'Environmental Permit',
+        'Waste Disposal Permit',
+        'Septage Permit',
+        'Signage Permit',
+        'Business Sign Permit',
+        'Advertising Permit',
+        'Market Permit',
+        'Vendor Permit',
+        'Tricycle Franchise Permit',
+        'Transport Permit',
+        'Terminal Permit',
+        'Tourism Permit',
+        'Special Use Permit',
+        'Special Event Permit',
+        'Liquor Permit',
+        'Night Operation Permit',
+        'Amusement Permit',
+        'Other',
+    ];
+
+    public const LOCATION_DATA = [
+        'Cebu' => [
+            'Cebu City' => ['Apas', 'Lahug', 'Mabolo', 'Talamban'],
+            'Mandaue City' => ['Centro', 'Subangdaku', 'Banilad', 'Tipolo'],
+            'Lapu-Lapu City' => ['Pajo', 'Pusok', 'Basak', 'Maribago'],
+            'Liloan' => ['Cotcot', 'Poblacion', 'Yati', 'Tayud'],
+        ],
+        'Metro Manila' => [
+            'Makati City' => ['Bel-Air', 'Poblacion', 'San Lorenzo', 'Urdaneta'],
+            'Taguig City' => ['Fort Bonifacio', 'Pinagsama', 'Ususan', 'Western Bicutan'],
+            'Quezon City' => ['Bagumbayan', 'Diliman', 'New Manila', 'Tandang Sora'],
+        ],
+        'Davao del Sur' => [
+            'Davao City' => ['Buhangin', 'Matina', 'Poblacion', 'Talomo', 'Toril'],
+        ],
+        'Iloilo' => [
+            'Iloilo City' => ['Arevalo', 'City Proper', 'Jaro', 'Mandurriao', 'Molo'],
+        ],
+    ];
+
     private function canApproveCorporate(): bool
     {
         /** @var User|null $user */
@@ -25,120 +90,88 @@ class PermitController extends Controller
         }
 
         return (int) $record->submitted_by === (int) Auth::id()
-            && in_array($record->workflow_status, ['Uploaded', 'Reverted']);
+            && in_array($record->workflow_status, ['Uploaded', 'Reverted'], true);
     }
 
     public function page()
     {
-        if ($this->canApproveCorporate()) {
-            $records = Permit::latest()->get();
-        } else {
-            $records = Permit::where('submitted_by', Auth::id())->latest()->get();
-        }
-
-        return view('corporate.lgu', compact('records'));
+        return view('corporate.lgu', [
+            'companyDefaults' => $this->latestCorporateCompany(),
+            'permitTypes' => self::PERMIT_TYPES,
+            'locationData' => self::LOCATION_DATA,
+            'statuses' => ['Active', 'For Renewal', 'Expiring Soon', 'Expired'],
+        ]);
     }
 
-    public function index()
+    public function index(Request $request)
     {
-        if ($this->canApproveCorporate()) {
-            $permits = Permit::latest()->get();
-        } else {
-            $permits = Permit::where('submitted_by', Auth::id())->latest()->get();
+        $query = Permit::query();
+
+        if (! $this->canApproveCorporate()) {
+            $query->where('submitted_by', Auth::id());
+        }
+
+        if ($request->filled('workflow_status') && $request->workflow_status !== 'all') {
+            $query->where('workflow_status', ucfirst($request->workflow_status));
+        }
+
+        if ($request->filled('permit_type') && $request->permit_type !== 'All Permit Types') {
+            $query->where('permit_type', $request->permit_type);
         }
 
         return response()->json(
-            $permits->map(function ($permit) {
-                return [
-                    'id' => $permit->id,
-                    'permit_type' => $permit->permit_type,
-                    'document_type' => $permit->document_type,
-                    'permit_number' => $permit->permit_number,
-                    'date_of_registration' => $permit->date_of_registration?->format('Y-m-d'),
-                    'approved_date_of_registration' => $permit->approved_date_of_registration?->format('Y-m-d'),
-                    'expiration_date_of_registration' => $permit->expiration_date_of_registration?->format('Y-m-d'),
-                    'user' => $permit->user,
-                    'tin' => $permit->tin,
-                    'document_name' => $permit->document_name,
-                    'document_path' => $permit->document_path,
-                    'approval_status' => $permit->approval_status ?? 'Pending',
-                    'workflow_status' => $permit->workflow_status ?? 'Uploaded',
-                    'review_note' => $permit->review_note,
-                    'status' => $permit->status,
-                    'created_at' => $permit->created_at?->format('M d, Y'),
-                ];
-            })
+            $query->orderByDesc('renewal_date')->orderByDesc('created_at')->get()
+                ->map(fn (Permit $permit) => $this->transformRecord($permit))
+                ->values()
         );
     }
 
     public function store(Request $request)
     {
-        $request->validate([
-            'permit_type' => 'required|string',
-            'document_type' => 'required|string',
-            'tin' => 'nullable|string',
-            'date_of_registration' => 'nullable|date',
-            'expiration_date_of_registration' => 'nullable|date',
-            'document' => 'required|file|mimes:pdf,jpg,jpeg,png|max:10240',
-        ]);
-
-        $documentPath = null;
-        $documentName = null;
-
-        if ($request->hasFile('document')) {
-            $file = $request->file('document');
-
-            $originalName = $file->getClientOriginalName();
-            $filename = time() . '_' . $this->sanitizeFileName($originalName);
-
-            $documentName = $originalName;
-            $documentPath = $file->storeAs('documents/permits', $filename, 'public');
-        }
-
-        do {
-            $permitNumber = 'PMT-' . now()->format('Y') . '-' . random_int(100000, 999999);
-        } while (Permit::where('permit_number', $permitNumber)->exists());
-
+        $validated = $this->validatedPayload($request);
+        $company = $this->latestCorporateCompany();
+        $user = $this->currentUserLabel($request);
         $isApprover = $this->canApproveCorporate();
+        $draftDocuments = $this->storeDocumentSet($request, 'draft_documents', 'corporate/lgu/drafts');
+        $approvedDocuments = $this->storeDocumentSet($request, 'approved_documents', 'corporate/lgu/approved');
+        $primaryDocument = $draftDocuments[0] ?? $approvedDocuments[0] ?? null;
 
         $permit = Permit::create([
-            'permit_type' => $request->permit_type,
-            'document_type' => $request->document_type,
-            'permit_number' => $permitNumber,
-            'date_of_registration' => $request->date_of_registration ?: null,
-            'approved_date_of_registration' => $isApprover ? ($request->date_of_registration ?: null) : null,
-            'expiration_date_of_registration' => $request->expiration_date_of_registration ?: null,
-            'user' => Auth::check() ? Auth::user()->name : 'System',
-            'tin' => $request->tin,
-            'document_name' => $documentName,
-            'document_path' => $documentPath,
+            'company_id' => $company['company_id'],
+            'company_name' => $company['company_name'],
+            'province' => $validated['province'],
+            'city_municipality' => $validated['city_municipality'],
+            'barangay' => $validated['barangay'],
+            'permit_type' => $this->resolveOtherChoice($validated['permit_type'], $validated['permit_type_other'] ?? null),
+            'document_type' => 'LGU Compliance Document',
+            'permit_number' => $validated['permit_number'],
+            'date_of_registration' => $validated['date_registered'] ?? null,
+            'renewal_date' => $validated['renewal_date'] ?? null,
+            'expiration_date_of_registration' => $validated['renewal_date'] ?? null,
+            'total_permit_fee' => $validated['total_permit_fee'] ?? null,
+            'user' => $user,
+            'tin' => null,
+            'document_name' => $primaryDocument['name'] ?? null,
+            'document_path' => $primaryDocument['path'] ?? null,
+            'draft_documents' => $draftDocuments,
+            'approved_documents' => $approvedDocuments,
+            'uploaded_by' => $user,
+            'date_uploaded_at' => now(),
+            'last_updated_by' => $user,
+            'last_updated_at' => now(),
             'approval_status' => $isApprover ? 'Approved' : 'Pending',
-            'workflow_status' => $isApprover ? 'Accepted' : 'Uploaded',
+            'workflow_status' => $isApprover ? 'Accepted' : 'Submitted',
             'submitted_by' => Auth::id(),
             'approved_by' => $isApprover ? Auth::id() : null,
             'approved_at' => $isApprover ? now() : null,
             'review_note' => null,
         ]);
 
+        $this->syncPermitDeadline($permit);
+
         return response()->json([
-            'message' => $isApprover ? 'LGU saved successfully.' : 'LGU saved as uploaded record.',
-            'permit' => [
-                'id' => $permit->id,
-                'permit_type' => $permit->permit_type,
-                'document_type' => $permit->document_type,
-                'permit_number' => $permit->permit_number,
-                'date_of_registration' => $permit->date_of_registration?->format('Y-m-d'),
-                'approved_date_of_registration' => $permit->approved_date_of_registration?->format('Y-m-d'),
-                'expiration_date_of_registration' => $permit->expiration_date_of_registration?->format('Y-m-d'),
-                'user' => $permit->user,
-                'tin' => $permit->tin,
-                'document_name' => $permit->document_name,
-                'document_path' => $permit->document_path,
-                'approval_status' => $permit->approval_status,
-                'workflow_status' => $permit->workflow_status,
-                'review_note' => $permit->review_note,
-                'status' => $permit->status,
-            ]
+            'message' => 'LGU compliance record saved successfully.',
+            'data' => $this->transformRecord($permit->fresh()),
         ], 201);
     }
 
@@ -146,55 +179,52 @@ class PermitController extends Controller
     {
         $record = Permit::findOrFail($id);
 
-        if (!$this->canApproveCorporate() && (int) $record->submitted_by !== (int) Auth::id()) {
+        if (! $this->canApproveCorporate() && (int) $record->submitted_by !== (int) Auth::id()) {
             abort(403, 'Unauthorized');
         }
 
-        return response()->json([
-            'id' => $record->id,
-            'permit_type' => $record->permit_type,
-            'document_type' => $record->document_type,
-            'permit_number' => $record->permit_number,
-            'date_of_registration' => $record->date_of_registration?->format('Y-m-d'),
-            'approved_date_of_registration' => $record->approved_date_of_registration?->format('Y-m-d'),
-            'expiration_date_of_registration' => $record->expiration_date_of_registration?->format('Y-m-d'),
-            'user' => $record->user,
-            'tin' => $record->tin,
-            'document_name' => $record->document_name,
-            'document_path' => $record->document_path,
-            'approval_status' => $record->approval_status,
-            'workflow_status' => $record->workflow_status,
-            'review_note' => $record->review_note,
-            'status' => $record->status,
-        ]);
+        return response()->json($this->transformRecord($record));
     }
 
     public function update(Request $request, $id)
     {
         $record = Permit::findOrFail($id);
 
-        if (!$this->canEditRecord($record)) {
+        if (! $this->canEditRecord($record)) {
             abort(403, 'This record can no longer be edited.');
         }
 
-        $request->validate([
-            'permit_type' => 'required|string|max:255',
-            'document_type' => 'required|string|max:255',
-            'tin' => 'nullable|string|max:255',
-            'date_of_registration' => 'nullable|date',
-            'expiration_date_of_registration' => 'nullable|date',
-        ]);
+        $validated = $this->validatedPayload($request, false);
+        $user = $this->currentUserLabel($request);
+        $draftDocuments = $this->appendDocuments($record->draft_documents, $this->storeDocumentSet($request, 'draft_documents', 'corporate/lgu/drafts'));
+        $approvedDocuments = $this->appendDocuments($record->approved_documents, $this->storeDocumentSet($request, 'approved_documents', 'corporate/lgu/approved'));
+        $primaryDocument = $draftDocuments[0] ?? $approvedDocuments[0] ?? null;
 
         $record->update([
-            'permit_type' => $request->permit_type,
-            'document_type' => $request->document_type,
-            'tin' => $request->tin,
-            'date_of_registration' => $request->date_of_registration,
-            'expiration_date_of_registration' => $request->expiration_date_of_registration,
+            'province' => $validated['province'],
+            'city_municipality' => $validated['city_municipality'],
+            'barangay' => $validated['barangay'],
+            'permit_type' => $this->resolveOtherChoice($validated['permit_type'], $validated['permit_type_other'] ?? null),
+            'permit_number' => $validated['permit_number'],
+            'date_of_registration' => $validated['date_registered'] ?? null,
+            'renewal_date' => $validated['renewal_date'] ?? null,
+            'expiration_date_of_registration' => $validated['renewal_date'] ?? null,
+            'total_permit_fee' => $validated['total_permit_fee'] ?? null,
+            'draft_documents' => $draftDocuments,
+            'approved_documents' => $approvedDocuments,
+            'last_updated_by' => $user,
+            'last_updated_at' => now(),
+            'document_name' => $primaryDocument['name'] ?? $record->document_name,
+            'document_path' => $primaryDocument['path'] ?? $record->document_path,
+            'approval_status' => ($record->workflow_status ?? 'Uploaded') === 'Reverted' ? 'Pending' : $record->approval_status,
+            'review_note' => ($record->workflow_status ?? 'Uploaded') === 'Reverted' ? null : $record->review_note,
         ]);
 
+        $this->syncPermitDeadline($record->fresh());
+
         return response()->json([
-            'message' => 'LGU details updated successfully.'
+            'message' => 'LGU compliance record updated successfully.',
+            'data' => $this->transformRecord($record->fresh()),
         ]);
     }
 
@@ -206,34 +236,36 @@ class PermitController extends Controller
 
         $record = Permit::findOrFail($id);
 
-        if (!$this->canEditRecord($record)) {
+        if (! $this->canEditRecord($record)) {
             abort(403, 'This record can no longer be edited.');
         }
 
-        if ($record->document_path && Storage::disk('public')->exists($this->normalizePublicPath($record->document_path))) {
-            Storage::disk('public')->delete($this->normalizePublicPath($record->document_path));
-        }
-
         $file = $request->file('document');
-        $originalName = $file->getClientOriginalName();
-        $fileName = time() . '_' . $this->sanitizeFileName($originalName);
-        $filePath = $file->storeAs('documents/permits', $fileName, 'public');
+        $path = $file->store('corporate/lgu/drafts', 'public');
+        $documents = $this->appendDocuments($record->draft_documents, [[
+            'name' => $file->getClientOriginalName(),
+            'path' => $path,
+            'url' => $this->publicDocumentUrl($path),
+            'uploaded_by' => Auth::user()?->name ?? 'System User',
+            'uploaded_at' => now()->toDateTimeString(),
+        ]]);
 
         $record->update([
-            'document_name' => $originalName,
-            'document_path' => $filePath,
+            'draft_documents' => $documents,
+            'document_name' => $file->getClientOriginalName(),
+            'document_path' => $path,
+            'last_updated_by' => Auth::user()?->name ?? 'System User',
+            'last_updated_at' => now(),
         ]);
 
-        return response()->json([
-            'message' => 'Document attached successfully.'
-        ]);
+        return response()->json(['message' => 'Document attached successfully.']);
     }
 
     public function submit($id)
     {
         $record = Permit::findOrFail($id);
 
-        if (!$this->canEditRecord($record)) {
+        if (! $this->canEditRecord($record)) {
             abort(403, 'This record cannot be submitted.');
         }
 
@@ -243,27 +275,67 @@ class PermitController extends Controller
             'review_note' => null,
         ]);
 
-        return response()->json([
-            'message' => 'LGU submitted for approval.'
-        ]);
+        return response()->json(['message' => 'LGU submitted for approval.']);
     }
 
-    private function sanitizeFileName(string $fileName): string
+    private function validatedPayload(Request $request, bool $documentOptional = true): array
     {
-        return preg_replace('/[^A-Za-z0-9.\-_]/', '_', $fileName) ?: 'uploaded_file';
+        return $request->validate(array_merge([
+            'province' => ['required', 'string', 'max:255'],
+            'city_municipality' => ['required', 'string', 'max:255'],
+            'barangay' => ['required', 'string', 'max:255'],
+            'permit_type' => ['required', 'string', 'max:255'],
+            'permit_type_other' => ['nullable', 'string', 'max:255'],
+            'permit_number' => ['required', 'string', 'max:255'],
+            'date_registered' => ['nullable', 'date'],
+            'renewal_date' => ['nullable', 'date'],
+            'total_permit_fee' => ['nullable', 'numeric', 'min:0'],
+        ], $this->commonDocumentValidation()));
     }
 
-    private function normalizePublicPath(?string $path): ?string
+    private function transformRecord(Permit $permit): array
     {
-        if (empty($path)) {
-            return null;
-        }
+        $draftDocuments = $this->documentLinks($permit->draft_documents);
+        $approvedDocuments = $this->documentLinks($permit->approved_documents);
 
-        $path = ltrim($path, '/');
-        $path = preg_replace('#^public/#', '', $path);
-        $path = preg_replace('#^storage/#', '', $path);
+        return [
+            'id' => $permit->id,
+            'company' => $permit->company_name ?: $permit->client ?: 'Latest Approved GIS Company',
+            'province' => $permit->province,
+            'city_municipality' => $permit->city_municipality,
+            'barangay' => $permit->barangay,
+            'permit_type' => $permit->permit_type,
+            'permit_number' => $permit->permit_number,
+            'date_registered' => $permit->date_of_registration?->format('Y-m-d'),
+            'renewal_date' => $permit->renewal_date?->format('Y-m-d') ?: $permit->expiration_date_of_registration?->format('Y-m-d'),
+            'total_permit_fee' => $permit->total_permit_fee,
+            'status' => $permit->status,
+            'uploaded_by' => $permit->uploaded_by ?: $permit->user,
+            'date_uploaded' => $permit->date_uploaded_at?->format('Y-m-d H:i:s') ?: $permit->created_at?->format('Y-m-d H:i:s'),
+            'last_updated_by' => $permit->last_updated_by,
+            'last_updated_date' => $permit->last_updated_at?->format('Y-m-d H:i:s') ?: $permit->updated_at?->format('Y-m-d H:i:s'),
+            'workflow_status' => $permit->workflow_status ?? 'Uploaded',
+            'approval_status' => $permit->approval_status ?? 'Pending',
+            'review_note' => $permit->review_note,
+            'document_name' => $permit->document_name,
+            'document_url' => $draftDocuments[0]['url'] ?? $approvedDocuments[0]['url'] ?? $this->publicDocumentUrl($permit->document_path),
+            'draft_documents' => $draftDocuments,
+            'approved_documents' => $approvedDocuments,
+            'can_edit' => $this->canEditRecord($permit),
+            'can_submit' => (int) $permit->submitted_by === (int) Auth::id()
+                && in_array($permit->workflow_status ?? 'Uploaded', ['Uploaded', 'Reverted'], true),
+        ];
+    }
 
-        return $path;
+    private function syncPermitDeadline(Permit $permit): void
+    {
+        $this->syncDeadlineTownHallMemo(
+            $permit,
+            $permit->renewal_date?->toDateString() ?: $permit->expiration_date_of_registration?->toDateString(),
+            'LGU Compliance',
+            trim(($permit->permit_type ?: 'LGU Permit') . ' - ' . ($permit->permit_number ?: $permit->company_name)),
+            'permits.show'
+        );
     }
 
     public function showMayorPermitTemplate($id)

@@ -1,0 +1,161 @@
+<?php
+
+namespace App\Http\Controllers\Concerns;
+
+use App\Models\GisRecord;
+use Carbon\Carbon;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Schema;
+
+trait HandlesCorporateRepositoryRecords
+{
+    protected function latestCorporateCompany(): array
+    {
+        $gis = $this->latestApprovedCorporateGis();
+
+        return [
+            'company_id' => $gis?->company_id,
+            'company_name' => $gis?->corporation_name ?: 'Latest Approved GIS Company',
+            'company_address' => $gis?->principal_address ?: $gis?->business_address,
+            'gis_id' => $gis?->id,
+        ];
+    }
+
+    protected function latestApprovedCorporateGis(): ?GisRecord
+    {
+        if (! Schema::hasTable('gis_records')) {
+            return null;
+        }
+
+        return GisRecord::query()
+            ->when(
+                Schema::hasColumn('gis_records', 'approval_status') || Schema::hasColumn('gis_records', 'workflow_status'),
+                function ($query) {
+                    $query->where(function ($nested) {
+                        if (Schema::hasColumn('gis_records', 'approval_status')) {
+                            $nested->where('approval_status', 'Approved');
+                        }
+
+                        if (Schema::hasColumn('gis_records', 'workflow_status')) {
+                            $nested->orWhere('workflow_status', 'Accepted');
+                        }
+                    });
+                }
+            )
+            ->latest('id')
+            ->first();
+    }
+
+    protected function currentUserLabel(Request $request): string
+    {
+        $user = $request->user();
+
+        return trim((string) (
+            $user?->name
+            ?? $user?->full_name
+            ?? $user?->email
+            ?? 'System User'
+        ));
+    }
+
+    protected function resolveOtherChoice(?string $selected, ?string $other): string
+    {
+        $value = trim((string) $selected);
+
+        if (strcasecmp($value, 'Other') === 0 && filled($other)) {
+            return trim((string) $other);
+        }
+
+        return $value;
+    }
+
+    protected function storeDocumentSet(Request $request, string $input, string $directory): array
+    {
+        if (! $request->hasFile($input)) {
+            return [];
+        }
+
+        $files = is_array($request->file($input)) ? $request->file($input) : [$request->file($input)];
+
+        return collect($files)
+            ->filter()
+            ->map(function ($file) use ($directory) {
+                $path = $file->store($directory, 'public');
+
+                return [
+                    'name' => $file->getClientOriginalName(),
+                    'path' => $path,
+                    'url' => $this->publicDocumentUrl($path),
+                    'uploaded_by' => Auth::user()?->name ?? Auth::user()?->email ?? 'System User',
+                    'uploaded_at' => now()->toDateTimeString(),
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    protected function appendDocuments(?array $existing, array $incoming): array
+    {
+        return array_values(array_merge($existing ?? [], $incoming));
+    }
+
+    protected function documentLinks(?array $documents): array
+    {
+        return collect($documents ?? [])
+            ->filter(fn ($document) => is_array($document) && filled($document['path'] ?? null))
+            ->map(function (array $document) {
+                $document['url'] = $this->publicDocumentUrl($document['path'] ?? null);
+
+                return $document;
+            })
+            ->values()
+            ->all();
+    }
+
+    protected function publicDocumentUrl(?string $path): ?string
+    {
+        $path = $this->normalizePublicPath($path);
+
+        return $path ? asset('storage/' . $path) : null;
+    }
+
+    protected function normalizePublicPath(?string $path): ?string
+    {
+        if (blank($path)) {
+            return null;
+        }
+
+        $path = ltrim((string) $path, '/');
+        $path = preg_replace('#^public/#', '', $path);
+        $path = preg_replace('#^storage/#', '', $path);
+
+        return $path;
+    }
+
+    protected function repositoryStatusFromDeadline(?string $date, string $fallback = 'Active'): string
+    {
+        if (! $date) {
+            return $fallback;
+        }
+
+        $days = now()->startOfDay()->diffInDays(Carbon::parse($date)->startOfDay(), false);
+
+        return match (true) {
+            $days < 0 => 'Expired',
+            $days <= 30 => 'Expiring Soon',
+            $days <= 90 => 'For Renewal',
+            default => 'Active',
+        };
+    }
+
+    protected function commonDocumentValidation(): array
+    {
+        return [
+            'draft_documents' => ['nullable'],
+            'draft_documents.*' => ['file', 'mimes:pdf,jpg,jpeg,png,doc,docx', 'max:10240'],
+            'approved_documents' => ['nullable'],
+            'approved_documents.*' => ['file', 'mimes:pdf,jpg,jpeg,png,doc,docx', 'max:10240'],
+        ];
+    }
+}
