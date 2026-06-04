@@ -45,7 +45,7 @@ class GisController extends Controller
         $query = GisRecord::query();
 
         // Internal Corporate module records must be company_id NULL or 0 only.
-        // Company-specific Corporate Formation records must have company_id = company id
+        // Company-specific Corporate Formation records have company_id = company id
         // and must never appear here.
         if (Schema::hasColumn('gis_records', 'company_id')) {
             $query->where(function ($q) {
@@ -54,27 +54,11 @@ class GisController extends Controller
             });
         }
 
-        // Safety filter for old bad rows that were saved before company_id was forced.
-        // If a NULL GIS row matches a company/BIF name or registration number, hide it
-        // from the internal Corporate module.
-        $identifiers = $this->companyModuleIdentifiers();
-
-        if (! empty($identifiers['names']) && Schema::hasColumn('gis_records', 'corporation_name')) {
-            $names = array_map(fn ($value) => mb_strtolower(trim((string) $value)), $identifiers['names']);
-            $query->where(function ($q) use ($names) {
-                $q->whereNull('corporation_name')
-                  ->orWhereRaw('LOWER(TRIM(corporation_name)) NOT IN (' . implode(',', array_fill(0, count($names), '?')) . ')', $names);
-            });
-        }
-
-        if (! empty($identifiers['regNos']) && Schema::hasColumn('gis_records', 'company_reg_no')) {
-            $regNos = array_map(fn ($value) => mb_strtolower(trim((string) $value)), $identifiers['regNos']);
-            $query->where(function ($q) use ($regNos) {
-                $q->whereNull('company_reg_no')
-                  ->orWhereRaw('LOWER(TRIM(company_reg_no)) NOT IN (' . implode(',', array_fill(0, count($regNos), '?')) . ')', $regNos);
-            });
-        }
-
+        // IMPORTANT:
+        // Do not hide internal Corporate GIS records by comparing corporation_name
+        // or company_reg_no against Company/BIF records. Some valid Corporate GIS
+        // records use JK&C INC. or BIF-like values, and the old filter made saved
+        // records disappear from the Uploaded/Accepted tabs.
         return $query;
     }
 
@@ -209,11 +193,14 @@ class GisController extends Controller
             $logoPath = 'gis_logos/' . $fileName;
         }
 
-        $isApprover = $this->canApproveCorporate();
-
         $payload = [
             'uploaded_by'       => $this->employeeName(),
-            'submission_status' => $isApprover ? 'Submitted' : 'Uploaded',
+
+            // New GIS records must always start as Uploaded/Pending, even if
+            // the logged-in user is an admin or approver. The record may still
+            // be incomplete at this stage because files/details can be added
+            // later before submission.
+            'submission_status' => 'Uploaded',
             'receive_on'        => $request->receive_on,
             'period_date'       => $request->period_date,
             'company_reg_no'    => $request->company_reg_no,
@@ -223,11 +210,12 @@ class GisController extends Controller
             'file'              => $draftPath,
             'notary_file_path'  => $notaryPath,
             'logo_path'         => $logoPath,
-            'approval_status'   => $isApprover ? 'Approved' : 'Pending',
-            'workflow_status'   => $isApprover ? 'Accepted' : 'Uploaded',
+            'approval_status'   => 'Pending',
+            'workflow_status'   => 'Uploaded',
             'submitted_by'      => Auth::id(),
-            'approved_by'       => $isApprover ? Auth::id() : null,
-            'approved_at'       => $isApprover ? now() : null,
+            'approved_by'       => null,
+            'approved_at'       => null,
+            'review_note'       => null,
         ];
 
         if (Schema::hasColumn('gis_records', 'company_id')) {
@@ -237,7 +225,7 @@ class GisController extends Controller
         GisRecord::create($payload);
 
         return redirect()->route('corporate.gis')
-            ->with('success', $isApprover ? 'GIS saved successfully.' : 'GIS saved as uploaded record.');
+            ->with('success', 'GIS saved as uploaded record. Complete the files/details first, then submit it for approval.');
     }
 
     public function companyInfo()

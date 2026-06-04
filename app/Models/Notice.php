@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Schema;
 class Notice extends Model
 {
     protected $fillable = [
-        'company_id','notice_number','date_of_notice','governing_body','type_of_meeting','date_of_meeting','time_started','location','meeting_no','chairman','secretary','meeting_mode','meeting_platform','meeting_link_details','authorized_meeting_officer','confirmation_email','confirmation_phone','office_address','email_phone_confirmation_deadline','physical_submission_deadline','authority_calling_meeting','uploaded_by','date_updated','body_html','body_mode','document_path','original_notice_path',
+        'company_id','gis_record_id','notice_number','date_of_notice','governing_body','type_of_meeting','date_of_meeting','time_started','location','meeting_no','chairman','secretary','meeting_mode','meeting_platform','meeting_link_details','authorized_meeting_officer','confirmation_email','confirmation_phone','office_address','email_phone_confirmation_deadline','physical_submission_deadline','authority_calling_meeting','uploaded_by','date_updated','body_html','body_mode','document_path','original_notice_path',
     ];
 
     protected $casts = [
@@ -16,6 +16,11 @@ class Notice extends Model
         'date_of_meeting' => 'date',
         'date_updated' => 'date',
     ];
+
+    public function gisRecord()
+    {
+        return $this->belongsTo(GisRecord::class, 'gis_record_id');
+    }
 
     public function attendees()
     {

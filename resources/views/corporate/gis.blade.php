@@ -5,7 +5,7 @@
 <div class="w-full px-4 sm:px-6 lg:px-8 mt-4"
      x-data="{
         openPanel:false,
-        statusTab:null,
+        statusTab:'uploaded',
         logoFileName: '',
         draftFileName: '',
         notaryFileName: '',
@@ -66,7 +66,7 @@
 
             <div class="px-0 pb-4">
                 <div class="border border-green-200 bg-green-50 text-green-800 text-[14px] px-4 py-3 rounded-md"
-                     x-show="statusTab === null || statusTab === 'accepted'">
+                     x-show="statusTab === 'accepted'">
                     These GIS records were already accepted and approved.
                 </div>
 
