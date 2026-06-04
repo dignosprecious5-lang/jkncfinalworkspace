@@ -57,44 +57,55 @@ class CorrespondenceController extends Controller
 
     public function data(Request $request)
     {
-        $query = Correspondence::with('creator');
+        /*
+         * Corporate Correspondence page shows all active/non-archived records.
+         * Admin Correspondence Dashboard is the only page that separates Submitted /
+         * Accepted / Reverted / Archived.
+         */
+        $query = Correspondence::with('creator')
+            ->where(function ($q) {
+                $q->where('is_archived', false)
+                    ->orWhereNull('is_archived');
+            });
 
         if ($request->filled('type') && $request->type !== 'All') {
             $query->where('type', $request->type);
         }
 
-        /*
-         * Corporate Correspondence page should show all active/non-archived records.
-         * Admin Correspondence Dashboard is the only page that should filter by Submitted /
-         * Accepted / Reverted / Archived.
-         */
-        $query->where('is_archived', false);
-
         return $query->latest()
             ->get()
-            ->map(fn(Correspondence $item) => [
-                'id' => $item->id,
-                'ref_no' => $item->ref_no ?: 'COR-' . str_pad((string) $item->id, 5, '0', STR_PAD_LEFT),
-                'date' => optional($item->correspondence_date)->format('M d, Y'),
-                'type' => $item->type,
-                'company_name' => $item->company_name,
-                'registration_number' => $item->registration_number,
-                'principal_address' => $item->principal_address,
-                'tin' => $item->tin,
-                'to_for_label' => $item->to_for_label ?: 'To',
-                'to_for' => $item->to_for,
-                'from_name' => $item->from_name,
-                'department' => $item->department_stakeholder,
-                'subject' => $item->subject,
-                'deadline' => $item->deadline ? $item->deadline->format('M d, Y') : null,
-                'sent_via' => $item->sent_via,
-                'status' => $item->status,
-                'workflow_status' => $item->workflow_status,
-                'approval_status' => $item->approval_status,
-                'review_note' => $item->review_note,
-                'user' => $item->creator?->name ?: 'System',
-                'can_submit' => false,
-            ])
+            ->map(function (Correspondence $item) {
+                $workflowStatus = $item->workflow_status ?: 'Submitted';
+                $approvalStatus = $item->approval_status ?: 'Pending';
+
+                if ($workflowStatus === 'Archived' && !$item->is_archived && $approvalStatus === 'Approved') {
+                    $workflowStatus = 'Accepted';
+                }
+
+                return [
+                    'id' => $item->id,
+                    'ref_no' => $item->ref_no ?: 'COR-' . str_pad((string) $item->id, 5, '0', STR_PAD_LEFT),
+                    'date' => optional($item->correspondence_date)->format('M d, Y') ?: optional($item->created_at)->format('M d, Y'),
+                    'type' => $item->type,
+                    'company_name' => $item->company_name,
+                    'registration_number' => $item->registration_number,
+                    'principal_address' => $item->principal_address,
+                    'tin' => $item->tin,
+                    'to_for_label' => $item->to_for_label ?: 'To',
+                    'to_for' => $item->to_for,
+                    'from_name' => $item->from_name,
+                    'department' => $item->department_stakeholder,
+                    'subject' => $item->subject,
+                    'deadline' => $item->deadline ? $item->deadline->format('M d, Y') : null,
+                    'sent_via' => $item->sent_via,
+                    'status' => $item->status,
+                    'workflow_status' => $workflowStatus,
+                    'approval_status' => $approvalStatus,
+                    'review_note' => $item->review_note,
+                    'user' => $item->creator?->name ?: ($item->user ?: 'System'),
+                    'can_submit' => false,
+                ];
+            })
             ->values();
     }
 
@@ -427,14 +438,8 @@ class CorrespondenceController extends Controller
             });
 
         /*
-         * IMPORTANT:
-         * Account > Company > Corporate Formation > GIS uses /company/{company}/corporate-formation/gis
-         * and normally stores a company_id.
-         *
-         * Corporate > Corporate Formation / GIS uses /corporate/gis
-         * and should be the source for Correspondence headers.
-         *
-         * So Correspondence must ignore company-specific GIS records by requiring company_id IS NULL.
+         * Use Corporate > Corporate Formation > GIS.
+         * Ignore Account > Company > Corporate Formation > GIS records when the table has company_id.
          */
         if (Schema::hasColumn($gisTable, 'company_id')) {
             $query->whereNull('company_id');

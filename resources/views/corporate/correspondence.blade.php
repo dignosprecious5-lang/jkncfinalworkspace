@@ -90,46 +90,95 @@
     }"
 >
     <div class="bg-white border border-gray-200 rounded-xl min-h-[calc(100vh-7rem)] flex flex-col">
-        <div class="px-5 py-4 flex items-center justify-between border-b border-gray-200">
-            <div>
-                <p class="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.18em] text-blue-700 bg-blue-50 border border-blue-100 rounded-full px-3 py-1 mb-2">
-                    <i class="fas fa-envelope-open-text"></i>
-                    Corporate Governance
-                </p>
-                <h1 class="text-[30px] font-semibold text-gray-800 leading-none">Correspondence</h1>
-                <p class="text-sm text-gray-500 mt-2">Create, submit, and approve official corporate correspondence.</p>
+        <div class="px-6 py-5 border-b border-gray-200 bg-gradient-to-r from-white via-blue-50/30 to-white">
+            <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                <div>
+                    <p class="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.18em] text-blue-700 bg-blue-50 border border-blue-100 rounded-full px-3 py-1 mb-3">
+                        <i class="fas fa-envelope-open-text"></i>
+                        Corporate Governance
+                    </p>
+                    <h1 class="text-[30px] font-semibold text-gray-900 leading-none">Correspondence</h1>
+                    <p class="text-sm text-gray-500 mt-2">Create, track, and download official corporate correspondence.</p>
+                </div>
+
+                <button
+                    type="button"
+                    @click="showSlideOver = true"
+                    onclick="openAddSection()"
+                    class="inline-flex items-center justify-center gap-2 bg-blue-600 text-white px-6 py-2.5 rounded-xl text-sm shrink-0 hover:bg-blue-700 transition shadow-sm"
+                >
+                    <i class="fas fa-plus"></i>
+                    Add Correspondence
+                </button>
             </div>
 
-            <button
-                type="button"
-                @click="showSlideOver = true"
-                onclick="openAddSection()"
-                class="bg-blue-600 text-white px-6 py-2 rounded-lg text-sm shrink-0 hover:bg-blue-700 transition"
-            >
-                + Add Correspondence
-            </button>
+            <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 mt-5">
+                <div class="rounded-xl border border-blue-100 bg-white px-4 py-3 shadow-sm">
+                    <p class="text-xs font-semibold uppercase text-gray-500">Total Active</p>
+                    <p id="statTotal" class="mt-1 text-2xl font-bold text-gray-900">0</p>
+                </div>
+                <div class="rounded-xl border border-green-100 bg-white px-4 py-3 shadow-sm">
+                    <p class="text-xs font-semibold uppercase text-gray-500">Approved</p>
+                    <p id="statApproved" class="mt-1 text-2xl font-bold text-green-700">0</p>
+                </div>
+                <div class="rounded-xl border border-blue-100 bg-white px-4 py-3 shadow-sm">
+                    <p class="text-xs font-semibold uppercase text-gray-500">Submitted</p>
+                    <p id="statSubmitted" class="mt-1 text-2xl font-bold text-blue-700">0</p>
+                </div>
+                <div class="rounded-xl border border-yellow-100 bg-white px-4 py-3 shadow-sm">
+                    <p class="text-xs font-semibold uppercase text-gray-500">Needs Action</p>
+                    <p id="statNeedsAction" class="mt-1 text-2xl font-bold text-yellow-700">0</p>
+                </div>
+            </div>
         </div>
 
-<div id="tableSection" class="px-5 pb-4 flex-1 flex flex-col">
-            <div class="border border-gray-200 rounded-md overflow-hidden flex-1 overflow-auto">
-                <table class="w-full text-sm text-left border-collapse">
-                    <thead class="bg-gray-100 text-gray-700 sticky top-0 z-10">
-                        <tr>
-                            <th class="px-3 py-3 border-r border-gray-200 font-semibold">Ref#</th>
-                            <th class="px-3 py-3 border-r border-gray-200 font-semibold">Date</th>
-                            <th class="px-3 py-3 border-r border-gray-200 font-semibold">Type</th>
-                            <th class="px-3 py-3 border-r border-gray-200 font-semibold">Company</th>
-                            <th class="px-3 py-3 border-r border-gray-200 font-semibold">To / For</th>
-                            <th class="px-3 py-3 border-r border-gray-200 font-semibold">From</th>
-                            <th class="px-3 py-3 border-r border-gray-200 font-semibold">Subject</th>
-                            <th class="px-3 py-3 border-r border-gray-200 font-semibold">Respond Before</th>
-                            <th class="px-3 py-3 border-r border-gray-200 font-semibold">Workflow</th>
-                            <th class="px-3 py-3 border-r border-gray-200 font-semibold">Approval</th>
-                            <th class="px-3 py-3 font-semibold">Template</th>
-                        </tr>
-                    </thead>
-                    <tbody id="tableBody" class="bg-white"></tbody>
-                </table>
+        <div id="tableSection" class="px-6 py-5 flex-1 flex flex-col">
+            <div class="mb-4 grid grid-cols-1 lg:grid-cols-[1fr_220px_auto] gap-3 items-end">
+                <div>
+                    <label class="block text-xs font-semibold uppercase text-gray-500 mb-1">Search</label>
+                    <div class="relative">
+                        <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
+                        <input id="correspondenceSearchInput" type="text" placeholder="Search ref, company, subject, recipient, sender..."
+                               class="w-full rounded-xl border border-gray-300 pl-9 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold uppercase text-gray-500 mb-1">Type</label>
+                    <select id="typeFilterInput" class="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500">
+                        <option value="All">All Types</option>
+                        @foreach($types as $type)
+                            <option value="{{ $type }}">{{ $type }}</option>
+                        @endforeach
+                    </select>
+                </div>
+
+                <button type="button" onclick="clearCorrespondenceFilters()"
+                        class="rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                    Clear
+                </button>
+            </div>
+
+            <div class="border border-gray-200 rounded-xl overflow-hidden flex-1 bg-white shadow-sm">
+                <div class="overflow-auto h-full">
+                    <table class="w-full text-sm text-left border-collapse">
+                        <thead class="bg-gray-50 text-gray-700 sticky top-0 z-10 border-b border-gray-200">
+                            <tr>
+                                <th class="px-4 py-3 font-semibold">Ref#</th>
+                                <th class="px-4 py-3 font-semibold">Date</th>
+                                <th class="px-4 py-3 font-semibold">Type</th>
+                                <th class="px-4 py-3 font-semibold">Company</th>
+                                <th class="px-4 py-3 font-semibold">To / For</th>
+                                <th class="px-4 py-3 font-semibold">From</th>
+                                <th class="px-4 py-3 font-semibold">Subject</th>
+                                <th class="px-4 py-3 font-semibold">Workflow</th>
+                                <th class="px-4 py-3 font-semibold">Approval</th>
+                                <th class="px-4 py-3 font-semibold text-center">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tableBody" class="bg-white divide-y divide-gray-100"></tbody>
+                    </table>
+                </div>
             </div>
         </div>
 
@@ -423,7 +472,7 @@
                             Cancel
                         </button>
 
-                        <button id="saveCorrespondenceBtn" type="button" onclick="addCorrespondence().then(success => { if (success) { closeAddSection(); } })" class="flex-1 bg-blue-600 text-white rounded-lg py-2.5 text-sm font-medium hover:bg-blue-700 transition">
+                        <button id="saveCorrespondenceBtn" type="button" onclick="addCorrespondence().then(success => { if (success) { setTimeout(() => closeAddSection(), 700); } })" class="flex-1 bg-blue-600 text-white rounded-lg py-2.5 text-sm font-medium hover:bg-blue-700 transition">
                             Save
                         </button>
                     </div>
@@ -684,6 +733,7 @@
 <script>
 let currentTypeFilter = "All";
 let currentWorkflowFilter = "";
+let currentSearchFilter = "";
 let correspondenceRows = [];
 
 const correspondenceTypes = @json($types);
@@ -837,9 +887,8 @@ function resetFormDefaults() {
 }
 
 function applyWorkflowFilter(filterValue) {
-    // Corporate Correspondence does not use workflow tabs.
-    // Approved/Accepted records must remain visible here.
-    currentWorkflowFilter = "";
+    // Workflow filtering is managed in the Admin Correspondence dashboard.
+    currentWorkflowFilter = '';
     renderTable();
 }
 
@@ -850,10 +899,6 @@ async function fetchCorrespondence() {
         params.append('type', currentTypeFilter);
     }
 
-    /*
-     * Do not send workflow_status from Corporate side.
-     * Admin dashboard handles Submitted / Accepted / Reverted / Archived filtering.
-     */
     const res = await fetch(`/correspondence/data?${params.toString()}`, {
         headers: { 'Accept': 'application/json' }
     });
@@ -867,6 +912,81 @@ async function fetchCorrespondence() {
 
     return Array.isArray(data) ? data : [];
 }
+
+
+function workflowBadge(status) {
+    const s = status || '—';
+    const cls = {
+        'Accepted': 'bg-green-50 text-green-700 border-green-100',
+        'Submitted': 'bg-blue-50 text-blue-700 border-blue-100',
+        'Reverted': 'bg-yellow-50 text-yellow-700 border-yellow-100',
+        'Archived': 'bg-gray-100 text-gray-700 border-gray-200',
+        'Uploaded': 'bg-orange-50 text-orange-700 border-orange-100'
+    }[s] || 'bg-gray-50 text-gray-600 border-gray-200';
+
+    return `<span class="inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${cls}">${s}</span>`;
+}
+
+function approvalBadge(status) {
+    const s = status || '—';
+    const cls = {
+        'Approved': 'bg-green-50 text-green-700 border-green-100',
+        'Pending': 'bg-blue-50 text-blue-700 border-blue-100',
+        'Needs Revision': 'bg-yellow-50 text-yellow-700 border-yellow-100',
+        'Rejected': 'bg-red-50 text-red-700 border-red-100'
+    }[s] || 'bg-gray-50 text-gray-600 border-gray-200';
+
+    return `<span class="inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${cls}">${s}</span>`;
+}
+
+function updateCorrespondenceStats(rows) {
+    const total = rows.length;
+    const approved = rows.filter(item => item.approval_status === 'Approved').length;
+    const submitted = rows.filter(item => item.workflow_status === 'Submitted').length;
+    const needsAction = rows.filter(item => ['Pending', 'Needs Revision', 'Rejected'].includes(item.approval_status)).length;
+
+    const set = (id, value) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = value;
+    };
+
+    set('statTotal', total);
+    set('statApproved', approved);
+    set('statSubmitted', submitted);
+    set('statNeedsAction', needsAction);
+}
+
+function filterCorrespondenceRows(rows) {
+    const q = String(currentSearchFilter || '').toLowerCase().trim();
+
+    if (!q) return rows;
+
+    return rows.filter(item => [
+        item.ref_no,
+        item.date,
+        item.type,
+        item.company_name,
+        item.to_for,
+        item.from_name,
+        item.subject,
+        item.workflow_status,
+        item.approval_status
+    ].some(value => String(value || '').toLowerCase().includes(q)));
+}
+
+function clearCorrespondenceFilters() {
+    currentTypeFilter = 'All';
+    currentSearchFilter = '';
+
+    const search = document.getElementById('correspondenceSearchInput');
+    const type = document.getElementById('typeFilterInput');
+
+    if (search) search.value = '';
+    if (type) type.value = 'All';
+
+    renderTable();
+}
+
 
 function getWorkflowClasses(status) {
     if (status === 'Submitted') return 'text-blue-600';
@@ -924,34 +1044,55 @@ async function renderTable() {
     closePreview();
 
     const tableBody = document.getElementById('tableBody');
-    tableBody.innerHTML = '';
+    tableBody.innerHTML = `
+        <tr>
+            <td colspan="10" class="px-4 py-10 text-center text-gray-500">
+                Loading correspondence records...
+            </td>
+        </tr>
+    `;
 
     const data = await fetchCorrespondence();
-    correspondenceRows = data || [];
+    const filteredRows = filterCorrespondenceRows(data || []);
+    correspondenceRows = filteredRows;
 
+    updateCorrespondenceStats(data || []);
     updateStatusMessage();
     setActiveTab();
 
     if (!correspondenceRows.length) {
-        tableBody.innerHTML = `<tr><td colspan="11" class="px-3 py-8 text-center text-gray-500">No correspondence records found.</td></tr>`;
+        tableBody.innerHTML = `
+            <tr>
+                <td colspan="10" class="px-4 py-16">
+                    <div class="mx-auto max-w-md text-center">
+                        <div class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-blue-600">
+                            <i class="fas fa-envelope-open-text"></i>
+                        </div>
+                        <h3 class="text-base font-semibold text-gray-900">No correspondence records found</h3>
+                        <p class="mt-1 text-sm text-gray-500">Approved and submitted active correspondence will appear here.</p>
+                    </div>
+                </td>
+            </tr>
+        `;
         return;
     }
 
     correspondenceRows.forEach((item, index) => {
         tableBody.innerHTML += `
-            <tr class="border-t border-gray-200 hover:bg-gray-50 cursor-pointer" onclick="openPreview(${index})">
-                <td class="px-3 py-3 border-r border-gray-200">${item.ref_no ?? `COR-${String(item.id).padStart(5, '0')}`}</td>
-                <td class="px-3 py-3 border-r border-gray-200">${item.date ?? ''}</td>
-                <td class="px-3 py-3 border-r border-gray-200">${item.type ?? ''}</td>
-                <td class="px-3 py-3 border-r border-gray-200">${item.company_name ?? ''}</td>
-                <td class="px-3 py-3 border-r border-gray-200">${item.to_for ?? ''}</td>
-                <td class="px-3 py-3 border-r border-gray-200">${item.from_name ?? ''}</td>
-                <td class="px-3 py-3 border-r border-gray-200">${item.subject ?? ''}</td>
-                <td class="px-3 py-3 border-r border-gray-200">${item.deadline ?? 'No Deadline'}</td>
-                <td class="px-3 py-3 border-r border-gray-200 ${getWorkflowClasses(item.workflow_status)} font-medium">${item.workflow_status ?? ''}</td>
-                <td class="px-3 py-3 border-r border-gray-200 ${getApprovalClasses(item.approval_status)} font-medium">${item.approval_status ?? ''}</td>
-                <td class="px-3 py-3">
-                    <button type="button" onclick="event.stopPropagation(); openPreview(${index})" class="text-blue-600 hover:underline">View</button>
+            <tr class="hover:bg-blue-50/40 cursor-pointer transition" onclick="openPreview(${index})">
+                <td class="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">${item.ref_no ?? `COR-${String(item.id).padStart(5, '0')}`}</td>
+                <td class="px-4 py-3 text-gray-600 whitespace-nowrap">${item.date ?? ''}</td>
+                <td class="px-4 py-3 text-gray-700 whitespace-nowrap">${item.type ?? ''}</td>
+                <td class="px-4 py-3 text-gray-700 max-w-[230px] truncate" title="${item.company_name ?? ''}">${item.company_name ?? ''}</td>
+                <td class="px-4 py-3 text-gray-700 max-w-[180px] truncate" title="${item.to_for ?? ''}">${item.to_for ?? ''}</td>
+                <td class="px-4 py-3 text-gray-700 max-w-[160px] truncate" title="${item.from_name ?? ''}">${item.from_name ?? ''}</td>
+                <td class="px-4 py-3 text-gray-900 max-w-[240px] truncate font-medium" title="${item.subject ?? ''}">${item.subject ?? ''}</td>
+                <td class="px-4 py-3 whitespace-nowrap">${workflowBadge(item.workflow_status)}</td>
+                <td class="px-4 py-3 whitespace-nowrap">${approvalBadge(item.approval_status)}</td>
+                <td class="px-4 py-3 text-center">
+                    <button type="button" onclick="event.stopPropagation(); openPreview(${index})" class="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50">
+                        View
+                    </button>
                 </td>
             </tr>
         `;
@@ -1140,6 +1281,23 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         }
     });
+
+    const searchInput = document.getElementById('correspondenceSearchInput');
+    const typeFilterInput = document.getElementById('typeFilterInput');
+
+    if (searchInput) {
+        searchInput.addEventListener('input', function () {
+            currentSearchFilter = this.value || '';
+            renderTable();
+        });
+    }
+
+    if (typeFilterInput) {
+        typeFilterInput.addEventListener('change', function () {
+            currentTypeFilter = this.value || 'All';
+            renderTable();
+        });
+    }
 
     renderTable();
 });
