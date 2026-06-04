@@ -465,20 +465,28 @@ class CorporateApprovalController extends Controller
             $workflow = $this->normalizeWorkflow($row);
             if (!$this->canAppearInAdminDashboard($workflow)) continue;
 
+            /*
+             * Correspondence now has its own dedicated Admin Correspondence dashboard.
+             * Keep it visible here for monitoring/searching only, but do not approve/reject/revise it here.
+             * This prevents duplicate approval logic between Corporate Approval Dashboard and Admin Correspondence.
+             */
             $items->push((object) [
                 'id' => $row->id,
                 'module' => 'Correspondence',
                 'title' => ($row->type ?? 'Correspondence') . ' - ' . ($row->subject ?? ''),
-                'company_reg_no' => $row->tin ?? '',
-                'uploaded_by' => $row->user,
-                'date_uploaded' => $row->uploaded_date ? \Carbon\Carbon::parse($row->uploaded_date)->format('Y-m-d') : '',
+                'company_reg_no' => $row->registration_number ?: ($row->tin ?? ''),
+                'uploaded_by' => $row->creator?->name ?: ($row->user ?: $row->submitted_by),
+                'date_uploaded' => $row->correspondence_date
+                    ? \Carbon\Carbon::parse($row->correspondence_date)->format('Y-m-d')
+                    : ($row->created_at ? $row->created_at->format('Y-m-d') : ''),
                 'status' => $workflow,
                 'approval_status' => $row->approval_status,
-                'show_route' => route('correspondence', ['record' => $row->id, 'tab' => strtolower($workflow)]),
-                'approve_route' => route('corporate.approvals.approve', ['module' => 'correspondence', 'id' => $row->id]),
-                'reject_route' => route('corporate.approvals.reject', ['module' => 'correspondence', 'id' => $row->id]),
-                'revise_route' => route('corporate.approvals.revise', ['module' => 'correspondence', 'id' => $row->id]),
-                'archive_route' => route('corporate.approvals.archive', ['module' => 'correspondence', 'id' => $row->id]),
+                'show_route' => route('admin.correspondence.show', $row->id),
+                'approve_route' => null,
+                'reject_route' => null,
+                'revise_route' => null,
+                'archive_route' => null,
+                'supports_actions' => false,
             ]);
         }
 
@@ -503,7 +511,7 @@ class CorporateApprovalController extends Controller
             ]);
         }
 
-        
+
 
         foreach (Notice::latest()->get() as $row) {
             if (empty($row->document_path)) {
@@ -680,42 +688,56 @@ class CorporateApprovalController extends Controller
     }
 
     public function approve($module, $id)
-{
-    $this->authorizeApprover();
+    {
 
-    $record = $this->resolveModel($module, $id);
+        if ($module === 'correspondence') {
+            return redirect()
+                ->route('admin.correspondence.dashboard')
+                ->with('error', 'Correspondence approvals are handled in the Admin Correspondence dashboard.');
+        }
 
-    if ($response = $this->ensureSubmittedForDecision($record)) {
-        return $response;
+        $this->authorizeApprover();
+
+        $record = $this->resolveModel($module, $id);
+
+        if ($response = $this->ensureSubmittedForDecision($record)) {
+            return $response;
+        }
+
+        $updateData = [
+            'approval_status' => 'Approved',
+            'workflow_status' => 'Accepted',
+            'approved_by' => Auth::id(),
+            'approved_at' => now(),
+            'review_note' => null,
+        ];
+
+        if ($module === 'transmittal') {
+            $updateData['approved_by_name'] = Auth::user()?->name ?? 'Admin User';
+        }
+
+        $record->update($updateData);
+
+        if ($module === 'transmittal') {
+            $this->generateTransmittalReceipt($record);
+            $record->refresh()->load(['items', 'receipt']);
+            $this->sendTransmittalDeliveryEmail($record);
+        }
+
+        $this->sendStatusEmail($record, $module, 'Approved', null);
+
+        return back()->with('success', 'Record approved successfully.');
     }
-
-    $updateData = [
-        'approval_status' => 'Approved',
-        'workflow_status' => 'Accepted',
-        'approved_by' => Auth::id(),
-        'approved_at' => now(),
-        'review_note' => null,
-    ];
-
-    if ($module === 'transmittal') {
-        $updateData['approved_by_name'] = Auth::user()?->name ?? 'Admin User';
-    }
-
-    $record->update($updateData);
-
-    if ($module === 'transmittal') {
-        $this->generateTransmittalReceipt($record);
-        $record->refresh()->load(['items', 'receipt']);
-        $this->sendTransmittalDeliveryEmail($record);
-    }
-
-    $this->sendStatusEmail($record, $module, 'Approved', null);
-
-    return back()->with('success', 'Record approved successfully.');
-}
 
     public function reject(Request $request, $module, $id)
     {
+
+        if ($module === 'correspondence') {
+            return redirect()
+                ->route('admin.correspondence.dashboard')
+                ->with('error', 'Correspondence approvals are handled in the Admin Correspondence dashboard.');
+        }
+
         $this->authorizeApprover();
 
         $record = $this->resolveModel($module, $id);
@@ -739,6 +761,13 @@ class CorporateApprovalController extends Controller
 
     public function revise(Request $request, $module, $id)
     {
+
+        if ($module === 'correspondence') {
+            return redirect()
+                ->route('admin.correspondence.dashboard')
+                ->with('error', 'Correspondence approvals are handled in the Admin Correspondence dashboard.');
+        }
+
         $this->authorizeApprover();
 
         $record = $this->resolveModel($module, $id);
@@ -762,6 +791,13 @@ class CorporateApprovalController extends Controller
 
     public function archive($module, $id)
     {
+
+        if ($module === 'correspondence') {
+            return redirect()
+                ->route('admin.correspondence.dashboard')
+                ->with('error', 'Correspondence approvals are handled in the Admin Correspondence dashboard.');
+        }
+
         $this->authorizeApprover();
 
         $record = $this->resolveModel($module, $id);
