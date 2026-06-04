@@ -370,7 +370,21 @@
                 return `<div><label class="block text-xs font-semibold text-gray-500 mb-1">${escapeHtml(field.label)}</label><textarea name="${field.key}" ${required} class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm min-h-[88px]">${escapeHtml(value)}</textarea></div>`;
             }
 
-            if (field.type === 'select' || field.type === 'location') {
+            if (field.type === 'location') {
+                const optionValues = [...new Set([value, ...options].filter(Boolean))];
+
+                return `
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-500 mb-1">${escapeHtml(field.label)}</label>
+                        <select name="${field.key}" data-field="${field.key}" id="${datalistId}" ${required} class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white" autocomplete="off">
+                            <option value="">Select ${escapeHtml(field.label)}</option>
+                            ${optionValues.map((option) => `<option value="${escapeHtml(option)}" ${String(option) === String(value) ? 'selected' : ''}>${escapeHtml(option)}</option>`).join('')}
+                        </select>
+                    </div>
+                `;
+            }
+
+            if (field.type === 'select') {
                 return `
                     <div>
                         <label class="block text-xs font-semibold text-gray-500 mb-1">${escapeHtml(field.label)}</label>
@@ -392,27 +406,36 @@
         const provinceInput = qs('[name="province"]');
         const cityInput = qs('[name="city_municipality"]');
         const barangayInput = qs('[name="barangay"]');
-        const cityList = document.getElementById(`${config.moduleId}-city_municipality-list`);
-        const barangayList = document.getElementById(`${config.moduleId}-barangay-list`);
         if (!provinceInput || !cityInput || !barangayInput) return;
 
         const cities = Object.keys(config.locationData[provinceInput.value] || {});
-        cityList.innerHTML = cities.map((city) => `<option value="${escapeHtml(city)}"></option>`).join('');
+        setDatalistOptions(`${config.moduleId}-city_municipality-list`, cities);
 
         const barangays = (config.locationData[provinceInput.value] || {})[cityInput.value] || [];
-        barangayList.innerHTML = barangays.map((barangay) => `<option value="${escapeHtml(barangay)}"></option>`).join('');
+        setDatalistOptions(`${config.moduleId}-barangay-list`, barangays);
     };
 
     const setDatalistOptions = (listId, items) => {
         const list = document.getElementById(listId);
         if (!list) return;
 
-        list.innerHTML = (items || [])
-            .map((item) => {
-                const name = typeof item === 'string' ? item : item.name;
-                return name ? `<option value="${escapeHtml(name)}"></option>` : '';
-            })
-            .join('');
+        const currentValue = list.value || '';
+        const names = (items || [])
+            .map((item) => typeof item === 'string' ? item : item.name)
+            .filter(Boolean);
+
+        if (list.tagName === 'SELECT') {
+            const label = list.closest('div')?.querySelector('label')?.textContent?.trim() || 'Option';
+            const options = [...new Set([currentValue, ...names].filter(Boolean))];
+            list.innerHTML = `
+                <option value="">Select ${escapeHtml(label)}</option>
+                ${options.map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join('')}
+            `;
+            list.value = options.includes(currentValue) ? currentValue : '';
+            return;
+        }
+
+        list.innerHTML = names.map((name) => `<option value="${escapeHtml(name)}"></option>`).join('');
     };
 
     const selectedLocationItem = (items, value) => {
