@@ -12,6 +12,11 @@
         'updateUrl' => route('permits.update', '__ID__'),
         'submitUrl' => route('permits.submit', '__ID__'),
         'locationData' => $locationData ?? [],
+        'locationEndpoints' => [
+            'provinces' => route('corporate.locations.provinces-or-districts'),
+            'cities' => route('corporate.locations.cities-municipalities', ['type' => '__TYPE__', 'code' => '__CODE__']),
+            'barangays' => route('corporate.locations.barangays', ['cityCode' => '__CITY__']),
+        ],
         'options' => [
             'permitTypes' => $permitTypes ?? [],
             'statuses' => $statuses ?? [],

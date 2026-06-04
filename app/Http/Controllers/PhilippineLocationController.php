@@ -62,6 +62,46 @@ class PhilippineLocationController extends Controller
         return response()->json($payload);
     }
 
+    public function allProvincesOrDistricts(): JsonResponse
+    {
+        $items = Cache::remember('psgc_all_provinces_or_districts', now()->addDays(30), function () {
+            $regions = collect($this->getJson('/regions.json'))
+                ->filter(fn ($item) => filled($item['code'] ?? null));
+
+            return $regions->flatMap(function ($region) {
+                $regionCode = $region['code'];
+                $regionName = $region['name'] ?? '';
+                $provinces = collect($this->getJson("/regions/{$regionCode}/provinces.json"))
+                    ->map(fn ($item) => [
+                        'code' => $item['code'] ?? null,
+                        'name' => $item['name'] ?? null,
+                        'type' => 'province',
+                        'region_code' => $regionCode,
+                        'region_name' => $regionName,
+                    ]);
+
+                if ($provinces->isNotEmpty()) {
+                    return $provinces;
+                }
+
+                return collect($this->getJson("/regions/{$regionCode}/districts.json"))
+                    ->map(fn ($item) => [
+                        'code' => $item['code'] ?? null,
+                        'name' => $item['name'] ?? null,
+                        'type' => 'district',
+                        'region_code' => $regionCode,
+                        'region_name' => $regionName,
+                    ]);
+            })
+                ->filter(fn ($item) => filled($item['code'] ?? null) && filled($item['name'] ?? null))
+                ->sortBy('name')
+                ->values()
+                ->all();
+        });
+
+        return response()->json($items);
+    }
+
     public function citiesMunicipalities(string $type, string $code): JsonResponse
     {
         $type = strtolower($type);

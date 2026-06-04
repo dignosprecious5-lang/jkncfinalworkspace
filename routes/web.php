@@ -730,6 +730,12 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
 
     Route::get('/corporate/company-general-information', [GisController::class, 'companyInfo'])->name('corporate.companyinfo');
 
+    Route::prefix('/corporate/locations')->name('corporate.locations.')->group(function () {
+        Route::get('/provinces-or-districts', [PhilippineLocationController::class, 'allProvincesOrDistricts'])->name('provinces-or-districts');
+        Route::get('/cities-municipalities/{type}/{code}', [PhilippineLocationController::class, 'citiesMunicipalities'])->name('cities-municipalities');
+        Route::get('/barangays/{cityCode}', [PhilippineLocationController::class, 'barangays'])->name('barangays');
+    });
+
     Route::get('/corporate/gis', [GisController::class, 'index'])->name('corporate.gis');
     Route::post('/corporate/gis/store', [GisController::class, 'store'])->name('gis.store');
     Route::get('/corporate/gis/{id}/show', [GisController::class, 'show'])->name('gis.show');

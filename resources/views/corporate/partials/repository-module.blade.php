@@ -175,7 +175,12 @@
         rows: [],
         workflow: ['uploaded', 'submitted', 'accepted', 'reverted', 'archived'].includes(autoOpenTab) ? autoOpenTab : 'uploaded',
         editingId: null,
-        autoOpened: false
+        autoOpened: false,
+        locations: {
+            provinces: [],
+            cities: [],
+            barangays: []
+        }
     };
     const qs = (selector) => root.querySelector(selector);
     const qsa = (selector) => Array.from(root.querySelectorAll(selector));
@@ -398,6 +403,95 @@
         barangayList.innerHTML = barangays.map((barangay) => `<option value="${escapeHtml(barangay)}"></option>`).join('');
     };
 
+    const setDatalistOptions = (listId, items) => {
+        const list = document.getElementById(listId);
+        if (!list) return;
+
+        list.innerHTML = (items || [])
+            .map((item) => {
+                const name = typeof item === 'string' ? item : item.name;
+                return name ? `<option value="${escapeHtml(name)}"></option>` : '';
+            })
+            .join('');
+    };
+
+    const selectedLocationItem = (items, value) => {
+        const needle = String(value || '').trim().toLowerCase();
+        if (!needle) return null;
+
+        return (items || []).find((item) => String(item.name || '').trim().toLowerCase() === needle) || null;
+    };
+
+    const fetchLocationJson = async (url) => {
+        if (!url) return [];
+
+        try {
+            const response = await fetch(url, { headers: { Accept: 'application/json' } });
+            if (!response.ok) return [];
+
+            const payload = await response.json();
+            return Array.isArray(payload) ? payload : [];
+        } catch (error) {
+            console.warn('Location lookup failed.', error);
+            return [];
+        }
+    };
+
+    const loadProvinceOptions = async () => {
+        if (!config.locationEndpoints?.provinces || state.locations.provinces.length) return;
+
+        state.locations.provinces = await fetchLocationJson(config.locationEndpoints.provinces);
+        config.options = config.options || {};
+        config.options.provinces = state.locations.provinces.map((item) => item.name).filter(Boolean);
+        setDatalistOptions(`${config.moduleId}-province-list`, state.locations.provinces);
+    };
+
+    const updateRemoteLocationLists = async (changedField = '') => {
+        if (!config.locationEndpoints) {
+            updateLocationLists();
+            return;
+        }
+
+        const provinceInput = qs('[name="province"]');
+        const cityInput = qs('[name="city_municipality"]');
+        const barangayInput = qs('[name="barangay"]');
+        if (!provinceInput || !cityInput || !barangayInput) return;
+
+        await loadProvinceOptions();
+
+        const province = selectedLocationItem(state.locations.provinces, provinceInput.value);
+        if (changedField === 'province') {
+            cityInput.value = '';
+            barangayInput.value = '';
+            state.locations.cities = [];
+            state.locations.barangays = [];
+            setDatalistOptions(`${config.moduleId}-city_municipality-list`, []);
+            setDatalistOptions(`${config.moduleId}-barangay-list`, []);
+        }
+
+        if (province?.code && province?.type) {
+            const cityUrl = config.locationEndpoints.cities
+                .replace('__TYPE__', encodeURIComponent(province.type))
+                .replace('__CODE__', encodeURIComponent(province.code));
+            state.locations.cities = await fetchLocationJson(cityUrl);
+            setDatalistOptions(`${config.moduleId}-city_municipality-list`, state.locations.cities);
+        }
+
+        const city = selectedLocationItem(state.locations.cities, cityInput.value);
+        if (changedField === 'city_municipality') {
+            barangayInput.value = '';
+            state.locations.barangays = [];
+            setDatalistOptions(`${config.moduleId}-barangay-list`, []);
+        }
+
+        if (city?.code) {
+            const barangayUrl = config.locationEndpoints.barangays
+                .replace('__CITY__', encodeURIComponent(city.code));
+            state.locations.barangays = await fetchLocationJson(barangayUrl);
+            setDatalistOptions(`${config.moduleId}-barangay-list`, state.locations.barangays);
+        }
+    };
+
     const resetLivePreview = () => {
         qs('[data-live-frame]').src = '';
         qs('[data-live-image]').src = '';
@@ -417,6 +511,7 @@
         qs('[data-audit-updated-by]').textContent = row?.last_updated_by || 'System generated';
         qs('[data-audit-updated-date]').textContent = row?.last_updated_date || 'System generated';
         renderFields(row || {});
+        updateRemoteLocationLists();
         resetLivePreview();
         qs('[data-error-box]').classList.add('hidden');
         qs('[data-success-box]').classList.add('hidden');
@@ -499,7 +594,7 @@
     });
 
     root.addEventListener('input', (event) => {
-        if (event.target.matches('[name="province"], [name="city_municipality"]')) updateLocationLists();
+        if (event.target.matches('[name="province"], [name="city_municipality"]')) updateRemoteLocationLists(event.target.name);
 
         const otherInput = qs(`[data-other-for="${event.target.name}"]`);
         if (otherInput) {
@@ -508,6 +603,10 @@
     });
 
     root.addEventListener('change', (event) => {
+        if (event.target.matches('[name="province"], [name="city_municipality"]')) {
+            updateRemoteLocationLists(event.target.name);
+        }
+
         if (!event.target.matches('input[type="file"]')) return;
         const file = event.target.files?.[0];
         if (!file) {
