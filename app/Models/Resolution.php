@@ -9,6 +9,7 @@ class Resolution extends Model
 {
     protected $fillable = [
         'company_id',
+        'gis_record_id',
         'resolution_no',
         'date_uploaded',
         'uploaded_by',
@@ -41,6 +42,11 @@ class Resolution extends Model
         'date_of_meeting' => 'date',
         'notarized_on' => 'date',
     ];
+
+    public function gisRecord()
+    {
+        return $this->belongsTo(GisRecord::class, 'gis_record_id');
+    }
 
     public function notice()
     {

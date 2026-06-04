@@ -63,6 +63,12 @@ class CompanyCorporateRecordController extends Controller
         $data = $this->validateNoticeData($request);
         $bodyHtml = $data['body_html'] ?? null;
         $hasUploadedDocument = $request->hasFile('document_path');
+
+        $lockedGis = $this->latestCompanyGisForDocuments($company);
+        if (Schema::hasColumn('notices', 'gis_record_id')) {
+            $data['gis_record_id'] = $lockedGis?->id;
+        }
+
         $data['document_path'] = $this->handleUpload($request, 'document_path');
         $data['notice_number'] = $data['notice_number'] ?: $this->nextCompanyNoticeNumber($company);
         $data['body_mode'] = $this->resolveNoticeBodyMode($hasUploadedDocument, $bodyHtml, null, $data['body_mode'] ?? null);
@@ -93,6 +99,9 @@ class CompanyCorporateRecordController extends Controller
             'download' => 1,
         ]);
 
+        $lockedGis = $this->companyGisForDocument($noticeRecord, $company);
+        $viewData = $this->companyViewData($companyData, $company, $lockedGis);
+
         return view('corporate.notices.preview', [
             'notice' => $noticeRecord,
             'backRoute' => route('company.corporate-formation.notices', $company),
@@ -107,7 +116,7 @@ class CompanyCorporateRecordController extends Controller
             'templatePreviewDownloadUrl' => $draftPdfDownloadUrl,
             'uploadOriginalRoute' => route('company.corporate-formation.notices.upload-original', [$company, $noticeRecord->id]),
 
-            ...$this->companyViewData($companyData, $company),
+            ...$viewData,
         ]);
     }
 
@@ -117,7 +126,8 @@ class CompanyCorporateRecordController extends Controller
         $noticeRecord = $this->findCompanyNotice($company, $notice);
         $noticeRecord->loadMissing(['minutes', 'resolutions', 'secretaryCertificates', 'attendees']);
 
-        $viewData = $this->companyViewData($companyData, $company);
+        $lockedGis = $this->companyGisForDocument($noticeRecord, $company);
+        $viewData = $this->companyViewData($companyData, $company, $lockedGis);
 
         $pdf = Pdf::loadView('corporate.notices.pdf', [
             'notice' => $noticeRecord,
@@ -218,6 +228,12 @@ class CompanyCorporateRecordController extends Controller
         $data = $this->validateNoticeData($request);
         $bodyHtml = $data['body_html'] ?? null;
         $hasUploadedDocument = $request->hasFile('document_path');
+
+        // Keep the original GIS snapshot when editing an old notice.
+        if (Schema::hasColumn('notices', 'gis_record_id')) {
+            $data['gis_record_id'] = $noticeRecord->gis_record_id ?: $this->companyGisForDocument($noticeRecord, $company)?->id;
+        }
+
         $data['document_path'] = $this->handleUpload($request, 'document_path', $noticeRecord->document_path);
         $data['body_mode'] = $this->resolveNoticeBodyMode($hasUploadedDocument, $bodyHtml, $noticeRecord, $data['body_mode'] ?? null);
         $data = $this->filterPersistableData('notices', $this->attachCompanyId(new Notice(), $data, $company));
@@ -269,11 +285,7 @@ class CompanyCorporateRecordController extends Controller
         $notices = $this->companyScopedQuery(Notice::query(), new Notice(), $company)
             ->with('attendees')
             ->orderBy('date_of_meeting')
-            ->get()
-            ->each(function (Notice $notice): void {
-                $this->syncNoticeAttendeesFromLatestGis($notice);
-                $notice->load('attendees');
-            });
+            ->get();
 
         return view('corporate.minutes.index', [
             'minutes' => $minutes,
@@ -292,6 +304,11 @@ class CompanyCorporateRecordController extends Controller
         $data = $this->validateMinuteData($request);
         $notice = $this->findCompanyNotice($company, (int) $data['notice_id']);
         $data = $this->mergeNoticeData($data, $notice);
+
+        if (Schema::hasColumn('minutes', 'gis_record_id')) {
+            $data['gis_record_id'] = $this->documentGisIdFromSources($company, $notice);
+        }
+
         $data['document_path'] = $this->handleUpload($request, 'document_path');
         $data['minutes_ref'] = $data['minutes_ref'] ?: $this->nextCompanyMinutesRef($company);
         $data = $this->filterPersistableData('minutes', $this->attachCompanyId(new Minute(), $data, $company));
@@ -308,7 +325,8 @@ class CompanyCorporateRecordController extends Controller
         $minuteRecord->load('notice.attendees');
         $noticeRecord = $minuteRecord->notice;
         $templatePreviewPath = $this->generateCompanyMinuteTemplatePreviewPdf($minuteRecord);
-        $baseViewData = $this->companyViewData($companyData, $company);
+        $lockedGis = $this->companyGisForDocument($minuteRecord, $company);
+        $baseViewData = $this->companyViewData($companyData, $company, $lockedGis);
         $corporateContext = $baseViewData['corporateContext'] ?? [];
 
         return view('corporate.minutes.preview', [
@@ -338,6 +356,11 @@ class CompanyCorporateRecordController extends Controller
         $data = $this->validateMinuteData($request);
         $notice = $this->findCompanyNotice($company, (int) $data['notice_id']);
         $data = $this->mergeNoticeData($data, $notice);
+
+        if (Schema::hasColumn('minutes', 'gis_record_id')) {
+            $data['gis_record_id'] = $minuteRecord->gis_record_id ?: $this->documentGisIdFromSources($company, $notice);
+        }
+
         $data['document_path'] = $this->handleUpload($request, 'document_path', $minuteRecord->document_path);
         $data = $this->filterPersistableData('minutes', $this->attachCompanyId(new Minute(), $data, $company));
 
@@ -506,6 +529,11 @@ class CompanyCorporateRecordController extends Controller
         }
         $minute = !empty($data['minute_id']) ? $this->findCompanyMinute($company, (int) $data['minute_id']) : null;
         $data = $this->mergeMinuteData($data, $minute);
+
+        if (Schema::hasColumn('resolutions', 'gis_record_id')) {
+            $data['gis_record_id'] = $this->documentGisIdFromSources($company, $minute, $minute?->notice ?? null);
+        }
+
         $data['draft_file_path'] = $this->handleUpload($request, 'draft_file_path');
         $data['notarized_file_path'] = $this->handleUpload($request, 'notarized_file_path');
         $data['resolution_no'] = $data['resolution_no'] ?: $this->nextCompanyResolutionNumber($company);
@@ -553,7 +581,8 @@ class CompanyCorporateRecordController extends Controller
             $resolutionRecord->setAttribute('chairman', $document['chairman']['name']);
         }
 
-        $baseViewData = $this->companyViewData($companyData, $company);
+        $lockedGis = $this->companyGisForDocument($resolutionRecord, $company);
+        $baseViewData = $this->companyViewData($companyData, $company, $lockedGis);
         $corporateContext = $baseViewData['corporateContext'] ?? [];
 
         $generatedBodyPreviewPath = $this->generateResolutionPdf(
@@ -590,6 +619,11 @@ class CompanyCorporateRecordController extends Controller
         }
         $minute = !empty($data['minute_id']) ? $this->findCompanyMinute($company, (int) $data['minute_id']) : null;
         $data = $this->mergeMinuteData($data, $minute);
+
+        if (Schema::hasColumn('resolutions', 'gis_record_id')) {
+            $data['gis_record_id'] = $resolutionRecord->gis_record_id ?: $this->documentGisIdFromSources($company, $minute, $minute?->notice ?? null);
+        }
+
         $data['draft_file_path'] = $this->handleUpload($request, 'draft_file_path', $resolutionRecord->draft_file_path);
         $data['notarized_file_path'] = $this->handleUpload($request, 'notarized_file_path', $resolutionRecord->notarized_file_path);
         $data = $this->filterPersistableData('resolutions', $this->attachCompanyId(new Resolution(), $data, $company));
@@ -643,6 +677,21 @@ class CompanyCorporateRecordController extends Controller
         $this->findCompanyOrAbort($request, $company);
         $data = $this->validateSecretaryCertificateData($request);
         $data = $this->mergeMeetingSourceData($data, $company);
+
+        if (Schema::hasColumn('secretary_certificates', 'gis_record_id')) {
+            $sources = [];
+            if (!empty($data['resolution_id'])) {
+                $sources[] = $this->findCompanyResolution($company, (int) $data['resolution_id']);
+            }
+            if (!empty($data['minute_id'])) {
+                $sources[] = $this->findCompanyMinute($company, (int) $data['minute_id']);
+            }
+            if (!empty($data['notice_id'])) {
+                $sources[] = $this->findCompanyNotice($company, (int) $data['notice_id']);
+            }
+            $data['gis_record_id'] = $this->documentGisIdFromSources($company, ...$sources);
+        }
+
         $data['document_path'] = $this->handleUpload($request, 'document_path');
         $data['certificate_no'] = $data['certificate_no'] ?: $this->nextCompanySecretaryCertificateNumber($company);
         $data = $this->filterPersistableData('secretary_certificates', $this->attachCompanyId(new SecretaryCertificate(), $data, $company));
@@ -705,6 +754,11 @@ class CompanyCorporateRecordController extends Controller
         $certificateRecord = $this->findCompanySecretaryCertificate($company, $certificate);
         $data = $this->validateSecretaryCertificateData($request);
         $data = $this->mergeMeetingSourceData($data, $company);
+
+        if (Schema::hasColumn('secretary_certificates', 'gis_record_id')) {
+            $data['gis_record_id'] = $certificateRecord->gis_record_id ?: $this->companyGisForDocument($certificateRecord, $company)?->id;
+        }
+
         $data['document_path'] = $this->handleUpload($request, 'document_path', $certificateRecord->document_path);
         $data = $this->filterPersistableData('secretary_certificates', $this->attachCompanyId(new SecretaryCertificate(), $data, $company));
 
@@ -1019,6 +1073,10 @@ class CompanyCorporateRecordController extends Controller
             'notary_public' => $resolution->notary_public,
         ];
 
+        if (Schema::hasColumn('secretary_certificates', 'gis_record_id')) {
+            $shared['gis_record_id'] = $this->companyGisForDocument($resolution, $company)?->id;
+        }
+
         $this->companyScopedQuery($resolution->secretaryCertificates()->getQuery(), new SecretaryCertificate(), $company)
             ->where('resolution_id', $resolution->id)
             ->get()
@@ -1045,8 +1103,8 @@ class CompanyCorporateRecordController extends Controller
                 : (collect($this->defaultCompanies())->firstWhere('id', $company) ?: []);
         }
 
-        $base = $this->companyViewData($companyData, $company);
-        $gis = $this->latestCompanyGisForDocuments($company);
+        $gis = $this->companyGisForDocument($certificate, $company);
+        $base = $this->companyViewData($companyData, $company, $gis);
 
         if ($gis) {
             $gis->loadMissing(['directors', 'stockholders']);
@@ -1136,9 +1194,9 @@ class CompanyCorporateRecordController extends Controller
                 : (collect($this->defaultCompanies())->firstWhere('id', $company) ?: []);
         }
 
-        $base = $this->companyViewData($companyData, $company);
+        $gis = $this->companyGisForDocument($resolution, $company);
+        $base = $this->companyViewData($companyData, $company, $gis);
         $baseDocument = $base['document'] ?? [];
-        $gis = $this->latestCompanyGisForDocuments($company);
         if ($gis) {
             $gis->loadMissing(['directors', 'stockholders']);
         }
@@ -1571,10 +1629,25 @@ class CompanyCorporateRecordController extends Controller
     private function generateCompanyMinuteTemplatePreviewPdf(Minute $minute): ?string
     {
         $targetPath = 'uploads/minutes/template-preview-' . $minute->id . '.pdf';
+        $company = (int) $minute->company_id;
+        $companyData = [];
+        $companyRecord = $company ? Company::find($company) : null;
+
+        if ($companyRecord) {
+            $companyData = $companyRecord->toArray();
+        } elseif ($company) {
+            $companyData = collect($this->defaultCompanies())->firstWhere('id', $company) ?: [];
+        }
+
+        $lockedGis = $company ? $this->companyGisForDocument($minute, $company) : null;
+        $viewData = ($company && is_array($companyData))
+            ? $this->companyViewData($companyData, $company, $lockedGis)
+            : [];
 
         return $this->generatePdfPreview('corporate.minutes.pdf', [
             'minute' => $minute,
             'minutesDocumentTitle' => strtoupper(trim('Minutes of the ' . ($minute->type_of_meeting ?: 'Special') . ' ' . ($minute->governing_body ?: 'Meeting'))),
+            ...$viewData,
         ], $targetPath);
     }
 
@@ -1864,9 +1937,94 @@ class CompanyCorporateRecordController extends Controller
         return $this->companyScopedQuery(SecretaryCertificate::query(), new SecretaryCertificate(), $company)->findOrFail($certificate);
     }
 
-    private function companyViewData(array $companyData, int $company): array
+
+    private function documentGisIdFromSources(int $company, ...$sources): ?int
     {
-        $latestGis = $this->latestCompanyGisForDocuments($company);
+        foreach ($sources as $source) {
+            if ($source && Schema::hasColumn($source->getTable(), 'gis_record_id') && filled($source->gis_record_id)) {
+                return (int) $source->gis_record_id;
+            }
+        }
+
+        return $this->latestCompanyGisForDocuments($company)?->id;
+    }
+
+    private function companyGisForDocument($document, int $company): ?GisRecord
+    {
+        if (! Schema::hasTable('gis_records')) {
+            return null;
+        }
+
+        $documentTable = method_exists($document, 'getTable') ? $document->getTable() : null;
+
+        if ($documentTable && Schema::hasColumn($documentTable, 'gis_record_id') && filled(data_get($document, 'gis_record_id'))) {
+            $locked = GisRecord::with(['directors', 'stockholders'])->find((int) data_get($document, 'gis_record_id'));
+            if ($locked) {
+                return $locked;
+            }
+        }
+
+        $fallback = $this->companyGisAtDocumentTime($company, $document)
+            ?: $this->latestCompanyGisForDocuments($company);
+
+        if (
+            $fallback
+            && $documentTable
+            && Schema::hasColumn($documentTable, 'gis_record_id')
+            && blank(data_get($document, 'gis_record_id'))
+            && method_exists($document, 'forceFill')
+        ) {
+            try {
+                $document->forceFill(['gis_record_id' => $fallback->id])->save();
+            } catch (\Throwable $e) {
+                report($e);
+            }
+        }
+
+        return $fallback;
+    }
+
+    private function companyGisAtDocumentTime(int $company, $document): ?GisRecord
+    {
+        if (! Schema::hasTable('gis_records')) {
+            return null;
+        }
+
+        $query = GisRecord::with(['directors', 'stockholders']);
+
+        if (Schema::hasColumn('gis_records', 'company_id')) {
+            $query->where('company_id', $company);
+        }
+
+        $documentCreatedAt = data_get($document, 'created_at');
+        if ($documentCreatedAt) {
+            $query->where('created_at', '<=', $documentCreatedAt);
+        }
+
+        $accepted = (clone $query)
+            ->where(function ($statusQuery) {
+                $statusQuery->where('workflow_status', 'Accepted')
+                    ->orWhere('approval_status', 'Approved')
+                    ->orWhere('submission_status', 'Accepted')
+                    ->orWhere('submission_status', 'Approved');
+            })
+            ->latest('created_at')
+            ->latest('id')
+            ->first();
+
+        if ($accepted) {
+            return $accepted;
+        }
+
+        return $query
+            ->latest('created_at')
+            ->latest('id')
+            ->first();
+    }
+
+    private function companyViewData(array $companyData, int $company, ?GisRecord $lockedGis = null): array
+    {
+        $latestGis = $lockedGis ?: $this->latestCompanyGisForDocuments($company);
 
         $companyNameFromRecord = $companyData['company_name']
             ?? $companyData['business_name']
@@ -2030,36 +2188,76 @@ class CompanyCorporateRecordController extends Controller
 
     private function syncNoticeAttendeesFromLatestGis(Notice $notice): void
     {
-        $latestGisQuery = GisRecord::with(['directors', 'stockholders']);
+        $notice = $notice->fresh() ?: $notice;
+        $latestGis = $this->companyGisForDocument($notice, (int) $notice->company_id);
 
-        if ($notice->company_id) {
-            $latestGisQuery->where('company_id', $notice->company_id);
+        if (!$latestGis) {
+            return;
         }
 
-        $latestGis = $latestGisQuery->latest('id')->first();
+        $latestGis->loadMissing(['directors', 'stockholders']);
 
-        if (!$latestGis) return;
         $rows = collect();
         $governingBody = strtolower((string) $notice->governing_body);
+
         if (str_contains($governingBody, 'board') || str_contains($governingBody, 'director') || str_contains($governingBody, 'joint')) {
             foreach ($latestGis->directors as $director) {
-                $rows->push(['name'=>$director->officer_name,'position'=>$director->officer_type ?: $director->board,'email'=>$director->email,'source_type'=>'director_officer','source_id'=>$director->id]);
+                $rows->push([
+                    'name' => $director->officer_name,
+                    'position' => $director->officer_type ?: $director->board,
+                    'email' => $director->email,
+                    'source_type' => 'director_officer',
+                    'source_id' => $director->id,
+                ]);
             }
         }
+
         if (str_contains($governingBody, 'stockholder') || str_contains($governingBody, 'joint')) {
             foreach ($latestGis->stockholders as $stockholder) {
-                $rows->push(['name'=>$stockholder->stockholder_name,'position'=>'Stockholder','email'=>$stockholder->email,'source_type'=>'stockholder','source_id'=>$stockholder->id]);
+                $rows->push([
+                    'name' => $stockholder->stockholder_name,
+                    'position' => 'Stockholder',
+                    'email' => $stockholder->email,
+                    'source_type' => 'stockholder',
+                    'source_id' => $stockholder->id,
+                ]);
             }
         }
+
         if ($rows->isEmpty()) {
             foreach ($latestGis->directors as $director) {
-                $rows->push(['name'=>$director->officer_name,'position'=>$director->officer_type ?: $director->board,'email'=>$director->email,'source_type'=>'director_officer','source_id'=>$director->id]);
+                $rows->push([
+                    'name' => $director->officer_name,
+                    'position' => $director->officer_type ?: $director->board,
+                    'email' => $director->email,
+                    'source_type' => 'director_officer',
+                    'source_id' => $director->id,
+                ]);
             }
         }
-        $rows->unique(fn($row)=>strtolower(trim($row['source_type'].':'.$row['source_id'].':'.$row['name'])))->values()->each(function(array $row, int $index) use ($notice) {
-            if (blank($row['name'])) return;
-            NoticeAttendee::updateOrCreate(['notice_id'=>$notice->id,'source_type'=>$row['source_type'],'source_id'=>$row['source_id']], ['name'=>$row['name'],'position'=>$row['position'],'email'=>$row['email'],'is_selected'=>filled($row['email']),'sort_order'=>$index+1]);
-        });
+
+        $rows->unique(fn ($row) => strtolower(trim($row['source_type'] . ':' . $row['source_id'] . ':' . $row['name'])))
+            ->values()
+            ->each(function (array $row, int $index) use ($notice) {
+                if (blank($row['name'])) {
+                    return;
+                }
+
+                NoticeAttendee::updateOrCreate(
+                    [
+                        'notice_id' => $notice->id,
+                        'source_type' => $row['source_type'],
+                        'source_id' => $row['source_id'],
+                    ],
+                    [
+                        'name' => $row['name'],
+                        'position' => $row['position'],
+                        'email' => $row['email'],
+                        'is_selected' => filled($row['email']),
+                        'sort_order' => $index + 1,
+                    ]
+                );
+            });
     }
 
 
@@ -2130,7 +2328,11 @@ class CompanyCorporateRecordController extends Controller
                 : collect($this->defaultCompanies())->firstWhere('id', (int) $notice->company_id);
 
             if (is_array($companyData)) {
-                $viewData = $this->companyViewData($companyData, (int) $notice->company_id);
+                $viewData = $this->companyViewData(
+                    $companyData,
+                    (int) $notice->company_id,
+                    $this->companyGisForDocument($notice, (int) $notice->company_id)
+                );
             }
         }
 
