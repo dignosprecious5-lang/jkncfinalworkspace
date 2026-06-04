@@ -616,74 +616,78 @@
         }
 
         .asset-tag-card {
-            border: 1px solid #dbe2ea;
-            border-radius: 8px;
+            max-width: 620px;
+            margin: 0 auto;
+            border: 2px solid #1f2937;
+            border-radius: 10px;
             overflow: hidden;
             background: #ffffff;
         }
 
-        .asset-tag-head {
-            padding: 6px 7px;
-            border-bottom: 1px solid #dbe2ea;
-            background: #f8fafc;
-            text-align: center;
+        .asset-tag-left,
+        .asset-tag-right {
+            padding: 16px 14px;
+            min-height: 118px;
+        }
+
+        .asset-tag-left {
+            width: 34%;
+            border-right: 4px solid #1f2937;
+        }
+
+        .asset-tag-right {
+            width: 66%;
         }
 
         .asset-tag-company {
-            margin: 0;
+            margin: 0 0 6px;
             text-transform: uppercase;
-            letter-spacing: 0.32em;
-            font-size: 8px;
-            color: #6b7280;
-            font-weight: 700;
+            letter-spacing: 0.26em;
+            font-size: 12px;
+            font-weight: 800;
+            color: #111827;
         }
 
         .asset-tag-title {
-            margin: 4px 0 0;
-            font-size: 14px;
-            line-height: 1.1;
-            font-weight: 900;
-            letter-spacing: 0.22em;
-            color: #111827;
-        }
-
-        .asset-tag-grid {
-            display: grid;
-            grid-template-columns: 92px 1fr;
-        }
-
-        .asset-tag-label,
-        .asset-tag-value {
-            border-bottom: 1px solid #dbe2ea;
-            padding: 5px 6px;
-        }
-
-        .asset-tag-label {
-            background: #f8fafc;
-            font-size: 8px;
+            margin: 0 0 10px;
             text-transform: uppercase;
-            letter-spacing: 0.18em;
-            color: #6b7280;
-            font-weight: 700;
-        }
-
-        .asset-tag-value {
-            font-size: 9px;
-            font-weight: 700;
+            letter-spacing: 0.42em;
+            font-size: 20px;
+            line-height: 1;
+            font-weight: 900;
             color: #111827;
-            word-break: break-word;
         }
 
-        .asset-tag-barcode {
-            grid-column: 1 / -1;
-            padding: 6px;
+        .asset-tag-meta {
+            margin: 0 0 4px;
+            font-size: 12px;
+            line-height: 1.15;
+            color: #111827;
+        }
+
+        .asset-tag-code {
+            margin: 0;
+            font-size: 26px;
+            line-height: 1.05;
+            font-weight: 900;
+            letter-spacing: 0.03em;
+            color: #111827;
+        }
+
+        .asset-tag-barcode-wrap {
+            margin-top: 10px;
+            padding-top: 6px;
         }
 
         .asset-tag-barcode-box {
-            border: 1px solid #e5e7eb;
-            border-radius: 8px;
-            padding: 5px;
-            background: #fff;
+            width: 100%;
+            overflow: hidden;
+        }
+
+        .asset-tag-barcode-box svg {
+            display: block;
+            width: 100%;
+            height: auto;
         }
     </style>
 </head>
@@ -1605,19 +1609,15 @@
                 <div class="section-title">Asset Tag</div>
                 <div class="section-body">
                     <div class="asset-tag-card">
-                        <div class="asset-tag-head">
+                        <div class="asset-tag-left">
                             <p class="asset-tag-company">JK&amp;C INC.</p>
-                            <div class="asset-tag-title">ASSET TAG</div>
+                            <div class="asset-tag-title">ASSET</div>
+                            <p class="asset-tag-meta">{{ data_get($record->data, 'location') ?: 'No location' }}</p>
+                            <p class="asset-tag-meta">{{ data_get($record->data, 'serial_number') ?: 'No serial' }}</p>
                         </div>
-                        <div class="asset-tag-grid">
-                            <div class="asset-tag-label">Asset Code</div>
-                            <div class="asset-tag-value">{{ data_get($record->data, 'asset_code') ?: $record->record_number ?: 'N/A' }}</div>
-                            <div class="asset-tag-label">Location</div>
-                            <div class="asset-tag-value">{{ data_get($record->data, 'location') ?: 'N/A' }}</div>
-                            <div class="asset-tag-label">Serial Number</div>
-                            <div class="asset-tag-value">{{ data_get($record->data, 'serial_number') ?: 'N/A' }}</div>
-                            <div class="asset-tag-label">Barcode</div>
-                            <div class="asset-tag-value">
+                        <div class="asset-tag-right">
+                            <p class="asset-tag-code">{{ data_get($record->data, 'asset_code') ?: $record->record_number ?: 'N/A' }}</p>
+                            <div class="asset-tag-barcode-wrap">
                                 <div class="asset-tag-barcode-box">
                                     {!! data_get($assetTag, 'barcode_svg') !!}
                                 </div>

@@ -666,25 +666,96 @@
 
         return `
             <div class="rounded-2xl border border-gray-300 bg-white overflow-hidden shadow-sm">
-                <div class="border-b border-gray-300 bg-gray-50 px-4 py-3 text-center">
+                <div class="border-b border-gray-300 bg-gray-50 px-4 py-4 text-center">
                     <p class="text-[11px] uppercase tracking-[0.32em] text-gray-500">JK&amp;C INC.</p>
-                    <h5 class="mt-1 text-2xl font-black tracking-[0.22em] text-gray-900">ASSET TAG</h5>
+                    <h5 class="mt-1 text-[22px] font-black tracking-[0.26em] text-gray-900">ASSET TAG</h5>
+                    <p class="mt-2 text-[11px] uppercase tracking-[0.24em] text-gray-500">Asset identification plate</p>
                 </div>
-                <div class="grid grid-cols-[140px_minmax(0,1fr)] divide-x divide-gray-300">
-                    <div class="border-b border-gray-300 bg-gray-50 px-4 py-3 text-sm font-medium text-gray-700">Asset Code</div>
-                    <div class="border-b border-gray-300 px-4 py-3 text-sm font-semibold text-gray-900 break-words">${escapeHtml(assetCode || 'N/A')}</div>
-                    <div class="border-b border-gray-300 bg-gray-50 px-4 py-3 text-sm font-medium text-gray-700">Location</div>
-                    <div class="border-b border-gray-300 px-4 py-3 text-sm font-semibold text-gray-900 break-words">${escapeHtml(location || 'N/A')}</div>
-                    <div class="border-b border-gray-300 bg-gray-50 px-4 py-3 text-sm font-medium text-gray-700">Serial Number</div>
-                    <div class="border-b border-gray-300 px-4 py-3 text-sm font-semibold text-gray-900 break-words">${escapeHtml(serialNumber || 'N/A')}</div>
-                    <div class="bg-gray-50 px-4 py-3 text-sm font-medium text-gray-700">Barcode</div>
-                    <div class="px-4 py-3">
-                        <div class="rounded-xl border border-gray-200 bg-white px-2 py-2 overflow-hidden">
-                            ${barcodeSvg || '<div class="flex h-20 items-center justify-center text-xs text-gray-400">Enter an asset code to generate the barcode.</div>'}
+                <div class="grid grid-cols-1 md:grid-cols-[1.3fr_0.9fr]">
+                    <div class="border-b md:border-b-0 md:border-r border-gray-300 px-4 py-4">
+                        <div class="rounded-xl border border-gray-200 bg-gray-50 px-4 py-4 text-center">
+                            <p class="text-[11px] uppercase tracking-[0.26em] text-gray-500">Asset Code</p>
+                            <div class="mt-2 text-[20px] font-black tracking-[0.18em] text-gray-900 break-words">${escapeHtml(assetCode || 'N/A')}</div>
+                        </div>
+                        <div class="mt-4 grid grid-cols-1 gap-3">
+                            <div class="rounded-xl border border-gray-200 px-4 py-3">
+                                <p class="text-[11px] uppercase tracking-[0.22em] text-gray-500">Location</p>
+                                <p class="mt-2 text-sm font-semibold text-gray-900 break-words">${escapeHtml(location || 'N/A')}</p>
+                            </div>
+                            <div class="rounded-xl border border-gray-200 px-4 py-3">
+                                <p class="text-[11px] uppercase tracking-[0.22em] text-gray-500">Serial Number</p>
+                                <p class="mt-2 text-sm font-semibold text-gray-900 break-words">${escapeHtml(serialNumber || 'N/A')}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="px-4 py-4">
+                        <div class="rounded-2xl border border-gray-200 bg-white px-3 py-3">
+                            <p class="text-[11px] uppercase tracking-[0.22em] text-gray-500">Barcode</p>
+                            <div class="mt-3 overflow-hidden">
+                                ${barcodeSvg || '<div class="flex h-24 items-center justify-center rounded-xl border border-dashed border-gray-300 text-xs text-gray-400">Enter an asset code to generate the barcode.</div>'}
+                            </div>
+                        </div>
+                        <div class="mt-4 rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-3 text-center">
+                            <p class="text-[10px] uppercase tracking-[0.24em] text-gray-500">System tag preview</p>
+                            <p class="mt-1 text-xs text-gray-600">Print layout is optimized separately for the tape label.</p>
                         </div>
                     </div>
                 </div>
                 ${printButton}
+            </div>
+        `;
+    }
+
+    function renderArfAssetTagPreviewVisual(assetCode, location, serialNumber, barcodeSvg, { withPrintButton = false } = {}) {
+        return `
+            <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+                <div class="border-b border-gray-100 bg-slate-50 px-4 py-3">
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                            <p class="text-[11px] uppercase tracking-[0.3em] text-gray-500">Printable Asset Tag</p>
+                            <h4 class="mt-1 text-base font-semibold text-gray-900">Tag preview for printing</h4>
+                        </div>
+                        ${withPrintButton ? renderArfAssetTagPrintButton(assetCode, location, serialNumber, 'inline-flex items-center justify-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-[11px] font-semibold text-gray-700 hover:bg-gray-50') : ''}
+                    </div>
+                </div>
+                <div class="p-4 bg-gradient-to-b from-white to-slate-50">
+                    <div class="mx-auto max-w-[540px] rounded-[18px] border border-gray-300 bg-white shadow-[0_10px_30px_rgba(15,23,42,0.08)] overflow-hidden">
+                        <div class="border-b border-gray-300 px-5 py-4 text-center">
+                            <p class="text-[10px] font-semibold uppercase tracking-[0.32em] text-gray-500">JK&amp;C INC.</p>
+                            <p class="mt-2 text-[22px] font-black uppercase tracking-[0.28em] text-gray-900">ASSET TAG</p>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-[1.05fr_0.95fr]">
+                            <div class="border-b md:border-b-0 md:border-r border-gray-300 px-5 py-4">
+                                <div class="rounded-xl border border-gray-200 bg-gray-50 px-4 py-4 text-center">
+                                    <p class="text-[10px] uppercase tracking-[0.28em] text-gray-500">Asset Code</p>
+                                    <p class="mt-2 text-[24px] font-black tracking-[0.18em] text-gray-900 break-words">${escapeHtml(assetCode || 'N/A')}</p>
+                                </div>
+                                <div class="mt-4 grid grid-cols-1 gap-3">
+                                    <div class="rounded-xl border border-gray-200 px-4 py-3">
+                                        <p class="text-[10px] uppercase tracking-[0.22em] text-gray-500">Location</p>
+                                        <p class="mt-1 text-sm font-semibold text-gray-900 break-words">${escapeHtml(location || 'N/A')}</p>
+                                    </div>
+                                    <div class="rounded-xl border border-gray-200 px-4 py-3">
+                                        <p class="text-[10px] uppercase tracking-[0.22em] text-gray-500">Serial Number</p>
+                                        <p class="mt-1 text-sm font-semibold text-gray-900 break-words">${escapeHtml(serialNumber || 'N/A')}</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="px-5 py-4">
+                                <div class="rounded-xl border border-gray-200 bg-white px-3 py-3">
+                                    <p class="text-[10px] uppercase tracking-[0.22em] text-gray-500">Barcode</p>
+                                    <div class="mt-3 overflow-hidden rounded-lg border border-dashed border-gray-200 bg-white px-2 py-2">
+                                        ${barcodeSvg || '<div class="flex h-24 items-center justify-center text-xs text-gray-400">Enter an asset code to generate the barcode.</div>'}
+                                    </div>
+                                </div>
+                                <div class="mt-4 rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-3 text-center">
+                                    <p class="text-[10px] uppercase tracking-[0.22em] text-gray-500">Print ready</p>
+                                    <p class="mt-1 text-xs text-gray-600">This preview mirrors the printable asset tag layout.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         `;
     }
@@ -3014,7 +3085,9 @@
     }
 
     function getLookupLabel(moduleKey, id) {
-        const options = financeLookupOptions[moduleKey] || [];
+        const options = moduleKey === 'dv'
+            ? [...(financeLookupOptions.dv || []), ...(financeLookupOptions.dv_arf || [])]
+            : (financeLookupOptions[moduleKey] || []);
         const match = options.find((item) => String(item.id) === String(id));
         if (match) {
             return match.label;
@@ -3442,6 +3515,32 @@
         if (moduleKey === 'arf') {
             const linkedPoId = String(formValues['data[linked_po_id]'] || formValues.linked_po_id || '').trim();
             const linkedDvId = String(formValues['data[linked_dv_id]'] || formValues.linked_dv_id || '').trim();
+            const arfDvLookupOptions = financeRecords
+                .filter((record) => {
+                    if (!record || record.module_key !== 'dv') {
+                        return false;
+                    }
+
+                    const workflowStatus = String(record.workflow_status || '').trim();
+                    const approvalStatus = String(record.approval_status || '').trim();
+                    const sourceType = String(record.data?.source_document_type || '').trim().toLowerCase();
+
+                    if (sourceType !== 'po') {
+                        return false;
+                    }
+
+                    if (['Deleted', 'Delete Requested', 'Cancelled', 'Reverted'].includes(workflowStatus)) {
+                        return false;
+                    }
+
+                    return workflowStatus === 'Accepted' || approvalStatus === 'Approved';
+                })
+                .map((record) => ({
+                    id: record.id,
+                    label: [record.record_number || '', record.record_title || ''].filter(Boolean).join(' - ') || record.record_number || record.record_title || `DV-${record.id}`,
+                    record_number: record.record_number || '',
+                    record_title: record.record_title || '',
+                }));
 
             if (field.name === 'linked_po_id') {
                 const poOptions = financeLookupOptions.po || [];
@@ -3461,7 +3560,7 @@
             }
 
             if (field.name === 'linked_dv_id') {
-                const dvOptions = (financeLookupOptions.dv || []).filter((option) => {
+                const dvOptions = (financeLookupOptions.dv_arf || arfDvLookupOptions || []).filter((option) => {
                     const optionId = option.id ?? option.value ?? '';
                     const dvRecord = getRecordById(optionId) || getRecordByLookupValue('dv', optionId);
                     if (!dvRecord) {
@@ -4032,6 +4131,38 @@
                     'date_received',
                 ],
             },
+            crf: {
+                snapshot: ['source_employee_name', 'source_payee_type', 'source_payee_name'],
+                voucher: ['bank_account_id', 'coa_id'],
+                tax: [],
+                hidden: [
+                    'source_department',
+                    'source_project',
+                    'source_cost_center',
+                    'source_fund_source',
+                    'source_supplier_name',
+                    'source_remaining_balance',
+                    'source_current_balance',
+                    'source_reserved_balance',
+                    'source_available_balance',
+                    'total_disbursed_amount',
+                    'percentage_paid',
+                    'disbursement_status',
+                    'projected_balance_after_payment',
+                    'accounting_balance_status',
+                    'total_debit_amount',
+                    'total_credit_amount',
+                    'supplier_id',
+                    'fund_source',
+                    'department',
+                    'due_date',
+                    'withholding_tax',
+                    'vat_amount',
+                    'net_amount',
+                    'received_by_name',
+                    'date_received',
+                ],
+            },
         }[normalizedSourceType] || {
             snapshot: ['source_payee_type', 'source_payee_name'],
             voucher: ['bank_account_id', 'coa_id', 'fund_source', 'department', 'due_date'],
@@ -4065,9 +4196,21 @@
     function shouldRenderDvField(fieldName, value, sourceType = '', section = 'voucher') {
         const fieldSets = getDvSourceAwareFieldSets(sourceType);
         const sectionSet = fieldSets[section] || fieldSets.voucher;
+        const normalizedSourceType = String(sourceType || '').trim().toLowerCase();
 
         if (!sectionSet.has(fieldName)) {
             return false;
+        }
+
+        if (fieldName === 'bank_account_id' && currentModuleKey === 'dv') {
+            const paymentType = String(
+                financeFormValues?.['data[payment_type]']
+                || financeFormValues?.payment_type
+                || ''
+            ).trim();
+            if (paymentType === 'Check' && ['err', 'crf'].includes(normalizedSourceType)) {
+                return true;
+            }
         }
 
         if (fieldSets.alwaysVisible.has(fieldName)) {
@@ -4257,6 +4400,13 @@
             return {
                 payee_type: 'Receiving Bank Account',
                 payee_name: bankAccountLabel,
+            };
+        }
+
+        if (moduleKey === 'crf') {
+            return {
+                payee_type: 'User',
+                payee_name: bootstrap.currentUserName || sourceRecord?.user || requestorName || '',
             };
         }
 
@@ -4549,13 +4699,22 @@
                     </div>
         `).join('');
 
+        const sourceDocumentTitle = [
+            getVisibleRecordTitle(sourceRecord),
+            sourceRecord.record_title,
+            sourceRecord.display_label && sourceRecord.display_label !== sourceRecord.record_number ? sourceRecord.display_label : '',
+            payload?.prefill?.source_requester,
+            payload?.prefill?.source_payee_name,
+            payload?.prefill?.purpose,
+        ].find((value) => !blank(value)) || 'No title';
+
         return `
             <div class="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm">
                 <div class="flex flex-wrap items-start justify-between gap-3">
                     <div>
                         <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-blue-600">Source Document Loaded</p>
                         <h5 class="mt-1 text-lg font-semibold text-gray-900">${escapeHtml(sourceRecord.record_number || sourceRecord.record_title || 'Source Document')}</h5>
-                        <p class="mt-1 text-sm text-gray-600">${escapeHtml(sourceRecord.record_title || 'No title')}</p>
+                        <p class="mt-1 text-sm text-gray-600">${escapeHtml(sourceDocumentTitle)}</p>
                     </div>
                     <div class="inline-flex rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">${escapeHtml(statusLabel)}</div>
                 </div>
@@ -4682,11 +4841,12 @@
 
         const paymentDate = payload.payment_date || data.payment_date || sourceRecord?.record_date || todayDateValue();
         const referenceNumber = payload.reference_number || data.reference_number || sourceRecord?.record_number || '';
-        const recordTitle = getVisibleRecordTitle(sourceRecord) || referenceNumber || '';
+        const dvUserName = bootstrap.currentUserName || sourceRecord?.user || data.requestor || data.employee_name || '';
+        const recordTitle = dvUserName || getVisibleRecordTitle(sourceRecord) || referenceNumber || '';
         const sourceSnapshot = getDvSourceDocumentSnapshot(moduleKey, sourceRecord);
         const payeeInfo = getDvSourceDocumentPayeeInfo(moduleKey, sourceRecord);
         const currency = payload.currency || data.currency || 'PHP';
-        const sourceRequesterName = sourceSnapshot.source_requester || data.requestor || data.employee_name || sourceSnapshot.source_employee_name || payeeInfo.payee_name || bootstrap.currentUserName || '';
+        const sourceRequesterName = sourceSnapshot.source_requester || data.requestor || data.employee_name || sourceSnapshot.source_employee_name || payeeInfo.payee_name || dvUserName || '';
         const defaultTaxAmount = moduleKey === 'ca' ? '0.00' : '';
         const defaultExchangeRate = currency === 'PHP' ? '1.00' : '';
         const defaultDateReceived = moduleKey === 'ca' ? todayDateValue() : '';
@@ -4740,8 +4900,8 @@
             received_by_name: payload.received_by_name || data.received_by_name || sourceRequesterName,
             date_received: payload.date_received || data.date_received || defaultDateReceived,
             remarks: payload.remarks || data.remarks || '',
-            payee_type: payeeInfo.payee_type || '',
-            payee_name: payeeInfo.payee_name || '',
+            payee_type: 'User',
+            payee_name: dvUserName || '',
             current_balance: currentBalance ? currentBalance.toFixed(2) : '',
             reserved_balance: reservedBalance ? reservedBalance.toFixed(2) : '',
             available_balance: availableBalance ? availableBalance.toFixed(2) : '',
@@ -4799,6 +4959,10 @@
         if (moduleKey === 'crf') {
             prefill.amount = data.amount_returned || amount || '';
             prefill.payment_type = normalizeDvPaymentType(data.mode_of_return || data.payment_type || '');
+            prefill.payee_type = 'User';
+            prefill.payee_name = bootstrap.currentUserName || sourceRecord?.user || data.returnee || data.requestor || data.employee_name || '';
+            prefill.purpose = '';
+            prefill.remarks = '';
         }
 
         if (moduleKey === 'ibtf') {
@@ -5338,16 +5502,10 @@
             ).trim();
         } else if (currentModuleKey === 'dv') {
             suggestion = String(
-                $('financeForm')?.querySelector('[name="data[payee_name]"]')?.value
-                || $('financeForm')?.querySelector('[name="data[source_payee_name]"]')?.value
-                || $('financeForm')?.querySelector('[name="data[source_requester]"]')?.value
+                bootstrap.currentUserName
+                || $('financeForm')?.querySelector('[name="data[payee_name]"]')?.value
                 || financeFormValues?.['data[payee_name]']
                 || financeFormValues?.payee_name
-                || financeFormValues?.['data[source_payee_name]']
-                || financeFormValues?.source_payee_name
-                || financeFormValues?.['data[source_requester]']
-                || financeFormValues?.source_requester
-                || bootstrap.currentUserName
                 || ''
             ).trim();
         }
@@ -6776,7 +6934,25 @@
         const data = record?.data || {};
         const lineItems = getNormalizedLineItems(record);
         const firstLineItem = lineItems[0] || {};
-        const sourceQuantity = numericAmount(data.current_quantity || data.accepted_quantity || data.beginning_quantity || data.delivered_quantity || data.ordered_quantity || 0);
+        const lineItemQuantityTotal = lineItems.reduce((sum, item) => sum + numericAmount(
+            item.quantity
+            || item.ordered_quantity
+            || item.accepted_quantity
+            || item.delivered_quantity
+            || item.beginning_quantity
+            || 0
+        ), 0);
+        const sourceQuantity = numericAmount(
+            data.current_quantity
+            || data.accepted_quantity
+            || data.beginning_quantity
+            || data.delivered_quantity
+            || data.ordered_quantity
+            || lineItemQuantityTotal
+            || firstLineItem.quantity
+            || firstLineItem.ordered_quantity
+            || 0
+        );
         const acquisitionCost = numericAmount(data.acquisition_cost || data.grand_total || data.total_amount || data.amount || record?.amount || 0);
         let unitCost = numericAmount(data.unit_cost || 0);
         let averageCost = numericAmount(data.average_cost || 0);
@@ -6813,8 +6989,9 @@
             asset_category: firstLineItem.category || data.asset_category || data.linked_item_type || '',
             serial_number: data.serial_number || '',
             model: data.model || '',
-            beginning_quantity: data.beginning_quantity || sourceQuantity || '',
-            current_quantity: data.current_quantity || data.accepted_quantity || data.beginning_quantity || data.delivered_quantity || data.ordered_quantity || '',
+            ordered_quantity: data.ordered_quantity || data.quantity || lineItemQuantityTotal || firstLineItem.quantity || sourceQuantity || '',
+            beginning_quantity: data.beginning_quantity || sourceQuantity || lineItemQuantityTotal || '',
+            current_quantity: data.current_quantity || data.accepted_quantity || data.beginning_quantity || data.delivered_quantity || data.ordered_quantity || lineItemQuantityTotal || '',
             reserved_quantity: data.reserved_quantity || 0,
             unit_cost: unitCost || acquisitionCost || '',
             acquisition_cost: acquisitionCost || '',
@@ -6935,7 +7112,7 @@
             financeFormValues['data[linked_po_id]'] = linkedDvRecord.data.source_document_id;
         }
 
-        ['supplier_id', 'item_name', 'item_code', 'sku', 'barcode', 'qr_code', 'asset_description', 'asset_category', 'serial_number', 'model', 'beginning_quantity', 'current_quantity', 'reserved_quantity', 'unit_cost', 'average_cost', 'last_purchase_cost', 'acquisition_cost', 'total_cost', 'acquisition_date', 'asset_coa_id', 'remarks'].forEach((fieldName) => {
+        ['supplier_id', 'item_name', 'item_code', 'sku', 'barcode', 'qr_code', 'asset_description', 'asset_category', 'serial_number', 'model', 'ordered_quantity', 'beginning_quantity', 'current_quantity', 'reserved_quantity', 'unit_cost', 'average_cost', 'last_purchase_cost', 'acquisition_cost', 'total_cost', 'acquisition_date', 'asset_coa_id', 'remarks'].forEach((fieldName) => {
             const input = form.querySelector(`[name="data[${fieldName}]"]`);
             const currentValue = String(input?.value || '').trim();
             if (!input) return;
@@ -6952,6 +7129,7 @@
         }
 
         syncArfIdentifierSuggestions();
+        updateArfCalculatedFields();
         renderDrawerPreview();
     }
 
@@ -6972,7 +7150,9 @@
 
         const classification = form.querySelector('[name="data[item_classification]"]')?.value || 'Fixed Asset';
         const isFixedAsset = classification === 'Fixed Asset';
+        const orderedQuantity = valueFor('ordered_quantity');
         const currentQuantity = valueFor('current_quantity') || valueFor('accepted_quantity') || valueFor('beginning_quantity');
+        const effectiveCurrentQuantity = currentQuantity > 0 ? currentQuantity : orderedQuantity;
         const reservedQuantity = valueFor('reserved_quantity');
         const acquisitionCost = valueFor('acquisition_cost');
         let unitCost = valueFor('unit_cost');
@@ -6984,8 +7164,8 @@
             const existingAverageCost = valueFor('average_cost');
             const existingLastPurchaseCost = valueFor('last_purchase_cost');
 
-            if (unitCost <= 0 && currentQuantity > 0 && acquisitionCost > 0) {
-                unitCost = acquisitionCost / currentQuantity;
+            if (unitCost <= 0 && effectiveCurrentQuantity > 0 && acquisitionCost > 0) {
+                unitCost = acquisitionCost / effectiveCurrentQuantity;
             }
 
             if (unitCost <= 0 && existingAverageCost > 0) {
@@ -7001,8 +7181,13 @@
             setValue('last_purchase_cost', unitCost > 0 ? unitCost : existingLastPurchaseCost);
         }
 
-        setValue('available_quantity', Math.max(currentQuantity - reservedQuantity, 0));
-        setValue('total_cost', currentQuantity * (unitCost > 0 ? unitCost : valueFor('unit_cost')));
+        if (!isFixedAsset && effectiveCurrentQuantity > 0 && currentQuantity <= 0) {
+            setValue('beginning_quantity', effectiveCurrentQuantity);
+            setValue('current_quantity', effectiveCurrentQuantity);
+        }
+
+        setValue('available_quantity', Math.max(effectiveCurrentQuantity - reservedQuantity, 0));
+        setValue('total_cost', effectiveCurrentQuantity * (unitCost > 0 ? unitCost : valueFor('unit_cost')));
 
         const depreciationFields = ['useful_life', 'residual_value', 'depreciable_amount', 'annual_depreciation', 'monthly_depreciation', 'accumulated_depreciation', 'net_book_value'];
         depreciationFields.forEach((fieldName) => {
@@ -7969,12 +8154,7 @@
         if (section.type === 'asset_tag') {
             return `
                 <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-                    <div class="border-b border-gray-100 bg-slate-50 px-4 py-3">
-                        <h4 class="text-[15px] font-semibold text-gray-900">${escapeHtml(section.title || 'Asset Tag')}</h4>
-                    </div>
-                    <div class="p-4">
-                        ${renderArfAssetTagCard(section.assetCode, section.location, section.serialNumber, section.barcodeSvg, { withPrintButton: true })}
-                    </div>
+                    ${renderArfAssetTagPreviewVisual(section.assetCode, section.location, section.serialNumber, section.barcodeSvg, { withPrintButton: true })}
                 </div>
             `;
         }
@@ -8286,6 +8466,10 @@
                 { title: 'Payroll Totals', fieldNames: ['total_payroll_amount', 'employee_count', 'basic_salary_total', 'gross_pay_total', 'benefits_total', 'allowances_total', 'deductions_total', 'night_differential_total', 'holiday_pay_total'] },
                 { title: 'Funding Details', fieldNames: ['department', 'funding_bank_account_id', 'payroll_expense_coa_id'] },
             ];
+        }
+
+        if (record.module_key === 'crf') {
+            return getModulePreviewSections(record).filter((section) => section && !['notes', 'history'].includes(section.type));
         }
 
         return getModulePreviewSections(record).filter((section) => section && section.type !== 'notes');
@@ -10403,8 +10587,12 @@
             ? (record.record_number || '')
             : generateModuleRecordNumber(currentModuleKey);
         const recordTitleValue = record
-            ? (record.record_title || generateDefaultRecordTitle(currentModuleKey, record))
-            : (draftContext?.prefill?.record_title || draftContext?.recordTitle || generateDefaultRecordTitle(currentModuleKey));
+            ? (currentModuleKey === 'dv'
+                ? (record.data?.payee_name || record.record_title || bootstrap.currentUserName || generateDefaultRecordTitle(currentModuleKey, record))
+                : (record.record_title || generateDefaultRecordTitle(currentModuleKey, record)))
+            : (currentModuleKey === 'dv'
+                ? (draftContext?.prefill?.payee_name || draftContext?.prefill?.record_title || draftContext?.recordTitle || bootstrap.currentUserName || generateDefaultRecordTitle(currentModuleKey))
+                : (draftContext?.prefill?.record_title || draftContext?.recordTitle || generateDefaultRecordTitle(currentModuleKey)));
         const recordDateValue = record ? record.record_date || '' : (draftContext?.prefill?.record_date || todayDateValue());
         const recordTimeValue = record
             ? (record.data?.transaction_time || currentTimeValue())
@@ -10444,12 +10632,19 @@
                 ? ''
                 : (moduleConfig.recordTitleLabel || `${moduleConfig.label} Name`);
             recordTitleInput.required = isFinanceRecordTitleRequired(currentModuleKey);
+            recordTitleInput.readOnly = financeFormLockedReadOnly || currentModuleKey === 'dv';
         }
         $('recordNumberInput').value = recordNumberValue;
         $('recordTitleInput').value = recordTitleValue;
         $('recordDateInput').value = recordDateValue;
         $('recordTimeInput').value = recordTimeValue;
         $('amountInput').value = amountValue;
+        if (currentModuleKey === 'dv') {
+            financeFormValues.payee_name = recordTitleValue || '';
+            financeFormValues['data[payee_name]'] = recordTitleValue || '';
+            financeFormValues.payee_type = 'User';
+            financeFormValues['data[payee_type]'] = 'User';
+        }
         $('statusInput').innerHTML = systemStatusOptions
             .map((status) => `<option value="${status}">${status}</option>`)
             .join('');
@@ -11018,10 +11213,12 @@
                 values['data[percentage_paid]'] = percentagePaidValue;
                 values.disbursement_status = sourceValue('disbursement_status', disbursementStatusValue);
                 values['data[disbursement_status]'] = disbursementStatusValue;
-                values.payee_type = sourceValue('payee_type', payeeTypeValue);
-                values['data[payee_type]'] = payeeTypeValue;
-                values.payee_name = sourceValue('payee_name', payeeNameValue);
-                values['data[payee_name]'] = payeeNameValue;
+                const effectivePayeeTypeValue = sourceValue('payee_type', payeeTypeValue);
+                const effectivePayeeNameValue = sourceValue('payee_name', payeeNameValue);
+                values.payee_type = effectivePayeeTypeValue;
+                values['data[payee_type]'] = effectivePayeeTypeValue;
+                values.payee_name = effectivePayeeNameValue;
+                values['data[payee_name]'] = effectivePayeeNameValue;
                 values.projected_balance_after_payment = sourceValue('projected_balance_after_payment');
                 values['data[projected_balance_after_payment]'] = values.projected_balance_after_payment;
                 const draftLineItems = Array.isArray(draftContext?.prefill?.line_items)
@@ -11108,6 +11305,7 @@
                                         { value: 'ca', label: 'CA' },
                                         { value: 'err', label: 'ERR' },
                                         { value: 'pda', label: 'PDA' },
+                                        { value: 'crf', label: 'CRF' },
                                         { value: 'ibtf', label: 'IBTF' },
                                     ],
                                 }), resolvedSourceTypeValue, values)}
@@ -13194,16 +13392,29 @@
         const fallbackReceivedByName = sourceData.received_by_name || sourceData.requestor || sourceData.employee_name || sourceData.payee_name || resolvedSourceRecord.user || bootstrap.currentUserName || '';
         const fallbackTaxAmount = resolvedSourceRecord.module_key === 'ca' ? '0.00' : '';
         const fallbackDateReceived = resolvedSourceRecord.module_key === 'ca' ? todayDateValue() : '';
+        const crfModeOfReturn = String(sourceData.mode_of_return || '').trim();
+        const crfReturneeName = sourceData.requestor || sourceData.employee_name || sourceData.returnee || resolvedSourceRecord.user || bootstrap.currentUserName || '';
+        const currentDvUserName = bootstrap.currentUserName || resolvedSourceRecord.user || crfReturneeName || '';
+        const crfPayeeType = crfModeOfReturn === 'Bank Transfer'
+            ? 'Bank Account'
+            : (crfModeOfReturn === 'Check' ? 'Chart of Account' : 'Returnee');
+        const crfPayeeName = crfModeOfReturn === 'Bank Transfer'
+            ? (sourceData.recipient_bank_account || crfReturneeName)
+            : (crfModeOfReturn === 'Check'
+                ? (getLookupLabel('chart_account', sourceData.coa_id) || sourceData.coa_id || crfReturneeName)
+                : crfReturneeName);
         const fallbackPrefill = {
             source_document_type: resolvedSourceRecord.module_key || '',
             source_document_id: resolvedSourceRecord.id || '',
             source_record_number: resolvedSourceRecord.record_number || '',
             source_record_date: resolvedSourceRecord.record_date || '',
-            source_requester: sourceData.requestor || sourceData.employee_name || resolvedSourceRecord.user || bootstrap.currentUserName || '',
-            source_department: sourceData.department || sourceData.requesting_department || '',
+            source_requester: resolvedSourceRecord.module_key === 'crf'
+                ? crfReturneeName
+                : (sourceData.requestor || sourceData.employee_name || resolvedSourceRecord.user || bootstrap.currentUserName || ''),
+            source_department: resolvedSourceRecord.module_key === 'crf' ? '' : (sourceData.department || sourceData.requesting_department || ''),
             source_project: sourceData.project || sourceData.project_name || sourceData.project_code || sourceData.fund_source || sourceData.department || sourceData.requesting_department || '',
             source_cost_center: sourceData.cost_center || sourceData.cost_center_code || sourceData.cost_center_name || sourceData.department || sourceData.requesting_department || sourceData.fund_source || '',
-            source_fund_source: sourceData.fund_source || '',
+            source_fund_source: resolvedSourceRecord.module_key === 'crf' ? '' : (sourceData.fund_source || ''),
             source_amount: resolvedSourceRecord.amount || sourceData.amount || sourceData.amount_requested || sourceData.total_cash_advance || '',
             source_remaining_balance: sourceData.remaining_balance || '',
             source_current_balance: sourceData.current_balance || '',
@@ -13213,40 +13424,46 @@
             source_approved_by_name: sourceData.approved_by_name || '',
             source_approved_at: sourceData.approved_at || '',
             source_supplier_name: sourceData.supplier_name || sourceData.payee_name || (sourceData.payee_type === 'Supplier' ? sourceData.payee_name || resolvedSourceRecord.record_title : ''),
-            source_employee_name: sourceData.employee_name || resolvedSourceRecord.user || bootstrap.currentUserName || '',
-            source_payee_type: sourceData.payee_type || '',
-            source_payee_name: sourceData.payee_name || '',
+            source_employee_name: resolvedSourceRecord.module_key === 'crf'
+                ? crfReturneeName
+                : (sourceData.employee_name || resolvedSourceRecord.user || bootstrap.currentUserName || ''),
+            source_payee_type: resolvedSourceRecord.module_key === 'crf' ? crfPayeeType : (sourceData.payee_type || ''),
+            source_payee_name: resolvedSourceRecord.module_key === 'crf' ? crfPayeeName : (sourceData.payee_name || ''),
             source_status: resolvedSourceRecord.status || sourceData.status || '',
             source_workflow_status: resolvedSourceRecord.workflow_status || sourceData.workflow_status || '',
             source_relationship_status: resolvedSourceRecord.relationship_status || sourceData.relationship_status || '',
             amount: resolvedSourceRecord.amount || sourceData.amount || sourceData.amount_requested || sourceData.total_cash_advance || sourceData.amount_returned || sourceData.total_payroll_amount || sourceData.acquisition_cost || '',
             supplier_id: sourceData.supplier_id || sourceData.linked_pr_supplier_id || payload.supplier_id || '',
-            bank_account_id: sourceData.bank_account_id || sourceData.funding_bank_account_id || sourceData.receiving_bank_account_id || sourceData.source_bank_account_id || sourceData.destination_bank_account_id || payload.bank_account_id || '',
+            bank_account_id: resolvedSourceRecord.module_key === 'crf'
+                ? (crfModeOfReturn === 'Check' ? (payload.bank_account_id || '') : '')
+                : (sourceData.bank_account_id || sourceData.funding_bank_account_id || sourceData.receiving_bank_account_id || sourceData.source_bank_account_id || sourceData.destination_bank_account_id || payload.bank_account_id || ''),
             coa_id: sourceData.coa_id || sourceData.asset_coa_id || sourceData.payroll_expense_coa_id || sourceData.paid_through || payload.coa_id || '',
-            payee_type: sourceData.payee_type || '',
-            payee_name: sourceData.payee_name || sourceData.requestor || sourceData.employee_name || resolvedSourceRecord.user || bootstrap.currentUserName || '',
+            payee_type: 'User',
+            payee_name: currentDvUserName,
             payment_type: sourceData.payment_type || sourceData.mode_of_release || sourceData.mode_of_return || 'Cash',
             disbursement_type: sourceData.disbursement_type || sourceData.payment_type || sourceData.mode_of_release || sourceData.mode_of_return || 'Cash',
-            fund_source: sourceData.fund_source || sourceData.project || sourceData.department || '',
-            department: sourceData.department || sourceData.requesting_department || '',
-            purpose: sourceData.purpose || sourceData.justification || sourceData.reason || sourceData.remarks || '',
+            fund_source: resolvedSourceRecord.module_key === 'crf' ? '' : (sourceData.fund_source || sourceData.project || sourceData.department || ''),
+            department: resolvedSourceRecord.module_key === 'crf' ? '' : (sourceData.department || sourceData.requesting_department || ''),
+            purpose: resolvedSourceRecord.module_key === 'crf'
+                ? ''
+                : (sourceData.purpose || sourceData.justification || sourceData.reason || sourceData.remarks || ''),
             payment_date: sourceData.payment_date || resolvedSourceRecord.record_date || todayDateValue(),
-            due_date: sourceData.due_date || sourceData.needed_date || sourceData.expected_delivery_date || sourceData.pay_date || sourceData.acquisition_date || '',
-            withholding_tax: sourceData.withholding_tax || sourceData.wht_amount || sourceData.wht_total || fallbackTaxAmount,
-            vat_amount: sourceData.vat_amount || sourceData.tax_amount || sourceData.tax_total || fallbackTaxAmount,
+            due_date: resolvedSourceRecord.module_key === 'crf' ? '' : (sourceData.due_date || sourceData.needed_date || sourceData.expected_delivery_date || sourceData.pay_date || sourceData.acquisition_date || ''),
+            withholding_tax: resolvedSourceRecord.module_key === 'crf' ? '' : (sourceData.withholding_tax || sourceData.wht_amount || sourceData.wht_total || fallbackTaxAmount),
+            vat_amount: resolvedSourceRecord.module_key === 'crf' ? '' : (sourceData.vat_amount || sourceData.tax_amount || sourceData.tax_total || fallbackTaxAmount),
             currency: fallbackCurrency,
             exchange_rate: sourceData.exchange_rate || (fallbackCurrency === 'PHP' ? '1.00' : ''),
-            received_by_name: fallbackReceivedByName,
-            date_received: sourceData.date_received || fallbackDateReceived,
+            received_by_name: resolvedSourceRecord.module_key === 'crf' ? '' : fallbackReceivedByName,
+            date_received: resolvedSourceRecord.module_key === 'crf' ? '' : (sourceData.date_received || fallbackDateReceived),
             reference_number: sourceData.reference_number || resolvedSourceRecord.record_number || '',
-            remarks: sourceData.remarks || '',
-            record_title: `DV for ${resolvedSourceRecord.record_number || resolvedSourceRecord.module_label || 'Source'}`,
+            remarks: resolvedSourceRecord.module_key === 'crf' ? '' : (sourceData.remarks || ''),
+            record_title: currentDvUserName,
         };
 
         openFinanceDraftFromSource('dv', resolvedSourceRecord, {
             ...fallbackPrefill,
             ...payload,
-            record_title: `DV for ${resolvedSourceRecord.record_number || resolvedSourceRecord.module_label || 'Source'}`,
+            record_title: currentDvUserName,
         }, `${resolvedSourceRecord.module_label || 'Source'} details loaded into a new Disbursement Voucher.`);
     }
 
@@ -13545,107 +13762,73 @@
     }
 
     function renderFinanceHistoryCards(record) {
-        if (record?.module_key === 'crf') {
-            return renderCrfHistoryTimeline(record);
-        }
-
-        const entries = financeHistoryEntries(record, 5);
-
-        if (!entries.length) {
-            return `
-                <div class="rounded-2xl border border-gray-200 bg-white p-4">
-                    <h4 class="text-[15px] font-semibold text-gray-900">Record History / Audit Trail</h4>
-                    <p class="mt-3 text-sm text-gray-500">No audit entries have been recorded yet.</p>
-                </div>
-            `;
-        }
-
-        return `
-            <div class="rounded-2xl border border-gray-200 bg-white p-4">
-                <div class="flex items-center justify-between gap-3">
-                    <h4 class="text-[15px] font-semibold text-gray-900">Record History / Audit Trail</h4>
-                    <span class="rounded-full bg-gray-100 px-3 py-1 text-[11px] font-semibold text-gray-600">${escapeHtml(String(entries.length))} latest</span>
-                </div>
-                <div class="mt-4 space-y-3">
-                    ${entries.map((entry) => {
-                        const changeRows = financeHistoryChangeRows(entry, 6);
-                        return `
-                            <div class="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
-                                <div class="flex flex-wrap items-start justify-between gap-3">
-                                    <div>
-                                        <p class="font-semibold text-gray-900">${escapeHtml(entry.action || 'Action')}</p>
-                                        <p class="mt-1 text-xs text-gray-500">${escapeHtml(entry.changed_by || 'System')} | ${escapeHtml(entry.changed_at || 'N/A')} | ${escapeHtml(entry.module || record.module_key || 'Finance')}</p>
-                                    </div>
-                                </div>
-                                ${entry.reason ? `<p class="mt-2 rounded-lg border border-amber-100 bg-white px-3 py-2 text-xs text-amber-800">${escapeHtml(entry.reason)}</p>` : ''}
-                                ${changeRows.rows.length ? `
-                                    <div class="mt-3 overflow-hidden rounded-lg border border-gray-200 bg-white">
-                                        <table class="w-full text-left text-xs">
-                                            <thead class="bg-gray-50 text-[10px] uppercase tracking-[0.16em] text-gray-500">
-                                                <tr>
-                                                    <th class="px-3 py-2">Field</th>
-                                                    <th class="px-3 py-2">Old Value</th>
-                                                    <th class="px-3 py-2">New Value</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                ${changeRows.rows.map((row) => `
-                                                    <tr class="border-t border-gray-100">
-                                                        <td class="px-3 py-2 font-semibold text-gray-700">${escapeHtml(row.field)}</td>
-                                                        <td class="px-3 py-2 text-gray-500 break-words">${escapeHtml(row.oldValue)}</td>
-                                                        <td class="px-3 py-2 text-gray-900 break-words">${escapeHtml(row.newValue)}</td>
-                                                    </tr>
-                                                `).join('')}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                    ${changeRows.remaining ? `<p class="mt-2 text-xs text-gray-500">+${escapeHtml(String(changeRows.remaining))} more change(s)</p>` : ''}
-                                ` : '<p class="mt-2 text-xs text-gray-500">No field-level changes were captured for this action.</p>'}
-                            </div>
-                        `;
-                    }).join('')}
-                </div>
-            </div>
-        `;
+        return renderCompactHistoryTimeline(record, { limit: 5 });
     }
 
     function renderCrfHistoryTimeline(record) {
-        const entries = financeHistoryEntries(record, 10);
+        return renderCompactHistoryTimeline(record, { limit: 10, accent: 'amber' });
+    }
+
+    function renderCompactHistoryTimeline(record, options = {}) {
+        const entries = financeHistoryEntries(record, Number.isFinite(options.limit) ? options.limit : 5);
+        const accent = options.accent || 'amber';
+        const accentClasses = accent === 'amber'
+            ? {
+                frame: 'border-amber-100 bg-gradient-to-br from-amber-50 via-white to-white',
+                pill: 'bg-white text-amber-700 shadow-sm',
+                entry: 'border-amber-100 bg-white shadow-sm',
+                rail: 'bg-amber-300',
+                reason: 'border-amber-100 bg-amber-50/70 text-amber-800',
+                note: 'text-amber-700',
+            }
+            : {
+                frame: 'border-gray-200 bg-white',
+                pill: 'bg-gray-100 text-gray-600',
+                entry: 'border-gray-200 bg-white shadow-sm',
+                rail: 'bg-amber-300',
+                reason: 'border-amber-100 bg-amber-50/70 text-amber-800',
+                note: 'text-gray-500',
+            };
+        const moduleLabel = escapeHtml(String(record?.module_key || record?.module_label || 'finance').toLowerCase());
 
         if (!entries.length) {
             return `
-                <div class="rounded-2xl border border-amber-100 bg-white p-4">
+                <div class="rounded-2xl border ${accentClasses.frame} p-4">
                     <div class="flex items-center justify-between gap-3">
                         <h4 class="text-[15px] font-semibold text-gray-900">Record History / Audit Trail</h4>
-                        <span class="rounded-full bg-amber-50 px-3 py-1 text-[11px] font-semibold text-amber-700">0 entries</span>
+                        <span class="rounded-full px-3 py-1 text-[11px] font-semibold ${accentClasses.pill}">0 latest</span>
                     </div>
+                    <p class="mt-1 text-xs text-gray-500">A compact timeline of ${escapeHtml(String(record?.module_label || record?.module_key || 'Finance'))} changes.</p>
                     <p class="mt-3 text-sm text-gray-500">No audit entries have been recorded yet.</p>
                 </div>
             `;
         }
 
         return `
-            <div class="rounded-2xl border border-amber-100 bg-gradient-to-br from-amber-50 via-white to-white p-4 shadow-sm">
+            <div class="rounded-2xl border ${accentClasses.frame} p-4 shadow-sm">
                 <div class="flex items-center justify-between gap-3">
                     <div>
                         <h4 class="text-[15px] font-semibold text-gray-900">Record History / Audit Trail</h4>
-                        <p class="mt-1 text-xs text-gray-500">A compact timeline of CRF changes.</p>
+                        <p class="mt-1 text-xs text-gray-500">A compact timeline of ${escapeHtml(String(record?.module_label || record?.module_key || 'Finance'))} changes.</p>
                     </div>
-                    <span class="rounded-full bg-white px-3 py-1 text-[11px] font-semibold text-amber-700 shadow-sm">${escapeHtml(String(entries.length))} latest</span>
+                    <span class="rounded-full px-3 py-1 text-[11px] font-semibold ${accentClasses.pill}">${escapeHtml(String(entries.length))} latest</span>
                 </div>
                 <div class="mt-4 space-y-3">
                     ${entries.map((entry) => {
+                        const changeRows = financeHistoryChangeRows(entry, 3);
+                        const changeSummary = changeRows.rows.map((row) => row.field).filter(Boolean).join(', ');
                         return `
-                            <div class="relative overflow-hidden rounded-xl border border-amber-100 bg-white px-4 py-3 shadow-sm">
-                                <span class="absolute left-0 top-0 h-full w-1 bg-amber-300"></span>
+                            <div class="relative overflow-hidden rounded-xl border ${accentClasses.entry} px-4 py-3">
+                                <span class="absolute left-0 top-0 h-full w-1 ${accentClasses.rail}"></span>
                                 <div class="pl-3">
                                     <div class="flex flex-wrap items-start justify-between gap-3">
                                         <div>
-                                            <p class="font-semibold text-gray-900">${escapeHtml(entry.action || 'Action')}</p>
-                                            <p class="mt-1 text-xs text-gray-500">${escapeHtml(entry.changed_by || 'System')} | ${escapeHtml(entry.changed_at || 'N/A')} | ${escapeHtml(entry.module || record.module_key || 'Finance')}</p>
+                                            <p class="text-[15px] leading-tight font-semibold text-gray-900">${escapeHtml(entry.action || 'Action')}</p>
+                                            <p class="mt-2 text-xs text-gray-500">${escapeHtml(entry.changed_by || 'System')} | ${escapeHtml(entry.changed_at || 'N/A')} | ${moduleLabel}</p>
                                         </div>
                                     </div>
-                                    ${entry.reason ? `<p class="mt-2 text-xs text-amber-800">${escapeHtml(entry.reason)}</p>` : ''}
+                                    ${entry.reason ? `<p class="mt-3 rounded-lg border px-3 py-2 text-xs ${accentClasses.reason}">${escapeHtml(entry.reason)}</p>` : ''}
+                                    ${changeSummary ? `<p class="mt-3 text-xs ${accentClasses.note}">Changed: ${escapeHtml(changeSummary)}${changeRows.remaining ? ` +${escapeHtml(String(changeRows.remaining))} more` : ''}</p>` : ''}
                                 </div>
                             </div>
                         `;
@@ -13654,7 +13837,6 @@
             </div>
         `;
     }
-
     function financeAttachmentEntries(record) {
         return Array.isArray(record?.attachments) ? record.attachments.filter((attachment) => attachment && typeof attachment === 'object') : [];
     }
@@ -14027,7 +14209,7 @@
                     <div class="finance-preview-box">
                         <div class="finance-preview-section-title">${escapeHtml(section.title || 'Asset Tag')}</div>
                         <div class="finance-preview-inner">
-                            ${renderArfAssetTagCard(section.assetCode, section.location, section.serialNumber, section.barcodeSvg, { withPrintButton: true })}
+                            ${renderArfAssetTagPreviewVisual(section.assetCode, section.location, section.serialNumber, section.barcodeSvg, { withPrintButton: true })}
                         </div>
                     </div>
                 `;
@@ -14665,7 +14847,14 @@
             || ['completed', 'paid', 'disbursed', 'liquidated', 'closed'].includes(relationshipStatus);
         const isApprovedWorkflow = ['approved', 'accepted'].includes(workflowStatus);
         const matchesAny = (value, list) => list.includes(value);
-        if (!supplierPending && record.module_key === 'arf') {
+        const arfAssetLifecycleApproved = record.module_key === 'arf' && [
+            workflowStatus,
+            String(record?.approval_status || '').trim().toLowerCase(),
+            String(record?.data?.approval_status || '').trim().toLowerCase(),
+            relationshipStatus,
+        ].some((value) => ['approved', 'accepted'].includes(value));
+
+        if (!supplierPending && record.module_key === 'arf' && arfAssetLifecycleApproved) {
             const assetCode = record.data?.asset_code || record.record_number || '';
             const location = record.data?.location || '';
             const serialNumber = record.data?.serial_number || '';
@@ -14676,7 +14865,15 @@
             const custodianId = Number(record.data?.custodian || 0) || 0;
             const assetAcknowledged = Boolean(record.data?.custodian_acknowledged_at);
             const currentUserIsCustodian = currentUserEmployeeId > 0 && currentUserEmployeeId === custodianId;
-            const canManageAsset = Boolean(bootstrap.canApproveFinance || record.can_edit || record.can_review || currentUserIsCustodian);
+            const assetLastEvent = String(record.data?.asset_last_event || '').trim().toLowerCase();
+            const assetStatus = String(record.data?.asset_status || '').trim().toLowerCase();
+            const assetLifecycleApproved = arfAssetLifecycleApproved;
+            const assetDisposed = ['disposed'].includes(assetStatus) || ['asset disposed'].includes(assetLastEvent);
+            const assetReadyForDisposal = assetLifecycleApproved && !assetDisposed && (
+                ['transferred', 'lost', 'damaged', 'returned'].includes(assetStatus)
+                || ['asset transferred', 'asset reported lost', 'asset reported damaged', 'asset returned'].includes(assetLastEvent)
+            );
+            const canManageAsset = Boolean(assetLifecycleApproved && !assetDisposed && (bootstrap.canApproveFinance || record.can_edit || record.can_review || currentUserIsCustodian));
             const isConsumableInventory = String(record.data?.item_classification || '').toLowerCase() === 'consumable inventory';
 
             if (currentUserIsCustodian && !assetAcknowledged) {
@@ -14694,7 +14891,9 @@
                 actions.push(`<button type="button" onclick="window.financeModule.recordArfAssetEvent(${record.id}, 'loss')" class="w-full border border-red-300 text-red-700 rounded-md py-2 hover:bg-red-50">Record Loss</button>`);
                 actions.push(`<button type="button" onclick="window.financeModule.recordArfAssetEvent(${record.id}, 'damage')" class="w-full border border-amber-300 text-amber-700 rounded-md py-2 hover:bg-amber-50">Record Damage</button>`);
                 actions.push(`<button type="button" onclick="window.financeModule.recordArfAssetEvent(${record.id}, 'return')" class="w-full border border-sky-300 text-sky-700 rounded-md py-2 hover:bg-sky-50">Record Return</button>`);
-                actions.push(`<button type="button" onclick="window.financeModule.recordArfAssetEvent(${record.id}, 'disposal')" class="w-full border border-gray-300 text-gray-700 rounded-md py-2 hover:bg-gray-50">Record Disposal</button>`);
+                if (assetReadyForDisposal) {
+                    actions.push(`<button type="button" onclick="window.financeModule.recordArfAssetEvent(${record.id}, 'disposal')" class="w-full border border-gray-300 text-gray-700 rounded-md py-2 hover:bg-gray-50">Record Disposal</button>`);
+                }
             }
         }
 
@@ -14801,7 +15000,7 @@
         const disbursementButtonStatus = String(record?.data?.next_action || record?.next_action || '').trim();
         const disbursementRelationshipStatus = String(record?.relationship_status || record?.data?.relationship_status || '').trim();
         const linkedDisbursementVoucherId = record?.linked_dv_id || record?.data?.linked_dv_id || '';
-        const showCreateDisbursementVoucher = ['po', 'err', 'pda', 'ibtf'].includes(record.module_key)
+        const showCreateDisbursementVoucher = ['po', 'err', 'pda', 'ibtf', 'crf'].includes(record.module_key)
             && !isFinalWorkflow
             && !linkedDisbursementVoucherId
             && (
@@ -14830,6 +15029,63 @@
 
     function removeArfTransferDialog() {
         $('arfTransferDialog')?.remove();
+    }
+
+    function removeArfAssetEventDialog() {
+        $('arfAssetEventDialog')?.remove();
+    }
+
+    function openArfAssetEventDialog(recordId, eventType) {
+        const record = getRecordById(recordId);
+        if (!record || record.module_key !== 'arf') return;
+
+        removeArfAssetEventDialog();
+        const eventLabels = {
+            loss: { title: 'Record Loss', button: 'Record Loss', description: 'Document the asset loss and include a short reason.', placeholder: 'Explain when and how the asset was lost.' },
+            damage: { title: 'Record Damage', button: 'Record Damage', description: 'Document the asset damage and include a short reason.', placeholder: 'Explain the damage or incident.' },
+            return: { title: 'Record Return', button: 'Record Return', description: 'Document the asset return and include a short reason.', placeholder: 'Explain the return details.' },
+            disposal: { title: 'Record Disposal', button: 'Record Disposal', description: 'Document the asset disposal and include a short reason.', placeholder: 'Explain the disposal details.' },
+        };
+        const config = eventLabels[eventType] || eventLabels.damage;
+        const currentStatus = String(record.data?.asset_status || record.data?.asset_last_event || 'Active').trim();
+        const dialog = document.createElement('div');
+        dialog.id = 'arfAssetEventDialog';
+        dialog.className = 'fixed inset-0 z-[80] flex items-center justify-center bg-black/40 px-4';
+        dialog.innerHTML = `
+            <div class="w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-2xl">
+                <div class="flex items-center justify-between border-b border-gray-100 px-5 py-4">
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-900">${escapeHtml(config.title)}</h3>
+                        <p class="text-sm text-gray-500">${escapeHtml(config.description)}</p>
+                    </div>
+                    <button type="button" onclick="window.financeModule.closeArfAssetEventDialog()" class="text-sm text-gray-500 hover:text-gray-700">Close</button>
+                </div>
+                <div class="space-y-4 px-5 py-5">
+                    <div class="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                        <p class="text-[11px] uppercase tracking-[0.18em] text-gray-500">Current Asset Status</p>
+                        <p class="mt-1 text-sm font-semibold text-gray-900">${escapeHtml(currentStatus)}</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Reason / Notes</label>
+                        <textarea data-arf-asset-event-reason rows="4" class="mt-1 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm text-gray-900 focus:border-blue-400 focus:ring-2 focus:ring-blue-100" placeholder="${escapeHtml(config.placeholder)}"></textarea>
+                    </div>
+                </div>
+                <div class="flex items-center justify-end gap-3 border-t border-gray-100 px-5 py-4">
+                    <button type="button" onclick="window.financeModule.closeArfAssetEventDialog()" class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Cancel</button>
+                    <button type="button" onclick="window.financeModule.submitArfAssetEventDialog(${record.id}, '${escapeHtml(eventType)}')" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">${escapeHtml(config.button)}</button>
+                </div>
+            </div>
+        `;
+        dialog.addEventListener('click', (event) => {
+            if (event.target === dialog) {
+                removeArfAssetEventDialog();
+            }
+        });
+        document.body.appendChild(dialog);
+    }
+
+    function closeArfAssetEventDialog() {
+        removeArfAssetEventDialog();
     }
 
     function openArfTransferDialog(recordId) {
@@ -15098,12 +15354,15 @@
         openPreview(data.data.id);
     }
 
-    async function recordArfAssetEvent(recordId, eventType) {
-        const reason = prompt(`Enter the reason for recording this asset ${eventType}:`);
-        if (reason === null) return;
+    async function submitArfAssetEventDialog(recordId, eventType) {
+        const dialog = $('arfAssetEventDialog');
+        if (!dialog) return;
 
-        const trimmedReason = String(reason || '').trim();
-        if (!trimmedReason) return;
+        const trimmedReason = String(dialog.querySelector('[data-arf-asset-event-reason]')?.value || '').trim();
+        if (!trimmedReason) {
+            alert('Please enter a reason or note.');
+            return;
+        }
 
         const formData = new FormData();
         formData.append('event_type', eventType);
@@ -15122,9 +15381,14 @@
             return;
         }
 
+        removeArfAssetEventDialog();
         upsertFinanceRecord(data.data);
         refreshFinanceView();
         openPreview(data.data.id);
+    }
+
+    async function recordArfAssetEvent(recordId, eventType) {
+        openArfAssetEventDialog(recordId, eventType);
     }
 
     function openPreview(id) {
@@ -15399,6 +15663,9 @@
             if (currentModuleKey === 'dv') {
                 collectDvLineItems();
                 updateDvNetAmount();
+                const dvPayeeName = $('recordTitleInput').value.trim();
+                formData.set('data[payee_name]', dvPayeeName);
+                formData.set('data[payee_type]', 'User');
                 formData.set('amount', formData.get('data[amount]') || $('amountInput').value || '');
             }
 
@@ -16148,6 +16415,16 @@
         printFinanceRecord,
         printArfAssetTag,
         scrollFinanceModuleTabs,
+        openArfTransferDialog,
+        closeArfTransferDialog,
+        submitArfTransferDialog,
+        openArfAssetEventDialog,
+        closeArfAssetEventDialog,
+        submitArfAssetEventDialog,
+        recordArfAssetEvent,
+        openArfInventoryMovementDialog,
+        closeArfInventoryMovementDialog,
+        submitArfInventoryMovementDialog,
         recordCashAdvancePayment,
         recordCashAdvancePreviewPayment,
         addPrLineItemRow,

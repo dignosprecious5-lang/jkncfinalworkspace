@@ -299,7 +299,7 @@
     </div>
 </div>
 @endif
-<div id="financeLookupSelectorModal" class="hidden fixed inset-0 z-[70]">
+<div id="financeLookupSelectorModal" class="hidden fixed inset-0 z-[95]">
     <div class="absolute inset-0 bg-black/40" onclick="window.financeModule.closeLookupSelector()"></div>
     <div class="absolute inset-0 flex items-center justify-center p-4">
         <div class="w-full max-w-7xl h-[86vh] rounded-2xl bg-white shadow-2xl border border-gray-200 overflow-hidden flex flex-col">

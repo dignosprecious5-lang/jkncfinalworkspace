@@ -2781,6 +2781,18 @@ SVG;
                 'payee_type' => 'Receiving Bank Account',
                 'payee_name' => $bankAccount !== '' ? $bankAccount : trim((string) data_get($data, 'destination_bank_account_id', '')),
             ],
+            'crf' => [
+                'payee_type' => match ((string) data_get($data, 'mode_of_return', 'Cash')) {
+                    'Bank Transfer' => 'Bank Account',
+                    'Check' => 'Chart of Account',
+                    default => 'Returnee',
+                },
+                'payee_name' => trim((string) collect([
+                    data_get($data, 'mode_of_return') === 'Bank Transfer' ? data_get($data, 'recipient_bank_account') : null,
+                    data_get($data, 'requestor'),
+                    data_get($data, 'employee_name'),
+                ])->first(fn ($value) => !blank($value)) ?: ''),
+            ],
             default => [
                 'payee_type' => '',
                 'payee_name' => trim((string) collect([
@@ -2889,7 +2901,7 @@ SVG;
         $dv = match ($record->module_key) {
             'dv' => $record,
             'pr' => $po ? $this->financeFirstDvForSource('po', $po->id) : null,
-            'po', 'ca', 'err', 'pda', 'ibtf' => $this->financeFirstDvForSource($record->module_key, $record->id),
+            'po', 'ca', 'err', 'pda', 'ibtf', 'crf' => $this->financeFirstDvForSource($record->module_key, $record->id),
             'lr', 'arf' => $this->financeResolveModuleRecord('dv', data_get($data, 'linked_dv_id')),
             default => null,
         };
@@ -2920,7 +2932,7 @@ SVG;
     {
         return match ($record->module_key) {
             'pr' => $po,
-            'po', 'ca', 'err', 'pda', 'ibtf' => $record,
+            'po', 'ca', 'err', 'pda', 'ibtf', 'crf' => $record,
             default => null,
         };
     }
@@ -3185,7 +3197,7 @@ SVG;
             return 'Completed';
         }
 
-        if (in_array($record->module_key, ['err', 'pda', 'ibtf'], true)) {
+        if (in_array($record->module_key, ['err', 'pda', 'ibtf', 'crf'], true)) {
             if (!$this->financeRecordIsApproved($record)) {
                 return $record->workflow_status ?: 'Draft';
             }
@@ -3265,11 +3277,11 @@ SVG;
             $moduleKey === 'lr' && $relationshipStatus === 'Awaiting Cash Return' => 'Create Cash Return Form',
             $moduleKey === 'lr' && $relationshipStatus === 'Awaiting ERR' => 'Create ERR Form',
             $moduleKey === 'lr' && $relationshipStatus === 'Completed' => 'No further action',
-            in_array($moduleKey, ['err', 'pda', 'ibtf'], true) && $relationshipStatus === 'Awaiting Disbursement Voucher' => 'Create Disbursement Voucher',
-            in_array($moduleKey, ['err', 'pda', 'ibtf'], true) && $relationshipStatus === 'Pending Disbursement' => 'Approve Disbursement Voucher',
+            in_array($moduleKey, ['err', 'pda', 'ibtf', 'crf'], true) && $relationshipStatus === 'Awaiting Disbursement Voucher' => 'Create Disbursement Voucher',
+            in_array($moduleKey, ['err', 'pda', 'ibtf', 'crf'], true) && $relationshipStatus === 'Pending Disbursement' => 'Approve Disbursement Voucher',
             $moduleKey === 'pda' && $relationshipStatus === 'Payroll Released' => 'No further action',
             $moduleKey === 'ibtf' && $relationshipStatus === 'Transfer Completed' => 'No further action',
-            in_array($moduleKey, ['err', 'pda', 'ibtf'], true) && $relationshipStatus === 'Approved for Payment' => 'Release Funds',
+            in_array($moduleKey, ['err', 'pda', 'ibtf', 'crf'], true) && $relationshipStatus === 'Approved for Payment' => 'Release Funds',
             $relationshipStatus === 'Disbursed' => 'No further action',
             default => 'Continue workflow',
         };
@@ -3331,6 +3343,51 @@ SVG;
             } elseif ($errRequired) {
                 $steps[] = ['label' => 'ERR Created', 'completed' => $errCreated];
                 $steps[] = ['label' => 'ERR Approved', 'completed' => $errApproved];
+            }
+
+            $steps[] = ['label' => 'Transaction Completed', 'completed' => $completed];
+
+            $firstPending = collect($steps)->search(fn (array $step) => !$step['completed']);
+
+            return array_map(function (array $step, int $index) use ($firstPending) {
+                $step['state'] = $step['completed']
+                    ? 'completed'
+                    : ($firstPending === $index ? 'current' : 'pending');
+
+                return $step;
+            }, $steps, array_keys($steps));
+        }
+
+        if ($record->module_key === 'arf') {
+            $data = $record->data ?? [];
+            $sourceRecord = null;
+            if (filled(data_get($data, 'linked_po_id'))) {
+                $sourceRecord = $this->financeResolveModuleRecord('po', data_get($data, 'linked_po_id'));
+            } elseif (filled(data_get($data, 'linked_dv_id'))) {
+                $sourceRecord = $this->financeResolveModuleRecord('dv', data_get($data, 'linked_dv_id'));
+            }
+
+            $sourceDocumentApproved = $sourceRecord ? $this->financeRecordIsApproved($sourceRecord) : false;
+            $assetRegistrationSubmitted = filled($record->submitted_at) || $this->financeRecordIsApproved($record);
+            $assetRegistrationApproved = $this->financeRecordIsApproved($record);
+            $assetTagReady = filled(data_get($data, 'asset_code')) && filled(data_get($data, 'location'));
+            $custodianAssigned = filled(data_get($data, 'custodian'));
+            $custodianAcknowledged = ! $custodianAssigned || filled(data_get($data, 'custodian_acknowledged_at'));
+            $completed = $sourceDocumentApproved
+                && $assetRegistrationSubmitted
+                && $assetRegistrationApproved
+                && $assetTagReady
+                && $custodianAcknowledged;
+
+            $steps = [
+                ['label' => 'Source Document Approved', 'completed' => $sourceDocumentApproved],
+                ['label' => 'Asset Registration Submitted', 'completed' => $assetRegistrationSubmitted],
+                ['label' => 'Asset Registration Approved', 'completed' => $assetRegistrationApproved],
+                ['label' => 'Asset Tag Ready', 'completed' => $assetTagReady],
+            ];
+
+            if ($custodianAssigned) {
+                $steps[] = ['label' => 'Custodian Acknowledged', 'completed' => $custodianAcknowledged];
             }
 
             $steps[] = ['label' => 'Transaction Completed', 'completed' => $completed];
@@ -4050,29 +4107,34 @@ SVG;
                 ...((function () use ($section, $data) {
                     $dvSourceType = Str::lower(trim((string) data_get($data, 'source_document_type', '')));
                     $isErrSource = $dvSourceType === 'err';
+                    $isCrfSource = $dvSourceType === 'crf';
                     $isIbtfSource = $dvSourceType === 'ibtf';
                     $isErrCheck = $isErrSource && data_get($data, 'payment_type') === 'Check';
+                    $isCrfCheck = $isCrfSource && data_get($data, 'payment_type') === 'Check';
 
                     $voucherFields = [
                         ['name' => 'source_document_type', 'label' => 'Linked Source Document Type'],
                         ['name' => 'source_document_id', 'label' => 'Linked Source Document'],
                         ['name' => 'payee_type', 'label' => 'Payee Type'],
                         ['name' => 'payee_name', 'label' => 'Payee'],
-                        ...($isErrSource || $isIbtfSource ? [] : [['name' => 'supplier_id', 'label' => 'Supplier']]),
+                        ...($isErrSource || $isCrfSource || $isIbtfSource ? [] : [['name' => 'supplier_id', 'label' => 'Supplier']]),
                         ['name' => 'amount', 'label' => 'Amount'],
                         ['name' => 'payment_type', 'label' => 'Payment Type'],
                         ['name' => 'disbursement_type', 'label' => 'Disbursement Type'],
                         ['name' => 'payment_date', 'label' => 'Payment Date'],
-                        ...($isErrSource || $isIbtfSource ? [] : [['name' => 'due_date', 'label' => 'Due Date']]),
+                        ...($isErrSource || $isCrfSource || $isIbtfSource ? [] : [['name' => 'due_date', 'label' => 'Due Date']]),
                     ];
 
                     $fundingFields = [
                         ...($isErrSource
                             ? ($isErrCheck ? [['name' => 'bank_account_id', 'label' => 'Bank Account']] : [])
-                            : [['name' => 'bank_account_id', 'label' => 'Bank Account']]),
+                            : ($isCrfSource
+                                ? ($isCrfCheck ? [['name' => 'bank_account_id', 'label' => 'Bank Account']] : [])
+                                : [['name' => 'bank_account_id', 'label' => 'Bank Account']]))
+                        ,
                         ['name' => 'coa_id', 'label' => 'Account'],
-                        ...($isErrSource || $isIbtfSource ? [] : [['name' => 'fund_source', 'label' => 'Fund Source / Project']]),
-                        ...($isIbtfSource ? [] : [['name' => 'department', 'label' => 'Department']]),
+                        ...($isErrSource || $isCrfSource || $isIbtfSource ? [] : [['name' => 'fund_source', 'label' => 'Fund Source / Project']]),
+                        ...($isCrfSource || $isIbtfSource ? [] : [['name' => 'department', 'label' => 'Department']]),
                         ['name' => 'reference_number', 'label' => 'Reference Number'],
                         ['name' => 'purpose', 'label' => 'Purpose'],
                         ['name' => 'remarks', 'label' => 'Remarks'],
@@ -4083,7 +4145,7 @@ SVG;
                         $section('Funding & Notes', $fundingFields),
                     ];
 
-                    if (!$isErrSource && !$isIbtfSource) {
+                    if (!$isErrSource && !$isCrfSource && !$isIbtfSource) {
                         $sections[] = $section('Tax & Receipt', [
                             ['name' => 'withholding_tax', 'label' => 'Withholding Tax'],
                             ['name' => 'vat_amount', 'label' => 'VAT'],
@@ -5438,6 +5500,28 @@ SVG;
             ])
             ->values();
 
+        $options['dv_arf'] = $this->financeActiveRecordsByModule('dv')
+            ->filter(function (FinanceRecord $record): bool {
+                if (! $this->canViewFinanceRecord($record)) {
+                    return false;
+                }
+
+                if (in_array($record->workflow_status ?? 'Uploaded', ['Delete Requested', 'Deleted', 'Cancelled', 'Reverted'], true)) {
+                    return false;
+                }
+
+                return Str::lower((string) data_get($record->data ?? [], 'source_document_type')) === 'po';
+            })
+            ->sortByDesc('record_date')
+            ->sortByDesc('created_at')
+            ->map(fn (FinanceRecord $record) => [
+                'id' => $record->id,
+                'label' => $this->optionLabel($record),
+                'record_number' => $record->record_number,
+                'record_title' => $record->record_title,
+            ])
+            ->values();
+
         $options['lr_overage'] = $this->visibleAcceptedFinanceRecords('lr', ['variance_indicator' => 'Overage'])
             ->map(fn (FinanceRecord $record) => [
                 'id' => $record->id,
@@ -6641,6 +6725,28 @@ SVG;
             ]) ?? '';
         }
 
+        if ((string) $record->module_key === 'crf') {
+            $modeOfReturn = (string) data_get($data, 'mode_of_return', 'Cash');
+            $payload['supplier_id'] = '';
+            $payload['fund_source'] = '';
+            $payload['department'] = '';
+            $payload['due_date'] = '';
+            $payload['withholding_tax'] = '';
+            $payload['vat_amount'] = '';
+            $payload['received_by_name'] = '';
+            $payload['date_received'] = '';
+            $payload['payment_type'] = data_get($data, 'payment_type') ?: $modeOfReturn ?: 'Cash';
+            $payload['disbursement_type'] = data_get($data, 'disbursement_type') ?: $payload['payment_type'];
+            $payload['bank_account_id'] = $modeOfReturn === 'Check'
+                ? ($payload['bank_account_id'] ?? '')
+                : '';
+            $payload['purpose'] = $firstFilled([
+                data_get($data, 'purpose'),
+                data_get($data, 'remarks'),
+                $record->record_title,
+            ]) ?? '';
+        }
+
         $payload['line_items'] = $this->financeDvLineItemsFromSource($record, $payload);
 
         return $payload;
@@ -6932,7 +7038,7 @@ SVG;
             $requirements[] = 'required attachments uploaded';
         }
 
-        if (!in_array($sourceDocumentType, ['err', 'ibtf'], true) && blank(data_get($data, 'fund_source')) && blank(data_get($sourceSnapshot, 'fund_source'))) {
+        if (!in_array($sourceDocumentType, ['err', 'ibtf', 'crf'], true) && blank(data_get($data, 'fund_source')) && blank(data_get($sourceSnapshot, 'fund_source'))) {
             $requirements[] = 'fund source identified';
         }
 
@@ -7251,6 +7357,15 @@ SVG;
         });
     }
 
+    private function arfLinkedDvRule()
+    {
+        return Rule::exists('finance_records', 'id')->where(function ($query) {
+            $query->where('module_key', 'dv')
+                ->where('data->source_document_type', 'po')
+                ->whereNotIn('workflow_status', ['Delete Requested', 'Deleted', 'Cancelled', 'Reverted']);
+        });
+    }
+
     private function financeLineItemClientRule(): \Closure
     {
         return function (string $attribute, mixed $value, \Closure $fail): void {
@@ -7439,7 +7554,7 @@ SVG;
                 'data.supplier_id' => ['nullable', $this->acceptedLinkedRecordRule('supplier')],
             ],
             'dv' => [
-                'data.source_document_type' => 'required|in:po,ca,err,pda,ibtf',
+                'data.source_document_type' => 'required|in:po,ca,err,pda,ibtf,crf',
                 'data.source_document_id' => 'required',
                 'data.amount' => 'required|numeric|min:0',
                 'data.payment_type' => 'required|in:Cash,Check,Bank Transfer,E-Wallet',
@@ -7507,7 +7622,7 @@ SVG;
             ],
             'arf' => [
                 'data.linked_po_id' => ['nullable', $this->acceptedLinkedRecordRule('po')],
-                'data.linked_dv_id' => ['nullable', $this->acceptedLinkedRecordRule('dv', ['source_document_type' => 'po'])],
+                'data.linked_dv_id' => ['nullable', $this->arfLinkedDvRule()],
                 'data.item_classification' => 'required|in:Fixed Asset,Consumable Inventory',
                 'data.asset_code' => 'required|string|max:255',
                 'data.item_name' => 'nullable|string|max:255',
@@ -7565,7 +7680,7 @@ SVG;
 
         if ($moduleKey === 'arf') {
             $rules['data.linked_po_id'] = ['nullable', $this->acceptedLinkedRecordRule('po')];
-            $rules['data.linked_dv_id'] = ['nullable', $this->acceptedLinkedRecordRule('dv', ['source_document_type' => 'po'])];
+            $rules['data.linked_dv_id'] = ['nullable', $this->arfLinkedDvRule()];
             $rules['data.linked_po_id'][] = 'required_without:data.linked_dv_id';
             $rules['data.linked_dv_id'][] = 'required_without:data.linked_po_id';
         }
@@ -7720,6 +7835,7 @@ SVG;
                 'err' => 'err',
                 'pda' => 'pda',
                 'ibtf' => 'ibtf',
+                'crf' => 'crf',
                 default => null,
             };
 
