@@ -13,6 +13,7 @@ use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\DB;
 
 class CorrespondenceController extends Controller
 {
@@ -713,13 +714,18 @@ class CorrespondenceController extends Controller
 
     private function executiveApproversFromGis()
     {
-        if (!class_exists(DirectorOfficer::class) || !Schema::hasTable((new DirectorOfficer())->getTable())) {
+        /*
+         * Deployed database table is directors_officers.
+         * Do not rely on DirectorOfficer model table name because some codebases
+         * use director_officers while production uses directors_officers.
+         */
+        if (!Schema::hasTable('directors_officers')) {
             return collect();
         }
 
         $latestApprovedGis = $this->latestApprovedGisRecord();
 
-        $query = DirectorOfficer::query();
+        $query = DB::table('directors_officers');
 
         if ($latestApprovedGis) {
             $query->where('gis_id', $latestApprovedGis->id);
@@ -727,19 +733,20 @@ class CorrespondenceController extends Controller
 
         return $query->orderBy('officer_name')
             ->get()
-            ->filter(fn($officer) => $this->isValidGisOfficerType($officer->officer_type))
+            ->filter(fn($officer) => $this->isValidGisOfficerType($officer->officer_type ?? null))
             ->map(fn($officer) => $this->formatGisApprover($officer))
             ->values();
     }
 
     private function getGisApproverData($officerId): array
     {
-        if (!$officerId || !class_exists(DirectorOfficer::class) || !Schema::hasTable((new DirectorOfficer())->getTable())) {
+        if (!$officerId || !Schema::hasTable('directors_officers')) {
             return [];
         }
 
         $latestApprovedGis = $this->latestApprovedGisRecord();
-        $query = DirectorOfficer::query()->whereKey($officerId);
+
+        $query = DB::table('directors_officers')->where('id', $officerId);
 
         if ($latestApprovedGis) {
             $query->where('gis_id', $latestApprovedGis->id);
@@ -747,7 +754,7 @@ class CorrespondenceController extends Controller
 
         $officer = $query->first();
 
-        if (!$officer || !$this->isValidGisOfficerType($officer->officer_type)) {
+        if (!$officer || !$this->isValidGisOfficerType($officer->officer_type ?? null)) {
             return [];
         }
 
@@ -756,7 +763,7 @@ class CorrespondenceController extends Controller
 
     private function formatGisApprover($officer): array
     {
-        $position = trim((string) $officer->officer_type);
+        $position = trim((string) ($officer->officer_type ?? 'Executive Management'));
 
         return [
             'id' => $officer->id,
@@ -764,9 +771,8 @@ class CorrespondenceController extends Controller
             'name' => $officer->officer_name ?: 'Unnamed Officer',
             'email' => $this->readableEmailValue($officer),
             'position' => $position,
-            // LEVEL 2 is from GIS Directors/Officers, so this intentionally uses Office of the.
             'department' => 'Office of the ' . $position,
-            'gis_id' => $officer->gis_id,
+            'gis_id' => $officer->gis_id ?? null,
         ];
     }
 
