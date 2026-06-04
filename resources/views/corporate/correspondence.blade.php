@@ -423,7 +423,7 @@
                             Cancel
                         </button>
 
-                        <button id="saveCorrespondenceBtn" type="button" onclick="addCorrespondence().then(success => { if (success) { closeAddSection(); } })" class="flex-1 bg-blue-600 text-white rounded-lg py-2.5 text-sm font-medium hover:bg-blue-700 transition">
+                        <button id="saveCorrespondenceBtn" type="button" onclick="addCorrespondence().then(success => { if (success) { setTimeout(() => closeAddSection(), 700); } })" class="flex-1 bg-blue-600 text-white rounded-lg py-2.5 text-sm font-medium hover:bg-blue-700 transition">
                             Save
                         </button>
                     </div>
@@ -853,7 +853,14 @@ async function fetchCorrespondence() {
         headers: { 'Accept': 'application/json' }
     });
 
-    return await res.json();
+    const data = await res.json().catch(() => []);
+
+    if (!res.ok) {
+        console.warn('Correspondence table refresh failed.', data);
+        return [];
+    }
+
+    return Array.isArray(data) ? data : [];
 }
 
 function getWorkflowClasses(status) {
@@ -999,10 +1006,22 @@ async function addCorrespondence() {
         }
 
         showSliderSuccess(data.message || 'Correspondence submitted successfully.');
-        await renderTable();
         setSaveLoading(false);
+
+        /*
+         * The record is already saved here.
+         * Do not turn a successful save into "Something went wrong" just because
+         * the table refresh/preview refresh has a JavaScript or fetch issue.
+         */
+        try {
+            await renderTable();
+        } catch (refreshError) {
+            console.warn('Correspondence saved, but table refresh failed.', refreshError);
+        }
+
         return true;
     } catch (error) {
+        console.error('Correspondence save failed before success response.', error);
         showSliderError('Something went wrong while saving.');
         setSaveLoading(false);
         return false;

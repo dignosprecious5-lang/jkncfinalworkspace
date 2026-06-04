@@ -110,6 +110,7 @@ class CorrespondenceController extends Controller
     {
         $validated = $request->validate([
             'type' => ['required', 'string', 'max:100', 'in:' . implode(',', $this->correspondenceTypes)],
+            'correspondence_date' => ['nullable', 'date'],
             'tin' => ['nullable', 'string', 'max:100'],
             'to_for_label' => ['nullable', 'string', 'max:10', 'in:To,For'],
             'to_for' => ['nullable', 'string', 'max:255'],
@@ -135,7 +136,7 @@ class CorrespondenceController extends Controller
 
         $record = Correspondence::create(array_merge($validated, [
             'ref_no' => null,
-            'correspondence_date' => now()->format('Y-m-d'),
+            'correspondence_date' => $validated['correspondence_date'] ?? now()->format('Y-m-d'),
             'company_name' => $companyInfo['company_name'],
             'registration_number' => $companyInfo['registration_number'],
             'principal_address' => $companyInfo['principal_address'],
