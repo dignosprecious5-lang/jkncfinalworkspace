@@ -728,6 +728,10 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     |--------------------------------------------------------------------------
     */
     Route::get('/corporate', [GisController::class, 'companyInfo'])->name('corporate');
+    Route::get('/corporate/accounting', [AccountingController::class, 'page'])->name('corporate.accounting');
+
+    Route::get('/corporate/accounting-index', [AccountingController::class, 'page'])->name('corporate.accounting.index');
+
     Route::get('/corporate/company-general-information', [GisController::class, 'companyInfo'])->name('corporate.companyinfo');
 
     Route::get('/corporate/gis', [GisController::class, 'index'])->name('corporate.gis');
