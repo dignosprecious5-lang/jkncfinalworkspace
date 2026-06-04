@@ -63,20 +63,12 @@ class CorrespondenceController extends Controller
             $query->where('type', $request->type);
         }
 
-        if ($request->filled('workflow_status')) {
-            $status = ucfirst(strtolower($request->workflow_status));
-
-            if ($status === 'Archived') {
-                $query->where('is_archived', true);
-            } else {
-                $query->where('workflow_status', $status)->where('is_archived', false);
-            }
-        } else {
-            // Corporate side has no workflow tabs now.
-            // Show all active/non-archived correspondence here.
-            // Admin side handles Submitted / Accepted / Reverted / Archived workflow filtering.
-            $query->where('is_archived', false);
-        }
+        /*
+         * Corporate side should show all active correspondence, including Approved/Accepted.
+         * Admin dashboard is the only place that should separate Submitted / Accepted / Reverted / Archived.
+         * This prevents an approved correspondence from disappearing from the corporate list.
+         */
+        $query->where('is_archived', false);
 
         return $query->latest()
             ->get()
@@ -110,7 +102,6 @@ class CorrespondenceController extends Controller
     {
         $validated = $request->validate([
             'type' => ['required', 'string', 'max:100', 'in:' . implode(',', $this->correspondenceTypes)],
-            'correspondence_date' => ['nullable', 'date'],
             'tin' => ['nullable', 'string', 'max:100'],
             'to_for_label' => ['nullable', 'string', 'max:10', 'in:To,For'],
             'to_for' => ['nullable', 'string', 'max:255'],
@@ -136,7 +127,7 @@ class CorrespondenceController extends Controller
 
         $record = Correspondence::create(array_merge($validated, [
             'ref_no' => null,
-            'correspondence_date' => $validated['correspondence_date'] ?? now()->format('Y-m-d'),
+            'correspondence_date' => now()->format('Y-m-d'),
             'company_name' => $companyInfo['company_name'],
             'registration_number' => $companyInfo['registration_number'],
             'principal_address' => $companyInfo['principal_address'],
@@ -222,6 +213,9 @@ class CorrespondenceController extends Controller
         $record->update([
             'workflow_status' => 'Accepted',
             'approval_status' => 'Approved',
+            'status' => 'Open',
+            'is_archived' => false,
+            'archived_at' => null,
             'approved_by' => Auth::id(),
             'approved_at' => now(),
             'management_approval_status' => 'Approved',

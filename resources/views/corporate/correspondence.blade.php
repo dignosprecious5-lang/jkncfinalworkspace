@@ -423,7 +423,7 @@
                             Cancel
                         </button>
 
-                        <button id="saveCorrespondenceBtn" type="button" onclick="addCorrespondence().then(success => { if (success) { setTimeout(() => closeAddSection(), 700); } })" class="flex-1 bg-blue-600 text-white rounded-lg py-2.5 text-sm font-medium hover:bg-blue-700 transition">
+                        <button id="saveCorrespondenceBtn" type="button" onclick="addCorrespondence().then(success => { if (success) { closeAddSection(); } })" class="flex-1 bg-blue-600 text-white rounded-lg py-2.5 text-sm font-medium hover:bg-blue-700 transition">
                             Save
                         </button>
                     </div>
@@ -837,8 +837,9 @@ function resetFormDefaults() {
 }
 
 function applyWorkflowFilter(filterValue) {
-    // Workflow filtering is managed in the Admin Correspondence dashboard.
-    currentWorkflowFilter = '';
+    // Corporate Correspondence does not use workflow tabs.
+    // Approved/Accepted records must remain visible here.
+    currentWorkflowFilter = "";
     renderTable();
 }
 
@@ -849,6 +850,10 @@ async function fetchCorrespondence() {
         params.append('type', currentTypeFilter);
     }
 
+    /*
+     * Do not send workflow_status from Corporate side.
+     * Admin dashboard handles Submitted / Accepted / Reverted / Archived filtering.
+     */
     const res = await fetch(`/correspondence/data?${params.toString()}`, {
         headers: { 'Accept': 'application/json' }
     });
@@ -1008,11 +1013,6 @@ async function addCorrespondence() {
         showSliderSuccess(data.message || 'Correspondence submitted successfully.');
         setSaveLoading(false);
 
-        /*
-         * The record is already saved here.
-         * Do not turn a successful save into "Something went wrong" just because
-         * the table refresh/preview refresh has a JavaScript or fetch issue.
-         */
         try {
             await renderTable();
         } catch (refreshError) {
@@ -1021,7 +1021,6 @@ async function addCorrespondence() {
 
         return true;
     } catch (error) {
-        console.error('Correspondence save failed before success response.', error);
         showSliderError('Something went wrong while saving.');
         setSaveLoading(false);
         return false;
