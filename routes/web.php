@@ -216,7 +216,6 @@ Route::middleware('guest')->group(function () {
 
 Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
 
-$adminOrSuperAdmin = \App\Http\Middleware\AdminOrSuperAdmin::class;
 
 /*
 |--------------------------------------------------------------------------
@@ -265,7 +264,7 @@ Route::get('/job-offer/{token}/decline', [RecruitmentController::class, 'decline
 |--------------------------------------------------------------------------
 */
 
-Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adminOrSuperAdmin) {
+Route::middleware(['auth', 'prevent-back-history'])->group(function () {
     /*
     |--------------------------------------------------------------------------
     | ACCOUNT SETTINGS
@@ -396,7 +395,8 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     |--------------------------------------------------------------------------
     */
     Route::get('/human-capital/memos', [TownHallController::class, 'humanCapitalMemos'])
-        ->name('human-capital.memos');
+        ->name('human-capital.memos')
+        ->middleware('human-capital.module:access_hc_memos,true');
 
 
     /*
@@ -1186,7 +1186,7 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     | ASSESSMENT QUESTIONNAIRE EDITOR
     |--------------------------------------------------------------------------
     */
-    Route::middleware($adminOrSuperAdmin)
+    Route::middleware('human-capital.module:access_hc_recruitment')
         ->prefix('human-capital/recruitment/assessment-questionnaire-editor')
         ->group(function () {
             Route::get('/', [AssessmentQuestionController::class, 'index'])
@@ -1225,25 +1225,43 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     | HUMAN CAPITAL MODULE
     |--------------------------------------------------------------------------
     */
-    Route::prefix('human-capital')->name('human-capital.')->group(function () use ($adminOrSuperAdmin) {
+    Route::prefix('human-capital')->name('human-capital.')->group(function () {
         Route::get('/', function () {
             $user = Auth::user();
 
-            return redirect()->route(
-                ($user->isAdmin() || $user->isSuperAdmin())
-                    ? 'human-capital.organizational'
-                    : 'human-capital.attendance'
-            );
+            $route = collect([
+                ['permission' => 'access_hc_organizational', 'route' => 'human-capital.organizational', 'employee' => false],
+                ['permission' => 'access_hc_employee_profile', 'route' => 'human-capital.employee-profile', 'employee' => true],
+                ['permission' => 'access_hc_attendance', 'route' => 'human-capital.attendance', 'employee' => true],
+                ['permission' => 'access_hc_obf', 'route' => 'human-capital.obf', 'employee' => true],
+                ['permission' => 'access_hc_employee_requests', 'route' => 'human-capital.employee-requests.index', 'employee' => true],
+                ['permission' => 'access_hc_employee_relations', 'route' => 'human-capital.employee-relations', 'employee' => true],
+                ['permission' => 'access_hc_training', 'route' => 'human-capital.training', 'employee' => true],
+                ['permission' => 'access_hc_performance', 'route' => 'human-capital.performance', 'employee' => true],
+                ['permission' => 'access_hc_awards', 'route' => 'human-capital.awards', 'employee' => true],
+                ['permission' => 'access_hc_payroll', 'route' => 'human-capital.payroll', 'employee' => false],
+                ['permission' => 'access_hc_recruitment', 'route' => 'human-capital.recruitment', 'employee' => false],
+                ['permission' => 'access_hc_onboarding', 'route' => 'human-capital.onboarding', 'employee' => false],
+                ['permission' => 'access_hc_deployment', 'route' => 'human-capital.deployment', 'employee' => false],
+                ['permission' => 'access_hc_offboarding', 'route' => 'human-capital.offboarding', 'employee' => false],
+            ])->first(fn ($item) => $user->isAdmin()
+                || $user->isSuperAdmin()
+                || $user->hasPermission($item['permission'])
+                || ($item['employee'] && $user->isEmployee()));
+
+            abort_unless($route, 403);
+
+            return redirect()->route($route['route']);
         })->name('dashboard');
 
-        Route::middleware($adminOrSuperAdmin)->group(function () {
+        Route::middleware('human-capital.module:access_hc_organizational')->group(function () {
             Route::get('/organizational', [OrganizationalController::class, 'index'])->name('organizational');
             Route::post('/organizational', [OrganizationalController::class, 'store'])->name('organizational.store');
             Route::put('/organizational/{type}/{id}', [OrganizationalController::class, 'update'])->name('organizational.update');
             Route::delete('/organizational/{type}/{id}', [OrganizationalController::class, 'destroy'])->name('organizational.destroy');
         });
 
-        Route::prefix('/organizational/locations')->name('organizational.locations.')->middleware($adminOrSuperAdmin)->group(function () {
+        Route::prefix('/organizational/locations')->name('organizational.locations.')->middleware('human-capital.module:access_hc_organizational')->group(function () {
             Route::get('/regions', [PhilippineLocationController::class, 'regions'])->name('regions');
             Route::get('/provinces-or-districts/{regionCode}', [PhilippineLocationController::class, 'provincesOrDistricts'])->name('provinces-or-districts');
             Route::get('/cities-municipalities/{type}/{code}', [PhilippineLocationController::class, 'citiesMunicipalities'])->name('cities-municipalities');
@@ -1257,7 +1275,7 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
         | PAYROLL
         |--------------------------------------------------------------------------
         */
-        Route::middleware($adminOrSuperAdmin)->group(function () {
+        Route::middleware('human-capital.module:access_hc_payroll')->group(function () {
             Route::get('/payroll', [PayrollController::class, 'index'])->name('payroll');
             Route::post('/payroll/salary-grades', [PayrollController::class, 'storeSalaryGrade'])->name('payroll.salary-grades.store');
             Route::put('/payroll/salary-grades/{salaryGrade}', [PayrollController::class, 'updateSalaryGrade'])->name('payroll.salary-grades.update');
@@ -1294,8 +1312,11 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
         | EMPLOYEE PROFILE
         |--------------------------------------------------------------------------
         */
-        Route::middleware($adminOrSuperAdmin)->group(function () {
+        Route::middleware('human-capital.module:access_hc_employee_profile,true')->group(function () {
             Route::get('/employee-profile', [EmployeeController::class, 'index'])->name('employee-profile');
+        });
+
+        Route::middleware('human-capital.module:access_hc_employee_profile')->group(function () {
             Route::post('/employee-profile', [EmployeeController::class, 'store'])->name('employee-profile.store');
             Route::put('/employee-profile/{employee}', [EmployeeController::class, 'update'])->name('employee-profile.update');
         });
@@ -1305,7 +1326,7 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
         | RECRUITMENT
         |--------------------------------------------------------------------------
         */
-        Route::middleware($adminOrSuperAdmin)->group(function () {
+        Route::middleware('human-capital.module:access_hc_recruitment')->group(function () {
             Route::get('/recruitment', [RecruitmentController::class, 'index'])->name('recruitment');
 
             Route::post('/recruitment/mrf', [RecruitmentController::class, 'storeMRF'])->name('recruitment.store_mrf');
@@ -1349,7 +1370,7 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
         | ONBOARDING
         |--------------------------------------------------------------------------
         */
-        Route::middleware($adminOrSuperAdmin)->group(function () {
+        Route::middleware('human-capital.module:access_hc_onboarding')->group(function () {
             Route::get('/onboarding', [RecruitmentController::class, 'onboarding'])->name('onboarding');
             Route::delete('/onboarding/pds/{id}', [RecruitmentController::class, 'deletePDS'])->name('onboarding.pds.delete');
 
@@ -1362,55 +1383,68 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
             Route::post('/onboarding/trainings', [OnboardingRecordController::class, 'storeTraining'])->name('onboarding.trainings.store');
             Route::patch('/onboarding/trainings/{training}/status', [OnboardingRecordController::class, 'updateTrainingStatus'])->name('onboarding.trainings.status');
             Route::delete('/onboarding/trainings/{training}', [OnboardingRecordController::class, 'destroyTraining'])->name('onboarding.trainings.destroy');
+        });
 
+        Route::middleware('human-capital.module:access_hc_deployment')->group(function () {
             Route::get('/deployment', [DeploymentController::class, 'index'])->name('deployment');
             Route::post('/deployment', [DeploymentController::class, 'store'])->name('deployment.store');
             Route::put('/deployment/{deployment}', [DeploymentController::class, 'update'])->name('deployment.update');
             Route::delete('/deployment/{deployment}', [DeploymentController::class, 'destroy'])->name('deployment.destroy');
         });
-        Route::get('/attendance', [AttendanceController::class, 'index'])->name('attendance');
-        Route::get('/attendance/export-pdf', [AttendanceController::class, 'exportPdf'])->name('attendance.export-pdf');
-        Route::post('/attendance/clock', [AttendanceController::class, 'clock'])->name('attendance.clock');
-        Route::put('/attendance/{attendance}', [AttendanceController::class, 'update'])->name('attendance.update');
-        Route::patch('/attendance/{attendance}/approve', [AttendanceController::class, 'approve'])->name('attendance.approve');
-        Route::patch('/attendance/{attendance}/reject', [AttendanceController::class, 'reject'])->name('attendance.reject');
-        Route::get('/employee-relations', [EmployeeRelationController::class, 'index'])->name('employee-relations');
-        Route::post('/employee-relations', [EmployeeRelationController::class, 'store'])->name('employee-relations.store');
-        Route::put('/employee-relations/{employeeRelation}', [EmployeeRelationController::class, 'update'])->name('employee-relations.update');
-        Route::post('/employee-relations/{employeeRelation}/approve', [EmployeeRelationController::class, 'approve'])->name('employee-relations.approve');
-        Route::post('/employee-relations/{employeeRelation}/reject', [EmployeeRelationController::class, 'reject'])->name('employee-relations.reject');
-        Route::delete('/employee-relations/{employeeRelation}', [EmployeeRelationController::class, 'destroy'])->name('employee-relations.destroy');
+
+        Route::middleware('human-capital.module:access_hc_attendance,true')->group(function () {
+            Route::get('/attendance', [AttendanceController::class, 'index'])->name('attendance');
+            Route::get('/attendance/export-pdf', [AttendanceController::class, 'exportPdf'])->name('attendance.export-pdf');
+            Route::post('/attendance/clock', [AttendanceController::class, 'clock'])->name('attendance.clock');
+            Route::put('/attendance/{attendance}', [AttendanceController::class, 'update'])->name('attendance.update');
+            Route::patch('/attendance/{attendance}/approve', [AttendanceController::class, 'approve'])->name('attendance.approve');
+            Route::patch('/attendance/{attendance}/reject', [AttendanceController::class, 'reject'])->name('attendance.reject');
+        });
+
+        Route::middleware('human-capital.module:access_hc_employee_relations,true')->group(function () {
+            Route::get('/employee-relations', [EmployeeRelationController::class, 'index'])->name('employee-relations');
+            Route::post('/employee-relations', [EmployeeRelationController::class, 'store'])->name('employee-relations.store');
+            Route::put('/employee-relations/{employeeRelation}', [EmployeeRelationController::class, 'update'])->name('employee-relations.update');
+            Route::post('/employee-relations/{employeeRelation}/approve', [EmployeeRelationController::class, 'approve'])->name('employee-relations.approve');
+            Route::post('/employee-relations/{employeeRelation}/reject', [EmployeeRelationController::class, 'reject'])->name('employee-relations.reject');
+            Route::delete('/employee-relations/{employeeRelation}', [EmployeeRelationController::class, 'destroy'])->name('employee-relations.destroy');
+        });
 
 
         // Performance Management
-        Route::get('/performance', [PerformanceController::class, 'index'])->name('performance');
-        Route::get('/performance/employee/{id}', [PerformanceController::class, 'getEmployee'])->name('performance.get-employee');
-        Route::post('/performance/evaluation', [PerformanceController::class, 'storeEvaluation'])->name('performance.evaluation.store');
-        Route::put('/performance/evaluation/{id}', [PerformanceController::class, 'updateEvaluation'])->name('performance.evaluation.update');
-        Route::delete('/performance/evaluation/{id}', [PerformanceController::class, 'destroyEvaluation'])->name('performance.evaluation.destroy');
-        Route::post('/performance/pip', [PerformanceController::class, 'storePIP'])->name('performance.pip.store');
-        Route::put('/performance/pip/{id}', [PerformanceController::class, 'updatePIP'])->name('performance.pip.update');
-        Route::delete('/performance/pip/{id}', [PerformanceController::class, 'destroyPIP'])->name('performance.pip.destroy');
+        Route::middleware('human-capital.module:access_hc_performance,true')->group(function () {
+            Route::get('/performance', [PerformanceController::class, 'index'])->name('performance');
+            Route::get('/performance/employee/{id}', [PerformanceController::class, 'getEmployee'])->name('performance.get-employee');
+            Route::post('/performance/evaluation', [PerformanceController::class, 'storeEvaluation'])->name('performance.evaluation.store');
+            Route::put('/performance/evaluation/{id}', [PerformanceController::class, 'updateEvaluation'])->name('performance.evaluation.update');
+            Route::delete('/performance/evaluation/{id}', [PerformanceController::class, 'destroyEvaluation'])->name('performance.evaluation.destroy');
+            Route::post('/performance/pip', [PerformanceController::class, 'storePIP'])->name('performance.pip.store');
+            Route::put('/performance/pip/{id}', [PerformanceController::class, 'updatePIP'])->name('performance.pip.update');
+            Route::delete('/performance/pip/{id}', [PerformanceController::class, 'destroyPIP'])->name('performance.pip.destroy');
+        });
 
-        Route::middleware($adminOrSuperAdmin)->group(function () {
+        Route::middleware('human-capital.module:access_hc_offboarding')->group(function () {
             Route::get('/offboarding', [OffboardingController::class, 'index'])->name('offboarding');
             Route::post('/offboarding', [OffboardingController::class, 'store'])->name('offboarding.store');
             Route::put('/offboarding/{offboardingRecord}', [OffboardingController::class, 'update'])->name('offboarding.update');
             Route::delete('/offboarding/{offboardingRecord}', [OffboardingController::class, 'destroy'])->name('offboarding.destroy');
         });
 
-        Route::get('/obf', [OfficialBusinessTripController::class, 'index'])->name('obf');
-        Route::post('/obf', [OfficialBusinessTripController::class, 'store'])->name('obf.store');
-        Route::put('/obf/{officialBusinessTrip}', [OfficialBusinessTripController::class, 'update'])->name('obf.update');
-        Route::delete('/obf/{officialBusinessTrip}', [OfficialBusinessTripController::class, 'destroy'])->name('obf.destroy');
-        Route::post('/obf/{officialBusinessTrip}/approve', [OfficialBusinessTripController::class, 'approve'])->name('obf.approve');
-        Route::post('/obf/{officialBusinessTrip}/reject', [OfficialBusinessTripController::class, 'reject'])->name('obf.reject');
+        Route::middleware('human-capital.module:access_hc_obf,true')->group(function () {
+            Route::get('/obf', [OfficialBusinessTripController::class, 'index'])->name('obf');
+            Route::post('/obf', [OfficialBusinessTripController::class, 'store'])->name('obf.store');
+            Route::put('/obf/{officialBusinessTrip}', [OfficialBusinessTripController::class, 'update'])->name('obf.update');
+            Route::delete('/obf/{officialBusinessTrip}', [OfficialBusinessTripController::class, 'destroy'])->name('obf.destroy');
+            Route::post('/obf/{officialBusinessTrip}/approve', [OfficialBusinessTripController::class, 'approve'])->name('obf.approve');
+            Route::post('/obf/{officialBusinessTrip}/reject', [OfficialBusinessTripController::class, 'reject'])->name('obf.reject');
+        });
 
 
 
         // Training
-        Route::get('/training', [TrainingController::class, 'index'])->name('training');
-        Route::middleware($adminOrSuperAdmin)->group(function () {
+        Route::get('/training', [TrainingController::class, 'index'])->name('training')
+            ->middleware('human-capital.module:access_hc_training,true');
+        Route::middleware('human-capital.module:access_hc_training')->group(function () {
             Route::post('/training', [TrainingController::class, 'store'])->name('training.store');
             Route::put('/training/{training}', [TrainingController::class, 'update'])->name('training.update');
             Route::delete('/training/{training}', [TrainingController::class, 'destroy'])->name('training.destroy');
@@ -1424,7 +1458,8 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
         });
 
         // Awards page
-        Route::get('/awards', [AwardController::class, 'index'])->name('awards');
+        Route::get('/awards', [AwardController::class, 'index'])->name('awards')
+            ->middleware('human-capital.module:access_hc_awards,true');
 
         /*
         |--------------------------------------------------------------------------
@@ -1433,21 +1468,27 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
         */
 
         Route::post('/employee-requests/{employeeRequest}/approve', [EmployeeRequestController::class, 'approve'])
-            ->name('employee-requests.approve');
+            ->name('employee-requests.approve')
+            ->middleware('human-capital.module:access_hc_employee_requests');
 
         Route::post('/employee-requests/{employeeRequest}/reject', [EmployeeRequestController::class, 'reject'])
-            ->name('employee-requests.reject');
+            ->name('employee-requests.reject')
+            ->middleware('human-capital.module:access_hc_employee_requests');
 
         Route::post('/employee-requests/{employeeRequest}/revise', [EmployeeRequestController::class, 'revise'])
-            ->name('employee-requests.revise');
+            ->name('employee-requests.revise')
+            ->middleware('human-capital.module:access_hc_employee_requests');
 
         Route::post('/employee-requests/{employeeRequest}/update-revision', [EmployeeRequestController::class, 'updateRevision'])
-            ->name('employee-requests.update-revision');
+            ->name('employee-requests.update-revision')
+            ->middleware('human-capital.module:access_hc_employee_requests,true');
 
         Route::get('/employee-requests', [EmployeeRequestController::class, 'index'])
-            ->name('employee-requests.index');
+            ->name('employee-requests.index')
+            ->middleware('human-capital.module:access_hc_employee_requests,true');
 
         Route::post('/employee-requests', [EmployeeRequestController::class, 'store'])
-            ->name('employee-requests.store');
+            ->name('employee-requests.store')
+            ->middleware('human-capital.module:access_hc_employee_requests,true');
     });
 });

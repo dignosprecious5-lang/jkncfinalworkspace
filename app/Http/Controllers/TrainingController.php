@@ -15,7 +15,7 @@ class TrainingController extends Controller
     public function index(Request $request)
     {
         $user = auth()->user();
-        $canManageTraining = $user && ($user->isAdmin() || $user->isSuperAdmin());
+        $canManageTraining = $user && ($user->isAdmin() || $user->isSuperAdmin() || $user->hasPermission('access_hc_training'));
         $currentEmployee = $canManageTraining
             ? null
             : Employee::where('email', $user?->email)->first();

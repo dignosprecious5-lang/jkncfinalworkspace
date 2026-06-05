@@ -16,7 +16,7 @@ class EmployeeRequestController extends Controller
     {
         $user = auth()->user();
 
-        $canManageEmployeeRequests = $user->isAdmin() || $user->isSuperAdmin();
+        $canManageEmployeeRequests = $this->canManageRequests();
 
         $employeeRequests = $canManageEmployeeRequests
             ? EmployeeRequest::latest()->get()
@@ -316,20 +316,27 @@ class EmployeeRequestController extends Controller
     {
         $user = auth()->user();
 
-        abort_unless($user && ($user->isAdmin() || $user->isSuperAdmin()), 403);
+        abort_unless($user && ($user->isAdmin() || $user->isSuperAdmin() || $user->hasPermission('access_hc_employee_requests')), 403);
     }
 
     private function canManageRequests(): bool
     {
         $user = auth()->user();
 
-        return $user && ($user->isAdmin() || $user->isSuperAdmin());
+        return $user && ($user->isAdmin() || $user->isSuperAdmin() || $user->hasPermission('access_hc_employee_requests'));
     }
 
     private function currentEmployee(): ?Employee
     {
+        $user = auth()->user();
+
         return Employee::with('department')
-            ->where('email', auth()->user()?->email)
+            ->where(function ($query) use ($user) {
+                $query->where('user_id', $user?->id ?: 0)
+                    ->orWhere('email', $user?->email)
+                    ->orWhere('work_email', $user?->email)
+                    ->orWhere('company_email', $user?->email);
+            })
             ->first();
     }
 
@@ -350,7 +357,9 @@ class EmployeeRequestController extends Controller
 
     private function userForEmployee(Employee $employee): User
     {
-        $user = User::where('email', $employee->email)->first();
+        $user = $employee->user_id
+            ? User::find($employee->user_id)
+            : User::whereIn('email', array_filter([$employee->email, $employee->work_email, $employee->company_email]))->first();
 
         if (! $user) {
             abort(422, 'The selected employee does not have a linked user account email.');

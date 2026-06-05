@@ -10,6 +10,7 @@ use App\Models\Division;
 use App\Models\Employee;
 use App\Models\EmployeeVerificationLog;
 use App\Models\Office;
+use App\Models\RolePermission;
 use App\Models\Unit;
 use App\Support\HumanCapitalLogger;
 use Illuminate\Http\Request;
@@ -29,10 +30,28 @@ class EmployeeController extends Controller
 
     public function index()
     {
-        $employees = Employee::with(['office', 'branch', 'department', 'division', 'unit', 'user'])
+        $user = auth()->user();
+        $canManageEmployeeProfiles = $this->canManageEmployeeProfiles();
+
+        $employeeRecords = Employee::with(['office', 'branch', 'department', 'division', 'unit', 'user.userPermission'])
+            ->when(! $canManageEmployeeProfiles, function ($query) use ($user) {
+                $query->where(function ($employeeQuery) use ($user) {
+                    $employeeQuery->where('user_id', $user?->id ?: 0)
+                        ->orWhere('email', $user?->email)
+                        ->orWhere('work_email', $user?->email)
+                        ->orWhere('company_email', $user?->email);
+                });
+            })
             ->latest()
+            ->get();
+
+        $rolePermissions = RolePermission::query()
+            ->whereIn('role', $employeeRecords->pluck('user.role')->filter()->unique()->values())
             ->get()
-            ->map(function ($item) {
+            ->keyBy('role');
+
+        $employees = $employeeRecords
+            ->map(function ($item) use ($rolePermissions) {
                 return [
                     'id' => $item->id,
                     'employee_code' => $item->employee_code,
@@ -141,6 +160,7 @@ class EmployeeController extends Controller
                     'skills_competencies' => $item->skills_competencies ?? [],
                     'employee_attachments' => $this->attachmentUrls($item->employee_attachments ?? []),
                     'system_access' => $item->system_access ?? [],
+                    'access_affiliations' => $this->employeeAccessAffiliations($item, $rolePermissions),
                     'compliance_consents' => $item->compliance_consents ?? [],
                     'activity_audit' => $item->activity_audit ?? [],
                     'salary_employment_history' => $item->salary_employment_history ?? [],
@@ -165,6 +185,7 @@ class EmployeeController extends Controller
 
         return view('human-capital.employee-profile', [
             'employees' => $employees,
+            'canManageEmployeeProfiles' => $canManageEmployeeProfiles,
             'employeeIdCompanyAddress' => $this->employeeIdCompanyAddress(),
 
             'officeOptions' => Office::orderBy('office_name')
@@ -197,8 +218,131 @@ class EmployeeController extends Controller
             ?: 'John Kelly & Company / JK&C Inc.';
     }
 
+    private function employeeAccessAffiliations(Employee $employee, $rolePermissions): array
+    {
+        $manualAccess = collect($employee->system_access ?? [])
+            ->map(fn ($item) => is_array($item) ? trim(implode(' - ', array_filter($item))) : trim((string) $item))
+            ->filter()
+            ->map(fn ($label) => [
+                'label' => $label,
+                'source' => 'Employee Profile',
+                'type' => 'Manual Assignment',
+            ]);
+
+        $user = $employee->user;
+
+        if (! $user) {
+            return $manualAccess->values()->all();
+        }
+
+        $userPermissionAccess = $this->permissionAccessItems($user->userPermission, 'User Permission', 'Direct User Access');
+        $rolePermission = $rolePermissions->get($user->role);
+        $rolePermissionAccess = $this->permissionAccessItems($rolePermission, 'Role: ' . ($user->role ?: 'Unassigned'), 'Role-Based Access');
+
+        if ($user->isSuperAdmin()) {
+            $rolePermissionAccess = collect($this->permissionLabels())
+                ->map(fn ($label) => [
+                    'label' => $label,
+                    'source' => 'Role: SuperAdmin',
+                    'type' => 'Full Access',
+                ]);
+        }
+
+        return $manualAccess
+            ->merge($userPermissionAccess)
+            ->merge($rolePermissionAccess)
+            ->unique(fn ($item) => $item['label'] . '|' . $item['source'])
+            ->values()
+            ->all();
+    }
+
+    private function permissionAccessItems($permissionRecord, string $source, string $type): \Illuminate\Support\Collection
+    {
+        if (! $permissionRecord) {
+            return collect();
+        }
+
+        $labels = $this->permissionLabels();
+
+        return collect($labels)
+            ->filter(fn ($label, $column) => (bool) data_get($permissionRecord, $column, false))
+            ->map(fn ($label) => [
+                'label' => $label,
+                'source' => $source,
+                'type' => $type,
+            ])
+            ->values();
+    }
+
+    private function permissionLabels(): array
+    {
+        return [
+            'manage_users' => 'Manage Users',
+            'access_admin_dashboard' => 'Access Admin Dashboard',
+            'access_townhall' => 'Town Hall',
+            'create_townhall' => 'Town Hall - Create',
+            'approve_townhall' => 'Town Hall - Approve',
+            'access_corporate' => 'Corporate',
+            'create_corporate' => 'Corporate - Create',
+            'approve_corporate' => 'Corporate - Approve',
+            'access_policies' => 'Policies',
+            'approve_policies' => 'Policies - Approve',
+            'access_human_capital' => 'Human Capital',
+            'access_hc_organizational' => 'Human Capital - Organizational',
+            'access_hc_payroll' => 'Human Capital - Payroll',
+            'access_hc_employee_profile' => 'Human Capital - Employee Profile',
+            'access_hc_recruitment' => 'Human Capital - Recruitment',
+            'access_hc_onboarding' => 'Human Capital - On Boarding',
+            'access_hc_deployment' => 'Human Capital - Deployment',
+            'access_hc_offboarding' => 'Human Capital - Off Boarding',
+            'access_hc_attendance' => 'My HC - Attendance',
+            'access_hc_obf' => 'My HC - Official Business Trip',
+            'access_hc_employee_requests' => 'My HC - Employee Requests',
+            'access_hc_employee_relations' => 'My HC - Employee Relations',
+            'access_hc_memos' => 'My HC - Memos',
+            'access_hc_training' => 'My HC - Training',
+            'access_hc_performance' => 'My HC - Performance',
+            'access_hc_awards' => 'My HC - Awards',
+            'access_finance' => 'Finance',
+            'create_finance' => 'Finance - Create',
+            'approve_finance' => 'Finance - Approve',
+            'finance_treasurer' => 'Finance - Treasurer',
+            'finance_president' => 'Finance - President',
+            'finance_approver' => 'Finance - Approver',
+            'access_finance_supplier' => 'Finance - Supplier',
+            'access_finance_service' => 'Finance - Service',
+            'access_finance_product' => 'Finance - Product',
+            'access_finance_chart_account' => 'Finance - Chart of Accounts',
+            'access_finance_bank_account' => 'Finance - Bank Accounts',
+            'access_finance_pr' => 'Finance - Purchase Request',
+            'access_finance_po' => 'Finance - Purchase Order',
+            'access_finance_ca' => 'Finance - Cash Advance',
+            'access_finance_lr' => 'Finance - Liquidation Report',
+            'access_finance_err' => 'Finance - Expense Reimbursement',
+            'access_finance_dv' => 'Finance - Disbursement Voucher',
+            'access_finance_pda' => 'Finance - Payroll Disbursement',
+            'access_finance_crf' => 'Finance - Cash Return Form',
+            'access_finance_ibtf' => 'Finance - Interbank Transfer',
+            'access_finance_arf' => 'Finance - Asset Registration',
+            'access_activities' => 'Activities',
+            'access_contacts' => 'Contacts',
+            'access_company' => 'Company Accounts',
+            'access_transmittal' => 'Transmittal',
+            'access_deals' => 'Deals',
+            'access_services' => 'Services',
+            'access_project' => 'Project',
+            'access_regular' => 'Regular',
+            'access_product' => 'Product',
+            'access_sales_marketing' => 'Sales & Marketing',
+            'create_sales_marketing' => 'Sales & Marketing - Create',
+            'approve_sales_marketing' => 'Sales & Marketing - Approve',
+        ];
+    }
+
     public function store(Request $request)
     {
+        abort_unless($this->canManageEmployeeProfiles(), 403);
+
         return redirect()
             ->route('human-capital.employee-profile')
             ->withErrors([
@@ -208,6 +352,8 @@ class EmployeeController extends Controller
 
     public function update(Request $request, Employee $employee)
     {
+        abort_unless($this->canManageEmployeeProfiles(), 403);
+
         $validated = $request->validate([
             'profile_photo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
             'captured_photo' => ['nullable', 'string'],
@@ -481,6 +627,13 @@ class EmployeeController extends Controller
             }
             return $item;
         })->values()->all();
+    }
+
+    private function canManageEmployeeProfiles(): bool
+    {
+        $user = auth()->user();
+
+        return $user && ($user->isAdmin() || $user->isSuperAdmin() || $user->hasPermission('access_hc_employee_profile'));
     }
 
     private function storeCapturedPhoto(string $dataUrl): ?string

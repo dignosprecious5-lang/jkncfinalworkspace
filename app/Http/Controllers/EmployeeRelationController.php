@@ -229,8 +229,15 @@ class EmployeeRelationController extends Controller
 
     private function currentEmployee(): ?Employee
     {
+        $user = Auth::user();
+
         return Employee::with('department')
-            ->where('email', Auth::user()->email)
+            ->where(function ($query) use ($user) {
+                $query->where('user_id', $user?->id ?: 0)
+                    ->orWhere('email', $user?->email)
+                    ->orWhere('work_email', $user?->email)
+                    ->orWhere('company_email', $user?->email);
+            })
             ->first();
     }
 
@@ -238,7 +245,7 @@ class EmployeeRelationController extends Controller
     {
         $user = Auth::user();
 
-        return $user->isSuperAdmin() || $user->isAdmin();
+        return $user->isSuperAdmin() || $user->isAdmin() || $user->hasPermission('access_hc_employee_relations');
     }
 
     private function authorizeManagement(): void

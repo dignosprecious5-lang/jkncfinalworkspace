@@ -86,15 +86,40 @@
 
         $canSeeHumanCapital =
             $user->hasPermission('access_human_capital') ||
+            collect([
+                'access_hc_organizational',
+                'access_hc_payroll',
+                'access_hc_employee_profile',
+                'access_hc_recruitment',
+                'access_hc_onboarding',
+                'access_hc_deployment',
+                'access_hc_offboarding',
+                'access_hc_attendance',
+                'access_hc_obf',
+                'access_hc_employee_requests',
+                'access_hc_employee_relations',
+                'access_hc_memos',
+                'access_hc_training',
+                'access_hc_performance',
+                'access_hc_awards',
+            ])->contains(fn ($permission) => $user->hasPermission($permission)) ||
             strtolower((string) $user->role) === 'employee' ||
             $user->isAdmin() ||
             $user->isSuperAdmin();
 
         $canManageHumanCapital = $user->isAdmin() || $user->isSuperAdmin();
+        $canAccessHc = fn (string $permission, bool $employeeOwnAccess = false) =>
+            $user->isAdmin()
+            || $user->isSuperAdmin()
+            || $user->hasPermission($permission)
+            || ($employeeOwnAccess && $user->isEmployee());
+        $canAccessMyHc = fn (string $permission) => $canAccessHc($permission, true);
 
-        $humanCapitalLandingRoute = $canManageHumanCapital
+        $humanCapitalLandingRoute = $canAccessHc('access_hc_organizational')
             ? route('human-capital.organizational')
-            : route('human-capital.attendance');
+            : ($canAccessHc('access_hc_employee_profile', true)
+                ? route('human-capital.employee-profile')
+                : route('human-capital.attendance'));
 
         $canSeeFinance =
             $user->isAdmin() ||
@@ -720,22 +745,28 @@
                 <div class="flex-1 overflow-y-auto p-3">
                     <div class="space-y-1 text-sm">
 
-                        @if($canManageHumanCapital)
+                        @if($canAccessHc('access_hc_organizational'))
                             <a href="{{ route('human-capital.organizational') }}"
                                class="block px-3 py-2 rounded-lg transition {{ request()->is('human-capital/organizational') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
                                 Organizational
                             </a>
+                        @endif
 
+                        @if($canAccessHc('access_hc_payroll'))
                             <a href="{{ route('human-capital.payroll') }}"
                                class="block px-3 py-2 rounded-lg transition {{ request()->is('human-capital/payroll') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
                                 Payroll
                             </a>
+                        @endif
 
+                        @if($canAccessHc('access_hc_employee_profile', true))
                             <a href="{{ route('human-capital.employee-profile') }}"
                                class="block px-3 py-2 rounded-lg transition {{ request()->is('human-capital/employee-profile') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
                                 Employee Profile
                             </a>
+                        @endif
 
+                        @if($canAccessHc('access_hc_recruitment'))
                             {{-- RECRUITMENT MODULE --}}
 <div
     x-data="{
@@ -793,18 +824,23 @@
         </a>
     </div>
 </div>
+                        @endif
 
+                        @if($canAccessHc('access_hc_onboarding'))
                             <a href="{{ route('human-capital.onboarding') }}"
                                class="block px-3 py-2 rounded-lg transition {{ request()->is('human-capital/onboarding') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
                                 On Boarding
                             </a>
+                        @endif
 
+                        @if($canAccessHc('access_hc_deployment'))
                             <a href="{{ route('human-capital.deployment') }}"
                                class="block px-3 py-2 rounded-lg transition {{ request()->is('human-capital/deployment') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
                                 Deployment
                             </a>
                         @endif
 
+                        @if($canAccessMyHc('access_hc_attendance') || $canAccessMyHc('access_hc_obf') || $canAccessMyHc('access_hc_employee_requests') || $canAccessMyHc('access_hc_employee_relations') || $canAccessMyHc('access_hc_memos') || $canAccessMyHc('access_hc_training') || $canAccessMyHc('access_hc_performance') || $canAccessMyHc('access_hc_awards'))
                         {{-- MY HC MODULE --}}
                         <div
                             x-data="{
@@ -849,50 +885,67 @@
 
                             <div x-cloak x-show="open" x-transition class="pl-3 space-y-1">
 
+                                @if($canAccessMyHc('access_hc_attendance'))
                                 <a href="{{ route('human-capital.attendance') }}"
                                    class="block px-3 py-2 rounded-lg transition {{ request()->is('human-capital/attendance') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
                                     Attendance
                                 </a>
+                                @endif
 
+                                @if($canAccessMyHc('access_hc_obf'))
                                 <a href="{{ route('human-capital.obf') }}"
                                    class="block px-3 py-2 rounded-lg transition {{ request()->is('human-capital/obf') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
                                     Official Business Trip Form
                                 </a>
+                                @endif
 
+                                @if($canAccessMyHc('access_hc_employee_requests'))
                                 <a href="{{ route('human-capital.employee-requests.index') }}"
                                    class="block px-3 py-2 rounded-lg transition {{ request()->is('human-capital/employee-requests') || request()->is('human-capital/employee-requests/*') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
                                     Employee Requests
                                 </a>
+                                @endif
 
+                                @if($canAccessMyHc('access_hc_employee_relations'))
                                 <a href="{{ route('human-capital.employee-relations') }}"
                                    class="block px-3 py-2 rounded-lg transition {{ request()->is('human-capital/employee-relations') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
                                     Employee Relations
                                 </a>
+                                @endif
 
+                                @if($canAccessMyHc('access_hc_memos'))
                                 <a href="{{ route('human-capital.memos') }}"
                                    class="block px-3 py-2 rounded-lg transition {{ request()->is('human-capital/memos') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
                                     Memos
                                 </a>
+                                @endif
 
+                                @if($canAccessMyHc('access_hc_training'))
                                 <a href="{{ route('human-capital.training') }}"
                                    class="block px-3 py-2 rounded-lg transition {{ request()->is('human-capital/training') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
                                     Training
                                 </a>
+                                @endif
 
+                                @if($canAccessMyHc('access_hc_performance'))
                                 <a href="{{ route('human-capital.performance') }}"
                                    class="block px-3 py-2 rounded-lg transition {{ request()->is('human-capital/performance') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
                                     Performance
                                 </a>
+                                @endif
 
+                                @if($canAccessMyHc('access_hc_awards'))
                                 <a href="{{ route('human-capital.awards') }}"
                                    class="block px-3 py-2 rounded-lg transition {{ request()->is('human-capital/awards') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
                                     Awards
                                 </a>
+                                @endif
 
                             </div>
                         </div>
+                        @endif
 
-                        @if($canManageHumanCapital)
+                        @if($canAccessHc('access_hc_offboarding'))
                             <a href="{{ route('human-capital.offboarding') }}"
                                class="block px-3 py-2 rounded-lg transition {{ request()->is('human-capital/offboarding') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
                                 OffBoarding

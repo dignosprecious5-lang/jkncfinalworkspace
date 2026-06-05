@@ -245,7 +245,8 @@ class AttendanceController extends Controller
     private function canManageAttendance(User $user): bool
     {
         return $user->isSuperAdmin()
-            || $user->isAdmin();
+            || $user->isAdmin()
+            || $user->hasPermission('access_hc_attendance');
     }
 
     private function authorizeAttendanceManagement(): void

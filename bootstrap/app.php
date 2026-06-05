@@ -29,6 +29,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->alias([
             'prevent-back-history' => \App\Http\Middleware\PreventBackHistory::class,
+            'human-capital.module' => \App\Http\Middleware\HumanCapitalModuleAccess::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

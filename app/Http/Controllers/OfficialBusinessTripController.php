@@ -16,6 +16,9 @@ class OfficialBusinessTripController extends Controller
     use RequestsHumanCapitalApproval;
     public function index()
     {
+        $canManageObf = $this->canManageObf();
+        $currentEmployee = $this->currentEmployee();
+
         $employees = Employee::with('department')
             ->orderBy('last_name')
             ->get()
@@ -75,6 +78,9 @@ class OfficialBusinessTripController extends Controller
             ->values();
 
         $trips = OfficialBusinessTrip::latest()
+            ->when(! $canManageObf, function ($query) use ($currentEmployee) {
+                $query->where('employee_id', $currentEmployee?->id ?: 0);
+            })
             ->get()
             ->map(fn ($trip) => $this->formatTrip($trip))
             ->values();
@@ -83,6 +89,8 @@ class OfficialBusinessTripController extends Controller
             'employees' => $employees,
             'contacts' => $contacts,
             'trips' => $trips,
+            'canManageObf' => $canManageObf,
+            'currentEmployee' => $currentEmployee,
         ]);
     }
 
@@ -90,7 +98,7 @@ class OfficialBusinessTripController extends Controller
     {
         $validated = $this->validateObf($request);
 
-        $employee = Employee::with('department')->findOrFail($validated['employee_id']);
+        $employee = $this->resolveEmployee($validated['employee_id'] ?? null);
 
         OfficialBusinessTrip::create([
             'ob_reference_no' => $this->generateReferenceNo(),
@@ -166,6 +174,8 @@ class OfficialBusinessTripController extends Controller
 
     public function update(Request $request, OfficialBusinessTrip $officialBusinessTrip)
     {
+        $this->authorizeTripAccess($officialBusinessTrip, true);
+
         $validated = $this->validateObf($request, true);
 
         $existingAttachments = $officialBusinessTrip->attachment_paths ?? [];
@@ -238,6 +248,8 @@ class OfficialBusinessTripController extends Controller
 
     public function approve(OfficialBusinessTrip $officialBusinessTrip)
     {
+        abort_unless($this->canManageObf(), 403);
+
         $officialBusinessTrip->update(['status' => 'Approved']);
 
         return redirect()->route('human-capital.obf')->with('success', 'OBF request approved.');
@@ -245,6 +257,8 @@ class OfficialBusinessTripController extends Controller
 
     public function reject(Request $request, OfficialBusinessTrip $officialBusinessTrip)
     {
+        abort_unless($this->canManageObf(), 403);
+
         $request->validate(['remarks' => ['nullable', 'string']]);
 
         $officialBusinessTrip->update([
@@ -257,6 +271,8 @@ class OfficialBusinessTripController extends Controller
 
     public function destroy(Request $request, OfficialBusinessTrip $officialBusinessTrip)
     {
+        $this->authorizeTripAccess($officialBusinessTrip, true);
+
         $this->requestHumanCapitalChange($request, 'Official Business Trip Form', 'delete', $officialBusinessTrip, null, $officialBusinessTrip->ob_reference_no ?: $officialBusinessTrip->employee_name);
 
         return redirect()->route('human-capital.obf')->with('success', 'OBF deletion submitted for admin approval.');
@@ -265,7 +281,7 @@ class OfficialBusinessTripController extends Controller
     private function validateObf(Request $request, bool $isUpdate = false): array
     {
         return $request->validate([
-            'employee_id' => [$isUpdate ? 'nullable' : 'required', 'exists:employees,id'],
+            'employee_id' => [$isUpdate || ! $this->canManageObf() ? 'nullable' : 'required', 'nullable', 'exists:employees,id'],
 
             'immediate_superior' => ['nullable', 'string', 'max:255'],
             'superior_email' => ['nullable', 'email', 'max:255'],
@@ -415,5 +431,54 @@ class OfficialBusinessTripController extends Controller
             'remarks' => $trip->remarks,
             'status' => $trip->status,
         ];
+    }
+
+    private function canManageObf(): bool
+    {
+        $user = Auth::user();
+
+        return $user && ($user->isAdmin() || $user->isSuperAdmin() || $user->hasPermission('access_hc_obf'));
+    }
+
+    private function currentEmployee(): ?Employee
+    {
+        $user = Auth::user();
+
+        return Employee::with('department')
+            ->where(function ($query) use ($user) {
+                $query->where('user_id', $user?->id ?: 0)
+                    ->orWhere('email', $user?->email)
+                    ->orWhere('work_email', $user?->email)
+                    ->orWhere('company_email', $user?->email);
+            })
+            ->first();
+    }
+
+    private function resolveEmployee(?int $employeeId): Employee
+    {
+        if ($this->canManageObf() && $employeeId) {
+            return Employee::with('department')->findOrFail($employeeId);
+        }
+
+        $employee = $this->currentEmployee();
+
+        if (! $employee) {
+            abort(403, 'No employee profile is linked to your account email.');
+        }
+
+        return $employee;
+    }
+
+    private function authorizeTripAccess(OfficialBusinessTrip $trip, bool $editing = false): void
+    {
+        if ($this->canManageObf()) {
+            return;
+        }
+
+        $employee = $this->currentEmployee();
+
+        if (! $employee || $trip->employee_id !== $employee->id || ($editing && $trip->status !== 'Pending')) {
+            abort(403);
+        }
     }
 }

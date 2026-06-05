@@ -9,6 +9,7 @@
         departmentOptions: @js($departmentOptions),
         divisionOptions: @js($divisionOptions),
         unitOptions: @js($unitOptions),
+        canManageEmployeeProfiles: @js($canManageEmployeeProfiles ?? false),
         companyAddress: @js($employeeIdCompanyAddress ?? ''),
         storeUrl: '{{ route('human-capital.employee-profile.store') }}',
         updateBaseUrl: '{{ url('/human-capital/employee-profile') }}'
@@ -27,12 +28,14 @@
                     </p>
                 </div>
 
-                <a
-                    href="{{ url('/human-capital/onboarding') }}"
-                    class="bg-blue-600 text-white px-6 py-2 rounded-lg text-sm shrink-0 hover:bg-blue-700 transition font-semibold"
-                >
-                    + Create from Onboarding
-                </a>
+                @if($canManageEmployeeProfiles ?? false)
+                    <a
+                        href="{{ url('/human-capital/onboarding') }}"
+                        class="bg-blue-600 text-white px-6 py-2 rounded-lg text-sm shrink-0 hover:bg-blue-700 transition font-semibold"
+                    >
+                        + Create from Onboarding
+                    </a>
+                @endif
             </div>
 
             @if (session('success'))
@@ -395,7 +398,7 @@
                         <div x-show="profileTab === 'government'" class="space-y-5">
                             <div class="flex items-center justify-between gap-3">
                                 <h3 class="section-heading">Government Information</h3>
-                                <button type="button" @click="openEdit(selectedEmployee, 'government'); closeDetails()" class="px-4 py-2 rounded-lg bg-blue-600 text-white text-xs font-bold hover:bg-blue-700">
+                                <button type="button" x-show="canManageEmployeeProfiles" @click="openEdit(selectedEmployee, 'government'); closeDetails()" class="px-4 py-2 rounded-lg bg-blue-600 text-white text-xs font-bold hover:bg-blue-700">
                                     Update Government Info
                                 </button>
                             </div>
@@ -432,7 +435,7 @@
                         <div x-show="profileTab === 'documents'" class="space-y-5">
                             <div class="flex items-center justify-between gap-3">
                                 <h3 class="section-heading">Attachments</h3>
-                                <button type="button" @click="openEdit(selectedEmployee, 'documents'); closeDetails()" class="px-4 py-2 rounded-lg bg-blue-600 text-white text-xs font-bold hover:bg-blue-700">
+                                <button type="button" x-show="canManageEmployeeProfiles" @click="openEdit(selectedEmployee, 'documents'); closeDetails()" class="px-4 py-2 rounded-lg bg-blue-600 text-white text-xs font-bold hover:bg-blue-700">
                                     Add Document
                                 </button>
                             </div>
@@ -455,7 +458,27 @@
 
                         <div x-show="profileTab === 'access'" class="space-y-5">
                             <h3 class="section-heading">System Access & Assigned Platforms</h3>
-                            <div class="profile-card"><p class="profile-value whitespace-pre-line" x-text="bulletList(selectedEmployee.system_access)"></p></div>
+                            <template x-if="!(selectedEmployee.access_affiliations || []).length">
+                                <div class="profile-card text-sm text-gray-500">No system access or assigned platforms recorded for this employee yet.</div>
+                            </template>
+                            <div class="grid grid-cols-1 gap-4">
+                                <template x-for="group in accessAffiliationGroups(selectedEmployee)" :key="group.source">
+                                    <div class="profile-card">
+                                        <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+                                            <div>
+                                                <p class="profile-label" x-text="group.type"></p>
+                                                <p class="profile-value" x-text="group.source"></p>
+                                            </div>
+                                            <span class="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700" x-text="`${group.items.length} access`"></span>
+                                        </div>
+                                        <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                                            <template x-for="item in group.items" :key="item.label">
+                                                <div class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm font-semibold text-gray-800" x-text="item.label"></div>
+                                            </template>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
                         </div>
 
                         <div x-show="profileTab === 'digital-id'" class="space-y-5">
@@ -572,7 +595,7 @@
 
                     <div class="px-6 py-4 border-t bg-white flex justify-end gap-3">
                         <button type="button" @click="closeDetails()" class="px-4 py-2 text-sm border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Close</button>
-                        <button type="button" @click="openEdit(selectedEmployee); closeDetails()" class="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700">Edit Employee</button>
+                        <button type="button" x-show="canManageEmployeeProfiles" @click="openEdit(selectedEmployee); closeDetails()" class="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700">Edit Employee</button>
                     </div>
                 </div>
             </template>
@@ -989,6 +1012,7 @@ function employeePage(config) {
         departmentOptions: config.departmentOptions ?? [],
         divisionOptions: config.divisionOptions ?? [],
         unitOptions: config.unitOptions ?? [],
+        canManageEmployeeProfiles: Boolean(config.canManageEmployeeProfiles),
         employeeIdCompanyAddress: config.companyAddress || 'John Kelly & Company / JK&C Inc.',
         storeUrl: config.storeUrl,
         updateBaseUrl: config.updateBaseUrl,
@@ -1567,6 +1591,26 @@ function employeePage(config) {
             if (!value || (Array.isArray(value) && value.length === 0)) return '-';
             const items = Array.isArray(value) ? value : String(value).split(/\r?\n/);
             return items.filter(Boolean).map(item => String(item).startsWith('•') ? item : `• ${item}`).join('\n');
+        },
+
+        accessAffiliationGroups(employee) {
+            const items = employee?.access_affiliations || [];
+            const groups = new Map();
+
+            items.forEach(item => {
+                const source = item.source || 'Assigned Access';
+                if (!groups.has(source)) {
+                    groups.set(source, {
+                        source,
+                        type: item.type || 'Access',
+                        items: [],
+                    });
+                }
+
+                groups.get(source).items.push(item);
+            });
+
+            return Array.from(groups.values());
         },
 
         historyText(value) {

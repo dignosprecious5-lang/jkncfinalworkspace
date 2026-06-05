@@ -18,7 +18,7 @@ class AwardController extends Controller
             'assignment',
         ])->latest();
 
-        $isAdmin = $user->isAdmin() || $user->isSuperAdmin();
+        $isAdmin = $user->isAdmin() || $user->isSuperAdmin() || $user->hasPermission('access_hc_awards');
         $employees = [];
         $selectedEmployeeId = null;
 
@@ -35,7 +35,10 @@ class AwardController extends Controller
          */
         if (! $isAdmin) {
             $query->whereHas('employee', function ($employeeQuery) use ($user) {
-                $employeeQuery->where('email', $user->email);
+                $employeeQuery->where('user_id', $user?->id ?: 0)
+                    ->orWhere('email', $user?->email)
+                    ->orWhere('work_email', $user?->email)
+                    ->orWhere('company_email', $user?->email);
             });
         } else {
             // For admin/superadmin, get all employees for the dropdown

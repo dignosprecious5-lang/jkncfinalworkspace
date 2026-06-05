@@ -28,6 +28,36 @@ class RolePermissionSeeder extends Seeder
         'access_finance_arf',
     ];
 
+    private array $humanCapitalPermissionColumns = [
+        'access_hc_organizational',
+        'access_hc_payroll',
+        'access_hc_employee_profile',
+        'access_hc_recruitment',
+        'access_hc_onboarding',
+        'access_hc_deployment',
+        'access_hc_offboarding',
+        'access_hc_attendance',
+        'access_hc_obf',
+        'access_hc_employee_requests',
+        'access_hc_employee_relations',
+        'access_hc_memos',
+        'access_hc_training',
+        'access_hc_performance',
+        'access_hc_awards',
+    ];
+
+    private array $employeeHumanCapitalPermissionColumns = [
+        'access_hc_employee_profile',
+        'access_hc_attendance',
+        'access_hc_obf',
+        'access_hc_employee_requests',
+        'access_hc_employee_relations',
+        'access_hc_memos',
+        'access_hc_training',
+        'access_hc_performance',
+        'access_hc_awards',
+    ];
+
     public function run(): void
     {
         RolePermission::updateOrCreate(
@@ -59,6 +89,9 @@ class RolePermissionSeeder extends Seeder
                 'create_sales_marketing' => true,
                 'approve_sales_marketing' => true,
                 'access_sales_marketing' => true,
+
+                'access_human_capital' => true,
+                ...array_fill_keys($this->humanCapitalPermissionColumns, true),
 
                 ...array_fill_keys($this->financePermissionColumns, true),
             ]
@@ -94,6 +127,9 @@ class RolePermissionSeeder extends Seeder
                 'approve_sales_marketing' => true,
                 'access_sales_marketing' => true,
 
+                'access_human_capital' => true,
+                ...array_fill_keys($this->humanCapitalPermissionColumns, true),
+
                 ...array_fill_keys($this->financePermissionColumns, true),
             ]
         );
@@ -128,6 +164,10 @@ class RolePermissionSeeder extends Seeder
                 'approve_sales_marketing' => false,
                 'access_sales_marketing' => true,
 
+                'access_human_capital' => true,
+                ...array_fill_keys($this->humanCapitalPermissionColumns, false),
+                ...array_fill_keys($this->employeeHumanCapitalPermissionColumns, true),
+
                 ...array_fill_keys($this->financePermissionColumns, false),
             ]
         );
@@ -161,6 +201,9 @@ class RolePermissionSeeder extends Seeder
                 'create_sales_marketing' => false,
                 'approve_sales_marketing' => false,
                 'access_sales_marketing' => false,
+
+                'access_human_capital' => false,
+                ...array_fill_keys($this->humanCapitalPermissionColumns, false),
 
                 ...array_fill_keys($this->financePermissionColumns, false),
             ]

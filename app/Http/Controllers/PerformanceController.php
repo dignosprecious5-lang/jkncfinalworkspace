@@ -260,7 +260,7 @@ class PerformanceController extends Controller
     {
         $user = Auth::user();
 
-        return $user->isAdmin() || $user->isSuperAdmin();
+        return $user->isAdmin() || $user->isSuperAdmin() || $user->hasPermission('access_hc_performance');
     }
 
     private function authorizeManagement(): void
@@ -281,8 +281,15 @@ class PerformanceController extends Controller
 
     private function currentEmployee(): ?Employee
     {
+        $user = Auth::user();
+
         return Employee::with('department')
-            ->where('email', Auth::user()->email)
+            ->where(function ($query) use ($user) {
+                $query->where('user_id', $user?->id ?: 0)
+                    ->orWhere('email', $user?->email)
+                    ->orWhere('work_email', $user?->email)
+                    ->orWhere('company_email', $user?->email);
+            })
             ->first();
     }
 
