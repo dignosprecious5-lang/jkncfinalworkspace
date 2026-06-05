@@ -133,6 +133,16 @@
                                 <div class="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3">
                                     <label class="block text-xs font-semibold text-blue-700 mb-1">Company</label>
                                     <div data-company-name class="text-sm font-semibold text-gray-900"></div>
+                                    <div class="mt-3 space-y-2 text-xs text-gray-700">
+                                        <div class="flex justify-between gap-3">
+                                            <span class="font-semibold text-blue-700">Registration Number</span>
+                                            <span data-company-registration-number class="text-right text-gray-900"></span>
+                                        </div>
+                                        <div>
+                                            <div class="font-semibold text-blue-700">Principal Address</div>
+                                            <div data-company-principal-address class="mt-1 leading-relaxed text-gray-900"></div>
+                                        </div>
+                                    </div>
                                     <div data-company-source class="text-xs text-blue-700 mt-1"></div>
                                 </div>
 
@@ -628,6 +638,8 @@
         qs('[data-slider-title]').textContent = row ? `Edit ${config.title}` : `Add ${config.title}`;
         qs('[data-form]').reset();
         qs('[data-company-name]').textContent = config.company?.company_name || 'Latest Approved GIS Company';
+        qs('[data-company-registration-number]').textContent = config.company?.registration_number || 'No registration number found';
+        qs('[data-company-principal-address]').textContent = config.company?.principal_address || config.company?.company_address || 'No principal address found';
         qs('[data-company-source]').textContent = config.company?.gis_id ? `From approved GIS #${config.company.gis_id}` : 'No approved GIS found yet';
         qs('[data-audit-uploaded-by]').textContent = row?.uploaded_by || config.currentUser || 'System User';
         qs('[data-audit-date-uploaded]').textContent = row?.date_uploaded || 'System generated';

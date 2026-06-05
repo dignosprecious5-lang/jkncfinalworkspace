@@ -17,6 +17,8 @@ trait HandlesCorporateRepositoryRecords
         return [
             'company_id' => $gis?->company_id,
             'company_name' => $gis?->corporation_name ?: 'Latest Approved GIS Company',
+            'registration_number' => $gis?->company_reg_no,
+            'principal_address' => $gis?->principal_address ?: $gis?->business_address,
             'company_address' => $gis?->principal_address ?: $gis?->business_address,
             'gis_id' => $gis?->id,
         ];

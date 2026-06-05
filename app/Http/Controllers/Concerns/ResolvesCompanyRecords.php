@@ -21,6 +21,7 @@ trait ResolvesCompanyRecords
                 return [
                     'id' => $record->id,
                     'company_name' => $gis?->corporation_name ?: $record->company_name,
+                    'registration_number' => $gis?->company_reg_no,
                     'company_type' => $bif?->business_organization ? str_replace('_', ' ', $bif->business_organization) : null,
                     'bif_no' => $bif?->bif_no,
                     'gis_id' => $gis?->id,
@@ -29,6 +30,7 @@ trait ResolvesCompanyRecords
                     'website' => $gis?->website ?: $record->website,
                     'description' => $record->description,
                     'address' => $gis?->principal_address ?: $gis?->business_address ?: $record->address,
+                    'principal_address' => $gis?->principal_address ?: $gis?->business_address ?: $record->address,
                     'mobile_no' => $bif?->mobile_no,
                     'tin_no' => $gis?->tin ?: $bif?->tin_no,
                     'status' => $bif?->status,

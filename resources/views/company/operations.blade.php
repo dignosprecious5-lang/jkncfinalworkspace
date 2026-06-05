@@ -5,6 +5,8 @@
 @php
     $companyTinValue = old('tin', $companyTin ?? ($company->tin_no ?? $company->tin ?? ''));
     $currentUserNameValue = old('uploaded_by', old('user', $currentUserName ?? (auth()->user()->name ?? auth()->user()->email ?? 'System User')));
+    $companyRegistrationNumber = $company->registration_number ?? $company->company_reg_no ?? '';
+    $companyPrincipalAddress = $company->principal_address ?? $company->address ?? '';
 @endphp
 <div class="w-full px-4 sm:px-6 lg:px-8 mt-4 pb-8">
     <div class="bg-white border border-gray-100 rounded-md overflow-hidden">
@@ -41,6 +43,22 @@
                                         <div>
                                             <label class="block text-sm font-medium mb-1">Client *</label>
                                             <input type="text" value="{{ $company->company_name }}" class="w-full border rounded-md p-2 bg-gray-100 text-gray-600" readonly>
+                                        </div>
+                                        <div class="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm">
+                                            <div class="font-semibold text-gray-900">{{ $company->company_name }}</div>
+                                            <div class="mt-2 space-y-2 text-xs text-gray-700">
+                                                <div class="flex justify-between gap-3">
+                                                    <span class="font-semibold text-blue-700">Registration Number</span>
+                                                    <span class="text-right text-gray-900">{{ $companyRegistrationNumber ?: 'No registration number found' }}</span>
+                                                </div>
+                                                <div>
+                                                    <div class="font-semibold text-blue-700">Principal Address</div>
+                                                    <div class="mt-1 leading-relaxed text-gray-900">{{ $companyPrincipalAddress ?: 'No principal address found' }}</div>
+                                                </div>
+                                            </div>
+                                            <div class="mt-2 text-xs text-blue-700">
+                                                {{ $company->gis_id ? 'From approved GIS #' . $company->gis_id : 'No approved GIS found yet' }}
+                                            </div>
                                         </div>
                                         <div>
                                             <label class="block text-sm font-medium mb-1">TIN *</label>
