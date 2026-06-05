@@ -27,22 +27,12 @@
     ];
 
     $correspondenceLogoUrl = $correspondenceLogoUrl ?? asset('images/jk-logo.png');
-    $isCompanyScopedCorrespondence = $isCompanyScopedCorrespondence ?? false;
-    $correspondenceTitle = $correspondenceTitle ?? 'Correspondence';
-    $correspondenceSubtitle = $correspondenceSubtitle ?? 'View approved official corporate correspondence.';
-    $correspondenceEyebrow = $correspondenceEyebrow ?? 'Corporate Governance';
-    $emptyCorrespondenceText = $emptyCorrespondenceText ?? 'Only approved correspondence will appear on this corporate page.';
-    $correspondenceDataUrl = $correspondenceDataUrl ?? url('/correspondence/data');
-    $correspondenceStoreUrl = $correspondenceStoreUrl ?? url('/correspondence');
-    $correspondenceSubmitUrlTemplate = $correspondenceSubmitUrlTemplate ?? url('/correspondence/__ID__/submit');
-    $correspondenceTemplateUrlTemplate = $correspondenceTemplateUrlTemplate ?? url('/correspondence/template/__TYPE__/__ID__');
-    $correspondenceDownloadUrlTemplate = $correspondenceDownloadUrlTemplate ?? url('/correspondence/__ID__/download-pdf');
 @endphp
 
 @section('content')
 <div
     id="correspondence-page"
-    class="w-full h-full {{ $isCompanyScopedCorrespondence ? 'px-4 sm:px-6 lg:px-8 mt-4 pb-8' : 'px-6 py-5' }}"
+    class="w-full h-full px-6 py-5"
     x-data="{
         showSlideOver: false,
         hasDeadline: false,
@@ -58,7 +48,19 @@
         previewTin: '',
         previewToForLabel: 'To',
         previewToFor: '',
-        previewFrom: '{{ Auth::user()->name ?? 'System Super Admin' }}',
+        previewPreparedByName: '',
+    previewPreparedByPosition: '',
+    previewPreparedByDepartment: '',
+    previewPreparedOn: '',
+    previewManagementSignatureName: '',
+    previewManagementSignaturePosition: '',
+    previewManagementSignatureDepartment: '',
+    previewManagementApprovedOn: '',
+    previewExecutiveSignatureName: '',
+    previewExecutiveSignaturePosition: '',
+    previewExecutiveSignatureDepartment: '',
+    previewExecutiveApprovedOn: '',
+    previewFrom: '{{ Auth::user()->name ?? 'System Super Admin' }}',
         previewPreparedPosition: 'Position',
         previewPreparedDateTime: 'Date and Time',
         previewDepartment: '',
@@ -99,20 +101,16 @@
         }
     }"
 >
-    <div class="bg-white border border-gray-200 rounded-xl min-h-[calc(100vh-7rem)] flex flex-col overflow-hidden">
-        @if($isCompanyScopedCorrespondence && isset($company))
-            @include('company.partials.company-header', ['company' => $company])
-        @endif
-
+    <div class="bg-white border border-gray-200 rounded-xl min-h-[calc(100vh-7rem)] flex flex-col">
         <div class="px-6 py-5 border-b border-gray-200 bg-gradient-to-r from-white via-blue-50/30 to-white">
             <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
                 <div>
                     <p class="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.18em] text-blue-700 bg-blue-50 border border-blue-100 rounded-full px-3 py-1 mb-3">
                         <i class="fas fa-envelope-open-text"></i>
-                        {{ $correspondenceEyebrow }}
+                        Corporate Governance
                     </p>
-                    <h1 class="text-[30px] font-semibold text-gray-900 leading-none">{{ $correspondenceTitle }}</h1>
-                    <p class="text-sm text-gray-500 mt-2">{{ $correspondenceSubtitle }}</p>
+                    <h1 class="text-[30px] font-semibold text-gray-900 leading-none">Correspondence</h1>
+                    <p class="text-sm text-gray-500 mt-2">View approved official corporate correspondence.</p>
                 </div>
 
                 <button
@@ -271,26 +269,26 @@
                             <div class="correspondence-signature-block">
                                 <div class="signature-section">
                                     <p class="signature-heading">Prepared By:</p>
-                                    <p class="signature-line" x-text="previewFrom || 'System Super Admin'"></p>
-                                    <p class="signature-line">Position</p>
-                                    <p class="signature-line">—</p>
-                                    <p class="signature-line">Prepared on: Date and Time</p>
+                                    <p class="signature-line" x-text="previewPreparedByName || previewFrom || 'System Super Admin'"></p>
+                                    <p class="signature-line" x-text="previewPreparedByPosition || 'Position'"></p>
+                                    <p class="signature-line" x-text="previewPreparedByDepartment || '—'"></p>
+                                    <p class="signature-line">Prepared on: <span x-text="formatDateTimeDisplay(previewPreparedOn) || 'Date and Time'"></span></p>
                                 </div>
 
                                 <div class="signature-section">
                                     <p class="signature-heading">From Management</p>
-                                    <p class="signature-line" x-text="previewManagementName || 'Name'"></p>
-                                    <p class="signature-line" x-text="previewManagementPosition || 'Position'"></p>
-                                    <p class="signature-line" x-text="previewManagementDepartment || 'Department'"></p>
-                                    <p class="signature-line">Approved on: Date and Time</p>
+                                    <p class="signature-line" x-text="previewManagementSignatureName || previewManagementName || 'Name'"></p>
+                                    <p class="signature-line" x-text="previewManagementSignaturePosition || previewManagementPosition || 'Position'"></p>
+                                    <p class="signature-line" x-text="previewManagementSignatureDepartment || previewManagementDepartment || 'Department'"></p>
+                                    <p class="signature-line">Approved on: <span x-text="formatDateTimeDisplay(previewManagementApprovedOn) || 'Date and Time'"></span></p>
                                 </div>
 
                                 <div class="signature-section">
                                     <p class="signature-heading">From Executive Management</p>
-                                    <p class="signature-line" x-text="previewExecutiveName || 'Name'"></p>
-                                    <p class="signature-line" x-text="previewExecutivePosition || 'Position'"></p>
-                                    <p class="signature-line">Executive Management</p>
-                                    <p class="signature-line">Approved on: Date and Time</p>
+                                    <p class="signature-line" x-text="previewExecutiveSignatureName || previewExecutiveName || 'Name'"></p>
+                                    <p class="signature-line" x-text="previewExecutiveSignaturePosition || previewExecutivePosition || 'Position'"></p>
+                                    <p class="signature-line" x-text="previewExecutiveSignatureDepartment || previewExecutiveDepartment || 'Executive Management'"></p>
+                                    <p class="signature-line">Approved on: <span x-text="formatDateTimeDisplay(previewExecutiveApprovedOn) || 'Date and Time'"></span></p>
                                 </div>
 
                                 <p class="computer-generated-note">
@@ -732,14 +730,6 @@ let correspondenceRows = [];
 const correspondenceTypes = @json($types);
 const managementApprovers = @json(($managementApprovers ?? collect())->values());
 const executiveApprovers = @json(($executiveApprovers ?? collect())->values());
-const correspondenceEndpoints = {
-    data: @json($correspondenceDataUrl),
-    store: @json($correspondenceStoreUrl),
-    submit: @json($correspondenceSubmitUrlTemplate),
-    template: @json($correspondenceTemplateUrlTemplate),
-    download: @json($correspondenceDownloadUrlTemplate),
-};
-const emptyCorrespondenceText = @json($emptyCorrespondenceText);
 
 function formatDisplayDate(value) {
     if (!value) return '';
@@ -900,8 +890,7 @@ async function fetchCorrespondence() {
         params.append('type', currentTypeFilter);
     }
 
-    const dataUrl = `${correspondenceEndpoints.data}${params.toString() ? `?${params.toString()}` : ''}`;
-    const res = await fetch(dataUrl, {
+    const res = await fetch(`/correspondence/data?${params.toString()}`, {
         headers: { 'Accept': 'application/json' }
     });
 
@@ -915,6 +904,51 @@ async function fetchCorrespondence() {
     return Array.isArray(data) ? data : [];
 }
 
+
+
+function syncManagementSignatureFromSelected() {
+    const name = document.querySelector('[x-model="previewManagementName"]')?.value || '';
+    const position = document.querySelector('[x-model="previewManagementPosition"]')?.value || '';
+    const department = document.querySelector('[x-model="previewManagementDepartment"]')?.value || '';
+
+    const nameInput = document.getElementById('managementSignatureNameInput');
+    const positionInput = document.getElementById('managementSignaturePositionInput');
+    const departmentInput = document.getElementById('managementSignatureDepartmentInput');
+
+    if (nameInput && !nameInput.value) nameInput.value = name;
+    if (positionInput && !positionInput.value) positionInput.value = position;
+    if (departmentInput && !departmentInput.value) departmentInput.value = department;
+}
+
+function syncExecutiveSignatureFromSelected() {
+    const nameInput = document.getElementById('executiveSignatureNameInput');
+    const positionInput = document.getElementById('executiveSignaturePositionInput');
+    const departmentInput = document.getElementById('executiveSignatureDepartmentInput');
+
+    const selectedName = document.querySelector('[x-model="previewExecutiveName"]')?.value || '';
+    const selectedPosition = document.querySelector('[x-model="previewExecutivePosition"]')?.value || '';
+    const selectedDepartment = document.querySelector('[x-model="previewExecutiveDepartment"]')?.value || '';
+
+    if (nameInput && !nameInput.value) nameInput.value = selectedName;
+    if (positionInput && !positionInput.value) positionInput.value = selectedPosition;
+    if (departmentInput && !departmentInput.value) departmentInput.value = selectedDepartment;
+}
+
+
+function formatDateTimeDisplay(value) {
+    if (!value) return '';
+
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+
+    return date.toLocaleString('en-US', {
+        month: 'long',
+        day: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+}
 
 function approvalBadge(status) {
     const s = status || 'Approved';
@@ -980,11 +1014,7 @@ function openPreview(index) {
     const item = correspondenceRows[index];
     if (!item) return;
 
-    const previewUrl = correspondenceEndpoints.template
-        .replace('__TYPE__', encodeURIComponent(slugifyType(item.type)))
-        .replace('__ID__', encodeURIComponent(item.id));
-    const downloadUrl = correspondenceEndpoints.download
-        .replace('__ID__', encodeURIComponent(item.id));
+    const previewUrl = `/correspondence/template/${slugifyType(item.type)}/${item.id}`;
 
     document.getElementById('previewFrame').src = previewUrl;
     document.getElementById('openPreviewBtn').href = previewUrl;
@@ -1002,7 +1032,7 @@ function openPreview(index) {
     actions.innerHTML = `<a id="openPreviewBtn" href="${previewUrl}" target="_blank" class="text-sm text-blue-600 hover:underline block">Open in New Tab</a>`;
 
     actions.innerHTML += `
-        <a href="${downloadUrl}" class="block w-full text-center bg-red-600 text-white rounded-md py-2 hover:bg-red-700">
+        <a href="/correspondence/${item.id}/download-pdf" class="block w-full text-center bg-red-600 text-white rounded-md py-2 hover:bg-red-700">
             Download PDF
         </a>
     `;
@@ -1042,7 +1072,7 @@ async function renderTable() {
                             <i class="fas fa-envelope-open-text"></i>
                         </div>
                         <h3 class="text-base font-semibold text-gray-900">No approved correspondence found</h3>
-                        <p class="mt-1 text-sm text-gray-500">${emptyCorrespondenceText}</p>
+                        <p class="mt-1 text-sm text-gray-500">Only approved correspondence will appear on this corporate page.</p>
                     </div>
                 </td>
             </tr>
@@ -1103,7 +1133,7 @@ async function addCorrespondence() {
     }
 
     try {
-        const res = await fetch(correspondenceEndpoints.store, {
+        const res = await fetch('/correspondence', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -1144,7 +1174,7 @@ async function addCorrespondence() {
 }
 
 async function submitCorrespondence(id) {
-    const res = await fetch(correspondenceEndpoints.submit.replace('__ID__', encodeURIComponent(id)), {
+    const res = await fetch(`/correspondence/${id}/submit`, {
         method: 'POST',
         headers: {
             'X-CSRF-TOKEN': '{{ csrf_token() }}',

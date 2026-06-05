@@ -2,31 +2,31 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Model;
 
 class Correspondence extends Model
 {
     protected $table = 'correspondences';
 
-    /*
-     * Backward compatible:
-     * - Keeps your old fields: uploaded_date, user, submitted_by, sender_type, sender, department, details, date, time
-     * - Adds the new Town Hall-style correspondence fields: ref_no, company_name, registration_number, principal_address,
-     *   to_for, from_name, body, Level 1 / Level 2 approver fields, archive fields, etc.
-     */
     protected $fillable = [
         // New correspondence/Town Hall-style fields
         'ref_no',
         'correspondence_date',
         'type',
-        'company_id',
         'company_name',
         'registration_number',
         'principal_address',
         'to_for_label',
         'to_for',
         'from_name',
+
+        // Input-based Prepared By signature fields
+        'prepared_by_name',
+        'prepared_by_position',
+        'prepared_by_department',
+        'prepared_on',
+
         'department_stakeholder',
         'body',
         'cc',
@@ -42,8 +42,15 @@ class Correspondence extends Model
         'management_approver_email',
         'management_approver_position',
         'management_approver_department',
+
+        // Input-based Level 1 signature fields
+        'management_signature_name',
+        'management_signature_position',
+        'management_signature_department',
+
         'management_approval_status',
         'management_approved_at',
+        'management_approved_on',
 
         // Level 2 approver - GIS Directors/Officers
         'executive_approver_id',
@@ -52,14 +59,21 @@ class Correspondence extends Model
         'executive_approver_email',
         'executive_approver_position',
         'executive_approver_department',
+
+        // Input-based Level 2 signature fields
+        'executive_signature_name',
+        'executive_signature_position',
+        'executive_signature_department',
+
         'executive_approval_status',
         'executive_approved_at',
+        'executive_approved_on',
 
         // Archive
         'is_archived',
         'archived_at',
 
-        // Existing/old fields from your current model
+        // Existing/old fields
         'uploaded_date',
         'user',
         'submitted_by',
@@ -80,6 +94,7 @@ class Correspondence extends Model
         'review_note',
         'created_by',
         'attachment',
+        'submitted_at',
     ];
 
     protected $appends = ['computed_status'];
@@ -88,8 +103,14 @@ class Correspondence extends Model
         // New fields
         'correspondence_date' => 'date:Y-m-d',
         'posted_at' => 'datetime',
+
+        // Input-based prepared by / approval dates
+        'prepared_on' => 'datetime',
         'management_approved_at' => 'datetime',
+        'management_approved_on' => 'datetime',
         'executive_approved_at' => 'datetime',
+        'executive_approved_on' => 'datetime',
+
         'is_archived' => 'boolean',
         'archived_at' => 'datetime',
 

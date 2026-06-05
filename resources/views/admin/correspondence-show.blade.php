@@ -19,7 +19,13 @@
         </div>
     @endif
 
-    <div class="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-6">
+    @if(session('error'))
+        <div class="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {{ session('error') }}
+        </div>
+    @endif
+
+    <div class="grid grid-cols-1 xl:grid-cols-[1fr_390px] gap-6">
         <div class="rounded-xl border border-gray-200 bg-gray-100 p-6 overflow-auto">
             <iframe
                 src="{{ route('correspondence.template', ['type' => strtolower(str_replace(' ', '-', $correspondence->type ?: 'other')), 'id' => $correspondence->id]) }}"
@@ -32,14 +38,16 @@
             <h2 class="text-xl font-bold text-gray-900 mb-5">Correspondence Details</h2>
 
             <div class="space-y-4 text-sm">
-                <div>
-                    <p class="text-xs text-gray-500">Ref</p>
-                    <p class="font-medium">{{ $correspondence->ref_no ?: 'COR-' . str_pad($correspondence->id, 5, '0', STR_PAD_LEFT) }}</p>
-                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <p class="text-xs text-gray-500">Ref</p>
+                        <p class="font-medium">{{ $correspondence->ref_no ?: 'COR-' . str_pad($correspondence->id, 5, '0', STR_PAD_LEFT) }}</p>
+                    </div>
 
-                <div>
-                    <p class="text-xs text-gray-500">Type</p>
-                    <p class="font-medium">{{ $correspondence->type ?: '—' }}</p>
+                    <div>
+                        <p class="text-xs text-gray-500">Type</p>
+                        <p class="font-medium">{{ $correspondence->type ?: '—' }}</p>
+                    </div>
                 </div>
 
                 <div>
@@ -62,14 +70,16 @@
                     <p class="font-medium">{{ optional($correspondence->correspondence_date)->format('M d, Y') ?: '—' }}</p>
                 </div>
 
-                <div>
-                    <p class="text-xs text-gray-500">To / For</p>
-                    <p class="font-medium break-words">{{ $correspondence->to_for ?: '—' }}</p>
-                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <p class="text-xs text-gray-500">To / For</p>
+                        <p class="font-medium break-words">{{ $correspondence->to_for ?: '—' }}</p>
+                    </div>
 
-                <div>
-                    <p class="text-xs text-gray-500">From</p>
-                    <p class="font-medium break-words">{{ $correspondence->from_name ?: '—' }}</p>
+                    <div>
+                        <p class="text-xs text-gray-500">From</p>
+                        <p class="font-medium break-words">{{ $correspondence->from_name ?: '—' }}</p>
+                    </div>
                 </div>
 
                 <div>
@@ -88,19 +98,29 @@
                     </div>
                 </div>
 
-                <div class="rounded-lg border border-blue-100 bg-blue-50 p-3">
-                    <p class="text-xs font-bold uppercase text-blue-700 mb-2">Level 1 - From Management</p>
-                    <p><strong>Name:</strong> {{ $correspondence->management_approver_name ?: '—' }}</p>
-                    <p><strong>Position:</strong> {{ $correspondence->management_approver_position ?: '—' }}</p>
-                    <p><strong>Department:</strong> {{ $correspondence->management_approver_department ?: '—' }}</p>
-                    <p><strong>Status:</strong> {{ $correspondence->management_approval_status ?: '—' }}</p>
+                <div class="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                    <p class="text-xs font-bold uppercase text-gray-700 mb-2">Prepared By</p>
+                    <p><strong>Name:</strong> {{ $correspondence->prepared_by_name ?: ($correspondence->from_name ?: '—') }}</p>
+                    <p><strong>Position:</strong> {{ $correspondence->prepared_by_position ?: '—' }}</p>
+                    <p><strong>Department:</strong> {{ $correspondence->prepared_by_department ?: '—' }}</p>
+                    <p><strong>Prepared On:</strong> {{ optional($correspondence->prepared_on ?: $correspondence->created_at)->format('M d, Y h:i A') ?: '—' }}</p>
                 </div>
 
                 <div class="rounded-lg border border-blue-100 bg-blue-50 p-3">
-                    <p class="text-xs font-bold uppercase text-blue-700 mb-2">Level 2 - From Executive Management</p>
-                    <p><strong>Name:</strong> {{ $correspondence->executive_approver_name ?: '—' }}</p>
-                    <p><strong>Position:</strong> {{ $correspondence->executive_approver_position ?: '—' }}</p>
-                    <p><strong>Office:</strong> {{ $correspondence->executive_approver_department ?: '—' }}</p>
+                    <p class="text-xs font-bold uppercase text-blue-700 mb-2">Level 1 - From Management</p>
+                    <p><strong>Name:</strong> {{ $correspondence->management_signature_name ?: ($correspondence->management_approver_name ?: '—') }}</p>
+                    <p><strong>Position:</strong> {{ $correspondence->management_signature_position ?: ($correspondence->management_approver_position ?: '—') }}</p>
+                    <p><strong>Department:</strong> {{ $correspondence->management_signature_department ?: ($correspondence->management_approver_department ?: '—') }}</p>
+                    <p><strong>Approved On:</strong> {{ optional($correspondence->management_approved_on ?: $correspondence->management_approved_at)->format('M d, Y h:i A') ?: '—' }}</p>
+                    <p><strong>Status:</strong> {{ $correspondence->management_approval_status ?: '—' }}</p>
+                </div>
+
+                <div class="rounded-lg border border-indigo-100 bg-indigo-50 p-3">
+                    <p class="text-xs font-bold uppercase text-indigo-700 mb-2">Level 2 - From Executive Management</p>
+                    <p><strong>Name:</strong> {{ $correspondence->executive_signature_name ?: ($correspondence->executive_approver_name ?: '—') }}</p>
+                    <p><strong>Position:</strong> {{ $correspondence->executive_signature_position ?: ($correspondence->executive_approver_position ?: '—') }}</p>
+                    <p><strong>Department / Office:</strong> {{ $correspondence->executive_signature_department ?: ($correspondence->executive_approver_department ?: '—') }}</p>
+                    <p><strong>Approved On:</strong> {{ optional($correspondence->executive_approved_on ?: $correspondence->executive_approved_at)->format('M d, Y h:i A') ?: '—' }}</p>
                     <p><strong>Status:</strong> {{ $correspondence->executive_approval_status ?: '—' }}</p>
                 </div>
 
@@ -121,28 +141,30 @@
                         </button>
                     </form>
                 @else
-                    <form method="POST" action="{{ route('correspondence.approve', $correspondence->id) }}">
-                        @csrf
-                        <button type="submit" class="w-full rounded-lg bg-green-600 py-2.5 text-sm font-semibold text-white hover:bg-green-700">
-                            Approve
-                        </button>
-                    </form>
+                    @if($correspondence->approval_status !== 'Approved')
+                        <form method="POST" action="{{ route('correspondence.approve', $correspondence->id) }}">
+                            @csrf
+                            <button type="submit" class="w-full rounded-lg bg-green-600 py-2.5 text-sm font-semibold text-white hover:bg-green-700">
+                                Approve Current Level
+                            </button>
+                        </form>
 
-                    <form method="POST" action="{{ route('correspondence.revise', $correspondence->id) }}">
-                        @csrf
-                        <textarea name="review_note" rows="2" class="mb-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" placeholder="Revision note">Needs revision.</textarea>
-                        <button type="submit" class="w-full rounded-lg border border-yellow-300 bg-yellow-50 py-2.5 text-sm font-semibold text-yellow-700 hover:bg-yellow-100">
-                            Revise
-                        </button>
-                    </form>
+                        <form method="POST" action="{{ route('correspondence.revise', $correspondence->id) }}">
+                            @csrf
+                            <textarea name="review_note" rows="2" class="mb-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" placeholder="Revision note">Needs revision.</textarea>
+                            <button type="submit" class="w-full rounded-lg border border-yellow-300 bg-yellow-50 py-2.5 text-sm font-semibold text-yellow-700 hover:bg-yellow-100">
+                                Revise
+                            </button>
+                        </form>
 
-                    <form method="POST" action="{{ route('correspondence.reject', $correspondence->id) }}">
-                        @csrf
-                        <textarea name="review_note" rows="2" class="mb-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" placeholder="Rejection note">Rejected.</textarea>
-                        <button type="submit" class="w-full rounded-lg bg-red-600 py-2.5 text-sm font-semibold text-white hover:bg-red-700">
-                            Reject
-                        </button>
-                    </form>
+                        <form method="POST" action="{{ route('correspondence.reject', $correspondence->id) }}">
+                            @csrf
+                            <textarea name="review_note" rows="2" class="mb-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" placeholder="Rejection note">Rejected.</textarea>
+                            <button type="submit" class="w-full rounded-lg bg-red-600 py-2.5 text-sm font-semibold text-white hover:bg-red-700">
+                                Reject
+                            </button>
+                        </form>
+                    @endif
 
                     <form method="POST" action="{{ route('correspondence.archive', $correspondence->id) }}">
                         @csrf
