@@ -143,7 +143,6 @@
                                             <div data-company-principal-address class="mt-1 leading-relaxed text-gray-900"></div>
                                         </div>
                                     </div>
-                                    <div data-company-source class="text-xs text-blue-700 mt-1"></div>
                                 </div>
 
                                 <div data-fields class="space-y-4"></div>
@@ -640,7 +639,6 @@
         qs('[data-company-name]').textContent = config.company?.company_name || 'Latest Approved GIS Company';
         qs('[data-company-registration-number]').textContent = config.company?.registration_number || 'No registration number found';
         qs('[data-company-principal-address]').textContent = config.company?.principal_address || config.company?.company_address || 'No principal address found';
-        qs('[data-company-source]').textContent = config.company?.gis_id ? `From approved GIS #${config.company.gis_id}` : 'No approved GIS found yet';
         qs('[data-audit-uploaded-by]').textContent = row?.uploaded_by || config.currentUser || 'System User';
         qs('[data-audit-date-uploaded]').textContent = row?.date_uploaded || 'System generated';
         qs('[data-audit-updated-by]').textContent = row?.last_updated_by || 'System generated';

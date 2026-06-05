@@ -27,6 +27,14 @@
     ];
 
     $correspondenceLogoUrl = $correspondenceLogoUrl ?? asset('images/jk-logo.png');
+    $correspondenceDataUrl = $correspondenceDataUrl ?? route('correspondence.data');
+    $correspondenceStoreUrl = $correspondenceStoreUrl ?? route('correspondence.store');
+    $correspondenceSubmitUrlTemplate = $correspondenceSubmitUrlTemplate ?? route('correspondence.submit', '__ID__');
+    $correspondenceTemplateUrlTemplate = $correspondenceTemplateUrlTemplate ?? route('correspondence.template', ['type' => '__TYPE__', 'id' => '__ID__']);
+    $correspondenceDownloadUrlTemplate = $correspondenceDownloadUrlTemplate ?? route('correspondence.download', '__ID__');
+    $correspondenceTitle = $correspondenceTitle ?? 'Correspondence';
+    $correspondenceSubtitle = $correspondenceSubtitle ?? 'View approved official corporate correspondence.';
+    $emptyCorrespondenceText = $emptyCorrespondenceText ?? 'Only approved correspondence will appear on this corporate page.';
 @endphp
 
 @section('content')
@@ -117,8 +125,8 @@
                         <i class="fas fa-envelope-open-text"></i>
                         Corporate Governance
                     </p>
-                    <h1 class="text-[30px] font-semibold text-gray-900 leading-none">Correspondence</h1>
-                    <p class="text-sm text-gray-500 mt-2">View approved official corporate correspondence.</p>
+                    <h1 class="text-[30px] font-semibold text-gray-900 leading-none">{{ $correspondenceTitle }}</h1>
+                    <p class="text-sm text-gray-500 mt-2">{{ $correspondenceSubtitle }}</p>
                 </div>
 
                 <button
@@ -808,6 +816,12 @@ let correspondenceRows = [];
 const correspondenceTypes = @json($types);
 const managementApprovers = @json(($managementApprovers ?? collect())->values());
 const executiveApprovers = @json(($executiveApprovers ?? collect())->values());
+const correspondenceDataUrl = @json($correspondenceDataUrl);
+const correspondenceStoreUrl = @json($correspondenceStoreUrl);
+const correspondenceSubmitUrlTemplate = @json($correspondenceSubmitUrlTemplate);
+const correspondenceTemplateUrlTemplate = @json($correspondenceTemplateUrlTemplate);
+const correspondenceDownloadUrlTemplate = @json($correspondenceDownloadUrlTemplate);
+const emptyCorrespondenceText = @json($emptyCorrespondenceText);
 
 function formatDisplayDate(value) {
     if (!value) return '';
@@ -989,7 +1003,8 @@ async function fetchCorrespondence() {
         params.append('type', currentTypeFilter);
     }
 
-    const res = await fetch(`/correspondence/data?${params.toString()}`, {
+    const url = params.toString() ? `${correspondenceDataUrl}?${params.toString()}` : correspondenceDataUrl;
+    const res = await fetch(url, {
         headers: { 'Accept': 'application/json' }
     });
 
@@ -1113,7 +1128,10 @@ function openPreview(index) {
     const item = correspondenceRows[index];
     if (!item) return;
 
-    const previewUrl = `/correspondence/template/${slugifyType(item.type)}/${item.id}`;
+    const previewUrl = correspondenceTemplateUrlTemplate
+        .replace('__TYPE__', encodeURIComponent(slugifyType(item.type)))
+        .replace('__ID__', encodeURIComponent(item.id));
+    const downloadUrl = correspondenceDownloadUrlTemplate.replace('__ID__', encodeURIComponent(item.id));
 
     document.getElementById('previewFrame').src = previewUrl;
     document.getElementById('openPreviewBtn').href = previewUrl;
@@ -1131,7 +1149,7 @@ function openPreview(index) {
     actions.innerHTML = `<a id="openPreviewBtn" href="${previewUrl}" target="_blank" class="text-sm text-blue-600 hover:underline block">Open in New Tab</a>`;
 
     actions.innerHTML += `
-        <a href="/correspondence/${item.id}/download-pdf" class="block w-full text-center bg-red-600 text-white rounded-md py-2 hover:bg-red-700">
+        <a href="${downloadUrl}" class="block w-full text-center bg-red-600 text-white rounded-md py-2 hover:bg-red-700">
             Download PDF
         </a>
     `;
@@ -1171,7 +1189,7 @@ async function renderTable() {
                             <i class="fas fa-envelope-open-text"></i>
                         </div>
                         <h3 class="text-base font-semibold text-gray-900">No approved correspondence found</h3>
-                        <p class="mt-1 text-sm text-gray-500">Only approved correspondence will appear on this corporate page.</p>
+                        <p class="mt-1 text-sm text-gray-500">${emptyCorrespondenceText}</p>
                     </div>
                 </td>
             </tr>
@@ -1245,7 +1263,7 @@ async function addCorrespondence() {
     }
 
     try {
-        const res = await fetch('/correspondence', {
+        const res = await fetch(correspondenceStoreUrl, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -1286,7 +1304,7 @@ async function addCorrespondence() {
 }
 
 async function submitCorrespondence(id) {
-    const res = await fetch(`/correspondence/${id}/submit`, {
+    const res = await fetch(correspondenceSubmitUrlTemplate.replace('__ID__', encodeURIComponent(id)), {
         method: 'POST',
         headers: {
             'X-CSRF-TOKEN': '{{ csrf_token() }}',

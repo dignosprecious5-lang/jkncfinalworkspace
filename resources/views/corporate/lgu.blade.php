@@ -1,16 +1,23 @@
 @extends('layouts.app')
 
 @php
+    $repositoryRoutes = $repositoryRoutes ?? [
+        'dataUrl' => route('corporate.lgu.records.index'),
+        'storeUrl' => route('corporate.lgu.records.store'),
+        'updateUrl' => route('corporate.lgu.records.update', '__ID__'),
+        'submitUrl' => route('corporate.lgu.records.submit', '__ID__'),
+    ];
+
     $moduleConfig = [
         'moduleId' => 'corporateLguRepository',
         'title' => 'LGU',
         'purpose' => 'Track LGU permits, licenses, clearances, registrations, fees, and renewal deadlines.',
         'company' => $companyDefaults ?? [],
         'currentUser' => Auth::user()->name ?? Auth::user()->email ?? 'System User',
-        'dataUrl' => route('corporate.lgu.records.index'),
-        'storeUrl' => route('corporate.lgu.records.store'),
-        'updateUrl' => route('corporate.lgu.records.update', '__ID__'),
-        'submitUrl' => route('corporate.lgu.records.submit', '__ID__'),
+        'dataUrl' => $repositoryRoutes['dataUrl'],
+        'storeUrl' => $repositoryRoutes['storeUrl'],
+        'updateUrl' => $repositoryRoutes['updateUrl'],
+        'submitUrl' => $repositoryRoutes['submitUrl'],
         'locationData' => $locationData ?? [],
         'locationEndpoints' => [
             'provinces' => route('corporate.locations.provinces-or-districts'),

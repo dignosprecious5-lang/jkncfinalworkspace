@@ -638,6 +638,7 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::get('/company/{company}/lgu', [CompanyLguController::class, 'index'])->name('company.lgu');
     Route::post('/company/{company}/lgu', [CompanyLguController::class, 'store'])->name('company.lgu.store');
     Route::match(['put', 'patch'], '/company/{company}/lgu/{record}', [CompanyLguController::class, 'update'])->name('company.lgu.update');
+    Route::post('/company/{company}/lgu/{record}/submit', [CompanyLguController::class, 'submit'])->name('company.lgu.submit');
     Route::delete('/company/{company}/lgu/{record}', [CompanyLguController::class, 'destroy'])->name('company.lgu.destroy');
 
     Route::get('/company/{company}/accounting', [CompanyAccountingController::class, 'index'])->name('company.accounting');

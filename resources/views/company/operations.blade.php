@@ -56,9 +56,6 @@
                                                     <div class="mt-1 leading-relaxed text-gray-900">{{ $companyPrincipalAddress ?: 'No principal address found' }}</div>
                                                 </div>
                                             </div>
-                                            <div class="mt-2 text-xs text-blue-700">
-                                                {{ $company->gis_id ? 'From approved GIS #' . $company->gis_id : 'No approved GIS found yet' }}
-                                            </div>
                                         </div>
                                         <div>
                                             <label class="block text-sm font-medium mb-1">TIN *</label>
