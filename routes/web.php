@@ -1029,10 +1029,10 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     | Keep them defined so opening any Corporate page will not crash with:
     | Route [corporate.accounting] not defined.
     */
-    Route::view('/corporate/accounting', 'corporate.accounting')->name('corporate.accounting');
-    Route::view('/corporate/banking', 'corporate.banking')->name('corporate.banking');
-    Route::view('/corporate/legal', 'corporate.legal')->name('corporate.legal');
-    Route::view('/corporate/operations', 'corporate.operations')->name('corporate.operations');
+    Route::get('/corporate/accounting', [AccountingController::class, 'page'])->name('corporate.accounting');
+    Route::get('/corporate/banking', [BankingController::class, 'page'])->name('corporate.banking');
+    Route::get('/corporate/legal', [LegalController::class, 'page'])->name('corporate.legal');
+    Route::get('/corporate/operations', [OperationController::class, 'page'])->name('corporate.operations');
 
     /*
     |--------------------------------------------------------------------------
@@ -1054,7 +1054,6 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::post('/legal/{id}/submit', [LegalController::class, 'submit'])->name('legal.submit');
 
     Route::prefix('corporate')->name('corporate.')->group(function () {
-        Route::get('/accounting', [AccountingController::class, 'page'])->name('accounting');
         Route::get('/accounting/data', [AccountingController::class, 'index'])->name('accounting.data');
         Route::post('/accounting', [AccountingController::class, 'store'])->name('accounting.store');
         Route::get('/accounting/{id}', [AccountingController::class, 'show'])->name('accounting.show');
