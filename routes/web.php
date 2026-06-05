@@ -938,6 +938,7 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () {
     Route::get('/bir-tax/{birTax}', [BirTaxController::class, 'show'])->name('bir-tax.preview');
     Route::get('/bir-tax/{birTax}/edit', [BirTaxController::class, 'edit'])->name('bir-tax.edit');
     Route::put('/bir-tax/{birTax}', [BirTaxController::class, 'update'])->name('bir-tax.update');
+    Route::post('/bir-tax/{birTax}/submit', [BirTaxController::class, 'submit'])->name('bir-tax.submit');
     Route::post('/bir-tax/{birTax}/authority-notes', [BirTaxController::class, 'storeAuthorityNote'])->name('bir-tax.notes.store');
     Route::delete('/bir-tax/{birTax}', [BirTaxController::class, 'destroy'])->name('bir-tax.destroy');
 
@@ -947,6 +948,7 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () {
     Route::get('/natgov/{natgov}', [NatGovController::class, 'show'])->name('natgov.preview');
     Route::get('/natgov/{natgov}/edit', [NatGovController::class, 'edit'])->name('natgov.edit');
     Route::put('/natgov/{natgov}', [NatGovController::class, 'update'])->name('natgov.update');
+    Route::post('/natgov/{natgov}/submit', [NatGovController::class, 'submit'])->name('natgov.submit');
     Route::post('/natgov/{natgov}/approve', [NatGovController::class, 'approve'])->name('natgov.approve');
     Route::post('/natgov/{natgov}/authority-notes', [NatGovController::class, 'storeAuthorityNote'])->name('natgov.notes.store');
     Route::delete('/natgov/{natgov}', [NatGovController::class, 'destroy'])->name('natgov.destroy');

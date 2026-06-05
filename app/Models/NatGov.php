@@ -9,6 +9,8 @@ use Illuminate\Support\Carbon;
 class NatGov extends Model
 {
     protected $fillable = [
+        'company_id',
+        'company_name',
         'client',
         'agency',
         'registration_status',
@@ -18,12 +20,23 @@ class NatGov extends Model
         'registration_no',
         'status',
         'status_override',
+        'user',
         'uploaded_by',
         'date_uploaded',
+        'date_uploaded_at',
         'document_path',
+        'document_name',
         'draft_documents',
         'approved_document_path',
         'approved_documents',
+        'last_updated_by',
+        'last_updated_at',
+        'workflow_status',
+        'approval_status',
+        'submitted_by',
+        'approved_by',
+        'approved_at',
+        'review_note',
         'notes',
         'notes_visible_to',
     ];
@@ -33,8 +46,11 @@ class NatGov extends Model
         'renewal_date' => 'date',
         'deadline_date' => 'date',
         'date_uploaded' => 'date',
+        'date_uploaded_at' => 'datetime',
         'draft_documents' => 'array',
         'approved_documents' => 'array',
+        'last_updated_at' => 'datetime',
+        'approved_at' => 'datetime',
     ];
 
     public function authorityNotes(): MorphMany

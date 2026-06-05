@@ -31,6 +31,35 @@
             <div data-status-message class="mt-3 mb-4 border border-blue-200 bg-blue-50 text-blue-700 text-[14px] px-4 py-3 rounded-md">
                 These records are uploaded and ready for submission.
             </div>
+
+            @if (!empty($config['filters']))
+                <div class="mb-4 grid grid-cols-1 md:grid-cols-2 gap-3" data-filter-bar>
+                    @foreach (($config['filters'] ?? []) as $filter)
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-500 mb-1">{{ $filter['label'] ?? '' }}</label>
+                            @if (($filter['type'] ?? 'text') === 'select')
+                                <select data-filter-key="{{ $filter['key'] ?? '' }}" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white">
+                                    <option value="">{{ $filter['placeholder'] ?? 'All' }}</option>
+                                    @foreach (($filter['options'] ?? ($config['options'][$filter['optionsKey'] ?? ''] ?? [])) as $value => $label)
+                                        @php
+                                            $optionValue = is_int($value) ? $label : $value;
+                                            $optionLabel = is_int($value) ? $label : $label;
+                                        @endphp
+                                        <option value="{{ $optionValue }}">{{ $optionLabel }}</option>
+                                    @endforeach
+                                </select>
+                            @else
+                                <input
+                                    type="{{ $filter['type'] ?? 'text' }}"
+                                    data-filter-key="{{ $filter['key'] ?? '' }}"
+                                    placeholder="{{ $filter['placeholder'] ?? '' }}"
+                                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                                >
+                            @endif
+                        </div>
+                    @endforeach
+                </div>
+            @endif
         </div>
 
         <div data-table-section class="p-4 flex-grow overflow-hidden">
@@ -147,14 +176,24 @@
 
                                 <div data-fields class="space-y-4"></div>
 
+                                @php
+                                    $documentAccept = $config['documentUpload']['accept'] ?? '.pdf,.jpg,.jpeg,.png,.doc,.docx';
+                                    $documentHelp = $config['documentUpload']['help'] ?? null;
+                                @endphp
                                 <div class="grid grid-cols-1 gap-4">
                                     <div>
                                         <label class="block text-xs font-semibold text-gray-500 mb-1">Draft Documents</label>
-                                        <input name="draft_documents[]" type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm file:mr-3 file:border-0 file:bg-blue-50 file:text-blue-700 file:px-3 file:py-1.5 file:rounded-md">
+                                        <input name="draft_documents[]" type="file" multiple accept="{{ $documentAccept }}" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm file:mr-3 file:border-0 file:bg-blue-50 file:text-blue-700 file:px-3 file:py-1.5 file:rounded-md">
+                                        @if ($documentHelp)
+                                            <p class="mt-1 text-xs text-gray-500">{{ $documentHelp }}</p>
+                                        @endif
                                     </div>
                                     <div>
                                         <label class="block text-xs font-semibold text-gray-500 mb-1">Approved Documents</label>
-                                        <input name="approved_documents[]" type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm file:mr-3 file:border-0 file:bg-emerald-50 file:text-emerald-700 file:px-3 file:py-1.5 file:rounded-md">
+                                        <input name="approved_documents[]" type="file" multiple accept="{{ $documentAccept }}" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm file:mr-3 file:border-0 file:bg-emerald-50 file:text-emerald-700 file:px-3 file:py-1.5 file:rounded-md">
+                                        @if ($documentHelp)
+                                            <p class="mt-1 text-xs text-gray-500">{{ $documentHelp }}</p>
+                                        @endif
                                     </div>
                                 </div>
 
@@ -203,6 +242,7 @@
         previewSource: 'draft',
         liveSource: 'draft',
         liveFiles: { draft: null, approved: null },
+        filters: Object.fromEntries((config.filters || []).map((filter) => [filter.key, ''])),
         locations: {
             provinces: [],
             cities: [],
@@ -235,6 +275,31 @@
         if (column.type === 'document') return row.document_url ? 'Available' : 'No document';
         return row[column.key] ?? '';
     };
+
+    const optionEntries = (source) => {
+        if (Array.isArray(source)) {
+            return source.map((item) => ({ value: item, label: item }));
+        }
+
+        if (source && typeof source === 'object') {
+            return Object.entries(source).map(([value, label]) => ({ value, label }));
+        }
+
+        return [];
+    };
+
+    const splitSelectedValues = (value) => String(value || '')
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean);
+
+    const renderMultiEntryItems = (entries, inputName) => entries.map((entry) => `
+        <span class="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-medium text-blue-800">
+            <input type="hidden" name="${inputName}[]" value="${escapeHtml(entry)}">
+            <span>${escapeHtml(entry)}</span>
+            <button type="button" class="text-blue-500 hover:text-blue-700" data-multi-entry-remove="${escapeHtml(entry)}" aria-label="Remove ${escapeHtml(entry)}">&times;</button>
+        </span>
+    `).join('');
 
     const documentList = (label, documents) => {
         if (!documents?.length) return '';
@@ -314,6 +379,11 @@
     const fetchRows = async () => {
         const url = new URL(config.dataUrl, window.location.origin);
         url.searchParams.set('workflow_status', state.workflow);
+        Object.entries(state.filters || {}).forEach(([key, value]) => {
+            if (String(value || '').trim() !== '') {
+                url.searchParams.set(key, value);
+            }
+        });
         const res = await fetch(url.toString(), { headers: { Accept: 'application/json' } });
         state.rows = await res.json();
         renderTable();
@@ -444,7 +514,7 @@
         fieldsWrap.innerHTML = (config.fields || []).map((field) => {
             const value = row[field.key] ?? field.default ?? '';
             const required = field.required ? 'required' : '';
-            const options = field.optionsKey ? (config.options?.[field.optionsKey] || []) : (field.options || []);
+            const options = optionEntries(field.optionsKey ? (config.options?.[field.optionsKey] || []) : (field.options || []));
             const datalistId = `${config.moduleId}-${field.key}-list`;
             const otherValue = row[field.otherKey] || '';
             const otherClass = field.otherKey && String(value).toLowerCase() === 'other' ? '' : 'hidden';
@@ -454,7 +524,7 @@
             }
 
             if (field.type === 'location') {
-                const optionValues = [...new Set([value, ...options].filter(Boolean))];
+                const optionValues = [...new Set([value, ...options.map((option) => option.value)].filter(Boolean))];
 
                 return `
                     <div>
@@ -471,9 +541,121 @@
                 return `
                     <div>
                         <label class="block text-xs font-semibold text-gray-500 mb-1">${escapeHtml(field.label)}</label>
-                        <input name="${field.key}" data-field="${field.key}" list="${datalistId}" value="${escapeHtml(value)}" ${required} class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" autocomplete="off">
-                        <datalist id="${datalistId}">${options.map((option) => `<option value="${escapeHtml(option)}"></option>`).join('')}</datalist>
+                        <select name="${field.key}" data-field="${field.key}" ${required} class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white">
+                            <option value="">Select ${escapeHtml(field.label)}</option>
+                            ${options.map((option) => `<option value="${escapeHtml(option.value)}" ${String(option.value) === String(value) ? 'selected' : ''}>${escapeHtml(option.label)}</option>`).join('')}
+                        </select>
                         ${field.otherKey ? `<input name="${field.otherKey}" data-other-for="${field.key}" value="${escapeHtml(otherValue)}" placeholder="Enter ${escapeHtml(field.label)}" class="${otherClass} mt-2 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">` : ''}
+                    </div>
+                `;
+            }
+
+            if (field.type === 'display') {
+                return `
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-500 mb-1">${escapeHtml(field.label)}</label>
+                        <div class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">${escapeHtml(value || '')}</div>
+                    </div>
+                `;
+            }
+
+            if (field.type === 'checkbox_group') {
+                const selectedValues = splitSelectedValues(value);
+                const knownOptions = options.map((option) => option.value).filter((option) => option !== 'Other');
+                const otherSelections = selectedValues.filter((item) => !knownOptions.includes(item));
+                const hasOther = otherSelections.length > 0 || selectedValues.includes('Other');
+                const selectedName = field.selectedKey || `${field.key}_selected`;
+                const otherName = field.otherKey || `${field.key}_other`;
+                const selectedSummary = selectedValues.length
+                    ? `${selectedValues.length} selected`
+                    : 'No selections yet';
+
+                return `
+                    <div class="rounded-xl border border-gray-200 bg-gray-50/70 p-4">
+                        <div class="flex items-start justify-between gap-3">
+                            <div>
+                                <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500">${escapeHtml(field.label)}</label>
+                                <p class="mt-1 text-xs text-gray-500">Select one or more options. Use Other only when the filing needs a custom value.</p>
+                            </div>
+                            <span class="shrink-0 rounded-full border border-blue-100 bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-blue-700">${escapeHtml(selectedSummary)}</span>
+                        </div>
+                        <div class="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 max-h-72 overflow-y-auto pr-1">
+                            ${options.map((option) => {
+                                const optionValue = option.value;
+                                const optionLabel = option.label;
+                                const isOther = optionValue === 'Other';
+                                const checked = isOther ? hasOther : selectedValues.includes(optionValue);
+                                return `
+                                    <label class="group flex items-start gap-3 rounded-xl border px-3 py-3 text-sm transition ${checked ? 'border-blue-300 bg-blue-50 text-blue-900 shadow-sm' : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50'}">
+                                        <input type="checkbox" name="${selectedName}[]" value="${escapeHtml(optionValue)}" ${checked ? 'checked' : ''} ${isOther ? `data-other-toggle="${otherName}"` : ''} class="mt-0.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                        <span class="leading-5">${escapeHtml(optionLabel)}</span>
+                                    </label>
+                                `;
+                            }).join('')}
+                        </div>
+                        <div class="mt-3 ${hasOther ? '' : 'hidden'}" data-other-wrapper="${otherName}">
+                            <label class="block text-xs font-semibold text-gray-500 mb-1">Other ${escapeHtml(field.label)}</label>
+                            <input name="${otherName}" data-other-input="${otherName}" value="${escapeHtml(otherSelections.join(', '))}" placeholder="Add custom ${escapeHtml(field.label.toLowerCase())}" class="w-full border border-gray-300 rounded-lg bg-white px-3 py-2 text-sm">
+                        </div>
+                    </div>
+                `;
+            }
+
+            if (field.type === 'multi_entry_select') {
+                const selectedName = field.selectedKey || `${field.key}_selected`;
+                const selectedValues = splitSelectedValues(value);
+                const knownOptions = options.map((option) => option.value).filter((option) => option !== 'Other');
+                const customSelections = selectedValues.filter((item) => !knownOptions.includes(item));
+                const helperText = field.helperText || 'Search from the list, then add one or more options. Custom entries are allowed when needed.';
+                const selectedSummary = selectedValues.length ? `${selectedValues.length} selected` : 'No entries added yet';
+
+                return `
+                    <div class="rounded-xl border border-gray-200 bg-gray-50/70 p-4">
+                        <div class="flex items-start justify-between gap-3">
+                            <div>
+                                <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500">${escapeHtml(field.label)}</label>
+                                <p class="mt-1 text-xs text-gray-500">${escapeHtml(helperText)}</p>
+                            </div>
+                            <span class="shrink-0 rounded-full border border-blue-100 bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-blue-700" data-multi-entry-count="${selectedName}">${escapeHtml(selectedSummary)}</span>
+                        </div>
+                        <div class="mt-4 rounded-xl border border-gray-200 bg-white p-3">
+                            <div class="flex flex-col gap-2 sm:flex-row">
+                                <input
+                                    type="text"
+                                    list="${datalistId}"
+                                    data-multi-entry-input="${selectedName}"
+                                    data-multi-entry-options="${escapeHtml(JSON.stringify(knownOptions))}"
+                                    data-multi-entry-other="${field.otherKey || ''}"
+                                    placeholder="${escapeHtml(field.placeholder || `Search or type ${field.label.toLowerCase()}`)}"
+                                    class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                                >
+                                <button
+                                    type="button"
+                                    data-multi-entry-add="${selectedName}"
+                                    class="shrink-0 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100"
+                                >
+                                    Add
+                                </button>
+                            </div>
+                            <datalist id="${datalistId}">
+                                ${options.filter((option) => option.value !== 'Other').map((option) => `<option value="${escapeHtml(option.value)}"></option>`).join('')}
+                            </datalist>
+                            <div class="mt-3 flex flex-wrap gap-2" data-multi-entry-items="${selectedName}">
+                                ${selectedValues.length ? renderMultiEntryItems(selectedValues, selectedName) : '<span class="text-xs text-gray-400">No entries added yet.</span>'}
+                            </div>
+                            ${field.otherKey ? `
+                                <div class="mt-3 ${customSelections.length ? '' : 'hidden'}" data-other-wrapper="${field.otherKey}">
+                                    <label class="block text-xs font-semibold text-gray-500 mb-1">Custom ${escapeHtml(field.label)}</label>
+                                    <input
+                                        name="${field.otherKey}"
+                                        data-other-input="${field.otherKey}"
+                                        value="${escapeHtml(customSelections.join(', '))}"
+                                        readonly
+                                        class="w-full border border-gray-300 rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-600"
+                                    >
+                                </div>
+                            ` : ''}
+                        </div>
                     </div>
                 `;
             }
@@ -664,6 +846,65 @@
         qs('[data-success-box]').classList.add('hidden');
     };
 
+    const syncMultiEntryOtherField = (name) => {
+        const input = qs(`[data-multi-entry-input="${name}"]`);
+        const otherName = input?.dataset.multiEntryOther;
+        if (!otherName) return;
+
+        const knownOptions = JSON.parse(input.dataset.multiEntryOptions || '[]');
+        const hiddenInputs = Array.from(root.querySelectorAll(`[data-multi-entry-items="${name}"] input[type="hidden"]`));
+        const values = hiddenInputs.map((element) => element.value.trim()).filter(Boolean);
+        const customValues = values.filter((item) => !knownOptions.includes(item));
+        const otherInput = qs(`[data-other-input="${otherName}"]`);
+        const otherWrapper = qs(`[data-other-wrapper="${otherName}"]`);
+
+        if (otherInput) {
+            otherInput.value = customValues.join(', ');
+        }
+
+        otherWrapper?.classList.toggle('hidden', customValues.length === 0);
+    };
+
+    const updateMultiEntrySummary = (name) => {
+        const itemsWrap = qs(`[data-multi-entry-items="${name}"]`);
+        if (!itemsWrap) return;
+
+        const entries = Array.from(itemsWrap.querySelectorAll('input[type="hidden"]'))
+            .map((element) => element.value.trim())
+            .filter(Boolean);
+        const countLabel = qs(`[data-multi-entry-count="${name}"]`);
+        if (countLabel) {
+            countLabel.textContent = entries.length ? `${entries.length} selected` : 'No entries added yet';
+        }
+
+        if (!entries.length) {
+            itemsWrap.innerHTML = '<span class="text-xs text-gray-400">No entries added yet.</span>';
+        }
+
+        syncMultiEntryOtherField(name);
+    };
+
+    const addMultiEntryValue = (name, rawValue) => {
+        const itemsWrap = qs(`[data-multi-entry-items="${name}"]`);
+        if (!itemsWrap) return;
+
+        const normalized = String(rawValue || '').trim();
+        if (!normalized || normalized.toLowerCase() === 'other') return;
+
+        const currentValues = Array.from(itemsWrap.querySelectorAll('input[type="hidden"]'))
+            .map((element) => element.value.trim())
+            .filter(Boolean);
+
+        if (currentValues.some((value) => value.toLowerCase() === normalized.toLowerCase())) {
+            updateMultiEntrySummary(name);
+            return;
+        }
+
+        currentValues.push(normalized);
+        itemsWrap.innerHTML = renderMultiEntryItems(currentValues, name);
+        updateMultiEntrySummary(name);
+    };
+
     const saveRecord = async () => {
         const form = qs('[data-form]');
         const formData = new FormData(form);
@@ -782,10 +1023,39 @@
 
         const deleteNoteButton = event.target.closest('[data-delete-note-id]');
         if (deleteNoteButton) deleteNote(deleteNoteButton.dataset.deleteNoteId);
+
+        const addMultiEntryButton = event.target.closest('[data-multi-entry-add]');
+        if (addMultiEntryButton) {
+            const input = qs(`[data-multi-entry-input="${addMultiEntryButton.dataset.multiEntryAdd}"]`);
+            if (input) {
+                addMultiEntryValue(addMultiEntryButton.dataset.multiEntryAdd, input.value);
+                input.value = '';
+            }
+        }
+
+        const removeMultiEntryButton = event.target.closest('[data-multi-entry-remove]');
+        if (removeMultiEntryButton) {
+            const itemsWrap = removeMultiEntryButton.closest('[data-multi-entry-items]');
+            removeMultiEntryButton.closest('span')?.remove();
+            if (itemsWrap) {
+                updateMultiEntrySummary(itemsWrap.dataset.multiEntryItems);
+            }
+        }
     });
 
     root.addEventListener('input', (event) => {
+        if (event.target.matches('[data-filter-key]')) {
+            state.filters[event.target.dataset.filterKey] = event.target.value;
+            fetchRows();
+        }
+
         if (event.target.matches('[name="province"], [name="city_municipality"]')) updateRemoteLocationLists(event.target.name);
+
+        if (event.target.matches('[data-multi-entry-input]') && event.target.value.includes(',')) {
+            const input = event.target;
+            input.value.split(',').forEach((entry) => addMultiEntryValue(input.dataset.multiEntryInput, entry));
+            input.value = '';
+        }
 
         const otherInput = qs(`[data-other-for="${event.target.name}"]`);
         if (otherInput) {
@@ -793,9 +1063,38 @@
         }
     });
 
+    root.addEventListener('keydown', (event) => {
+        if (event.target.matches('[data-multi-entry-input]') && event.key === 'Enter') {
+            event.preventDefault();
+            addMultiEntryValue(event.target.dataset.multiEntryInput, event.target.value);
+            event.target.value = '';
+        }
+    });
+
     root.addEventListener('change', (event) => {
         if (event.target.matches('[name="province"], [name="city_municipality"]')) {
             updateRemoteLocationLists(event.target.name);
+        }
+
+        if (event.target.matches('[data-filter-key]')) {
+            state.filters[event.target.dataset.filterKey] = event.target.value;
+            fetchRows();
+        }
+
+        if (event.target.matches('[data-other-toggle]')) {
+            const input = qs(`[data-other-input="${event.target.dataset.otherToggle}"]`);
+            const wrapper = qs(`[data-other-wrapper="${event.target.dataset.otherToggle}"]`);
+            if (input) {
+                wrapper?.classList.toggle('hidden', !event.target.checked);
+                if (!event.target.checked) {
+                    input.value = '';
+                }
+            }
+        }
+
+        if (event.target.matches('[data-multi-entry-input]') && event.target.value.trim() !== '') {
+            addMultiEntryValue(event.target.dataset.multiEntryInput, event.target.value);
+            event.target.value = '';
         }
 
         if (!event.target.matches('input[type="file"]')) return;
