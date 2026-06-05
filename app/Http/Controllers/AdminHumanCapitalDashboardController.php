@@ -8,6 +8,8 @@ use App\Models\EmployeeRelation;
 use App\Models\HumanCapitalLog;
 use App\Models\OfficialBusinessTrip;
 use App\Models\TrainingAssignment;
+use App\Models\User;
+use App\Notifications\SystemRealtimeNotification;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Carbon;
@@ -37,11 +39,13 @@ class AdminHumanCapitalDashboardController extends Controller
         ];
 
         $filteredItems = $this->applyFilters($items, $filters)->values();
+
         $logFilters = [
             'search' => trim((string) $request->query('log_search', '')),
             'module' => (string) $request->query('log_module', 'all'),
             'action' => (string) $request->query('log_action', 'all'),
         ];
+
         $logsQuery = HumanCapitalLog::query()->latest('logged_at')->latest();
 
         if ($logFilters['search'] !== '') {
@@ -116,6 +120,12 @@ class AdminHumanCapitalDashboardController extends Controller
             'admin_note' => null,
         ]);
 
+        $this->notifyEmployeeRequestOwner(
+            $employeeRequest,
+            'Employee request approved',
+            'Your ' . ($employeeRequest->request_type ?: 'employee') . ' request has been approved.'
+        );
+
         return redirect()->route('admin.human-capital.dashboard')
             ->with('success', 'Employee request approved successfully.');
     }
@@ -135,6 +145,18 @@ class AdminHumanCapitalDashboardController extends Controller
             'admin_note' => $request->admin_note,
         ]);
 
+        $message = 'Your ' . ($employeeRequest->request_type ?: 'employee') . ' request has been rejected.';
+
+        if ($request->filled('admin_note')) {
+            $message .= ' Note: ' . $request->admin_note;
+        }
+
+        $this->notifyEmployeeRequestOwner(
+            $employeeRequest,
+            'Employee request rejected',
+            $message
+        );
+
         return redirect()->route('admin.human-capital.dashboard')
             ->with('success', 'Employee request rejected successfully.');
     }
@@ -153,6 +175,18 @@ class AdminHumanCapitalDashboardController extends Controller
             'reviewed_at' => now(),
             'admin_note' => $request->admin_note,
         ]);
+
+        $message = 'Your ' . ($employeeRequest->request_type ?: 'employee') . ' request needs revision.';
+
+        if ($request->filled('admin_note')) {
+            $message .= ' Note: ' . $request->admin_note;
+        }
+
+        $this->notifyEmployeeRequestOwner(
+            $employeeRequest,
+            'Employee request needs revision',
+            $message
+        );
 
         return redirect()->route('admin.human-capital.dashboard')
             ->with('success', 'Employee request sent back for revision.');
@@ -518,6 +552,27 @@ class AdminHumanCapitalDashboardController extends Controller
         } catch (\Throwable $e) {
             return 0;
         }
+    }
+
+    private function notifyEmployeeRequestOwner(EmployeeRequest $employeeRequest, string $title, string $message): void
+    {
+        $owner = null;
+
+        if (! empty($employeeRequest->user_id)) {
+            $owner = User::find($employeeRequest->user_id);
+        }
+
+        if (! $owner) {
+            return;
+        }
+
+        $owner->notify(new SystemRealtimeNotification(
+            title: $title,
+            message: $message,
+            url: route('human-capital.employee-requests.index'),
+            module: 'Employee Requests',
+            icon: 'fa-file-signature'
+        ));
     }
 
     private function authorizeHumanCapitalAdmin(): void
