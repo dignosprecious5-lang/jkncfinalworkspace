@@ -9,6 +9,7 @@
         departmentOptions: @js($departmentOptions),
         divisionOptions: @js($divisionOptions),
         unitOptions: @js($unitOptions),
+        companyAddress: @js($employeeIdCompanyAddress ?? ''),
         storeUrl: '{{ route('human-capital.employee-profile.store') }}',
         updateBaseUrl: '{{ url('/human-capital/employee-profile') }}'
     })"
@@ -475,10 +476,6 @@
                                         <div class="digital-id-card digital-id-front" x-show="digitalIdSide === 'front'">
                                             <div class="id-brand-row">
                                                 <img src="{{ asset('images/FINAL_LOGO.jpg') }}" onerror="this.src='{{ asset('images/imaglogo.png') }}'" alt="John Kelly & Company" class="id-logo">
-                                                <div class="id-company-block">
-                                                    <p class="id-company">John Kelly &amp; Company</p>
-                                                    <p class="id-subcompany">JK&amp;C Inc.</p>
-                                                </div>
                                             </div>
 
                                             <div class="id-front-body">
@@ -506,7 +503,6 @@
                                         <div class="digital-id-card digital-id-back" x-show="digitalIdSide === 'back'">
                                             <div class="id-back-grid">
                                                 <div>
-                                                    <p class="id-back-company">John Kelly &amp; Company</p>
                                                     <p class="id-back-label">Employee ID Number</p>
                                                     <p class="id-back-code" x-text="selectedEmployee.employee_code || '-'"></p>
 
@@ -528,9 +524,9 @@
                                                 <div>
                                                     <p class="id-back-label">Company Address</p>
                                                     <p class="id-back-value" x-text="companyAddress(selectedEmployee)"></p>
-                                                    <p class="id-back-label mt-2">Company Contact Details</p>
+                                                    <p class="id-back-label mt-1">Company Contact Details</p>
                                                     <p class="id-back-value" x-text="companyContactDetails(selectedEmployee)"></p>
-                                                    <p class="id-return-note">If found, please return this ID to John Kelly &amp; Company / JK&amp;C Inc. This ID remains the property of the Company.</p>
+                                                    <p class="id-return-note">If found, please return this ID to the company. This ID remains company property.</p>
                                                 </div>
                                                 <div class="id-signature-box">
                                                     <div class="id-signature-line"></div>
@@ -600,10 +596,6 @@
                         <div class="digital-id-card digital-id-front">
                             <div class="id-brand-row">
                                 <img src="{{ asset('images/FINAL_LOGO.jpg') }}" onerror="this.src='{{ asset('images/imaglogo.png') }}'" alt="John Kelly & Company" class="id-logo">
-                                <div class="id-company-block">
-                                    <p class="id-company">John Kelly &amp; Company</p>
-                                    <p class="id-subcompany">JK&amp;C Inc.</p>
-                                </div>
                             </div>
                             <div class="id-front-body">
                                 <div class="id-photo-frame">
@@ -625,7 +617,6 @@
                         <div class="digital-id-card digital-id-back">
                             <div class="id-back-grid">
                                 <div>
-                                    <p class="id-back-company">John Kelly &amp; Company</p>
                                     <p class="id-back-label">Employee ID Number</p>
                                     <p class="id-back-code" x-text="selectedEmployee?.employee_code || '-'"></p>
                                     <div class="id-back-section">
@@ -644,9 +635,9 @@
                                 <div>
                                     <p class="id-back-label">Company Address</p>
                                     <p class="id-back-value" x-text="companyAddress(selectedEmployee)"></p>
-                                    <p class="id-back-label mt-2">Company Contact Details</p>
+                                    <p class="id-back-label mt-1">Company Contact Details</p>
                                     <p class="id-back-value" x-text="companyContactDetails(selectedEmployee)"></p>
-                                    <p class="id-return-note">If found, please return this ID to John Kelly &amp; Company / JK&amp;C Inc. This ID remains the property of the Company.</p>
+                                    <p class="id-return-note">If found, please return this ID to the company. This ID remains company property.</p>
                                 </div>
                                 <div class="id-signature-box"><div class="id-signature-line"></div><p>Authorized Signature</p></div>
                             </div>
@@ -946,38 +937,37 @@
 .related-card { border: 1px solid rgb(229 231 235); background: white; border-radius: 0.75rem; padding: 1rem; }
 .digital-id-stage { display: flex; justify-content: center; align-items: center; min-height: 340px; overflow-x: auto; }
 .digital-id-export { display: inline-block; }
-.digital-id-card { width: 85.6mm; height: 54mm; border-radius: 3mm; overflow: hidden; position: relative; background: #ffffff; color: #061533; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; box-shadow: 0 22px 48px rgba(15, 23, 42, 0.18); border: 1px solid #d7deea; }
-.digital-id-front { padding: 5mm; background: linear-gradient(135deg, #ffffff 0%, #f7faff 58%, #eaf1ff 100%); }
-.digital-id-front::after { content: ""; position: absolute; right: -18mm; bottom: -24mm; width: 58mm; height: 58mm; border-radius: 999px; background: rgba(30, 58, 138, 0.12); }
-.digital-id-back { padding: 4.5mm; background: #ffffff; }
-.id-brand-row { display: flex; align-items: center; gap: 3mm; position: relative; z-index: 1; }
-.id-logo { height: 10mm; width: auto; max-width: 28mm; object-fit: contain; }
+.digital-id-card { width: 85.6mm; height: 54mm; border-radius: 3mm; overflow: hidden; position: relative; background: #ffffff; color: #061533; font-family: Georgia, "Times New Roman", serif; box-shadow: 0 22px 48px rgba(15, 23, 42, 0.18); border: 1px solid #d7deea; }
+.digital-id-front { padding: 3.5mm 4mm; background: linear-gradient(135deg, #ffffff 0%, #f7faff 62%, #edf4ff 100%); }
+.digital-id-front::after { content: ""; position: absolute; right: -21mm; bottom: -26mm; width: 54mm; height: 54mm; border-radius: 999px; background: rgba(30, 58, 138, 0.08); }
+.digital-id-back { padding: 3.2mm 3.6mm; background: #ffffff; }
+.id-brand-row { display: flex; align-items: center; gap: 2mm; position: relative; z-index: 1; min-height: 8mm; }
+.id-logo { height: 8mm; width: auto; max-width: 24mm; object-fit: contain; }
 .id-company { color: #12398f; font-weight: 900; font-size: 3.6mm; line-height: 1.05; text-transform: uppercase; letter-spacing: .2mm; }
 .id-subcompany { margin-top: .6mm; color: #64748b; font-weight: 800; font-size: 2.2mm; text-transform: uppercase; letter-spacing: .55mm; }
-.id-front-body { display: grid; grid-template-columns: 23mm 1fr; gap: 4mm; align-items: center; margin-top: 5mm; position: relative; z-index: 1; }
-.id-photo-frame { width: 23mm; height: 27mm; border-radius: 2.5mm; border: 1px solid #cbd5e1; background: #f8fafc; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+.id-front-body { display: grid; grid-template-columns: 22mm minmax(0, 1fr); gap: 3.2mm; align-items: center; margin-top: 3.2mm; position: relative; z-index: 1; }
+.id-photo-frame { width: 22mm; height: 28mm; border-radius: 2.2mm; border: 1px solid #cbd5e1; background: #f8fafc; overflow: hidden; display: flex; align-items: center; justify-content: center; }
 .id-photo { width: 100%; height: 100%; object-fit: cover; }
-.id-photo-fallback { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: #dbeafe; color: #12398f; font-size: 8mm; font-weight: 900; }
+.id-photo-fallback { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: #dbeafe; color: #12398f; font-size: 7mm; font-weight: 900; }
 .id-person-block { min-width: 0; }
-.id-name { color: #061533; font-size: 5.3mm; font-weight: 900; line-height: 1.02; text-transform: uppercase; overflow-wrap: anywhere; }
-.id-position { margin-top: 1.4mm; color: #334155; font-size: 3mm; font-weight: 800; line-height: 1.15; }
-.id-chip-row { display: inline-flex; align-items: center; margin-top: 4mm; border: 1px solid #12398f; border-radius: 999px; overflow: hidden; background: #ffffff; }
-.id-chip { background: #12398f; color: #ffffff; font-size: 2.1mm; font-weight: 900; text-transform: uppercase; letter-spacing: .35mm; padding: 1.3mm 2.2mm; }
-.id-code { color: #12398f; font-size: 3.3mm; font-weight: 900; padding: 1.1mm 2.5mm; letter-spacing: .45mm; }
-.id-department { margin-top: 2.2mm; color: #64748b; font-size: 2.4mm; font-weight: 700; line-height: 1.2; }
-.id-back-grid { display: grid; grid-template-columns: 1fr 23mm; gap: 4mm; }
-.id-back-company { color: #12398f; font-size: 3.4mm; font-weight: 900; text-transform: uppercase; letter-spacing: .18mm; }
-.id-back-label { color: #64748b; font-size: 2mm; font-weight: 900; text-transform: uppercase; letter-spacing: .35mm; }
-.id-back-code { color: #061533; font-size: 4.4mm; font-weight: 900; letter-spacing: .7mm; margin: .8mm 0 3mm; }
-.id-back-section { border-top: 1px solid #d7deea; padding-top: 2.4mm; margin-top: 1mm; }
-.id-back-value { color: #061533; font-size: 2.7mm; font-weight: 800; line-height: 1.2; overflow-wrap: anywhere; }
-.id-qr-panel { text-align: center; border: 1px solid #d7deea; border-radius: 2mm; padding: 2mm; background: #f8fafc; }
-.id-qr { width: 18mm; height: 18mm; object-fit: contain; margin: 0 auto; }
-.id-qr-note { color: #334155; font-size: 1.9mm; font-weight: 800; line-height: 1.15; margin-top: 1mm; }
-.id-back-footer { display: grid; grid-template-columns: 1fr 25mm; gap: 4mm; align-items: end; border-top: 1px solid #d7deea; margin-top: 3.2mm; padding-top: 2.8mm; }
-.id-return-note { color: #334155; font-size: 2mm; line-height: 1.25; margin-top: 1.5mm; }
-.id-signature-box { text-align: center; color: #64748b; font-size: 1.9mm; font-weight: 800; text-transform: uppercase; }
-.id-signature-line { border-top: 1px solid #061533; margin-bottom: 1.5mm; }
+.id-name { color: #061533; font-size: 4.7mm; font-weight: 900; line-height: 1.02; text-transform: uppercase; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.id-position { margin-top: 1mm; color: #334155; font-size: 2.55mm; font-weight: 800; line-height: 1.12; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.id-chip-row { display: inline-flex; align-items: center; margin-top: 2.8mm; border: 1px solid #12398f; border-radius: 999px; overflow: hidden; background: #ffffff; max-width: 100%; }
+.id-chip { background: #12398f; color: #ffffff; font-size: 1.75mm; font-weight: 900; text-transform: uppercase; letter-spacing: .2mm; padding: 1mm 1.7mm; white-space: nowrap; }
+.id-code { color: #12398f; font-size: 3mm; font-weight: 900; padding: .85mm 1.9mm; letter-spacing: .28mm; white-space: nowrap; }
+.id-department { margin-top: 1.6mm; color: #64748b; font-size: 2.15mm; font-weight: 700; line-height: 1.12; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.id-back-grid { display: grid; grid-template-columns: minmax(0, 1fr) 20mm; gap: 2.4mm; align-items: start; }
+.id-back-label { color: #64748b; font-size: 1.55mm; font-weight: 900; text-transform: uppercase; letter-spacing: .18mm; line-height: 1.1; }
+.id-back-code { color: #061533; font-size: 3.55mm; font-weight: 900; letter-spacing: .45mm; margin: .35mm 0 1.3mm; }
+.id-back-section { border-top: 1px solid #d7deea; padding-top: 1.3mm; margin-top: .7mm; }
+.id-back-value { color: #061533; font-size: 2.15mm; font-weight: 800; line-height: 1.1; overflow-wrap: anywhere; }
+.id-qr-panel { text-align: center; border: 1px solid #d7deea; border-radius: 1.6mm; padding: 1.2mm; background: #f8fafc; }
+.id-qr { width: 16mm; height: 16mm; object-fit: contain; margin: 0 auto; }
+.id-qr-note { color: #334155; font-size: 1.45mm; font-weight: 800; line-height: 1.05; margin-top: .7mm; }
+.id-back-footer { display: grid; grid-template-columns: minmax(0, 1fr) 20mm; gap: 2.5mm; align-items: end; border-top: 1px solid #d7deea; margin-top: 2mm; padding-top: 1.6mm; }
+.id-return-note { color: #334155; font-size: 1.45mm; line-height: 1.15; margin-top: .9mm; }
+.id-signature-box { text-align: center; color: #64748b; font-size: 1.45mm; font-weight: 800; text-transform: uppercase; }
+.id-signature-line { border-top: 1px solid #061533; margin-bottom: 1mm; }
 .form-label { display: block; font-size: 0.82rem; font-weight: 600; color: rgb(55 65 81); margin-bottom: 0.25rem; }
 .form-input { width: 100%; border: 1px solid rgb(209 213 219); border-radius: 0.5rem; padding: 0.5rem 0.75rem; font-size: 0.875rem; outline: none; }
 .form-input:focus { border-color: rgb(59 130 246); box-shadow: 0 0 0 2px rgb(191 219 254); }
@@ -999,6 +989,7 @@ function employeePage(config) {
         departmentOptions: config.departmentOptions ?? [],
         divisionOptions: config.divisionOptions ?? [],
         unitOptions: config.unitOptions ?? [],
+        employeeIdCompanyAddress: config.companyAddress || 'John Kelly & Company / JK&C Inc.',
         storeUrl: config.storeUrl,
         updateBaseUrl: config.updateBaseUrl,
         employmentTypeOptions: ['Intern / OJT', 'Probationary', 'Regular', 'Project-Based', 'Fixed-Term', 'Part-Time', 'Casual / Temporary', 'Consultant / Independent Contractor', 'Others'],
@@ -1595,10 +1586,7 @@ function employeePage(config) {
         },
 
         companyAddress(employee) {
-            return employee?.company_address
-                || employee?.work_location
-                || employee?.office_name
-                || 'John Kelly & Company / JK&C Inc.';
+            return this.employeeIdCompanyAddress || 'John Kelly & Company / JK&C Inc.';
         },
 
         companyContactDetails(employee) {

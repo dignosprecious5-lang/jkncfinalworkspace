@@ -538,16 +538,6 @@
             <div class="flex items-start justify-between border-b pb-2 mb-4 border-gray-200">
                 <div class="flex items-center gap-2">
                     <img src="{{ asset('images/imaglogo.png') }}" onerror="this.src='{{ asset('images/imag1logo.jpg') }}'" class="h-10">
-                    <div class="leading-tight text-blue-900 font-serif">
-                        <span class="text-xl font-bold">John Kelly</span><br>
-                        <span class="text-sm italic">&amp; Company</span>
-                    </div>
-                </div>
-                <div class="text-[8px] text-gray-600 text-right leading-tight max-w-[200mm]">
-                    <p class="font-bold">Atty. Jose B. Ogang, CPA, MMPSM • Jose Tomayo Rio, MM-BA, CPA • Lyndon Earl P. Rio, RN, CB • John Kelly Abalde, CLSSBB, CPM</p>
-                    <p>3F, Cebu Holdings Center, Cebu Business Park, Cebu City, Philippines 6000</p>
-                    <p>Email: start@jknc.io Website: https://jknc.io/ Phone Number: 0995-535-8729</p>
-                    <p class="font-bold text-[7px] mt-1 text-gray-500">Form Code: PDS-001 Version: 1.0 Effective Date: December 1, 2025 Issued By: Office of the President</p>
                 </div>
             </div>
             

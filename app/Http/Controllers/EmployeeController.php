@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\HandlesCorporateRepositoryRecords;
 use App\Http\Controllers\Concerns\RequestsHumanCapitalApproval;
 use App\Models\Branch;
 use App\Models\Department;
@@ -18,6 +19,7 @@ use Illuminate\Validation\Rule;
 
 class EmployeeController extends Controller
 {
+    use HandlesCorporateRepositoryRecords;
     use RequestsHumanCapitalApproval;
     private array $employmentStatuses = [
         'Active', 'Probationary', 'Regular', 'Project-Based', 'Fixed-Term', 'Part-Time',
@@ -163,6 +165,7 @@ class EmployeeController extends Controller
 
         return view('human-capital.employee-profile', [
             'employees' => $employees,
+            'employeeIdCompanyAddress' => $this->employeeIdCompanyAddress(),
 
             'officeOptions' => Office::orderBy('office_name')
                 ->get(['id', 'office_name', 'branch_id'])
@@ -184,6 +187,14 @@ class EmployeeController extends Controller
                 ->get(['id', 'division_id', 'unit_name'])
                 ->values(),
         ]);
+    }
+
+    private function employeeIdCompanyAddress(): string
+    {
+        $company = $this->latestCorporateCompany();
+
+        return trim((string) ($company['principal_address'] ?? $company['company_address'] ?? ''))
+            ?: 'John Kelly & Company / JK&C Inc.';
     }
 
     public function store(Request $request)
