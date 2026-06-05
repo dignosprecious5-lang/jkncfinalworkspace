@@ -170,20 +170,25 @@
                 Download PDF
             </a>
             @unless($readOnlyPreview ?? false)
-            <form method="POST" action="{{ route('deals.proposal.send', $deal) }}" class="flex items-center gap-2">
-                @csrf
-                <input
-                    type="email"
-                    name="recipient_email"
-                    value="{{ old('recipient_email', $deal->email ?: $deal->contact?->email) }}"
-                    placeholder="client@email.com"
-                    class="h-9 w-56 rounded-lg border border-gray-300 px-3 text-sm"
-                    required
-                >
-                <button type="submit" class="inline-flex rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700">
-                    Send Proposal
-                </button>
-            </form>
+            <div class="flex items-center gap-2">
+                @if (in_array(Auth::user()?->role, ['Admin', 'SuperAdmin']) && ($proposal->status ?? '') !== 'approved')
+                    {{-- Admin approval now takes place exclusively in the Admin Panel / Deals Submodule --}}
+                @endif
+                <form method="POST" action="{{ route('deals.proposal.send', $deal) }}" class="flex items-center gap-2">
+                    @csrf
+                    <input
+                        type="email"
+                        name="recipient_email"
+                        value="{{ old('recipient_email', $deal->email ?: $deal->contact?->email) }}"
+                        placeholder="client@email.com"
+                        class="h-9 w-56 rounded-lg border border-gray-300 px-3 text-sm"
+                        required
+                    >
+                    <button type="submit" class="inline-flex rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700">
+                        Send Proposal
+                    </button>
+                </form>
+            </div>
             @endunless
         </div>
         @if (session('success'))

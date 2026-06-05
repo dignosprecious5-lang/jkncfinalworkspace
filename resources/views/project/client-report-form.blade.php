@@ -343,10 +343,13 @@
                     </div>
                 </div>
 
-                @foreach ([
-                    'WITHIN SCOPE' => $within,
-                    'OUT OF SCOPE' => $out,
-                ] as $label => $rows)
+                @php
+                    $sections = [
+                        'WITHIN SCOPE' => $within,
+                        'OUT OF SCOPE' => $out,
+                    ];
+                @endphp
+                @foreach ($sections as $label => $rows)
                     <div class="section">
                         <div class="section-title">{{ $label }}</div>
                         <div class="table-wrap">

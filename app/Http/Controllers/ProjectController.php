@@ -14,6 +14,7 @@ use App\Models\ProjectNtp;
 use App\Models\ProjectSow;
 use App\Models\ProjectSowReport;
 use App\Models\ProjectStart;
+use App\Services\ProjectProvisioner;
 use App\Models\FormTemplate;
 use App\Models\Service;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -108,14 +109,25 @@ class ProjectController extends Controller
         $sowTemplates = collect();
         $serviceCatalog = $this->projectServiceCatalog();
         $productCatalog = $this->projectProductCatalog();
+        $search = trim((string) $request->query('search', ''));
 
         if (Schema::hasTable('projects')) {
-            $projects = Project::query()
+            $query = Project::query()
                 ->with(['deal:id,deal_code', 'company:id,company_name'])
-                ->latest()
-                ->get()
+                ->latest();
+
+            if ($search !== '') {
+                $query->where(function ($q) use ($search) {
+                    $q->where('project_code', 'LIKE', '%' . $search . '%')
+                      ->orWhere('name', 'LIKE', '%' . $search . '%')
+                      ->orWhere('client_name', 'LIKE', '%' . $search . '%')
+                      ->orWhere('business_name', 'LIKE', '%' . $search . '%');
+                });
+            }
+
+            $projects = $query->get()
                 ->map(fn (Project $project): Project => $this->normalizeProjectCompletionState($project))
-                ->filter(fn (Project $project): bool => ! Str::contains(Str::lower(trim((string) $project->engagement_type)), 'regular'))
+                ->filter(fn (Project $project): bool => ! Str::contains(Str::lower(trim((string) $project->engagement_type)), 'regular') && ! $project->isShell())
                 ->values();
         }
 
@@ -146,6 +158,7 @@ class ProjectController extends Controller
 
         return view('project.index', [
             'projects' => $projects,
+            'search' => $search,
             'stats' => $stats,
             'contactRecords' => $contactRecords,
             'companyRecords' => $companyRecords,
@@ -161,6 +174,22 @@ class ProjectController extends Controller
                 empty($productCatalog['productOptionsByServiceArea'] ?? []) ? 'Product options are currently unavailable. Add active products in the Products module to populate project setup selections.' : null,
             ])),
         ]);
+    }
+
+    public function bulkDelete(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'selected_projects' => ['required', 'array', 'min:1'],
+            'selected_projects.*' => ['required', 'integer'],
+        ]);
+
+        $deletedCount = Project::query()
+            ->whereIn('id', $validated['selected_projects'])
+            ->delete();
+
+        return redirect()
+            ->route('project.index')
+            ->with('success', $deletedCount === 1 ? '1 project deleted successfully.' : "{$deletedCount} projects deleted successfully.");
     }
 
     public function storeManual(Request $request): RedirectResponse
@@ -255,7 +284,6 @@ class ProjectController extends Controller
         if ($resolvedClientName === '') {
             $resolvedClientName = trim(collect([
                 $linkedDeal?->first_name ?: $linkedContact?->first_name,
-                $linkedDeal?->middle_name ?: $linkedContact?->middle_name,
                 $linkedDeal?->last_name ?: $linkedContact?->last_name,
             ])->filter()->implode(' '));
         }
@@ -406,8 +434,14 @@ class ProjectController extends Controller
             ->with('success', 'Project created and opened in Scope of Work.');
     }
 
-    public function show(Request $request, Project $project): View
+    public function show(Request $request, Project $project)
     {
+        if ($project->isShell()) {
+            return $project->deal_id 
+                ? redirect()->route('deals.show', $project->deal_id)->with('error', 'Workspace is currently pending START form approval.')
+                : redirect()->route('project.index')->with('error', 'Workspace is currently pending START form approval.');
+        }
+
         $project = $this->normalizeProjectCompletionState($project);
         $payload = $this->buildProjectDocumentPayload($project);
         extract($payload);
@@ -421,12 +455,13 @@ class ProjectController extends Controller
             ? (string) $request->query('tab', 'sow')
             : 'sow';
         $projectLocked = $this->isProjectCompleted($project);
+        $cocGenerated = !empty(data_get($project->metadata ?? [], 'coc.generated_at'));
 
         if ($tab === 'sow') {
             [, $coc] = $this->buildProjectCocPreviewData($project);
         }
 
-        return view('project.show', compact('project', 'start', 'sow', 'report', 'ntpRecord', 'sowTemplates', 'tab', 'coc', 'sowAutoReportSettings', 'projectLocked'));
+        return view('project.show', compact('project', 'start', 'sow', 'report', 'ntpRecord', 'sowTemplates', 'tab', 'coc', 'sowAutoReportSettings', 'projectLocked', 'cocGenerated'));
     }
 
     public function updateSowAutoReportSettings(Request $request, Project $project): RedirectResponse
@@ -553,11 +588,26 @@ class ProjectController extends Controller
             'rejected_by_name' => null,
             'rejection_reason' => null,
         ])->save();
+
+        // Step 1: Generate the service memo first (while still a shell / using current project data).
+        // This matches the business flow: START approved → service memo generated → Project/Regular created.
         $this->ensureServiceMemoGenerated($project, $start, $project->sows()->latest()->first());
-        $this->moveLinkedDealToStage($project, 'Activation');
+
+        // Step 2: Now activate the shell workspace — creates the full SOW/SowReport records
+        // and sets the real operational status (SOW or RSAT), making it visible in the
+        // Project / Regular modules.
+        if ($project->isShell()) {
+            app(ProjectProvisioner::class)->activateShellWorkspace($project->fresh());
+            $project->refresh();
+        }
+
+
+
+        // Step 4: Move the linked deal to the Closed Won stage.
+        $this->moveLinkedDealToStage($project, 'Closed Won');
 
         return back()
-            ->with('success', 'START form approved successfully.');
+            ->with('success', 'START form approved. Service memo generated. Project/Regular workspace activated.');
     }
 
     public function rejectStart(Request $request, Project $project): RedirectResponse
@@ -680,6 +730,33 @@ class ProjectController extends Controller
             ->with('ntp_status', 'Waiting for client signed NTP upload.');
     }
 
+    public function downloadExistingNtpPdf(Project $project): RedirectResponse
+    {
+        $ntpRecord = $project->ntps()->latest()->first();
+
+        if (! $ntpRecord) {
+            $this->abortIfProjectCompleted($project);
+            $ntpRecord = $this->generateAndSendProjectNtp($project);
+        }
+
+        return $this->downloadNtpPdfFromRecord($ntpRecord, 'project');
+    }
+
+    public function generateCoc(Project $project): RedirectResponse
+    {
+        $this->abortIfProjectCompleted($project);
+        $this->markCocGenerated($project);
+        
+        $recipientEmail = $this->resolveProjectClientEmail($project);
+        if ($recipientEmail !== null) {
+            $this->sendCocClientLink($project, $recipientEmail);
+        }
+
+        return redirect()
+            ->route('project.show', ['project' => $project->id, 'tab' => 'sow'])
+            ->with('success', 'COC generated successfully.' . ($recipientEmail ? " COC link sent to {$recipientEmail}." : ''));
+    }
+
     public function showCocPreview(Project $project): View
     {
         if (! $this->isProjectCompleted($project)) {
@@ -707,7 +784,13 @@ class ProjectController extends Controller
     {
         $this->abortIfProjectCompleted($project);
 
-        $validated = $this->validateSignedApprovalUpload($request);
+        $validated = $request->validate([
+            'signed_document' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png,doc,docx', 'max:10240'],
+            'approval_note' => ['nullable', 'string', 'max:2000'],
+        ], [
+            'signed_document.required' => 'Please upload the signed COC document.',
+        ]);
+
         $metadata = (array) ($project->metadata ?? []);
         $existingPath = data_get($metadata, 'coc.signed_attachment_path');
 
@@ -720,8 +803,8 @@ class ProjectController extends Controller
         data_set($metadata, 'coc.generated_at', data_get($metadata, 'coc.generated_at') ?: now()->toDateTimeString());
         data_set($metadata, 'coc.approval_status', 'approved');
         data_set($metadata, 'coc.approved_at', now()->toDateTimeString());
-        data_set($metadata, 'coc.approved_by_name', $validated['approval_name'] ?: ($request->user()?->name ?? 'Manual Override'));
-        data_set($metadata, 'coc.approval_note', trim((string) ($validated['approval_note'] ?? '')) ?: 'COC manually approved using uploaded signed document.');
+        data_set($metadata, 'coc.approved_by_name', $this->currentEmployeeDisplayName($request) ?: 'Manual Override');
+        data_set($metadata, 'coc.approval_note', trim((string) ($validated['approval_note'] ?? '')) ?: 'Approved by manual override using uploaded signed COC.');
         data_set($metadata, 'coc.signed_attachment_path', $path);
 
         $project->forceFill([
@@ -734,7 +817,7 @@ class ProjectController extends Controller
 
         return redirect()
             ->route('project.show', ['project' => $project->id, 'tab' => 'sow'])
-            ->with('success', 'Signed COC uploaded and approved. Project marked as completed.');
+            ->with('success', 'Project completed. Signed COC uploaded and approved successfully.');
     }
 
     public function ntpStatus(Project $project): JsonResponse
@@ -742,6 +825,22 @@ class ProjectController extends Controller
         $ntpRecord = $project->ntps()->latest()->first();
 
         return response()->json($this->buildProjectNtpStatusPayload($project, $ntpRecord));
+    }
+
+    public function cocStatus(Project $project): JsonResponse
+    {
+        $metadata = $project->metadata ?? [];
+        $isApproved = data_get($metadata, 'coc.approval_status') === 'approved';
+
+        return response()->json([
+            'is_approved' => $isApproved,
+            'approved_at' => data_get($metadata, 'coc.approved_at'),
+            'approved_by' => data_get($metadata, 'coc.approved_by_name') ?: data_get($metadata, 'coc.client_approved_name'),
+            'approval_notes' => data_get($metadata, 'coc.approval_note') ?: data_get($metadata, 'coc.client_response_notes'),
+            'attachment_url' => data_get($metadata, 'coc.signed_attachment_path')
+                ? route('uploads.show', ['path' => data_get($metadata, 'coc.signed_attachment_path'), 'download' => 1])
+                : null,
+        ]);
     }
 
     public function showNtpSubmission(Project $project): View
@@ -849,6 +948,91 @@ class ProjectController extends Controller
         return $this->downloadNtpPdfFromRecord($ntpRecord, 'project');
     }
 
+    public function clientCoc(string $token): View
+    {
+        $project = Project::query()
+            ->where('metadata->coc->client_access_token', $token)
+            ->with(['deal:id,deal_code', 'contact:id,first_name,last_name,email', 'company:id,company_name'])
+            ->firstOrFail();
+
+        $expiresAt = data_get($project->metadata ?? [], 'coc.client_access_expires_at');
+        abort_if($expiresAt && now()->isAfter($expiresAt), 403, 'This COC link has expired.');
+        abort_if($this->isProjectCompleted($project), 423, 'This completed project is view-only.');
+
+        $contactName = trim(collect([$project->contact?->first_name, $project->contact?->last_name])->filter()->implode(' '))
+            ?: ($project->client_name ?: 'Client');
+            
+        [, $coc] = $this->buildProjectCocPreviewData($project);
+
+        return view('documents.client-coc-form', [
+            'project' => $project,
+            'coc' => $coc,
+            'contactName' => $contactName,
+            'clientFormAction' => route('project.coc.client.submit', ['token' => $token]),
+            'clientDownloadUrl' => route('project.coc.client.download', ['token' => $token]),
+        ]);
+    }
+
+    public function submitClientCoc(Request $request, string $token): RedirectResponse
+    {
+        $project = Project::query()
+            ->where('metadata->coc->client_access_token', $token)
+            ->firstOrFail();
+
+        $expiresAt = data_get($project->metadata ?? [], 'coc.client_access_expires_at');
+        abort_if($expiresAt && now()->isAfter($expiresAt), 403, 'This COC link has expired.');
+
+        $validated = $request->validate([
+            'client_approval_name' => ['required', 'string', 'max:255'],
+            'client_approval' => ['accepted'],
+            'client_response_notes' => ['nullable', 'string', 'max:4000'],
+            'client_attachment' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png,doc,docx', 'max:10240'],
+        ], [
+            'client_approval.accepted' => 'Please confirm approval before submitting.',
+            'client_attachment.required' => 'Please upload the signed COC file before submitting.',
+        ]);
+
+        $metadata = (array) ($project->metadata ?? []);
+        $existingPath = data_get($metadata, 'coc.signed_attachment_path');
+
+        if ($existingPath && Storage::disk('public')->exists($existingPath)) {
+            Storage::disk('public')->delete($existingPath);
+        }
+
+        $path = $request->file('client_attachment')->store("projects/{$project->id}/coc", 'public');
+
+        data_set($metadata, 'coc.generated_at', data_get($metadata, 'coc.generated_at') ?: now()->toDateTimeString());
+        data_set($metadata, 'coc.approval_status', 'approved');
+        data_set($metadata, 'coc.approved_at', now()->toDateTimeString());
+        data_set($metadata, 'coc.approved_by_name', $validated['client_approval_name']);
+        data_set($metadata, 'coc.approval_note', $validated['client_response_notes'] ?? null);
+        data_set($metadata, 'coc.signed_attachment_path', $path);
+
+        $project->forceFill([
+            'status' => 'Completed',
+            'current_phase' => 'Completed',
+            'current_step' => 'Completed',
+            'closed_at' => now(),
+            'metadata' => $metadata,
+        ])->save();
+
+        return redirect()
+            ->route('project.coc.client.show', ['token' => $token])
+            ->with('success', 'The signed COC was submitted successfully. Project is now complete.');
+    }
+
+    public function downloadClientCoc(string $token): RedirectResponse
+    {
+        $project = Project::query()
+            ->where('metadata->coc->client_access_token', $token)
+            ->firstOrFail();
+
+        $expiresAt = data_get($project->metadata ?? [], 'coc.client_access_expires_at');
+        abort_if($expiresAt && now()->isAfter($expiresAt), 403, 'This COC link has expired.');
+
+        return $this->downloadCocPdf($project);
+    }
+
     public function generateSowReport(Request $request, Project $project): RedirectResponse
     {
         $this->abortIfProjectCompleted($project);
@@ -896,6 +1080,20 @@ class ProjectController extends Controller
         $clientEmail = $this->resolveProjectClientEmail($project);
 
         return view('project.report-preview', compact('project', 'report', 'sow', 'contactName', 'clientEmail'));
+    }
+
+    public function getReportStatus(Project $project, ProjectSowReport $report): \Illuminate\Http\JsonResponse
+    {
+        abort_unless($report->project_id === $project->id, 404);
+
+        return response()->json([
+            'client_response_status' => $report->client_response_status ?: 'pending',
+            'client_approved_at' => $report->client_approved_at ? $report->client_approved_at->format('M d, Y h:i A') : null,
+            'client_approved_name' => $report->client_approved_name,
+            'client_response_notes' => $report->client_response_notes,
+            'client_attachment_url' => $report->client_attachment_path ? route('uploads.show', ['path' => $report->client_attachment_path, 'download' => 1]) : null,
+            'client_confirmation_name' => $report->client_confirmation_name ?: $project->client_name,
+        ]);
     }
 
     public function sendGeneratedReport(Project $project, ProjectSowReport $report, Request $request): RedirectResponse
@@ -1038,6 +1236,8 @@ class ProjectController extends Controller
         $project = $report->project()->firstOrFail();
         $this->markProjectReadyForCompletion($project, 'Client approved SOW report');
 
+        $this->notifySowReportApproved($project, $report);
+
         return redirect()
             ->route('project.report.client.show', ['token' => $token])
             ->with('success', 'Your approval has been recorded successfully.');
@@ -1071,7 +1271,7 @@ class ProjectController extends Controller
             ->with('success', 'Signed SOW report uploaded and approved manually. You can now generate the COC.');
     }
 
-    public function downloadClientSowReport(string $token): RedirectResponse
+    public function downloadClientSowReport(string $token)
     {
         abort_unless($this->supportsProjectSowReportClientPortal(), 404);
 
@@ -1082,12 +1282,12 @@ class ProjectController extends Controller
         $contactName = trim(collect([$project->contact?->first_name, $project->contact?->last_name])->filter()->implode(' '))
             ?: ($project->client_name ?: '-');
 
-        $targetPath = 'generated-previews/project/sow-report/' . ($project->project_code ?: $project->id) . '-' . ($report->report_number ?: $report->id) . '.pdf';
-        $pdfPath = $this->generatePdfPreview('project.pdf.sow-report', compact('project', 'report', 'contactName'), $targetPath);
+        $pdf = Pdf::loadView('project.pdf.sow-report', compact('project', 'report', 'contactName'))
+            ->setPaper('a4', 'portrait');
 
-        abort_unless($pdfPath && Storage::disk('public')->exists($pdfPath), 500, 'Unable to generate SOW report PDF preview.');
+        $filename = Str::slug((string) ($project->project_code ?: 'project')) . '-' . Str::slug((string) ($report->report_number ?: 'report')) . '.pdf';
 
-        return redirect()->route('uploads.show', ['path' => $pdfPath, 'download' => 1]);
+        return $pdf->download($filename);
     }
 
     public function updateReport(Request $request, Project $project): RedirectResponse
@@ -1324,7 +1524,7 @@ class ProjectController extends Controller
     private function buildServiceMemoPayload(Project $project, ProjectStart $start, ?ProjectSow $sow): array
     {
         $project->loadMissing([
-            'deal:id,deal_code,engagement_type',
+            'deal:id,deal_code,engagement_type,internal_sales_marketing,internal_finance,internal_president',
             'company:id,company_name',
             'contact:id,first_name,last_name,email,company_name',
         ]);
@@ -1349,9 +1549,9 @@ class ProjectController extends Controller
             'sow_template' => data_get($sow?->metadata, 'template_name') ?: ($sow?->version_number ?: '-'),
             'lead_consultant' => $project->assigned_consultant ?: ' ',
             'associate' => $project->assigned_associate ?: ' ',
-            'sales_marketing' => 'Sales and Marketing',
-            'finance' => 'Finance',
-            'office_of_president' => 'Office of the President',
+            'sales_marketing' => $project->deal?->internal_sales_marketing ?: 'Sales and Marketing',
+            'finance' => $project->deal?->internal_finance ?: 'Finance',
+            'office_of_president' => $project->deal?->internal_president ?: 'Office of the President',
         ];
     }
 
@@ -1790,8 +1990,8 @@ class ProjectController extends Controller
     private function buildProjectDocumentPayload(Project $project): array
     {
         $project->load([
-            'deal:id,deal_code,engagement_type',
-            'contact:id,first_name,last_name,email,phone,company_name',
+            'deal:id,deal_code,engagement_type,prepared_by,referred_closed_by,assigned_consultant,internal_sales_marketing,assigned_associate,internal_finance',
+            'contact:id,first_name,last_name,email,phone,company_name,referred_by',
             'company.primaryContact:id,first_name,middle_name,last_name,email,phone,company_name,cif_status,organization_type,business_type_organization,ownership_flag,foreign_business_nature',
             'company.latestBif',
             'starts' => fn ($query) => $query->latest(),
@@ -1829,6 +2029,11 @@ class ProjectController extends Controller
             'button_class' => $isApproved
                 ? 'project-doc-action project-doc-action-approved'
                 : 'project-doc-action',
+            'client_approved_name' => $ntpRecord?->client_approved_name,
+            'client_approved_at' => $ntpRecord?->client_approved_at?->format('M d, Y h:i A'),
+            'client_approved_at_short' => $ntpRecord?->client_approved_at?->format('M d, Y'),
+            'client_response_notes' => $ntpRecord?->client_response_notes,
+            'client_attachment_url' => $ntpRecord?->client_attachment_path ? route('uploads.show', ['path' => $ntpRecord->client_attachment_path, 'download' => 1]) : null,
             'action_url' => $ntpRecord
                 ? route('project.ntp.submission', $project)
                 : route('project.ntp.download', $project),
@@ -2714,6 +2919,30 @@ class ProjectController extends Controller
         });
     }
 
+    private function notifySowReportApproved(Project $project, ProjectSowReport $report): void
+    {
+        $recipientEmail = env('PROJECT_NOTIFICATION_EMAIL');
+        
+        if (! $recipientEmail) {
+            return;
+        }
+
+        $internalUrl = route('project.report.preview', ['project' => $project->id, 'report' => $report->id]);
+        
+        $emailHtml = view('emails.project.sow-report-approved', [
+            'project' => $project,
+            'report' => $report,
+            'internalUrl' => $internalUrl,
+        ])->render();
+
+        Mail::html($emailHtml, function ($message) use ($recipientEmail, $project, $report) {
+            $message
+                ->from(config('mail.from.address'), 'John Kelly & Company')
+                ->to($recipientEmail)
+                ->subject("Client Approved: SOW Report for {$project->name} ({$report->report_number})");
+        });
+    }
+
     private function findReportByClientToken(string $token): ProjectSowReport
     {
         return ProjectSowReport::query()
@@ -2814,6 +3043,37 @@ class ProjectController extends Controller
                 ->from(config('mail.from.address'), 'John Kelly & Company')
                 ->to($recipientEmail)
                 ->subject("Notice To Proceed for {$project->name} ({$ntpRecord->ntp_number})");
+        });
+    }
+
+    private function sendCocClientLink(Project $project, string $recipientEmail): void
+    {
+        $token = Str::random(64);
+        $expiresAt = now()->addDays(self::CLIENT_LINK_TTL_DAYS);
+        $clientUrl = route('project.coc.client.show', ['token' => $token]);
+        $clientName = trim(collect([$project->contact?->first_name, $project->contact?->last_name])->filter()->implode(' '))
+            ?: ($project->client_name ?: 'Client');
+
+        $metadata = (array) ($project->metadata ?? []);
+        data_set($metadata, 'coc.client_access_token', $token);
+        data_set($metadata, 'coc.client_access_expires_at', $expiresAt->toDateTimeString());
+        data_set($metadata, 'coc.client_form_sent_to_email', $recipientEmail);
+        data_set($metadata, 'coc.client_form_sent_at', now()->toDateTimeString());
+
+        $project->forceFill(['metadata' => $metadata])->save();
+
+        $emailHtml = view('emails.documents.coc-client-link', [
+            'project' => $project,
+            'clientName' => $clientName,
+            'clientUrl' => $clientUrl,
+            'expiresAt' => $expiresAt,
+        ])->render();
+
+        Mail::html($emailHtml, function ($message) use ($recipientEmail, $project) {
+            $message
+                ->from(config('mail.from.address'), 'John Kelly & Company')
+                ->to($recipientEmail)
+                ->subject('Certificate of Completion: '.($project->project_code ?: 'Project').' - '.($project->business_name ?: 'Business'));
         });
     }
 

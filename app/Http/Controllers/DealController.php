@@ -335,6 +335,10 @@ class DealController extends Controller
                 $this->backfillMissingDealCodes();
 
                 $storedDeals = Deal::query()
+                    ->where(function ($query) {
+                        $query->whereNull('delete_request_status')
+                              ->orWhere('delete_request_status', '!=', 'pending');
+                    })
                     ->with(['contact:id,first_name,last_name', 'stage', 'assignedFinance'])
                     ->latest()
                     ->get();
@@ -823,6 +827,79 @@ class DealController extends Controller
         ]);
     }
 
+    public function destroy(Request $request, int $id): JsonResponse
+    {
+        try {
+            $deal = Deal::find($id);
+            if (! $deal) {
+                return response()->json(['error' => 'Deal not found.'], 404);
+            }
+
+            if (! $this->canViewDeal($deal)) {
+                return response()->json(['error' => 'You do not have access to this deal.'], 403);
+            }
+
+            $deal->forceFill([
+                'delete_request_status' => 'pending',
+                'delete_requested_by' => $request->user()->id,
+                'delete_requested_at' => now(),
+            ])->save();
+
+            return response()->json([
+                'ok' => true,
+                'message' => 'Deal deletion requested successfully.',
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json(['error' => 'Failed to request deal deletion.'], 500);
+        }
+    }
+
+    public function approveDeletion(Request $request, int $id): RedirectResponse
+    {
+        if (! $this->isDealReviewer($request)) {
+            return redirect()
+                ->route('admin.dashboard.section', 'deals')
+                ->with('error', 'You do not have permission to approve deal deletions.');
+        }
+
+        $deal = Deal::find($id);
+        if (! $deal) {
+            return redirect()
+                ->route('admin.dashboard.section', 'deals')
+                ->with('error', 'Deal not found.');
+        }
+
+        $deal->delete();
+
+        return redirect()
+            ->route('admin.dashboard.section', 'deals')
+            ->with('success', 'Deal permanently deleted.');
+    }
+
+    public function rejectDeletion(Request $request, int $id): RedirectResponse
+    {
+        if (! $this->isDealReviewer($request)) {
+            return redirect()
+                ->route('admin.dashboard.section', 'deals')
+                ->with('error', 'You do not have permission to reject deal deletions.');
+        }
+
+        $deal = Deal::find($id);
+        if (! $deal) {
+            return redirect()
+                ->route('admin.dashboard.section', 'deals')
+                ->with('error', 'Deal not found.');
+        }
+
+        $deal->forceFill([
+            'delete_request_status' => 'rejected',
+        ])->save();
+
+        return redirect()
+            ->route('admin.dashboard.section', 'deals')
+            ->with('success', 'Deal deletion request rejected.');
+    }
+
     public function updateDealStage(Request $request, int $id): JsonResponse|RedirectResponse
     {
         try {
@@ -1026,7 +1103,6 @@ class DealController extends Controller
             $this->applyFeePersistence($createdDeal, $validated);
             $this->syncDealNameToCode($createdDeal);
             $createdDeal->save();
-            $this->projectProvisioner->createOrSyncFromDeal($createdDeal);
 
             $request->session()->forget('deals.preview_payload');
 
@@ -1115,7 +1191,6 @@ class DealController extends Controller
             $this->ensureDealCodeAssigned($deal, $contact);
             $this->syncDealNameToCode($deal);
             $deal->save();
-            $this->projectProvisioner->createOrSyncFromDeal($deal);
 
             return redirect()->route('deals.show', $deal->id)->with('success', 'Deal updated and resubmitted for approval.');
         } catch (Throwable $exception) {
@@ -1166,9 +1241,28 @@ class DealController extends Controller
                     'rejected_by_name' => null,
                     'rejection_reason' => null,
                 ])->save();
-
-                $this->projectProvisioner->createFromApprovedDeal($deal);
             });
+
+            // Create a shell workspace immediately so the START form is visible
+            // in the deal show page right after approval. The START form starts
+            // as 'pending' (editable by the team). It will be auto-submitted to
+            // 'pending_approval' when the deal reaches the Closed Won stage.
+            try {
+                $freshDeal = $deal->fresh();
+                if ($freshDeal && $freshDeal->projects()->doesntExist()) {
+                    $this->projectProvisioner->createShellWorkspace($freshDeal);
+                    // Reset to 'pending' so the team can fill it before Closed Won.
+                    // If it's a Hybrid deal, two workspaces are created. Iterate over all.
+                    foreach ($freshDeal->projects()->get() as $shell) {
+                        $start = $shell->starts()->latest()->first();
+                        if ($start && strtolower((string) $start->status) === 'pending_approval') {
+                            $start->forceFill(['status' => 'pending'])->save();
+                        }
+                    }
+                }
+            } catch (Throwable) {
+                // Non-critical — shell creation failure should not block deal approval
+            }
         } catch (Throwable $exception) {
             report($exception);
 
@@ -1179,7 +1273,36 @@ class DealController extends Controller
 
         return redirect()
             ->route('deals.show', $deal->id)
-            ->with('success', 'Deal qualified and approved successfully.');
+            ->with('success', 'Deal qualified and approved successfully. START form is now available.');
+    }
+
+    public function approveInternalReview(Request $request, int $id): RedirectResponse
+    {
+        if (! $this->isDealReviewer($request)) {
+            return redirect()
+                ->route('deals.show', $id)
+                ->with('error', 'You do not have permission to approve this deal.');
+        }
+
+        $deal = Deal::query()->findOrFail($id);
+
+        try {
+            DB::transaction(function () use ($deal, $request): void {
+                $deal->forceFill([
+                    'stage' => 'Consultation',
+                    'stage_id' => Schema::hasColumn('deals', 'stage_id') ? $this->resolveStageIdByName('Consultation') : $deal->stage_id,
+                ])->save();
+            });
+        } catch (Throwable $exception) {
+            report($exception);
+            return redirect()
+                ->route('deals.show', $deal->id)
+                ->with('error', 'We could not approve the internal review right now. Please try again.');
+        }
+
+        return redirect()
+            ->route('deals.show', $deal->id)
+            ->with('success', 'Internal review approved. Deal moved to Consultation stage.');
     }
 
     public function reject(Request $request, int $id): RedirectResponse
@@ -1349,11 +1472,13 @@ class DealController extends Controller
                         'id' => $storedDeal->project?->id,
                         'code' => $storedDeal->project?->project_code,
                         'status' => $storedDeal->project?->status,
+                        'is_shell' => $storedDeal->project?->isShell(),
                     ],
                     'regular_project' => [
                         'id' => $storedDeal->regularProject?->id,
                         'code' => $storedDeal->regularProject?->project_code,
                         'status' => $storedDeal->regularProject?->status,
+                        'is_shell' => $storedDeal->regularProject?->isShell(),
                     ],
                     'progress' => [
                         'stages' => $stages,
@@ -3236,8 +3361,8 @@ class DealController extends Controller
 
         $stage = trim($currentStage);
 
-        if ($stage === '' || $stage === 'Qualification') {
-            return 'Proposal';
+        if ($stage === '' || $stage === 'Inquiry' || $stage === 'Qualification') {
+            return 'Qualification';
         }
 
         return $stage;
@@ -3257,7 +3382,7 @@ class DealController extends Controller
     private function buildLinkedProjectStartContext(Project $project): array
     {
         $project->loadMissing([
-            'deal:id,deal_code,engagement_type',
+            'deal:id,deal_code,engagement_type,internal_sales_marketing,internal_finance,internal_president',
             'contact:id,first_name,last_name,email,phone,company_name',
             'company.primaryContact:id,first_name,middle_name,last_name,email,phone,company_name,cif_status,organization_type,business_type_organization,ownership_flag,foreign_business_nature',
             'company.latestBif',
@@ -3370,9 +3495,9 @@ class DealController extends Controller
             'sow_template' => data_get($sow?->metadata, 'template_name') ?: ($sow?->version_number ?: '-'),
             'lead_consultant' => $project->assigned_consultant ?: ' ',
             'associate' => $project->assigned_associate ?: ' ',
-            'sales_marketing' => 'Sales and Marketing',
-            'finance' => 'Finance',
-            'office_of_president' => 'Office of the President',
+            'sales_marketing' => $project->deal?->internal_sales_marketing ?: 'Sales and Marketing',
+            'finance' => $project->deal?->internal_finance ?: 'Finance',
+            'office_of_president' => $project->deal?->internal_president ?: 'Office of the President',
         ];
     }
 }

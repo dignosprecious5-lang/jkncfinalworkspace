@@ -401,7 +401,7 @@ class DealProposalController extends Controller
         }
 
         return redirect()
-            ->route('admin.deal-proposal-templates.index')
+            ->route('admin.dashboard.section', 'deals')
             ->with('success', 'Global proposal template approved. New deal proposals will use it.');
     }
 
@@ -424,7 +424,7 @@ class DealProposalController extends Controller
         }
 
         return redirect()
-            ->route('admin.deal-proposal-templates.index')
+            ->route('admin.dashboard.section', 'deals')
             ->with('success', 'Global proposal template request rejected.');
     }
 
@@ -528,6 +528,44 @@ class DealProposalController extends Controller
         return redirect()
             ->route('deals.proposal.client.show', ['token' => $token])
             ->with('success', 'Proposal approved successfully. Thank you.');
+    }
+
+    public function approveProposalAdmin(Request $request, Deal $deal): RedirectResponse
+    {
+        $proposal = $deal->proposal;
+        if (! $proposal) {
+            return back()->with('error', 'Proposal not found.');
+        }
+
+        $proposal->update([
+            'status' => 'approved',
+        ]);
+
+        $deal->update([
+            'proposal_decision' => 'Approved',
+        ]);
+
+        $this->moveDealToStage($deal, 'Negotiation');
+
+        return back()->with('success', 'Proposal approved internally. Deal moved to Negotiation stage.');
+    }
+
+    public function rejectProposalAdmin(Request $request, Deal $deal): RedirectResponse
+    {
+        $proposal = $deal->proposal;
+        if (! $proposal) {
+            return back()->with('error', 'Proposal not found.');
+        }
+
+        $proposal->update([
+            'status' => 'rejected',
+        ]);
+
+        $deal->update([
+            'proposal_decision' => 'Rejected',
+        ]);
+
+        return back()->with('success', 'Proposal rejected internally.');
     }
 
     public function downloadClientProposal(string $token): RedirectResponse
@@ -717,29 +755,11 @@ class DealProposalController extends Controller
 
         $this->markDealApprovedByFinance($deal, $financeName);
 
-        $freshDeal = $deal->fresh();
-        if ($freshDeal) {
-            $this->projectProvisioner->createOrSyncFromDeal($freshDeal);
-            $workspaces = $freshDeal->projects()->with('starts')->get();
-
-            foreach ($workspaces as $workspace) {
-                $start = $workspace->starts()->latest()->first();
-                if ($start && strtolower((string) $start->status) !== 'approved') {
-                    $start->forceFill([
-                        'status' => 'pending_approval',
-                        'approved_at' => null,
-                        'approved_by_name' => null,
-                        'rejected_at' => null,
-                        'rejected_by_name' => null,
-                        'rejection_reason' => null,
-                    ])->save();
-                }
-            }
-        }
+        $this->moveDealToStage($deal, 'Closed Won');
 
         return redirect()
             ->route('deals.invoice.payment', $deal)
-            ->with('success', 'Payment / invoice approved by finance. START has been submitted for approval.');
+            ->with('success', 'Payment / invoice approved by finance. Deal moved to Closed Won.');
     }
 
     public function uploadClientQuotation(Request $request, string $token): RedirectResponse
@@ -1542,6 +1562,32 @@ class DealProposalController extends Controller
         }
 
         $deal->update($payload);
+
+        if ($stageName === 'Closed Won') {
+            $freshDeal = $deal->fresh();
+            if ($freshDeal) {
+                if ($freshDeal->projects()->doesntExist()) {
+                    $this->projectProvisioner->createShellWorkspace($freshDeal);
+                    $freshDeal->refresh();
+                }
+
+                $workspaces = $freshDeal->projects()->with('starts')->get();
+
+                foreach ($workspaces as $workspace) {
+                    $start = $workspace->starts()->latest()->first();
+                    if ($start && strtolower((string) $start->status) !== 'approved') {
+                        $start->forceFill([
+                            'status' => 'pending_approval',
+                            'approved_at' => null,
+                            'approved_by_name' => null,
+                            'rejected_at' => null,
+                            'rejected_by_name' => null,
+                            'rejection_reason' => null,
+                        ])->save();
+                    }
+                }
+            }
+        }
     }
 
     private function markDealApprovedByFinance(Deal $deal, string $financeName): void

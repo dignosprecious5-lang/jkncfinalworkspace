@@ -1020,18 +1020,29 @@ document.addEventListener('DOMContentLoaded', () => {
         refreshAllStageMeta();
     };
 
-    const deleteCard = (card) => {
+    const deleteCard = async (card) => {
         if (!card) {
             return;
         }
-        if (!window.confirm('Delete this deal card from the board?')) {
+        if (!window.confirm('Request to delete this deal from the board?')) {
             return;
         }
-        const section = card.closest('.stage-column');
-        card.remove();
-        ensureEmptyState(section);
-        updateSelectionUI();
-        updateStageHeaderMeta(section);
+        const dealId = card.getAttribute('data-deal-id');
+        if (!dealId) return;
+
+        try {
+            const payload = await api(`/deals/${dealId}`, 'DELETE');
+            if (payload.ok) {
+                const section = card.closest('.stage-column');
+                card.remove();
+                ensureEmptyState(section);
+                updateSelectionUI();
+                updateStageHeaderMeta(section);
+                alert(payload.message || 'Deal deletion requested.');
+            }
+        } catch (err) {
+            alert(err.message || 'Failed to request deal deletion.');
+        }
     };
 
     addDealButton?.addEventListener('click', () => {

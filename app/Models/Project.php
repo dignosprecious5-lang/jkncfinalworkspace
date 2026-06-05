@@ -113,4 +113,13 @@ class Project extends Model
     {
         return $this->hasMany(ProjectNtp::class);
     }
+
+    /**
+     * Returns true when this workspace is a shell created at Closed Won
+     * and is still awaiting START form Admin Approval before full activation.
+     */
+    public function isShell(): bool
+    {
+        return (bool) data_get($this->metadata, 'is_shell', false);
+    }
 }

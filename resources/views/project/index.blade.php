@@ -171,14 +171,42 @@
 
         <div class="rounded-2xl border border-gray-200 bg-white shadow-sm">
             <div class="border-b border-gray-100 px-5 py-4">
-                <h2 class="text-xl font-semibold text-gray-900">Project Registry</h2>
-                <p class="mt-1 text-sm text-gray-500">This list is now backed by approved deals instead of placeholder data.</p>
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                        <h2 class="text-xl font-semibold text-gray-900">Project Registry</h2>
+                        <p class="mt-1 text-sm text-gray-500">This list is now backed by approved deals instead of placeholder data.</p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <form id="projectsSearchForm" method="GET" action="{{ route('project.index') }}" class="flex items-center gap-2">
+                            <div class="relative">
+                                <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400"></i>
+                                <input
+                                    id="projectsSearchInput"
+                                    type="text"
+                                    name="search"
+                                    value="{{ $search ?? '' }}"
+                                    placeholder="Search projects..."
+                                    autocomplete="off"
+                                    class="h-9 w-56 rounded-lg border border-gray-200 pl-8 pr-3 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                                >
+                            </div>
+                        </form>
+                        <button id="openProjectDeleteSelectedModal" type="button" class="hidden h-9 rounded-md border border-red-200 bg-white px-3 text-sm text-red-600 hover:bg-red-50">Delete Selected</button>
+                    </div>
+                </div>
             </div>
+
+            @if(($search ?? '') !== '')
+                <div class="px-5 py-2 text-sm text-gray-500">Showing results for <span class="font-semibold text-gray-900">"{{ $search }}"</span>. <a href="{{ route('project.index') }}" class="text-blue-600 hover:underline">Clear search</a></div>
+            @endif
 
             <div class="overflow-x-auto">
                 <table class="min-w-full text-sm">
                     <thead class="bg-gray-50 text-gray-600 border-b border-gray-200">
                         <tr>
+                            <th class="px-4 py-3 text-left font-medium w-10">
+                                <input id="projectSelectAll" type="checkbox" class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                            </th>
                             <th class="px-4 py-3 text-left font-medium">Project</th>
                             <th class="px-4 py-3 text-left font-medium">Deal</th>
                             <th class="px-4 py-3 text-left font-medium">Company</th>
@@ -191,6 +219,9 @@
                     <tbody class="divide-y divide-gray-200 bg-white text-gray-700">
                         @forelse ($projects as $project)
                             <tr class="hover:bg-gray-50">
+                                <td class="px-4 py-3">
+                                    <input type="checkbox" name="project_checkbox" value="{{ $project->id }}" class="project-row-checkbox h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                </td>
                                 <td class="px-4 py-3">
                                     <p class="font-medium text-gray-900">{{ $project->name }}</p>
                                     <p class="text-xs text-gray-500">{{ $project->project_code }}</p>
@@ -209,11 +240,36 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="7" class="px-4 py-12 text-center text-sm text-gray-500">No approved project engagements have created project records yet.</td>
+                                <td colspan="8" class="px-4 py-12 text-center text-sm text-gray-500">
+                                    @if(($search ?? '') !== '')
+                                        No projects found matching <span class="font-semibold">"{{ $search }}"</span>.
+                                    @else
+                                        No approved project engagements have created project records yet.
+                                    @endif
+                                </td>
                             </tr>
                         @endforelse
                     </tbody>
                 </table>
+            </div>
+        </div>
+
+        {{-- Delete Selected Modal --}}
+        <div id="projectDeleteSelectedModal" class="fixed inset-0 z-[70] hidden" aria-hidden="true">
+            <button id="projectDeleteSelectedOverlay" type="button" aria-label="Close delete projects modal" class="absolute inset-0 bg-slate-900/45"></button>
+            <div class="absolute left-1/2 top-1/2 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white p-6 shadow-xl">
+                <h2 class="text-xl font-semibold text-gray-900">Delete Selected Projects</h2>
+                <p class="mt-1 text-sm text-gray-500">This action will permanently delete the selected project records.</p>
+                <form id="projectBulkDeleteForm" method="POST" action="{{ route('project.bulk-delete') }}">
+                    @csrf
+                    @method('DELETE')
+                    <div id="projectBulkDeleteSelectedItems"></div>
+                    <p class="mt-4 text-sm text-gray-700">Are you sure you want to delete <span id="projectBulkDeleteCountText" class="font-semibold text-gray-900">0 projects</span>?</p>
+                    <div class="mt-5 flex justify-end gap-3">
+                        <button id="cancelProjectDeleteSelectedModal" type="button" class="h-10 rounded-lg border border-gray-300 px-4 text-sm text-gray-700 hover:bg-gray-50">Cancel</button>
+                        <button type="submit" class="h-10 rounded-lg bg-red-600 px-5 text-sm font-medium text-white hover:bg-red-700">Delete Selected</button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
@@ -1315,6 +1371,84 @@
         @if ($errors->any())
             window.jkncSlideOver?.open(document.getElementById('projectManualCreateDrawer'));
         @endif
+    })();
+</script>
+
+<script>
+    (() => {
+        // ── Search debounce ──────────────────────────────────────────
+        const projectsSearchForm  = document.getElementById('projectsSearchForm');
+        const projectsSearchInput = document.getElementById('projectsSearchInput');
+        let projectSearchDebounce = null;
+
+        const submitProjectSearch = () => projectsSearchForm?.submit();
+
+        projectsSearchInput?.addEventListener('input', () => {
+            clearTimeout(projectSearchDebounce);
+            projectSearchDebounce = setTimeout(submitProjectSearch, 700);
+        });
+        projectsSearchInput?.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                clearTimeout(projectSearchDebounce);
+                submitProjectSearch();
+            }
+        });
+
+        // ── Checkbox / Delete Selected ───────────────────────────────
+        const selectAllCb          = document.getElementById('projectSelectAll');
+        const openDeleteBtn        = document.getElementById('openProjectDeleteSelectedModal');
+        const deleteModal          = document.getElementById('projectDeleteSelectedModal');
+        const deleteOverlay        = document.getElementById('projectDeleteSelectedOverlay');
+        const cancelDeleteBtn      = document.getElementById('cancelProjectDeleteSelectedModal');
+        const bulkDeleteItems      = document.getElementById('projectBulkDeleteSelectedItems');
+        const bulkDeleteCountText  = document.getElementById('projectBulkDeleteCountText');
+
+        const rowCheckboxes = () => Array.from(document.querySelectorAll('.project-row-checkbox'));
+        const selectedIds   = () => rowCheckboxes().filter(cb => cb.checked).map(cb => cb.value);
+
+        const syncDeleteButton = () => {
+            const count = selectedIds().length;
+            if (openDeleteBtn) {
+                openDeleteBtn.classList.toggle('hidden', count === 0);
+            }
+            if (selectAllCb) {
+                const all = rowCheckboxes();
+                selectAllCb.indeterminate = count > 0 && count < all.length;
+                selectAllCb.checked = all.length > 0 && count === all.length;
+            }
+        };
+
+        const closeProjectDeleteModal = () => {
+            deleteModal?.classList.add('hidden');
+            deleteModal?.setAttribute('aria-hidden', 'true');
+        };
+
+        const openProjectDeleteModal = () => {
+            const ids = selectedIds();
+            if (ids.length === 0 || !deleteModal) return;
+            if (bulkDeleteItems) {
+                bulkDeleteItems.innerHTML = ids.map(id =>
+                    `<input type="hidden" name="selected_projects[]" value="${id}">`
+                ).join('');
+            }
+            if (bulkDeleteCountText) {
+                bulkDeleteCountText.textContent = `${ids.length} ${ids.length === 1 ? 'project' : 'projects'}`;
+            }
+            deleteModal.classList.remove('hidden');
+            deleteModal.setAttribute('aria-hidden', 'false');
+        };
+
+        selectAllCb?.addEventListener('change', () => {
+            rowCheckboxes().forEach(cb => { cb.checked = selectAllCb.checked; });
+            syncDeleteButton();
+        });
+
+        rowCheckboxes().forEach(cb => cb.addEventListener('change', syncDeleteButton));
+
+        openDeleteBtn?.addEventListener('click', openProjectDeleteModal);
+        cancelDeleteBtn?.addEventListener('click', closeProjectDeleteModal);
+        deleteOverlay?.addEventListener('click', closeProjectDeleteModal);
+        document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeProjectDeleteModal(); });
     })();
 </script>
 @endsection

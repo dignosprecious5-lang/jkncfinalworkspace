@@ -96,7 +96,7 @@ class RegularController extends Controller
     {
     }
 
-    public function index(): View
+    public function index(Request $request): View
     {
         $this->provisionMissingRegularRecords();
 
@@ -104,13 +104,24 @@ class RegularController extends Controller
         $contactRecords = [];
         $companyRecords = [];
         $dealRecords = [];
+        $search = trim((string) $request->query('search', ''));
 
         if (Schema::hasTable('projects')) {
-            $regulars = Project::query()
+            $query = Project::query()
                 ->with(['deal:id,deal_code', 'company:id,company_name'])
-                ->latest()
-                ->get()
-                ->filter(fn (Project $project): bool => $this->isRegularEngagement($project->engagement_type))
+                ->latest();
+
+            if ($search !== '') {
+                $query->where(function ($q) use ($search) {
+                    $q->where('project_code', 'LIKE', '%' . $search . '%')
+                      ->orWhere('name', 'LIKE', '%' . $search . '%')
+                      ->orWhere('client_name', 'LIKE', '%' . $search . '%')
+                      ->orWhere('business_name', 'LIKE', '%' . $search . '%');
+                });
+            }
+
+            $regulars = $query->get()
+                ->filter(fn (Project $project): bool => $this->isRegularEngagement($project->engagement_type) && ! $project->isShell())
                 ->values();
         }
 
@@ -149,6 +160,7 @@ class RegularController extends Controller
 
         return view('regular.index', compact(
             'regulars',
+            'search',
             'stats',
             'rsatTemplates',
             'contactRecords',
@@ -160,6 +172,22 @@ class RegularController extends Controller
             'productCatalog',
             'catalogWarnings'
         ));
+    }
+
+    public function bulkDelete(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'selected_regulars' => ['required', 'array', 'min:1'],
+            'selected_regulars.*' => ['required', 'integer'],
+        ]);
+
+        $deletedCount = Project::query()
+            ->whereIn('id', $validated['selected_regulars'])
+            ->delete();
+
+        return redirect()
+            ->route('regular.index')
+            ->with('success', $deletedCount === 1 ? '1 regular engagement deleted successfully.' : "{$deletedCount} regular engagements deleted successfully.");
     }
 
     public function storeManual(Request $request): RedirectResponse
@@ -352,8 +380,14 @@ class RegularController extends Controller
             ->with('success', 'Regular engagement created and opened in RSAT form.');
     }
 
-    public function show(Request $request, Project $regular): View
+    public function show(Request $request, Project $regular)
     {
+        if ($regular->isShell()) {
+            return $regular->deal_id 
+                ? redirect()->route('deals.show', $regular->deal_id)->with('error', 'Workspace is currently pending RSAT form approval.')
+                : redirect()->route('regular.index')->with('error', 'Workspace is currently pending RSAT form approval.');
+        }
+
         abort_unless($this->isRegularEngagement($regular->engagement_type), 404);
 
         $regular->load([
@@ -450,11 +484,17 @@ class RegularController extends Controller
         $rsat->rejection_reason = trim((string) ($validated['approval_note'] ?? '')) ?: null;
         $rsat->save();
 
-        $regular->forceFill([
-            'status' => 'For NTP Approval',
-            'current_phase' => 'For NTP Approval',
-            'current_step' => 'RSAT manually approved',
-        ])->save();
+        // If the workspace is still a shell, activate it now (creates SowReport, sets real RSAT status)
+        if ($regular->isShell()) {
+            $this->projectProvisioner->activateShellWorkspace($regular->fresh());
+            $regular->refresh();
+        } else {
+            $regular->forceFill([
+                'status' => 'For NTP Approval',
+                'current_phase' => 'For NTP Approval',
+                'current_step' => 'RSAT manually approved',
+            ])->save();
+        }
 
         return redirect()
             ->route('regular.show', ['regular' => $regular, 'tab' => 'rsat'])
@@ -925,7 +965,11 @@ class RegularController extends Controller
         }
 
         Deal::query()
-            ->whereDoesntHave('projects', fn ($query) => $query->whereRaw('LOWER(COALESCE(engagement_type, "")) LIKE ?', ['%regular%']))
+            ->whereDoesntHave('projects', fn ($query) => $query
+                ->whereRaw('LOWER(COALESCE(engagement_type, "")) LIKE ?', ['%regular%'])
+                // Exclude deals that already have a shell workspace — those will activate via START approval
+                ->whereRaw("COALESCE(JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.is_shell')), 'false') != 'true'")
+            )
             ->get()
             ->filter(fn (Deal $deal): bool => $this->isRegularEngagement($deal->engagement_type))
             ->each(fn (Deal $deal) => $this->projectProvisioner->createOrSyncFromDeal($deal));

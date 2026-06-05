@@ -503,12 +503,12 @@
                             <div class="deal-quick-group">
                                 <p class="deal-quick-label">Workspaces</p>
                                 <div class="deal-quick-stack">
-                                    @if (data_get($detail, 'project.id'))
+                                    @if (data_get($detail, 'project.id') && ! data_get($detail, 'project.is_shell'))
                                         <a href="{{ route('project.show', data_get($detail, 'project.id')) }}" class="deal-action-btn">
                                             <i class="fas fa-diagram-project mr-1"></i>Open Project Workspace
                                         </a>
                                     @endif
-                                    @if (data_get($detail, 'regular_project.id'))
+                                    @if (data_get($detail, 'regular_project.id') && ! data_get($detail, 'regular_project.is_shell'))
                                         <a href="{{ route('regular.show', data_get($detail, 'regular_project.id')) }}" class="deal-action-btn">
                                             <i class="fas fa-clipboard-list mr-1"></i>Open Regular
                                         </a>
@@ -526,7 +526,7 @@
                         </div>
                     </section>
 
-                    @if (in_array(($deal['stage'] ?? ''), ['Negotiation', 'Payment', 'Activation'], true) && (($hasSavedProposal ?? false) === true))
+                    @if (in_array(($deal['stage'] ?? ''), ['Negotiation', 'Payment', 'Activation', 'Closed Won'], true) && (($hasSavedProposal ?? false) === true))
                     <section class="deal-flow-card rounded-2xl px-4 py-4">
                         <div class="flex items-center justify-between gap-3">
                             <div>
@@ -580,7 +580,7 @@
                     </section>
                     @endif
 
-                    @if (in_array(($deal['stage'] ?? ''), ['Payment', 'Activation'], true) && (($hasSavedProposal ?? false) === true))
+                    @if (in_array(($deal['stage'] ?? ''), ['Payment', 'Activation', 'Closed Won'], true) && (($hasSavedProposal ?? false) === true))
                     <section class="deal-flow-card rounded-2xl px-4 py-4">
                         <div class="flex items-center justify-between gap-3">
                             <div>
