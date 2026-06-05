@@ -40,7 +40,84 @@ class ProjectProvisioner
         return $this->createOrSyncFromDeal($deal);
     }
 
+    /**
+     * Create or sync a full (non-shell) workspace from a deal.
+     * Used by backfill commands and manual provisioning only.
+     */
     public function createOrSyncFromDeal(Deal $deal): ?Project
+    {
+        return $this->provisionFromDeal($deal, shell: false);
+    }
+
+    /**
+     * Create a shell workspace when a deal is approved.
+     * A shell only contains the START form so it is visible immediately;
+     * SOW/SowReport and full operational status are deferred until the
+     * START form is Admin Approved (which also generates the service memo).
+     */
+    public function createShellWorkspace(Deal $deal): ?Project
+    {
+        return $this->provisionFromDeal($deal, shell: true);
+    }
+
+    /**
+     * Activate a shell workspace after START form Admin Approval.
+     * Sets the real operational status and creates the SOW / SowReport records.
+     */
+    public function activateShellWorkspace(Project $project): void
+    {
+        if (! Schema::hasTable('projects')) {
+            return;
+        }
+
+        $deal = $project->deal()->first();
+        $engagementType = Str::lower(trim((string) ($project->engagement_type ?? '')));
+        $isRegular = Str::contains($engagementType, 'regular');
+
+        // Determine the correct activated status
+        $activatedStatus  = $isRegular ? 'RSAT' : 'SOW';
+        $activatedPhase   = $isRegular ? 'RSAT' : 'SOW';
+        $activatedStep    = $isRegular ? 'RSAT Checklist' : 'SOW Preparation';
+
+        // Promote the shell to a fully active workspace
+        $metadata = (array) ($project->metadata ?? []);
+        $metadata['is_shell'] = false;
+
+        $project->forceFill([
+            'status'        => $activatedStatus,
+            'current_phase' => $activatedPhase,
+            'current_step'  => $activatedStep,
+            'metadata'      => $metadata,
+        ])->save();
+
+        if (! $isRegular) {
+            // Build scope items from the deal if available
+            $scopeItems = $deal ? $this->defaultScopeItems($deal) : [];
+            $internalApproval = $deal ? $this->defaultInternalApprovalPayload($deal, $project->contact) : [];
+            $clientName = (string) ($project->client_name ?? $project->client_confirmation_name ?? '');
+
+            $project->sows()->firstOrCreate(
+                ['project_id' => $project->id],
+                [
+                    'version_number'       => '1.0',
+                    'date_prepared'        => now()->toDateString(),
+                    'within_scope_items'   => $scopeItems,
+                    'out_of_scope_items'   => [],
+                    'client_confirmation_name' => $clientName,
+                    'internal_approval'    => $internalApproval,
+                    'approval_status'      => 'draft',
+                    'ntp_status'           => 'pending',
+                ]
+            );
+        }
+
+
+    }
+
+    /**
+     * Internal: provision a workspace from a deal, optionally as a shell.
+     */
+    private function provisionFromDeal(Deal $deal, bool $shell): ?Project
     {
         if (! Schema::hasTable('projects')) {
             return null;
@@ -59,18 +136,17 @@ class ProjectProvisioner
         $company = $this->resolveDealCompany($deal, $contact);
         $clientName = trim(collect([
             $deal->first_name ?: $contact?->first_name,
-            $deal->middle_name ?: $contact?->middle_name,
             $deal->last_name ?: $contact?->last_name,
         ])->filter()->implode(' '));
 
         $projectWorkspace = null;
 
         if ($isProject) {
-            $projectWorkspace = $this->createOrSyncWorkspace($deal, $contact, $company, $clientName, regular: false, hybrid: $isHybrid);
+            $projectWorkspace = $this->createOrSyncWorkspace($deal, $contact, $company, $clientName, regular: false, hybrid: $isHybrid, shell: $shell);
         }
 
         if ($isRegular || $isHybrid) {
-            $this->createOrSyncWorkspace($deal, $contact, $company, $clientName, regular: true, hybrid: $isHybrid);
+            $this->createOrSyncWorkspace($deal, $contact, $company, $clientName, regular: true, hybrid: $isHybrid, shell: $shell);
         }
 
         return $projectWorkspace;
@@ -83,14 +159,20 @@ class ProjectProvisioner
         string $clientName,
         bool $regular,
         bool $hybrid,
+        bool $shell = false,
     ): Project {
         $scopeItems = $this->defaultScopeItems($deal);
-        $internalApproval = $this->defaultInternalApprovalPayload($deal);
+        $internalApproval = $this->defaultInternalApprovalPayload($deal, $contact);
         $workspaceType = $regular ? 'regular' : 'project';
         $workspaceEngagementType = $regular
             ? ($hybrid ? 'Hybrid Regular' : ($deal->engagement_type ?: 'Regular Retainer'))
             : ($hybrid ? 'Hybrid Project' : $deal->engagement_type);
         $workspaceNameSuffix = $regular ? 'Regular' : 'Project';
+
+        // Shell workspaces have a neutral holding status until START is approved
+        $workspaceStatus      = $shell ? 'shell'                : ($regular ? 'RSAT' : 'SOW');
+        $workspacePhase       = $shell ? 'START'               : ($regular ? 'RSAT' : 'SOW');
+        $workspaceStep        = $shell ? 'Awaiting START Approval' : ($regular ? 'RSAT Checklist' : 'SOW Preparation');
 
         $projectAttributes = [
             'deal_id' => $deal->id,
@@ -98,9 +180,9 @@ class ProjectProvisioner
             'company_id' => $company?->id,
             'name' => ($deal->deal_code ?: ('Project for '.($deal->company_name ?: $clientName ?: 'Client'))).' - '.$workspaceNameSuffix,
             'engagement_type' => $workspaceEngagementType,
-            'status' => $regular ? 'RSAT' : 'SOW',
-            'current_phase' => $regular ? 'RSAT' : 'SOW',
-            'current_step' => $regular ? 'RSAT Checklist' : 'SOW Preparation',
+            'status' => $workspaceStatus,
+            'current_phase' => $workspacePhase,
+            'current_step' => $workspaceStep,
             'planned_start_date' => $deal->planned_start_date,
             'target_completion_date' => $deal->estimated_completion_date,
             'client_preferred_completion_date' => $deal->client_preferred_completion_date,
@@ -116,10 +198,11 @@ class ProjectProvisioner
             'scope_summary' => $deal->scope_of_work,
             'client_confirmation_name' => $clientName,
             'metadata' => [
-                'created_from' => 'deal_approval',
+                'created_from' => $shell ? 'deal_approved_shell' : 'deal_approval',
                 'deal_stage_at_creation' => $deal->stage,
                 'workspace_type' => $workspaceType,
                 'source_engagement_type' => $deal->engagement_type,
+                'is_shell' => $shell,
                 'internal_assignments' => [
                     'sales_marketing' => $deal->internal_sales_marketing,
                 ],
@@ -152,12 +235,17 @@ class ProjectProvisioner
             $project = Project::query()->create($projectAttributes);
         }
 
+        // Always create the START form — it is the reason the shell exists.
+        // For shell workspaces (created at Closed Won), the START form is
+        // auto-submitted for admin approval immediately ('pending_approval').
+        // For non-shell workspaces (manually created), it stays 'pending'
+        // so the user can fill it out and submit it themselves.
         $project->starts()->firstOrCreate(
             ['project_id' => $project->id],
             [
                 'form_date' => now()->toDateString(),
                 'date_started' => now()->toDateString(),
-                'status' => 'pending',
+                'status' => $shell ? 'pending_approval' : 'pending',
                 'checklist' => $this->defaultStartChecklist($deal, $contact, $company, $regular),
                 'kyc_requirements' => $this->defaultStartKycRequirements($deal, $contact, $company),
                 'engagement_requirements' => $this->defaultStartEngagementRequirements($deal),
@@ -167,45 +255,48 @@ class ProjectProvisioner
             ]
         );
 
-        if (! $regular) {
-            $project->sows()->firstOrCreate(
+        // SOW and SowReport are only created for fully-activated (non-shell) workspaces
+        if (! $shell) {
+            if (! $regular) {
+                $project->sows()->firstOrCreate(
+                    ['project_id' => $project->id],
+                    [
+                        'version_number' => '1.0',
+                        'date_prepared' => now()->toDateString(),
+                        'within_scope_items' => $scopeItems,
+                        'out_of_scope_items' => [],
+                        'client_confirmation_name' => $clientName,
+                        'internal_approval' => $internalApproval,
+                        'approval_status' => 'draft',
+                        'ntp_status' => 'pending',
+                    ]
+                );
+            }
+
+            $project->sowReports()->firstOrCreate(
                 ['project_id' => $project->id],
                 [
                     'version_number' => '1.0',
                     'date_prepared' => now()->toDateString(),
                     'within_scope_items' => $scopeItems,
                     'out_of_scope_items' => [],
+                    'status_summary' => [
+                        'total_main_tasks' => count($scopeItems),
+                        'open' => count($scopeItems),
+                        'in_progress' => 0,
+                        'delayed' => 0,
+                        'completed' => 0,
+                        'on_hold' => 0,
+                    ],
+                    'project_completion_percentage' => 0,
+                    'key_issues' => null,
+                    'recommendations' => null,
+                    'way_forward' => null,
                     'client_confirmation_name' => $clientName,
                     'internal_approval' => $internalApproval,
-                    'approval_status' => 'draft',
-                    'ntp_status' => 'pending',
                 ]
             );
         }
-
-        $project->sowReports()->firstOrCreate(
-            ['project_id' => $project->id],
-            [
-                'version_number' => '1.0',
-                'date_prepared' => now()->toDateString(),
-                'within_scope_items' => $scopeItems,
-                'out_of_scope_items' => [],
-                'status_summary' => [
-                    'total_main_tasks' => count($scopeItems),
-                    'open' => count($scopeItems),
-                    'in_progress' => 0,
-                    'delayed' => 0,
-                    'completed' => 0,
-                    'on_hold' => 0,
-                ],
-                'project_completion_percentage' => 0,
-                'key_issues' => null,
-                'recommendations' => null,
-                'way_forward' => null,
-                'client_confirmation_name' => $clientName,
-                'internal_approval' => $internalApproval,
-            ]
-        );
 
         return $project;
     }
@@ -416,17 +507,17 @@ class ProjectProvisioner
             ->all();
     }
 
-    private function defaultInternalApprovalPayload(Deal $deal): array
+    private function defaultInternalApprovalPayload(Deal $deal, ?Contact $contact = null): array
     {
         return [
-            'prepared_by' => $deal->assigned_consultant,
+            'prepared_by' => $deal->prepared_by ?: $deal->assigned_consultant,
             'reviewed_by' => 'Admin',
-            'referred_by_closed_by' => null,
-            'sales_marketing' => $deal->internal_sales_marketing ?: null,
+            'referred_by_closed_by' => $deal->referred_closed_by ?: $contact?->referred_by,
+            'sales_marketing' => $deal->internal_sales_marketing ?: 'Sales and Marketing',
             'lead_consultant' => $deal->assigned_consultant,
             'lead_associate_assigned' => $deal->assigned_associate,
-            'finance' => 'Finance',
-            'president' => 'John Kelly Abalde',
+            'finance' => $deal->internal_finance ?: 'Finance',
+            'president' => $deal->internal_president ?: 'Office of the President',
             'record_custodian' => 'Record Custodian',
             'date_recorded' => now()->toDateString(),
             'date_signed' => null,

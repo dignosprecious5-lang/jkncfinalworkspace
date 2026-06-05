@@ -370,7 +370,7 @@
             <div class="mt-4 grid gap-3 md:grid-cols-4">
                 <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
                     <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Status</p>
-                    <p class="mt-2 text-sm font-semibold text-slate-900">{{ \Illuminate\Support\Str::of($clientApprovalStatus)->replace('_', ' ')->title() }}</p>
+                    <p class="mt-2 text-sm font-semibold text-slate-900" id="sow-client-status-text">{{ \Illuminate\Support\Str::of($clientApprovalStatus)->replace('_', ' ')->title() }}</p>
                 </div>
                 <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
                     <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Sent To</p>
@@ -386,7 +386,9 @@
                 </div>
             </div>
 
-            @php($manualReportApprovalDisabled = $projectLocked || $clientApprovalStatus === 'approved')
+            @php
+                $manualReportApprovalDisabled = $projectLocked || $clientApprovalStatus === 'approved';
+            @endphp
                 <form method="POST" action="{{ route('project.report.manual-approve', ['project' => $project->id, 'report' => $report->id]) }}" enctype="multipart/form-data" class="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
                     @csrf
                     <p class="text-sm font-semibold text-amber-900">Manual Approve SOW</p>
@@ -435,10 +437,13 @@
                     </div>
                 </div>
 
-                @foreach ([
-                    'within' => ['label' => 'WITHIN SCOPE', 'rows' => $within, 'count' => $withinCount],
-                    'out' => ['label' => 'OUT OF SCOPE', 'rows' => $out, 'count' => $outCount],
-                ] as $section)
+                @php
+                    $sections = [
+                        'within' => ['label' => 'WITHIN SCOPE', 'rows' => $within, 'count' => $withinCount],
+                        'out' => ['label' => 'OUT OF SCOPE', 'rows' => $out, 'count' => $outCount],
+                    ];
+                @endphp
+                @foreach ($sections as $section)
                     <div class="project-sow-section">
                         <div class="project-sow-section-title">{{ $section['label'] }}</div>
                         <div class="project-sow-table-wrap">
@@ -532,15 +537,17 @@
                         <div class="project-sow-signature-name">{{ $clientConfirmationName ?: '-' }}</div>
                         Client Fullname &amp; Signature
                     </div>
-                    <div class="mt-4 project-sow-meta-row">
+                    <div class="mt-4 project-sow-meta-row" id="sow-client-attachment-container" style="{{ $report->client_attachment_path ? '' : 'display: none;' }}">
                         <span class="project-sow-meta-label">Client Attachment:</span>
-                        <span class="project-sow-line">
+                        <span class="project-sow-line" id="sow-client-attachment-link">
                             @if ($report->client_attachment_path)
                                 <a href="{{ route('uploads.show', ['path' => $report->client_attachment_path, 'download' => 1]) }}" class="text-blue-700 hover:text-blue-800">Download uploaded attachment</a>
-                            @else
-                                -
                             @endif
                         </span>
+                    </div>
+                    <div class="mt-4" id="sow-client-notes-container" style="{{ $report->client_response_notes ? '' : 'display: none;' }}">
+                        <label class="project-doc-label">Client Notes / Comments</label>
+                        <div class="project-doc-textarea bg-slate-50" id="sow-client-notes-text">{{ $report->client_response_notes }}</div>
                     </div>
                 </div>
 
@@ -598,4 +605,44 @@
         </section>
     </div>
 </div>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const pollInterval = 30000;
+        const statusUrl = "{{ route('project.report.status', ['project' => $project->id, 'report' => $report->id]) }}";
+
+        setInterval(() => {
+            fetch(statusUrl, {
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.client_response_status === 'approved') {
+                    const statusElem = document.getElementById('sow-client-status-text');
+                    if (statusElem) statusElem.textContent = 'Approved';
+                    
+                    const nameElem = document.querySelector('.project-sow-signature-name');
+                    if (nameElem) nameElem.textContent = data.client_confirmation_name;
+
+                    if (data.client_attachment_url) {
+                        const attachmentContainer = document.getElementById('sow-client-attachment-container');
+                        const attachmentLink = document.getElementById('sow-client-attachment-link');
+                        if (attachmentContainer) attachmentContainer.style.display = '';
+                        if (attachmentLink) attachmentLink.innerHTML = `<a href="${data.client_attachment_url}" class="text-blue-700 hover:text-blue-800">Download uploaded attachment</a>`;
+                    }
+
+                    if (data.client_response_notes) {
+                        const notesContainer = document.getElementById('sow-client-notes-container');
+                        const notesText = document.getElementById('sow-client-notes-text');
+                        if (notesContainer) notesContainer.style.display = '';
+                        if (notesText) notesText.textContent = data.client_response_notes;
+                    }
+                }
+            })
+            .catch(err => console.error('Error polling SOW status:', err));
+        }, pollInterval);
+    });
+</script>
 @endsection

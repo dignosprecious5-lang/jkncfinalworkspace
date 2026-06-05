@@ -113,7 +113,7 @@ class AdminDashboardController extends Controller
             ],
             self::SECTION_DEALS => [
                 'title' => 'Deals Approval Dashboard',
-                'description' => 'Review deal qualification submissions awaiting admin approval.',
+                'description' => 'Review deal qualification submissions and Closed Won START form approvals awaiting admin review.',
             ],
             self::SECTION_PROJECT => [
                 'title' => 'Project Approval Dashboard',
@@ -144,7 +144,11 @@ class AdminDashboardController extends Controller
             self::SECTION_COMPANY => collect()
                 ->merge($this->companyApprovalItems($userNames))
                 ->merge($this->companyChangeRequestItems($userNames)),
-            self::SECTION_DEALS => $this->dealApprovalItems(),
+            self::SECTION_DEALS => collect()
+                ->merge($this->dealApprovalItems())
+                ->merge($this->dealDeletionApprovalItems($userNames))
+                ->merge($this->dealStartApprovalItems())
+                ->merge($this->dealProposalTemplateItems()),
             self::SECTION_PROJECT => $this->startApprovalItems(false),
             self::SECTION_REGULAR => $this->startApprovalItems(true),
             self::SECTION_SERVICES => collect()
@@ -330,13 +334,45 @@ class AdminDashboardController extends Controller
     private function dealApprovalItems(): Collection
     {
         return Deal::query()
+            ->with('proposal')
             ->latest('updated_at')
             ->get()
             ->filter(function (Deal $deal): bool {
-                return in_array(strtolower((string) ($deal->deal_status ?? 'pending')), ['pending', 'approved', 'rejected'], true);
+                $statusKey = strtolower((string) ($deal->deal_status ?? 'pending'));
+                $stage = $deal->stage;
+                $proposalStatus = strtolower((string) ($deal->proposal?->status ?? ''));
+
+                return in_array($statusKey, ['pending', 'approved', 'rejected'], true)
+                    || $stage === 'Qualification'
+                    || ($stage === 'Proposal' && $deal->proposal && $proposalStatus !== 'approved');
             })
             ->map(function (Deal $deal): object {
                 $statusKey = strtolower((string) ($deal->deal_status ?? 'pending'));
+                $stage = $deal->stage;
+                $proposalStatus = strtolower((string) ($deal->proposal?->status ?? ''));
+
+                $isPendingCreation = $statusKey === 'pending';
+                $isPendingQualification = $stage === 'Qualification';
+                $isPendingProposal = $stage === 'Proposal' && $deal->proposal && $proposalStatus !== 'approved';
+
+                $isActionable = $isPendingCreation || $isPendingQualification || $isPendingProposal;
+
+                $approveRoute = null;
+                $rejectRoute = null;
+                $displayStatus = $this->normalizeStatusFromKey($statusKey);
+
+                if ($isPendingCreation) {
+                    $approveRoute = route('deals.approve', $deal->id);
+                    $rejectRoute = route('deals.reject', $deal->id);
+                } elseif ($isPendingQualification) {
+                    $approveRoute = route('deals.internal-approve', $deal->id);
+                    $rejectRoute = route('deals.reject', $deal->id);
+                    $displayStatus = 'Pending Qualification';
+                } elseif ($isPendingProposal) {
+                    $approveRoute = route('deals.proposal.admin-approve', $deal->id);
+                    $rejectRoute = route('deals.proposal.admin-reject', $deal->id);
+                    $displayStatus = 'Pending Proposal Approval';
+                }
 
                 return (object) [
                     'ref_no' => $deal->deal_code ?: 'DEAL-'.$deal->id,
@@ -346,21 +382,163 @@ class AdminDashboardController extends Controller
                     'uploaded_by' => $deal->created_by ?: 'Unknown',
                     'date_uploaded' => $this->displayDate($deal->created_at),
                     'approver' => $deal->approved_by_name ?: ($deal->rejected_by_name ?: '-'),
-                    'priority' => $statusKey === 'pending' ? 'High' : 'Low',
-                    'status' => $this->normalizeStatusFromKey($statusKey),
+                    'priority' => $isActionable ? 'High' : 'Low',
+                    'status' => $displayStatus,
                     'show_route' => route('deals.show', $deal->id),
-                    'approve_route' => $statusKey === 'pending' ? route('deals.approve', $deal->id) : null,
-                    'reject_route' => $statusKey === 'pending' ? route('deals.reject', $deal->id) : null,
+                    'approve_route' => $approveRoute,
+                    'reject_route' => $rejectRoute,
                     'revise_route' => null,
                     'date_sort' => $this->sortTimestamp($deal->updated_at ?: $deal->created_at),
                 ];
             });
     }
 
-    private function startApprovalItems(?bool $regular = null): Collection
+    private function dealProposalTemplateItems(): Collection
     {
+        if (! \Illuminate\Support\Facades\Schema::hasTable('form_templates')) {
+            return collect();
+        }
+
+        return \App\Models\FormTemplate::query()
+            ->where('type', 'deal_proposal_global_template')
+            ->latest('updated_at')
+            ->get()
+            ->map(function ($template): object {
+                $statusKey = strtolower((string) ($template->status ?? 'pending'));
+                $isPending = $statusKey === 'pending';
+
+                return (object) [
+                    'ref_no' => 'TMPL-'.$template->id,
+                    'module' => 'Deals',
+                    'file_name' => $template->name ?: 'Proposal Global Template',
+                    'department' => 'Deals',
+                    'uploaded_by' => 'System',
+                    'date_uploaded' => $this->displayDate($template->created_at),
+                    'approver' => $template->reviewed_at ? 'Admin' : '-',
+                    'priority' => $isPending ? 'High' : 'Low',
+                    'status' => $this->normalizeStatusFromKey($statusKey),
+                    'show_route' => null,
+                    'approve_route' => $isPending ? route('admin.deal-proposal-templates.approve', $template->id) : null,
+                    'reject_route' => $isPending ? route('admin.deal-proposal-templates.reject', $template->id) : null,
+                    'revise_route' => null,
+                    'date_sort' => $this->sortTimestamp($template->updated_at ?: $template->created_at),
+                ];
+            });
+    }
+
+    private function dealDeletionApprovalItems(Collection $userNames): Collection
+    {
+        return Deal::query()
+            ->latest('delete_requested_at')
+            ->get()
+            ->filter(function (Deal $deal): bool {
+                return in_array(strtolower((string) $deal->delete_request_status), ['pending', 'rejected'], true);
+            })
+            ->map(function (Deal $deal) use ($userNames): object {
+                $statusKey = strtolower((string) $deal->delete_request_status);
+
+                return (object) [
+                    'ref_no' => ($deal->deal_code ?: 'DEAL-'.$deal->id).'-DEL',
+                    'module' => 'Deals',
+                    'file_name' => ($deal->deal_code ?: ($deal->deal_name ?: 'Deal #'.$deal->id)) . ' Deletion Request',
+                    'department' => 'Deals',
+                    'uploaded_by' => $userNames->get((int) $deal->delete_requested_by, 'Unknown'),
+                    'date_uploaded' => $this->displayDate($deal->delete_requested_at),
+                    'approver' => $statusKey === 'rejected' ? 'System' : '-',
+                    'priority' => $statusKey === 'pending' ? 'High' : 'Low',
+                    'status' => $this->normalizeStatusFromKey($statusKey),
+                    'show_route' => route('deals.show', $deal->id),
+                    'approve_route' => $statusKey === 'pending' ? route('deals.approve-deletion', $deal->id) : null,
+                    'reject_route' => $statusKey === 'pending' ? route('deals.reject-deletion', $deal->id) : null,
+                    'revise_route' => null,
+                    'date_sort' => $this->sortTimestamp($deal->delete_requested_at),
+                ];
+            });
+    }
+
+    private function dealStartApprovalItems(): Collection
+    {
+        // Only show START forms for shell workspaces (is_shell = true).
+        // Shell projects are created at Closed Won and stay here until the
+        // START form is admin-approved, which then triggers service memo
+        // generation and activates the full Project / Regular workspace.
         return ProjectStart::query()
             ->with(['project.deal', 'project.company', 'project.contact'])
+            ->whereHas('project', function ($query): void {
+                $query->whereNotNull('deal_id')
+                    ->whereRaw("COALESCE(JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.is_shell')), 'false') = 'true'");
+            })
+            ->latest('updated_at')
+            ->get()
+            ->groupBy('project_id')
+            ->map(function (Collection $starts): ?ProjectStart {
+                return $starts->sort(function ($left, $right) {
+                    $rank = fn ($item) => match (strtolower((string) ($item->status ?? ''))) {
+                        'approved' => 1,
+                        'pending_approval' => 2,
+                        'rejected' => 3,
+                        default => 4,
+                    };
+
+                    $leftRank = $rank($left);
+                    $rightRank = $rank($right);
+                    if ($leftRank !== $rightRank) {
+                        return $leftRank <=> $rightRank;
+                    }
+
+                    $leftTime = optional($left->updated_at)->getTimestamp() ?? 0;
+                    $rightTime = optional($right->updated_at)->getTimestamp() ?? 0;
+                    if ($leftTime !== $rightTime) {
+                        return $rightTime <=> $leftTime;
+                    }
+
+                    return ((int) $right->id) <=> ((int) $left->id);
+                })->first();
+            })
+            ->filter()
+            ->filter(function (ProjectStart $start): bool {
+                return in_array(strtolower((string) ($start->status ?? 'draft')), ['pending_approval', 'approved', 'rejected'], true);
+            })
+            ->map(function (ProjectStart $start): object {
+                $statusKey = strtolower((string) ($start->status ?? 'draft'));
+                $project = $start->project;
+                $deal = $project?->deal;
+                $contactName = trim(collect([$project?->contact?->first_name, $project?->contact?->last_name])->filter()->implode(' '))
+                    ?: ($project?->client_name ?: ($deal?->first_name ? trim($deal->first_name.' '.($deal->last_name ?? '')) : 'Project #'.$start->project_id));
+                $businessName = $project?->business_name
+                    ?: ($project?->company?->company_name
+                        ?: ($deal?->company_name
+                            ?: ($deal?->deal_name ?: 'Deal')));
+
+                return (object) [
+                    'ref_no' => ($deal?->deal_code ?: 'DEAL-'.($project?->deal_id ?? $start->project_id)).'-START',
+                    'module' => 'Deals',
+                    'file_name' => $businessName.' - '.$contactName.' (START Form)',
+                    'department' => 'Deals',
+                    'uploaded_by' => $project?->assigned_consultant ?: ($deal?->assigned_consultant ?: 'Unknown'),
+                    'date_uploaded' => $this->displayDate($start->updated_at ?: $start->created_at),
+                    'approver' => $start->approved_by_name ?: ($start->rejected_by_name ?: '-'),
+                    'priority' => $statusKey === 'pending_approval' ? 'High' : 'Low',
+                    'status' => $this->normalizeStatusFromKey($statusKey),
+                    'show_route' => route('deals.show', $project?->deal_id ?? 0),
+                    'approve_route' => $statusKey === 'pending_approval' ? route('project.start.approve', $project) : null,
+                    'reject_route' => $statusKey === 'pending_approval' ? route('project.start.reject', $project) : null,
+                    'revise_route' => null,
+                    'date_sort' => $this->sortTimestamp($start->updated_at ?: $start->created_at),
+                ];
+            });
+    }
+
+    private function startApprovalItems(?bool $regular = null): Collection
+    {
+        // Exclude shell workspaces — those belong to the Deals section until
+        // the START form is approved, the service memo is generated, and the
+        // full Project / Regular workspace is activated (is_shell becomes false).
+        return ProjectStart::query()
+            ->with(['project.deal', 'project.company', 'project.contact'])
+            ->whereHas('project', function ($query): void {
+                $query->whereRaw("COALESCE(JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.is_shell')), 'false') != 'true'");
+            })
             ->latest('updated_at')
             ->get()
             ->groupBy('project_id')

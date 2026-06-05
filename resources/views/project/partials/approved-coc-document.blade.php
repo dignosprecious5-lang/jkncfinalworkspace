@@ -50,9 +50,12 @@
                 <td class="project-ntp-sign-box" rowspan="3">
                     Name, Signature and Date<br>
                     Authorized Representative<br>
-                    Name/Client
-                    <br>
-                    <span class="project-ntp-light">{{ $coc['client_confirmation_name'] ?? '' }}</span>
+                    <span id="cocSignName" class="project-ntp-light">{{ data_get($project->metadata ?? [], 'coc.client_approved_name') ?: ($coc['client_confirmation_name'] ?? 'Name/Client') }}</span>
+                    @if(data_get($project->metadata ?? [], 'coc.approved_at'))
+                        <br><span id="cocSignDate" class="project-ntp-light">{{ \Carbon\Carbon::parse(data_get($project->metadata ?? [], 'coc.approved_at'))->format('M d, Y') }}</span>
+                    @else
+                        <span id="cocSignDate" style="display: none;"></span>
+                    @endif
                 </td>
                 <td class="project-ntp-sign-box">
                     Name, Signature and Date<br>
@@ -71,5 +74,28 @@
                 </td>
             </tr>
         </table>
+    </div>
+
+    <div id="cocClientResponsePanel" class="project-ntp-panel" style="display: {{ data_get($project->metadata ?? [], 'coc.approval_status') === 'approved' ? 'block' : 'none' }};">
+        <div style="margin-bottom:14px; font-size:12pt; font-weight:700; font-family:Georgia,'Times New Roman',serif;">Client Response Details</div>
+        <div class="project-ntp-grid">
+            <div>
+                <span class="project-ntp-label">Approved By</span>
+                <div class="project-ntp-value-box" id="cocClientName">{{ data_get($project->metadata ?? [], 'coc.approved_by_name') ?: data_get($project->metadata ?? [], 'coc.client_approved_name') }}</div>
+            </div>
+            <div>
+                <span class="project-ntp-label">Date Approved</span>
+                <div class="project-ntp-value-box" id="cocClientDate">{{ data_get($project->metadata ?? [], 'coc.approved_at') ? \Carbon\Carbon::parse(data_get($project->metadata ?? [], 'coc.approved_at'))->format('M d, Y h:i A') : '' }}</div>
+            </div>
+            <div id="cocClientNotesContainer" style="grid-column: 1 / -1; display: {{ data_get($project->metadata ?? [], 'coc.approval_note') ? 'block' : 'none' }};">
+                <span class="project-ntp-label">Notes/Comments</span>
+                <div class="project-ntp-value-box" id="cocClientNotes">{{ data_get($project->metadata ?? [], 'coc.approval_note') }}</div>
+            </div>
+            <div id="cocClientAttachmentContainer" style="grid-column: 1 / -1; margin-top: 8px; display: {{ data_get($project->metadata ?? [], 'coc.signed_attachment_path') ? 'block' : 'none' }};">
+                <a href="{{ data_get($project->metadata ?? [], 'coc.signed_attachment_path') ? route('uploads.show', ['path' => data_get($project->metadata ?? [], 'coc.signed_attachment_path'), 'download' => 1]) : '#' }}" id="cocClientAttachment" class="project-ntp-attachment-link">
+                    Download Signed Attachment
+                </a>
+            </div>
+        </div>
     </div>
 </div>

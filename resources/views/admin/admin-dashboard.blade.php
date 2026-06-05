@@ -134,8 +134,9 @@
 
         <div class="px-5 py-5 flex-1 flex flex-col">
             <div class="border border-gray-200 rounded-xl overflow-hidden flex-1">
-                <table class="w-full text-sm text-left border-collapse">
-                    <thead class="bg-gray-100 text-gray-700">
+                <div class="overflow-x-auto h-full">
+                    <table class="w-full text-sm text-left border-collapse whitespace-nowrap">
+                        <thead class="bg-gray-100 text-gray-700">
                         <tr>
                             <th class="px-4 py-3 border-r border-gray-200 font-semibold">Ref#</th>
                             <th class="px-4 py-3 border-r border-gray-200 font-semibold">Module</th>
@@ -265,7 +266,8 @@
                             </tr>
                         @endforelse
                     </tbody>
-                </table>
+                    </table>
+                </div>
             </div>
 
             <div class="mt-3 flex items-center justify-between text-[11px] text-gray-500 px-1">

@@ -567,7 +567,7 @@ class CompanyController extends Controller
                 ->first();
 
             if ($latestBif) {
-                $roleContacts = $this->companyRoleContacts($latestBif, $companyName)
+                $roleContacts = $this->companyRoleContacts($latestBif, $companyName, $company, $primaryContactId)
                     ->when($search !== '', function ($collection) use ($search) {
                         $term = Str::lower($search);
 
@@ -1515,7 +1515,7 @@ class CompanyController extends Controller
             ->all();
     }
 
-    private function companyRoleContacts(CompanyBif $bif, string $companyName): \Illuminate\Support\Collection
+    private function companyRoleContacts(CompanyBif $bif, string $companyName, int $companyId = 0, int $primaryContactId = 0): \Illuminate\Support\Collection
     {
         $companyName = trim($companyName);
 
@@ -1569,8 +1569,8 @@ class CompanyController extends Controller
         return $signatories
             ->concat($ubos)
             ->concat($authorizedContact)
-            ->map(function (array $item) use ($companyName) {
-                $matchedContact = $this->matchRoleContactToContact($item, $companyName);
+            ->map(function (array $item) use ($companyName, $companyId, $primaryContactId) {
+                $matchedContact = $this->matchRoleContactToContact($item, $companyName, $companyId, $primaryContactId);
 
                 $item['linked_contact'] = $matchedContact;
                 $item['exists_in_contacts'] = $matchedContact !== null;
@@ -1614,7 +1614,7 @@ class CompanyController extends Controller
         ];
     }
 
-    private function matchRoleContactToContact(array $item, string $companyName): ?Contact
+    private function matchRoleContactToContact(array $item, string $companyName, int $companyId = 0, int $primaryContactId = 0): ?Contact
     {
         $fullName = trim((string) ($item['full_name'] ?? ''));
         $email = trim((string) ($item['email'] ?? ''));
@@ -1625,7 +1625,19 @@ class CompanyController extends Controller
         }
 
         return Contact::query()
-            ->when($companyName !== '', fn ($query) => $query->where('company_name', $companyName))
+            ->where(function ($query) use ($companyId, $companyName, $primaryContactId) {
+                if ($companyId > 0) {
+                    $query->whereHas('companies', fn ($relation) => $relation->where('companies.id', $companyId));
+                }
+
+                if ($companyName !== '') {
+                    $query->orWhere('company_name', $companyName);
+                }
+
+                if ($primaryContactId > 0) {
+                    $query->orWhere('id', $primaryContactId);
+                }
+            })
             ->where(function ($query) use ($fullName, $email, $phone) {
                 if ($fullName !== '') {
                     [$firstName, $lastName] = $this->splitFullName($fullName);

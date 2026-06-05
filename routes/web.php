@@ -138,6 +138,9 @@ Route::get('/project/report/respond/{token}/download', [ProjectController::class
 Route::get('/project/ntp/respond/{token}', [ProjectController::class, 'clientNtp'])->name('project.ntp.client.show');
 Route::post('/project/ntp/respond/{token}', [ProjectController::class, 'submitClientNtp'])->name('project.ntp.client.submit');
 Route::get('/project/ntp/respond/{token}/download', [ProjectController::class, 'downloadClientNtp'])->name('project.ntp.client.download');
+Route::get('/project/coc/respond/{token}', [ProjectController::class, 'clientCoc'])->name('project.coc.client.show');
+Route::post('/project/coc/respond/{token}', [ProjectController::class, 'submitClientCoc'])->name('project.coc.client.submit');
+Route::get('/project/coc/respond/{token}/download', [ProjectController::class, 'downloadClientCoc'])->name('project.coc.client.download');
 Route::get('/regular/report/respond/{token}', [RegularController::class, 'clientRsatReport'])->name('regular.report.client.show');
 Route::post('/regular/report/respond/{token}', [RegularController::class, 'submitClientRsatReport'])->name('regular.report.client.submit');
 Route::get('/regular/report/respond/{token}/download', [RegularController::class, 'downloadClientRsatReport'])->name('regular.report.client.download');
@@ -382,10 +385,16 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::patch('/deals/{id}/stage', [DealController::class, 'updateDealStage'])->name('deals.stage.update');
     Route::post('/deals/{id}/update-stage', [DealController::class, 'updateDealStage'])->name('deals.stage.update.post');
     Route::put('/deals/{id}', [DealController::class, 'update'])->name('deals.update');
+    Route::delete('/deals/{id}', [DealController::class, 'destroy'])->name('deals.destroy');
+    Route::post('/deals/{id}/approve-deletion', [DealController::class, 'approveDeletion'])->name('deals.approve-deletion');
+    Route::post('/deals/{id}/reject-deletion', [DealController::class, 'rejectDeletion'])->name('deals.reject-deletion');
+    Route::post('/deals/{id}/internal-approve', [DealController::class, 'approveInternalReview'])->name('deals.internal-approve');
     Route::get('/deals/{deal}/proposal', [DealProposalController::class, 'show'])->name('deals.proposal.show');
     Route::get('/deals/{deal}/proposal/preview-view', [DealProposalController::class, 'previewPage'])->name('deals.proposal.preview-page');
     Route::post('/deals/{deal}/proposal/preview', [DealProposalController::class, 'preview'])->name('deals.proposal.preview');
     Route::post('/deals/{deal}/proposal/send', [DealProposalController::class, 'sendClientProposal'])->name('deals.proposal.send');
+    Route::post('/deals/{deal}/proposal/admin-approve', [DealProposalController::class, 'approveProposalAdmin'])->name('deals.proposal.admin-approve');
+    Route::post('/deals/{deal}/proposal/admin-reject', [DealProposalController::class, 'rejectProposalAdmin'])->name('deals.proposal.admin-reject');
     Route::get('/deals/{deal}/quotation/finance', [DealProposalController::class, 'financeQuotation'])->name('deals.quotation.finance');
     Route::post('/deals/{deal}/quotation/send-client', [DealProposalController::class, 'sendClientQuotation'])->name('deals.quotation.send-client');
     Route::post('/deals/{deal}/quotation/send-finance', [DealProposalController::class, 'sendFinanceQuotation'])->name('deals.quotation.send-finance');
@@ -406,6 +415,7 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     |--------------------------------------------------------------------------
     */
     Route::get('/project', [ProjectController::class, 'index'])->name('project.index');
+    Route::delete('/project/bulk-delete', [ProjectController::class, 'bulkDelete'])->name('project.bulk-delete');
     Route::post('/project/manual', [ProjectController::class, 'storeManual'])->name('project.manual.store');
     Route::get('/project/{project}', [ProjectController::class, 'show'])->name('project.show');
     Route::get('/project/{project}/start/download', [ProjectController::class, 'downloadStartPdf'])->name('project.start.download');
@@ -419,21 +429,26 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::post('/project/{project}/sow/auto-report-settings', [ProjectController::class, 'updateSowAutoReportSettings'])->name('project.sow.auto-settings');
     Route::post('/project/{project}/sow/templates', [ProjectController::class, 'storeSowTemplate'])->name('project.sow.templates.store');
     Route::get('/project/{project}/sow/download', [ProjectController::class, 'downloadSowPdf'])->name('project.sow.download');
+    Route::post('/project/{project}/coc/generate', [ProjectController::class, 'generateCoc'])->name('project.coc.generate');
     Route::get('/project/{project}/coc/preview', [ProjectController::class, 'showCocPreview'])->name('project.coc.preview');
     Route::get('/project/{project}/coc/download', [ProjectController::class, 'downloadCocPdf'])->name('project.coc.download');
     Route::post('/project/{project}/coc/approve', [ProjectController::class, 'approveCoc'])->name('project.coc.approve');
+    Route::get('/project/{project}/coc/status', [ProjectController::class, 'cocStatus'])->name('project.coc.status');
     Route::get('/project/{project}/ntp/download', [ProjectController::class, 'downloadNtpPdf'])->name('project.ntp.download');
+    Route::get('/project/{project}/ntp/download-pdf', [ProjectController::class, 'downloadExistingNtpPdf'])->name('project.ntp.download.pdf');
     Route::post('/project/{project}/ntp/manual-approve', [ProjectController::class, 'manualApproveNtp'])->name('project.ntp.manual-approve');
     Route::get('/project/{project}/ntp/status', [ProjectController::class, 'ntpStatus'])->name('project.ntp.status');
     Route::get('/project/{project}/ntp/submission', [ProjectController::class, 'showNtpSubmission'])->name('project.ntp.submission');
     Route::post('/project/{project}/sow/generate-report', [ProjectController::class, 'generateSowReport'])->name('project.sow.generate');
     Route::get('/project/{project}/report/{report}', [ProjectController::class, 'showGeneratedReport'])->name('project.report.preview');
+    Route::get('/project/{project}/report/{report}/status', [ProjectController::class, 'getReportStatus'])->name('project.report.status');
     Route::post('/project/{project}/report/{report}/send', [ProjectController::class, 'sendGeneratedReport'])->name('project.report.send');
     Route::post('/project/{project}/report/{report}/manual-approve', [ProjectController::class, 'manualApproveReport'])->name('project.report.manual-approve');
     Route::delete('/project/{project}/report/bulk-delete', [ProjectController::class, 'bulkDestroyGeneratedReports'])->name('project.report.bulk-delete');
     Route::post('/project/{project}/report', [ProjectController::class, 'updateReport'])->name('project.report.update');
 
     Route::get('/regular', [RegularController::class, 'index'])->name('regular.index');
+    Route::delete('/regular/bulk-delete', [RegularController::class, 'bulkDelete'])->name('regular.bulk-delete');
     Route::post('/regular/manual', [RegularController::class, 'storeManual'])->name('regular.manual.store');
     Route::get('/regular/{regular}', [RegularController::class, 'show'])->name('regular.show');
     Route::post('/regular/{regular}/rsat', [RegularController::class, 'updateRsat'])->name('regular.rsat.update');

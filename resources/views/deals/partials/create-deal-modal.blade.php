@@ -325,11 +325,8 @@
     $defaultReviewedBy = old('reviewed_by', $draft['reviewed_by'] ?? ($draft['approved_by_name'] ?? ''));
     $defaultInternalDate = old('internal_date', $draft['internal_date'] ?? (isset($draft['created_at']) ? \Illuminate\Support\Carbon::parse($draft['created_at'])->format('Y-m-d') : now()->format('Y-m-d')));
     $defaultClientSignature = old('client_fullname_signature', $draft['client_fullname_signature'] ?? trim(collect([
-        $draft['salutation'] ?? null,
         $draft['first_name'] ?? null,
-        $draft['middle_name'] ?? ($draft['middle_initial'] ?? null),
         $draft['last_name'] ?? null,
-        $draft['name_extension'] ?? null,
     ])->filter()->implode(' ')));
     $defaultPresident = old('internal_president', $draft['internal_president'] ?? 'John Kelly');
     $dealErrorMap = $errors->toArray();
@@ -1061,21 +1058,13 @@ document.addEventListener('DOMContentLoaded', function () {
     let selectedContactRecord = null;
 
     const buildClientDisplayName = (record = {}) => {
-        const prioritizedName = String(record.authorized_contact_name || '').trim();
-        if (prioritizedName !== '') {
-            return prioritizedName;
-        }
+        const firstName = record.first_name || record.authorized_contact_first_name || document.getElementById('deal_first_name')?.value || '';
+        const lastName = record.last_name || record.authorized_contact_last_name || document.getElementById('deal_last_name')?.value || '';
 
         return [
-            record.salutation,
-            record.first_name,
-            record.middle_name || record.middle_initial,
-            record.last_name,
-            record.name_extension,
-        ].filter((value) => String(value || '').trim() !== '').join(' ').trim()
-            || record.label
-            || record.company_name
-            || '';
+            firstName,
+            lastName,
+        ].filter((value) => String(value || '').trim() !== '').join(' ').trim();
     };
 
     const syncInternalApprovalAutofill = () => {

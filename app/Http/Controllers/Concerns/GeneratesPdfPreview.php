@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Concerns;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Symfony\Component\Process\Exception\ProcessTimedOutException;
 use Symfony\Component\Process\Process;
 
 trait GeneratesPdfPreview
@@ -12,7 +13,7 @@ trait GeneratesPdfPreview
     protected function generatePdfPreview(string $view, array $data, string $targetPath): ?string
     {
         if (function_exists('set_time_limit')) {
-            @set_time_limit(120);
+            @set_time_limit(180);
         }
 
         $browserBinary = $this->previewBrowserBinary();
@@ -55,14 +56,24 @@ trait GeneratesPdfPreview
             'file:///' . str_replace(DIRECTORY_SEPARATOR, '/', $htmlPath),
         ]);
 
-        $process->setTimeout(60);
+        $process->setTimeout(120);
         $process->setEnv([
             'TEMP' => $tempDirectory,
             'TMP' => $tempDirectory,
             'LOCALAPPDATA' => $tempDirectory,
             'APPDATA' => $tempDirectory,
         ]);
-        $process->run();
+
+        try {
+            $process->run();
+        } catch (ProcessTimedOutException) {
+            // Edge took too long — clean up and fall back to DomPDF.
+            @unlink($htmlPath);
+            $this->deletePdfPreviewDirectory($profilePath);
+            @unlink($pdfPath);
+
+            return $this->generatePdfPreviewWithDompdf($view, $data, $targetPath);
+        }
 
         @unlink($htmlPath);
         $this->deletePdfPreviewDirectory($profilePath);

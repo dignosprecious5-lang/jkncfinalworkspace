@@ -371,10 +371,13 @@
                 </div>
             </div>
 
-            @foreach ([
-                'within' => ['label' => 'WITHIN SCOPE', 'rows' => $sowWithin, 'count' => $withinCount],
-                'out' => ['label' => 'OUT OF SCOPE', 'rows' => $sowOut, 'count' => $outCount],
-            ] as $prefix => $section)
+            @php
+                $sections = [
+                    'within' => ['label' => 'WITHIN SCOPE', 'rows' => $sowWithin, 'count' => $withinCount],
+                    'out' => ['label' => 'OUT OF SCOPE', 'rows' => $sowOut, 'count' => $outCount],
+                ];
+            @endphp
+            @foreach ($sections as $prefix => $section)
                 <div class="project-sow-section">
                     <div class="project-sow-section-title">{{ $section['label'] }}</div>
                     <div class="project-sow-table-wrap">

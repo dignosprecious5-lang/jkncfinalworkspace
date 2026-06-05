@@ -11,6 +11,12 @@
     $repWithin = collect($report?->within_scope_items ?? [])->whenEmpty(fn () => collect([['main_task_description' => '', 'sub_task_description' => '', 'responsible' => '', 'duration' => '', 'start_date' => '', 'end_date' => '', 'status' => '', 'remarks' => '']]));
     $repOut = collect($report?->out_of_scope_items ?? [])->whenEmpty(fn () => collect([['main_task_description' => '', 'sub_task_description' => '', 'responsible' => '', 'duration' => '', 'start_date' => '', 'end_date' => '', 'status' => '', 'remarks' => '']]));
     $sowApproval = (array) ($sow?->internal_approval ?? []);
+    if (blank($sowApproval['prepared_by'] ?? null)) {
+        $sowApproval['prepared_by'] = $project->deal?->prepared_by ?: $project->deal?->assigned_consultant;
+    }
+    if (blank($sowApproval['referred_by_closed_by'] ?? null)) {
+        $sowApproval['referred_by_closed_by'] = $project->deal?->referred_closed_by ?: $project->contact?->referred_by;
+    }
     if (blank($sowApproval['sales_marketing'] ?? null) || ($sowApproval['sales_marketing'] ?? null) === 'Sales & Marketing') {
         $sowApproval['sales_marketing'] = data_get($project->metadata ?? [], 'internal_assignments.sales_marketing', $sowApproval['sales_marketing'] ?? null);
     }
@@ -275,10 +281,14 @@
                                 @if (! $projectLocked)
                                     <button type="submit" form="project-sow-form" class="project-doc-primary">Save Scope of Work</button>
                                     <button type="submit" form="project-sow-form" formaction="{{ route('project.sow.generate', $project) }}" class="project-doc-action">Generate SOW Report</button>
-                                    <button type="button" id="projectCocAction" class="project-doc-action">Generate COC</button>
+                                @endif
+                                @if ($cocGenerated)
+                                    <button type="button" id="projectCocAction" class="{{ $cocApproved ? 'project-doc-action project-doc-action-approved' : 'project-doc-action' }}">View COC</button>
+                                @elseif (! $projectLocked)
+                                    <button type="submit" form="project-sow-form" formaction="{{ route('project.coc.generate', $project) }}" id="projectCocGenerate" class="project-doc-action">Generate COC</button>
+                                @endif
+                                @if (! $projectLocked)
                                     <a href="{{ route('transmittal.create.project', $project) }}" class="project-doc-action">Generate Transmittal</a>
-                                @elseif ($coc)
-                                    <button type="button" id="projectCocAction" class="project-doc-action">View COC</button>
                                 @endif
                                 @if (! $projectLocked || $ntpApproved)
                                     <a
@@ -324,7 +334,7 @@
                                 <form method="POST" action="{{ route('project.coc.approve', $project) }}" enctype="multipart/form-data" class="project-quick-stack">
                                     @csrf
                                     <input type="file" name="signed_document" required accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" class="w-full text-xs text-slate-600">
-                                    <input type="text" name="approval_name" placeholder="Approver name" class="border border-slate-300 px-3 py-2 text-sm">
+                                    <input type="text" name="approval_note" placeholder="Approval note" class="border border-slate-300 px-3 py-2 text-sm">
                                     <button type="submit" class="project-doc-primary">Upload Signed COC & Complete</button>
                                 </form>
                             @endif
@@ -368,6 +378,9 @@
                         <p class="project-doc-view-copy">Review the NTP in the same branded viewer used across the project workspace. The original document structure is preserved.</p>
                     </div>
                     <div class="project-doc-view-actions">
+                        <a href="{{ route('project.ntp.download.pdf', $project) }}" class="project-doc-view-action primary" id="projectNtpPdfDownload">
+                            <i class="fas fa-file-pdf mr-2"></i>Download PDF
+                        </a>
                         <button id="projectApprovedNtpClose" type="button" class="project-doc-view-action">Close View</button>
                     </div>
                 </div>
@@ -547,10 +560,126 @@
                 applyState(payload);
 
                 if (payload.is_approved) {
+                    const panel = document.getElementById('ntpClientResponsePanel');
+                    if (panel) panel.style.display = 'block';
+
+                    const nameEl = document.getElementById('ntpClientName');
+                    if (nameEl) nameEl.textContent = payload.client_approved_name;
+
+                    const dateEl = document.getElementById('ntpClientDate');
+                    if (dateEl) dateEl.textContent = payload.client_approved_at;
+
+                    const notesEl = document.getElementById('ntpClientNotes');
+                    const notesContainer = document.getElementById('ntpClientNotesContainer');
+                    if (notesEl && notesContainer) {
+                        if (payload.client_response_notes) {
+                            notesEl.textContent = payload.client_response_notes;
+                            notesContainer.style.display = 'block';
+                        } else {
+                            notesContainer.style.display = 'none';
+                        }
+                    }
+
+                    const attachmentEl = document.getElementById('ntpClientAttachment');
+                    const attachmentContainer = document.getElementById('ntpClientAttachmentContainer');
+                    if (attachmentEl && attachmentContainer) {
+                        if (payload.client_attachment_url) {
+                            attachmentEl.href = payload.client_attachment_url;
+                            attachmentContainer.style.display = 'block';
+                        } else {
+                            attachmentContainer.style.display = 'none';
+                        }
+                    }
+
+                    const signNameEl = document.getElementById('ntpSignName');
+                    if (signNameEl) signNameEl.textContent = payload.client_approved_name;
+                    const signDateEl = document.getElementById('ntpSignDate');
+                    if (signDateEl) {
+                        signDateEl.textContent = payload.client_approved_at_short;
+                        if (signDateEl.style.display === 'none') {
+                            signDateEl.style.display = 'inline';
+                            signDateEl.insertAdjacentHTML('beforebegin', '<br>');
+                        }
+                    }
+
                     window.clearInterval(intervalId);
                 }
             } catch (error) {
                 console.error('Unable to refresh NTP status.', error);
+            }
+        };
+
+        const pollCocStatus = async () => {
+            if (!cocAction || cocAction.classList.contains('project-doc-action-approved')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(@json(route('project.coc.status', $project)), {
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'application/json',
+                    },
+                    credentials: 'same-origin',
+                });
+
+                if (!response.ok) {
+                    return;
+                }
+
+                const payload = await response.json();
+
+                if (payload.is_approved) {
+                    cocAction.classList.add('project-doc-action-approved');
+
+                    const panel = document.getElementById('cocClientResponsePanel');
+                    if (panel) panel.style.display = 'block';
+
+                    const nameEl = document.getElementById('cocClientName');
+                    if (nameEl) nameEl.textContent = payload.approved_by;
+
+                    const dateEl = document.getElementById('cocClientDate');
+                    if (dateEl) dateEl.textContent = payload.approved_at;
+
+                    const notesEl = document.getElementById('cocClientNotes');
+                    const notesContainer = document.getElementById('cocClientNotesContainer');
+                    if (notesEl && notesContainer) {
+                        if (payload.approval_notes) {
+                            notesEl.textContent = payload.approval_notes;
+                            notesContainer.style.display = 'block';
+                        } else {
+                            notesContainer.style.display = 'none';
+                        }
+                    }
+
+                    const attachmentEl = document.getElementById('cocClientAttachment');
+                    const attachmentContainer = document.getElementById('cocClientAttachmentContainer');
+                    if (attachmentEl && attachmentContainer) {
+                        if (payload.attachment_url) {
+                            attachmentEl.href = payload.attachment_url;
+                            attachmentContainer.style.display = 'block';
+                        } else {
+                            attachmentContainer.style.display = 'none';
+                        }
+                    }
+
+                    const signNameEl = document.getElementById('cocSignName');
+                    if (signNameEl) signNameEl.textContent = payload.approved_by;
+                    const signDateEl = document.getElementById('cocSignDate');
+                    if (signDateEl) {
+                        const dateParts = new Date(payload.approved_at).toDateString().split(' ');
+                        signDateEl.textContent = `${dateParts[1]} ${dateParts[2]}, ${dateParts[3]}`;
+                        if (signDateEl.style.display === 'none') {
+                            signDateEl.style.display = 'inline';
+                            signDateEl.insertAdjacentHTML('beforebegin', '<br>');
+                        }
+                    }
+
+                    window.clearInterval(cocIntervalId);
+                    window.location.reload();
+                }
+            } catch (error) {
+                console.error('Unable to refresh COC status.', error);
             }
         };
 
@@ -594,6 +723,7 @@
         cocClose?.addEventListener('click', closeCocModal);
 
         const intervalId = action ? window.setInterval(pollStatus, 15000) : null;
+        const cocIntervalId = cocAction && !cocAction.classList.contains('project-doc-action-approved') ? window.setInterval(pollCocStatus, 15000) : null;
     })();
 </script>
 @endif

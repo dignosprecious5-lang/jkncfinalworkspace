@@ -7,6 +7,7 @@
     <style>
         body { margin:0; background:linear-gradient(180deg,#f2f6fc 0%,#fbfcfe 100%); font-family:Arial,Helvetica,sans-serif; color:#0f172a; }
         .page { max-width: 980px; margin: 0 auto; padding: 32px 18px 48px; }
+        .page-toolbar { display:flex; justify-content:flex-end; gap:12px; margin-bottom:18px; }
         .sheet { border:1px solid #d8e1ee; background:#fff; box-shadow:0 16px 34px rgba(15,23,42,.05); }
         .doc { padding: 32px 34px 36px; border:2px solid #1c4587; }
         .center { text-align:center; }
@@ -26,12 +27,22 @@
         .grid { display:grid; gap:14px; grid-template-columns:repeat(2,minmax(0,1fr)); }
         .label { display:block; margin-bottom:6px; font-size:.74rem; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:#475569; }
         .value-box { min-height:44px; border:1px solid #cbd5e1; background:#fff; padding:10px 12px; font-size:.95rem; box-sizing:border-box; }
+        .btn { display:inline-flex; align-items:center; justify-content:center; padding:10px 18px; font-size:.9rem; font-weight:700; text-decoration:none; border:1px solid #cbd5e1; background:#fff; color:#0f172a; }
+        .btn-primary { border-color:#1c4587; background:#1c4587; color:#fff; }
         .attachment-link { display:inline-flex; align-items:center; justify-content:center; min-height:44px; border:1px solid #1c4587; background:#1c4587; padding:0 18px; font-size:.9rem; font-weight:700; color:#fff; text-decoration:none; }
         @media (max-width: 700px) { .doc { padding:20px 18px 24px; } .grid { grid-template-columns:minmax(0,1fr); } }
     </style>
 </head>
 <body>
     <div class="page">
+        <div class="page-toolbar">
+            <a href="{{ route('project.ntp.download.pdf', $project) }}" class="btn btn-primary">
+                &#128196; Download PDF
+            </a>
+            <a href="{{ route('project.show', ['project' => $project->id, 'tab' => 'sow']) }}" class="btn">
+                &#8592; Back to Project
+            </a>
+        </div>
         <section class="sheet">
             <div class="doc">
                 @include('project.partials.approved-ntp-document', compact('ntp', 'ntpRecord', 'contactName'))
