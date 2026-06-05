@@ -3,10 +3,11 @@
 namespace App\Notifications;
 
 use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Notifications\Messages\BroadcastMessage;
 use Illuminate\Notifications\Notification;
 
-class SystemRealtimeNotification extends Notification
+class SystemRealtimeNotification extends Notification implements ShouldBroadcastNow
 {
     use Queueable;
 
@@ -25,29 +26,35 @@ class SystemRealtimeNotification extends Notification
 
     public function toDatabase(object $notifiable): array
     {
+        return $this->payload();
+    }
+
+    public function toArray(object $notifiable): array
+    {
+        return $this->payload();
+    }
+
+    public function toBroadcast(object $notifiable): BroadcastMessage
+    {
+        return new BroadcastMessage(array_merge($this->payload(), [
+            'created_at' => now()->diffForHumans(),
+        ]));
+    }
+
+    public function broadcastType(): string
+    {
+        return 'system.notification';
+    }
+
+    private function payload(): array
+    {
         return [
             'title' => $this->title,
             'message' => $this->message,
             'url' => $this->url,
             'module' => $this->module,
             'icon' => $this->icon,
+            'button_label' => 'Open',
         ];
-    }
-
-    public function toBroadcast(object $notifiable): BroadcastMessage
-    {
-        return new BroadcastMessage([
-            'title' => $this->title,
-            'message' => $this->message,
-            'url' => $this->url,
-            'module' => $this->module,
-            'icon' => $this->icon,
-            'created_at' => now()->diffForHumans(),
-        ]);
-    }
-
-    public function broadcastType(): string
-    {
-        return 'system.notification';
     }
 }
