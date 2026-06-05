@@ -7,18 +7,20 @@ use App\Models\TrainingAssignment;
 use App\Models\Award;
 use App\Models\Employee;
 use App\Http\Controllers\Concerns\RequestsHumanCapitalApproval;
+use App\Http\Controllers\Concerns\ScopesHumanCapitalRecords;
 use Illuminate\Http\Request;
 
 class TrainingController extends Controller
 {
     use RequestsHumanCapitalApproval;
+    use ScopesHumanCapitalRecords;
     public function index(Request $request)
     {
         $user = auth()->user();
-        $canManageTraining = $user && ($user->isAdmin() || $user->isSuperAdmin() || $user->hasPermission('access_hc_training'));
+        $canManageTraining = $this->canManageHumanCapitalModule('access_hc_training', true);
         $currentEmployee = $canManageTraining
             ? null
-            : Employee::where('email', $user?->email)->first();
+            : $this->currentHumanCapitalEmployee($user);
 
         $trainings = Training::query()
             ->with(['assignments' => function ($query) use ($canManageTraining, $currentEmployee) {

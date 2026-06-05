@@ -42,6 +42,7 @@ class AdminUserPermissionController extends Controller
         'access_hc_onboarding',
         'access_hc_deployment',
         'access_hc_offboarding',
+        'access_hc_my_hc',
         'access_hc_attendance',
         'access_hc_obf',
         'access_hc_employee_requests',

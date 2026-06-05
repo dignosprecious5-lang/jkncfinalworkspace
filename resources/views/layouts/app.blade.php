@@ -94,6 +94,7 @@
                 'access_hc_onboarding',
                 'access_hc_deployment',
                 'access_hc_offboarding',
+                'access_hc_my_hc',
                 'access_hc_attendance',
                 'access_hc_obf',
                 'access_hc_employee_requests',
@@ -103,7 +104,7 @@
                 'access_hc_performance',
                 'access_hc_awards',
             ])->contains(fn ($permission) => $user->hasPermission($permission)) ||
-            strtolower((string) $user->role) === 'employee' ||
+            (bool) $user ||
             $user->isAdmin() ||
             $user->isSuperAdmin();
 
@@ -112,8 +113,8 @@
             $user->isAdmin()
             || $user->isSuperAdmin()
             || $user->hasPermission($permission)
-            || ($employeeOwnAccess && $user->isEmployee());
-        $canAccessMyHc = fn (string $permission) => $canAccessHc($permission, true);
+            || $employeeOwnAccess;
+        $canAccessMyHc = fn (string $permission) => $canAccessHc($permission, true) || $user->hasPermission('access_hc_my_hc');
 
         $humanCapitalLandingRoute = $canAccessHc('access_hc_organizational')
             ? route('human-capital.organizational')
@@ -1019,6 +1020,7 @@
                                 request()->routeIs('company.lgu*')
                                 || request()->routeIs('company.accounting*')
                                 || request()->routeIs('company.banking*')
+                                || request()->routeIs('company.legal*')
                                 || request()->routeIs('company.operations*')
                                 || request()->routeIs('company.correspondence*')
                                 || request()->routeIs('company.bir-tax*')
@@ -1100,6 +1102,11 @@
                                         <a href="{{ route('company.banking', $currentCompanyId) }}"
                                            class="block px-3 py-2 rounded-lg transition {{ request()->routeIs('company.banking*') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
                                             Banking
+                                        </a>
+
+                                        <a href="{{ route('company.legal', $currentCompanyId) }}"
+                                           class="block px-3 py-2 rounded-lg transition {{ request()->routeIs('company.legal*') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
+                                            Legal
                                         </a>
 
                                         <a href="{{ route('company.operations', $currentCompanyId) }}"

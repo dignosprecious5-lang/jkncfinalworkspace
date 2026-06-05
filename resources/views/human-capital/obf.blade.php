@@ -84,12 +84,12 @@
                                     <button type="button" @click="openView(trip)" class="text-indigo-600 hover:underline text-xs font-semibold mr-3">View</button>
                                     <button type="button" @click="openEdit(trip)" class="text-blue-600 hover:underline text-xs font-semibold mr-3">Edit</button>
 
-                                    <form :action="`{{ url('/human-capital/obf') }}/${trip.id}/approve`" method="POST" class="inline" x-show="trip.status === 'Pending'">
+                                    <form :action="`{{ url('/human-capital/obf') }}/${trip.id}/approve`" method="POST" class="inline" x-show="canManageObf && trip.status === 'Pending'">
                                         @csrf
                                         <button type="submit" class="text-green-600 hover:underline text-xs font-semibold mr-3">Approve</button>
                                     </form>
 
-                                    <form :action="`{{ url('/human-capital/obf') }}/${trip.id}/reject`" method="POST" class="inline" x-show="trip.status === 'Pending'">
+                                    <form :action="`{{ url('/human-capital/obf') }}/${trip.id}/reject`" method="POST" class="inline" x-show="canManageObf && trip.status === 'Pending'">
                                         @csrf
                                         <button type="submit" class="text-orange-600 hover:underline text-xs font-semibold mr-3">Reject</button>
                                     </form>
@@ -832,6 +832,7 @@ function obfPage() {
         employees: @json($employees),
         contacts: @json($contacts ?? []),
         trips: @json($trips),
+        canManageObf: @json($canManageObf ?? false),
 
         showPanel: false,
         isEdit: false,
@@ -933,6 +934,10 @@ function obfPage() {
             this.isEdit = false;
             this.form = this.blankForm();
             this.preview = this.blankPreview();
+            if (!this.canManageObf && this.employees.length === 1) {
+                this.form.employee_id = this.employees[0].id;
+                this.selectEmployee();
+            }
             this.showPanel = true;
         },
 

@@ -56,85 +56,87 @@
             @endif
         </div>
 
-        <div class="px-5 py-4 border-b bg-gray-50 shrink-0">
-            <div class="grid grid-cols-4 gap-4">
-                <div class="bg-white border border-gray-200 rounded-xl p-4">
-                    <p class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Total Personnel</p>
-                    <p class="text-2xl font-bold text-gray-900 mt-1" x-text="employees.length"></p>
-                    <p class="text-xs text-gray-500 mt-1">Official employee records</p>
-                </div>
+        @if($canManageEmployeeProfiles ?? false)
+            <div class="px-5 py-4 border-b bg-gray-50 shrink-0">
+                <div class="grid grid-cols-4 gap-4">
+                    <div class="bg-white border border-gray-200 rounded-xl p-4">
+                        <p class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Total Personnel</p>
+                        <p class="text-2xl font-bold text-gray-900 mt-1" x-text="employees.length"></p>
+                        <p class="text-xs text-gray-500 mt-1">Official employee records</p>
+                    </div>
 
-                <div class="bg-white border border-gray-200 rounded-xl p-4">
-                    <p class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Monthly Paid</p>
-                    <p class="text-2xl font-bold text-blue-700 mt-1" x-text="monthlyPaidCount"></p>
-                    <p class="text-xs text-gray-500 mt-1">Employees on monthly payroll</p>
-                </div>
+                    <div class="bg-white border border-gray-200 rounded-xl p-4">
+                        <p class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Monthly Paid</p>
+                        <p class="text-2xl font-bold text-blue-700 mt-1" x-text="monthlyPaidCount"></p>
+                        <p class="text-xs text-gray-500 mt-1">Employees on monthly payroll</p>
+                    </div>
 
-                <div class="bg-white border border-gray-200 rounded-xl p-4">
-                    <p class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Daily Paid</p>
-                    <p class="text-2xl font-bold text-indigo-700 mt-1" x-text="dailyPaidCount"></p>
-                    <p class="text-xs text-gray-500 mt-1">Employees on daily payroll</p>
-                </div>
+                    <div class="bg-white border border-gray-200 rounded-xl p-4">
+                        <p class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Daily Paid</p>
+                        <p class="text-2xl font-bold text-indigo-700 mt-1" x-text="dailyPaidCount"></p>
+                        <p class="text-xs text-gray-500 mt-1">Employees on daily payroll</p>
+                    </div>
 
-                <div class="bg-white border border-gray-200 rounded-xl p-4">
-                    <p class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Departments</p>
-                    <p class="text-2xl font-bold text-green-700 mt-1" x-text="uniqueDepartments.length"></p>
-                    <p class="text-xs text-gray-500 mt-1">Departments with personnel records</p>
+                    <div class="bg-white border border-gray-200 rounded-xl p-4">
+                        <p class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Departments</p>
+                        <p class="text-2xl font-bold text-green-700 mt-1" x-text="uniqueDepartments.length"></p>
+                        <p class="text-xs text-gray-500 mt-1">Departments with personnel records</p>
+                    </div>
                 </div>
             </div>
-        </div>
 
-        <div class="px-5 py-4 border-b shrink-0">
-            <div class="grid grid-cols-5 gap-3">
-                <div class="col-span-2">
-                    <label class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Search</label>
-                    <input
-                        type="text"
-                        x-model="search"
-                        placeholder="Search employee name, ID, email, position..."
-                        class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none"
-                    >
-                </div>
+            <div class="px-5 py-4 border-b shrink-0">
+                <div class="grid grid-cols-5 gap-3">
+                    <div class="col-span-2">
+                        <label class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Search</label>
+                        <input
+                            type="text"
+                            x-model="search"
+                            placeholder="Search employee name, ID, email, position..."
+                            class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none"
+                        >
+                    </div>
 
-                <div>
-                    <label class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Department</label>
-                    <select
-                        x-model="filterDepartment"
-                        class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none"
-                    >
-                        <option value="">All Departments</option>
-                        <template x-for="department in uniqueDepartments" :key="department">
-                            <option :value="department" x-text="department"></option>
-                        </template>
-                    </select>
-                </div>
+                    <div>
+                        <label class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Department</label>
+                        <select
+                            x-model="filterDepartment"
+                            class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none"
+                        >
+                            <option value="">All Departments</option>
+                            <template x-for="department in uniqueDepartments" :key="department">
+                                <option :value="department" x-text="department"></option>
+                            </template>
+                        </select>
+                    </div>
 
-                <div>
-                    <label class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Branch</label>
-                    <select
-                        x-model="filterBranch"
-                        class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none"
-                    >
-                        <option value="">All Branches</option>
-                        <template x-for="branch in uniqueBranches" :key="branch">
-                            <option :value="branch" x-text="branch"></option>
-                        </template>
-                    </select>
-                </div>
+                    <div>
+                        <label class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Branch</label>
+                        <select
+                            x-model="filterBranch"
+                            class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none"
+                        >
+                            <option value="">All Branches</option>
+                            <template x-for="branch in uniqueBranches" :key="branch">
+                                <option :value="branch" x-text="branch"></option>
+                            </template>
+                        </select>
+                    </div>
 
-                <div>
-                    <label class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Payroll Type</label>
-                    <select
-                        x-model="filterPayroll"
-                        class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none"
-                    >
-                        <option value="">All Types</option>
-                        <option value="Monthly Paid">Monthly Paid</option>
-                        <option value="Daily Paid">Daily Paid</option>
-                    </select>
+                    <div>
+                        <label class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Payroll Type</label>
+                        <select
+                            x-model="filterPayroll"
+                            class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none"
+                        >
+                            <option value="">All Types</option>
+                            <option value="Monthly Paid">Monthly Paid</option>
+                            <option value="Daily Paid">Daily Paid</option>
+                        </select>
+                    </div>
                 </div>
             </div>
-        </div>
+        @endif
 
         <div class="flex-1 min-h-0 overflow-hidden p-5">
             <div class="h-full border border-gray-200 rounded-xl overflow-auto bg-white">

@@ -21,12 +21,12 @@ class BankingController extends Controller
         'Bank Correspondence', 'KYC Documents', 'AML Compliance Documents', 'Other',
     ];
 
-    private function canApproveCorporate(): bool
+    protected function canApproveCorporate(): bool
     {
         return Auth::check() && Auth::user()->hasPermission('approve_corporate');
     }
 
-    private function canEditRecord(Banking $record): bool
+    protected function canEditRecord(Banking $record): bool
     {
         if ($this->canApproveCorporate()) {
             return true;
@@ -178,7 +178,7 @@ class BankingController extends Controller
         ]);
     }
 
-    private function validatedPayload(Request $request, bool $documentsOptional = true): array
+    protected function validatedPayload(Request $request, bool $documentsOptional = true): array
     {
         return $request->validate(array_merge([
             'bank' => ['required', 'string', 'max:255'],
@@ -190,7 +190,7 @@ class BankingController extends Controller
         ], $this->commonDocumentValidation()));
     }
 
-    private function transformRecord(Banking $record): array
+    protected function transformRecord(Banking $record): array
     {
         $draftDocuments = $this->documentLinks($record->draft_documents);
         $approvedDocuments = $this->documentLinks($record->approved_documents);

@@ -92,12 +92,12 @@ class LegalController extends Controller
         'Other',
     ];
 
-    private function canApproveCorporate(): bool
+    protected function canApproveCorporate(): bool
     {
         return Auth::check() && Auth::user()->hasPermission('approve_corporate');
     }
 
-    private function canEditRecord(Legal $record): bool
+    protected function canEditRecord(Legal $record): bool
     {
         if ($this->canApproveCorporate()) {
             return true;
@@ -265,7 +265,7 @@ class LegalController extends Controller
         ]);
     }
 
-    private function validatedPayload(Request $request, bool $documentsOptional = true): array
+    protected function validatedPayload(Request $request, bool $documentsOptional = true): array
     {
         return $request->validate(array_merge([
             'document_type' => ['required', 'string', 'max:255'],
@@ -278,7 +278,7 @@ class LegalController extends Controller
         ], $this->commonDocumentValidation()));
     }
 
-    private function transformRecord(Legal $item): array
+    protected function transformRecord(Legal $item): array
     {
         $draftDocuments = $this->documentLinks($item->draft_documents);
         $approvedDocuments = $this->documentLinks($item->approved_documents);
@@ -309,7 +309,7 @@ class LegalController extends Controller
         ];
     }
 
-    private function legalStatus(?string $expirationDate, string $fallback): string
+    protected function legalStatus(?string $expirationDate, string $fallback): string
     {
         if (in_array($fallback, ['Pending', 'Executed', 'Cancelled', 'Terminated'], true)) {
             return $fallback;
@@ -318,7 +318,7 @@ class LegalController extends Controller
         return $this->repositoryStatusFromDeadline($expirationDate, $fallback ?: 'Active');
     }
 
-    private function syncLegalDeadline(Legal $legal): void
+    protected function syncLegalDeadline(Legal $legal): void
     {
         $this->syncDeadlineTownHallMemo(
             $legal,

@@ -3,12 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\ResolvesCompanyRecords;
-use App\Models\Accounting;
+use App\Models\Legal;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
 
-class CompanyAccountingController extends AccountingController
+class CompanyLegalController extends LegalController
 {
     use ResolvesCompanyRecords;
 
@@ -18,14 +18,14 @@ class CompanyAccountingController extends AccountingController
         $companyData = $this->findCompany($request, $company);
 
         if ($request->expectsJson()) {
-            $query = Accounting::query()->where('company_id', $company);
+            $query = Legal::query()->where('company_id', $company);
 
             if (! $this->canApproveCorporate()) {
                 $query->where('submitted_by', Auth::id());
             }
 
-            if ($request->filled('report_type') && $request->report_type !== 'All Report Types') {
-                $query->where('statement_type', $request->report_type);
+            if ($request->filled('document_type') && $request->document_type !== 'All Document Types') {
+                $query->where('document_type', $request->document_type);
             }
 
             if ($request->filled('workflow_status') && $request->workflow_status !== 'all') {
@@ -33,8 +33,8 @@ class CompanyAccountingController extends AccountingController
             }
 
             return response()->json(
-                $query->orderByDesc('date')->orderByDesc('created_at')->get()
-                    ->map(fn (Accounting $row) => $this->transformRecord($row))
+                $query->orderByDesc('date')->orderByDesc('id')->get()
+                    ->map(fn (Legal $row) => $this->transformRecord($row))
                     ->values()
             );
         }
@@ -44,16 +44,16 @@ class CompanyAccountingController extends AccountingController
 
     private function repositoryPage(int $company, array $companyData): View
     {
-        return view('corporate.accounting', [
+        return view('corporate.legal', [
             'company' => (object) $companyData,
             'companyDefaults' => $companyData,
-            'reportTypes' => self::REPORT_TYPES,
-            'statuses' => ['Draft', 'Pending', 'Submitted', 'Approved', 'Rejected', 'Completed'],
+            'legalDocumentTypes' => self::DOCUMENT_TYPES,
+            'statuses' => ['Active', 'For Renewal', 'Expiring Soon', 'Expired', 'Pending', 'Executed', 'Cancelled', 'Terminated'],
             'repositoryRoutes' => [
-                'dataUrl' => route('company.accounting', $company),
-                'storeUrl' => route('company.accounting.store', $company),
-                'updateUrl' => route('company.accounting.update', ['company' => $company, 'record' => '__ID__']),
-                'submitUrl' => route('company.accounting.submit', ['company' => $company, 'record' => '__ID__']),
+                'dataUrl' => route('company.legal', $company),
+                'storeUrl' => route('company.legal.store', $company),
+                'updateUrl' => route('company.legal.update', ['company' => $company, 'record' => '__ID__']),
+                'submitUrl' => route('company.legal.submit', ['company' => $company, 'record' => '__ID__']),
             ],
         ]);
     }
@@ -64,38 +64,45 @@ class CompanyAccountingController extends AccountingController
         $companyData = $this->findCompany($request, $company);
         $validated = $this->validatedPayload($request);
         $user = $this->currentUserLabel($request);
-        $draftDocuments = $this->storeDocumentSet($request, 'draft_documents', 'company/accounting/drafts');
-        $approvedDocuments = $this->storeDocumentSet($request, 'approved_documents', 'company/accounting/approved');
+        $draftDocuments = $this->storeDocumentSet($request, 'draft_documents', 'company/legal/drafts');
+        $approvedDocuments = $this->storeDocumentSet($request, 'approved_documents', 'company/legal/approved');
         $primaryDocument = $draftDocuments[0] ?? $approvedDocuments[0] ?? null;
+        $documentType = $this->resolveOtherChoice($validated['document_type'], $validated['document_type_other'] ?? null);
+        $status = $this->legalStatus($validated['expiration_date'] ?? null, $validated['status'] ?? 'Pending');
 
-        $entry = Accounting::create([
+        $entry = Legal::create([
             'company_id' => $company,
             'company_name' => $companyData['company_name'],
-            'statement_type' => $this->resolveOtherChoice($validated['report_type'], $validated['report_type_other'] ?? null),
+            'legal_type' => $documentType,
             'client' => $companyData['company_name'],
             'tin' => $companyData['tin_no'] ?? $companyData['tin'] ?? null,
-            'date' => $validated['report_date'],
-            'reporting_period_from' => $validated['reporting_period_from'] ?? null,
-            'reporting_period_to' => $validated['reporting_period_to'] ?? null,
-            'user' => $user,
-            'submitted_by' => Auth::id(),
-            'status' => $validated['status'] ?? 'Pending',
+            'date' => $validated['document_date'],
+            'document_type' => $documentType,
+            'document_title' => $validated['document_title'],
+            'effective_date' => $validated['effective_date'] ?? null,
+            'expiration_date' => $validated['expiration_date'] ?? null,
+            'record_status' => $status,
+            'document_name' => $primaryDocument['name'] ?? null,
+            'document_path' => $primaryDocument['path'] ?? null,
             'draft_documents' => $draftDocuments,
             'approved_documents' => $approvedDocuments,
             'uploaded_by' => $user,
             'date_uploaded_at' => now(),
             'last_updated_by' => $user,
             'last_updated_at' => now(),
+            'user' => $user,
+            'submitted_by' => Auth::id(),
             'workflow_status' => 'Submitted',
             'approval_status' => 'Pending',
             'review_note' => null,
-            'document_name' => $primaryDocument['name'] ?? null,
-            'document_path' => $primaryDocument['path'] ?? null,
         ]);
 
+        $this->syncLegalDeadline($entry);
+
         return response()->json([
-            'message' => 'Accounting report saved successfully.',
-            'data' => $this->transformRecord($entry),
+            'success' => true,
+            'message' => 'Legal document saved successfully.',
+            'data' => $this->transformRecord($entry->fresh()),
         ], 201);
     }
 
@@ -104,7 +111,7 @@ class CompanyAccountingController extends AccountingController
         $company = (int) $company;
         $record = (int) $record;
         $this->findCompany($request, $company);
-        $entry = Accounting::query()->where('company_id', $company)->findOrFail($record);
+        $entry = Legal::query()->where('company_id', $company)->findOrFail($record);
 
         if (! $this->canEditRecord($entry)) {
             abort(403, 'This record can no longer be edited.');
@@ -112,16 +119,19 @@ class CompanyAccountingController extends AccountingController
 
         $validated = $this->validatedPayload($request, false);
         $user = $this->currentUserLabel($request);
-        $draftDocuments = $this->appendDocuments($entry->draft_documents, $this->storeDocumentSet($request, 'draft_documents', 'company/accounting/drafts'));
-        $approvedDocuments = $this->appendDocuments($entry->approved_documents, $this->storeDocumentSet($request, 'approved_documents', 'company/accounting/approved'));
+        $draftDocuments = $this->appendDocuments($entry->draft_documents, $this->storeDocumentSet($request, 'draft_documents', 'company/legal/drafts'));
+        $approvedDocuments = $this->appendDocuments($entry->approved_documents, $this->storeDocumentSet($request, 'approved_documents', 'company/legal/approved'));
         $primaryDocument = $draftDocuments[0] ?? $approvedDocuments[0] ?? null;
+        $documentType = $this->resolveOtherChoice($validated['document_type'], $validated['document_type_other'] ?? null);
 
         $entry->update([
-            'statement_type' => $this->resolveOtherChoice($validated['report_type'], $validated['report_type_other'] ?? null),
-            'date' => $validated['report_date'],
-            'reporting_period_from' => $validated['reporting_period_from'] ?? null,
-            'reporting_period_to' => $validated['reporting_period_to'] ?? null,
-            'status' => $validated['status'] ?? $entry->status,
+            'legal_type' => $documentType,
+            'date' => $validated['document_date'],
+            'document_type' => $documentType,
+            'document_title' => $validated['document_title'],
+            'effective_date' => $validated['effective_date'] ?? null,
+            'expiration_date' => $validated['expiration_date'] ?? null,
+            'record_status' => $this->legalStatus($validated['expiration_date'] ?? null, $validated['status'] ?? $entry->record_status),
             'draft_documents' => $draftDocuments,
             'approved_documents' => $approvedDocuments,
             'last_updated_by' => $user,
@@ -132,8 +142,10 @@ class CompanyAccountingController extends AccountingController
             'review_note' => ($entry->workflow_status ?? 'Uploaded') === 'Reverted' ? null : $entry->review_note,
         ]);
 
+        $this->syncLegalDeadline($entry->fresh());
+
         return response()->json([
-            'message' => 'Accounting report updated successfully.',
+            'message' => 'Legal document updated successfully.',
             'data' => $this->transformRecord($entry->fresh()),
         ]);
     }
@@ -142,7 +154,7 @@ class CompanyAccountingController extends AccountingController
     {
         $request = request();
         $this->findCompany($request, $company);
-        $entry = Accounting::query()->where('company_id', $company)->findOrFail($record);
+        $entry = Legal::query()->where('company_id', $company)->findOrFail($record);
 
         if ((int) $entry->submitted_by !== (int) Auth::id()) {
             abort(403, 'Unauthorized');
@@ -159,7 +171,7 @@ class CompanyAccountingController extends AccountingController
         ]);
 
         return response()->json([
-            'message' => 'Accounting report submitted for approval successfully.',
+            'message' => 'Legal document submitted for approval successfully.',
             'data' => $this->transformRecord($entry->fresh()),
         ]);
     }
@@ -167,7 +179,7 @@ class CompanyAccountingController extends AccountingController
     public function destroy(Request $request, int $company, int $record)
     {
         $this->findCompany($request, $company);
-        $entry = Accounting::query()->where('company_id', $company)->findOrFail($record);
+        $entry = Legal::query()->where('company_id', $company)->findOrFail($record);
 
         if (! $this->canEditRecord($entry)) {
             abort(403, 'This record can no longer be deleted.');
@@ -175,7 +187,7 @@ class CompanyAccountingController extends AccountingController
 
         $entry->delete();
 
-        return response()->json(['message' => 'Accounting report deleted successfully.']);
+        return response()->json(['message' => 'Legal document deleted successfully.']);
     }
 
     private function findCompany(Request $request, int $company): array

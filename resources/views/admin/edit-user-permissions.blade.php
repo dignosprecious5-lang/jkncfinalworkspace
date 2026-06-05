@@ -31,6 +31,7 @@
             ['name' => 'access_hc_onboarding', 'label' => 'HC: On Boarding', 'description' => 'Open onboarding, PDS, checklist, and employee registration records.'],
             ['name' => 'access_hc_deployment', 'label' => 'HC: Deployment', 'description' => 'Open deployment records.'],
             ['name' => 'access_hc_offboarding', 'label' => 'HC: Off Boarding', 'description' => 'Open offboarding records.'],
+            ['name' => 'access_hc_my_hc', 'label' => 'HC: MY HC', 'description' => 'Unlock all records across MY HC modules. Without this, users keep only own or directly related records.'],
             ['name' => 'access_hc_attendance', 'label' => 'My HC: Attendance', 'description' => 'Open attendance. Employees see only their own records.'],
             ['name' => 'access_hc_obf', 'label' => 'My HC: Official Business Trip', 'description' => 'Open OBF records. Employees see affiliated records only.'],
             ['name' => 'access_hc_employee_requests', 'label' => 'My HC: Employee Requests', 'description' => 'Open employee requests. Employees see their own requests only.'],

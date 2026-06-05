@@ -18,6 +18,7 @@
         'storeUrl' => $repositoryRoutes['storeUrl'],
         'updateUrl' => $repositoryRoutes['updateUrl'],
         'submitUrl' => $repositoryRoutes['submitUrl'],
+        'defaultWorkflowTab' => 'accepted',
         'locationData' => $locationData ?? [],
         'locationEndpoints' => [
             'provinces' => route('corporate.locations.provinces-or-districts'),

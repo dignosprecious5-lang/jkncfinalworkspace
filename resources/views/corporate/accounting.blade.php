@@ -1,16 +1,24 @@
 @extends('layouts.app')
 
 @php
+    $repositoryRoutes = $repositoryRoutes ?? [
+        'dataUrl' => route('corporate.accounting.data'),
+        'storeUrl' => route('corporate.accounting.store'),
+        'updateUrl' => route('corporate.accounting.update', '__ID__'),
+        'submitUrl' => route('corporate.accounting.submit', '__ID__'),
+    ];
+
     $moduleConfig = [
         'moduleId' => 'corporateAccountingRepository',
         'title' => 'Accounting',
         'purpose' => 'Store and track accounting and financial reports only.',
         'company' => $companyDefaults ?? [],
         'currentUser' => Auth::user()->name ?? Auth::user()->email ?? 'System User',
-        'dataUrl' => route('corporate.accounting.data'),
-        'storeUrl' => route('corporate.accounting.store'),
-        'updateUrl' => route('corporate.accounting.update', '__ID__'),
-        'submitUrl' => route('corporate.accounting.submit', '__ID__'),
+        'dataUrl' => $repositoryRoutes['dataUrl'],
+        'storeUrl' => $repositoryRoutes['storeUrl'],
+        'updateUrl' => $repositoryRoutes['updateUrl'],
+        'submitUrl' => $repositoryRoutes['submitUrl'],
+        'defaultWorkflowTab' => 'accepted',
         'options' => [
             'reportTypes' => $reportTypes ?? [],
             'statuses' => $statuses ?? [],

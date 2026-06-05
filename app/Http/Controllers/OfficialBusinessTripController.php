@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\RequestsHumanCapitalApproval;
+use App\Http\Controllers\Concerns\ScopesHumanCapitalRecords;
 use App\Models\Contact;
 use App\Models\Employee;
 use App\Models\OfficialBusinessTrip;
@@ -14,14 +15,18 @@ use Illuminate\Support\Str;
 class OfficialBusinessTripController extends Controller
 {
     use RequestsHumanCapitalApproval;
+    use ScopesHumanCapitalRecords;
+
     public function index()
     {
         $canManageObf = $this->canManageObf();
         $currentEmployee = $this->currentEmployee();
 
-        $employees = Employee::with('department')
-            ->orderBy('last_name')
-            ->get()
+        $employeeQuery = $canManageObf
+            ? Employee::with('department')->orderBy('last_name')
+            : Employee::with('department')->where('id', $currentEmployee?->id ?: 0);
+
+        $employees = $employeeQuery->get()
             ->map(function ($employee) {
                 return [
                     'id' => $employee->id,
@@ -77,9 +82,21 @@ class OfficialBusinessTripController extends Controller
             })
             ->values();
 
+        $identity = $this->humanCapitalEmployeeIdentity($currentEmployee, Auth::user());
+
         $trips = OfficialBusinessTrip::latest()
-            ->when(! $canManageObf, function ($query) use ($currentEmployee) {
-                $query->where('employee_id', $currentEmployee?->id ?: 0);
+            ->when(! $canManageObf, function ($query) use ($identity) {
+                $this->applyEmployeeIdentityScope(
+                    $query,
+                    $identity,
+                    ['employee_id'],
+                    ['created_by'],
+                    ['employee_name']
+                );
+
+                if (! empty($identity['name'])) {
+                    $query->orWhereJsonContains('team_members', $identity['name']);
+                }
             })
             ->get()
             ->map(fn ($trip) => $this->formatTrip($trip))
@@ -437,21 +454,12 @@ class OfficialBusinessTripController extends Controller
     {
         $user = Auth::user();
 
-        return $user && ($user->isAdmin() || $user->isSuperAdmin() || $user->hasPermission('access_hc_obf'));
+        return $this->canManageHumanCapitalModule('access_hc_obf', true);
     }
 
     private function currentEmployee(): ?Employee
     {
-        $user = Auth::user();
-
-        return Employee::with('department')
-            ->where(function ($query) use ($user) {
-                $query->where('user_id', $user?->id ?: 0)
-                    ->orWhere('email', $user?->email)
-                    ->orWhere('work_email', $user?->email)
-                    ->orWhere('company_email', $user?->email);
-            })
-            ->first();
+        return $this->currentHumanCapitalEmployee(Auth::user());
     }
 
     private function resolveEmployee(?int $employeeId): Employee
@@ -477,7 +485,12 @@ class OfficialBusinessTripController extends Controller
 
         $employee = $this->currentEmployee();
 
-        if (! $employee || $trip->employee_id !== $employee->id || ($editing && $trip->status !== 'Pending')) {
+        $identity = $this->humanCapitalEmployeeIdentity($employee, Auth::user());
+        $teamMembers = collect($trip->team_members ?? [])->map(fn ($item) => strtolower(trim((string) $item)));
+        $isParticipant = ! empty($identity['name'])
+            && $teamMembers->contains(strtolower(trim((string) $identity['name'])));
+
+        if (! $employee || ($trip->employee_id !== $employee->id && $trip->created_by !== Auth::id() && ! $isParticipant) || ($editing && $trip->status !== 'Pending')) {
             abort(403);
         }
     }

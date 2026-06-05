@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Employee;
 use App\Models\EmployeeRequest;
 use App\Models\User;
+use App\Http\Controllers\Concerns\ScopesHumanCapitalRecords;
 use App\Notifications\SystemRealtimeNotification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Notification;
@@ -12,17 +13,28 @@ use Illuminate\Support\Carbon;
 
 class EmployeeRequestController extends Controller
 {
+    use ScopesHumanCapitalRecords;
+
     public function index()
     {
         $user = auth()->user();
 
         $canManageEmployeeRequests = $this->canManageRequests();
+        $currentEmployee = $this->currentEmployee();
 
         $employeeRequests = $canManageEmployeeRequests
             ? EmployeeRequest::latest()->get()
             : collect();
 
-        $myEmployeeRequests = EmployeeRequest::where('user_id', auth()->id())
+        $identity = $this->humanCapitalEmployeeIdentity($currentEmployee, $user);
+
+        $myEmployeeRequests = $this->applyEmployeeIdentityScope(
+                EmployeeRequest::query(),
+                $identity,
+                [],
+                ['user_id'],
+                ['employee_name']
+            )
             ->latest()
             ->get();
 
@@ -35,7 +47,6 @@ class EmployeeRequestController extends Controller
                 ->values()
             : collect();
 
-        $currentEmployee = $this->currentEmployee();
         $currentEmployeeProfile = $currentEmployee
             ? $this->formatEmployee($currentEmployee)
             : null;
@@ -316,28 +327,19 @@ class EmployeeRequestController extends Controller
     {
         $user = auth()->user();
 
-        abort_unless($user && ($user->isAdmin() || $user->isSuperAdmin() || $user->hasPermission('access_hc_employee_requests')), 403);
+        abort_unless($user && $this->canManageRequests(), 403);
     }
 
     private function canManageRequests(): bool
     {
         $user = auth()->user();
 
-        return $user && ($user->isAdmin() || $user->isSuperAdmin() || $user->hasPermission('access_hc_employee_requests'));
+        return $user && $this->canManageHumanCapitalModule('access_hc_employee_requests', true);
     }
 
     private function currentEmployee(): ?Employee
     {
-        $user = auth()->user();
-
-        return Employee::with('department')
-            ->where(function ($query) use ($user) {
-                $query->where('user_id', $user?->id ?: 0)
-                    ->orWhere('email', $user?->email)
-                    ->orWhere('work_email', $user?->email)
-                    ->orWhere('company_email', $user?->email);
-            })
-            ->first();
+        return $this->currentHumanCapitalEmployee(auth()->user());
     }
 
     private function resolveEmployee(?int $employeeId): Employee

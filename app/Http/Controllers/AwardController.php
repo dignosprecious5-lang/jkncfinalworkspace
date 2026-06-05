@@ -4,10 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Models\Award;
 use App\Models\Employee;
+use App\Http\Controllers\Concerns\ScopesHumanCapitalRecords;
 use Illuminate\Support\Facades\Auth;
 
 class AwardController extends Controller
 {
+    use ScopesHumanCapitalRecords;
+
     public function index()
     {
         $user = Auth::user();
@@ -18,27 +21,20 @@ class AwardController extends Controller
             'assignment',
         ])->latest();
 
-        $isAdmin = $user->isAdmin() || $user->isSuperAdmin() || $user->hasPermission('access_hc_awards');
+        $isAdmin = $this->canManageHumanCapitalModule('access_hc_awards', true);
         $employees = [];
         $selectedEmployeeId = null;
 
-        /*
-         * Admin / Super Admin:
-         * - Can see all awards.
-         * - Can filter by employee_id query parameter.
-         *
-         * Normal user:
-         * - Can only see awards connected to their own Employee Profile.
-         *
-         * Important:
-         * This uses users.email = employees.email.
-         */
         if (! $isAdmin) {
-            $query->whereHas('employee', function ($employeeQuery) use ($user) {
-                $employeeQuery->where('user_id', $user?->id ?: 0)
-                    ->orWhere('email', $user?->email)
-                    ->orWhere('work_email', $user?->email)
-                    ->orWhere('company_email', $user?->email);
+            $employee = $this->currentHumanCapitalEmployee($user);
+            $query->where(function ($awardQuery) use ($user, $employee) {
+                $awardQuery->whereHas('employee', function ($employeeQuery) use ($user) {
+                    $employeeQuery->where('user_id', $user?->id ?: 0)
+                        ->orWhere('email', $user?->email)
+                        ->orWhere('work_email', $user?->email)
+                        ->orWhere('company_email', $user?->email);
+                })
+                    ->orWhereHas('assignment', fn ($assignmentQuery) => $employee ? $assignmentQuery->where('employee_id', $employee->id) : $assignmentQuery->whereRaw('1 = 0'));
             });
         } else {
             // For admin/superadmin, get all employees for the dropdown

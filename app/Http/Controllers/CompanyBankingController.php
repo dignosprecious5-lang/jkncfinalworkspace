@@ -3,167 +3,179 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\ResolvesCompanyRecords;
-use Illuminate\Http\RedirectResponse;
+use App\Models\Banking;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
 
-class CompanyBankingController extends Controller
+class CompanyBankingController extends BankingController
 {
     use ResolvesCompanyRecords;
 
-    private const STATUSES = ['Open', 'Completed', 'Overdue'];
-
-    public function index(Request $request, int $company): View
+    public function index(Request $request, $company = null)
     {
+        $company = (int) $company;
         $companyData = $this->findCompany($request, $company);
-        $records = collect($request->session()->get($this->sessionKey(), $this->defaultRecords()))
-            ->where('company_id', $company)
-            ->values();
 
-        return view('company.banking', [
+        if ($request->expectsJson()) {
+            $query = Banking::query()->where('company_id', $company);
+
+            if (! $this->canApproveCorporate()) {
+                $query->where('submitted_by', Auth::id());
+            }
+
+            if ($request->filled('workflow_status') && $request->workflow_status !== 'all') {
+                $query->where('workflow_status', ucfirst($request->workflow_status));
+            }
+
+            return response()->json(
+                $query->orderByDesc('document_date')->orderByDesc('date_uploaded')->get()
+                    ->map(fn (Banking $row) => $this->transformRecord($row))
+                    ->values()
+            );
+        }
+
+        return $this->repositoryPage($company, $companyData);
+    }
+
+    private function repositoryPage(int $company, array $companyData): View
+    {
+        return view('corporate.banking', [
             'company' => (object) $companyData,
-            'companyTin' => $this->companyTin($companyData),
-            'currentUserName' => $this->currentUserName($request),
-            'records' => $records,
-            'stats' => [
-                'total' => $records->count(),
-                'open' => $records->where('status', 'Open')->count(),
-                'completed' => $records->where('status', 'Completed')->count(),
-                'overdue' => $records->where('status', 'Overdue')->count(),
+            'companyDefaults' => $companyData,
+            'banks' => self::BANKS,
+            'bankDocumentTypes' => self::DOCUMENT_TYPES,
+            'statuses' => ['Draft', 'Pending', 'Submitted', 'Approved', 'Rejected', 'Completed'],
+            'repositoryRoutes' => [
+                'dataUrl' => route('company.banking', $company),
+                'storeUrl' => route('company.banking.store', $company),
+                'updateUrl' => route('company.banking.update', ['company' => $company, 'record' => '__ID__']),
+                'submitUrl' => route('company.banking.submit', ['company' => $company, 'record' => '__ID__']),
             ],
         ]);
     }
 
-    public function store(Request $request, int $company): RedirectResponse
+    public function store(Request $request, $company = null)
     {
+        $company = (int) $company;
         $companyData = $this->findCompany($request, $company);
-        $validated = $this->validateRecord($request);
-        $records = collect($request->session()->get($this->sessionKey(), $this->defaultRecords()));
-        $nextId = (int) ($records->max('id') ?? 0) + 1;
+        $validated = $this->validatedPayload($request);
+        $user = $this->currentUserLabel($request);
+        $draftDocuments = $this->storeDocumentSet($request, 'draft_documents', 'company/banking/drafts');
+        $approvedDocuments = $this->storeDocumentSet($request, 'approved_documents', 'company/banking/approved');
+        $primaryDocument = $draftDocuments[0] ?? $approvedDocuments[0] ?? null;
 
-        $records->push([
-            'id' => $nextId,
+        $entry = Banking::create([
             'company_id' => $company,
-            'date_uploaded' => $validated['date_uploaded'],
-            'uploaded_by' => $this->currentUserName($request),
+            'company_name' => $companyData['company_name'],
+            'date_uploaded' => now()->toDateString(),
+            'date_uploaded_at' => now(),
+            'user' => $user,
+            'uploaded_by' => $user,
+            'last_updated_by' => $user,
+            'last_updated_at' => now(),
+            'submitted_by' => Auth::id(),
             'client' => $companyData['company_name'],
-            'tin' => $validated['tin'] ?: $this->companyTin($companyData),
-            'banks' => $validated['banks'],
-            'bank_docs' => $validated['bank_docs'],
-            'status' => $validated['status'],
+            'tin' => $companyData['tin_no'] ?? $companyData['tin'] ?? null,
+            'bank' => $this->resolveOtherChoice($validated['bank'], $validated['bank_other'] ?? null),
+            'bank_doc' => $this->resolveOtherChoice($validated['bank_document_type'], $validated['bank_document_type_other'] ?? null),
+            'document_date' => $validated['document_date'],
+            'status' => $validated['status'] ?? 'Pending',
+            'draft_documents' => $draftDocuments,
+            'approved_documents' => $approvedDocuments,
+            'workflow_status' => 'Submitted',
+            'approval_status' => 'Pending',
+            'review_note' => null,
+            'document_name' => $primaryDocument['name'] ?? null,
+            'document_path' => $primaryDocument['path'] ?? null,
         ]);
 
-        $request->session()->put($this->sessionKey(), $records->values()->all());
-
-        return redirect()
-            ->route('company.banking', $company)
-            ->with('banking_success', 'Banking entry added successfully.');
+        return response()->json([
+            'message' => 'Banking record saved successfully.',
+            'data' => $this->transformRecord($entry),
+        ], 201);
     }
 
-    public function update(Request $request, int $company, int $record): RedirectResponse
+    public function update(Request $request, $company, $record = null)
     {
-        $companyData = $this->findCompany($request, $company);
-        $validated = $this->validateRecord($request);
-        $records = collect($request->session()->get($this->sessionKey(), $this->defaultRecords()));
-        $existing = $records->firstWhere('id', $record);
+        $company = (int) $company;
+        $record = (int) $record;
+        $this->findCompany($request, $company);
+        $entry = Banking::query()->where('company_id', $company)->findOrFail($record);
 
-        abort_unless($existing && (int) $existing['company_id'] === $company, 404);
+        if (! $this->canEditRecord($entry)) {
+            abort(403, 'This record can no longer be edited.');
+        }
 
-        $updated = $records->map(function (array $item) use ($record, $company, $companyData, $validated) {
-            if ((int) $item['id'] !== $record) {
-                return $item;
-            }
+        $validated = $this->validatedPayload($request, false);
+        $user = $this->currentUserLabel($request);
+        $draftDocuments = $this->appendDocuments($entry->draft_documents, $this->storeDocumentSet($request, 'draft_documents', 'company/banking/drafts'));
+        $approvedDocuments = $this->appendDocuments($entry->approved_documents, $this->storeDocumentSet($request, 'approved_documents', 'company/banking/approved'));
+        $primaryDocument = $draftDocuments[0] ?? $approvedDocuments[0] ?? null;
 
-            return [
-                ...$item,
-                'company_id' => $company,
-                'date_uploaded' => $validated['date_uploaded'],
-                'uploaded_by' => $this->currentUserName($request),
-                'client' => $companyData['company_name'],
-                'tin' => $validated['tin'] ?: $this->companyTin($companyData),
-                'banks' => $validated['banks'],
-                'bank_docs' => $validated['bank_docs'],
-                'status' => $validated['status'],
-            ];
-        });
+        $entry->update([
+            'bank' => $this->resolveOtherChoice($validated['bank'], $validated['bank_other'] ?? null),
+            'bank_doc' => $this->resolveOtherChoice($validated['bank_document_type'], $validated['bank_document_type_other'] ?? null),
+            'document_date' => $validated['document_date'],
+            'status' => $validated['status'] ?? $entry->status,
+            'draft_documents' => $draftDocuments,
+            'approved_documents' => $approvedDocuments,
+            'last_updated_by' => $user,
+            'last_updated_at' => now(),
+            'document_name' => $primaryDocument['name'] ?? $entry->document_name,
+            'document_path' => $primaryDocument['path'] ?? $entry->document_path,
+            'approval_status' => ($entry->workflow_status ?? 'Uploaded') === 'Reverted' ? 'Pending' : $entry->approval_status,
+            'review_note' => ($entry->workflow_status ?? 'Uploaded') === 'Reverted' ? null : $entry->review_note,
+        ]);
 
-        $request->session()->put($this->sessionKey(), $updated->values()->all());
-
-        return redirect()
-            ->route('company.banking', $company)
-            ->with('banking_success', 'Banking entry updated successfully.');
+        return response()->json([
+            'message' => 'Banking record updated successfully.',
+            'data' => $this->transformRecord($entry->fresh()),
+        ]);
     }
 
-    public function destroy(Request $request, int $company, int $record): RedirectResponse
+    public function submitCompany(int $company, int $record)
+    {
+        $request = request();
+        $this->findCompany($request, $company);
+        $entry = Banking::query()->where('company_id', $company)->findOrFail($record);
+
+        if ((int) $entry->submitted_by !== (int) Auth::id()) {
+            abort(403, 'Unauthorized');
+        }
+
+        if (! in_array($entry->workflow_status ?? 'Uploaded', ['Uploaded', 'Reverted'], true)) {
+            return response()->json(['message' => 'Only uploaded or reverted records can be submitted.'], 422);
+        }
+
+        $entry->update([
+            'workflow_status' => 'Submitted',
+            'approval_status' => 'Pending',
+            'review_note' => null,
+        ]);
+
+        return response()->json([
+            'message' => 'Banking record submitted for approval successfully.',
+            'data' => $this->transformRecord($entry->fresh()),
+        ]);
+    }
+
+    public function destroy(Request $request, int $company, int $record)
     {
         $this->findCompany($request, $company);
-        $records = collect($request->session()->get($this->sessionKey(), $this->defaultRecords()));
-        $existing = $records->firstWhere('id', $record);
+        $entry = Banking::query()->where('company_id', $company)->findOrFail($record);
 
-        abort_unless($existing && (int) $existing['company_id'] === $company, 404);
+        if (! $this->canEditRecord($entry)) {
+            abort(403, 'This record can no longer be deleted.');
+        }
 
-        $request->session()->put(
-            $this->sessionKey(),
-            $records->reject(fn (array $item) => (int) $item['id'] === $record)->values()->all()
-        );
+        $entry->delete();
 
-        return redirect()
-            ->route('company.banking', $company)
-            ->with('banking_success', 'Banking entry removed successfully.');
-    }
-
-    private function validateRecord(Request $request): array
-    {
-        return $request->validate([
-            'date_uploaded' => ['required', 'date'],
-            'uploaded_by' => ['nullable', 'string', 'max:255'],
-            'tin' => ['nullable', 'string', 'max:255'],
-            'banks' => ['required', 'string', 'max:255'],
-            'bank_docs' => ['required', 'string', 'max:255'],
-            'status' => ['required', 'string', 'in:' . implode(',', self::STATUSES)],
-        ]);
-    }
-
-    private function sessionKey(): string
-    {
-        return 'company_banking_records_v2';
+        return response()->json(['message' => 'Banking record deleted successfully.']);
     }
 
     private function findCompany(Request $request, int $company): array
     {
-        return $this->resolveCompanyRecord($request, $company, $this->defaultCompanies());
-    }
-
-    private function defaultCompanies(): array
-    {
-        return [
-            ['id' => 1, 'company_name' => 'Company 1', 'company_type' => 'Corporation', 'email' => 'company1@example.com', 'phone' => '09012345678', 'website' => 'https://bigin.example', 'description' => 'Sample company record', 'address' => 'Makati City', 'owner_name' => 'Owner 1', 'created_at' => '2026-03-01 10:00:00'],
-            ['id' => 2, 'company_name' => 'Company 2', 'company_type' => 'Corporation', 'email' => 'company2@example.com', 'phone' => '09000345678', 'website' => 'https://bigin.example', 'description' => 'Sample company record', 'address' => 'Taguig City', 'owner_name' => 'Owner 2', 'created_at' => '2026-03-02 10:00:00'],
-            ['id' => 3, 'company_name' => 'Company 3', 'company_type' => 'Corporation', 'email' => 'company3@example.com', 'phone' => '09777345678', 'website' => 'https://bigin.example', 'description' => 'Sample company record', 'address' => 'Pasig City', 'owner_name' => 'Owner 3', 'created_at' => '2026-03-03 10:00:00'],
-        ];
-    }
-
-    private function defaultRecords(): array
-    {
-        return [];
-    }
-
-    private function currentUserName(Request $request): string
-    {
-        $user = $request->user();
-
-        return trim((string) (
-            $user?->name
-            ?? $user?->full_name
-            ?? $user?->employee_name
-            ?? $user?->username
-            ?? $user?->email
-            ?? 'System User'
-        ));
-    }
-
-    private function companyTin(array $companyData): string
-    {
-        return trim((string) ($companyData['tin_no'] ?? $companyData['tin'] ?? $companyData['tin_number'] ?? $companyData['company_tin'] ?? $companyData['tax_identification_number'] ?? ''));
+        return $this->resolveCompanyRecord($request, $company, []);
     }
 }
