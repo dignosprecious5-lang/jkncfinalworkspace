@@ -91,6 +91,10 @@
             this.previewManagementName = selected?.name || '';
             this.previewManagementPosition = selected?.position || '';
             this.previewManagementDepartment = selected?.department || '';
+
+            this.previewManagementSignatureName = selected?.name || '';
+            this.previewManagementSignaturePosition = selected?.position || '';
+            this.previewManagementSignatureDepartment = selected?.department || '';
         },
 
         syncExecutiveApprover() {
@@ -98,6 +102,10 @@
             this.previewExecutiveName = selected?.name || '';
             this.previewExecutivePosition = selected?.position || '';
             this.previewExecutiveDepartment = selected?.department || '';
+
+            this.previewExecutiveSignatureName = selected?.name || '';
+            this.previewExecutiveSignaturePosition = selected?.position || '';
+            this.previewExecutiveSignatureDepartment = selected?.department || '';
         }
     }"
 >
@@ -427,6 +435,94 @@
                                 <p><span class="font-semibold">Name:</span> <span x-text="previewExecutiveName || '—'"></span></p>
                                 <p><span class="font-semibold">Position:</span> <span x-text="previewExecutivePosition || '—'"></span></p>
                                 <p><span class="font-semibold">Office:</span> <span x-text="previewExecutiveDepartment || '—'"></span></p>
+                            </div>
+                        </div>
+
+
+                        <div class="rounded-lg border border-gray-200 bg-gray-50 p-4 space-y-3">
+                            <div>
+                                <p class="text-xs font-bold uppercase text-gray-700">Prepared By Details</p>
+                                <p class="text-xs text-gray-500 mt-1">These values will appear in the Prepared By footer section.</p>
+                            </div>
+
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block text-xs font-semibold text-gray-600 mb-1">Prepared By Name</label>
+                                    <input id="preparedByNameInput" x-model="previewPreparedByName" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="Enter prepared by name">
+                                </div>
+
+                                <div>
+                                    <label class="block text-xs font-semibold text-gray-600 mb-1">Prepared By Position</label>
+                                    <input id="preparedByPositionInput" x-model="previewPreparedByPosition" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="Enter position">
+                                </div>
+
+                                <div>
+                                    <label class="block text-xs font-semibold text-gray-600 mb-1">Prepared By Department</label>
+                                    <input id="preparedByDepartmentInput" x-model="previewPreparedByDepartment" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="Enter department">
+                                </div>
+
+                                <div>
+                                    <label class="block text-xs font-semibold text-gray-600 mb-1">Prepared On</label>
+                                    <input id="preparedOnInput" type="datetime-local" x-model="previewPreparedOn" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="rounded-lg border border-blue-100 bg-blue-50 p-4 space-y-3">
+                            <div>
+                                <p class="text-xs font-bold uppercase text-blue-700">From Management Signature Details</p>
+                                <p class="text-xs text-blue-600 mt-1">Dropdown selection can auto-fill this, but you can manually edit it before saving.</p>
+                            </div>
+
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block text-xs font-semibold text-blue-700 mb-1">Level 1 Name</label>
+                                    <input id="managementSignatureNameInput" x-model="previewManagementSignatureName" class="w-full border border-blue-200 rounded-lg px-3 py-2 text-sm" placeholder="Enter Level 1 name">
+                                </div>
+
+                                <div>
+                                    <label class="block text-xs font-semibold text-blue-700 mb-1">Level 1 Position</label>
+                                    <input id="managementSignaturePositionInput" x-model="previewManagementSignaturePosition" class="w-full border border-blue-200 rounded-lg px-3 py-2 text-sm" placeholder="Enter Level 1 position">
+                                </div>
+
+                                <div>
+                                    <label class="block text-xs font-semibold text-blue-700 mb-1">Level 1 Department</label>
+                                    <input id="managementSignatureDepartmentInput" x-model="previewManagementSignatureDepartment" class="w-full border border-blue-200 rounded-lg px-3 py-2 text-sm" placeholder="Enter Level 1 department">
+                                </div>
+
+                                <div>
+                                    <label class="block text-xs font-semibold text-blue-700 mb-1">Level 1 Approved On</label>
+                                    <input id="managementApprovedOnInput" type="datetime-local" x-model="previewManagementApprovedOn" class="w-full border border-blue-200 rounded-lg px-3 py-2 text-sm">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="rounded-lg border border-indigo-100 bg-indigo-50 p-4 space-y-3">
+                            <div>
+                                <p class="text-xs font-bold uppercase text-indigo-700">From Executive Management Signature Details</p>
+                                <p class="text-xs text-indigo-600 mt-1">Dropdown selection can auto-fill this, but you can manually edit it before saving.</p>
+                            </div>
+
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block text-xs font-semibold text-indigo-700 mb-1">Level 2 Name</label>
+                                    <input id="executiveSignatureNameInput" x-model="previewExecutiveSignatureName" class="w-full border border-indigo-200 rounded-lg px-3 py-2 text-sm" placeholder="Enter Level 2 name">
+                                </div>
+
+                                <div>
+                                    <label class="block text-xs font-semibold text-indigo-700 mb-1">Level 2 Position</label>
+                                    <input id="executiveSignaturePositionInput" x-model="previewExecutiveSignaturePosition" class="w-full border border-indigo-200 rounded-lg px-3 py-2 text-sm" placeholder="Enter Level 2 position">
+                                </div>
+
+                                <div>
+                                    <label class="block text-xs font-semibold text-indigo-700 mb-1">Level 2 Department / Office</label>
+                                    <input id="executiveSignatureDepartmentInput" x-model="previewExecutiveSignatureDepartment" class="w-full border border-indigo-200 rounded-lg px-3 py-2 text-sm" placeholder="Enter Level 2 department/office">
+                                </div>
+
+                                <div>
+                                    <label class="block text-xs font-semibold text-indigo-700 mb-1">Level 2 Approved On</label>
+                                    <input id="executiveApprovedOnInput" type="datetime-local" x-model="previewExecutiveApprovedOn" class="w-full border border-indigo-200 rounded-lg px-3 py-2 text-sm">
+                                </div>
                             </div>
                         </div>
 
@@ -844,6 +940,15 @@ function resetFormDefaults() {
     document.getElementById('sentViaInput').value = 'Email';
     document.getElementById('hasDeadlineInput').checked = false;
 
+    ['preparedByNameInput', 'preparedByPositionInput', 'preparedByDepartmentInput', 'preparedOnInput',
+     'managementSignatureNameInput', 'managementSignaturePositionInput', 'managementSignatureDepartmentInput', 'managementApprovedOnInput',
+     'executiveSignatureNameInput', 'executiveSignaturePositionInput', 'executiveSignatureDepartmentInput', 'executiveApprovedOnInput'
+    ].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    });
+
+
     if (alpineData) {
         alpineData.hasDeadline = false;
         alpineData.previewRef = 'AUTO-INCREMENT';
@@ -860,6 +965,18 @@ function resetFormDefaults() {
         alpineData.previewSentVia = 'Email';
         alpineData.previewCc = '';
         alpineData.previewAdditional = '';
+        alpineData.previewPreparedByName = '';
+        alpineData.previewPreparedByPosition = '';
+        alpineData.previewPreparedByDepartment = '';
+        alpineData.previewPreparedOn = '';
+        alpineData.previewManagementSignatureName = '';
+        alpineData.previewManagementSignaturePosition = '';
+        alpineData.previewManagementSignatureDepartment = '';
+        alpineData.previewManagementApprovedOn = '';
+        alpineData.previewExecutiveSignatureName = '';
+        alpineData.previewExecutiveSignaturePosition = '';
+        alpineData.previewExecutiveSignatureDepartment = '';
+        alpineData.previewExecutiveApprovedOn = '';
         alpineData.previewManagementApproverId = '';
         alpineData.previewManagementName = '';
         alpineData.previewManagementPosition = '';
@@ -1124,6 +1241,19 @@ async function addCorrespondence() {
         sent_via: document.getElementById('sentViaInput').value,
         management_approver_id: document.getElementById('managementApproverInput').value,
         executive_approver_id: document.getElementById('executiveApproverInput').value,
+        prepared_by_name: document.getElementById('preparedByNameInput')?.value || '',
+        prepared_by_position: document.getElementById('preparedByPositionInput')?.value || '',
+        prepared_by_department: document.getElementById('preparedByDepartmentInput')?.value || '',
+        prepared_on: document.getElementById('preparedOnInput')?.value || '',
+        management_signature_name: document.getElementById('managementSignatureNameInput')?.value || '',
+        management_signature_position: document.getElementById('managementSignaturePositionInput')?.value || '',
+        management_signature_department: document.getElementById('managementSignatureDepartmentInput')?.value || '',
+        management_approved_on: document.getElementById('managementApprovedOnInput')?.value || '',
+        executive_signature_name: document.getElementById('executiveSignatureNameInput')?.value || '',
+        executive_signature_position: document.getElementById('executiveSignaturePositionInput')?.value || '',
+        executive_signature_department: document.getElementById('executiveSignatureDepartmentInput')?.value || '',
+        executive_approved_on: document.getElementById('executiveApprovedOnInput')?.value || '',
+
     };
 
     if (!payload.type || !payload.subject || !payload.to_for || !payload.management_approver_id || !payload.executive_approver_id) {
