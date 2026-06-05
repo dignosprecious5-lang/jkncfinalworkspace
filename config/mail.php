@@ -111,8 +111,8 @@ return [
     */
 
     'from' => [
-        'address' => env('MAIL_NO_REPLY_ADDRESS', 'no-reply@jkcinc.com'),
-        'name' => env('MAIL_NO_REPLY_NAME', 'JK&C Inc. No Reply'),
+        'address' => env('MAIL_NO_REPLY_ADDRESS', env('MAIL_FROM_ADDRESS', 'no-reply@ordo.jknc.io')),
+        'name' => env('MAIL_NO_REPLY_NAME', env('MAIL_FROM_NAME', 'JK&C System Notice')),
     ],
 
 ];
