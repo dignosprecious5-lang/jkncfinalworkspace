@@ -108,7 +108,7 @@ class EmployeeRequestController extends Controller
         $this->notifyAdmins(
             title: 'New employee request submitted',
             message: $employeeRequest->employee_name . ' submitted a ' . $employeeRequest->request_type . ' request.',
-            url: route('human-capital.employee-requests.index')
+            url: route('admin.human-capital.dashboard')
         );
 
         return redirect()
@@ -186,7 +186,7 @@ class EmployeeRequestController extends Controller
         $this->notifyAdmins(
             title: 'Employee request revision submitted',
             message: $employeeRequest->employee_name . ' resubmitted a revised ' . $employeeRequest->request_type . ' request.',
-            url: route('human-capital.employee-requests.index')
+            url: route('admin.human-capital.dashboard')
         );
 
         return redirect()
@@ -275,12 +275,12 @@ class EmployeeRequestController extends Controller
             ->with('success', 'Employee request sent back for revision.');
     }
 
-
     private function notifyAdmins(string $title, string $message, ?string $url = null): void
     {
         $admins = User::query()
-            ->whereIn('role', ['admin', 'Admin', 'ADMIN', 'superadmin', 'Superadmin', 'SUPERADMIN'])
-            ->get();
+            ->get()
+            ->filter(fn (User $user) => $user->isAdmin() || $user->isSuperAdmin())
+            ->values();
 
         if ($admins->isEmpty()) {
             return;
@@ -289,7 +289,7 @@ class EmployeeRequestController extends Controller
         Notification::send($admins, new SystemRealtimeNotification(
             title: $title,
             message: $message,
-            url: $url,
+            url: $url ?: route('admin.human-capital.dashboard'),
             module: 'Employee Requests',
             icon: 'fa-file-signature'
         ));
@@ -306,7 +306,7 @@ class EmployeeRequestController extends Controller
         $user->notify(new SystemRealtimeNotification(
             title: $title,
             message: $message,
-            url: $url,
+            url: $url ?: route('human-capital.employee-requests.index'),
             module: 'Employee Requests',
             icon: 'fa-file-signature'
         ));
