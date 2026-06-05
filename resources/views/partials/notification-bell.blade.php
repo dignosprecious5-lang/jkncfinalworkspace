@@ -158,28 +158,54 @@
                     }
 
                     try {
-                        window.Echo.private(`App.Models.User.${userId}`)
-                            .notification((notification) => {
-                                const freshNotification = {
-                                    id: notification.id || (window.crypto?.randomUUID ? crypto.randomUUID() : String(Date.now())),
-                                    title: notification.title || 'New Notification',
-                                    message: notification.message || notification.body || '',
-                                    url: notification.url || notification.action_url || notification.link || '#',
-                                    module: notification.module || notification.module_name || 'System',
-                                    icon: notification.icon || 'fa-bell',
-                                    button_label: notification.button_label || 'Open',
-                                    read_at: null,
-                                    created_at: notification.created_at || 'Just now',
-                                };
+                        const channelName = `App.Models.User.${userId}`;
+                        const channel = window.Echo.private(channelName);
 
-                                const alreadyExists = this.notifications.some((item) => item.id === freshNotification.id);
+                        const pushNotification = (notification) => {
+                            console.log('Notification bell: received broadcast notification', notification);
 
-                                if (!alreadyExists) {
-                                    this.notifications.unshift(freshNotification);
-                                    this.notifications = this.notifications.slice(0, 10);
-                                    this.unreadCount++;
-                                }
-                            });
+                            const rawData = notification.data || notification;
+
+                            const freshNotification = {
+                                id: rawData.id
+                                    || rawData.notification_id
+                                    || notification.id
+                                    || (window.crypto?.randomUUID ? crypto.randomUUID() : String(Date.now())),
+                                title: rawData.title || 'New Notification',
+                                message: rawData.message || rawData.body || '',
+                                url: rawData.url || rawData.action_url || rawData.link || '#',
+                                module: rawData.module || rawData.module_name || 'System',
+                                icon: rawData.icon || 'fa-bell',
+                                button_label: rawData.button_label || 'Open',
+                                read_at: null,
+                                created_at: rawData.created_at || 'Just now',
+                            };
+
+                            const alreadyExists = this.notifications.some((item) => item.id === freshNotification.id);
+
+                            if (!alreadyExists) {
+                                this.notifications.unshift(freshNotification);
+                                this.notifications = this.notifications.slice(0, 10);
+                                this.unreadCount++;
+                            }
+                        };
+
+                        channel.notification(pushNotification);
+
+                        channel.listen('.Illuminate\\Notifications\\Events\\BroadcastNotificationCreated', pushNotification);
+                        channel.listen('Illuminate\\Notifications\\Events\\BroadcastNotificationCreated', pushNotification);
+                        channel.listen('.system.notification', pushNotification);
+                        channel.listen('system.notification', pushNotification);
+                        channel.listen('.BroadcastNotificationCreated', pushNotification);
+                        channel.listen('BroadcastNotificationCreated', pushNotification);
+
+                        channel.subscribed(() => {
+                            console.log('Notification bell: subscribed to private user channel', userId);
+                        });
+
+                        channel.error((error) => {
+                            console.error('Notification bell: private channel error', error);
+                        });
 
                         this.echoConnected = true;
                         console.log('Notification bell: realtime connected for user', userId);
