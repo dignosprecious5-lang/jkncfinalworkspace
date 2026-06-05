@@ -848,6 +848,8 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
 
     Route::get('/admin/correspondence', [CorrespondenceController::class, 'submittedDashboard'])->name('admin.correspondence.dashboard');
     Route::get('/admin/correspondence/{id}', [CorrespondenceController::class, 'showAdmin'])->name('admin.correspondence.show');
+    Route::put('/admin/correspondence/{id}/revise-update', [CorrespondenceController::class, 'updateAdminRevision'])
+    ->name('admin.correspondence.revise-update');
 
     Route::view('/corporate/ubo', 'corporate.ubo-form')->name('corporate.ubo');
 

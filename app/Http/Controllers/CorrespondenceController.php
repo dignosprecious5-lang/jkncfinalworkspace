@@ -310,7 +310,129 @@ class CorrespondenceController extends Controller
             'review_note' => $request->input('review_note', 'Needs revision.'),
         ]);
 
-        return back()->with('success', 'Correspondence returned for revision.');
+        return redirect()
+            ->route('admin.correspondence.show', $record->id)
+            ->with('success', 'Correspondence returned for revision. You may now edit all fields below.')
+            ->with('open_revision_editor', true);
+    }
+
+
+
+    public function updateAdminRevision(Request $request, $id)
+    {
+        $record = Correspondence::findOrFail($id);
+
+        $validated = $request->validate([
+            'type' => ['required', 'string', 'max:100', 'in:' . implode(',', $this->correspondenceTypes)],
+            'correspondence_date' => ['nullable', 'date'],
+            'company_name' => ['nullable', 'string', 'max:255'],
+            'registration_number' => ['nullable', 'string', 'max:255'],
+            'principal_address' => ['nullable', 'string'],
+            'to_for_label' => ['nullable', 'string', 'max:10', 'in:To,For'],
+            'to_for' => ['nullable', 'string', 'max:255'],
+            'from_name' => ['nullable', 'string', 'max:255'],
+            'department_stakeholder' => ['nullable', 'string', 'max:255'],
+            'subject' => ['required', 'string', 'max:255'],
+            'body' => ['nullable', 'string'],
+            'cc' => ['nullable', 'string', 'max:255'],
+            'additional' => ['nullable', 'string', 'max:255'],
+            'deadline' => ['nullable', 'date'],
+            'sent_via' => ['nullable', 'string', 'max:100'],
+
+            'prepared_by_name' => ['nullable', 'string', 'max:255'],
+            'prepared_by_position' => ['nullable', 'string', 'max:255'],
+            'prepared_by_department' => ['nullable', 'string', 'max:255'],
+            'prepared_on' => ['nullable', 'date'],
+
+            'management_approver_id' => ['nullable', 'integer'],
+            'management_signature_name' => ['nullable', 'string', 'max:255'],
+            'management_signature_position' => ['nullable', 'string', 'max:255'],
+            'management_signature_department' => ['nullable', 'string', 'max:255'],
+            'management_approved_on' => ['nullable', 'date'],
+
+            'executive_approver_id' => ['nullable', 'integer'],
+            'executive_signature_name' => ['nullable', 'string', 'max:255'],
+            'executive_signature_position' => ['nullable', 'string', 'max:255'],
+            'executive_signature_department' => ['nullable', 'string', 'max:255'],
+            'executive_approved_on' => ['nullable', 'date'],
+
+            'review_note' => ['nullable', 'string'],
+        ]);
+
+        $payload = [
+            'type' => $validated['type'],
+            'correspondence_date' => $validated['correspondence_date'] ?? $record->correspondence_date,
+            'company_name' => $validated['company_name'] ?? $record->company_name,
+            'registration_number' => $validated['registration_number'] ?? $record->registration_number,
+            'principal_address' => $validated['principal_address'] ?? $record->principal_address,
+            'to_for_label' => $validated['to_for_label'] ?? 'To',
+            'to_for' => $validated['to_for'] ?? null,
+            'from_name' => $validated['from_name'] ?? null,
+            'department_stakeholder' => $validated['department_stakeholder'] ?? null,
+            'subject' => $validated['subject'],
+            'body' => $validated['body'] ?? null,
+            'cc' => $validated['cc'] ?? null,
+            'additional' => $validated['additional'] ?? null,
+            'deadline' => $validated['deadline'] ?? null,
+            'sent_via' => $validated['sent_via'] ?? 'Email',
+
+            'prepared_by_name' => $validated['prepared_by_name'] ?? null,
+            'prepared_by_position' => $validated['prepared_by_position'] ?? null,
+            'prepared_by_department' => $validated['prepared_by_department'] ?? null,
+            'prepared_on' => $validated['prepared_on'] ?? null,
+
+            'management_signature_name' => $validated['management_signature_name'] ?? null,
+            'management_signature_position' => $validated['management_signature_position'] ?? null,
+            'management_signature_department' => $validated['management_signature_department'] ?? null,
+            'management_approved_on' => $validated['management_approved_on'] ?? null,
+
+            'executive_signature_name' => $validated['executive_signature_name'] ?? null,
+            'executive_signature_position' => $validated['executive_signature_position'] ?? null,
+            'executive_signature_department' => $validated['executive_signature_department'] ?? null,
+            'executive_approved_on' => $validated['executive_approved_on'] ?? null,
+
+            'review_note' => $validated['review_note'] ?? $record->review_note,
+
+            // After admin edits a revised correspondence, restart the approval workflow.
+            'workflow_status' => 'Submitted',
+            'approval_status' => 'Pending',
+            'status' => 'Open',
+            'is_archived' => false,
+            'archived_at' => null,
+            'management_approval_status' => 'Pending',
+            'management_approved_at' => null,
+            'executive_approval_status' => 'Waiting for Level 1',
+            'executive_approved_at' => null,
+            'approved_by' => null,
+            'approved_at' => null,
+            'posted_at' => null,
+            'posted_by' => null,
+        ];
+
+        $managementApproverId = $validated['management_approver_id'] ?? $record->management_approver_id;
+        $executiveApproverId = $validated['executive_approver_id'] ?? $record->executive_approver_id;
+
+        if ($managementApproverId && $executiveApproverId) {
+            $payload = array_merge($payload, $this->buildApprovalData($managementApproverId, $executiveApproverId));
+        }
+
+        // Preserve manually typed signature fields after buildApprovalData fills selected approver defaults.
+        $payload['management_signature_name'] = $validated['management_signature_name'] ?? ($payload['management_approver_name'] ?? $record->management_signature_name);
+        $payload['management_signature_position'] = $validated['management_signature_position'] ?? ($payload['management_approver_position'] ?? $record->management_signature_position);
+        $payload['management_signature_department'] = $validated['management_signature_department'] ?? ($payload['management_approver_department'] ?? $record->management_signature_department);
+
+        $payload['executive_signature_name'] = $validated['executive_signature_name'] ?? ($payload['executive_approver_name'] ?? $record->executive_signature_name);
+        $payload['executive_signature_position'] = $validated['executive_signature_position'] ?? ($payload['executive_approver_position'] ?? $record->executive_signature_position);
+        $payload['executive_signature_department'] = $validated['executive_signature_department'] ?? ($payload['executive_approver_department'] ?? $record->executive_signature_department);
+
+        $record->update($payload);
+
+        $record = $this->syncApproverEmailsFromDatabase($record->fresh(['creator']));
+        $this->sendCorrespondenceLevelApprovalEmail($record, 1);
+
+        return redirect()
+            ->route('admin.correspondence.show', $record->id)
+            ->with('success', 'Revised correspondence updated successfully and sent back to Level 1 approval.');
     }
 
 
@@ -450,8 +572,16 @@ class CorrespondenceController extends Controller
     public function showAdmin($id)
     {
         $correspondence = Correspondence::with('creator')->findOrFail($id);
+        $managementApprovers = $this->activeEmployeeApprovers();
+        $executiveApprovers = $this->executiveApproversFromGis();
+        $types = $this->correspondenceTypes;
 
-        return view('admin.correspondence-show', compact('correspondence'));
+        return view('admin.correspondence-show', compact(
+            'correspondence',
+            'managementApprovers',
+            'executiveApprovers',
+            'types'
+        ));
     }
 
     public function reject(Request $request, $id)
