@@ -18,6 +18,11 @@
         'storeUrl' => $repositoryRoutes['storeUrl'],
         'updateUrl' => $repositoryRoutes['updateUrl'],
         'submitUrl' => $repositoryRoutes['submitUrl'],
+        'defaultWorkflowTab' => 'uploaded',
+        'documentUpload' => [
+            'accept' => '.pdf,application/pdf',
+            'help' => 'PDF files only.',
+        ],
         'options' => [
             'taxTypeOptions' => $taxTypeOptions ?? [],
             'formTypeOptions' => $formTypeOptions ?? [],

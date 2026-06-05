@@ -125,7 +125,7 @@ trait HandlesCorporateRepositoryRecords
     {
         $path = $this->normalizePublicPath($path);
 
-        return $path ? asset('storage/' . $path) : null;
+        return $path ? route('uploads.show', ['path' => $path]) : null;
     }
 
     protected function normalizePublicPath(?string $path): ?string

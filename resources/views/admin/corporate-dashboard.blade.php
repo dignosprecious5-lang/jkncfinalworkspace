@@ -263,7 +263,7 @@
                                 </td>
                                 <td class="px-4 py-3">
                                     <div class="flex items-center justify-center gap-2 flex-wrap">
-                                        @if(($item->supports_actions ?? true) && $item->status !== 'Accepted' && $item->status !== 'Archived')
+                                        @if(($item->supports_actions ?? true) && $item->status === 'Submitted')
                                             <form action="{{ $item->approve_route }}" method="POST">
                                                 @csrf
                                                 <button class="px-3 py-1.5 text-xs font-medium rounded-lg bg-green-600 text-white hover:bg-green-700 transition">
