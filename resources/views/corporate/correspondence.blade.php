@@ -28,8 +28,8 @@
 
     $correspondenceLogoUrl = $correspondenceLogoUrl ?? asset('images/jk-logo.png');
     $correspondenceDataUrl = $correspondenceDataUrl ?? route('correspondence.data');
-    $correspondenceStoreUrl = $correspondenceStoreUrl ?? route('correspondence.store');
-    $correspondenceSubmitUrlTemplate = $correspondenceSubmitUrlTemplate ?? route('correspondence.submit', '__ID__');
+    $correspondenceStoreUrl = $correspondenceStoreUrl ?? url('/correspondence');
+    $correspondenceSubmitUrlTemplate = $correspondenceSubmitUrlTemplate ?? url('/correspondence/__ID__/submit');
     $correspondenceTemplateUrlTemplate = $correspondenceTemplateUrlTemplate ?? route('correspondence.template', ['type' => '__TYPE__', 'id' => '__ID__']);
     $correspondenceDownloadUrlTemplate = $correspondenceDownloadUrlTemplate ?? route('correspondence.download', '__ID__');
     $correspondenceTitle = $correspondenceTitle ?? 'Correspondence';
