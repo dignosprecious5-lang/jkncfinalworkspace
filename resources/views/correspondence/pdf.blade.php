@@ -20,49 +20,48 @@
 
         .center { text-align: center; }
 
-        .header {
-            display: table;
-            width: 100%;
-            margin-top: 2mm;
-            margin-bottom: 38px;
+        .header,
+        .header.centered-header {
+            display: block !important;
+            width: 100% !important;
+            text-align: center !important;
+            margin-top: 2mm !important;
+            margin-bottom: 38px !important;
         }
 
         .header-logo {
-            display: table-cell;
-            width: 38%;
-            text-align: center;
-            vertical-align: middle;
+            display: block !important;
+            width: 100% !important;
+            text-align: center !important;
+            margin-bottom: 12px !important;
         }
 
         .header-logo img {
-            max-width: 180px;
-            max-height: 90px;
+            display: block !important;
+            max-width: 205px !important;
+            max-height: 105px !important;
+            margin: 0 auto !important;
+            object-fit: contain !important;
         }
 
         .header-company {
-            display: table-cell;
-            width: 62%;
-            text-align: left;
-            vertical-align: middle;
-            font-size: 10.5pt;
-            line-height: 1.25;
-        }
-
-        .title {
-            font-weight: bold;
-            text-transform: uppercase;
-            letter-spacing: .14em;
-            font-size: 14pt;
-            margin-bottom: 24px;
+            display: block !important;
+            width: 92% !important;
+            margin: 0 auto !important;
+            text-align: center !important;
+            vertical-align: middle !important;
+            font-size: 10.5pt !important;
+            line-height: 1.35 !important;
         }
 
         .company-name {
             font-weight: bold;
             text-transform: uppercase;
             font-size: 12pt;
+            margin-bottom: 2px;
         }
 
-        .company-block {
+.company-block {
             text-align: center;
             margin-bottom: 34px;
             line-height: 1.25;
@@ -173,7 +172,7 @@
 </style>
 </head>
 <body>
-    <div class="header">
+    <div class="header centered-header">
         <div class="header-logo">
             @if(!empty($correspondenceLogoSrc))
                 <img src="{{ $correspondenceLogoSrc }}" alt="Company Logo">
@@ -183,8 +182,14 @@
         </div>
 
         <div class="header-company">
-            <div class="company-name">{{ $correspondence->company_name }}</div>
-            <div>Registration No.: {{ $correspondence->registration_number ?: '____________________' }}</div>
+            @if($correspondence->company_name)
+                <div class="company-name">{{ $correspondence->company_name }}</div>
+            @endif
+
+            @if($correspondence->registration_number)
+                <div>Registration No.: {{ $correspondence->registration_number }}</div>
+            @endif
+
             <div>{{ $correspondence->principal_address }}</div>
         </div>
     </div>

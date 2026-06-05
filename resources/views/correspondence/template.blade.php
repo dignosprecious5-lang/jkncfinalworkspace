@@ -24,46 +24,48 @@
 
         .center { text-align: center; }
 
-        .header {
-            display: grid;
-            grid-template-columns: 38% 62%;
-            align-items: center;
-            gap: 18px;
-            margin-top: 6px;
-            margin-bottom: 38px;
+        .header,
+        .header.centered-header {
+            display: block !important;
+            width: 100% !important;
+            text-align: center !important;
+            margin-top: 2mm !important;
+            margin-bottom: 38px !important;
         }
 
         .header-logo {
-            text-align: center;
+            display: block !important;
+            width: 100% !important;
+            text-align: center !important;
+            margin-bottom: 12px !important;
         }
 
         .header-logo img {
-            max-width: 190px;
-            max-height: 95px;
-            object-fit: contain;
+            display: block !important;
+            max-width: 205px !important;
+            max-height: 105px !important;
+            margin: 0 auto !important;
+            object-fit: contain !important;
         }
 
         .header-company {
-            text-align: left;
-            font-size: 13px;
-            line-height: 1.35;
-        }
-
-        .title {
-            font-weight: bold;
-            text-transform: uppercase;
-            letter-spacing: .14em;
-            font-size: 18px;
-            margin-bottom: 28px;
+            display: block !important;
+            width: 92% !important;
+            margin: 0 auto !important;
+            text-align: center !important;
+            vertical-align: middle !important;
+            font-size: 10.5pt !important;
+            line-height: 1.35 !important;
         }
 
         .company-name {
             font-weight: bold;
             text-transform: uppercase;
-            font-size: 15px;
+            font-size: 12pt;
+            margin-bottom: 2px;
         }
 
-        .field {
+.field {
             display: grid;
             grid-template-columns: 105px 1fr;
             gap: 10px;
@@ -153,14 +155,20 @@
 </head>
 <body>
     <div class="page">
-        <div class="header">
+        <div class="header centered-header">
             <div class="header-logo">
                 <img src="{{ $correspondenceLogoUrl ?? asset('images/jk-logo.png') }}" alt="Company Logo">
             </div>
 
             <div class="header-company">
-                <div class="company-name">{{ $correspondence->company_name }}</div>
-                <div>Registration No.: {{ $correspondence->registration_number ?: '____________________' }}</div>
+                @if($correspondence->company_name)
+                    <div class="company-name">{{ $correspondence->company_name }}</div>
+                @endif
+
+                @if($correspondence->registration_number)
+                    <div>Registration No.: {{ $correspondence->registration_number }}</div>
+                @endif
+
                 <div>{{ $correspondence->principal_address }}</div>
             </div>
         </div>

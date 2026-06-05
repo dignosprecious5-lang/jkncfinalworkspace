@@ -233,14 +233,14 @@
                 >
                     <div class="max-w-[900px] mx-auto flex justify-center">
                         <div id="correspondence-preview-pdf" class="correspondence-a4-page bg-white border border-gray-300 shadow">
-                            <div class="correspondence-header mb-12">
+                            <div class="correspondence-header centered-header mb-12">
                                 <div class="header-logo">
                                     <img :src="correspondenceLogoUrl" alt="Company Logo">
                                 </div>
 
                                 <div class="header-company">
                                     <p class="company-name" x-text="companyName || 'COMPANY NAME'"></p>
-                                    <p>Registration No.: <span x-text="registrationNumber || '____________________'"></span></p>
+                                    <p x-show="registrationNumber">Registration No.: <span x-text="registrationNumber"></span></p>
                                     <p x-text="principalAddress || 'Principal Office Address'"></p>
                                 </div>
                             </div>
@@ -572,45 +572,48 @@
 
 <style>
 
-    .correspondence-header {
-        display: grid;
-        grid-template-columns: 38% 62%;
-        align-items: center;
-        gap: 18px;
-        margin-top: 8px;
+    .correspondence-header,
+    .correspondence-header.centered-header {
+        display: block !important;
+        text-align: center !important;
+        margin-top: 8px !important;
+        margin-bottom: 38px !important;
     }
 
     .correspondence-header .header-logo {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        min-height: 85px;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        min-height: auto !important;
+        margin-bottom: 12px !important;
     }
 
     .correspondence-header .header-logo img {
-        display: block;
-        max-width: 190px;
-        max-height: 95px;
-        object-fit: contain;
+        display: block !important;
+        max-width: 205px !important;
+        max-height: 105px !important;
+        object-fit: contain !important;
     }
 
     .correspondence-header .header-company {
-        text-align: left;
-        font-size: 13px;
-        line-height: 1.35;
-        color: #000;
-        overflow-wrap: break-word;
-        word-break: normal;
+        text-align: center !important;
+        font-size: 13px !important;
+        line-height: 1.35 !important;
+        color: #000 !important;
+        overflow-wrap: break-word !important;
+        word-break: normal !important;
+        max-width: 92% !important;
+        margin: 0 auto !important;
     }
 
     .correspondence-header .company-name {
-        font-weight: 700;
-        text-transform: uppercase;
-        font-size: 14px;
-        margin-bottom: 2px;
+        font-weight: 700 !important;
+        text-transform: uppercase !important;
+        font-size: 14px !important;
+        margin-bottom: 2px !important;
     }
 
-    .correspondence-a4-page {
+.correspondence-a4-page {
         width: 210mm;
         min-height: 297mm;
         padding: 18mm 18mm 20mm 18mm;
@@ -719,28 +722,7 @@
         content: "Georgia";
         font-family: Georgia, "Times New Roman", serif;
     }
-
-    /* Match Town Hall memo spacing */
-    .correspondence-a4-page {
-        padding: 18mm 18mm 20mm 18mm !important;
-    }
-
-    .correspondence-header {
-        margin-top: 8px !important;
-        margin-bottom: 38px !important;
-    }
-
-    .correspondence-header .header-logo img {
-        max-width: 205px !important;
-        max-height: 105px !important;
-    }
-
-    .correspondence-header .header-company {
-        font-size: 13px !important;
-        line-height: 1.25 !important;
-    }
-
-    .correspondence-fields {
+.correspondence-fields {
         margin-top: 0 !important;
         margin-bottom: 22px !important;
     }
