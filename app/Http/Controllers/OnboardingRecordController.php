@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\RequestsHumanCapitalApproval;
 use App\Models\Employee;
 use App\Models\CandidateApplication;
 use App\Models\Department;
@@ -21,6 +22,7 @@ use Illuminate\Validation\Rule;
 
 class OnboardingRecordController extends Controller
 {
+    use RequestsHumanCapitalApproval;
     private array $requiredDocuments = [
         'valid_id' => 'Valid ID (Government-issued)',
         'birth_certificate' => 'Birth Certificate',
@@ -255,12 +257,12 @@ class OnboardingRecordController extends Controller
         ]);
     }
 
-    public function destroyChecklist(OnboardingChecklist $checklist): JsonResponse
+    public function destroyChecklist(Request $request, OnboardingChecklist $checklist): JsonResponse
     {
-        $checklist->delete();
+        $this->requestHumanCapitalChange($request, 'Onboarding', 'delete', $checklist, null, $checklist->employee_name ?: 'Checklist #'.$checklist->id);
 
         return response()->json([
-            'message' => 'Checklist deleted successfully.',
+            'message' => 'Checklist deletion submitted for admin approval.',
         ]);
     }
 
@@ -470,12 +472,12 @@ class OnboardingRecordController extends Controller
     ]);
 }
 
-    public function destroyEmployee(OnboardingEmployeeRegistration $employee): JsonResponse
+    public function destroyEmployee(Request $request, OnboardingEmployeeRegistration $employee): JsonResponse
     {
-        $employee->delete();
+        $this->requestHumanCapitalChange($request, 'Onboarding', 'delete', $employee, null, $employee->full_name ?: 'Employee Registration #'.$employee->id);
 
         return response()->json([
-            'message' => 'Employee registration deleted successfully.',
+            'message' => 'Employee registration deletion submitted for admin approval.',
         ]);
     }
 
@@ -524,28 +526,30 @@ class OnboardingRecordController extends Controller
             'remarks' => ['nullable', 'string', 'max:1000'],
         ]);
 
-        $training->update([
+        $payload = [
             'status' => $validated['status'],
             'remarks' => $validated['remarks'] ?? $training->remarks,
             'completed_at' => $validated['status'] === 'Completed' ? now() : null,
-        ]);
+        ];
+
+        $this->requestHumanCapitalChange($request, 'Onboarding', 'update', $training, $payload, $training->training?->title ?: 'Training Assignment #'.$training->id);
 
         return response()->json([
-            'message' => 'Training assignment status updated.',
+            'message' => 'Training assignment update submitted for admin approval.',
             'record' => $this->formatTraining($training->fresh(['employee', 'training'])),
         ]);
     }
 
-    public function destroyTraining(TrainingAssignment $training): JsonResponse
+    public function destroyTraining(Request $request, TrainingAssignment $training): JsonResponse
     {
         if ($training->assignment_type !== 'onboarding') {
             abort(404);
         }
 
-        $training->delete();
+        $this->requestHumanCapitalChange($request, 'Onboarding', 'delete', $training, null, $training->training?->title ?: 'Training Assignment #'.$training->id);
 
         return response()->json([
-            'message' => 'Training assignment deleted successfully.',
+            'message' => 'Training assignment deletion submitted for admin approval.',
         ]);
     }
 

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\HandlesCorporateRepositoryRecords;
+use App\Models\Note;
 use App\Models\Operation;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -88,7 +89,7 @@ class OperationController extends Controller
         $validated = $this->validatedPayload($request);
         $company = $this->latestCorporateCompany();
         $user = $this->currentUserLabel($request);
-        $isApprover = $this->canApproveCorporate();
+        $isApprover = false;
         $draftDocuments = $this->storeDocumentSet($request, 'draft_documents', 'corporate/operations/drafts');
         $approvedDocuments = $this->storeDocumentSet($request, 'approved_documents', 'corporate/operations/approved');
         $primaryDocument = $draftDocuments[0] ?? $approvedDocuments[0] ?? null;
@@ -187,6 +188,57 @@ class OperationController extends Controller
         ]);
     }
 
+    public function storeNote(Request $request, $id)
+    {
+        $record = Operation::findOrFail($id);
+
+        if (! $this->canApproveCorporate() && (int) $record->submitted_by !== (int) Auth::id()) {
+            abort(403, 'Unauthorized');
+        }
+
+        $validated = $request->validate([
+            'content' => ['required', 'string', 'max:2000'],
+        ]);
+
+        $record->notes()->create([
+            'content' => $validated['content'],
+            'owner' => Auth::user()?->name ?? Auth::user()?->email ?? 'System User',
+        ]);
+
+        return response()->json([
+            'message' => 'Note added successfully.',
+            'data' => $this->transformRecord($record->fresh('notes')),
+        ]);
+    }
+
+    public function destroyNote($id, Note $note)
+    {
+        $record = Operation::findOrFail($id);
+
+        abort_unless(
+            $note->noteable_type === Operation::class
+            && (int) $note->noteable_id === (int) $record->id,
+            404
+        );
+
+        $currentOwner = Auth::user()?->name ?? Auth::user()?->email ?? 'System User';
+
+        if (! $this->canApproveCorporate() && (int) $record->submitted_by !== (int) Auth::id()) {
+            abort(403, 'Unauthorized');
+        }
+
+        if ($note->owner !== $currentOwner && ! Auth::user()?->isSuperAdmin()) {
+            abort(403, 'You can only delete notes that you made.');
+        }
+
+        $note->delete();
+
+        return response()->json([
+            'message' => 'Note deleted successfully.',
+            'data' => $this->transformRecord($record->fresh('notes')),
+        ]);
+    }
+
     private function validatedPayload(Request $request, bool $documentsOptional = true): array
     {
         return $request->validate(array_merge([
@@ -202,8 +254,10 @@ class OperationController extends Controller
 
     private function transformRecord(Operation $record): array
     {
+        $record->loadMissing('notes');
         $draftDocuments = $this->documentLinks($record->draft_documents);
         $approvedDocuments = $this->documentLinks($record->approved_documents);
+        $currentOwner = Auth::user()?->name ?? Auth::user()?->email ?? 'System User';
 
         return [
             'id' => $record->id,
@@ -224,6 +278,17 @@ class OperationController extends Controller
             'document_url' => $draftDocuments[0]['url'] ?? $approvedDocuments[0]['url'] ?? $this->publicDocumentUrl($record->document_path),
             'draft_documents' => $draftDocuments,
             'approved_documents' => $approvedDocuments,
+            'notes' => $record->notes
+                ->sortByDesc('created_at')
+                ->map(fn (Note $note) => [
+                    'id' => $note->id,
+                    'content' => $note->content,
+                    'owner' => $note->owner,
+                    'created_at' => $note->created_at?->format('Y-m-d H:i:s'),
+                    'can_delete' => $note->owner === $currentOwner || Auth::user()?->isSuperAdmin(),
+                ])
+                ->values()
+                ->all(),
             'can_edit' => $this->canEditRecord($record),
             'can_submit' => (int) $record->submitted_by === (int) Auth::id()
                 && in_array($record->workflow_status ?? 'Uploaded', ['Uploaded', 'Reverted'], true),

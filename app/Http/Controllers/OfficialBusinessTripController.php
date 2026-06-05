@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\RequestsHumanCapitalApproval;
 use App\Models\Contact;
 use App\Models\Employee;
 use App\Models\OfficialBusinessTrip;
@@ -12,6 +13,7 @@ use Illuminate\Support\Str;
 
 class OfficialBusinessTripController extends Controller
 {
+    use RequestsHumanCapitalApproval;
     public function index()
     {
         $employees = Employee::with('department')
@@ -169,7 +171,7 @@ class OfficialBusinessTripController extends Controller
         $existingAttachments = $officialBusinessTrip->attachment_paths ?? [];
         $newAttachments = $this->storeAttachments($request);
 
-        $officialBusinessTrip->update([
+        $payload = [
             'immediate_superior' => $validated['immediate_superior'] ?? null,
             'superior_email' => $validated['superior_email'] ?? null,
 
@@ -227,9 +229,11 @@ class OfficialBusinessTripController extends Controller
             'attachment_other' => $validated['attachment_other'] ?? null,
 
             'remarks' => $validated['remarks'] ?? null,
-        ]);
+        ];
 
-        return redirect()->route('human-capital.obf')->with('success', 'OBF request updated successfully.');
+        $this->requestHumanCapitalChange($request, 'Official Business Trip Form', 'update', $officialBusinessTrip, $payload, $officialBusinessTrip->ob_reference_no ?: $officialBusinessTrip->employee_name);
+
+        return redirect()->route('human-capital.obf')->with('success', 'OBF update submitted for admin approval.');
     }
 
     public function approve(OfficialBusinessTrip $officialBusinessTrip)
@@ -251,17 +255,11 @@ class OfficialBusinessTripController extends Controller
         return redirect()->route('human-capital.obf')->with('success', 'OBF request rejected.');
     }
 
-    public function destroy(OfficialBusinessTrip $officialBusinessTrip)
+    public function destroy(Request $request, OfficialBusinessTrip $officialBusinessTrip)
     {
-        foreach (($officialBusinessTrip->attachment_paths ?? []) as $attachment) {
-            if (!empty($attachment['path'])) {
-                Storage::disk('public')->delete($attachment['path']);
-            }
-        }
+        $this->requestHumanCapitalChange($request, 'Official Business Trip Form', 'delete', $officialBusinessTrip, null, $officialBusinessTrip->ob_reference_no ?: $officialBusinessTrip->employee_name);
 
-        $officialBusinessTrip->delete();
-
-        return redirect()->route('human-capital.obf')->with('success', 'OBF request deleted successfully.');
+        return redirect()->route('human-capital.obf')->with('success', 'OBF deletion submitted for admin approval.');
     }
 
     private function validateObf(Request $request, bool $isUpdate = false): array

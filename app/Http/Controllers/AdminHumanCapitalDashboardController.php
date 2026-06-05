@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Award;
+use App\Models\HumanCapitalChangeRequest;
 use App\Models\EmployeeRequest;
 use App\Models\EmployeeRelation;
 use App\Models\HumanCapitalLog;
@@ -10,6 +11,7 @@ use App\Models\OfficialBusinessTrip;
 use App\Models\TrainingAssignment;
 use App\Models\User;
 use App\Notifications\SystemRealtimeNotification;
+use App\Support\HumanCapitalLogger;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Carbon;
@@ -29,6 +31,7 @@ class AdminHumanCapitalDashboardController extends Controller
             ->merge($this->employeeRelationItems())
             ->merge($this->trainingAssignmentItems())
             ->merge($this->awardItems())
+            ->merge($this->changeRequestItems())
             ->sortByDesc('date_sort')
             ->values();
 
@@ -303,6 +306,82 @@ class AdminHumanCapitalDashboardController extends Controller
             ->with('success', 'Training certificate issued successfully.');
     }
 
+    public function approveChangeRequest(HumanCapitalChangeRequest $changeRequest)
+    {
+        $this->authorizeHumanCapitalAdmin();
+
+        if ($changeRequest->status !== 'Pending Approval') {
+            return redirect()->route('admin.human-capital.dashboard')
+                ->withErrors(['change_request' => 'This change request was already reviewed.']);
+        }
+
+        $modelClass = $changeRequest->subject_type;
+        $model = $modelClass::find($changeRequest->subject_id);
+
+        if (! $model) {
+            $changeRequest->update([
+                'status' => 'Rejected',
+                'reviewed_by' => Auth::id(),
+                'reviewed_at' => now(),
+                'review_note' => 'Target record no longer exists.',
+            ]);
+
+            return redirect()->route('admin.human-capital.dashboard')
+                ->withErrors(['change_request' => 'Target record no longer exists.']);
+        }
+
+        if ($changeRequest->action === 'delete') {
+            $model->delete();
+        } else {
+            $model->update($changeRequest->new_values ?? []);
+        }
+
+        $changeRequest->update([
+            'status' => 'Approved',
+            'reviewed_by' => Auth::id(),
+            'reviewed_at' => now(),
+            'review_note' => null,
+        ]);
+
+        HumanCapitalLogger::log(request(), [
+            'module' => $changeRequest->module,
+            'action' => $changeRequest->action.'_approved',
+            'subject_type' => $changeRequest->subject_type,
+            'subject_id' => $changeRequest->subject_id,
+            'subject_name' => $changeRequest->subject_name,
+            'description' => str($changeRequest->action)->title().' request approved and applied.',
+            'old_values' => $changeRequest->old_values,
+            'new_values' => $changeRequest->new_values,
+        ]);
+
+        return redirect()->route('admin.human-capital.dashboard')
+            ->with('success', 'Human Capital change request approved and applied.');
+    }
+
+    public function rejectChangeRequest(Request $request, HumanCapitalChangeRequest $changeRequest)
+    {
+        $this->authorizeHumanCapitalAdmin();
+
+        $request->validate([
+            'review_note' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        if ($changeRequest->status !== 'Pending Approval') {
+            return redirect()->route('admin.human-capital.dashboard')
+                ->withErrors(['change_request' => 'This change request was already reviewed.']);
+        }
+
+        $changeRequest->update([
+            'status' => 'Rejected',
+            'reviewed_by' => Auth::id(),
+            'reviewed_at' => now(),
+            'review_note' => $request->review_note,
+        ]);
+
+        return redirect()->route('admin.human-capital.dashboard')
+            ->with('success', 'Human Capital change request rejected.');
+    }
+
     private function employeeRequestItems(): Collection
     {
         return EmployeeRequest::query()
@@ -469,6 +548,38 @@ class AdminHumanCapitalDashboardController extends Controller
                     'reject_label' => 'Reject',
                     'revise_label' => 'Revise',
                     'date_sort' => $this->sortTimestamp($award->issued_at ?: $award->created_at),
+                ];
+            });
+    }
+
+    private function changeRequestItems(): Collection
+    {
+        return HumanCapitalChangeRequest::query()
+            ->latest('requested_at')
+            ->get()
+            ->map(function (HumanCapitalChangeRequest $request): object {
+                $status = $this->normalizeStatus((string) $request->status);
+
+                return (object) [
+                    'ref_no' => 'HCR-'.$request->id,
+                    'module' => $request->module,
+                    'employee' => $request->requested_by_name ?: 'System User',
+                    'record_name' => str($request->action)->title().' - '.($request->subject_name ?: class_basename($request->subject_type).' #'.$request->subject_id),
+                    'department' => 'Human Capital',
+                    'date_submitted' => $this->displayDate($request->requested_at ?: $request->created_at),
+                    'approver' => $request->reviewed_by ? 'User #'.$request->reviewed_by : '-',
+                    'priority' => $status === 'Pending Approval' ? 'High' : 'Low',
+                    'status' => $status,
+                    'details_route' => route('admin.human-capital.dashboard', ['view' => 'logs']),
+                    'approve_route' => $status === 'Pending Approval' ? route('admin.human-capital.change-requests.approve', $request->id) : null,
+                    'reject_route' => $status === 'Pending Approval' ? route('admin.human-capital.change-requests.reject', $request->id) : null,
+                    'revise_route' => null,
+                    'reject_note_name' => 'review_note',
+                    'revise_note_name' => null,
+                    'approve_label' => 'Apply',
+                    'reject_label' => 'Reject',
+                    'revise_label' => 'Revise',
+                    'date_sort' => $this->sortTimestamp($request->requested_at ?: $request->created_at),
                 ];
             });
     }

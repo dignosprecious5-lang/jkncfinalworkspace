@@ -6,10 +6,12 @@ use App\Models\Training;
 use App\Models\TrainingAssignment;
 use App\Models\Award;
 use App\Models\Employee;
+use App\Http\Controllers\Concerns\RequestsHumanCapitalApproval;
 use Illuminate\Http\Request;
 
 class TrainingController extends Controller
 {
+    use RequestsHumanCapitalApproval;
     public function index(Request $request)
     {
         $user = auth()->user();
@@ -76,16 +78,16 @@ class TrainingController extends Controller
             'duration_unit' => 'nullable|in:minutes,hours,days,weeks,months',
         ]);
 
-        $training->update($validated);
+        $this->requestHumanCapitalChange($request, 'Training', 'update', $training, $validated);
 
-        return back()->with('success', 'Training updated successfully.');
+        return back()->with('success', 'Training update submitted for admin approval.');
     }
 
-    public function destroy(Training $training)
+    public function destroy(Request $request, Training $training)
     {
-        $training->delete();
+        $this->requestHumanCapitalChange($request, 'Training', 'delete', $training);
 
-        return back()->with('success', 'Training deleted successfully.');
+        return back()->with('success', 'Training deletion submitted for admin approval.');
     }
 
     public function markCompleted($id)

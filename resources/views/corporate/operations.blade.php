@@ -11,6 +11,9 @@
         'storeUrl' => route('operations.store'),
         'updateUrl' => route('operations.update', '__ID__'),
         'submitUrl' => route('operations.submit', '__ID__'),
+        'noteStoreUrl' => route('operations.notes.store', '__ID__'),
+        'noteDeleteUrl' => route('operations.notes.destroy', ['id' => '__ID__', 'note' => '__NOTE__']),
+        'enableNotes' => true,
         'options' => [
             'operationTypes' => $operationTypes ?? [],
             'operationDocumentTypes' => $operationDocumentTypes ?? [],

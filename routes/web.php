@@ -339,6 +339,8 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::post('/admin/human-capital/employee-relations/{employeeRelation}/reject', [AdminHumanCapitalDashboardController::class, 'rejectEmployeeRelation'])->name('admin.human-capital.employee-relations.reject');
     Route::post('/admin/human-capital/training-assignments/{trainingAssignment}/complete', [AdminHumanCapitalDashboardController::class, 'completeTrainingAssignment'])->name('admin.human-capital.training-assignments.complete');
     Route::post('/admin/human-capital/training-assignments/{trainingAssignment}/certificate', [AdminHumanCapitalDashboardController::class, 'issueTrainingCertificate'])->name('admin.human-capital.training-assignments.certificate');
+    Route::post('/admin/human-capital/change-requests/{changeRequest}/approve', [AdminHumanCapitalDashboardController::class, 'approveChangeRequest'])->name('admin.human-capital.change-requests.approve');
+    Route::post('/admin/human-capital/change-requests/{changeRequest}/reject', [AdminHumanCapitalDashboardController::class, 'rejectChangeRequest'])->name('admin.human-capital.change-requests.reject');
     Route::post('/admin/corporate-approvals/{module}/{id}/approve', [CorporateApprovalController::class, 'approve'])->name('corporate.approvals.approve');
     Route::post('/admin/corporate-approvals/{module}/{id}/reject', [CorporateApprovalController::class, 'reject'])->name('corporate.approvals.reject');
     Route::post('/admin/corporate-approvals/{module}/{id}/revise', [CorporateApprovalController::class, 'revise'])->name('corporate.approvals.revise');
@@ -1101,6 +1103,8 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::get('/operations/{id}', [OperationController::class, 'show'])->name('operations.show');
     Route::put('/operations/{id}/update', [OperationController::class, 'update'])->name('operations.update');
     Route::post('/operations/{id}/submit', [OperationController::class, 'submit'])->name('operations.submit');
+    Route::post('/operations/{id}/notes', [OperationController::class, 'storeNote'])->name('operations.notes.store');
+    Route::delete('/operations/{id}/notes/{note}', [OperationController::class, 'destroyNote'])->name('operations.notes.destroy');
 
     /*
     |--------------------------------------------------------------------------

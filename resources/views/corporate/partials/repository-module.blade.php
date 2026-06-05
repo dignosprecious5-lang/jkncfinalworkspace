@@ -41,6 +41,8 @@
                             @foreach (($config['columns'] ?? []) as $column)
                                 <th class="p-3 text-left whitespace-nowrap">{{ $column['label'] ?? '' }}</th>
                             @endforeach
+                            <th class="p-3 text-left whitespace-nowrap">Draft</th>
+                            <th class="p-3 text-left whitespace-nowrap">Approved</th>
                             <th class="p-3 text-left whitespace-nowrap">Workflow</th>
                             <th class="p-3 text-left whitespace-nowrap">Approval</th>
                             <th class="p-3 text-left whitespace-nowrap">Action</th>
@@ -57,13 +59,19 @@
             <div class="absolute inset-y-0 right-0 flex w-[88vw] max-w-[1500px] min-w-[960px]">
                 <div class="w-full bg-white shadow-2xl flex h-full">
                     <div class="flex-1 min-w-0 p-4 bg-gray-50 border-r border-gray-200">
-                        <div class="h-full bg-white border border-gray-200 rounded-xl overflow-hidden">
+                        <div class="h-full bg-white border border-gray-200 rounded-xl overflow-hidden flex flex-col">
+                            <div class="flex items-center justify-end gap-2 border-b border-gray-100 bg-white px-3 py-2">
+                                <button type="button" data-preview-source="draft" class="rounded-md border border-blue-200 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-50">Draft</button>
+                                <button type="button" data-preview-source="approved" class="rounded-md border border-emerald-200 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-50">Approved</button>
+                            </div>
+                            <div class="min-h-0 flex-1">
                             <iframe data-preview-frame class="w-full h-full bg-white hidden" frameborder="0"></iframe>
                             <div data-preview-image-wrapper class="hidden h-full items-center justify-center bg-white">
                                 <img data-preview-image src="" alt="Document Preview" class="max-w-full max-h-full object-contain">
                             </div>
                             <div data-preview-empty class="h-full flex items-center justify-center text-gray-400 text-sm">
                                 No document available for preview.
+                            </div>
                             </div>
                         </div>
                     </div>
@@ -92,13 +100,19 @@
             <div class="absolute inset-y-0 right-0 flex w-[88vw] max-w-[1500px] min-w-[960px]">
                 <div class="w-full bg-white shadow-2xl flex h-full">
                     <div class="flex-1 min-w-0 p-4 bg-gray-50 border-r border-gray-200">
-                        <div class="h-full bg-white border border-gray-200 rounded-xl overflow-hidden">
+                        <div class="h-full bg-white border border-gray-200 rounded-xl overflow-hidden flex flex-col">
+                            <div class="flex items-center justify-end gap-2 border-b border-gray-100 bg-white px-3 py-2">
+                                <button type="button" data-live-source="draft" class="rounded-md border border-blue-200 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-50">Preview Draft</button>
+                                <button type="button" data-live-source="approved" class="rounded-md border border-emerald-200 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-50">Preview Approved</button>
+                            </div>
+                            <div class="min-h-0 flex-1">
                             <div data-live-empty class="h-full flex items-center justify-center text-gray-400 text-sm">
                                 Upload a PDF or image to preview it here.
                             </div>
                             <iframe data-live-frame class="hidden w-full h-full bg-white" frameborder="0"></iframe>
                             <div data-live-image-wrapper class="hidden h-full items-center justify-center bg-white">
                                 <img data-live-image src="" alt="Live Preview" class="max-w-full max-h-full object-contain">
+                            </div>
                             </div>
                         </div>
                     </div>
@@ -176,6 +190,10 @@
         workflow: ['uploaded', 'submitted', 'accepted', 'reverted', 'archived'].includes(autoOpenTab) ? autoOpenTab : 'uploaded',
         editingId: null,
         autoOpened: false,
+        previewIndex: null,
+        previewSource: 'draft',
+        liveSource: 'draft',
+        liveFiles: { draft: null, approved: null },
         locations: {
             provinces: [],
             cities: [],
@@ -219,6 +237,18 @@
                 </div>
             </div>
         `;
+    };
+
+    const firstDocument = (row, source = 'draft') => {
+        const documents = source === 'approved' ? row.approved_documents : row.draft_documents;
+        return documents?.[0] || null;
+    };
+
+    const documentButton = (row, source, index) => {
+        const doc = firstDocument(row, source);
+        if (!doc?.url) return '<span class="text-gray-400">None</span>';
+        const label = source === 'approved' ? 'Approved' : 'Draft';
+        return `<button type="button" data-preview-index="${index}" data-source="${source}" class="text-blue-600 hover:underline">View ${label}</button>`;
     };
 
     const detectKind = (url = '') => {
@@ -287,7 +317,7 @@
         const body = qs('[data-table-body]');
 
         if (!state.rows.length) {
-            body.innerHTML = `<tr><td colspan="${(config.columns || []).length + 3}" class="px-4 py-8 text-center text-gray-500">No records found.</td></tr>`;
+            body.innerHTML = `<tr><td colspan="${(config.columns || []).length + 5}" class="px-4 py-8 text-center text-gray-500">No records found.</td></tr>`;
             return;
         }
 
@@ -303,6 +333,8 @@
                     }
                     return `<td class="p-3 whitespace-nowrap">${escapeHtml(value || '-')}</td>`;
                 }).join('')}
+                <td class="p-3 whitespace-nowrap">${documentButton(row, 'draft', index)}</td>
+                <td class="p-3 whitespace-nowrap">${documentButton(row, 'approved', index)}</td>
                 <td class="p-3 whitespace-nowrap">${escapeHtml(row.workflow_status || '-')}</td>
                 <td class="p-3 whitespace-nowrap">${escapeHtml(row.approval_status || '-')}</td>
                 <td class="p-3 whitespace-nowrap">
@@ -322,12 +354,29 @@
         if (showTable) qs('[data-table-section]').classList.remove('hidden');
     };
 
-    const openPreview = (index) => {
+    const renderPreviewSourceButtons = () => {
+        qsa('[data-preview-source]').forEach((button) => {
+            const active = button.dataset.previewSource === state.previewSource;
+            button.classList.toggle('bg-blue-50', active && state.previewSource === 'draft');
+            button.classList.toggle('bg-emerald-50', active && state.previewSource === 'approved');
+        });
+    };
+
+    const updatePreviewDocument = () => {
+        const row = state.rows[state.previewIndex];
+        const doc = row ? firstDocument(row, state.previewSource) : null;
+        setPreviewDocument(doc?.url || row?.document_url, qs('[data-preview-frame]'), qs('[data-preview-image-wrapper]'), qs('[data-preview-image]'), qs('[data-preview-empty]'));
+        renderPreviewSourceButtons();
+    };
+
+    const openPreview = (index, source = null) => {
         const row = state.rows[index];
         if (!row) return;
 
+        state.previewIndex = index;
+        state.previewSource = source || (firstDocument(row, 'draft') ? 'draft' : 'approved');
         qs('[data-preview-section]').classList.remove('hidden');
-        setPreviewDocument(row.document_url, qs('[data-preview-frame]'), qs('[data-preview-image-wrapper]'), qs('[data-preview-image]'), qs('[data-preview-empty]'));
+        updatePreviewDocument();
 
         qs('[data-preview-details]').innerHTML = (config.previewFields || config.columns || []).map((field) => {
             const value = fieldValue(row, field);
@@ -338,6 +387,31 @@
             documentList('Draft Documents', row.draft_documents || []),
             documentList('Approved Documents', row.approved_documents || [])
         ].filter(Boolean).join('') || '<div class="text-sm text-gray-400">No documents attached.</div>';
+
+        const notesHtml = config.enableNotes ? `
+            <div class="mt-5 pt-4 border-t border-gray-200">
+                <div class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Notes</div>
+                <div class="mt-2 space-y-2">
+                    ${(row.notes || []).map((note) => `
+                        <div class="rounded-md border border-gray-200 bg-gray-50 p-3">
+                            <div class="flex items-start justify-between gap-3">
+                                <div class="min-w-0">
+                                    <div class="text-xs font-semibold text-gray-700">${escapeHtml(note.owner || 'System User')}</div>
+                                    <div class="mt-1 text-sm text-gray-800 whitespace-pre-wrap">${escapeHtml(note.content || '')}</div>
+                                </div>
+                                ${note.can_delete ? `<button type="button" data-delete-note-id="${note.id}" class="text-xs text-red-600 hover:underline">Delete</button>` : ''}
+                            </div>
+                        </div>
+                    `).join('') || '<div class="text-sm text-gray-400">No notes yet.</div>'}
+                </div>
+                <div class="mt-3 flex gap-2">
+                    <input data-note-input type="text" class="min-w-0 flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm" placeholder="Add note">
+                    <button type="button" data-add-note-id="${row.id}" class="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700">Add</button>
+                </div>
+            </div>
+        ` : '';
+
+        qs('[data-preview-documents]').insertAdjacentHTML('beforeend', notesHtml);
 
         qs('[data-preview-actions]').innerHTML = `
             ${row.document_url ? `<a href="${row.document_url}" target="_blank" class="w-full border border-gray-300 text-gray-700 rounded-md py-2 text-center text-sm hover:bg-gray-50">Open Document</a>` : ''}
@@ -515,12 +589,38 @@
         }
     };
 
-    const resetLivePreview = () => {
+    const clearLivePreviewUi = () => {
         qs('[data-live-frame]').src = '';
         qs('[data-live-image]').src = '';
         qs('[data-live-frame]').classList.add('hidden');
         qs('[data-live-image-wrapper]').classList.add('hidden');
         qs('[data-live-empty]').classList.remove('hidden');
+    };
+
+    const resetLivePreview = () => {
+        state.liveFiles = { draft: null, approved: null };
+        clearLivePreviewUi();
+    };
+
+    const renderLivePreview = () => {
+        const file = state.liveFiles[state.liveSource];
+        qsa('[data-live-source]').forEach((button) => {
+            const active = button.dataset.liveSource === state.liveSource;
+            button.classList.toggle('bg-blue-50', active && state.liveSource === 'draft');
+            button.classList.toggle('bg-emerald-50', active && state.liveSource === 'approved');
+        });
+
+        if (!file) {
+            clearLivePreviewUi();
+            return;
+        }
+
+        const url = URL.createObjectURL(file);
+        const name = file.name.toLowerCase();
+        const kind = file.type.includes('pdf') || name.endsWith('.pdf')
+            ? 'pdf'
+            : (file.type.includes('image') || name.endsWith('.jpg') || name.endsWith('.jpeg') || name.endsWith('.png') ? 'image' : '');
+        setPreviewDocument(url, qs('[data-live-frame]'), qs('[data-live-image-wrapper]'), qs('[data-live-image]'), qs('[data-live-empty]'), kind);
     };
 
     const openSlider = (row = null) => {
@@ -593,6 +693,46 @@
         await fetchRows();
     };
 
+    const addNote = async (id) => {
+        const input = qs('[data-note-input]');
+        const content = input?.value?.trim();
+        if (!content) return;
+
+        const formData = new FormData();
+        formData.append('content', content);
+
+        const res = await fetch(config.noteStoreUrl.replace('__ID__', id), {
+            method: 'POST',
+            headers: { 'X-CSRF-TOKEN': csrf, Accept: 'application/json' },
+            body: formData
+        });
+        if (!res.ok) {
+            alert('Unable to add note.');
+            return;
+        }
+        await fetchRows();
+        const index = state.rows.findIndex((row) => String(row.id) === String(id));
+        if (index >= 0) openPreview(index, state.previewSource);
+    };
+
+    const deleteNote = async (noteId) => {
+        const row = state.rows[state.previewIndex];
+        if (!row || !confirm('Delete this note?')) return;
+
+        const res = await fetch(config.noteDeleteUrl.replace('__ID__', row.id).replace('__NOTE__', noteId), {
+            method: 'POST',
+            headers: { 'X-CSRF-TOKEN': csrf, Accept: 'application/json' },
+            body: new URLSearchParams({ _method: 'DELETE' })
+        });
+        if (!res.ok) {
+            alert('Unable to delete note.');
+            return;
+        }
+        await fetchRows();
+        const index = state.rows.findIndex((item) => String(item.id) === String(row.id));
+        if (index >= 0) openPreview(index, state.previewSource);
+    };
+
     root.addEventListener('click', (event) => {
         const action = event.target.closest('[data-action]')?.dataset.action;
         if (action === 'open-create') openSlider();
@@ -607,13 +747,31 @@
         }
 
         const preview = event.target.closest('[data-preview-index]');
-        if (preview) openPreview(Number(preview.dataset.previewIndex));
+        if (preview) openPreview(Number(preview.dataset.previewIndex), preview.dataset.source || null);
+
+        const previewSource = event.target.closest('[data-preview-source]');
+        if (previewSource) {
+            state.previewSource = previewSource.dataset.previewSource;
+            updatePreviewDocument();
+        }
+
+        const liveSource = event.target.closest('[data-live-source]');
+        if (liveSource) {
+            state.liveSource = liveSource.dataset.liveSource;
+            renderLivePreview();
+        }
 
         const edit = event.target.closest('[data-edit-index]');
         if (edit) openSlider(state.rows[Number(edit.dataset.editIndex)]);
 
         const submit = event.target.closest('[data-submit-id]');
         if (submit) submitRecord(submit.dataset.submitId);
+
+        const addNoteButton = event.target.closest('[data-add-note-id]');
+        if (addNoteButton) addNote(addNoteButton.dataset.addNoteId);
+
+        const deleteNoteButton = event.target.closest('[data-delete-note-id]');
+        if (deleteNoteButton) deleteNote(deleteNoteButton.dataset.deleteNoteId);
     });
 
     root.addEventListener('input', (event) => {
@@ -631,17 +789,11 @@
         }
 
         if (!event.target.matches('input[type="file"]')) return;
-        const file = event.target.files?.[0];
-        if (!file) {
-            resetLivePreview();
-            return;
-        }
-        const url = URL.createObjectURL(file);
-        const name = file.name.toLowerCase();
-        const kind = file.type.includes('pdf') || name.endsWith('.pdf')
-            ? 'pdf'
-            : (file.type.includes('image') || name.endsWith('.jpg') || name.endsWith('.jpeg') || name.endsWith('.png') ? 'image' : '');
-        setPreviewDocument(url, qs('[data-live-frame]'), qs('[data-live-image-wrapper]'), qs('[data-live-image]'), qs('[data-live-empty]'), kind);
+        const file = event.target.files?.[0] || null;
+        const source = event.target.name.startsWith('approved_documents') ? 'approved' : 'draft';
+        state.liveFiles[source] = file;
+        state.liveSource = source;
+        renderLivePreview();
     });
 
     fetchRows();

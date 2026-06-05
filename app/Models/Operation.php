@@ -43,4 +43,9 @@ class Operation extends Model
         'last_updated_at' => 'datetime',
         'approved_at' => 'datetime',
     ];
+
+    public function notes()
+    {
+        return $this->morphMany(Note::class, 'noteable');
+    }
 }

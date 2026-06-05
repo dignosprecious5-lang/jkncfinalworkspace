@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\RequestsHumanCapitalApproval;
 use App\Models\Employee;
 use App\Models\EmployeeRelation;
 use Illuminate\Http\Request;
@@ -12,6 +13,7 @@ use Illuminate\Validation\Rule;
 
 class EmployeeRelationController extends Controller
 {
+    use RequestsHumanCapitalApproval;
     public function index()
     {
         $user = Auth::user();
@@ -95,7 +97,7 @@ class EmployeeRelationController extends Controller
         $validated = $this->validateRelation($request, true);
         $employee = $this->resolveEmployee($validated['employee_id'] ?? $employeeRelation->employee_id);
 
-        $employeeRelation->update([
+        $payload = [
             'form_type' => $validated['form_type'],
             'employee_id' => $employee->id,
             'employee_code' => $employee->employee_code,
@@ -108,11 +110,13 @@ class EmployeeRelationController extends Controller
             'attachment_paths' => array_values(array_merge($employeeRelation->attachment_paths ?? [], $this->storeAttachments($request))),
             'hr_remarks' => $validated['hr_remarks'] ?? $employeeRelation->hr_remarks,
             'status' => $this->canManageRelations() ? ($validated['status'] ?? $employeeRelation->status) : $employeeRelation->status,
-        ]);
+        ];
+
+        $this->requestHumanCapitalChange($request, 'Employee Relations', 'update', $employeeRelation, $payload, $employeeRelation->reference_no ?: $employeeRelation->subject);
 
         return redirect()
             ->route('human-capital.employee-relations')
-            ->with('success', 'Employee relations form updated successfully.');
+            ->with('success', 'Employee relations update submitted for admin approval.');
     }
 
     public function approve(EmployeeRelation $employeeRelation)
@@ -144,19 +148,13 @@ class EmployeeRelationController extends Controller
         return back()->with('success', 'Employee relations form closed.');
     }
 
-    public function destroy(EmployeeRelation $employeeRelation)
+    public function destroy(Request $request, EmployeeRelation $employeeRelation)
     {
         $this->authorizeManagement();
 
-        foreach (($employeeRelation->attachment_paths ?? []) as $attachment) {
-            if (! empty($attachment['path'])) {
-                Storage::disk('public')->delete($attachment['path']);
-            }
-        }
+        $this->requestHumanCapitalChange($request, 'Employee Relations', 'delete', $employeeRelation, null, $employeeRelation->reference_no ?: $employeeRelation->subject);
 
-        $employeeRelation->delete();
-
-        return back()->with('success', 'Employee relations form deleted.');
+        return back()->with('success', 'Employee relations deletion submitted for admin approval.');
     }
 
     private function validateRelation(Request $request, bool $isUpdate = false): array

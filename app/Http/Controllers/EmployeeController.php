@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\RequestsHumanCapitalApproval;
 use App\Models\Branch;
 use App\Models\Department;
 use App\Models\Division;
@@ -17,6 +18,7 @@ use Illuminate\Validation\Rule;
 
 class EmployeeController extends Controller
 {
+    use RequestsHumanCapitalApproval;
     private array $employmentStatuses = [
         'Active', 'Probationary', 'Regular', 'Project-Based', 'Fixed-Term', 'Part-Time',
         'Casual / Temporary', 'Consultant / Independent Contractor', 'Resigned',
@@ -388,11 +390,16 @@ class EmployeeController extends Controller
 
         unset($validated['captured_photo'], $validated['employment_status_other'], $validated['salary_grade_other'], $validated['benefits_other'], $validated['attachments'], $validated['attachment_category'], $validated['attachment_title'], $validated['attachment_remarks'], $validated['status_attachment']);
 
-        $oldLogValues = $this->employeeLogSnapshot($employee);
-        $employee->update($validated);
-        $this->logEmployeeProfileUpdate($request, $employee->fresh(), $oldLogValues);
+        $this->requestHumanCapitalChange(
+            $request,
+            'Employee Profile',
+            'update',
+            $employee,
+            $validated,
+            trim($employee->full_name ?: $employee->employee_code)
+        );
 
-        return redirect()->back()->with('success', 'Employee updated successfully.');
+        return redirect()->back()->with('success', 'Employee update submitted for admin approval.');
     }
 
     public function verificationForm(?string $employee = null)

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\RequestsHumanCapitalApproval;
 use App\Models\Branch;
 use App\Models\Department;
 use App\Models\Division;
@@ -14,6 +15,7 @@ use Illuminate\Validation\Rule;
 
 class OrganizationalController extends Controller
 {
+    use RequestsHumanCapitalApproval;
     public function index()
     {
         $addresses = OrganizationalAddress::latest()->get()->map(fn ($item) => $this->transformAddress($item));
@@ -244,11 +246,11 @@ class OrganizationalController extends Controller
                 ]);
 
                 $validated['full_address'] = $this->buildFullAddress($validated);
-                $record->update($validated);
+                $this->requestHumanCapitalChange($request, 'Organizational', 'update', $record, $validated, $record->full_address);
 
                 return response()->json([
-                    'message' => 'Address updated successfully.',
-                    'record' => $this->transformAddress($record->fresh()),
+                    'message' => 'Address update submitted for admin approval.',
+                    'record' => $this->transformAddress($record),
                 ]);
 
             case 'branch':
@@ -260,15 +262,16 @@ class OrganizationalController extends Controller
                     'branch_head' => ['required', 'string', 'max:255'],
                 ]);
 
-                $record->update([
+                $payload = [
                     'branch_name' => $validated['branch_name'],
                     'address_id' => $validated['address_id'],
                     'branch_head' => $validated['branch_head'],
-                ]);
+                ];
+                $this->requestHumanCapitalChange($request, 'Organizational', 'update', $record, $payload, $record->branch_name);
 
                 return response()->json([
-                    'message' => 'Branch updated successfully.',
-                    'record' => $this->transformBranch($record->fresh()->load('address')),
+                    'message' => 'Branch update submitted for admin approval.',
+                    'record' => $this->transformBranch($record->load('address')),
                 ]);
 
             case 'office':
@@ -282,16 +285,17 @@ class OrganizationalController extends Controller
 
                 $branch = Branch::findOrFail($validated['branch_id']);
 
-                $record->update([
+                $payload = [
                     'office_name' => $validated['office_name'],
                     'branch_id' => $branch->id,
                     'address_id' => $branch->address_id,
                     'office_head' => $validated['office_head'],
-                ]);
+                ];
+                $this->requestHumanCapitalChange($request, 'Organizational', 'update', $record, $payload, $record->office_name);
 
                 return response()->json([
-                    'message' => 'Office updated successfully.',
-                    'record' => $this->transformOffice($record->fresh()->load(['branch.address', 'address'])),
+                    'message' => 'Office update submitted for admin approval.',
+                    'record' => $this->transformOffice($record->load(['branch.address', 'address'])),
                 ]);
 
             case 'department':
@@ -305,16 +309,17 @@ class OrganizationalController extends Controller
 
                 $office = Office::findOrFail($validated['office_id']);
 
-                $record->update([
+                $payload = [
                     'department_name' => $validated['department_name'],
                     'office_id' => $office->id,
                     'address_id' => $office->address_id,
                     'department_head' => $validated['department_head'],
-                ]);
+                ];
+                $this->requestHumanCapitalChange($request, 'Organizational', 'update', $record, $payload, $record->department_name);
 
                 return response()->json([
-                    'message' => 'Department updated successfully.',
-                    'record' => $this->transformDepartment($record->fresh()->load(['office.branch.address', 'address'])),
+                    'message' => 'Department update submitted for admin approval.',
+                    'record' => $this->transformDepartment($record->load(['office.branch.address', 'address'])),
                 ]);
 
             case 'division':
@@ -328,16 +333,17 @@ class OrganizationalController extends Controller
 
                 $department = Department::findOrFail($validated['department_id']);
 
-                $record->update([
+                $payload = [
                     'division_name' => $validated['division_name'],
                     'department_id' => $department->id,
                     'address_id' => $department->address_id,
                     'division_head' => $validated['division_head'],
-                ]);
+                ];
+                $this->requestHumanCapitalChange($request, 'Organizational', 'update', $record, $payload, $record->division_name);
 
                 return response()->json([
-                    'message' => 'Division updated successfully.',
-                    'record' => $this->transformDivision($record->fresh()->load(['department.office.branch.address', 'address'])),
+                    'message' => 'Division update submitted for admin approval.',
+                    'record' => $this->transformDivision($record->load(['department.office.branch.address', 'address'])),
                 ]);
 
             case 'unit':
@@ -351,16 +357,17 @@ class OrganizationalController extends Controller
 
                 $division = Division::findOrFail($validated['division_id']);
 
-                $record->update([
+                $payload = [
                     'unit_name' => $validated['unit_name'],
                     'division_id' => $division->id,
                     'address_id' => $division->address_id,
                     'unit_head' => $validated['unit_head'],
-                ]);
+                ];
+                $this->requestHumanCapitalChange($request, 'Organizational', 'update', $record, $payload, $record->unit_name);
 
                 return response()->json([
-                    'message' => 'Unit updated successfully.',
-                    'record' => $this->transformUnit($record->fresh()->load(['division.department.office.branch.address', 'address'])),
+                    'message' => 'Unit update submitted for admin approval.',
+                    'record' => $this->transformUnit($record->load(['division.department.office.branch.address', 'address'])),
                 ]);
 
             case 'position':
@@ -373,15 +380,16 @@ class OrganizationalController extends Controller
 
                 $unit = Unit::findOrFail($validated['unit_id']);
 
-                $record->update([
+                $payload = [
                     'position_name' => $validated['position_name'],
                     'unit_id' => $unit->id,
                     'address_id' => $unit->address_id,
-                ]);
+                ];
+                $this->requestHumanCapitalChange($request, 'Organizational', 'update', $record, $payload, $record->position_name);
 
                 return response()->json([
-                    'message' => 'Position updated successfully.',
-                    'record' => $this->transformPosition($record->fresh()->load(['unit.division.department.office.branch.address', 'address'])),
+                    'message' => 'Position update submitted for admin approval.',
+                    'record' => $this->transformPosition($record->load(['unit.division.department.office.branch.address', 'address'])),
                 ]);
         }
 
@@ -390,7 +398,7 @@ class OrganizationalController extends Controller
         ], 422);
     }
 
-    public function destroy(string $type, int $id)
+    public function destroy(Request $request, string $type, int $id)
     {
         if (!in_array($type, ['address', 'branch', 'office', 'department', 'division', 'unit', 'position'])) {
             return response()->json([
@@ -407,30 +415,32 @@ class OrganizationalController extends Controller
 
         switch ($type) {
             case 'address':
-                OrganizationalAddress::findOrFail($id)->delete();
+                $record = OrganizationalAddress::findOrFail($id);
                 break;
             case 'branch':
-                Branch::findOrFail($id)->delete();
+                $record = Branch::findOrFail($id);
                 break;
             case 'office':
-                Office::findOrFail($id)->delete();
+                $record = Office::findOrFail($id);
                 break;
             case 'department':
-                Department::findOrFail($id)->delete();
+                $record = Department::findOrFail($id);
                 break;
             case 'division':
-                Division::findOrFail($id)->delete();
+                $record = Division::findOrFail($id);
                 break;
             case 'unit':
-                Unit::findOrFail($id)->delete();
+                $record = Unit::findOrFail($id);
                 break;
             case 'position':
-                Position::findOrFail($id)->delete();
+                $record = Position::findOrFail($id);
                 break;
         }
 
+        $this->requestHumanCapitalChange($request, 'Organizational', 'delete', $record, null);
+
         return response()->json([
-            'message' => 'Record deleted successfully.',
+            'message' => 'Record deletion submitted for admin approval.',
         ]);
     }
 

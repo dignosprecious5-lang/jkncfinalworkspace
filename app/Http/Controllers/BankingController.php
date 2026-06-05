@@ -81,7 +81,7 @@ class BankingController extends Controller
         $validated = $this->validatedPayload($request);
         $company = $this->latestCorporateCompany();
         $user = $this->currentUserLabel($request);
-        $isApprover = $this->canApproveCorporate();
+        $isApprover = false;
         $draftDocuments = $this->storeDocumentSet($request, 'draft_documents', 'corporate/banking/drafts');
         $approvedDocuments = $this->storeDocumentSet($request, 'approved_documents', 'corporate/banking/approved');
         $primaryDocument = $draftDocuments[0] ?? $approvedDocuments[0] ?? null;

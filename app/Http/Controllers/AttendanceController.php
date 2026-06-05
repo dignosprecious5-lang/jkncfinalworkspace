@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\RequestsHumanCapitalApproval;
 use App\Models\Attendance;
 use App\Models\Employee;
 use App\Models\EmployeeRequest;
@@ -14,6 +15,7 @@ use Illuminate\Support\Facades\Schema;
 
 class AttendanceController extends Controller
 {
+    use RequestsHumanCapitalApproval;
     public function index(Request $request)
     {
         $user = Auth::user();
@@ -186,14 +188,19 @@ class AttendanceController extends Controller
             'status' => ['required', 'in:pending,approved,rejected'],
         ]);
 
+        $preview = $attendance->replicate();
         foreach ($validated as $key => $value) {
-            $attendance->{$key} = $value ?: null;
+            $preview->{$key} = $value ?: null;
         }
+        $preview->recalculateTotals();
+        $payload = array_merge($validated, [
+            'total_break_hours' => $preview->total_break_hours,
+            'total_working_hours' => $preview->total_working_hours,
+        ]);
 
-        $attendance->recalculateTotals();
-        $attendance->save();
+        $this->requestHumanCapitalChange($request, 'Attendance', 'update', $attendance, $payload, $attendance->employee_name ?: 'Attendance #'.$attendance->id);
 
-        return back()->with('success', 'Attendance record updated.');
+        return back()->with('success', 'Attendance update submitted for admin approval.');
     }
 
     public function approve(Attendance $attendance)

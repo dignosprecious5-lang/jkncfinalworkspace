@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\RequestsHumanCapitalApproval;
 use App\Models\Employee;
 use App\Models\EmployeePayrollProfile;
 use App\Models\PayrollAllowance;
@@ -23,6 +24,7 @@ use Illuminate\Validation\ValidationException;
 
 class PayrollController extends Controller
 {
+    use RequestsHumanCapitalApproval;
     private const WORK_SCHEDULE_LABELS = [
         'Monday to Sunday - 8:00 AM to 5:00 PM',
         'Monday to Saturday - 8:00 AM to 5:00 PM',
@@ -63,21 +65,16 @@ class PayrollController extends Controller
 
     public function updateSalaryGrade(Request $request, SalaryGrade $salaryGrade)
     {
-        $oldValues = $this->snapshot($salaryGrade);
-        $salaryGrade->update($this->salaryGradePayload($request, $salaryGrade->basis_file_path));
-        $this->logPayrollUpdated($request, 'Salary Grade', $salaryGrade->fresh(), $oldValues);
+        $this->requestHumanCapitalChange($request, 'Payroll', 'update', $salaryGrade, $this->salaryGradePayload($request, $salaryGrade->basis_file_path));
 
-        return back()->with('success', 'Salary grade updated successfully.');
+        return back()->with('success', 'Salary grade update submitted for admin approval.');
     }
 
     public function destroySalaryGrade(SalaryGrade $salaryGrade)
     {
-        $oldValues = $this->snapshot($salaryGrade);
-        $subjectName = $this->modelLabel($salaryGrade);
-        $salaryGrade->delete();
-        $this->logPayrollDeleted(request(), 'Salary Grade', $salaryGrade, $oldValues, $subjectName);
+        $this->requestHumanCapitalChange(request(), 'Payroll', 'delete', $salaryGrade, null, $this->modelLabel($salaryGrade));
 
-        return back()->with('success', 'Salary grade deleted successfully.');
+        return back()->with('success', 'Salary grade deletion submitted for admin approval.');
     }
 
     public function storePayrollLevel(Request $request)
@@ -90,21 +87,16 @@ class PayrollController extends Controller
 
     public function updatePayrollLevel(Request $request, PayrollLevel $level)
     {
-        $oldValues = $this->snapshot($level);
-        $level->update($this->payrollLevelPayload($request, $level->basis_file_path));
-        $this->logPayrollUpdated($request, 'Payroll Level', $level->fresh(), $oldValues);
+        $this->requestHumanCapitalChange($request, 'Payroll', 'update', $level, $this->payrollLevelPayload($request, $level->basis_file_path));
 
-        return back()->with('success', 'Payroll level updated successfully.');
+        return back()->with('success', 'Payroll level update submitted for admin approval.');
     }
 
     public function destroyPayrollLevel(PayrollLevel $level)
     {
-        $oldValues = $this->snapshot($level);
-        $subjectName = $this->modelLabel($level);
-        $level->delete();
-        $this->logPayrollDeleted(request(), 'Payroll Level', $level, $oldValues, $subjectName);
+        $this->requestHumanCapitalChange(request(), 'Payroll', 'delete', $level, null, $this->modelLabel($level));
 
-        return back()->with('success', 'Payroll level deleted successfully.');
+        return back()->with('success', 'Payroll level deletion submitted for admin approval.');
     }
 
     public function storeBenefit(Request $request)
@@ -114,21 +106,16 @@ class PayrollController extends Controller
 
     public function updateBenefit(Request $request, PayrollBenefit $benefit)
     {
-        $oldValues = $this->snapshot($benefit);
-        $benefit->update($this->linkedValuePayload($request, PayrollBenefit::class, $benefit->basis_file_path));
-        $this->logPayrollUpdated($request, 'Benefit', $benefit->fresh(), $oldValues);
+        $this->requestHumanCapitalChange($request, 'Payroll', 'update', $benefit, $this->linkedValuePayload($request, PayrollBenefit::class, $benefit->basis_file_path));
 
-        return back()->with('success', 'Benefit updated successfully.');
+        return back()->with('success', 'Benefit update submitted for admin approval.');
     }
 
     public function destroyBenefit(PayrollBenefit $benefit)
     {
-        $oldValues = $this->snapshot($benefit);
-        $subjectName = $this->modelLabel($benefit);
-        $benefit->delete();
-        $this->logPayrollDeleted(request(), 'Benefit', $benefit, $oldValues, $subjectName);
+        $this->requestHumanCapitalChange(request(), 'Payroll', 'delete', $benefit, null, $this->modelLabel($benefit));
 
-        return back()->with('success', 'Benefit deleted successfully.');
+        return back()->with('success', 'Benefit deletion submitted for admin approval.');
     }
 
     public function storeAllowance(Request $request)
@@ -138,21 +125,16 @@ class PayrollController extends Controller
 
     public function updateAllowance(Request $request, PayrollAllowance $allowance)
     {
-        $oldValues = $this->snapshot($allowance);
-        $allowance->update($this->linkedValuePayload($request, PayrollAllowance::class, $allowance->basis_file_path));
-        $this->logPayrollUpdated($request, 'Allowance', $allowance->fresh(), $oldValues);
+        $this->requestHumanCapitalChange($request, 'Payroll', 'update', $allowance, $this->linkedValuePayload($request, PayrollAllowance::class, $allowance->basis_file_path));
 
-        return back()->with('success', 'Allowance updated successfully.');
+        return back()->with('success', 'Allowance update submitted for admin approval.');
     }
 
     public function destroyAllowance(PayrollAllowance $allowance)
     {
-        $oldValues = $this->snapshot($allowance);
-        $subjectName = $this->modelLabel($allowance);
-        $allowance->delete();
-        $this->logPayrollDeleted(request(), 'Allowance', $allowance, $oldValues, $subjectName);
+        $this->requestHumanCapitalChange(request(), 'Payroll', 'delete', $allowance, null, $this->modelLabel($allowance));
 
-        return back()->with('success', 'Allowance deleted successfully.');
+        return back()->with('success', 'Allowance deletion submitted for admin approval.');
     }
 
     public function storeDeduction(Request $request)
@@ -162,21 +144,16 @@ class PayrollController extends Controller
 
     public function updateDeduction(Request $request, PayrollDeduction $deduction)
     {
-        $oldValues = $this->snapshot($deduction);
-        $deduction->update($this->linkedValuePayload($request, PayrollDeduction::class, $deduction->basis_file_path));
-        $this->logPayrollUpdated($request, 'Deduction', $deduction->fresh(), $oldValues);
+        $this->requestHumanCapitalChange($request, 'Payroll', 'update', $deduction, $this->linkedValuePayload($request, PayrollDeduction::class, $deduction->basis_file_path));
 
-        return back()->with('success', 'Deduction updated successfully.');
+        return back()->with('success', 'Deduction update submitted for admin approval.');
     }
 
     public function destroyDeduction(PayrollDeduction $deduction)
     {
-        $oldValues = $this->snapshot($deduction);
-        $subjectName = $this->modelLabel($deduction);
-        $deduction->delete();
-        $this->logPayrollDeleted(request(), 'Deduction', $deduction, $oldValues, $subjectName);
+        $this->requestHumanCapitalChange(request(), 'Payroll', 'delete', $deduction, null, $this->modelLabel($deduction));
 
-        return back()->with('success', 'Deduction deleted successfully.');
+        return back()->with('success', 'Deduction deletion submitted for admin approval.');
     }
 
     public function storeHoliday(Request $request)
@@ -189,21 +166,16 @@ class PayrollController extends Controller
 
     public function updateHoliday(Request $request, PayrollHoliday $holiday)
     {
-        $oldValues = $this->snapshot($holiday);
-        $holiday->update($this->holidayPayload($request, $holiday->basis_file_path));
-        $this->logPayrollUpdated($request, 'Holiday', $holiday->fresh(), $oldValues);
+        $this->requestHumanCapitalChange($request, 'Payroll', 'update', $holiday, $this->holidayPayload($request, $holiday->basis_file_path));
 
-        return back()->with('success', 'Holiday updated successfully.');
+        return back()->with('success', 'Holiday update submitted for admin approval.');
     }
 
     public function destroyHoliday(PayrollHoliday $holiday)
     {
-        $oldValues = $this->snapshot($holiday);
-        $subjectName = $this->modelLabel($holiday);
-        $holiday->delete();
-        $this->logPayrollDeleted(request(), 'Holiday', $holiday, $oldValues, $subjectName);
+        $this->requestHumanCapitalChange(request(), 'Payroll', 'delete', $holiday, null, $this->modelLabel($holiday));
 
-        return back()->with('success', 'Holiday deleted successfully.');
+        return back()->with('success', 'Holiday deletion submitted for admin approval.');
     }
 
     public function storePayrollPeriod(Request $request)
@@ -216,21 +188,16 @@ class PayrollController extends Controller
 
     public function updatePayrollPeriod(Request $request, PayrollPeriod $period)
     {
-        $oldValues = $this->snapshot($period);
-        $period->update($this->periodPayload($request, $period->basis_file_path));
-        $this->logPayrollUpdated($request, 'Payroll Period', $period->fresh(), $oldValues);
+        $this->requestHumanCapitalChange($request, 'Payroll', 'update', $period, $this->periodPayload($request, $period->basis_file_path));
 
-        return back()->with('success', 'Payroll period updated successfully.');
+        return back()->with('success', 'Payroll period update submitted for admin approval.');
     }
 
     public function destroyPayrollPeriod(PayrollPeriod $period)
     {
-        $oldValues = $this->snapshot($period);
-        $subjectName = $this->modelLabel($period);
-        $period->delete();
-        $this->logPayrollDeleted(request(), 'Payroll Period', $period, $oldValues, $subjectName);
+        $this->requestHumanCapitalChange(request(), 'Payroll', 'delete', $period, null, $this->modelLabel($period));
 
-        return back()->with('success', 'Payroll period deleted successfully.');
+        return back()->with('success', 'Payroll period deletion submitted for admin approval.');
     }
 
     public function storeEmployeeProfile(Request $request)
@@ -251,21 +218,16 @@ class PayrollController extends Controller
 
     public function updateEmployeeProfile(Request $request, EmployeePayrollProfile $profile)
     {
-        $oldValues = $this->snapshot($profile);
-        $profile->update($this->employeeProfilePayload($request));
-        $this->logPayrollUpdated($request, 'Employee Payroll Profile', $profile->fresh(), $oldValues);
+        $this->requestHumanCapitalChange($request, 'Payroll', 'update', $profile, $this->employeeProfilePayload($request), $this->modelLabel($profile));
 
-        return back()->with('success', 'Employee payroll profile updated successfully.');
+        return back()->with('success', 'Employee payroll profile update submitted for admin approval.');
     }
 
     public function destroyEmployeeProfile(EmployeePayrollProfile $profile)
     {
-        $oldValues = $this->snapshot($profile);
-        $subjectName = $this->modelLabel($profile);
-        $profile->delete();
-        $this->logPayrollDeleted(request(), 'Employee Payroll Profile', $profile, $oldValues, $subjectName);
+        $this->requestHumanCapitalChange(request(), 'Payroll', 'delete', $profile, null, $this->modelLabel($profile));
 
-        return back()->with('success', 'Employee payroll profile deleted successfully.');
+        return back()->with('success', 'Employee payroll profile deletion submitted for admin approval.');
     }
 
     public function generateSummary(Request $request, PayrollCalculator $calculator)
@@ -348,7 +310,6 @@ class PayrollController extends Controller
 
     public function updateSummary(Request $request, PayrollSummary $summary)
     {
-        $oldValues = $this->snapshot($summary);
         $validated = $request->validate([
             'payroll_level_id' => ['required', 'exists:payroll_levels,id'],
             'gross_pay' => ['required', 'numeric', 'min:0'],
@@ -364,21 +325,16 @@ class PayrollController extends Controller
         $level = PayrollLevel::findOrFail($validated['payroll_level_id']);
         $validated['computation_type'] = $level->computation_type;
 
-        $summary->update($validated);
-        $this->logPayrollUpdated($request, 'Payroll Summary', $summary->fresh(), $oldValues);
+        $this->requestHumanCapitalChange($request, 'Payroll', 'update', $summary, $validated, $this->modelLabel($summary));
 
-        return back()->with('success', 'Payroll summary updated successfully.');
+        return back()->with('success', 'Payroll summary update submitted for admin approval.');
     }
 
     public function destroySummary(PayrollSummary $summary)
     {
-        $oldValues = $this->snapshot($summary);
-        $subjectName = $this->modelLabel($summary);
-        $summary->items()->delete();
-        $summary->delete();
-        $this->logPayrollDeleted(request(), 'Payroll Summary', $summary, $oldValues, $subjectName);
+        $this->requestHumanCapitalChange(request(), 'Payroll', 'delete', $summary, null, $this->modelLabel($summary));
 
-        return back()->with('success', 'Payroll summary deleted successfully.');
+        return back()->with('success', 'Payroll summary deletion submitted for admin approval.');
     }
 
     private function storeLinkedValueItem(Request $request, string $modelClass, string $moduleLabel, string $successMessage)

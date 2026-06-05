@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\RequestsHumanCapitalApproval;
 use App\Models\Employee;
 use App\Models\OffboardingRecord;
 use Illuminate\Http\Request;
@@ -11,6 +12,7 @@ use Illuminate\Validation\Rule;
 
 class OffboardingController extends Controller
 {
+    use RequestsHumanCapitalApproval;
     public function index()
     {
         $employees = Employee::with('department')
@@ -67,7 +69,7 @@ class OffboardingController extends Controller
         $validated = $this->validateRecord($request);
         $employee = Employee::with('department')->findOrFail($validated['employee_id']);
 
-        $offboardingRecord->update([
+        $payload = [
             'form_type' => $validated['form_type'],
             'employee_id' => $employee->id,
             'employee_code' => $employee->employee_code,
@@ -77,18 +79,20 @@ class OffboardingController extends Controller
             'details' => $this->detailsFromValidated($validated),
             'status' => $validated['status'] ?? $offboardingRecord->status,
             'updated_by' => Auth::id(),
-        ]);
+        ];
+
+        $this->requestHumanCapitalChange($request, 'Offboarding', 'update', $offboardingRecord, $payload, $offboardingRecord->reference_no ?: $offboardingRecord->employee_name);
 
         return redirect()
             ->route('human-capital.offboarding')
-            ->with('success', 'Offboarding record updated successfully.');
+            ->with('success', 'Offboarding update submitted for admin approval.');
     }
 
-    public function destroy(OffboardingRecord $offboardingRecord)
+    public function destroy(Request $request, OffboardingRecord $offboardingRecord)
     {
-        $offboardingRecord->delete();
+        $this->requestHumanCapitalChange($request, 'Offboarding', 'delete', $offboardingRecord, null, $offboardingRecord->reference_no ?: $offboardingRecord->employee_name);
 
-        return back()->with('success', 'Offboarding record deleted.');
+        return back()->with('success', 'Offboarding deletion submitted for admin approval.');
     }
 
     private function validateRecord(Request $request): array

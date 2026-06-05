@@ -100,7 +100,7 @@ class AccountingController extends Controller
         $validated = $this->validatedPayload($request);
         $company = $this->latestCorporateCompany();
         $user = $this->currentUserLabel($request);
-        $isApprover = $this->canApproveCorporate();
+        $isApprover = false;
         $draftDocuments = $this->storeDocumentSet($request, 'draft_documents', 'corporate/accounting/drafts');
         $approvedDocuments = $this->storeDocumentSet($request, 'approved_documents', 'corporate/accounting/approved');
         $primaryDocument = $draftDocuments[0] ?? $approvedDocuments[0] ?? null;

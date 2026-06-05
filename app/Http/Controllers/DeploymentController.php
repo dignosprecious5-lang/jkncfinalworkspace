@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\RequestsHumanCapitalApproval;
 use App\Models\Deployment;
 use App\Models\Employee;
 use Illuminate\Http\Request;
@@ -9,6 +10,7 @@ use Illuminate\Support\Facades\Auth;
 
 class DeploymentController extends Controller
 {
+    use RequestsHumanCapitalApproval;
     public function index()
     {
         $employees = Employee::with(['branch', 'office', 'department', 'division', 'unit'])
@@ -95,20 +97,20 @@ class DeploymentController extends Controller
             'remarks' => ['nullable', 'string'],
         ]);
 
-        $deployment->update($validated);
+        $this->requestHumanCapitalChange($request, 'Deployment', 'update', $deployment, $validated, $deployment->employee_name ?: 'Deployment #'.$deployment->id);
 
         return redirect()
             ->route('deployment')
-            ->with('success', 'Deployment record updated successfully.');
+            ->with('success', 'Deployment update submitted for admin approval.');
     }
 
-    public function destroy(Deployment $deployment)
+    public function destroy(Request $request, Deployment $deployment)
     {
-        $deployment->delete();
+        $this->requestHumanCapitalChange($request, 'Deployment', 'delete', $deployment, null, $deployment->employee_name ?: 'Deployment #'.$deployment->id);
 
         return redirect()
             ->route('deployment')
-            ->with('success', 'Deployment record deleted successfully.');
+            ->with('success', 'Deployment deletion submitted for admin approval.');
     }
 
     private function formatDeployment(Deployment $deployment): array

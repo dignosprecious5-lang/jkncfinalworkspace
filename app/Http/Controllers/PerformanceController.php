@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\RequestsHumanCapitalApproval;
 use App\Models\Employee;
 use App\Models\PerformanceEvaluation;
 use App\Models\PerformanceImprovementPlan;
@@ -10,6 +11,7 @@ use Illuminate\Support\Facades\Auth;
 
 class PerformanceController extends Controller
 {
+    use RequestsHumanCapitalApproval;
     private array $criteria = [
         'quality_of_work',
         'timeliness_compliance',
@@ -113,23 +115,26 @@ class PerformanceController extends Controller
         $totalScore = $scores->sum();
         $averageRating = round($totalScore / count($this->criteria), 2);
 
-        $evaluation->update([
+        $payload = [
             ...$validated,
             ...$this->employeeSnapshot($employee),
             'total_score' => $totalScore,
             'average_rating' => $averageRating,
             'overall_performance_rating' => $this->overallRating($averageRating),
-        ]);
+        ];
 
-        return redirect()->route('human-capital.performance')->with('success', 'Performance evaluation updated successfully.');
+        $this->requestHumanCapitalChange($request, 'Performance', 'update', $evaluation, $payload, $evaluation->employee_name ?: 'Performance Evaluation #'.$evaluation->id);
+
+        return redirect()->route('human-capital.performance')->with('success', 'Performance evaluation update submitted for admin approval.');
     }
 
-    public function destroyEvaluation($id)
+    public function destroyEvaluation(Request $request, $id)
     {
         $this->authorizeManagement();
-        PerformanceEvaluation::findOrFail($id)->delete();
+        $evaluation = PerformanceEvaluation::findOrFail($id);
+        $this->requestHumanCapitalChange($request, 'Performance', 'delete', $evaluation, null, $evaluation->employee_name ?: 'Performance Evaluation #'.$evaluation->id);
 
-        return redirect()->route('human-capital.performance')->with('success', 'Performance evaluation deleted successfully.');
+        return redirect()->route('human-capital.performance')->with('success', 'Performance evaluation deletion submitted for admin approval.');
     }
 
     public function storePIP(Request $request)
@@ -166,20 +171,23 @@ class PerformanceController extends Controller
         $validated = $this->validatePip($request);
         $employee = Employee::with('department')->findOrFail($validated['employee_id']);
 
-        $pip->update([
+        $payload = [
             ...$validated,
             ...$this->employeeSnapshot($employee),
-        ]);
+        ];
 
-        return redirect()->route('human-capital.performance')->with('success', 'Performance improvement plan updated successfully.');
+        $this->requestHumanCapitalChange($request, 'Performance', 'update', $pip, $payload, $pip->employee_name ?: 'Performance Improvement Plan #'.$pip->id);
+
+        return redirect()->route('human-capital.performance')->with('success', 'Performance improvement plan update submitted for admin approval.');
     }
 
-    public function destroyPIP($id)
+    public function destroyPIP(Request $request, $id)
     {
         $this->authorizeManagement();
-        PerformanceImprovementPlan::findOrFail($id)->delete();
+        $pip = PerformanceImprovementPlan::findOrFail($id);
+        $this->requestHumanCapitalChange($request, 'Performance', 'delete', $pip, null, $pip->employee_name ?: 'Performance Improvement Plan #'.$pip->id);
 
-        return redirect()->route('human-capital.performance')->with('success', 'Performance improvement plan deleted successfully.');
+        return redirect()->route('human-capital.performance')->with('success', 'Performance improvement plan deletion submitted for admin approval.');
     }
 
     private function validateEvaluation(Request $request): array
