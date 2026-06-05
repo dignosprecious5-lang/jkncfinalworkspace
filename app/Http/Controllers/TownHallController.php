@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\ScopesHumanCapitalRecords;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Http\Request;
 use App\Models\Attendance;
@@ -27,9 +28,14 @@ use App\Models\DirectorOfficer;
 
 class TownHallController extends Controller
 {
+    use ScopesHumanCapitalRecords;
+
     public function index(Request $request)
     {
-        if (!Auth::user()->hasPermission('access_townhall')) {
+        if (
+            !Auth::user()->hasPermission('access_townhall')
+            && ! $this->canManageHumanCapitalModule('access_hc_memos', true)
+        ) {
             abort(403, 'Unauthorized');
         }
 
@@ -1301,15 +1307,11 @@ class TownHallController extends Controller
         $user = Auth::user();
 
         $role = strtolower(trim((string) $user->role));
+        $isAdmin = $this->canManageHumanCapitalModule('access_hc_memos', true);
+        $currentEmployee = $this->currentHumanCapitalEmployee($user);
+        $employeeDepartment = $currentEmployee?->department?->department_name;
 
-        $isAdmin = in_array($role, [
-            'admin',
-            'superadmin',
-            'super admin',
-            'system super admin',
-        ]);
-
-        $selectedEmployee = $request->employee_id;
+        $selectedEmployee = $isAdmin ? $request->employee_id : null;
 
         $employees = collect();
 
@@ -1337,17 +1339,31 @@ class TownHallController extends Controller
                 });
             }
         } else {
-            /*
-         * EMPLOYEE VIEW:
-         * Employee can only see:
-         * 1. Memos for all employees
-         * 2. Memos specifically sent to their user ID
-         */
-            $query->where(function ($q) use ($user) {
-                $q->where('recipient_type', 'all')
+            $query->where(function ($q) use ($user, $role, $employeeDepartment) {
+                $q->where('recipient_type', 'all_users')
                     ->orWhere('recipient_type', 'all_users')
                     ->orWhere('recipient_user_id', $user->id)
-                    ->orWhereJsonContains('recipient_user_ids', $user->id);
+                    ->orWhereJsonContains('recipient_user_ids', $user->id)
+                    ->orWhere('to_for', 'like', '%' . $user->name . '%');
+
+                if ($role === 'employee') {
+                    $q->orWhere('recipient_type', 'all')
+                        ->orWhere('recipient_type', 'all_employees')
+                        ->orWhere('to_for', 'like', '%All Employees%');
+                }
+
+                if (in_array($role, ['admin', 'superadmin', 'super admin', 'system super admin'], true)) {
+                    $q->orWhere('recipient_type', 'all_admins');
+                }
+
+                if (in_array($role, ['client', 'customer'], true)) {
+                    $q->orWhere('recipient_type', 'all_clients');
+                }
+
+                if ($employeeDepartment) {
+                    $q->orWhere('department_stakeholder', 'like', '%' . $employeeDepartment . '%')
+                        ->orWhere('to_for', 'like', '%' . $employeeDepartment . '%');
+                }
             });
         }
 
@@ -1787,7 +1803,10 @@ class TownHallController extends Controller
 
     private function canUserViewCommunication(User $user, TownHallCommunication $communication): bool
     {
-        if ($user->hasPermission('approve_townhall')) {
+        if (
+            $user->hasPermission('approve_townhall')
+            || $this->canManageHumanCapitalModule('access_hc_memos', true)
+        ) {
             return true;
         }
 

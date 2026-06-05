@@ -94,6 +94,7 @@
                 'access_hc_onboarding',
                 'access_hc_deployment',
                 'access_hc_offboarding',
+                'access_hc_my_hc',
                 'access_hc_attendance',
                 'access_hc_obf',
                 'access_hc_employee_requests',
@@ -103,7 +104,7 @@
                 'access_hc_performance',
                 'access_hc_awards',
             ])->contains(fn ($permission) => $user->hasPermission($permission)) ||
-            strtolower((string) $user->role) === 'employee' ||
+            (bool) $user ||
             $user->isAdmin() ||
             $user->isSuperAdmin();
 
@@ -112,8 +113,8 @@
             $user->isAdmin()
             || $user->isSuperAdmin()
             || $user->hasPermission($permission)
-            || ($employeeOwnAccess && $user->isEmployee());
-        $canAccessMyHc = fn (string $permission) => $canAccessHc($permission, true);
+            || $employeeOwnAccess;
+        $canAccessMyHc = fn (string $permission) => $canAccessHc($permission, true) || $user->hasPermission('access_hc_my_hc');
 
         $humanCapitalLandingRoute = $canAccessHc('access_hc_organizational')
             ? route('human-capital.organizational')

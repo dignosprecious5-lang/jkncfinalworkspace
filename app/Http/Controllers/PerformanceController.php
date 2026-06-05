@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\RequestsHumanCapitalApproval;
+use App\Http\Controllers\Concerns\ScopesHumanCapitalRecords;
 use App\Models\Employee;
 use App\Models\PerformanceEvaluation;
 use App\Models\PerformanceImprovementPlan;
@@ -12,6 +13,7 @@ use Illuminate\Support\Facades\Auth;
 class PerformanceController extends Controller
 {
     use RequestsHumanCapitalApproval;
+    use ScopesHumanCapitalRecords;
     private array $criteria = [
         'quality_of_work',
         'timeliness_compliance',
@@ -33,10 +35,15 @@ class PerformanceController extends Controller
         $currentEmployee = $this->currentEmployee();
         $selectedEmployeeId = $canManagePerformance ? $request->query('employee_id') : null;
 
-        $employees = Employee::with('department')
+        $employeeQuery = Employee::with('department')
             ->orderBy('last_name')
-            ->orderBy('first_name')
-            ->get()
+            ->orderBy('first_name');
+
+        if (! $canManagePerformance) {
+            $employeeQuery->where('id', $currentEmployee?->id ?: 0);
+        }
+
+        $employees = $employeeQuery->get()
             ->map(fn (Employee $employee) => $this->formatEmployee($employee))
             ->values();
 
@@ -260,7 +267,7 @@ class PerformanceController extends Controller
     {
         $user = Auth::user();
 
-        return $user->isAdmin() || $user->isSuperAdmin() || $user->hasPermission('access_hc_performance');
+        return $this->canManageHumanCapitalModule('access_hc_performance', true);
     }
 
     private function authorizeManagement(): void
@@ -281,16 +288,7 @@ class PerformanceController extends Controller
 
     private function currentEmployee(): ?Employee
     {
-        $user = Auth::user();
-
-        return Employee::with('department')
-            ->where(function ($query) use ($user) {
-                $query->where('user_id', $user?->id ?: 0)
-                    ->orWhere('email', $user?->email)
-                    ->orWhere('work_email', $user?->email)
-                    ->orWhere('company_email', $user?->email);
-            })
-            ->first();
+        return $this->currentHumanCapitalEmployee(Auth::user());
     }
 
     private function employeeSnapshot(Employee $employee): array

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\RequestsHumanCapitalApproval;
+use App\Http\Controllers\Concerns\ScopesHumanCapitalRecords;
 use App\Models\Attendance;
 use App\Models\Employee;
 use App\Models\EmployeeRequest;
@@ -16,6 +17,7 @@ use Illuminate\Support\Facades\Schema;
 class AttendanceController extends Controller
 {
     use RequestsHumanCapitalApproval;
+    use ScopesHumanCapitalRecords;
     public function index(Request $request)
     {
         $user = Auth::user();
@@ -246,7 +248,7 @@ class AttendanceController extends Controller
     {
         return $user->isSuperAdmin()
             || $user->isAdmin()
-            || $user->hasPermission('access_hc_attendance');
+            || $this->canManageHumanCapitalModule('access_hc_attendance', true);
     }
 
     private function authorizeAttendanceManagement(): void

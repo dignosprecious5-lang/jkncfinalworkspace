@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\RequestsHumanCapitalApproval;
+use App\Http\Controllers\Concerns\ScopesHumanCapitalRecords;
 use App\Models\Employee;
 use App\Models\EmployeeRelation;
 use Illuminate\Http\Request;
@@ -14,15 +15,19 @@ use Illuminate\Validation\Rule;
 class EmployeeRelationController extends Controller
 {
     use RequestsHumanCapitalApproval;
+    use ScopesHumanCapitalRecords;
+
     public function index()
     {
         $user = Auth::user();
         $canManageRelations = $this->canManageRelations();
         $currentEmployee = $this->currentEmployee();
 
-        $employees = Employee::with('department')
-            ->orderBy('last_name')
-            ->get()
+        $employeeQuery = $canManageRelations
+            ? Employee::with('department')->orderBy('last_name')
+            : Employee::with('department')->where('id', $currentEmployee?->id ?: 0);
+
+        $employees = $employeeQuery->get()
             ->map(fn ($employee) => [
                 'id' => $employee->id,
                 'employee_code' => $employee->employee_code,
@@ -229,23 +234,12 @@ class EmployeeRelationController extends Controller
 
     private function currentEmployee(): ?Employee
     {
-        $user = Auth::user();
-
-        return Employee::with('department')
-            ->where(function ($query) use ($user) {
-                $query->where('user_id', $user?->id ?: 0)
-                    ->orWhere('email', $user?->email)
-                    ->orWhere('work_email', $user?->email)
-                    ->orWhere('company_email', $user?->email);
-            })
-            ->first();
+        return $this->currentHumanCapitalEmployee(Auth::user());
     }
 
     private function canManageRelations(): bool
     {
-        $user = Auth::user();
-
-        return $user->isSuperAdmin() || $user->isAdmin() || $user->hasPermission('access_hc_employee_relations');
+        return $this->canManageHumanCapitalModule('access_hc_employee_relations', true);
     }
 
     private function authorizeManagement(): void

@@ -1247,7 +1247,7 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () {
             ])->first(fn ($item) => $user->isAdmin()
                 || $user->isSuperAdmin()
                 || $user->hasPermission($item['permission'])
-                || ($item['employee'] && $user->isEmployee()));
+                || $item['employee']);
 
             abort_unless($route, 403);
 

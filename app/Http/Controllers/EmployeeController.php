@@ -295,6 +295,7 @@ class EmployeeController extends Controller
             'access_hc_onboarding' => 'Human Capital - On Boarding',
             'access_hc_deployment' => 'Human Capital - Deployment',
             'access_hc_offboarding' => 'Human Capital - Off Boarding',
+            'access_hc_my_hc' => 'Human Capital - MY HC',
             'access_hc_attendance' => 'My HC - Attendance',
             'access_hc_obf' => 'My HC - Official Business Trip',
             'access_hc_employee_requests' => 'My HC - Employee Requests',

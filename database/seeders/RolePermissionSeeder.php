@@ -36,18 +36,7 @@ class RolePermissionSeeder extends Seeder
         'access_hc_onboarding',
         'access_hc_deployment',
         'access_hc_offboarding',
-        'access_hc_attendance',
-        'access_hc_obf',
-        'access_hc_employee_requests',
-        'access_hc_employee_relations',
-        'access_hc_memos',
-        'access_hc_training',
-        'access_hc_performance',
-        'access_hc_awards',
-    ];
-
-    private array $employeeHumanCapitalPermissionColumns = [
-        'access_hc_employee_profile',
+        'access_hc_my_hc',
         'access_hc_attendance',
         'access_hc_obf',
         'access_hc_employee_requests',
@@ -166,7 +155,6 @@ class RolePermissionSeeder extends Seeder
 
                 'access_human_capital' => true,
                 ...array_fill_keys($this->humanCapitalPermissionColumns, false),
-                ...array_fill_keys($this->employeeHumanCapitalPermissionColumns, true),
 
                 ...array_fill_keys($this->financePermissionColumns, false),
             ]
