@@ -33,10 +33,10 @@
         <div class="flex items-center gap-2">
             <button
                 type="button"
-                @click="editMode = !editMode; if (editMode) { setTimeout(() => document.getElementById('adminEditForm')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100) }"
+                @click="editMode = true"
                 class="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
             >
-                <span x-text="editMode ? 'Close Edit' : 'Edit'"></span>
+                Edit
             </button>
 
             <a href="{{ route('correspondence.download', $correspondence->id) }}" class="inline-flex items-center rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700">
@@ -51,6 +51,12 @@
         </div>
     @endif
 
+    @if($correspondence->review_note)
+        <div class="mb-4 rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">
+            <strong>Revision Note:</strong> {{ $correspondence->review_note }}
+        </div>
+    @endif
+
     @if($errors->any())
         <div class="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             <p class="font-semibold mb-1">Please fix the following:</p>
@@ -62,8 +68,8 @@
         </div>
     @endif
 
-    <div class="grid grid-cols-1 xl:grid-cols-[1fr_430px] gap-6">
-        <div class="rounded-xl border border-gray-200 bg-gray-100 p-6 overflow-auto">
+    <div class="grid grid-cols-1 xl:grid-cols-[1fr_390px] gap-6">
+        <div class="rounded-xl border border-gray-200 bg-gray-100 p-6 overflow-auto min-h-[860px]">
             <iframe
                 src="{{ route('correspondence.template', ['type' => strtolower(str_replace(' ', '-', $correspondence->type ?: 'other')), 'id' => $correspondence->id]) }}"
                 class="w-full min-h-[860px] rounded-lg border border-gray-300 bg-white"
@@ -71,133 +77,132 @@
             ></iframe>
         </div>
 
-        <div class="space-y-4">
-            <div class="rounded-xl border border-gray-200 bg-white p-6 h-fit">
-                <div class="flex items-center justify-between gap-3 mb-5">
-                    <h2 class="text-xl font-bold text-gray-900">Correspondence Details</h2>
+        <div class="rounded-xl border border-gray-200 bg-white p-6 h-fit sticky top-6">
+            <div class="flex items-center justify-between gap-3 mb-5">
+                <h2 class="text-xl font-bold text-gray-900">Correspondence Details</h2>
 
-                    <button
-                        type="button"
-                        @click="editMode = true; setTimeout(() => document.getElementById('adminEditForm')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)"
-                        class="rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100"
-                    >
-                        Edit
-                    </button>
+                <button
+                    type="button"
+                    @click="editMode = true"
+                    class="rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100"
+                >
+                    Edit
+                </button>
+            </div>
+
+            <div class="space-y-3 text-sm">
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <p class="text-xs text-gray-500">Ref</p>
+                        <p class="font-medium">{{ $correspondence->ref_no ?: 'COR-' . str_pad($correspondence->id, 5, '0', STR_PAD_LEFT) }}</p>
+                    </div>
+                    <div>
+                        <p class="text-xs text-gray-500">Approval</p>
+                        <p class="font-medium">{{ $correspondence->approval_status ?: '—' }}</p>
+                    </div>
                 </div>
 
-                <div class="space-y-3 text-sm">
-                    <div class="grid grid-cols-2 gap-3">
-                        <div>
-                            <p class="text-xs text-gray-500">Ref</p>
-                            <p class="font-medium">{{ $correspondence->ref_no ?: 'COR-' . str_pad($correspondence->id, 5, '0', STR_PAD_LEFT) }}</p>
-                        </div>
-                        <div>
-                            <p class="text-xs text-gray-500">Approval</p>
-                            <p class="font-medium">{{ $correspondence->approval_status ?: '—' }}</p>
-                        </div>
-                    </div>
-
-                    <div>
-                        <p class="text-xs text-gray-500">Subject</p>
-                        <p class="font-medium break-words">{{ $correspondence->subject ?: '—' }}</p>
-                    </div>
-
-                    <div>
-                        <p class="text-xs text-gray-500">Company</p>
-                        <p class="font-medium break-words">{{ $correspondence->company_name ?: '—' }}</p>
-                    </div>
-
-                    <div class="rounded-lg border border-gray-200 bg-gray-50 p-3">
-                        <p class="text-xs font-bold uppercase text-gray-700 mb-2">Prepared By</p>
-                        <p><strong>Name:</strong> {{ $correspondence->prepared_by_name ?: ($correspondence->from_name ?: '—') }}</p>
-                        <p><strong>Position:</strong> {{ $correspondence->prepared_by_position ?: '—' }}</p>
-                        <p><strong>Department:</strong> {{ $correspondence->prepared_by_department ?: '—' }}</p>
-                        <p><strong>Prepared On:</strong> {{ optional($correspondence->prepared_on ?: $correspondence->created_at)->format('M d, Y h:i A') ?: '—' }}</p>
-                    </div>
-
-                    <div class="rounded-lg border border-blue-100 bg-blue-50 p-3">
-                        <p class="text-xs font-bold uppercase text-blue-700 mb-2">Level 1 - From Management</p>
-                        <p><strong>Name:</strong> {{ $correspondence->management_signature_name ?: ($correspondence->management_approver_name ?: '—') }}</p>
-                        <p><strong>Position:</strong> {{ $correspondence->management_signature_position ?: ($correspondence->management_approver_position ?: '—') }}</p>
-                        <p><strong>Department:</strong> {{ $correspondence->management_signature_department ?: ($correspondence->management_approver_department ?: '—') }}</p>
-                        <p><strong>Approved On:</strong> {{ optional($correspondence->management_approved_on ?: $correspondence->management_approved_at)->format('M d, Y h:i A') ?: '—' }}</p>
-                        <p><strong>Status:</strong> {{ $correspondence->management_approval_status ?: '—' }}</p>
-                    </div>
-
-                    <div class="rounded-lg border border-indigo-100 bg-indigo-50 p-3">
-                        <p class="text-xs font-bold uppercase text-indigo-700 mb-2">Level 2 - From Executive Management</p>
-                        <p><strong>Name:</strong> {{ $correspondence->executive_signature_name ?: ($correspondence->executive_approver_name ?: '—') }}</p>
-                        <p><strong>Position:</strong> {{ $correspondence->executive_signature_position ?: ($correspondence->executive_approver_position ?: '—') }}</p>
-                        <p><strong>Department / Office:</strong> {{ $correspondence->executive_signature_department ?: ($correspondence->executive_approver_department ?: '—') }}</p>
-                        <p><strong>Approved On:</strong> {{ optional($correspondence->executive_approved_on ?: $correspondence->executive_approved_at)->format('M d, Y h:i A') ?: '—' }}</p>
-                        <p><strong>Status:</strong> {{ $correspondence->executive_approval_status ?: '—' }}</p>
-                    </div>
-
-                    @if($correspondence->review_note)
-                        <div class="rounded-lg border border-yellow-200 bg-yellow-50 p-3">
-                            <p class="text-xs font-bold uppercase text-yellow-700">Review Note</p>
-                            <p class="mt-1 text-yellow-800">{{ $correspondence->review_note }}</p>
-                        </div>
-                    @endif
+                <div>
+                    <p class="text-xs text-gray-500">Subject</p>
+                    <p class="font-medium break-words">{{ $correspondence->subject ?: '—' }}</p>
                 </div>
 
-                <div class="mt-6 space-y-3">
-                    @if(!$correspondence->is_archived)
-                        @if($correspondence->approval_status !== 'Approved')
-                            <form method="POST" action="{{ route('correspondence.approve', $correspondence->id) }}">
-                                @csrf
-                                <button type="submit" class="w-full rounded-lg bg-green-600 py-2.5 text-sm font-semibold text-white hover:bg-green-700">
-                                    Approve Current Level
-                                </button>
-                            </form>
+                <div>
+                    <p class="text-xs text-gray-500">Company</p>
+                    <p class="font-medium break-words">{{ $correspondence->company_name ?: '—' }}</p>
+                </div>
 
-                            <form method="POST" action="{{ route('correspondence.revise', $correspondence->id) }}">
-                                @csrf
-                                <textarea name="review_note" rows="2" class="mb-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" placeholder="Revision note">{{ old('review_note', $correspondence->review_note ?: 'Needs revision.') }}</textarea>
-                                <button type="submit" class="w-full rounded-lg border border-yellow-300 bg-yellow-50 py-2.5 text-sm font-semibold text-yellow-700 hover:bg-yellow-100">
-                                    Revise
-                                </button>
-                            </form>
+                <div class="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                    <p class="text-xs font-bold uppercase text-gray-700 mb-2">Prepared By</p>
+                    <p><strong>Name:</strong> {{ $correspondence->prepared_by_name ?: ($correspondence->from_name ?: '—') }}</p>
+                    <p><strong>Position:</strong> {{ $correspondence->prepared_by_position ?: '—' }}</p>
+                    <p><strong>Department:</strong> {{ $correspondence->prepared_by_department ?: '—' }}</p>
+                    <p><strong>Prepared On:</strong> {{ optional($correspondence->prepared_on ?: $correspondence->created_at)->format('M d, Y h:i A') ?: '—' }}</p>
+                </div>
 
-                            <form method="POST" action="{{ route('correspondence.reject', $correspondence->id) }}">
-                                @csrf
-                                <textarea name="review_note" rows="2" class="mb-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" placeholder="Rejection note">Rejected.</textarea>
-                                <button type="submit" class="w-full rounded-lg bg-red-600 py-2.5 text-sm font-semibold text-white hover:bg-red-700">
-                                    Reject
-                                </button>
-                            </form>
-                        @endif
+                <div class="rounded-lg border border-blue-100 bg-blue-50 p-3">
+                    <p class="text-xs font-bold uppercase text-blue-700 mb-2">Level 1 - From Management</p>
+                    <p><strong>Name:</strong> {{ $correspondence->management_signature_name ?: ($correspondence->management_approver_name ?: '—') }}</p>
+                    <p><strong>Position:</strong> {{ $correspondence->management_signature_position ?: ($correspondence->management_approver_position ?: '—') }}</p>
+                    <p><strong>Department:</strong> {{ $correspondence->management_signature_department ?: ($correspondence->management_approver_department ?: '—') }}</p>
+                    <p><strong>Approved On:</strong> {{ optional($correspondence->management_approved_on ?: $correspondence->management_approved_at)->format('M d, Y h:i A') ?: '—' }}</p>
+                    <p><strong>Status:</strong> {{ $correspondence->management_approval_status ?: '—' }}</p>
+                </div>
 
-                        <form method="POST" action="{{ route('correspondence.archive', $correspondence->id) }}">
-                            @csrf
-                            <button type="submit" class="w-full rounded-lg border border-gray-300 bg-white py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50">
-                                Archive
-                            </button>
-                        </form>
-                    @endif
+                <div class="rounded-lg border border-indigo-100 bg-indigo-50 p-3">
+                    <p class="text-xs font-bold uppercase text-indigo-700 mb-2">Level 2 - From Executive Management</p>
+                    <p><strong>Name:</strong> {{ $correspondence->executive_signature_name ?: ($correspondence->executive_approver_name ?: '—') }}</p>
+                    <p><strong>Position:</strong> {{ $correspondence->executive_signature_position ?: ($correspondence->executive_approver_position ?: '—') }}</p>
+                    <p><strong>Department / Office:</strong> {{ $correspondence->executive_signature_department ?: ($correspondence->executive_approver_department ?: '—') }}</p>
+                    <p><strong>Approved On:</strong> {{ optional($correspondence->executive_approved_on ?: $correspondence->executive_approved_at)->format('M d, Y h:i A') ?: '—' }}</p>
+                    <p><strong>Status:</strong> {{ $correspondence->executive_approval_status ?: '—' }}</p>
                 </div>
             </div>
 
+            <div class="mt-6 space-y-3">
+                @if(!$correspondence->is_archived)
+                    @if($correspondence->approval_status !== 'Approved')
+                        <form method="POST" action="{{ route('correspondence.approve', $correspondence->id) }}">
+                            @csrf
+                            <button type="submit" class="w-full rounded-lg bg-green-600 py-2.5 text-sm font-semibold text-white hover:bg-green-700">
+                                Approve Current Level
+                            </button>
+                        </form>
+
+                        <form method="POST" action="{{ route('correspondence.revise', $correspondence->id) }}">
+                            @csrf
+                            <textarea name="review_note" rows="2" class="mb-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" placeholder="Revision note">{{ old('review_note', $correspondence->review_note ?: 'Needs revision.') }}</textarea>
+                            <button type="submit" class="w-full rounded-lg border border-yellow-300 bg-yellow-50 py-2.5 text-sm font-semibold text-yellow-700 hover:bg-yellow-100">
+                                Revise
+                            </button>
+                        </form>
+
+                        <form method="POST" action="{{ route('correspondence.reject', $correspondence->id) }}">
+                            @csrf
+                            <textarea name="review_note" rows="2" class="mb-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" placeholder="Rejection note">Rejected.</textarea>
+                            <button type="submit" class="w-full rounded-lg bg-red-600 py-2.5 text-sm font-semibold text-white hover:bg-red-700">
+                                Reject
+                            </button>
+                        </form>
+                    @endif
+
+                    <form method="POST" action="{{ route('correspondence.archive', $correspondence->id) }}">
+                        @csrf
+                        <button type="submit" class="w-full rounded-lg border border-gray-300 bg-white py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50">
+                            Archive
+                        </button>
+                    </form>
+                @endif
+            </div>
+        </div>
+    </div>
+
+    <div x-show="editMode" x-cloak class="fixed inset-0 z-50 overflow-hidden">
+        <div class="absolute inset-0 bg-black/40" @click="editMode = false"></div>
+
+        <div class="absolute inset-0 flex justify-end">
             <div
-                id="adminEditForm"
                 x-show="editMode"
-                x-cloak
-                class="rounded-xl border border-blue-200 bg-white p-6"
+                x-transition:enter="transform transition ease-in-out duration-300"
+                x-transition:enter-start="translate-x-full"
+                x-transition:enter-end="translate-x-0"
+                x-transition:leave="transform transition ease-in-out duration-300"
+                x-transition:leave-start="translate-x-0"
+                x-transition:leave-end="translate-x-full"
+                class="w-full max-w-[520px] h-full bg-white shadow-2xl flex flex-col"
             >
-                <div class="mb-5 flex items-start justify-between gap-3">
+                <div class="px-6 py-5 border-b border-gray-200 flex items-start justify-between gap-4">
                     <div>
-                        <h3 class="text-lg font-bold text-gray-900">Edit Correspondence</h3>
-                        <p class="mt-1 text-sm text-gray-500">
-                            Like Town Hall, editing is separate from revise. Saving will return this record to Level 1 approval.
-                        </p>
+                        <h2 class="text-xl font-bold text-gray-900">Edit Correspondence</h2>
+                        <p class="text-sm text-gray-500 mt-1">Resubmit for approval after updating the correspondence.</p>
                     </div>
 
-                    <button type="button" @click="editMode = false" class="text-sm font-medium text-gray-500 hover:text-gray-700">
-                        Close
+                    <button type="button" @click="editMode = false" class="text-gray-400 hover:text-gray-700 text-lg">
+                        <i class="fas fa-times"></i>
                     </button>
                 </div>
 
-                <form method="POST" action="{{ route('admin.correspondence.revise-update', $correspondence->id) }}" class="space-y-4">
+                <form method="POST" action="{{ route('admin.correspondence.revise-update', $correspondence->id) }}" class="flex-1 overflow-y-auto px-6 py-5 space-y-4">
                     @csrf
                     @method('PUT')
 
@@ -353,7 +358,7 @@
                         <textarea name="review_note" rows="2" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">{{ old('review_note', $correspondence->review_note) }}</textarea>
                     </div>
 
-                    <div class="flex gap-3">
+                    <div class="sticky bottom-0 -mx-6 -mb-5 mt-6 border-t border-gray-200 bg-white px-6 py-4 flex gap-3">
                         <button type="button" @click="editMode = false" class="flex-1 rounded-lg border border-gray-300 bg-white py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50">
                             Cancel
                         </button>
