@@ -657,9 +657,8 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::delete('/company/{company}/operations/{record}', [CompanyOperationsController::class, 'destroy'])->name('company.operations.destroy');
 
     Route::get('/company/{company}/correspondence', [CompanyCorrespondenceController::class, 'index'])->name('company.correspondence');
+    Route::get('/company/{company}/correspondence/data', [CompanyCorrespondenceController::class, 'data'])->name('company.correspondence.data');
     Route::post('/company/{company}/correspondence', [CompanyCorrespondenceController::class, 'store'])->name('company.correspondence.store');
-    Route::match(['put', 'patch'], '/company/{company}/correspondence/{record}', [CompanyCorrespondenceController::class, 'update'])->name('company.correspondence.update');
-    Route::delete('/company/{company}/correspondence/{record}', [CompanyCorrespondenceController::class, 'destroy'])->name('company.correspondence.destroy');
 
     Route::get('/company/{company}/bir-tax', [CompanyBirTaxController::class, 'index'])->name('company.bir-tax');
     Route::post('/company/{company}/bir-tax', [CompanyBirTaxController::class, 'store'])->name('company.bir-tax.store');
@@ -756,6 +755,12 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::get('/corporate', [GisController::class, 'companyInfo'])->name('corporate');
 
     Route::get('/corporate/company-general-information', [GisController::class, 'companyInfo'])->name('corporate.companyinfo');
+
+    Route::prefix('/corporate/locations')->name('corporate.locations.')->group(function () {
+        Route::get('/provinces-or-districts', [PhilippineLocationController::class, 'allProvincesOrDistricts'])->name('provinces-or-districts');
+        Route::get('/cities-municipalities/{type}/{code}', [PhilippineLocationController::class, 'citiesMunicipalities'])->name('cities-municipalities');
+        Route::get('/barangays/{cityCode}', [PhilippineLocationController::class, 'barangays'])->name('barangays');
+    });
 
     Route::get('/corporate/gis', [GisController::class, 'index'])->name('corporate.gis');
     Route::post('/corporate/gis/store', [GisController::class, 'store'])->name('gis.store');
@@ -1002,6 +1007,12 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     Route::get('/permits/template/obo-permit/{id}', [PermitController::class, 'showOboPermitTemplate'])->name('permits.template.obo-permit');
 
     Route::get('/corporate/lgu', [PermitController::class, 'page'])->name('corporate.lgu');
+    Route::get('/corporate/lgu/records', [PermitController::class, 'index'])->name('corporate.lgu.records.index');
+    Route::post('/corporate/lgu/records', [PermitController::class, 'store'])->name('corporate.lgu.records.store');
+    Route::get('/corporate/lgu/records/{id}', [PermitController::class, 'show'])->name('corporate.lgu.records.show');
+    Route::put('/corporate/lgu/records/{id}/update', [PermitController::class, 'update'])->name('corporate.lgu.records.update');
+    Route::post('/corporate/lgu/records/{id}/upload-document', [PermitController::class, 'uploadDocument'])->name('corporate.lgu.records.upload.document');
+    Route::post('/corporate/lgu/records/{id}/submit', [PermitController::class, 'submit'])->name('corporate.lgu.records.submit');
     Route::get('/permits', [PermitController::class, 'index'])->name('permits.index');
     Route::post('/permits', [PermitController::class, 'store'])->name('permits.store');
     Route::get('/permits/{id}', [PermitController::class, 'show'])->name('permits.show');
@@ -1246,15 +1257,33 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
         Route::middleware($adminOrSuperAdmin)->group(function () {
             Route::get('/payroll', [PayrollController::class, 'index'])->name('payroll');
             Route::post('/payroll/salary-grades', [PayrollController::class, 'storeSalaryGrade'])->name('payroll.salary-grades.store');
+            Route::put('/payroll/salary-grades/{salaryGrade}', [PayrollController::class, 'updateSalaryGrade'])->name('payroll.salary-grades.update');
+            Route::delete('/payroll/salary-grades/{salaryGrade}', [PayrollController::class, 'destroySalaryGrade'])->name('payroll.salary-grades.destroy');
             Route::post('/payroll/levels', [PayrollController::class, 'storePayrollLevel'])->name('payroll.levels.store');
+            Route::put('/payroll/levels/{level}', [PayrollController::class, 'updatePayrollLevel'])->name('payroll.levels.update');
+            Route::delete('/payroll/levels/{level}', [PayrollController::class, 'destroyPayrollLevel'])->name('payroll.levels.destroy');
             Route::post('/payroll/benefits', [PayrollController::class, 'storeBenefit'])->name('payroll.benefits.store');
+            Route::put('/payroll/benefits/{benefit}', [PayrollController::class, 'updateBenefit'])->name('payroll.benefits.update');
+            Route::delete('/payroll/benefits/{benefit}', [PayrollController::class, 'destroyBenefit'])->name('payroll.benefits.destroy');
             Route::post('/payroll/allowances', [PayrollController::class, 'storeAllowance'])->name('payroll.allowances.store');
+            Route::put('/payroll/allowances/{allowance}', [PayrollController::class, 'updateAllowance'])->name('payroll.allowances.update');
+            Route::delete('/payroll/allowances/{allowance}', [PayrollController::class, 'destroyAllowance'])->name('payroll.allowances.destroy');
             Route::post('/payroll/deductions', [PayrollController::class, 'storeDeduction'])->name('payroll.deductions.store');
+            Route::put('/payroll/deductions/{deduction}', [PayrollController::class, 'updateDeduction'])->name('payroll.deductions.update');
+            Route::delete('/payroll/deductions/{deduction}', [PayrollController::class, 'destroyDeduction'])->name('payroll.deductions.destroy');
             Route::post('/payroll/holidays', [PayrollController::class, 'storeHoliday'])->name('payroll.holidays.store');
+            Route::put('/payroll/holidays/{holiday}', [PayrollController::class, 'updateHoliday'])->name('payroll.holidays.update');
+            Route::delete('/payroll/holidays/{holiday}', [PayrollController::class, 'destroyHoliday'])->name('payroll.holidays.destroy');
             Route::post('/payroll/periods', [PayrollController::class, 'storePayrollPeriod'])->name('payroll.periods.store');
+            Route::put('/payroll/periods/{period}', [PayrollController::class, 'updatePayrollPeriod'])->name('payroll.periods.update');
+            Route::delete('/payroll/periods/{period}', [PayrollController::class, 'destroyPayrollPeriod'])->name('payroll.periods.destroy');
             Route::post('/payroll/profiles', [PayrollController::class, 'storeEmployeeProfile'])->name('payroll.profiles.store');
+            Route::put('/payroll/profiles/{profile}', [PayrollController::class, 'updateEmployeeProfile'])->name('payroll.profiles.update');
+            Route::delete('/payroll/profiles/{profile}', [PayrollController::class, 'destroyEmployeeProfile'])->name('payroll.profiles.destroy');
             Route::post('/payroll/generate-summary', [PayrollController::class, 'generateSummary'])->name('payroll.generate-summary');
             Route::get('/payroll/payslip/{summary}', [PayrollController::class, 'showPayslip'])->name('payroll.payslip.show');
+            Route::put('/payroll/summaries/{summary}', [PayrollController::class, 'updateSummary'])->name('payroll.summaries.update');
+            Route::delete('/payroll/summaries/{summary}', [PayrollController::class, 'destroySummary'])->name('payroll.summaries.destroy');
         });
 
         /*

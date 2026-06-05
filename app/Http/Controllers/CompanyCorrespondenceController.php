@@ -3,130 +3,146 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\ResolvesCompanyRecords;
-use Illuminate\Http\RedirectResponse;
+use App\Models\Correspondence;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
 
-class CompanyCorrespondenceController extends Controller
+class CompanyCorrespondenceController extends CorrespondenceController
 {
     use ResolvesCompanyRecords;
 
-    private const STATUSES = ['Open', 'Completed', 'Overdue'];
-
-    public function index(Request $request, int $company): View
+    public function index(?Request $request = null, ?int $company = null): View
     {
+        $request ??= request();
+        abort_unless($company, 404);
         $companyData = $this->findCompany($request, $company);
-        $records = collect($request->session()->get($this->sessionKey(), $this->defaultRecords()))
-            ->where('company_id', $company)
-            ->values();
+        $latestGisRecord = $this->latestApprovedGisRecord($company);
+        $gisCompanyInfo = $this->latestGisCompanyInfo($latestGisRecord);
+        $companyInfo = [
+            'company_name' => $latestGisRecord ? $gisCompanyInfo['company_name'] : ($companyData['company_name'] ?? ''),
+            'registration_number' => $latestGisRecord ? $gisCompanyInfo['registration_number'] : $this->companyRegistrationNumber($companyData),
+            'principal_address' => $latestGisRecord ? $gisCompanyInfo['principal_address'] : ($companyData['address'] ?? ''),
+        ];
 
-        return view('company.correspondence', [
+        return view('corporate.correspondence', [
             'company' => (object) $companyData,
-            'companyTin' => $this->companyTin($companyData),
-            'currentUserName' => $this->currentUserName($request),
-            'records' => $records,
-            'stats' => [
-                'total' => $records->count(),
-                'open' => $records->where('status', 'Open')->count(),
-                'completed' => $records->where('status', 'Completed')->count(),
-                'overdue' => $records->where('status', 'Overdue')->count(),
-            ],
+            'isCompanyScopedCorrespondence' => true,
+            'latestGisRecord' => $latestGisRecord,
+            'companyInfo' => $companyInfo,
+            'correspondenceLogoUrl' => $this->gisLogoUrl($latestGisRecord),
+            'managementApprovers' => $this->activeEmployeeApprovers(),
+            'executiveApprovers' => $this->executiveApproversFromGis($company),
+            'correspondenceDataUrl' => route('company.correspondence.data', $company),
+            'correspondenceStoreUrl' => route('company.correspondence.store', $company),
+            'correspondenceSubmitUrlTemplate' => url('/correspondence/__ID__/submit'),
+            'correspondenceTemplateUrlTemplate' => route('correspondence.template', ['type' => '__TYPE__', 'id' => '__ID__']),
+            'correspondenceDownloadUrlTemplate' => route('correspondence.download', '__ID__'),
+            'correspondenceTitle' => 'Correspondence',
+            'correspondenceSubtitle' => 'View approved official correspondence for ' . ($companyData['company_name'] ?? 'this company') . '.',
+            'correspondenceEyebrow' => 'Company Corporate Records',
+            'emptyCorrespondenceText' => 'Only approved correspondence for this company will appear here.',
         ]);
     }
 
-    public function store(Request $request, int $company): RedirectResponse
+    public function data(Request $request, ?int $company = null)
     {
+        abort_unless($company, 404);
         $companyData = $this->findCompany($request, $company);
-        $validated = $this->validateRecord($request);
-        $records = collect($request->session()->get($this->sessionKey(), $this->defaultRecords()));
-        $nextId = (int) ($records->max('id') ?? 0) + 1;
+        $query = $this->approvedCorrespondenceQuery()
+            ->where(function ($q) use ($company, $companyData) {
+                if (Schema::hasColumn('correspondences', 'company_id')) {
+                    $q->where('company_id', $company);
+                }
 
-        $records->push([
-            'id' => $nextId,
-            'company_id' => $company,
-            'date_uploaded' => $validated['date_uploaded'],
-            'uploaded_by' => $this->currentUserName($request),
-            'client' => $companyData['company_name'],
-            'tin' => $validated['tin'] ?: $this->companyTin($companyData),
-            'correspondence_type' => $validated['correspondence_type'],
-            'document_title' => $validated['document_title'],
-            'status' => $validated['status'],
-        ]);
+                $companyName = trim((string) ($companyData['company_name'] ?? ''));
+                if ($companyName !== '') {
+                    $q->orWhere('company_name', $companyName);
+                }
+            });
 
-        $request->session()->put($this->sessionKey(), $records->values()->all());
+        if ($request->filled('type') && $request->type !== 'All') {
+            $query->where('type', $request->type);
+        }
 
-        return redirect()
-            ->route('company.correspondence', $company)
-            ->with('correspondence_success', 'Correspondence entry added successfully.');
+        return $query->latest()
+            ->get()
+            ->map(fn (Correspondence $item) => $this->correspondenceTableRow($item))
+            ->values();
     }
 
-    public function update(Request $request, int $company, int $record): RedirectResponse
+    public function store(Request $request, ?int $company = null)
     {
+        abort_unless($company, 404);
         $companyData = $this->findCompany($request, $company);
-        $validated = $this->validateRecord($request);
-        $records = collect($request->session()->get($this->sessionKey(), $this->defaultRecords()));
-        $existing = $records->firstWhere('id', $record);
-
-        abort_unless($existing && (int) $existing['company_id'] === $company, 404);
-
-        $updated = $records->map(function (array $item) use ($record, $company, $companyData, $validated) {
-            if ((int) $item['id'] !== $record) {
-                return $item;
-            }
-
-            return [
-                ...$item,
-                'company_id' => $company,
-                'date_uploaded' => $validated['date_uploaded'],
-                'uploaded_by' => $this->currentUserName($request),
-                'client' => $companyData['company_name'],
-                'tin' => $validated['tin'] ?: $this->companyTin($companyData),
-                'correspondence_type' => $validated['correspondence_type'],
-                'document_title' => $validated['document_title'],
-                'status' => $validated['status'],
-            ];
-        });
-
-        $request->session()->put($this->sessionKey(), $updated->values()->all());
-
-        return redirect()
-            ->route('company.correspondence', $company)
-            ->with('correspondence_success', 'Correspondence entry updated successfully.');
-    }
-
-    public function destroy(Request $request, int $company, int $record): RedirectResponse
-    {
-        $this->findCompany($request, $company);
-        $records = collect($request->session()->get($this->sessionKey(), $this->defaultRecords()));
-        $existing = $records->firstWhere('id', $record);
-
-        abort_unless($existing && (int) $existing['company_id'] === $company, 404);
-
-        $request->session()->put(
-            $this->sessionKey(),
-            $records->reject(fn (array $item) => (int) $item['id'] === $record)->values()->all()
-        );
-
-        return redirect()
-            ->route('company.correspondence', $company)
-            ->with('correspondence_success', 'Correspondence entry removed successfully.');
-    }
-
-    private function validateRecord(Request $request): array
-    {
-        return $request->validate([
-            'date_uploaded' => ['required', 'date'],
-            'uploaded_by' => ['nullable', 'string', 'max:255'],
-            'tin' => ['nullable', 'string', 'max:255'],
-            'correspondence_type' => ['required', 'string', 'max:255'],
-            'document_title' => ['required', 'string', 'max:255'],
-            'status' => ['required', 'string', 'in:' . implode(',', self::STATUSES)],
+        $validated = $request->validate([
+            'type' => ['required', 'string', 'max:100'],
+            'correspondence_date' => ['nullable', 'date'],
+            'tin' => ['nullable', 'string', 'max:100'],
+            'to_for_label' => ['nullable', 'string', 'max:10', 'in:To,For'],
+            'to_for' => ['nullable', 'string', 'max:255'],
+            'from_name' => ['nullable', 'string', 'max:255'],
+            'department_stakeholder' => ['nullable', 'string', 'max:255'],
+            'subject' => ['required', 'string', 'max:255'],
+            'body' => ['nullable', 'string'],
+            'cc' => ['nullable', 'string', 'max:255'],
+            'additional' => ['nullable', 'string', 'max:255'],
+            'deadline' => ['nullable', 'date'],
+            'sent_via' => ['nullable', 'string', 'max:100'],
+            'management_approver_id' => ['required', 'integer'],
+            'executive_approver_id' => ['required', 'integer'],
+            'attachment' => ['nullable', 'file', 'mimes:jpg,jpeg,png,gif,webp,pdf,doc,docx', 'max:5120'],
         ]);
-    }
 
-    private function sessionKey(): string
-    {
-        return 'company_correspondence_records_v2';
+        $latestGisRecord = $this->latestApprovedGisRecord($company);
+        $gisCompanyInfo = $this->latestGisCompanyInfo($latestGisRecord);
+        $companyInfo = [
+            'company_name' => $latestGisRecord ? $gisCompanyInfo['company_name'] : ($companyData['company_name'] ?? ''),
+            'registration_number' => $latestGisRecord ? $gisCompanyInfo['registration_number'] : $this->companyRegistrationNumber($companyData),
+            'principal_address' => $latestGisRecord ? $gisCompanyInfo['principal_address'] : ($companyData['address'] ?? ''),
+        ];
+
+        if ($request->hasFile('attachment')) {
+            $validated['attachment'] = $request->file('attachment')->store('correspondence_attachments', 'public');
+        }
+
+        $record = Correspondence::create(array_merge($validated, [
+            'ref_no' => null,
+            'company_id' => Schema::hasColumn('correspondences', 'company_id') ? $company : null,
+            'correspondence_date' => $validated['correspondence_date'] ?? now()->format('Y-m-d'),
+            'company_name' => $companyInfo['company_name'],
+            'registration_number' => $companyInfo['registration_number'],
+            'principal_address' => $companyInfo['principal_address'],
+            'from_name' => $validated['from_name'] ?: (Auth::user()->name ?? 'System Admin'),
+            'body' => $validated['body'] ?? null,
+            'sent_via' => $validated['sent_via'] ?? 'Email',
+            'status' => 'Open',
+            'workflow_status' => 'Submitted',
+            'approval_status' => 'Pending',
+            'is_archived' => false,
+            'archived_at' => null,
+            'submitted_at' => now(),
+            'management_approval_status' => 'Pending',
+            'executive_approval_status' => 'Waiting for Level 1',
+            'created_by' => Auth::id(),
+        ], $this->buildApprovalData(
+            $request->input('management_approver_id'),
+            $request->input('executive_approver_id'),
+            $company
+        )));
+
+        $record->update([
+            'ref_no' => 'COR-' . str_pad((string) $record->id, 5, '0', STR_PAD_LEFT),
+        ]);
+
+        $record = $this->syncApproverEmailsFromDatabase($record);
+        $this->sendCorrespondenceLevelApprovalEmail($record, 1);
+
+        return response()->json([
+            'message' => 'Company correspondence submitted successfully.',
+            'record' => $record->fresh(),
+        ]);
     }
 
     private function findCompany(Request $request, int $company): array
@@ -143,27 +159,8 @@ class CompanyCorrespondenceController extends Controller
         ];
     }
 
-    private function defaultRecords(): array
+    private function companyRegistrationNumber(array $companyData): string
     {
-        return [];
-    }
-
-    private function currentUserName(Request $request): string
-    {
-        $user = $request->user();
-
-        return trim((string) (
-            $user?->name
-            ?? $user?->full_name
-            ?? $user?->employee_name
-            ?? $user?->username
-            ?? $user?->email
-            ?? 'System User'
-        ));
-    }
-
-    private function companyTin(array $companyData): string
-    {
-        return trim((string) ($companyData['tin_no'] ?? $companyData['tin'] ?? $companyData['tin_number'] ?? $companyData['company_tin'] ?? $companyData['tax_identification_number'] ?? ''));
+        return trim((string) ($companyData['registration_number'] ?? $companyData['company_reg_no'] ?? $companyData['sec_registration_number'] ?? ''));
     }
 }

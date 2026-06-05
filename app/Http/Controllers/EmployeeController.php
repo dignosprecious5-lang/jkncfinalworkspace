@@ -9,6 +9,7 @@ use App\Models\Employee;
 use App\Models\EmployeeVerificationLog;
 use App\Models\Office;
 use App\Models\Unit;
+use App\Support\HumanCapitalLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -387,7 +388,9 @@ class EmployeeController extends Controller
 
         unset($validated['captured_photo'], $validated['employment_status_other'], $validated['salary_grade_other'], $validated['benefits_other'], $validated['attachments'], $validated['attachment_category'], $validated['attachment_title'], $validated['attachment_remarks'], $validated['status_attachment']);
 
+        $oldLogValues = $this->employeeLogSnapshot($employee);
         $employee->update($validated);
+        $this->logEmployeeProfileUpdate($request, $employee->fresh(), $oldLogValues);
 
         return redirect()->back()->with('success', 'Employee updated successfully.');
     }
@@ -621,6 +624,69 @@ class EmployeeController extends Controller
         }
 
         return $history;
+    }
+
+    private function employeeLogSnapshot(Employee $employee): array
+    {
+        return $employee->only([
+            'employee_code',
+            'first_name',
+            'middle_name',
+            'last_name',
+            'position',
+            'department_id',
+            'division_id',
+            'unit_id',
+            'employment_status',
+            'employment_type',
+            'work_arrangement',
+            'basic_salary',
+            'payroll_type',
+            'payroll_frequency',
+            'salary_grade',
+            'schedule_start_time',
+            'schedule_end_time',
+            'work_email',
+            'company_email',
+            'phone_number',
+            'tin_number',
+            'sss_number',
+            'philhealth_number',
+            'pagibig_number',
+            'benefits_checklist',
+            'employee_attachments',
+            'other_government_information',
+            'profile_photo',
+        ]);
+    }
+
+    private function logEmployeeProfileUpdate(Request $request, Employee $employee, array $oldValues): void
+    {
+        $newValues = $this->employeeLogSnapshot($employee);
+        $changedOld = [];
+        $changedNew = [];
+
+        foreach ($newValues as $field => $value) {
+            if (json_encode($oldValues[$field] ?? null) !== json_encode($value)) {
+                $changedOld[$field] = $oldValues[$field] ?? null;
+                $changedNew[$field] = $value;
+            }
+        }
+
+        if (empty($changedNew)) {
+            return;
+        }
+
+        HumanCapitalLogger::log($request, [
+            'module' => 'Employee Profile',
+            'action' => 'updated',
+            'subject_type' => Employee::class,
+            'subject_id' => $employee->id,
+            'subject_name' => trim($employee->full_name ?: $employee->employee_code),
+            'description' => 'Employee profile updated.',
+            'old_values' => $changedOld,
+            'new_values' => $changedNew,
+        ]);
     }
 
     private function publicEmployeeResult(Employee $employee, string $reference): array

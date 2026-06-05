@@ -9,6 +9,7 @@ class Minute extends Model
 {
     protected $fillable = [
         'company_id',
+        'gis_record_id',
         'minutes_ref',
         'date_uploaded',
         'uploaded_by',
@@ -28,13 +29,10 @@ class Minute extends Model
         'meeting_no',
         'chairman',
         'secretary',
-
-        // Attendees / attendance section
         'directors_present',
         'directors_absent',
         'secretariat',
         'guests',
-
         'document_path',
         'approved_minutes_path',
         'tentative_audio_path',
@@ -49,6 +47,11 @@ class Minute extends Model
         'date_of_meeting' => 'date',
         'recording_clips' => 'array',
     ];
+
+    public function gisRecord()
+    {
+        return $this->belongsTo(GisRecord::class, 'gis_record_id');
+    }
 
     public function notice()
     {

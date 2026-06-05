@@ -9,6 +9,7 @@ class SecretaryCertificate extends Model
 {
     protected $fillable = [
         'company_id',
+        'gis_record_id',
         'certificate_no',
         'date_uploaded',
         'uploaded_by',
@@ -43,6 +44,11 @@ class SecretaryCertificate extends Model
         'date_issued' => 'date',
         'date_of_meeting' => 'date',
     ];
+
+    public function gisRecord()
+    {
+        return $this->belongsTo(GisRecord::class, 'gis_record_id');
+    }
 
     public function notice()
     {

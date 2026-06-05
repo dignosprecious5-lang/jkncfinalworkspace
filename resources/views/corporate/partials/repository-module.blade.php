@@ -175,7 +175,12 @@
         rows: [],
         workflow: ['uploaded', 'submitted', 'accepted', 'reverted', 'archived'].includes(autoOpenTab) ? autoOpenTab : 'uploaded',
         editingId: null,
-        autoOpened: false
+        autoOpened: false,
+        locations: {
+            provinces: [],
+            cities: [],
+            barangays: []
+        }
     };
     const qs = (selector) => root.querySelector(selector);
     const qsa = (selector) => Array.from(root.querySelectorAll(selector));
@@ -365,7 +370,21 @@
                 return `<div><label class="block text-xs font-semibold text-gray-500 mb-1">${escapeHtml(field.label)}</label><textarea name="${field.key}" ${required} class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm min-h-[88px]">${escapeHtml(value)}</textarea></div>`;
             }
 
-            if (field.type === 'select' || field.type === 'location') {
+            if (field.type === 'location') {
+                const optionValues = [...new Set([value, ...options].filter(Boolean))];
+
+                return `
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-500 mb-1">${escapeHtml(field.label)}</label>
+                        <select name="${field.key}" data-field="${field.key}" id="${datalistId}" ${required} class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white" autocomplete="off">
+                            <option value="">Select ${escapeHtml(field.label)}</option>
+                            ${optionValues.map((option) => `<option value="${escapeHtml(option)}" ${String(option) === String(value) ? 'selected' : ''}>${escapeHtml(option)}</option>`).join('')}
+                        </select>
+                    </div>
+                `;
+            }
+
+            if (field.type === 'select') {
                 return `
                     <div>
                         <label class="block text-xs font-semibold text-gray-500 mb-1">${escapeHtml(field.label)}</label>
@@ -387,15 +406,113 @@
         const provinceInput = qs('[name="province"]');
         const cityInput = qs('[name="city_municipality"]');
         const barangayInput = qs('[name="barangay"]');
-        const cityList = document.getElementById(`${config.moduleId}-city_municipality-list`);
-        const barangayList = document.getElementById(`${config.moduleId}-barangay-list`);
         if (!provinceInput || !cityInput || !barangayInput) return;
 
         const cities = Object.keys(config.locationData[provinceInput.value] || {});
-        cityList.innerHTML = cities.map((city) => `<option value="${escapeHtml(city)}"></option>`).join('');
+        setDatalistOptions(`${config.moduleId}-city_municipality-list`, cities);
 
         const barangays = (config.locationData[provinceInput.value] || {})[cityInput.value] || [];
-        barangayList.innerHTML = barangays.map((barangay) => `<option value="${escapeHtml(barangay)}"></option>`).join('');
+        setDatalistOptions(`${config.moduleId}-barangay-list`, barangays);
+    };
+
+    const setDatalistOptions = (listId, items) => {
+        const list = document.getElementById(listId);
+        if (!list) return;
+
+        const currentValue = list.value || '';
+        const names = (items || [])
+            .map((item) => typeof item === 'string' ? item : item.name)
+            .filter(Boolean);
+
+        if (list.tagName === 'SELECT') {
+            const label = list.closest('div')?.querySelector('label')?.textContent?.trim() || 'Option';
+            const options = [...new Set([currentValue, ...names].filter(Boolean))];
+            list.innerHTML = `
+                <option value="">Select ${escapeHtml(label)}</option>
+                ${options.map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join('')}
+            `;
+            list.value = options.includes(currentValue) ? currentValue : '';
+            return;
+        }
+
+        list.innerHTML = names.map((name) => `<option value="${escapeHtml(name)}"></option>`).join('');
+    };
+
+    const selectedLocationItem = (items, value) => {
+        const needle = String(value || '').trim().toLowerCase();
+        if (!needle) return null;
+
+        return (items || []).find((item) => String(item.name || '').trim().toLowerCase() === needle) || null;
+    };
+
+    const fetchLocationJson = async (url) => {
+        if (!url) return [];
+
+        try {
+            const response = await fetch(url, { headers: { Accept: 'application/json' } });
+            if (!response.ok) return [];
+
+            const payload = await response.json();
+            return Array.isArray(payload) ? payload : [];
+        } catch (error) {
+            console.warn('Location lookup failed.', error);
+            return [];
+        }
+    };
+
+    const loadProvinceOptions = async () => {
+        if (!config.locationEndpoints?.provinces || state.locations.provinces.length) return;
+
+        state.locations.provinces = await fetchLocationJson(config.locationEndpoints.provinces);
+        config.options = config.options || {};
+        config.options.provinces = state.locations.provinces.map((item) => item.name).filter(Boolean);
+        setDatalistOptions(`${config.moduleId}-province-list`, state.locations.provinces);
+    };
+
+    const updateRemoteLocationLists = async (changedField = '') => {
+        if (!config.locationEndpoints) {
+            updateLocationLists();
+            return;
+        }
+
+        const provinceInput = qs('[name="province"]');
+        const cityInput = qs('[name="city_municipality"]');
+        const barangayInput = qs('[name="barangay"]');
+        if (!provinceInput || !cityInput || !barangayInput) return;
+
+        await loadProvinceOptions();
+
+        const province = selectedLocationItem(state.locations.provinces, provinceInput.value);
+        if (changedField === 'province') {
+            cityInput.value = '';
+            barangayInput.value = '';
+            state.locations.cities = [];
+            state.locations.barangays = [];
+            setDatalistOptions(`${config.moduleId}-city_municipality-list`, []);
+            setDatalistOptions(`${config.moduleId}-barangay-list`, []);
+        }
+
+        if (province?.code && province?.type) {
+            const cityUrl = config.locationEndpoints.cities
+                .replace('__TYPE__', encodeURIComponent(province.type))
+                .replace('__CODE__', encodeURIComponent(province.code));
+            state.locations.cities = await fetchLocationJson(cityUrl);
+            setDatalistOptions(`${config.moduleId}-city_municipality-list`, state.locations.cities);
+        }
+
+        const city = selectedLocationItem(state.locations.cities, cityInput.value);
+        if (changedField === 'city_municipality') {
+            barangayInput.value = '';
+            state.locations.barangays = [];
+            setDatalistOptions(`${config.moduleId}-barangay-list`, []);
+        }
+
+        if (city?.code) {
+            const barangayUrl = config.locationEndpoints.barangays
+                .replace('__CITY__', encodeURIComponent(city.code));
+            state.locations.barangays = await fetchLocationJson(barangayUrl);
+            setDatalistOptions(`${config.moduleId}-barangay-list`, state.locations.barangays);
+        }
     };
 
     const resetLivePreview = () => {
@@ -417,6 +534,7 @@
         qs('[data-audit-updated-by]').textContent = row?.last_updated_by || 'System generated';
         qs('[data-audit-updated-date]').textContent = row?.last_updated_date || 'System generated';
         renderFields(row || {});
+        updateRemoteLocationLists();
         resetLivePreview();
         qs('[data-error-box]').classList.add('hidden');
         qs('[data-success-box]').classList.add('hidden');
@@ -499,7 +617,7 @@
     });
 
     root.addEventListener('input', (event) => {
-        if (event.target.matches('[name="province"], [name="city_municipality"]')) updateLocationLists();
+        if (event.target.matches('[name="province"], [name="city_municipality"]')) updateRemoteLocationLists(event.target.name);
 
         const otherInput = qs(`[data-other-for="${event.target.name}"]`);
         if (otherInput) {
@@ -508,6 +626,10 @@
     });
 
     root.addEventListener('change', (event) => {
+        if (event.target.matches('[name="province"], [name="city_municipality"]')) {
+            updateRemoteLocationLists(event.target.name);
+        }
+
         if (!event.target.matches('input[type="file"]')) return;
         const file = event.target.files?.[0];
         if (!file) {

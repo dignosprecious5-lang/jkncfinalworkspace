@@ -29,6 +29,12 @@ trait HandlesCorporateRepositoryRecords
         }
 
         return GisRecord::query()
+            ->when(Schema::hasColumn('gis_records', 'company_id'), function ($query) {
+                $query->where(function ($nested) {
+                    $nested->whereNull('company_id')
+                        ->orWhere('company_id', 0);
+                });
+            })
             ->when(
                 Schema::hasColumn('gis_records', 'approval_status') || Schema::hasColumn('gis_records', 'workflow_status'),
                 function ($query) {

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Award;
 use App\Models\EmployeeRequest;
 use App\Models\EmployeeRelation;
+use App\Models\HumanCapitalLog;
 use App\Models\OfficialBusinessTrip;
 use App\Models\TrainingAssignment;
 use Illuminate\Http\Request;
@@ -18,6 +19,7 @@ class AdminHumanCapitalDashboardController extends Controller
     public function index(Request $request)
     {
         $this->authorizeHumanCapitalAdmin();
+        $activeView = (string) $request->query('view', 'approvals');
 
         $items = collect()
             ->merge($this->employeeRequestItems())
@@ -35,6 +37,33 @@ class AdminHumanCapitalDashboardController extends Controller
         ];
 
         $filteredItems = $this->applyFilters($items, $filters)->values();
+        $logFilters = [
+            'search' => trim((string) $request->query('log_search', '')),
+            'module' => (string) $request->query('log_module', 'all'),
+            'action' => (string) $request->query('log_action', 'all'),
+        ];
+        $logsQuery = HumanCapitalLog::query()->latest('logged_at')->latest();
+
+        if ($logFilters['search'] !== '') {
+            $search = $logFilters['search'];
+            $logsQuery->where(function ($query) use ($search) {
+                $query->where('subject_name', 'like', "%{$search}%")
+                    ->orWhere('description', 'like', "%{$search}%")
+                    ->orWhere('user_name', 'like', "%{$search}%")
+                    ->orWhere('module', 'like', "%{$search}%")
+                    ->orWhere('action', 'like', "%{$search}%");
+            });
+        }
+
+        if ($logFilters['module'] !== 'all') {
+            $logsQuery->where('module', $logFilters['module']);
+        }
+
+        if ($logFilters['action'] !== 'all') {
+            $logsQuery->where('action', $logFilters['action']);
+        }
+
+        $logs = $logsQuery->paginate(15, ['*'], 'log_page')->withQueryString();
 
         $counts = [
             'pending' => $filteredItems->where('status', 'Pending Approval')->count(),
@@ -66,6 +95,11 @@ class AdminHumanCapitalDashboardController extends Controller
             'revisionCount' => $counts['revision'],
             'totalCount' => $counts['total'],
             'filters' => $filters,
+            'activeView' => in_array($activeView, ['approvals', 'logs'], true) ? $activeView : 'approvals',
+            'logs' => $logs,
+            'logFilters' => $logFilters,
+            'logModuleOptions' => HumanCapitalLog::query()->select('module')->distinct()->orderBy('module')->pluck('module'),
+            'logActionOptions' => HumanCapitalLog::query()->select('action')->distinct()->orderBy('action')->pluck('action'),
             'moduleOptions' => $items->pluck('module')->filter()->unique()->sort()->values(),
             'statusOptions' => collect(['Pending Approval', 'Approved', 'Rejected', 'Needs Revision']),
         ]);

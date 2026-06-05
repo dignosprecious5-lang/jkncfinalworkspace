@@ -557,19 +557,49 @@
                         @endif
 
                         @if(Auth::user()->hasPermission('approve_corporate'))
-                            <a href="{{ route('admin.corporate.dashboard') }}"
-                               class="block px-3 py-2 rounded-lg transition
-                               {{ request()->routeIs('admin.corporate.dashboard') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
-                                Corporate
-                            </a>
+                            <div
+                                x-data="{
+                                    open: {{
+                                        request()->routeIs('admin.corporate.dashboard')
+                                        || request()->routeIs('admin.correspondence.*')
+                                            ? 'true'
+                                            : 'false'
+                                    }}
+                                }"
+                                class="space-y-1"
+                            >
+                                <button
+                                    type="button"
+                                    @click="open = !open"
+                                    class="w-full flex items-center justify-between px-3 py-2 rounded-lg transition border
+                                    {{
+                                        request()->routeIs('admin.corporate.dashboard')
+                                        || request()->routeIs('admin.correspondence.*')
+                                            ? 'bg-blue-50 text-blue-700 border-blue-100 font-semibold'
+                                            : 'border-transparent hover:bg-gray-100 text-gray-700'
+                                    }}"
+                                >
+                                    <span>Corporate</span>
+                                    <i class="fas fa-chevron-down text-[11px] transition-transform duration-200"
+                                    :class="open ? 'rotate-180' : ''"></i>
+                                </button>
 
-                            @if(\Illuminate\Support\Facades\Route::has('admin.correspondence.dashboard'))
-                                <a href="{{ route('admin.correspondence.dashboard') }}"
-                                   class="block px-3 py-2 rounded-lg transition
-                                   {{ request()->routeIs('admin.correspondence.*') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
-                                    Correspondence
-                                </a>
-                            @endif
+                                <div x-cloak x-show="open" x-transition class="pl-3 space-y-1">
+                                    <a href="{{ route('admin.corporate.dashboard') }}"
+                                    class="block px-3 py-2 rounded-lg transition
+                                    {{ request()->routeIs('admin.corporate.dashboard') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
+                                        Corporate Dashboard
+                                    </a>
+
+                                    @if(\Illuminate\Support\Facades\Route::has('admin.correspondence.dashboard'))
+                                        <a href="{{ route('admin.correspondence.dashboard') }}"
+                                        class="block px-3 py-2 rounded-lg transition
+                                        {{ request()->routeIs('admin.correspondence.*') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
+                                            Correspondence
+                                        </a>
+                                    @endif
+                                </div>
+                            </div>
                         @endif
 
                         <a href="{{ route('admin.policies.index') }}"
