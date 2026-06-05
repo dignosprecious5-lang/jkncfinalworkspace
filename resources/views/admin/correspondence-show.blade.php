@@ -20,19 +20,29 @@
         'Other',
     ];
 
-    $openEditor = session('open_revision_editor') || $correspondence->approval_status === 'Needs Revision';
+    $openEditor = session('open_revision_editor') || session('open_edit_editor') || $errors->any();
 @endphp
 
 @section('content')
-<div class="w-full px-6 py-5">
+<div class="w-full px-6 py-5" x-data="{ editMode: @js((bool) $openEditor) }">
     <div class="mb-4 flex items-center justify-between">
         <a href="{{ route('admin.correspondence.dashboard') }}" class="inline-flex items-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
             ← Back
         </a>
 
-        <a href="{{ route('correspondence.download', $correspondence->id) }}" class="inline-flex items-center rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700">
-            Download PDF
-        </a>
+        <div class="flex items-center gap-2">
+            <button
+                type="button"
+                @click="editMode = !editMode; if (editMode) { setTimeout(() => document.getElementById('adminEditForm')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100) }"
+                class="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+            >
+                <span x-text="editMode ? 'Close Edit' : 'Edit'"></span>
+            </button>
+
+            <a href="{{ route('correspondence.download', $correspondence->id) }}" class="inline-flex items-center rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700">
+                Download PDF
+            </a>
+        </div>
     </div>
 
     @if(session('success'))
@@ -63,7 +73,17 @@
 
         <div class="space-y-4">
             <div class="rounded-xl border border-gray-200 bg-white p-6 h-fit">
-                <h2 class="text-xl font-bold text-gray-900 mb-5">Correspondence Details</h2>
+                <div class="flex items-center justify-between gap-3 mb-5">
+                    <h2 class="text-xl font-bold text-gray-900">Correspondence Details</h2>
+
+                    <button
+                        type="button"
+                        @click="editMode = true; setTimeout(() => document.getElementById('adminEditForm')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)"
+                        class="rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100"
+                    >
+                        Edit
+                    </button>
+                </div>
 
                 <div class="space-y-3 text-sm">
                     <div class="grid grid-cols-2 gap-3">
@@ -80,6 +100,11 @@
                     <div>
                         <p class="text-xs text-gray-500">Subject</p>
                         <p class="font-medium break-words">{{ $correspondence->subject ?: '—' }}</p>
+                    </div>
+
+                    <div>
+                        <p class="text-xs text-gray-500">Company</p>
+                        <p class="font-medium break-words">{{ $correspondence->company_name ?: '—' }}</p>
                     </div>
 
                     <div class="rounded-lg border border-gray-200 bg-gray-50 p-3">
@@ -130,7 +155,7 @@
                                 @csrf
                                 <textarea name="review_note" rows="2" class="mb-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" placeholder="Revision note">{{ old('review_note', $correspondence->review_note ?: 'Needs revision.') }}</textarea>
                                 <button type="submit" class="w-full rounded-lg border border-yellow-300 bg-yellow-50 py-2.5 text-sm font-semibold text-yellow-700 hover:bg-yellow-100">
-                                    Revise / Edit Everything
+                                    Revise
                                 </button>
                             </form>
 
@@ -153,16 +178,26 @@
                 </div>
             </div>
 
-            <details class="rounded-xl border border-blue-200 bg-white p-6" @if($openEditor) open @endif>
-                <summary class="cursor-pointer text-lg font-bold text-gray-900">
-                    Edit Revised Correspondence
-                </summary>
+            <div
+                id="adminEditForm"
+                x-show="editMode"
+                x-cloak
+                class="rounded-xl border border-blue-200 bg-white p-6"
+            >
+                <div class="mb-5 flex items-start justify-between gap-3">
+                    <div>
+                        <h3 class="text-lg font-bold text-gray-900">Edit Correspondence</h3>
+                        <p class="mt-1 text-sm text-gray-500">
+                            Like Town Hall, editing is separate from revise. Saving will return this record to Level 1 approval.
+                        </p>
+                    </div>
 
-                <p class="mt-2 text-sm text-gray-500">
-                    After saving, the correspondence will return to Level 1 approval.
-                </p>
+                    <button type="button" @click="editMode = false" class="text-sm font-medium text-gray-500 hover:text-gray-700">
+                        Close
+                    </button>
+                </div>
 
-                <form method="POST" action="{{ route('admin.correspondence.revise-update', $correspondence->id) }}" class="mt-5 space-y-4">
+                <form method="POST" action="{{ route('admin.correspondence.revise-update', $correspondence->id) }}" class="space-y-4">
                     @csrf
                     @method('PUT')
 
@@ -318,11 +353,17 @@
                         <textarea name="review_note" rows="2" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">{{ old('review_note', $correspondence->review_note) }}</textarea>
                     </div>
 
-                    <button type="submit" class="w-full rounded-lg bg-blue-600 py-2.5 text-sm font-semibold text-white hover:bg-blue-700">
-                        Save Revised Correspondence and Send to Level 1
-                    </button>
+                    <div class="flex gap-3">
+                        <button type="button" @click="editMode = false" class="flex-1 rounded-lg border border-gray-300 bg-white py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50">
+                            Cancel
+                        </button>
+
+                        <button type="submit" class="flex-1 rounded-lg bg-blue-600 py-2.5 text-sm font-semibold text-white hover:bg-blue-700">
+                            Save Changes
+                        </button>
+                    </div>
                 </form>
-            </details>
+            </div>
         </div>
     </div>
 </div>
