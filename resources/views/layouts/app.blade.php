@@ -157,69 +157,7 @@
             <div class="w-[260px] flex justify-end">
                 <div class="flex items-center gap-4">
 
-                    <div x-data="{ open:false }" class="relative">
-                        <button
-                            type="button"
-                            @click="open=!open"
-                            class="relative h-9 w-9 rounded-full hover:bg-gray-100 text-gray-500 flex items-center justify-center transition"
-                            aria-label="Notifications"
-                        >
-                            <i class="far fa-bell text-lg"></i>
-                            @if($unreadNotificationCount > 0)
-                                <span class="absolute -top-1 -right-1 min-w-[18px] h-[18px] rounded-full bg-red-500 px-1 text-[10px] font-semibold leading-[18px] text-white">
-                                    {{ $unreadNotificationCount > 9 ? '9+' : $unreadNotificationCount }}
-                                </span>
-                            @endif
-                        </button>
-
-                        <div
-                            x-show="open"
-                            @click.outside="open=false"
-                            x-transition
-                            class="absolute right-0 mt-2 w-96 max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-gray-100 bg-white shadow-lg"
-                            style="display:none;"
-                        >
-                            <div class="flex items-center justify-between gap-3 border-b px-4 py-3">
-                                <div>
-                                    <p class="text-sm font-semibold text-gray-900">Notifications</p>
-                                    <p class="text-xs text-gray-400">{{ $unreadNotificationCount }} unread</p>
-                                </div>
-                                @if($unreadNotificationCount > 0)
-                                    <form method="POST" action="{{ route('notifications.read-all') }}">
-                                        @csrf
-                                        <button type="submit" class="text-xs font-medium text-blue-600 hover:text-blue-700">Mark all read</button>
-                                    </form>
-                                @endif
-                            </div>
-
-                            <div class="max-h-96 overflow-y-auto">
-                                @forelse($unreadNotifications as $notification)
-                                    @php
-                                        $notificationTitle = data_get($notification->data, 'title', 'Notification');
-                                        $notificationBody = data_get($notification->data, 'body', '');
-                                        $notificationButton = data_get($notification->data, 'button_label', 'Open');
-                                    @endphp
-                                    <form method="POST" action="{{ route('notifications.read', $notification) }}" class="border-b border-gray-100 last:border-b-0">
-                                        @csrf
-                                        <button type="submit" class="block w-full px-4 py-3 text-left hover:bg-gray-50">
-                                            <span class="block text-sm font-semibold text-gray-900">{{ $notificationTitle }}</span>
-                                            @if($notificationBody)
-                                                <span class="mt-1 block text-xs leading-5 text-gray-500">{{ $notificationBody }}</span>
-                                            @endif
-                                            <span class="mt-2 flex items-center justify-between gap-3 text-xs">
-                                                <span class="text-gray-400">{{ optional($notification->created_at)->diffForHumans() }}</span>
-                                                <span class="font-medium text-blue-600">{{ $notificationButton }}</span>
-                                            </span>
-                                        </button>
-                                    </form>
-                                @empty
-                                    <div class="px-4 py-8 text-center text-sm text-gray-400">
-                                        No unread notifications.
-                                    </div>
-                                @endforelse
-                            </div>
-                        </div>
-                    </div>
+                    @include('partials.notification-bell')
 
                     <div x-data="{ open:false }" class="relative">
                         <button
