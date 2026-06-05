@@ -133,15 +133,24 @@ class FinanceController extends Controller
             return $fallback;
         }
 
+        static $userDisplayNames = [];
+
+        $userId = (int) $userId;
+
+        if (array_key_exists($userId, $userDisplayNames)) {
+            return $userDisplayNames[$userId] ?: $fallback;
+        }
+
         $user = User::query()
             ->with(['employeeProfile', 'contactProfile'])
             ->find($userId);
 
         if (! $user) {
+            $userDisplayNames[$userId] = null;
             return $fallback;
         }
 
-        return trim((string) ($user->name
+        return $userDisplayNames[$userId] = trim((string) ($user->name
             ?: optional($user->employeeProfile)->full_name
             ?: optional($user->contactProfile)->first_name . ' ' . optional($user->contactProfile)->last_name
             ?: $user->email
@@ -249,9 +258,18 @@ class FinanceController extends Controller
             return null;
         }
 
-        return Contact::query()
+        static $contactEmailMatches = [];
+        static $contactsWithEmail = null;
+
+        if (array_key_exists($normalizedOfficerName, $contactEmailMatches)) {
+            return $contactEmailMatches[$normalizedOfficerName];
+        }
+
+        $contactsWithEmail ??= Contact::query()
             ->whereNotNull('email')
-            ->get()
+            ->get();
+
+        return $contactEmailMatches[$normalizedOfficerName] = $contactsWithEmail
             ->map(function (Contact $contact) use ($normalizedOfficerName) {
                 $contactName = $this->financeNormalizePersonName(trim(implode(' ', array_filter([
                     $contact->first_name,
@@ -280,24 +298,37 @@ class FinanceController extends Controller
 
     private function financeResolveOfficialApproverUser(?string $officerName, string $role, ?string $officialEmail = null): ?User
     {
+        static $resolvedUsers = [];
+        static $users = null;
+
+        $cacheKey = implode('|', [
+            $this->financeNormalizePersonName($officerName),
+            Str::lower(trim($role)),
+            Str::lower(trim((string) $officialEmail)),
+        ]);
+
+        if (array_key_exists($cacheKey, $resolvedUsers)) {
+            return $resolvedUsers[$cacheKey];
+        }
+
         if (filled($officialEmail)) {
             $emailMatch = User::query()
                 ->whereRaw('LOWER(email) = ?', [Str::lower(trim((string) $officialEmail))])
                 ->first();
 
             if ($emailMatch) {
-                return $emailMatch;
+                return $resolvedUsers[$cacheKey] = $emailMatch;
             }
         }
 
-        $users = User::query()
+        $users ??= User::query()
             ->with(['employeeProfile', 'contactProfile'])
             ->get();
 
         $normalizedOfficerName = $this->financeNormalizePersonName($officerName);
         $roleNeedle = Str::lower($role);
 
-        return $users
+        return $resolvedUsers[$cacheKey] = $users
             ->map(function (User $user) use ($normalizedOfficerName, $roleNeedle) {
                 $candidateNames = collect([
                     $user->name,
@@ -351,6 +382,12 @@ class FinanceController extends Controller
 
     private function financeOfficialApproverDirectory(): array
     {
+        static $directory = null;
+
+        if ($directory !== null) {
+            return $directory;
+        }
+
         $officialRows = collect();
         $gisRecord = $this->financeLatestApprovedGisRecord();
         $bifRecord = $this->financeLatestOfficialBif();
@@ -432,7 +469,7 @@ class FinanceController extends Controller
             ->unique(fn (array $option) => (int) $option['user_id'])
             ->values();
 
-        return [
+        return $directory = [
             'options' => $options->all(),
             'default_steps' => $defaults->map(fn (array $option, int $index) => [
                 'step' => $index + 1,
@@ -881,15 +918,24 @@ class FinanceController extends Controller
             return null;
         }
 
+        static $requesterUserIds = [];
+
+        $employeeId = (int) $employeeId;
+
+        if (array_key_exists($employeeId, $requesterUserIds)) {
+            return $requesterUserIds[$employeeId];
+        }
+
         $employee = Employee::query()
             ->select(['id', 'user_id'])
             ->find($employeeId);
 
         if (! $employee || blank($employee->user_id)) {
+            $requesterUserIds[$employeeId] = null;
             return null;
         }
 
-        return (int) $employee->user_id;
+        return $requesterUserIds[$employeeId] = (int) $employee->user_id;
     }
 
     private function currentUserOwnsFinanceRevisionRequest(FinanceRecord $record): bool
@@ -8547,6 +8593,8 @@ SVG;
             ->values();
 
         $inventoryHistoryBoard = $this->financeInventoryHistoryBoardItems();
+        $lookupOptions = $this->resolveLookupOptions();
+        $officialApproverDirectory = $this->financeOfficialApproverDirectory();
 
         $sourceRecords = FinanceRecord::query()
             ->where(function ($statusQuery) {
@@ -8565,7 +8613,7 @@ SVG;
             'records' => $records,
             'sourceRecords' => $sourceRecords,
             'moduleLabels' => $moduleLabels,
-            'lookupOptions' => $this->resolveLookupOptions(),
+            'lookupOptions' => $lookupOptions,
             'currentModule' => $moduleKey,
             'currentWorkflowFilter' => $workflowFilter,
             'canApproveFinance' => $this->canApproveFinance(),
@@ -8574,8 +8622,8 @@ SVG;
             'financeAttachmentTypes' => $this->financeAttachmentTypesSettings(),
             'financeLabelOverrides' => $this->financeLabelOverridesSettings(),
             'financeNoteVisibilityOptions' => $this->financeNoteVisibilityOptions(),
-            'officialApproverOptions' => $this->financeOfficialApproverDirectory()['options'],
-            'defaultApprovalSteps' => $this->financeOfficialApproverDirectory()['default_steps'],
+            'officialApproverOptions' => $officialApproverDirectory['options'],
+            'defaultApprovalSteps' => $officialApproverDirectory['default_steps'],
             'requestTypeModules' => $this->requestTypeModuleKeys(),
             'currentUserName' => Auth::user()->name ?? 'Unknown User',
             'currentUserEmail' => Auth::user()->email ?? '',
