@@ -220,26 +220,26 @@
     <div class="signature-block">
         <div class="signature-section">
             <p class="signature-heading">Prepared By:</p>
-                <p class="signature-line">{{ $correspondence->from_name ?: ($correspondence->creator?->name ?? 'System Super Admin') }}</p>
-                <p class="signature-line">Position</p>
-                <p class="signature-line">—</p>
-                <p class="signature-line">Prepared on: {{ optional($correspondence->created_at)->format('F d, Y h:i A') ?: 'Date and Time' }}</p>
+                <p class="signature-line">{{ $correspondence->prepared_by_name ?: ($correspondence->from_name ?: ($correspondence->creator?->name ?? 'System Super Admin')) }}</p>
+                <p class="signature-line">{{ $correspondence->prepared_by_position ?: 'Position' }}</p>
+                <p class="signature-line">{{ $correspondence->prepared_by_department ?: '—' }}</p>
+                <p class="signature-line">Prepared on: {{ optional($correspondence->prepared_on ?: $correspondence->created_at)->format('F d, Y h:i A') ?: 'Date and Time' }}</p>
             </div>
 
         <div class="signature-section">
             <p class="signature-heading">From Management</p>
-                <p class="signature-line">{{ $correspondence->management_approver_name ?: 'Name' }}</p>
-                <p class="signature-line">{{ $correspondence->management_approver_position ?: 'Position' }}</p>
-                <p class="signature-line">{{ $correspondence->management_approver_department ?: 'Department' }}</p>
-                <p class="signature-line">Approved on: {{ optional($correspondence->management_approved_at)->format('F d, Y h:i A') ?: 'Date and Time' }}</p>
+                <p class="signature-line">{{ $correspondence->management_signature_name ?: ($correspondence->management_approver_name ?: 'Name') }}</p>
+                <p class="signature-line">{{ $correspondence->management_signature_position ?: ($correspondence->management_approver_position ?: 'Position') }}</p>
+                <p class="signature-line">{{ $correspondence->management_signature_department ?: ($correspondence->management_approver_department ?: 'Department') }}</p>
+                <p class="signature-line">Approved on: {{ optional($correspondence->management_approved_on ?: $correspondence->management_approved_at)->format('F d, Y h:i A') ?: 'Date and Time' }}</p>
             </div>
 
         <div class="signature-section">
             <p class="signature-heading">From Executive Management</p>
-                <p class="signature-line">{{ $correspondence->executive_approver_name ?: 'Name' }}</p>
-                <p class="signature-line">{{ $correspondence->executive_approver_position ?: 'Position' }}</p>
-                <p class="signature-line">Executive Management</p>
-                <p class="signature-line">Approved on: {{ optional($correspondence->executive_approved_at)->format('F d, Y h:i A') ?: 'Date and Time' }}</p>
+                <p class="signature-line">{{ $correspondence->executive_signature_name ?: ($correspondence->executive_approver_name ?: 'Name') }}</p>
+                <p class="signature-line">{{ $correspondence->executive_signature_position ?: ($correspondence->executive_approver_position ?: 'Position') }}</p>
+                <p class="signature-line">{{ $correspondence->executive_signature_department ?: ($correspondence->executive_approver_department ?: 'Executive Management') }}</p>
+                <p class="signature-line">Approved on: {{ optional($correspondence->executive_approved_on ?: $correspondence->executive_approved_at)->format('F d, Y h:i A') ?: 'Date and Time' }}</p>
             </div>
 
             <p class="computer-generated-note">
