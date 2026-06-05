@@ -8,10 +8,11 @@
             ->map(fn ($notification) => [
                 'id' => $notification->id,
                 'title' => $notification->data['title'] ?? 'Notification',
-                'message' => $notification->data['message'] ?? '',
-                'url' => $notification->data['url'] ?? '#',
-                'module' => $notification->data['module'] ?? 'System',
+                'message' => $notification->data['message'] ?? $notification->data['body'] ?? '',
+                'url' => $notification->data['url'] ?? $notification->data['action_url'] ?? $notification->data['link'] ?? '#',
+                'module' => $notification->data['module'] ?? $notification->data['module_name'] ?? 'System',
                 'icon' => $notification->data['icon'] ?? 'fa-bell',
+                'button_label' => $notification->data['button_label'] ?? 'Open',
                 'read_at' => $notification->read_at,
                 'created_at' => $notification->created_at?->diffForHumans(),
             ])
@@ -33,6 +34,7 @@
             type="button"
             @click="open = !open"
             class="relative h-9 w-9 rounded-full hover:bg-gray-100 text-gray-500 flex items-center justify-center transition"
+            aria-label="Notifications"
         >
             <i class="far fa-bell text-lg"></i>
 
@@ -102,6 +104,12 @@
                                 <span x-text="notification.module"></span>
                                 <span>•</span>
                                 <span x-text="notification.created_at || 'Just now'"></span>
+                                <template x-if="notification.button_label">
+                                    <span>•</span>
+                                </template>
+                                <template x-if="notification.button_label">
+                                    <span class="text-blue-600 font-semibold" x-text="notification.button_label"></span>
+                                </template>
                             </div>
                         </div>
                     </button>
@@ -128,10 +136,11 @@
                             const freshNotification = {
                                 id: notification.id || crypto.randomUUID(),
                                 title: notification.title || 'New Notification',
-                                message: notification.message || '',
-                                url: notification.url || '#',
-                                module: notification.module || 'System',
+                                message: notification.message || notification.body || '',
+                                url: notification.url || notification.action_url || notification.link || '#',
+                                module: notification.module || notification.module_name || 'System',
                                 icon: notification.icon || 'fa-bell',
+                                button_label: notification.button_label || 'Open',
                                 read_at: null,
                                 created_at: notification.created_at || 'Just now',
                             };
