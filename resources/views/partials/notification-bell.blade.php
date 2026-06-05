@@ -32,7 +32,7 @@
     >
         <button
             type="button"
-            @click="open = !open"
+            @click="open = !open; fetchUnreadNotifications()"
             class="relative h-9 w-9 rounded-full hover:bg-gray-100 text-gray-500 flex items-center justify-center transition"
             aria-label="Notifications"
         >
@@ -130,9 +130,14 @@
                 echoAttempts: 0,
                 echoMaxAttempts: 30,
                 echoConnected: false,
+                syncing: false,
 
                 init() {
                     this.connectEcho();
+
+                    setTimeout(() => {
+                        this.fetchUnreadNotifications();
+                    }, 500);
                 },
 
                 connectEcho() {
@@ -161,43 +166,26 @@
                         const channelName = `App.Models.User.${userId}`;
                         const channel = window.Echo.private(channelName);
 
-                        const pushNotification = (notification) => {
-                            console.log('Notification bell: received broadcast notification', notification);
+                        const syncAfterRealtime = (notification) => {
+                            console.log('Notification bell: realtime event received', notification);
 
-                            const rawData = notification.data || notification;
+                            setTimeout(() => {
+                                this.fetchUnreadNotifications();
+                            }, 300);
 
-                            const freshNotification = {
-                                id: rawData.id
-                                    || rawData.notification_id
-                                    || notification.id
-                                    || (window.crypto?.randomUUID ? crypto.randomUUID() : String(Date.now())),
-                                title: rawData.title || 'New Notification',
-                                message: rawData.message || rawData.body || '',
-                                url: rawData.url || rawData.action_url || rawData.link || '#',
-                                module: rawData.module || rawData.module_name || 'System',
-                                icon: rawData.icon || 'fa-bell',
-                                button_label: rawData.button_label || 'Open',
-                                read_at: null,
-                                created_at: rawData.created_at || 'Just now',
-                            };
-
-                            const alreadyExists = this.notifications.some((item) => item.id === freshNotification.id);
-
-                            if (!alreadyExists) {
-                                this.notifications.unshift(freshNotification);
-                                this.notifications = this.notifications.slice(0, 10);
-                                this.unreadCount++;
-                            }
+                            setTimeout(() => {
+                                this.fetchUnreadNotifications();
+                            }, 1000);
                         };
 
-                        channel.notification(pushNotification);
+                        channel.notification(syncAfterRealtime);
 
-                        channel.listen('.Illuminate\\Notifications\\Events\\BroadcastNotificationCreated', pushNotification);
-                        channel.listen('Illuminate\\Notifications\\Events\\BroadcastNotificationCreated', pushNotification);
-                        channel.listen('.system.notification', pushNotification);
-                        channel.listen('system.notification', pushNotification);
-                        channel.listen('.BroadcastNotificationCreated', pushNotification);
-                        channel.listen('BroadcastNotificationCreated', pushNotification);
+                        channel.listen('.Illuminate\\Notifications\\Events\\BroadcastNotificationCreated', syncAfterRealtime);
+                        channel.listen('Illuminate\\Notifications\\Events\\BroadcastNotificationCreated', syncAfterRealtime);
+                        channel.listen('.system.notification', syncAfterRealtime);
+                        channel.listen('system.notification', syncAfterRealtime);
+                        channel.listen('.BroadcastNotificationCreated', syncAfterRealtime);
+                        channel.listen('BroadcastNotificationCreated', syncAfterRealtime);
 
                         channel.subscribed(() => {
                             console.log('Notification bell: subscribed to private user channel', userId);
@@ -211,6 +199,36 @@
                         console.log('Notification bell: realtime connected for user', userId);
                     } catch (error) {
                         console.error('Notification bell: Echo connection failed.', error);
+                    }
+                },
+
+                async fetchUnreadNotifications() {
+                    if (this.syncing) {
+                        return;
+                    }
+
+                    this.syncing = true;
+
+                    try {
+                        const response = await fetch('/notifications/unread', {
+                            headers: {
+                                'Accept': 'application/json',
+                                'X-Requested-With': 'XMLHttpRequest',
+                            },
+                        });
+
+                        if (!response.ok) {
+                            return;
+                        }
+
+                        const data = await response.json();
+
+                        this.notifications = data.notifications || [];
+                        this.unreadCount = data.unread_count || 0;
+                    } catch (error) {
+                        console.error('Notification bell: fetch unread error.', error);
+                    } finally {
+                        this.syncing = false;
                     }
                 },
 
@@ -242,9 +260,10 @@
 
                         const data = await response.json();
 
-                        notification.read_at = new Date().toISOString();
                         this.notifications = this.notifications.filter((item) => item.id !== notification.id);
                         this.unreadCount = data.unread_count ?? Math.max(0, this.unreadCount - 1);
+
+                        await this.fetchUnreadNotifications();
                     } catch (error) {
                         console.error('Notification bell: markAsRead error.', error);
                     }

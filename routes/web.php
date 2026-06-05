@@ -289,6 +289,9 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     | REAL-TIME NOTIFICATIONS
     |--------------------------------------------------------------------------
     */
+    Route::get('/notifications/unread', [NotificationController::class, 'unread'])
+    ->name('notifications.unread');
+    
     Route::post('/notifications/{notification}/read', [NotificationController::class, 'markAsRead'])
         ->name('notifications.read');
 
