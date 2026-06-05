@@ -273,28 +273,7 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () use ($adm
     */
     Route::get('/change-password', [ChangePasswordController::class, 'edit'])->name('password.change');
     Route::post('/change-password', [ChangePasswordController::class, 'update'])->name('password.change.update');
-    Route::post('/notifications/read-all', function () {
-        if (\Illuminate\Support\Facades\Schema::hasTable('notifications')) {
-            Auth::user()->unreadNotifications()->update(['read_at' => now()]);
-        }
-
-        return back();
-    })->name('notifications.read-all');
-    Route::post('/notifications/{notification}/read', function (\Illuminate\Notifications\DatabaseNotification $notification) {
-        $user = Auth::user();
-
-        if (
-            $notification->notifiable_type !== $user->getMorphClass()
-            || (string) $notification->notifiable_id !== (string) $user->getKey()
-        ) {
-            abort(403, 'Unauthorized');
-        }
-
-        $notification->markAsRead();
-
-        return redirect(data_get($notification->data, 'url') ?: url()->previous());
-    })->name('notifications.read');
-
+    
     /*
     |--------------------------------------------------------------------------
     | FILES / UPLOADS
