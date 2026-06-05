@@ -21,6 +21,7 @@ use App\Http\Controllers\CompanyBirTaxController;
 use App\Http\Controllers\CompanyBifController;
 use App\Http\Controllers\CompanyCorrespondenceController;
 use App\Http\Controllers\CompanyKycController;
+use App\Http\Controllers\CompanyLegalController;
 use App\Http\Controllers\CompanyLguController;
 use App\Http\Controllers\CompanyOperationsController;
 use App\Http\Controllers\CompanyProductController;
@@ -644,16 +645,27 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () {
     Route::get('/company/{company}/accounting', [CompanyAccountingController::class, 'index'])->name('company.accounting');
     Route::post('/company/{company}/accounting', [CompanyAccountingController::class, 'store'])->name('company.accounting.store');
     Route::match(['put', 'patch'], '/company/{company}/accounting/{record}', [CompanyAccountingController::class, 'update'])->name('company.accounting.update');
+    Route::post('/company/{company}/accounting/{record}/submit', [CompanyAccountingController::class, 'submitCompany'])->name('company.accounting.submit');
     Route::delete('/company/{company}/accounting/{record}', [CompanyAccountingController::class, 'destroy'])->name('company.accounting.destroy');
 
     Route::get('/company/{company}/banking', [CompanyBankingController::class, 'index'])->name('company.banking');
     Route::post('/company/{company}/banking', [CompanyBankingController::class, 'store'])->name('company.banking.store');
     Route::match(['put', 'patch'], '/company/{company}/banking/{record}', [CompanyBankingController::class, 'update'])->name('company.banking.update');
+    Route::post('/company/{company}/banking/{record}/submit', [CompanyBankingController::class, 'submitCompany'])->name('company.banking.submit');
     Route::delete('/company/{company}/banking/{record}', [CompanyBankingController::class, 'destroy'])->name('company.banking.destroy');
+
+    Route::get('/company/{company}/legal', [CompanyLegalController::class, 'index'])->name('company.legal');
+    Route::post('/company/{company}/legal', [CompanyLegalController::class, 'store'])->name('company.legal.store');
+    Route::match(['put', 'patch'], '/company/{company}/legal/{record}', [CompanyLegalController::class, 'update'])->name('company.legal.update');
+    Route::post('/company/{company}/legal/{record}/submit', [CompanyLegalController::class, 'submitCompany'])->name('company.legal.submit');
+    Route::delete('/company/{company}/legal/{record}', [CompanyLegalController::class, 'destroy'])->name('company.legal.destroy');
 
     Route::get('/company/{company}/operations', [CompanyOperationsController::class, 'index'])->name('company.operations');
     Route::post('/company/{company}/operations', [CompanyOperationsController::class, 'store'])->name('company.operations.store');
     Route::match(['put', 'patch'], '/company/{company}/operations/{record}', [CompanyOperationsController::class, 'update'])->name('company.operations.update');
+    Route::post('/company/{company}/operations/{record}/submit', [CompanyOperationsController::class, 'submitCompany'])->name('company.operations.submit');
+    Route::post('/company/{company}/operations/{record}/notes', [CompanyOperationsController::class, 'storeCompanyNote'])->name('company.operations.notes.store');
+    Route::delete('/company/{company}/operations/{record}/notes/{note}', [CompanyOperationsController::class, 'destroyCompanyNote'])->name('company.operations.notes.destroy');
     Route::delete('/company/{company}/operations/{record}', [CompanyOperationsController::class, 'destroy'])->name('company.operations.destroy');
 
     Route::get('/company/{company}/correspondence', [CompanyCorrespondenceController::class, 'index'])->name('company.correspondence');

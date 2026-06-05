@@ -37,12 +37,12 @@ class AccountingController extends Controller
         'Other',
     ];
 
-    private function canApproveCorporate(): bool
+    protected function canApproveCorporate(): bool
     {
         return Auth::check() && Auth::user()->hasPermission('approve_corporate');
     }
 
-    private function canEditRecord(Accounting $record): bool
+    protected function canEditRecord(Accounting $record): bool
     {
         if ($this->canApproveCorporate()) {
             return true;
@@ -198,7 +198,7 @@ class AccountingController extends Controller
         ]);
     }
 
-    private function validatedPayload(Request $request, bool $documentsOptional = true): array
+    protected function validatedPayload(Request $request, bool $documentsOptional = true): array
     {
         return $request->validate(array_merge([
             'report_type' => ['required', 'string', 'max:255'],
@@ -210,7 +210,7 @@ class AccountingController extends Controller
         ], $this->commonDocumentValidation()));
     }
 
-    private function transformRecord(Accounting $record): array
+    protected function transformRecord(Accounting $record): array
     {
         $draftDocuments = $this->documentLinks($record->draft_documents);
         $approvedDocuments = $this->documentLinks($record->approved_documents);

@@ -1,16 +1,23 @@
 @extends('layouts.app')
 
 @php
+    $repositoryRoutes = $repositoryRoutes ?? [
+        'dataUrl' => route('banking.index'),
+        'storeUrl' => route('banking.store'),
+        'updateUrl' => route('banking.update', '__ID__'),
+        'submitUrl' => route('banking.submit', '__ID__'),
+    ];
+
     $moduleConfig = [
         'moduleId' => 'corporateBankingRepository',
         'title' => 'Banking',
         'purpose' => 'Store bank statements, certificates, account records, loan documents, and banking compliance records.',
         'company' => $companyDefaults ?? [],
         'currentUser' => Auth::user()->name ?? Auth::user()->email ?? 'System User',
-        'dataUrl' => route('banking.index'),
-        'storeUrl' => route('banking.store'),
-        'updateUrl' => route('banking.update', '__ID__'),
-        'submitUrl' => route('banking.submit', '__ID__'),
+        'dataUrl' => $repositoryRoutes['dataUrl'],
+        'storeUrl' => $repositoryRoutes['storeUrl'],
+        'updateUrl' => $repositoryRoutes['updateUrl'],
+        'submitUrl' => $repositoryRoutes['submitUrl'],
         'options' => [
             'banks' => $banks ?? [],
             'bankDocumentTypes' => $bankDocumentTypes ?? [],

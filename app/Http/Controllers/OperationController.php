@@ -29,12 +29,12 @@ class OperationController extends Controller
         'Scope of Work', 'Transmittal', 'Checklist', 'Form Template', 'Other',
     ];
 
-    private function canApproveCorporate(): bool
+    protected function canApproveCorporate(): bool
     {
         return Auth::check() && Auth::user()->hasPermission('approve_corporate');
     }
 
-    private function canEditRecord(Operation $record): bool
+    protected function canEditRecord(Operation $record): bool
     {
         if ($this->canApproveCorporate()) {
             return true;
@@ -239,7 +239,7 @@ class OperationController extends Controller
         ]);
     }
 
-    private function validatedPayload(Request $request, bool $documentsOptional = true): array
+    protected function validatedPayload(Request $request, bool $documentsOptional = true): array
     {
         return $request->validate(array_merge([
             'operation_type' => ['required', 'string', 'max:255'],
@@ -252,7 +252,7 @@ class OperationController extends Controller
         ], $this->commonDocumentValidation()));
     }
 
-    private function transformRecord(Operation $record): array
+    protected function transformRecord(Operation $record): array
     {
         $record->loadMissing('notes');
         $draftDocuments = $this->documentLinks($record->draft_documents);

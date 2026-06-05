@@ -1020,6 +1020,7 @@
                                 request()->routeIs('company.lgu*')
                                 || request()->routeIs('company.accounting*')
                                 || request()->routeIs('company.banking*')
+                                || request()->routeIs('company.legal*')
                                 || request()->routeIs('company.operations*')
                                 || request()->routeIs('company.correspondence*')
                                 || request()->routeIs('company.bir-tax*')
@@ -1101,6 +1102,11 @@
                                         <a href="{{ route('company.banking', $currentCompanyId) }}"
                                            class="block px-3 py-2 rounded-lg transition {{ request()->routeIs('company.banking*') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
                                             Banking
+                                        </a>
+
+                                        <a href="{{ route('company.legal', $currentCompanyId) }}"
+                                           class="block px-3 py-2 rounded-lg transition {{ request()->routeIs('company.legal*') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
+                                            Legal
                                         </a>
 
                                         <a href="{{ route('company.operations', $currentCompanyId) }}"

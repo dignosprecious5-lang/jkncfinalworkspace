@@ -1,16 +1,23 @@
 @extends('layouts.app')
 
 @php
+    $repositoryRoutes = $repositoryRoutes ?? [
+        'dataUrl' => route('legal.index'),
+        'storeUrl' => route('legal.store'),
+        'updateUrl' => route('legal.update', '__ID__'),
+        'submitUrl' => route('legal.submit', '__ID__'),
+    ];
+
     $moduleConfig = [
         'moduleId' => 'corporateLegalRepository',
         'title' => 'Legal',
         'purpose' => 'Maintain contracts, agreements, resolutions, notices, legal opinions, and legal records.',
         'company' => $companyDefaults ?? [],
         'currentUser' => Auth::user()->name ?? Auth::user()->email ?? 'System User',
-        'dataUrl' => route('legal.index'),
-        'storeUrl' => route('legal.store'),
-        'updateUrl' => route('legal.update', '__ID__'),
-        'submitUrl' => route('legal.submit', '__ID__'),
+        'dataUrl' => $repositoryRoutes['dataUrl'],
+        'storeUrl' => $repositoryRoutes['storeUrl'],
+        'updateUrl' => $repositoryRoutes['updateUrl'],
+        'submitUrl' => $repositoryRoutes['submitUrl'],
         'options' => [
             'legalDocumentTypes' => $legalDocumentTypes ?? [],
             'statuses' => $statuses ?? [],
