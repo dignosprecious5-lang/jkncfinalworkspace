@@ -21,10 +21,11 @@ class NotificationController extends Controller
 
         $unreadCount = $request->user()->unreadNotifications()->count();
 
-        if ($request->expectsJson()) {
+        if ($request->expectsJson() || $request->wantsJson() || $request->ajax()) {
             return response()->json([
                 'success' => true,
                 'unread_count' => $unreadCount,
+                'url' => data_get($item->data, 'url') ?: null,
             ]);
         }
 
@@ -33,9 +34,11 @@ class NotificationController extends Controller
 
     public function markAllAsRead(Request $request): JsonResponse|RedirectResponse
     {
-        $request->user()->unreadNotifications->markAsRead();
+        $request->user()
+            ->unreadNotifications()
+            ->update(['read_at' => now()]);
 
-        if ($request->expectsJson()) {
+        if ($request->expectsJson() || $request->wantsJson() || $request->ajax()) {
             return response()->json([
                 'success' => true,
                 'unread_count' => 0,

@@ -1,16 +1,16 @@
 @auth
     @php
         $initialNotifications = auth()->user()
-            ->notifications()
+            ->unreadNotifications()
             ->latest()
             ->take(10)
             ->get()
             ->map(fn ($notification) => [
                 'id' => $notification->id,
                 'title' => $notification->data['title'] ?? 'Notification',
-                'message' => $notification->data['message'] ?? $notification->data['body'] ?? '',
-                'url' => $notification->data['url'] ?? $notification->data['action_url'] ?? $notification->data['link'] ?? '#',
-                'module' => $notification->data['module'] ?? $notification->data['module_name'] ?? 'System',
+                'message' => $notification->data['message'] ?? ($notification->data['body'] ?? ''),
+                'url' => $notification->data['url'] ?? ($notification->data['action_url'] ?? ($notification->data['link'] ?? '#')),
+                'module' => $notification->data['module'] ?? ($notification->data['module_name'] ?? 'System'),
                 'icon' => $notification->data['icon'] ?? 'fa-bell',
                 'button_label' => $notification->data['button_label'] ?? 'Open',
                 'read_at' => $notification->read_at,
@@ -74,7 +74,7 @@
             <div class="max-h-96 overflow-y-auto">
                 <template x-if="notifications.length === 0">
                     <div class="px-4 py-8 text-center text-sm text-gray-500">
-                        No notifications yet.
+                        No unread notifications.
                     </div>
                 </template>
 
@@ -92,6 +92,7 @@
                         <div class="min-w-0 flex-1">
                             <div class="flex items-center gap-2">
                                 <p class="text-sm font-semibold text-gray-900 truncate" x-text="notification.title"></p>
+
                                 <span
                                     x-show="!notification.read_at"
                                     class="h-2 w-2 rounded-full bg-blue-600 shrink-0"
@@ -104,9 +105,11 @@
                                 <span x-text="notification.module"></span>
                                 <span>•</span>
                                 <span x-text="notification.created_at || 'Just now'"></span>
+
                                 <template x-if="notification.button_label">
                                     <span>•</span>
                                 </template>
+
                                 <template x-if="notification.button_label">
                                     <span class="text-blue-600 font-semibold" x-text="notification.button_label"></span>
                                 </template>
@@ -124,31 +127,65 @@
                 open: false,
                 unreadCount: initialUnreadCount || 0,
                 notifications: initialNotifications || [],
+                echoAttempts: 0,
+                echoMaxAttempts: 30,
+                echoConnected: false,
 
                 init() {
-                    if (!window.Echo || !userId) {
-                        console.warn('Echo is not available yet. Make sure npm run dev/build is running and Reverb is started.');
+                    this.connectEcho();
+                },
+
+                connectEcho() {
+                    if (!userId) {
+                        console.warn('Notification bell: no authenticated user ID.');
                         return;
                     }
 
-                    window.Echo.private(`App.Models.User.${userId}`)
-                        .notification((notification) => {
-                            const freshNotification = {
-                                id: notification.id || crypto.randomUUID(),
-                                title: notification.title || 'New Notification',
-                                message: notification.message || notification.body || '',
-                                url: notification.url || notification.action_url || notification.link || '#',
-                                module: notification.module || notification.module_name || 'System',
-                                icon: notification.icon || 'fa-bell',
-                                button_label: notification.button_label || 'Open',
-                                read_at: null,
-                                created_at: notification.created_at || 'Just now',
-                            };
+                    if (!window.Echo) {
+                        this.echoAttempts++;
 
-                            this.notifications.unshift(freshNotification);
-                            this.notifications = this.notifications.slice(0, 10);
-                            this.unreadCount++;
-                        });
+                        if (this.echoAttempts <= this.echoMaxAttempts) {
+                            setTimeout(() => this.connectEcho(), 500);
+                        } else {
+                            console.warn('Notification bell: Echo is not available. Notifications will appear after refresh only.');
+                        }
+
+                        return;
+                    }
+
+                    if (this.echoConnected) {
+                        return;
+                    }
+
+                    try {
+                        window.Echo.private(`App.Models.User.${userId}`)
+                            .notification((notification) => {
+                                const freshNotification = {
+                                    id: notification.id || (window.crypto?.randomUUID ? crypto.randomUUID() : String(Date.now())),
+                                    title: notification.title || 'New Notification',
+                                    message: notification.message || notification.body || '',
+                                    url: notification.url || notification.action_url || notification.link || '#',
+                                    module: notification.module || notification.module_name || 'System',
+                                    icon: notification.icon || 'fa-bell',
+                                    button_label: notification.button_label || 'Open',
+                                    read_at: null,
+                                    created_at: notification.created_at || 'Just now',
+                                };
+
+                                const alreadyExists = this.notifications.some((item) => item.id === freshNotification.id);
+
+                                if (!alreadyExists) {
+                                    this.notifications.unshift(freshNotification);
+                                    this.notifications = this.notifications.slice(0, 10);
+                                    this.unreadCount++;
+                                }
+                            });
+
+                        this.echoConnected = true;
+                        console.log('Notification bell: realtime connected for user', userId);
+                    } catch (error) {
+                        console.error('Notification bell: Echo connection failed.', error);
+                    }
                 },
 
                 async openNotification(notification) {
@@ -168,16 +205,22 @@
                             headers: {
                                 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
                                 'Accept': 'application/json',
+                                'X-Requested-With': 'XMLHttpRequest',
                             },
                         });
 
-                        if (!response.ok) return;
+                        if (!response.ok) {
+                            console.error('Notification bell: failed to mark as read.', response.status);
+                            return;
+                        }
 
                         const data = await response.json();
+
                         notification.read_at = new Date().toISOString();
+                        this.notifications = this.notifications.filter((item) => item.id !== notification.id);
                         this.unreadCount = data.unread_count ?? Math.max(0, this.unreadCount - 1);
                     } catch (error) {
-                        console.error(error);
+                        console.error('Notification bell: markAsRead error.', error);
                     }
                 },
 
@@ -188,19 +231,19 @@
                             headers: {
                                 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
                                 'Accept': 'application/json',
+                                'X-Requested-With': 'XMLHttpRequest',
                             },
                         });
 
-                        if (!response.ok) return;
+                        if (!response.ok) {
+                            console.error('Notification bell: failed to mark all as read.', response.status);
+                            return;
+                        }
 
-                        this.notifications = this.notifications.map((notification) => ({
-                            ...notification,
-                            read_at: notification.read_at || new Date().toISOString(),
-                        }));
-
+                        this.notifications = [];
                         this.unreadCount = 0;
                     } catch (error) {
-                        console.error(error);
+                        console.error('Notification bell: markAllAsRead error.', error);
                     }
                 },
             };
