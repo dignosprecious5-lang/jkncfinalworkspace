@@ -22,6 +22,7 @@
         'submitUrl' => $repositoryRoutes['submitUrl'],
         'noteStoreUrl' => $repositoryRoutes['noteStoreUrl'],
         'noteDeleteUrl' => $repositoryRoutes['noteDeleteUrl'],
+        'defaultWorkflowTab' => 'accepted',
         'enableNotes' => true,
         'options' => [
             'operationTypes' => $operationTypes ?? [],

@@ -2,6 +2,18 @@
     $config = $config ?? [];
     $moduleId = $config['moduleId'] ?? 'corporateRepository';
     $title = $config['title'] ?? 'Corporate Repository';
+    $workflowTabs = ['uploaded' => 'Uploaded', 'submitted' => 'Submitted', 'accepted' => 'Accepted', 'reverted' => 'Reverted', 'archived' => 'Archived'];
+    $workflowMessages = [
+        'uploaded' => ['border-blue-200 bg-blue-50 text-blue-700', 'These records are uploaded and ready for submission.'],
+        'submitted' => ['border-yellow-200 bg-yellow-50 text-yellow-700', 'These records are already submitted and waiting for admin approval.'],
+        'accepted' => ['border-green-200 bg-green-50 text-green-700', 'These records were already accepted.'],
+        'reverted' => ['border-red-200 bg-red-50 text-red-700', 'These records were reverted and can be corrected then resubmitted.'],
+        'archived' => ['border-gray-200 bg-gray-50 text-gray-700', 'These records are archived.'],
+    ];
+    $defaultWorkflowTab = array_key_exists($config['defaultWorkflowTab'] ?? '', $workflowTabs)
+        ? $config['defaultWorkflowTab']
+        : 'uploaded';
+    $defaultWorkflowMessage = $workflowMessages[$defaultWorkflowTab] ?? $workflowMessages['uploaded'];
 @endphp
 
 @section('title', $title)
@@ -21,15 +33,15 @@
 
         <div class="px-4 pt-4 bg-white border-b border-gray-100">
             <div class="flex gap-8 text-[15px] text-gray-700 overflow-x-auto">
-                @foreach (['uploaded' => 'Uploaded', 'submitted' => 'Submitted', 'accepted' => 'Accepted', 'reverted' => 'Reverted', 'archived' => 'Archived'] as $key => $label)
-                    <button type="button" data-workflow-tab="{{ $key }}" class="pb-3 whitespace-nowrap {{ $key === 'uploaded' ? 'border-b-2 border-blue-600 font-medium text-gray-900' : '' }}">
+                @foreach ($workflowTabs as $key => $label)
+                    <button type="button" data-workflow-tab="{{ $key }}" class="pb-3 whitespace-nowrap {{ $key === $defaultWorkflowTab ? 'border-b-2 border-blue-600 font-medium text-gray-900' : '' }}">
                         {{ $label }}
                     </button>
                 @endforeach
             </div>
 
-            <div data-status-message class="mt-3 mb-4 border border-blue-200 bg-blue-50 text-blue-700 text-[14px] px-4 py-3 rounded-md">
-                These records are uploaded and ready for submission.
+            <div data-status-message class="mt-3 mb-4 border {{ $defaultWorkflowMessage[0] }} text-[14px] px-4 py-3 rounded-md">
+                {{ $defaultWorkflowMessage[1] }}
             </div>
         </div>
 
@@ -194,9 +206,12 @@
     const params = new URLSearchParams(window.location.search);
     const autoOpenRecordId = params.get('record');
     const autoOpenTab = (params.get('tab') || '').toLowerCase();
+    const defaultWorkflowTab = ['uploaded', 'submitted', 'accepted', 'reverted', 'archived'].includes(config.defaultWorkflowTab)
+        ? config.defaultWorkflowTab
+        : 'uploaded';
     const state = {
         rows: [],
-        workflow: ['uploaded', 'submitted', 'accepted', 'reverted', 'archived'].includes(autoOpenTab) ? autoOpenTab : 'uploaded',
+        workflow: ['uploaded', 'submitted', 'accepted', 'reverted', 'archived'].includes(autoOpenTab) ? autoOpenTab : defaultWorkflowTab,
         editingId: null,
         autoOpened: false,
         previewIndex: null,

@@ -18,6 +18,7 @@
         'storeUrl' => $repositoryRoutes['storeUrl'],
         'updateUrl' => $repositoryRoutes['updateUrl'],
         'submitUrl' => $repositoryRoutes['submitUrl'],
+        'defaultWorkflowTab' => 'accepted',
         'options' => [
             'reportTypes' => $reportTypes ?? [],
             'statuses' => $statuses ?? [],
