@@ -533,6 +533,14 @@
                                 User Permissions
                             </a>
 
+                            @if(auth()->user()?->isSuperAdmin())
+    <a href="{{ route('admin.account-audit-trail') }}"
+       class="block px-3 py-2 rounded-lg transition
+       {{ request()->routeIs('admin.account-audit-trail') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
+        Account Audit Trail
+    </a>
+@endif
+
                             <div class="my-3 border-t border-gray-100"></div>
                         @endif
 
