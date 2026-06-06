@@ -30,16 +30,23 @@ class CorporateApprovalSubmissionNotification extends SystemRealtimeNotification
 
     public function toMail(object $notifiable): MailMessage
     {
+        $dashboardUrl = $this->url ?: route('admin.corporate.dashboard');
+
         return (new MailMessage)
             ->from(config('mail.from.address'), config('mail.from.name'))
             ->subject($this->moduleName . ' Submitted for Approval')
-            ->greeting('Hello ' . ($notifiable->name ?? 'there') . ',')
-            ->line($this->message)
-            ->line('Module: ' . $this->moduleName)
-            ->line('Submitted by: ' . $this->submitterName)
-            ->when($this->recordTitle !== '', fn (MailMessage $mail) => $mail->line('Record: ' . $this->recordTitle))
-            ->action('Open Corporate Approval Dashboard', $this->url ?: route('admin.corporate.dashboard'))
-            ->line('Please review the submitted record when available.');
+            ->view('emails.branded-workflow-notification', [
+                'logoUrl' => rtrim((string) config('app.url'), '/') . '/images/imaglogo.png',
+                'notifiableName' => $notifiable->name ?? 'there',
+                'title' => $this->moduleName . ' Submitted for Approval',
+                'body' => $this->message,
+                'moduleName' => $this->moduleName,
+                'recordTitle' => $this->recordTitle,
+                'actorName' => $this->submitterName,
+                'reviewNote' => null,
+                'url' => $dashboardUrl,
+                'buttonLabel' => 'Open Corporate Approval Dashboard',
+            ]);
     }
 
     public function toDatabase(object $notifiable): array

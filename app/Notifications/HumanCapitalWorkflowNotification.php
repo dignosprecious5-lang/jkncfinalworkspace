@@ -30,16 +30,23 @@ class HumanCapitalWorkflowNotification extends SystemRealtimeNotification
 
     public function toMail(object $notifiable): MailMessage
     {
+        $dashboardUrl = $this->url ?: route('admin.human-capital.dashboard');
+
         return (new MailMessage)
             ->from(config('mail.from.address'), config('mail.from.name'))
             ->subject($this->title)
-            ->greeting('Hello ' . ($notifiable->name ?? 'there') . ',')
-            ->line($this->message)
-            ->line('Module: ' . $this->humanCapitalModule)
-            ->when($this->actorName !== '', fn (MailMessage $mail) => $mail->line('Submitted by: ' . $this->actorName))
-            ->when($this->recordTitle !== '', fn (MailMessage $mail) => $mail->line('Record: ' . $this->recordTitle))
-            ->action('Open Human Capital Dashboard', $this->url ?: route('admin.human-capital.dashboard'))
-            ->line('This notification was also sent to your in-system notifications.');
+            ->view('emails.branded-workflow-notification', [
+                'logoUrl' => rtrim((string) config('app.url'), '/') . '/images/imaglogo.png',
+                'notifiableName' => $notifiable->name ?? 'there',
+                'title' => $this->title,
+                'body' => $this->message,
+                'moduleName' => $this->humanCapitalModule,
+                'recordTitle' => $this->recordTitle,
+                'actorName' => $this->actorName,
+                'reviewNote' => null,
+                'url' => $dashboardUrl,
+                'buttonLabel' => 'Open Human Capital Dashboard',
+            ]);
     }
 
     public function toDatabase(object $notifiable): array
