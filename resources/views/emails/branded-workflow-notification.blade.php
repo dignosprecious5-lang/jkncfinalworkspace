@@ -11,14 +11,14 @@
             <td align="center">
                 <table width="640" cellpadding="0" cellspacing="0" role="presentation" style="max-width:640px;width:100%;background:#ffffff;border:1px solid #dbe3ef;border-radius:14px;overflow:hidden;">
                     <tr>
-                        <td style="background:#102d79;padding:22px 28px;">
+                        <td style="background:#ffffff;padding:22px 28px;border-bottom:1px solid #dbe3ef;">
                             <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
                                 <tr>
                                     <td style="vertical-align:middle;">
                                         <img src="{{ $logoUrl }}" alt="John Kelly &amp; Company" style="display:block;width:160px;max-width:100%;height:auto;">
                                     </td>
                                     <td align="right" style="vertical-align:middle;">
-                                        <span style="display:inline-block;border:1px solid rgba(255,255,255,.35);border-radius:999px;padding:7px 12px;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#ffffff;">
+                                        <span style="display:inline-block;border:1px solid #bfdbfe;background:#eff6ff;border-radius:999px;padding:7px 12px;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#102d79;">
                                             {{ $moduleName }}
                                         </span>
                                     </td>
