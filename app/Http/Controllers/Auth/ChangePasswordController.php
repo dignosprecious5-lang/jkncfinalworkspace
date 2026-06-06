@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Models\AccountAuditLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -37,11 +38,32 @@ class ChangePasswordController extends Controller
                 ->withInput();
         }
 
+        $wasFirstLoginChange = (bool) $user->must_change_password;
+
         $user->forceFill([
             'password' => Hash::make($validated['password']),
+            'must_change_password' => false,
+            'temporary_password_expires_at' => null,
+            'password_changed_at' => now(),
         ])->save();
 
+        AccountAuditLog::record(
+            $wasFirstLoginChange ? 'First Login Password Change Completed' : 'Password Changed',
+            $user,
+            $wasFirstLoginChange
+                ? 'User completed required first-login password change.'
+                : 'User changed account password.',
+            $user,
+            $request->ip()
+        );
+
         $request->session()->regenerate();
+
+        if ($wasFirstLoginChange) {
+            return redirect()
+                ->route('townhall')
+                ->with('success', 'Password changed successfully. You may now access the system.');
+        }
 
         return redirect()
             ->route('password.change')

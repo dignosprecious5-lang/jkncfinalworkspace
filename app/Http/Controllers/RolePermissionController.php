@@ -10,6 +10,14 @@ use Illuminate\Support\Facades\Schema;
 
 class RolePermissionController extends Controller
 {
+    private array $accountManagementPermissionColumns = [
+        'create_user_account',
+        'edit_user_account',
+        'disable_enable_user_account',
+        'reset_user_password',
+        'delete_user_account',
+    ];
+
     private array $financePermissionColumns = [
         'access_finance',
         'create_finance',
@@ -31,25 +39,6 @@ class RolePermissionController extends Controller
         'access_finance_arf',
     ];
 
-    private array $humanCapitalPermissionColumns = [
-        'access_hc_organizational',
-        'access_hc_payroll',
-        'access_hc_employee_profile',
-        'access_hc_recruitment',
-        'access_hc_onboarding',
-        'access_hc_deployment',
-        'access_hc_offboarding',
-        'access_hc_my_hc',
-        'access_hc_attendance',
-        'access_hc_obf',
-        'access_hc_employee_requests',
-        'access_hc_employee_relations',
-        'access_hc_memos',
-        'access_hc_training',
-        'access_hc_performance',
-        'access_hc_awards',
-    ];
-
     public function index()
     {
         /** @var User|null $user */
@@ -64,6 +53,7 @@ class RolePermissionController extends Controller
             [
                 'manage_users' => true,
                 'access_admin_dashboard' => true,
+                ...array_fill_keys($this->accountManagementPermissionColumns, true),
 
                 'approve_townhall' => true,
                 'create_townhall' => true,
@@ -89,7 +79,6 @@ class RolePermissionController extends Controller
                 'access_sales_marketing' => true,
 
                 'access_human_capital' => true,
-                ...array_fill_keys($this->humanCapitalPermissionColumns, true),
 
                 ...array_fill_keys($this->financePermissionColumns, true),
             ]
@@ -100,6 +89,7 @@ class RolePermissionController extends Controller
             [
                 'manage_users' => true,
                 'access_admin_dashboard' => true,
+                ...array_fill_keys($this->accountManagementPermissionColumns, false),
 
                 'approve_townhall' => true,
                 'create_townhall' => true,
@@ -125,7 +115,6 @@ class RolePermissionController extends Controller
                 'access_sales_marketing' => true,
 
                 'access_human_capital' => true,
-                ...array_fill_keys($this->humanCapitalPermissionColumns, true),
 
                 ...array_fill_keys($this->financePermissionColumns, true),
             ]
@@ -136,6 +125,7 @@ class RolePermissionController extends Controller
             [
                 'manage_users' => false,
                 'access_admin_dashboard' => false,
+                ...array_fill_keys($this->accountManagementPermissionColumns, false),
 
                 'approve_townhall' => false,
                 'create_townhall' => false,
@@ -160,8 +150,7 @@ class RolePermissionController extends Controller
                 'approve_sales_marketing' => false,
                 'access_sales_marketing' => true,
 
-                'access_human_capital' => true,
-                ...array_fill_keys($this->humanCapitalPermissionColumns, false),
+                'access_human_capital' => false,
 
                 ...array_fill_keys($this->financePermissionColumns, false),
             ]
@@ -172,6 +161,7 @@ class RolePermissionController extends Controller
             [
                 'manage_users' => false,
                 'access_admin_dashboard' => false,
+                ...array_fill_keys($this->accountManagementPermissionColumns, false),
 
                 'approve_townhall' => false,
                 'create_townhall' => false,
@@ -197,7 +187,6 @@ class RolePermissionController extends Controller
                 'access_sales_marketing' => false,
 
                 'access_human_capital' => false,
-                ...array_fill_keys($this->humanCapitalPermissionColumns, false),
 
                 ...array_fill_keys($this->financePermissionColumns, false),
             ]
@@ -263,7 +252,7 @@ class RolePermissionController extends Controller
                 'access_sales_marketing',
 
                 'access_human_capital',
-            ], $this->humanCapitalPermissionColumns, $this->financePermissionColumns) as $column
+            ], $this->accountManagementPermissionColumns, $this->financePermissionColumns) as $column
         ) {
             if (Schema::hasColumn('role_permissions', $column)) {
                 $updates[$column] = $request->has($column);

@@ -2,12 +2,16 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\UserAccountCreatedMail;
+use App\Models\AccountAuditLog;
 use App\Models\Contact;
 use App\Models\Employee;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 class AdminUserController extends Controller
@@ -20,8 +24,9 @@ class AdminUserController extends Controller
             abort(403, 'Unauthorized.');
         }
 
-        $users = User::with(['employeeProfile', 'contactProfile'])
+        $users = User::with(['employeeProfile', 'contactProfile', 'userPermission'])
             ->whereRaw('LOWER(role) != ?', ['superadmin'])
+            ->whereNull('archived_at')
             ->orderBy('name')
             ->paginate(10);
 
@@ -75,12 +80,17 @@ class AdminUserController extends Controller
         }
     }
 
+    private function generateTemporaryPassword(): string
+    {
+        return Str::password(14, true, true, false, false);
+    }
+
     public function store(Request $request)
     {
         $authUser = auth()->user();
 
-        if (!$authUser || !$authUser->hasPermission('manage_users')) {
-            abort(403, 'Unauthorized.');
+        if (!$authUser || !$authUser->canCreateUserAccount()) {
+            abort(403, 'You do not have permission to create user accounts.');
         }
 
         $validated = $request->validate([
@@ -90,10 +100,11 @@ class AdminUserController extends Controller
             'name' => ['nullable', 'string', 'max:255'],
             'email' => ['nullable', 'email', 'max:255', 'unique:users,email'],
             'role' => ['required', Rule::in(['Admin', 'Employee', 'Client'])],
-            'password' => ['required', 'string', 'min:8', 'confirmed'],
         ]);
 
-        DB::transaction(function () use ($validated) {
+        $temporaryPassword = $this->generateTemporaryPassword();
+
+        $user = DB::transaction(function () use ($validated, $temporaryPassword, $authUser, $request) {
             $employee = null;
             $contact = null;
 
@@ -152,31 +163,34 @@ class AdminUserController extends Controller
                 'name' => $validated['name'],
                 'email' => $validated['email'],
                 'role' => $validated['role'],
-                'password' => Hash::make($validated['password']),
+                'password' => Hash::make($temporaryPassword),
+                'must_change_password' => true,
+                'temporary_password_expires_at' => now()->addDays(7),
+                'is_active' => true,
                 'can_edit_user_roles' => false,
                 'can_delete_users' => false,
             ]);
 
             if ($employee) {
-                $employee->update([
-                    'user_id' => $user->id,
-                ]);
-
+                $employee->update(['user_id' => $user->id]);
                 $this->syncLinkedProfileToUser($user);
             }
 
             if ($contact) {
-                $contact->update([
-                    'user_id' => $user->id,
-                ]);
-
+                $contact->update(['user_id' => $user->id]);
                 $this->syncLinkedProfileToUser($user);
             }
+
+            AccountAuditLog::record('User Created', $user, 'User account created and temporary password email sent.', $authUser, $request->ip());
+
+            return $user;
         });
+
+        Mail::to($user->email)->send(new UserAccountCreatedMail($user, $temporaryPassword, route('login')));
 
         return redirect()
             ->route('admin.users')
-            ->with('success', 'User created and linked successfully.');
+            ->with('success', 'User created successfully. A temporary password was emailed to ' . $user->email . '.');
     }
 
     public function update(Request $request, $id)
@@ -184,8 +198,8 @@ class AdminUserController extends Controller
         $authUser = auth()->user();
         $user = User::findOrFail($id);
 
-        if (!$authUser || !$authUser->hasPermission('manage_users')) {
-            abort(403, 'You do not have permission to edit user roles.');
+        if (!$authUser || !$authUser->canEditUserAccount()) {
+            abort(403, 'You do not have permission to edit user accounts.');
         }
 
         if ($user->isSuperAdmin()) {
@@ -209,42 +223,41 @@ class AdminUserController extends Controller
 
         $this->syncLinkedProfileToUser($user);
 
+        AccountAuditLog::record('User Edited', $user, 'User account role/control values updated.', $authUser, $request->ip());
+
         return redirect()
             ->route('admin.users')
             ->with('success', 'User updated successfully.');
     }
 
-    public function destroy($id)
+    public function destroy(Request $request, $id)
     {
         $authUser = auth()->user();
         $user = User::with(['employeeProfile', 'contactProfile'])->findOrFail($id);
 
-        if (!$authUser || !$authUser->hasPermission('manage_users')) {
-            abort(403, 'You do not have permission to delete users.');
+        if (!$authUser || !$authUser->canDeleteUserAccount()) {
+            abort(403, 'You do not have permission to archive user accounts.');
         }
 
         if ($authUser->id === $user->id) {
-            return back()->with('error', 'You cannot delete your own account.');
+            return back()->with('error', 'You cannot archive your own account.');
         }
 
         if ($user->isSuperAdmin()) {
-            return back()->with('error', 'Superadmin cannot be deleted here.');
+            return back()->with('error', 'Superadmin cannot be archived here.');
         }
 
-        DB::transaction(function () use ($user) {
-            if ($user->employeeProfile) {
-                $user->employeeProfile->update(['user_id' => null]);
-            }
+        $user->forceFill([
+            'is_active' => false,
+            'archived_at' => now(),
+            'archived_by' => $authUser->id,
+            'archived_reason' => 'Archived through User Account Management.',
+        ])->save();
 
-            if ($user->contactProfile) {
-                $user->contactProfile->update(['user_id' => null]);
-            }
-
-            $user->delete();
-        });
+        AccountAuditLog::record('User Archived', $user, 'User archived instead of permanently deleted.', $authUser, $request->ip());
 
         return redirect()
             ->route('admin.users')
-            ->with('success', 'User deleted successfully.');
+            ->with('success', 'User archived successfully. Records and audit history were preserved.');
     }
 }

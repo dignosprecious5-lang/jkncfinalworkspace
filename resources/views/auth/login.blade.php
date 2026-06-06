@@ -45,7 +45,6 @@
             letter-spacing: 0.02em;
         }
 
-        /* Hide browser built-in password eye icon so it will not overlap with the Show/Hide button */
         input[type="password"]::-ms-reveal,
         input[type="password"]::-ms-clear {
             display: none;
@@ -137,10 +136,10 @@
                         </button>
                     </div>
 
-                    <div class="flex justify-end mt-1">
-                        <p class="text-[#102d79]/60 text-xs text-right">
-                            Forgot your password? Please contact your system administrator.
-                        </p>
+                    <div class="flex justify-end mt-2">
+                        <a href="{{ route('password.assistance') }}" class="text-[#1d54e2] text-xs font-semibold hover:text-[#102d79]">
+                            Need help accessing your account?
+                        </a>
                     </div>
                 </div>
 
@@ -196,7 +195,6 @@
             window.location.reload();
         }
     });
-
 </script>
 
 </body>

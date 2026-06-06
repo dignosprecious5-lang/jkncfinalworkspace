@@ -6,6 +6,8 @@ use App\Http\Controllers\AdminUserStatusController;
 use App\Http\Controllers\AdminUserAccountController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\ChangePasswordController;
+use App\Http\Controllers\Auth\ResetPasswordController;
+use App\Http\Controllers\PasswordAssistanceController;
 use App\Http\Controllers\BylawController;
 use App\Http\Controllers\CapitalStructureController;
 use App\Http\Controllers\CatalogChangeRequestController;
@@ -214,6 +216,15 @@ Route::prefix('api')->group(function () {
 Route::middleware('guest')->group(function () {
     Route::get('/login', [LoginController::class, 'showLoginForm'])->name('login');
     Route::post('/login', [LoginController::class, 'login'])->name('login.post');
+    Route::get('/password-assistance', [PasswordAssistanceController::class, 'create'])
+        ->name('password.assistance');
+    Route::post('/password-assistance', [PasswordAssistanceController::class, 'store'])
+        ->name('password.assistance.store');
+
+    Route::get('/reset-password/{token}', [ResetPasswordController::class, 'showResetForm'])
+        ->name('password.reset');
+    Route::post('/reset-password', [ResetPasswordController::class, 'reset'])
+        ->name('password.update');
 });
 
 Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
@@ -266,7 +277,7 @@ Route::get('/job-offer/{token}/decline', [RecruitmentController::class, 'decline
 |--------------------------------------------------------------------------
 */
 
-Route::middleware(['auth', 'prevent-back-history'])->group(function () {
+Route::middleware(['auth', 'prevent-back-history', \App\Http\Middleware\EnsurePasswordChanged::class])->group(function () {
     /*
     |--------------------------------------------------------------------------
     | ACCOUNT SETTINGS
@@ -274,7 +285,7 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () {
     */
     Route::get('/change-password', [ChangePasswordController::class, 'edit'])->name('password.change');
     Route::post('/change-password', [ChangePasswordController::class, 'update'])->name('password.change.update');
-    
+
     /*
     |--------------------------------------------------------------------------
     | FILES / UPLOADS
@@ -292,7 +303,7 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () {
     */
     Route::get('/notifications/unread', [NotificationController::class, 'unread'])
     ->name('notifications.unread');
-    
+
     Route::post('/notifications/{notification}/read', [NotificationController::class, 'markAsRead'])
         ->name('notifications.read');
 

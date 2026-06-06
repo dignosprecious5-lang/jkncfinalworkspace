@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AccountAuditLog;
 use App\Models\Contact;
 use App\Models\Employee;
 use App\Models\User;
@@ -54,8 +55,8 @@ class AdminUserAccountController extends Controller
     {
         $authUser = Auth::user();
 
-        if (!$authUser || !$authUser->isSuperAdmin()) {
-            abort(403, 'Only SuperAdmin can edit user accounts.');
+        if (!$authUser || !$authUser->canEditUserAccount()) {
+            abort(403, 'You do not have permission to edit user accounts.');
         }
 
         $user = User::findOrFail($id);
@@ -98,13 +99,20 @@ class AdminUserAccountController extends Controller
             $payload['email_verified_at'] = null;
         }
 
+        $remarks = 'Account details updated.';
+
         if (!empty($validated['password'])) {
             $payload['password'] = Hash::make($validated['password']);
+            $payload['must_change_password'] = true;
+            $payload['temporary_password_expires_at'] = now()->addDays(7);
+            $remarks .= ' Password changed by administrator and marked for first-login reset.';
         }
 
         $user->forceFill($payload)->save();
 
         $this->syncLinkedProfileToUser($user);
+
+        AccountAuditLog::record('User Edited', $user, $remarks, $authUser, $request->ip());
 
         return redirect()
             ->back()

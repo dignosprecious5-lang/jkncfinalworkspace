@@ -5,6 +5,12 @@
 @php
     $authUser = auth()->user();
 
+    $canCreateUserAccount = $authUser?->canCreateUserAccount() ?? false;
+    $canEditUserAccount = $authUser?->canEditUserAccount() ?? false;
+    $canDisableEnableUserAccount = $authUser?->canDisableEnableUserAccount() ?? false;
+    $canResetUserPassword = $authUser?->canResetUserPassword() ?? false;
+    $canDeleteUserAccount = $authUser?->canDeleteUserAccount() ?? false;
+
     $employeeAccountOptions = collect($employeeOptions ?? [])->filter(function ($employee) {
         return blank($employee->user_id);
     })->map(function ($employee) {
@@ -69,6 +75,7 @@
         </div>
     @endif
 
+    @if($canCreateUserAccount)
     {{-- CREATE USER SLIDE OVER --}}
     <div x-show="showCreateUser" x-cloak class="fixed inset-0 z-50 overflow-hidden">
         <div class="absolute inset-0 overflow-hidden">
@@ -198,26 +205,9 @@
                             >
                         </div>
 
-                        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                            <div>
-                                <label class="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wide">Password</label>
-                                <input
-                                    type="password"
-                                    name="password"
-                                    placeholder="Enter password"
-                                    class="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
-                                >
-                            </div>
-
-                            <div>
-                                <label class="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wide">Confirm Password</label>
-                                <input
-                                    type="password"
-                                    name="password_confirmation"
-                                    placeholder="Confirm password"
-                                    class="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
-                                >
-                            </div>
+                        <div class="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+                            <p class="font-semibold">Temporary password will be generated automatically.</p>
+                            <p class="mt-1 text-xs">The user will receive the temporary password by email and must change it on first login.</p>
                         </div>
 
                         <div class="sticky bottom-0 -mx-6 border-t border-slate-200 bg-white px-6 py-4 flex gap-3">
@@ -242,6 +232,8 @@
         </div>
     </div>
 
+    @endif
+
     <div class="space-y-5">
         <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
             <div class="relative px-6 py-6">
@@ -258,6 +250,7 @@
                         <p class="mt-1 text-sm text-slate-500">Manage login credentials, linked profiles, roles, and account controls.</p>
                     </div>
 
+                    @if($canCreateUserAccount)
                     <button
                         @click="openCreateModal()"
                         class="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
@@ -265,6 +258,7 @@
                         <i class="fas fa-plus text-xs"></i>
                         Create User
                     </button>
+                    @endif
                 </div>
             </div>
         </div>
@@ -449,7 +443,7 @@
 
                                 <td class="px-5 py-4 text-right">
                                     <div class="flex flex-col items-end gap-2">
-                                        @if($authUser->isSuperAdmin() && !$user->isSuperAdmin())
+                                        @if($canEditUserAccount && !$user->isSuperAdmin())
                                             <div x-data="{ accountOpen: @js((int) session('edit_account_user_id') === (int) $user->id || (int) session('edit_account_success_user_id') === (int) $user->id), showPassword: false }" class="w-full">
                                                 <button
                                                     type="button"
@@ -624,8 +618,27 @@
                                             </div>
                                         @endif
 
+
+                                        @if($canResetUserPassword && $authUser->id !== $user->id && !$user->isSuperAdmin())
+                                            <form
+                                                action="{{ route('admin.users.reset-password', $user->id) }}"
+                                                method="POST"
+                                                onsubmit="return confirm('Send a secure password reset email to {{ addslashes($user->email) }}?')"
+                                            >
+                                                @csrf
+
+                                                <button
+                                                    type="submit"
+                                                    class="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-blue-700"
+                                                >
+                                                    <i class="fas fa-key text-[10px]"></i>
+                                                    Reset Password
+                                                </button>
+                                            </form>
+                                        @endif
+
                                         @if(
-                                            ($authUser->isSuperAdmin() || $authUser->isAdmin() || $authUser->hasPermission('manage_users'))
+                                            $canDisableEnableUserAccount
                                             && $authUser->id !== $user->id
                                             && !$user->isSuperAdmin()
                                         )
@@ -664,11 +677,11 @@
                                             @endif
                                         @endif
 
-                                        @if($authUser->canDeleteUsers() && $authUser->id !== $user->id && !$user->isSuperAdmin())
+                                        @if($canDeleteUserAccount && $authUser->id !== $user->id && !$user->isSuperAdmin())
                                             <form
                                                 action="{{ route('admin.users.destroy', $user->id) }}"
                                                 method="POST"
-                                                onsubmit="return confirm('Delete this user?')"
+                                                onsubmit="return confirm('Archive this user? The account will no longer be able to log in, but records will be preserved.')"
                                             >
                                                 @csrf
                                                 @method('DELETE')
