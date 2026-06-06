@@ -175,6 +175,7 @@ class BirTaxController extends Controller
     {
         return view('corporate.bir-tax.index', [
             'companyDefaults' => $this->companyDefaults(),
+            'defaultWorkflowTab' => 'accepted',
             'repositoryRoutes' => [
                 'dataUrl' => route('bir-tax'),
                 'storeUrl' => route('bir-tax.store'),

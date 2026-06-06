@@ -2,20 +2,19 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Controllers\Concerns\GeneratesPdfPreview;
 use App\Http\Controllers\Concerns\HandlesCorporateRepositoryRecords;
 use App\Http\Controllers\Concerns\HandlesUploads;
+use App\Http\Controllers\Concerns\ResolvesCompanyRecords;
 use App\Http\Controllers\Concerns\SyncsDeadlineTownHallMemo;
 use App\Models\NatGov;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Storage;
 
-class NatGovController extends Controller
+class CompanyNatGovController extends Controller
 {
-    use GeneratesPdfPreview;
     use HandlesCorporateRepositoryRecords;
     use HandlesUploads;
+    use ResolvesCompanyRecords;
     use SyncsDeadlineTownHallMemo;
 
     private const AGENCY_OPTIONS = [
@@ -76,32 +75,12 @@ class NatGovController extends Controller
         'expired' => 'Expired',
     ];
 
-    private function canApproveCorporate(): bool
+    public function index(Request $request, int $company)
     {
-        return Auth::check() && Auth::user()->hasPermission('approve_corporate');
-    }
+        $companyData = $this->findCompany($request, $company);
 
-    private function canOverrideNatGovStatus(): bool
-    {
-        $user = auth()->user();
-
-        return $user !== null && ($user->isAdmin() || $user->isSuperAdmin());
-    }
-
-    private function canEditRecord(NatGov $record): bool
-    {
-        if ($this->canApproveCorporate()) {
-            return true;
-        }
-
-        return (int) $record->submitted_by === (int) Auth::id()
-            && in_array($record->workflow_status ?? 'Uploaded', ['Uploaded', 'Reverted'], true);
-    }
-
-    public function index(Request $request)
-    {
         if ($request->expectsJson()) {
-            $query = NatGov::query();
+            $query = NatGov::query()->where('company_id', $company);
             $searchAgency = trim((string) $request->query('search_agency', ''));
             $statusFilter = trim((string) $request->query('status_filter', ''));
             $agencyFilter = trim((string) $request->query('agency_filter', ''));
@@ -166,19 +145,20 @@ class NatGovController extends Controller
             );
         }
 
-        return $this->page();
+        return $this->page($company, $companyData);
     }
 
-    public function page()
+    private function page(int $company, array $companyData)
     {
         return view('corporate.natgov.index', [
-            'companyDefaults' => $this->latestCorporateCompany(),
+            'company' => (object) $companyData,
+            'companyDefaults' => $companyData,
             'defaultWorkflowTab' => 'accepted',
             'repositoryRoutes' => [
-                'dataUrl' => route('natgov'),
-                'storeUrl' => route('natgov.store'),
-                'updateUrl' => route('natgov.update', '__ID__'),
-                'submitUrl' => route('natgov.submit', '__ID__'),
+                'dataUrl' => route('company.natgov', $company),
+                'storeUrl' => route('company.natgov.store', $company),
+                'updateUrl' => route('company.natgov.update', ['company' => $company, 'record' => '__ID__']),
+                'submitUrl' => route('company.natgov.submit', ['company' => $company, 'record' => '__ID__']),
             ],
             'agencyOptions' => self::AGENCY_OPTIONS,
             'statusOptions' => self::STATUS_OPTIONS,
@@ -188,15 +168,10 @@ class NatGovController extends Controller
         ]);
     }
 
-    public function create()
+    public function store(Request $request, int $company)
     {
-        return redirect()->route('natgov');
-    }
-
-    public function store(Request $request)
-    {
+        $companyData = $this->findCompany($request, $company);
         $validated = $this->validatedPayload($request);
-        $company = $this->latestCorporateCompany();
         $user = $this->currentUserLabel($request);
 
         [$documentPath, $draftDocuments] = $this->collectDraftDocuments($request);
@@ -205,9 +180,9 @@ class NatGovController extends Controller
         $primaryDocumentName = $this->resolveDocumentName($primaryDocumentPath, $draftDocuments, $approvedDocuments);
 
         $record = NatGov::create([
-            'company_id' => $company['company_id'],
-            'company_name' => $company['company_name'],
-            'client' => $company['company_name'],
+            'company_id' => $company,
+            'company_name' => $companyData['company_name'],
+            'client' => $companyData['company_name'],
             'agency' => $this->normalizeMultiValueField(
                 $request->input('agencies_selected', []),
                 $request->input('agency_other', ''),
@@ -247,90 +222,17 @@ class NatGovController extends Controller
 
         $this->syncNatGovDeadlines($record);
 
-        return $this->natGovResponse($request, $record, 'NatGov entry saved successfully.', 201);
+        return response()->json([
+            'message' => 'NatGov entry saved successfully.',
+            'data' => $this->transformRecord($record->fresh()),
+        ], 201);
     }
 
-    public function show(Request $request, NatGov $natgov)
+    public function update(Request $request, int $company, int $record)
     {
-        if (! $this->canApproveCorporate() && (int) $natgov->submitted_by !== (int) Auth::id()) {
-            abort(403, 'Unauthorized');
-        }
+        $this->findCompany($request, $company);
+        $natgov = NatGov::query()->where('company_id', $company)->findOrFail($record);
 
-        if ($request->expectsJson()) {
-            return response()->json($this->transformRecord($natgov));
-        }
-
-        $generatedDraftPath = $this->generatePdfPreview(
-            'corporate.natgov.pdf',
-            ['natgov' => $natgov],
-            'generated-previews/natgov/' . ($natgov->registration_no ?: $natgov->id) . '-draft.pdf'
-        );
-
-        $uploadUrl = function (?string $path): ?string {
-            if (! $path || ! Storage::disk('public')->exists($path)) {
-                return null;
-            }
-
-            $segments = array_map('rawurlencode', array_values(array_filter(explode('/', trim($path, '/')), fn ($segment) => $segment !== '')));
-
-            return url('/uploads/' . implode('/', $segments));
-        };
-
-        $draftDocuments = collect($natgov->draft_documents ?? [])->filter(fn ($entry) => ! empty($entry['path']) && Storage::disk('public')->exists($entry['path']))->values();
-        $approvedDocuments = collect($natgov->approved_documents ?? [])->filter(fn ($entry) => ! empty($entry['path']) && Storage::disk('public')->exists($entry['path']))->values();
-        $generatedDraftUrl = $generatedDraftPath && Storage::disk('public')->exists($generatedDraftPath)
-            ? route('uploads.show', ['path' => $generatedDraftPath])
-            : null;
-        $generatedDraftOption = $generatedDraftUrl ? [[
-            'url' => $generatedDraftUrl,
-            'label' => 'Template Draft',
-            'uploaded_at' => 'Initial generated template',
-        ]] : [];
-        $draftOptions = $draftDocuments->map(function ($entry, $index) use ($uploadUrl) {
-            return [
-                'url' => $uploadUrl($entry['path']),
-                'label' => $entry['name'] ?? ('Draft Revision ' . ($index + 1)),
-                'uploaded_at' => $entry['uploaded_at'] ?? null,
-            ];
-        })->values()->all();
-        $draftOptions = array_merge($generatedDraftOption, $draftOptions);
-
-        $draftUrl = $uploadUrl($natgov->document_path) ?: ($generatedDraftPath && Storage::disk('public')->exists($generatedDraftPath) ? route('uploads.show', ['path' => $generatedDraftPath]) : null);
-        $approvedUrl = $uploadUrl($natgov->approved_document_path);
-
-        return view('corporate.natgov.preview', [
-            'natgov' => $natgov,
-            'generatedDraftUrl' => $generatedDraftUrl,
-            'draftUrl' => $draftUrl,
-            'approvedUrl' => $approvedUrl,
-            'draftDocuments' => $draftDocuments,
-            'approvedDocuments' => $approvedDocuments,
-            'draftOptions' => $draftOptions,
-            'selectedDraftUrl' => $draftUrl ?: ($generatedDraftUrl ?: (! empty($draftOptions) ? $draftOptions[array_key_last($draftOptions)]['url'] : null)),
-            'latestDraft' => $draftDocuments->last() ?: ($generatedDraftUrl ? [
-                'name' => 'Template Draft',
-                'path' => $generatedDraftPath,
-                'uploaded_at' => 'Initial generated template',
-            ] : null),
-            'latestApproved' => $approvedDocuments->last(),
-            'visibleAuthorityNotes' => $this->visibleAuthorityNotes($natgov),
-            'backRoute' => route('natgov', [
-                'record' => $natgov->id,
-                'tab' => strtolower((string) ($natgov->workflow_status ?? 'uploaded')),
-            ]),
-            'editRoute' => route('natgov.edit', $natgov),
-            'deleteRoute' => route('natgov.destroy', $natgov),
-            'updateRoute' => route('natgov.update', $natgov),
-        ]);
-    }
-
-    public function edit(NatGov $natgov)
-    {
-        return redirect()->route('natgov.preview', $natgov);
-    }
-
-    public function update(Request $request, NatGov $natgov)
-    {
         if (! $this->canEditRecord($natgov)) {
             abort(403, 'This record can no longer be edited.');
         }
@@ -376,11 +278,17 @@ class NatGovController extends Controller
         $natgov->refresh();
         $this->syncNatGovDeadlines($natgov);
 
-        return $this->natGovResponse($request, $natgov, 'NatGov entry updated.');
+        return response()->json([
+            'message' => 'NatGov entry updated.',
+            'data' => $this->transformRecord($natgov->fresh()),
+        ]);
     }
 
-    public function submit(NatGov $natgov)
+    public function submitCompany(Request $request, int $company, int $record)
     {
+        $this->findCompany($request, $company);
+        $natgov = NatGov::query()->where('company_id', $company)->findOrFail($record);
+
         if ((int) $natgov->submitted_by !== (int) Auth::id()) {
             abort(403, 'Unauthorized');
         }
@@ -403,21 +311,11 @@ class NatGovController extends Controller
         ]);
     }
 
-    public function approve(NatGov $natgov)
+    public function destroy(Request $request, int $company, int $record)
     {
-        abort_unless($this->canOverrideNatGovStatus(), 403);
+        $this->findCompany($request, $company);
+        $natgov = NatGov::query()->where('company_id', $company)->findOrFail($record);
 
-        $natgov->forceFill([
-            'status_override' => 'Approved',
-        ])->save();
-
-        return redirect()
-            ->route('natgov.preview', $natgov)
-            ->with('success', 'NatGov record approved successfully.');
-    }
-
-    public function destroy(NatGov $natgov)
-    {
         if (! $this->canEditRecord($natgov)) {
             abort(403, 'This record can no longer be deleted.');
         }
@@ -425,25 +323,29 @@ class NatGovController extends Controller
         $this->deleteDeadlineTownHallMemo($natgov);
         $natgov->delete();
 
-        return redirect()->route('natgov')->with('success', 'NatGov entry deleted.');
+        return response()->json(['message' => 'NatGov entry deleted successfully.']);
     }
 
-    public function storeAuthorityNote(Request $request, NatGov $natgov)
+    private function canApproveCorporate(): bool
     {
-        $data = $request->validate([
-            'visible_to_role' => ['required', 'string', 'in:Admin,Employee'],
-            'body' => ['required', 'string'],
-        ]);
+        return Auth::check() && Auth::user()->hasPermission('approve_corporate');
+    }
 
-        $natgov->authorityNotes()->create([
-            'user_id' => auth()->id(),
-            'visible_to_role' => $data['visible_to_role'],
-            'body' => $data['body'],
-        ]);
+    private function canOverrideNatGovStatus(): bool
+    {
+        $user = auth()->user();
 
-        return redirect()
-            ->route('natgov.preview', $natgov)
-            ->with('success', 'Authority note added.');
+        return $user !== null && ($user->isAdmin() || $user->isSuperAdmin());
+    }
+
+    private function canEditRecord(NatGov $record): bool
+    {
+        if ($this->canApproveCorporate()) {
+            return true;
+        }
+
+        return (int) $record->submitted_by === (int) Auth::id()
+            && in_array($record->workflow_status ?? 'Uploaded', ['Uploaded', 'Reverted'], true);
     }
 
     private function validatedPayload(Request $request): array
@@ -482,7 +384,7 @@ class NatGovController extends Controller
             'document_paths',
             $existing?->draft_documents ?? [],
             $existing?->document_path,
-            'uploads/natgov/drafts'
+            'uploads/company/natgov/drafts'
         );
     }
 
@@ -495,7 +397,7 @@ class NatGovController extends Controller
             'approved_document_paths',
             $existing?->approved_documents ?? [],
             $existing?->approved_document_path,
-            'uploads/natgov/approved'
+            'uploads/company/natgov/approved'
         );
     }
 
@@ -551,7 +453,7 @@ class NatGovController extends Controller
 
         return [
             'id' => $record->id,
-            'company' => $record->company_name ?: $record->client ?: 'Latest Approved GIS Company',
+            'company' => $record->company_name ?: $record->client ?: 'Selected Company',
             'agency' => $record->agency,
             'registration_number' => $record->registration_no,
             'registration_date' => optional($record->registration_date)->format('Y-m-d'),
@@ -598,37 +500,9 @@ class NatGovController extends Controller
         );
     }
 
-    private function visibleAuthorityNotes(NatGov $natgov)
-    {
-        $role = auth()->user()?->role;
-
-        return $natgov->authorityNotes()
-            ->with('user:id,name,role')
-            ->when($role && $role !== 'SuperAdmin', function ($query) use ($role) {
-                $query->where('visible_to_role', $role);
-            })
-            ->get();
-    }
-
     private function recordLabel(NatGov $natgov): string
     {
         return trim(($natgov->agency ?: 'NatGov filing') . ' - ' . ($natgov->client ?: $natgov->registration_no ?: 'Untitled Record'), ' -');
-    }
-
-    private function natGovResponse(Request $request, NatGov $natgov, string $message, int $status = 200)
-    {
-        if ($request->expectsJson()) {
-            return response()->json([
-                'message' => $message,
-                'data' => $this->transformRecord($natgov->fresh()),
-            ], $status);
-        }
-
-        if (trim((string) $request->input('redirect_to', '')) === 'preview') {
-            return redirect()->route('natgov.preview', $natgov)->with('success', $message);
-        }
-
-        return redirect()->route('natgov')->with('success', $message);
     }
 
     private function matchesRenewalPeriod(NatGov $item, string $renewalPeriod): bool
@@ -720,41 +594,28 @@ class NatGovController extends Controller
         return 'Active';
     }
 
-    private function normalizeMultiValueField(array|string|null $selectedValues, ?string $otherValue, ?string $fallbackValue = ''): string
+    private function normalizeMultiValueField(array $selected, ?string $other, ?string $fallback = null): string
     {
-        $values = [];
+        $values = collect($selected)
+            ->map(fn ($value) => trim((string) $value))
+            ->filter()
+            ->reject(fn ($value) => strcasecmp($value, 'Other') === 0)
+            ->values();
 
-        if (is_array($selectedValues)) {
-            $values = collect($selectedValues)
-                ->map(fn ($value) => trim((string) $value))
-                ->filter()
-                ->reject(fn ($value) => $value === 'Other')
-                ->values()
-                ->all();
-        } else {
-            $raw = trim((string) $selectedValues);
-            if ($raw !== '') {
-                $values = collect(explode(',', $raw))
-                    ->map(fn ($value) => trim((string) $value))
-                    ->filter()
-                    ->values()
-                    ->all();
-            }
+        $otherValue = trim((string) $other);
+        if ($otherValue !== '') {
+            $values->push($otherValue);
         }
 
-        $other = trim((string) $otherValue);
-        if ($other !== '') {
-            $values[] = $other;
+        if ($values->isEmpty() && filled($fallback)) {
+            return trim((string) $fallback);
         }
 
-        if (empty($values)) {
-            $values = collect(explode(',', trim((string) $fallbackValue)))
-                ->map(fn ($value) => trim((string) $value))
-                ->filter()
-                ->values()
-                ->all();
-        }
+        return $values->unique()->implode(', ');
+    }
 
-        return collect($values)->unique()->implode(', ');
+    private function findCompany(Request $request, int $company): array
+    {
+        return $this->resolveCompanyRecord($request, $company, []);
     }
 }

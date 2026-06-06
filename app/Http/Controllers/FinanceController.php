@@ -2620,6 +2620,40 @@ SVG;
             }
         }
 
+        if ($moduleKey === 'dv') {
+            $sourceType = (string) data_get($data, 'source_document_type', '');
+            $sourceId = data_get($data, 'source_document_id');
+            $sourceRecord = $sourceType && $sourceId
+                ? $this->financeResolveModuleRecord($sourceType, $sourceId)
+                : null;
+
+            if ($sourceRecord) {
+                $sourcePayload = $this->fallbackDvPayload($sourceRecord);
+                $data = array_replace($data, array_filter([
+                    'supplier_id' => data_get($data, 'supplier_id') ?: data_get($sourcePayload, 'supplier_id'),
+                    'bank_account_id' => data_get($data, 'bank_account_id') ?: data_get($sourcePayload, 'bank_account_id'),
+                    'payment_type' => data_get($data, 'payment_type') ?: data_get($sourcePayload, 'payment_type'),
+                    'disbursement_type' => data_get($data, 'disbursement_type') ?: data_get($sourcePayload, 'disbursement_type'),
+                    'payee_type' => data_get($data, 'payee_type') ?: data_get($sourcePayload, 'payee_type'),
+                    'payee_name' => data_get($data, 'payee_name') ?: data_get($sourcePayload, 'payee_name'),
+                    'coa_id' => data_get($data, 'coa_id') ?: data_get($sourcePayload, 'coa_id'),
+                    'fund_source' => data_get($data, 'fund_source') ?: data_get($sourcePayload, 'fund_source'),
+                    'department' => data_get($data, 'department') ?: data_get($sourcePayload, 'department'),
+                    'purpose' => data_get($data, 'purpose') ?: data_get($sourcePayload, 'purpose'),
+                    'payment_date' => data_get($data, 'payment_date') ?: data_get($sourcePayload, 'payment_date'),
+                    'due_date' => data_get($data, 'due_date') ?: data_get($sourcePayload, 'due_date'),
+                    'withholding_tax' => data_get($data, 'withholding_tax') ?: data_get($sourcePayload, 'withholding_tax'),
+                    'vat_amount' => data_get($data, 'vat_amount') ?: data_get($sourcePayload, 'vat_amount'),
+                    'currency' => data_get($data, 'currency') ?: data_get($sourcePayload, 'currency'),
+                    'exchange_rate' => data_get($data, 'exchange_rate') ?: data_get($sourcePayload, 'exchange_rate'),
+                    'received_by_name' => data_get($data, 'received_by_name') ?: data_get($sourcePayload, 'received_by_name'),
+                    'date_received' => data_get($data, 'date_received') ?: data_get($sourcePayload, 'date_received'),
+                    'reference_number' => data_get($data, 'reference_number') ?: data_get($sourcePayload, 'reference_number'),
+                    'remarks' => data_get($data, 'remarks') ?: data_get($sourcePayload, 'remarks'),
+                ], fn ($value) => !blank($value)));
+            }
+        }
+
         return $data;
     }
 
@@ -5686,6 +5720,7 @@ SVG;
     {
         $contactOptions = Schema::hasTable('contacts')
             ? Contact::query()
+                ->whereRaw('LOWER(COALESCE(cif_status, "")) = ?', ['approved'])
                 ->with([
                     'companies:id,company_name',
                     'primaryCompanies:id,company_name,primary_contact_id',
@@ -5766,12 +5801,15 @@ SVG;
 
         return Company::query()
             ->with('latestBif')
+            ->whereHas('latestBif', function ($query) {
+                $query->whereRaw('LOWER(COALESCE(status, "")) = ?', ['approved']);
+            })
             ->orderBy('company_name')
             ->get(['id', 'company_name', 'address'])
             ->flatMap(function (Company $company) use ($contactOptions) {
                 $bif = $company->latestBif;
 
-                if (! $bif) {
+                if (! $bif || strtolower((string) $bif->status) !== 'approved') {
                     return collect();
                 }
 

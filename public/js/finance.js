@@ -1422,7 +1422,13 @@
                         { value: 'Yes', label: 'Yes' },
                     ],
                 }),
-                selectorField('client_names', 'Client Name(s)', { source: 'client', fullWidth: true, visibleWhenField: 'for_client', visibleWhenValue: 'Yes' }),
+                selectField('client_names', 'Client Name(s)', {
+                    source: 'client',
+                    fullWidth: true,
+                    visibleWhenField: 'for_client',
+                    visibleWhenValue: 'Yes',
+                    placeholder: 'Select client name(s)',
+                }),
                 numberField('amount_requested', 'Amount Requested', { required: true }),
                 selectField('release_schedule', 'Release Schedule', {
                     options: [
@@ -3325,7 +3331,7 @@
             const active = key === currentModuleKey;
             return `
                 <button id="finance-tab-${key}" type="button" onclick="window.financeModule.changeModule('${key}')"
-                    style="flex: 0 0 calc((100% - 2rem) / 5); min-width: 150px;"
+                    style="flex: 0 0 clamp(11rem, 24%, 18rem);"
                     class="snap-start px-4 py-3 text-sm font-medium border rounded-xl whitespace-nowrap text-center transition ${active ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'}">
                     ${escapeHtml(financeModules[key].label)}
                 </button>
@@ -3333,6 +3339,11 @@
         });
         container.innerHTML = buttons.join('');
         container.scrollLeft = previousScrollLeft;
+    }
+
+    function centerActiveModuleTab(behavior = 'auto') {
+        const activeTab = document.getElementById(`finance-tab-${currentModuleKey}`);
+        activeTab?.scrollIntoView({ behavior, inline: 'center', block: 'nearest' });
     }
 
     function setActiveWorkflowTabs() {
@@ -4474,6 +4485,30 @@
     function getDvAccountCode(value) {
         if (blank(value)) return '';
         return getLookupLabel('chart_account', value) || String(value || '');
+    }
+
+    function getDvLineItemAccountOptions(selectedValue = '') {
+        const options = Array.isArray(financeLookupOptions.chart_account) ? [...financeLookupOptions.chart_account] : [];
+        const normalizedSelectedValue = String(selectedValue || '').trim();
+
+        if (!normalizedSelectedValue) {
+            return options;
+        }
+
+        const hasMatch = options.some((option) => {
+            const optionId = String(option?.id ?? option?.value ?? '').trim();
+            const optionLabel = String(option?.label ?? '').trim();
+            return optionId === normalizedSelectedValue || optionLabel === normalizedSelectedValue;
+        });
+
+        if (!hasMatch) {
+            options.unshift({
+                id: normalizedSelectedValue,
+                label: normalizedSelectedValue,
+            });
+        }
+
+        return options;
     }
 
     function getDvSourceLineItemAmount(row = {}) {
@@ -6598,7 +6633,7 @@
                             ${cleanRows.map((row) => `
                                 <tr class="border-t border-gray-100">
                                     <td class="px-4 py-3 font-medium text-gray-900">${escapeHtml(row.description || 'N/A')}</td>
-                                    <td class="px-4 py-3 text-gray-900">${escapeHtml(row.account_code || 'N/A')}</td>
+                                    <td class="px-4 py-3 text-gray-900">${escapeHtml(getDvAccountCode(row.account_code) || row.account_code || 'N/A')}</td>
                                     <td class="px-4 py-3 text-gray-900">${escapeHtml(formatCurrency(row.debit || 0))}</td>
                                     <td class="px-4 py-3 text-gray-900">${escapeHtml(formatCurrency(row.credit || 0))}</td>
                                 </tr>
@@ -6619,25 +6654,35 @@
         }
         const lockSourceFields = currentModuleKey === 'dv';
         const isLocked = Boolean(financeFormLockedReadOnly);
-        const sourceFieldAttr = lockSourceFields || isLocked ? 'readonly' : '';
-        const sourceFieldClass = lockSourceFields || isLocked ? 'bg-gray-100 cursor-not-allowed' : 'bg-white';
+        const descriptionFieldAttr = isLocked ? 'readonly' : '';
+        const descriptionFieldClass = isLocked ? 'bg-gray-100 cursor-not-allowed' : 'bg-white';
+        const accountFieldDisabledAttr = isLocked ? 'disabled' : '';
+        const accountFieldClass = isLocked ? 'bg-gray-100 cursor-not-allowed' : 'bg-white';
 
         return `
             <div class="md:col-span-2 rounded-xl border border-gray-200 bg-white p-4" data-dv-line-items-section>
                 <div class="flex items-center justify-between gap-3">
                     <h4 class="text-sm font-semibold uppercase tracking-[0.24em] text-gray-700">Breakdown / Line Items</h4>
-                    ${isLocked ? '<span class="rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700">Read-only</span>' : (lockSourceFields ? '<span class="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">Debit/Credit editable</span>' : '<button type="button" onclick="window.financeModule.addDvLineItemRow()" class="rounded-md border border-blue-200 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-50">Add Line</button>')}
+                    ${isLocked ? '<span class="rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700">Read-only</span>' : (lockSourceFields ? '<span class="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">Description/Account/Debit/Credit editable</span>' : '<button type="button" onclick="window.financeModule.addDvLineItemRow()" class="rounded-md border border-blue-200 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-50">Add Line</button>')}
                 </div>
                 <div class="mt-4 space-y-3">
                     ${rows.map((row, index) => `
                         <div class="grid grid-cols-1 md:grid-cols-12 gap-3 rounded-lg border border-gray-100 bg-slate-50 p-3" data-dv-line-item-row>
                             <div class="md:col-span-5">
                                 <label class="block text-xs font-medium text-gray-600">Description</label>
-                                <input type="text" name="data[line_items][${index}][description]" data-dv-line-item-field="description" value="${escapeHtml(row.description || '')}" class="mt-1 w-full border rounded-md p-2 ${sourceFieldClass}" ${sourceFieldAttr}>
+                                <input type="text" name="data[line_items][${index}][description]" data-dv-line-item-field="description" value="${escapeHtml(row.description || '')}" class="mt-1 w-full border rounded-md p-2 ${descriptionFieldClass}" ${descriptionFieldAttr}>
                             </div>
                             <div class="md:col-span-3">
                                 <label class="block text-xs font-medium text-gray-600">Account Code</label>
-                                <input type="text" name="data[line_items][${index}][account_code]" data-dv-line-item-field="account_code" value="${escapeHtml(row.account_code || '')}" class="mt-1 w-full border rounded-md p-2 ${sourceFieldClass}" ${sourceFieldAttr}>
+                                <select name="data[line_items][${index}][account_code]" data-dv-line-item-field="account_code" class="mt-1 w-full border rounded-md p-2 ${accountFieldClass}" ${accountFieldDisabledAttr}>
+                                    <option value="">Select account code</option>
+                                    ${getDvLineItemAccountOptions(row.account_code || '').map((option) => {
+                                        const optionValue = String(option?.id ?? option?.value ?? '');
+                                        const optionLabel = String(option?.label ?? optionValue);
+                                        const selected = String(row.account_code || '') === optionValue || String(row.account_code || '') === optionLabel;
+                                        return `<option value="${escapeHtml(optionValue)}" ${selected ? 'selected' : ''}>${escapeHtml(optionLabel)}</option>`;
+                                    }).join('')}
+                                </select>
                             </div>
                             <div class="md:col-span-2">
                                 <label class="block text-xs font-medium text-gray-600">Debit</label>
@@ -6696,6 +6741,10 @@
     function bindDvLineItems() {
         document.querySelectorAll('[data-dv-line-item-field]').forEach((input) => {
             input.addEventListener('input', () => {
+                collectDvLineItems();
+                renderDrawerPreview();
+            });
+            input.addEventListener('change', () => {
                 collectDvLineItems();
                 renderDrawerPreview();
             });
@@ -8269,7 +8318,7 @@
                             ${cleanRows.map((row) => `
                                 <tr>
                                     <td><p class="finance-preview-value">${escapeHtml(row.description || 'N/A')}</p></td>
-                                    <td><p class="finance-preview-value">${escapeHtml(row.account_code || 'N/A')}</p></td>
+                                    <td><p class="finance-preview-value">${escapeHtml(getDvAccountCode(row.account_code) || row.account_code || 'N/A')}</p></td>
                                     <td><p class="finance-preview-value">${escapeHtml(formatCurrency(row.debit || 0))}</p></td>
                                     <td><p class="finance-preview-value">${escapeHtml(formatCurrency(row.credit || 0))}</p></td>
                                 </tr>
@@ -13002,7 +13051,7 @@
                                         ${dvRows.map((row) => `
                                             <tr>
                                                 <td class="border border-gray-300 px-3 py-2 text-[13px] font-semibold text-gray-900">${escapeHtml(row.description || 'N/A')}</td>
-                                                <td class="border border-gray-300 px-3 py-2 text-[13px] font-semibold text-gray-900">${escapeHtml(row.account_code || 'N/A')}</td>
+                                                <td class="border border-gray-300 px-3 py-2 text-[13px] font-semibold text-gray-900">${escapeHtml(getDvAccountCode(row.account_code) || row.account_code || 'N/A')}</td>
                                                 <td class="border border-gray-300 px-3 py-2 text-[13px] font-semibold text-gray-900">${escapeHtml(formatCurrency(row.debit || 0))}</td>
                                                 <td class="border border-gray-300 px-3 py-2 text-[13px] font-semibold text-gray-900">${escapeHtml(formatCurrency(row.credit || 0))}</td>
                                             </tr>
@@ -16326,8 +16375,7 @@
         window.history.replaceState({}, '', url);
         refreshFinanceView();
         requestAnimationFrame(() => {
-            const activeTab = document.getElementById(`finance-tab-${moduleKey}`);
-            activeTab?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+            centerActiveModuleTab('smooth');
         });
         closePreview();
     }
@@ -16364,12 +16412,27 @@
         renderTableHeader();
         renderTableRows();
         requestAnimationFrame(() => {
-            const activeTab = document.getElementById(`finance-tab-${currentModuleKey}`);
-            activeTab?.scrollIntoView({ behavior: 'auto', inline: 'center', block: 'nearest' });
+            centerActiveModuleTab('auto');
             if (recordParam && getRecordById(recordParam)) {
                 openPreview(recordParam);
             }
         });
+
+        let activeTabResizeTimer = null;
+        window.addEventListener('resize', () => {
+            window.clearTimeout(activeTabResizeTimer);
+            activeTabResizeTimer = window.setTimeout(() => {
+                centerActiveModuleTab('auto');
+            }, 120);
+        });
+
+        const moduleTabsShell = $('moduleTabsShell');
+        if (moduleTabsShell && typeof ResizeObserver !== 'undefined') {
+            const moduleTabsObserver = new ResizeObserver(() => {
+                centerActiveModuleTab('auto');
+            });
+            moduleTabsObserver.observe(moduleTabsShell);
+        }
     }
 
     window.financeModule = {

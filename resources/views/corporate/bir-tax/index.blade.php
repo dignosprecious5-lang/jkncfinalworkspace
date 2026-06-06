@@ -18,7 +18,7 @@
         'storeUrl' => $repositoryRoutes['storeUrl'],
         'updateUrl' => $repositoryRoutes['updateUrl'],
         'submitUrl' => $repositoryRoutes['submitUrl'],
-        'defaultWorkflowTab' => 'uploaded',
+        'defaultWorkflowTab' => $defaultWorkflowTab ?? 'uploaded',
         'documentUpload' => [
             'accept' => '.pdf,application/pdf',
             'help' => 'PDF files only.',

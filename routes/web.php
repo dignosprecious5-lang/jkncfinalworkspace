@@ -23,6 +23,7 @@ use App\Http\Controllers\CompanyCorrespondenceController;
 use App\Http\Controllers\CompanyKycController;
 use App\Http\Controllers\CompanyLegalController;
 use App\Http\Controllers\CompanyLguController;
+use App\Http\Controllers\CompanyNatGovController;
 use App\Http\Controllers\CompanyOperationsController;
 use App\Http\Controllers\CompanyProductController;
 use App\Http\Controllers\CompanyServiceController;
@@ -675,7 +676,14 @@ Route::middleware(['auth', 'prevent-back-history'])->group(function () {
     Route::get('/company/{company}/bir-tax', [CompanyBirTaxController::class, 'index'])->name('company.bir-tax');
     Route::post('/company/{company}/bir-tax', [CompanyBirTaxController::class, 'store'])->name('company.bir-tax.store');
     Route::match(['put', 'patch'], '/company/{company}/bir-tax/{record}', [CompanyBirTaxController::class, 'update'])->name('company.bir-tax.update');
+    Route::post('/company/{company}/bir-tax/{record}/submit', [CompanyBirTaxController::class, 'submitCompany'])->name('company.bir-tax.submit');
     Route::delete('/company/{company}/bir-tax/{record}', [CompanyBirTaxController::class, 'destroy'])->name('company.bir-tax.destroy');
+
+    Route::get('/company/{company}/natgov', [CompanyNatGovController::class, 'index'])->name('company.natgov');
+    Route::post('/company/{company}/natgov', [CompanyNatGovController::class, 'store'])->name('company.natgov.store');
+    Route::match(['put', 'patch'], '/company/{company}/natgov/{record}', [CompanyNatGovController::class, 'update'])->name('company.natgov.update');
+    Route::post('/company/{company}/natgov/{record}/submit', [CompanyNatGovController::class, 'submitCompany'])->name('company.natgov.submit');
+    Route::delete('/company/{company}/natgov/{record}', [CompanyNatGovController::class, 'destroy'])->name('company.natgov.destroy');
 
     Route::get('/company/{company}/kyc/bif/create', [CompanyBifController::class, 'create'])->name('company.bif.create');
     Route::post('/company/{company}/kyc/bif', [CompanyBifController::class, 'store'])->name('company.bif.store');

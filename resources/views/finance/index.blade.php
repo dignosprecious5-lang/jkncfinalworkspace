@@ -1,8 +1,8 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="w-full px-6 mt-4 pb-8 flex flex-col">
-    <div class="bg-white rounded-xl border border-gray-200 flex flex-col shadow-sm min-h-[calc(100vh-100px)]">
+<div class="w-full min-w-0 px-6 mt-4 pb-8 flex flex-col">
+    <div class="bg-white rounded-xl border border-gray-200 flex flex-col shadow-sm min-h-[calc(100vh-100px)] min-w-0">
         <div class="flex items-center justify-between px-4 py-3 border-b shrink-0 gap-4">
             <div class="flex items-center flex-1 min-w-0 gap-3">
                 <div>
@@ -30,7 +30,7 @@
             </div>
         </div>
 
-        <div class="px-4 pt-4 bg-white border-b border-gray-100">
+        <div class="px-4 pt-4 bg-white border-b border-gray-100 min-w-0">
             <div class="flex items-center gap-2">
                 <button type="button" onclick="window.scrollFinanceModuleTabs(-1)" class="w-9 h-9 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 flex items-center justify-center shrink-0">
                     <i class="fas fa-chevron-left text-[11px]"></i>
@@ -45,7 +45,7 @@
                 </button>
             </div>
 
-            <div id="workflowTabs" class="flex gap-2 text-[13px] overflow-x-auto pb-3 border-t border-gray-100 pt-3"></div>
+            <div id="workflowTabs" class="flex gap-2 text-[13px] overflow-x-auto pb-3 border-t border-gray-100 pt-3 no-scrollbar"></div>
             <div id="statusMessage" class="mt-1 mb-4 border border-blue-200 bg-blue-50 text-blue-700 text-[14px] px-4 py-3 rounded-md">
                 Finance records are ready for encoding.
             </div>
@@ -103,8 +103,8 @@
             </div>
         @endif
 
-        <div id="tableSection" class="p-4">
-            <div class="border rounded-md bg-white">
+        <div id="tableSection" class="p-4 min-w-0">
+            <div class="border rounded-md bg-white overflow-x-auto">
                 <table class="w-full text-sm table-fixed border-collapse">
                     <thead class="bg-gray-50 text-gray-600 sticky top-0 z-20">
                         <tr id="tableHeadRow"></tr>

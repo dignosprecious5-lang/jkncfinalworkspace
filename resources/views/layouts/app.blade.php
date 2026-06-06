@@ -1024,6 +1024,7 @@
                                 || request()->routeIs('company.operations*')
                                 || request()->routeIs('company.correspondence*')
                                 || request()->routeIs('company.bir-tax*')
+                                || request()->routeIs('company.natgov*')
                                 || request()->routeIs('company.corporate-formation*');
 
                             $companyMarketingOpen =
@@ -1087,6 +1088,11 @@
                                         <a href="{{ route('company.bir-tax', $currentCompanyId) }}"
                                            class="block px-3 py-2 rounded-lg transition {{ request()->routeIs('company.bir-tax*') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
                                             BIR & Tax
+                                        </a>
+
+                                        <a href="{{ route('company.natgov', $currentCompanyId) }}"
+                                           class="block px-3 py-2 rounded-lg transition {{ request()->routeIs('company.natgov*') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
+                                            NatGov
                                         </a>
 
                                         <a href="{{ route('company.lgu', $currentCompanyId) }}"
@@ -1338,7 +1344,7 @@
         @endif
 
         <!-- MAIN CONTENT -->
-        <main class="flex-1 overflow-y-auto">
+        <main class="flex-1 min-w-0 overflow-y-auto">
             @yield('content')
         </main>
 
