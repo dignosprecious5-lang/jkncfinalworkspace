@@ -9,7 +9,11 @@
             <p class="text-xs font-bold text-blue-600 uppercase tracking-wider">Account Settings</p>
             <h1 class="text-2xl font-semibold text-gray-900 mt-1">Change Password</h1>
             <p class="text-sm text-gray-500 mt-1">
-                Use this page after receiving a temporary password from the administrator.
+                @if(auth()->user()?->must_change_password)
+                    You must create a new password before accessing ORDO.
+                @else
+                    Use this page to update your account password.
+                @endif
             </p>
         </div>
 
@@ -17,6 +21,12 @@
             @if(session('success'))
                 <div class="mb-5 px-4 py-3 rounded-lg bg-green-50 border border-green-200 text-green-700 text-sm font-semibold">
                     {{ session('success') }}
+                </div>
+            @endif
+
+            @if(session('warning'))
+                <div class="mb-5 px-4 py-3 rounded-lg bg-yellow-50 border border-yellow-200 text-yellow-700 text-sm font-semibold">
+                    {{ session('warning') }}
                 </div>
             @endif
 
@@ -93,9 +103,12 @@
                 </div>
 
                 <div class="pt-4 border-t border-gray-100 flex justify-end gap-3">
-                    <a href="{{ url()->previous() }}" class="px-5 py-2.5 rounded-lg border border-gray-300 text-gray-700 text-sm font-semibold hover:bg-gray-50">
-                        Cancel
-                    </a>
+                    @unless(auth()->user()?->must_change_password)
+                        <a href="{{ url()->previous() }}" class="px-5 py-2.5 rounded-lg border border-gray-300 text-gray-700 text-sm font-semibold hover:bg-gray-50">
+                            Cancel
+                        </a>
+                    @endunless
+
                     <button type="submit" class="px-6 py-2.5 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700">
                         Update Password
                     </button>

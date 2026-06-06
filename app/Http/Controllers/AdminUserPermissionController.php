@@ -10,6 +10,14 @@ use Illuminate\Support\Facades\Schema;
 
 class AdminUserPermissionController extends Controller
 {
+    private array $accountManagementPermissionColumns = [
+        'create_user_account',
+        'edit_user_account',
+        'disable_enable_user_account',
+        'reset_user_password',
+        'delete_user_account',
+    ];
+
     private array $financePermissionColumns = [
         'access_finance',
         'create_finance',
@@ -34,25 +42,6 @@ class AdminUserPermissionController extends Controller
         'access_finance_arf',
     ];
 
-    private array $humanCapitalPermissionColumns = [
-        'access_hc_organizational',
-        'access_hc_payroll',
-        'access_hc_employee_profile',
-        'access_hc_recruitment',
-        'access_hc_onboarding',
-        'access_hc_deployment',
-        'access_hc_offboarding',
-        'access_hc_my_hc',
-        'access_hc_attendance',
-        'access_hc_obf',
-        'access_hc_employee_requests',
-        'access_hc_employee_relations',
-        'access_hc_memos',
-        'access_hc_training',
-        'access_hc_performance',
-        'access_hc_awards',
-    ];
-
     public function index()
     {
         if (!Auth::user()->hasPermission('manage_users')) {
@@ -60,6 +49,7 @@ class AdminUserPermissionController extends Controller
         }
 
         $users = User::where('role', '!=', 'SuperAdmin')
+            ->whereNull('archived_at')
             ->orderBy('name')
             ->paginate(10);
 
@@ -82,6 +72,11 @@ class AdminUserPermissionController extends Controller
             ['user_id' => $user->id],
             [
                 'manage_users' => false,
+                'create_user_account' => false,
+                'edit_user_account' => false,
+                'disable_enable_user_account' => false,
+                'reset_user_password' => false,
+                'delete_user_account' => false,
                 'access_admin_dashboard' => false,
                 'approve_townhall' => false,
                 'create_townhall' => false,
@@ -107,7 +102,6 @@ class AdminUserPermissionController extends Controller
                 'access_sales_marketing' => false,
 
                 'access_human_capital' => false,
-                ...array_fill_keys($this->humanCapitalPermissionColumns, false),
 
                 ...array_fill_keys($this->financePermissionColumns, false),
             ]
@@ -169,7 +163,7 @@ class AdminUserPermissionController extends Controller
                 'finance_treasurer',
                 'finance_president',
                 'finance_approver',
-            ], $this->humanCapitalPermissionColumns, $this->financePermissionColumns) as $column
+            ], $this->accountManagementPermissionColumns, $this->financePermissionColumns) as $column
         ) {
             if (Schema::hasColumn('user_permissions', $column)) {
                 $updates[$column] = $request->has($column);

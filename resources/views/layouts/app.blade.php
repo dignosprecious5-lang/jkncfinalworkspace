@@ -375,20 +375,45 @@
                         </div>
                     @endif
 
-                    @if($canSeeCrmModules && Auth::user()->hasPermission('access_deals'))
-                        <div class="space-y-1">
-                            <button type="button" @click="toggleGroup('sales')" title="Sales"
-                                :class="expanded ? 'justify-start px-3' : 'justify-center px-0'"
-                                class="w-full flex items-center gap-3 py-2.5 rounded-xl transition border {{ $isSalesActive ? 'bg-blue-50 text-blue-700 border-blue-100 font-semibold' : 'border-transparent text-gray-700 hover:bg-gray-50 hover:text-gray-900' }}">
-                                <span class="h-8 w-8 shrink-0 rounded-lg flex items-center justify-center {{ $isSalesActive ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500' }}"><i class="fas fa-chart-line text-xs"></i></span>
-                                <span x-show="expanded" x-transition.opacity.duration.200ms class="flex-1 text-left whitespace-nowrap">Sales</span>
-                                <i x-show="expanded" class="fas fa-chevron-right text-[11px] transition-transform duration-200" :class="isOpen('sales') ? 'rotate-90' : ''"></i>
-                            </button>
-                            <div x-cloak x-show="isOpen('sales')" x-collapse.duration.200ms class="ml-11 space-y-1 border-l border-gray-100 pl-3">
-                                <a href="{{ route('deals.index') }}" class="block rounded-lg px-3 py-2 transition {{ request()->routeIs('deals*') ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900' }}">Deals</a>
-                            </div>
-                        </div>
-                    @endif
+                    @if(
+    $canSeeCrmModules
+    && (
+        Auth::user()->hasPermission('access_deals')
+        || Auth::user()->hasPermission('access_sales_marketing')
+    )
+)
+    <div class="space-y-1">
+        <button type="button" @click="toggleGroup('sales')" title="Sales"
+            :class="expanded ? 'justify-start px-3' : 'justify-center px-0'"
+            class="w-full flex items-center gap-3 py-2.5 rounded-xl transition border {{ $isSalesActive ? 'bg-blue-50 text-blue-700 border-blue-100 font-semibold' : 'border-transparent text-gray-700 hover:bg-gray-50 hover:text-gray-900' }}">
+            <span class="h-8 w-8 shrink-0 rounded-lg flex items-center justify-center {{ $isSalesActive ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500' }}">
+                <i class="fas fa-chart-line text-xs"></i>
+            </span>
+
+            <span x-show="expanded" x-transition.opacity.duration.200ms class="flex-1 text-left whitespace-nowrap">
+                Sales
+            </span>
+
+            <i x-show="expanded" class="fas fa-chevron-right text-[11px] transition-transform duration-200" :class="isOpen('sales') ? 'rotate-90' : ''"></i>
+        </button>
+
+        <div x-cloak x-show="isOpen('sales')" x-collapse.duration.200ms class="ml-11 space-y-1 border-l border-gray-100 pl-3">
+            @if(Auth::user()->hasPermission('access_deals'))
+                <a href="{{ route('deals.index') }}"
+                   class="block rounded-lg px-3 py-2 transition {{ request()->routeIs('deals*') ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900' }}">
+                    Deals
+                </a>
+            @endif
+
+            @if(Auth::user()->hasPermission('access_sales_marketing') && \Illuminate\Support\Facades\Route::has('sales-marketing.index'))
+                <a href="{{ route('sales-marketing.index') }}"
+                   class="block rounded-lg px-3 py-2 transition {{ request()->routeIs('sales-marketing*') ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900' }}">
+                    Sales & Marketing
+                </a>
+            @endif
+        </div>
+    </div>
+@endif
 
                     @if($canSeeCrmModules && (Auth::user()->hasPermission('access_contacts') || Auth::user()->hasPermission('access_company')))
                         <div class="space-y-1">
@@ -507,6 +532,14 @@
                                {{ request()->routeIs('admin.user-permissions') || request()->routeIs('admin.user-permissions.edit') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
                                 User Permissions
                             </a>
+
+                            @if(auth()->user()?->isSuperAdmin())
+    <a href="{{ route('admin.account-audit-trail') }}"
+       class="block px-3 py-2 rounded-lg transition
+       {{ request()->routeIs('admin.account-audit-trail') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
+        Account Audit Trail
+    </a>
+@endif
 
                             <div class="my-3 border-t border-gray-100"></div>
                         @endif
