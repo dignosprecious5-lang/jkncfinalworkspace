@@ -1023,18 +1023,27 @@ class CompanyKycController extends Controller
     private function secretaryCertificateEditorData(Request $request, array $companyData, CompanyBif $bif): array
     {
         $signatories = collect($bif->authorized_signatories ?? [])
+            ->filter(fn ($row) => is_array($row) && collect($row)->contains(fn ($v) => filled($v)))
             ->map(function ($row) {
                 return [
                     'name' => (string) ($row['full_name'] ?? ''),
                     'position' => (string) ($row['position'] ?? ''),
                 ];
             })
-            ->pad(3, ['name' => '', 'position' => ''])
-            ->take(3)
             ->values();
 
+        // Fall back to flat authorized_signatory fields when array is empty
+        if ($signatories->isEmpty() && filled($bif->authorized_signatory_name)) {
+            $signatories = collect([[
+                'name' => trim((string) ($bif->authorized_signatory_name ?? '')),
+                'position' => trim((string) ($bif->authorized_signatory_position ?? '')),
+            ]]);
+        }
+
+        $signatories = $signatories->pad(3, ['name' => '', 'position' => ''])->take(3)->values();
+
         $signedAt = $bif->bif_date instanceof CarbonInterface ? $bif->bif_date : now();
-        $defaultAffiant = trim((string) ($bif->authorized_contact_person_name ?: $bif->president_name ?: ''));
+        $defaultAffiant = trim((string) ($bif->authorized_contact_person_name ?: $bif->president_name ?: $bif->authorized_signatory_name ?: ''));
         $defaultAddress = trim((string) ($bif->business_address ?: ($companyData['address'] ?? '')));
 
         $representatives = [];
@@ -1081,7 +1090,7 @@ class CompanyKycController extends Controller
         $companyAddress = trim((string) ($bif->business_address ?: ($companyData['address'] ?? '')));
         $companyTin = trim((string) ($bif->tin_no ?? ''));
         $declarantName = trim((string) ($bif->authorized_contact_person_name ?: $bif->president_name ?: $bif->authorized_signatory_name ?: ''));
-        $declarantPosition = trim((string) ($bif->authorized_contact_person_position ?: $bif->ubo_position ?: 'Authorized Representative'));
+        $declarantPosition = trim((string) ($bif->authorized_contact_person_position ?: $bif->authorized_signatory_position ?: $bif->ubo_position ?: 'Authorized Representative'));
         $declarantNationality = $this->spaNationalityLabel((string) ($bif->nationality_status ?? ''));
 
         $ubos = collect($bif->ubos ?? [])

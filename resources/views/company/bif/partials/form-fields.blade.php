@@ -205,7 +205,7 @@
     </div>
     <div class="bif-section-title">Authorized Contact Person</div>
     <div class="bif-row">
-        <div class="bif-cell col-8 bif-contact-picker" data-bif-contact-picker data-fill-name="authorized_contact_person_name" data-fill-position="authorized_contact_person_position" data-fill-email="authorized_contact_person_email" data-fill-phone="authorized_contact_person_phone" data-fill-ack-name="signature_printed_name" data-fill-ack-position="signature_position" data-fill-sales-marketing="sales_marketing_name" data-fill-referred-by="referred_by" data-fill-consultant-lead="consultant_lead" data-fill-lead-associate="lead_associate"><label class="bif-label" for="authorized_contact_person_name">Name of Authorized Contact Person</label><input id="authorized_contact_person_name" name="authorized_contact_person_name" type="text" value="{{ old('authorized_contact_person_name', $bif?->authorized_contact_person_name ?? '') }}" autocomplete="off" class="bif-input" data-bif-contact-input><div class="bif-contact-results hidden" data-bif-contact-results></div></div>
+        <div class="bif-cell col-8 bif-contact-picker" data-bif-contact-picker data-fill-name="authorized_contact_person_name" data-fill-position="authorized_contact_person_position" data-fill-email="authorized_contact_person_email" data-fill-phone="authorized_contact_person_phone" data-fill-ack-name="signature_printed_name" data-fill-ack-position="signature_position" data-fill-sales-marketing="sales_marketing_name" data-fill-finance="finance_name" data-fill-referred-by="referred_by" data-fill-consultant-lead="consultant_lead" data-fill-lead-associate="lead_associate"><label class="bif-label" for="authorized_contact_person_name">Name of Authorized Contact Person</label><input id="authorized_contact_person_name" name="authorized_contact_person_name" type="text" value="{{ old('authorized_contact_person_name', $bif?->authorized_contact_person_name ?? '') }}" autocomplete="off" class="bif-input" data-bif-contact-input><div class="bif-contact-results hidden" data-bif-contact-results></div></div>
         <div class="bif-cell col-4"><label class="bif-label" for="authorized_contact_person_position">Position</label><input id="authorized_contact_person_position" name="authorized_contact_person_position" type="text" value="{{ old('authorized_contact_person_position', $bif?->authorized_contact_person_position ?? '') }}" class="bif-input"></div>
         <div class="bif-cell col-7"><label class="bif-label" for="authorized_contact_person_email">Email Address</label><input id="authorized_contact_person_email" name="authorized_contact_person_email" type="email" value="{{ old('authorized_contact_person_email', $bif?->authorized_contact_person_email ?? '') }}" class="bif-input"></div>
         <div class="bif-cell col-5"><label class="bif-label" for="authorized_contact_person_phone">Phone/Mobile No.</label><input id="authorized_contact_person_phone" name="authorized_contact_person_phone" type="text" value="{{ old('authorized_contact_person_phone', $bif?->authorized_contact_person_phone ?? '') }}" class="bif-input"></div>
@@ -299,8 +299,9 @@
             setNamedField(picker.dataset.fillPhone, contact.phone);
             setNamedField(picker.dataset.fillAckName, contact.label, false);
             setNamedField(picker.dataset.fillAckPosition, contact.position, false);
-            setNamedField(picker.dataset.fillSalesMarketing, contact.sales_marketing_name);
-            setNamedField(picker.dataset.fillReferredBy, contact.referred_by);
+            setNamedField(picker.dataset.fillSalesMarketing, contact.sales_marketing_name, false);
+            setNamedField(picker.dataset.fillFinance, contact.finance_name, false);
+            setNamedField(picker.dataset.fillReferredBy, contact.referred_by, false);
             setNamedField(picker.dataset.fillConsultantLead, contact.consultant_lead, false);
             setNamedField(picker.dataset.fillLeadAssociate, contact.lead_associate, false);
             hidePicker(picker);
