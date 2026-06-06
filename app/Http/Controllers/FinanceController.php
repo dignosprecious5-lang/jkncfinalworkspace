@@ -4074,6 +4074,7 @@ SVG;
                     ['name' => 'branch', 'label' => 'Branch'],
                     ['name' => 'currency', 'label' => 'Currency'],
                     ['name' => 'account_type', 'label' => 'Account Type'],
+                    ['name' => 'bank_account_number', 'label' => 'Bank Account Number'],
                     ['name' => 'bank_status', 'label' => 'Status'],
                 ]),
                 $section('Accounting Link & Notes', [
@@ -4797,6 +4798,44 @@ SVG;
             ?: ('finance-record-' . $record->id);
 
         return Str::slug($recordNumber) . '.pdf';
+    }
+
+    private function syncLinkedChartAccountBankProfile(FinanceRecord $bankAccountRecord): void
+    {
+        if ($bankAccountRecord->module_key !== 'bank_account') {
+            return;
+        }
+
+        $linkedCoaId = data_get($bankAccountRecord->data, 'linked_coa_id');
+        if (blank($linkedCoaId)) {
+            return;
+        }
+
+        $chartAccount = FinanceRecord::query()
+            ->where('module_key', 'chart_account')
+            ->find($linkedCoaId);
+
+        if (! $chartAccount) {
+            return;
+        }
+
+        $chartData = is_array($chartAccount->data) ? $chartAccount->data : [];
+        $bankProfile = trim(collect([
+            data_get($bankAccountRecord->data, 'bank_name'),
+            data_get($bankAccountRecord->data, 'branch'),
+            data_get($bankAccountRecord->data, 'currency'),
+        ])->filter(fn ($value) => filled($value))->implode(' | '));
+
+        $chartData['bank_account_name'] = $bankAccountRecord->record_title ?: ($chartData['bank_account_name'] ?? '');
+        $chartData['bank_account_number'] = data_get($bankAccountRecord->data, 'bank_account_number') ?: ($chartData['bank_account_number'] ?? '');
+        if ($bankProfile !== '') {
+            $chartData['bank_profile'] = $bankProfile;
+        }
+        $chartData['updated_by_name'] = Auth::user()?->name ?: ($chartData['updated_by_name'] ?? 'System');
+
+        $chartAccount->update([
+            'data' => $chartData,
+        ]);
     }
 
     private function financeRecordPdfData(FinanceRecord $record): string
@@ -5531,6 +5570,10 @@ SVG;
             $this->normalizeFinanceRecordNumber($record->module_key, $record->record_number),
             $recordTitle,
         ]);
+
+        if ($record->module_key === 'bank_account') {
+            $parts[] = trim((string) data_get($record->data, 'bank_account_number', ''));
+        }
 
         if ($parts) {
             return implode(' - ', $parts);
@@ -7601,6 +7644,7 @@ SVG;
             ],
             'bank_account' => [
                 'data.linked_coa_id' => ['required', $this->acceptedLinkedRecordRule('chart_account')],
+                'data.bank_account_number' => 'nullable|string|max:255',
             ],
             'pr' => [
                 'data.requesting_department' => 'nullable|string|max:255',
@@ -9056,6 +9100,7 @@ SVG;
             $record = $record->fresh();
         }
 
+        $this->syncLinkedChartAccountBankProfile($record);
         $this->syncFinanceRelationshipLifecycle($record);
         $record = $record->fresh();
         if ($request->module_key === 'arf') {
@@ -9189,6 +9234,7 @@ SVG;
             $financeRecord = $financeRecord->fresh();
         }
 
+        $this->syncLinkedChartAccountBankProfile($financeRecord);
         $this->syncFinanceRelationshipLifecycle($financeRecord);
         $financeRecord = $financeRecord->fresh();
         if ($request->module_key === 'arf') {

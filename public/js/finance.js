@@ -1169,7 +1169,7 @@
             recordNumberLabel: 'Account Number',
             recordTitleLabel: 'Bank Account Name',
             recordDateLabel: 'Date',
-            summaryKeys: ['bank_name', 'branch', 'currency', 'linked_coa_id'],
+            summaryKeys: ['bank_name', 'bank_account_number', 'currency', 'linked_coa_id'],
             fields: [
                 textField('bank_name', 'Bank Name', { required: true }),
                 textField('branch', 'Branch'),
@@ -1196,6 +1196,7 @@
                         { value: 'Cash', label: 'Cash' },
                     ],
                 }),
+                textField('bank_account_number', 'Bank Account Number'),
                 { name: 'linked_coa_id', label: 'Linked Chart of Account', type: 'selector', source: 'chart_account', selectorFilter: 'bank_account' },
                 textareaField('signatory_notes', 'Signatory Notes'),
                 textareaField('remarks', 'Remarks'),
@@ -6852,6 +6853,38 @@
         };
     }
 
+    function getCurrentPoPrimarySupplierId(form = null) {
+        const activeForm = form || $('financeForm');
+        const explicitSupplierId = String(
+            activeForm?.querySelector('[name="data[supplier_id]"]')?.value
+            || financeFormValues['data[supplier_id]']
+            || financeFormValues.supplier_id
+            || ''
+        ).trim();
+
+        if (explicitSupplierId) {
+            return explicitSupplierId;
+        }
+
+        const lineItemSupplierId = Array.from(activeForm?.querySelectorAll('[data-pr-line-item-row] [data-pr-line-item-field="supplier_id"]') || [])
+            .map((input) => String(input?.value || '').trim())
+            .find(Boolean);
+
+        if (lineItemSupplierId) {
+            return lineItemSupplierId;
+        }
+
+        const linkedPrId = String(
+            activeForm?.querySelector('[name="data[linked_pr_id]"]')?.value
+            || financeFormValues['data[linked_pr_id]']
+            || financeFormValues.linked_pr_id
+            || ''
+        ).trim();
+        const linkedPrRecord = linkedPrId ? (getRecordById(linkedPrId) || getRecordByLookupValue('pr', linkedPrId)) : null;
+
+        return String(getPoAutofillValuesFromLinkedRecord(linkedPrRecord).supplier_id || '').trim();
+    }
+
     function renderPoLinkedPrSupplierSummary(linkedPrRecord = null) {
         const suppliers = linkedPrRecord ? getPoLinkedPrSupplierCounts(linkedPrRecord) : [];
         const summaryText = suppliers.map((supplier) => `${supplier.label} (${supplier.count})`).join(', ');
@@ -7748,6 +7781,7 @@
                 ['Branch', data.branch || ''],
                 ['Currency', data.currency || ''],
                 ['Account Type', data.account_type || ''],
+                ['Bank Account Number', data.bank_account_number || ''],
                 ['Linked Chart of Account', getLookupLabel('chart_account', data.linked_coa_id) || ''],
                 ['Bank Status', data.bank_status || ''],
             ],
@@ -8387,7 +8421,7 @@
                 ];
             case 'bank_account':
                 return [
-                    { title: 'Bank Profile', fieldNames: ['bank_name', 'branch', 'currency', 'account_type', 'bank_status'] },
+                    { title: 'Bank Profile', fieldNames: ['bank_name', 'branch', 'currency', 'account_type', 'bank_account_number', 'bank_status'] },
                     { title: 'Accounting Link & Notes', fieldNames: ['linked_coa_id', 'signatory_notes', 'remarks'] },
                     { type: 'notes', renderer: () => renderFinanceReviewNotesSection(record) },
                 ];
@@ -11766,7 +11800,7 @@
                     <div class="md:col-span-2 rounded-xl border border-blue-100 bg-blue-50/40 p-4">
                         <h4 class="text-sm font-semibold uppercase tracking-[0.24em] text-blue-700">Bank Profile</h4>
                         <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                            ${renderFieldsByNames(moduleConfig, ['bank_name', 'branch', 'currency', 'bank_status'], values, record)}
+                            ${renderFieldsByNames(moduleConfig, ['bank_name', 'branch', 'currency', 'bank_account_number', 'bank_status'], values, record)}
                         </div>
                     </div>
 
@@ -15633,6 +15667,14 @@
         }
         formData.set('module_key', currentModuleKey);
         formData.set('data[completion_mode]', sendToSupplier ? 'send_to_supplier' : 'complete_internally');
+        if (currentModuleKey === 'po') {
+            const primarySupplierId = getCurrentPoPrimarySupplierId(form);
+            if (primarySupplierId) {
+                formData.set('data[supplier_id]', primarySupplierId);
+                financeFormValues.supplier_id = primarySupplierId;
+                financeFormValues['data[supplier_id]'] = primarySupplierId;
+            }
+        }
         if (currentModuleKey === 'lr') {
             const liquidationDerivedFields = {
                 'data[subtotal]': financeFormValues['data[subtotal]'] || financeFormValues.subtotal || formData.get('data[actual_expenses]') || '0.00',
