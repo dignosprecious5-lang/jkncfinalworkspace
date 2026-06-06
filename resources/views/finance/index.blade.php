@@ -52,7 +52,7 @@
         </div>
 
         @if(!empty($inventoryHistoryBoard))
-            <div class="px-4 pt-4">
+            <div id="inventoryHistoryBoardSection" class="px-4 pt-4 {{ ($currentModule ?? '') === 'arf' ? '' : 'hidden' }}">
                 <div class="rounded-xl border border-gray-200 bg-gradient-to-br from-slate-50 via-white to-blue-50 p-4 shadow-sm">
                     <div class="mb-4 flex flex-wrap items-start justify-between gap-3">
                         <div>
@@ -60,14 +60,32 @@
                             <p class="mt-1 text-sm text-gray-500">Shared movement history for employees and admins. Stock in, stock out, transfer, return, and adjustment events are logged here for transparency.</p>
                             <p class="mt-2 text-xs text-gray-500">Inventory formulas: Available Quantity = Current Quantity - Reserved Quantity. Total Cost = Current Quantity x Unit Cost.</p>
                         </div>
-                        <div class="rounded-full border border-blue-100 bg-white px-3 py-1 text-xs font-medium text-blue-700">
-                            {{ count($inventoryHistoryBoard) }} recent updates
+                        <div class="flex items-center gap-2">
+                            <button
+                                type="button"
+                                onclick="document.getElementById('inventoryHistoryBoardRail')?.scrollBy({ left: -420, behavior: 'smooth' })"
+                                class="inline-flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-500 transition hover:bg-gray-50 hover:text-gray-800"
+                                aria-label="Scroll inventory history left"
+                            >
+                                <i class="fas fa-chevron-left text-xs"></i>
+                            </button>
+                            <button
+                                type="button"
+                                onclick="document.getElementById('inventoryHistoryBoardRail')?.scrollBy({ left: 420, behavior: 'smooth' })"
+                                class="inline-flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-500 transition hover:bg-gray-50 hover:text-gray-800"
+                                aria-label="Scroll inventory history right"
+                            >
+                                <i class="fas fa-chevron-right text-xs"></i>
+                            </button>
+                            <div class="rounded-full border border-blue-100 bg-white px-3 py-1 text-xs font-medium text-blue-700">
+                                {{ count($inventoryHistoryBoard) }} recent updates
+                            </div>
                         </div>
                     </div>
 
-                    <div class="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
+                    <div id="inventoryHistoryBoardRail" class="flex gap-3 overflow-x-auto scroll-smooth snap-x snap-mandatory pb-2 no-scrollbar">
                         @foreach($inventoryHistoryBoard as $entry)
-                            <article class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+                            <article class="snap-start rounded-xl border border-gray-200 bg-white p-4 shadow-sm min-w-[280px] md:min-w-[360px]" style="flex: 0 0 calc((100% - 1.5rem) / 3);">
                                 <div class="flex items-start justify-between gap-3">
                                     <div>
                                         <p class="text-sm font-semibold text-gray-900">{{ $entry['record_title'] }}</p>
@@ -78,22 +96,30 @@
                                 <div class="mt-3 space-y-2 text-sm text-gray-600">
                                     <p>
                                         <span class="font-medium text-gray-800">{{ $entry['changed_by'] }}</span>
-                                        <span class="text-gray-400">•</span>
+                                        <span class="text-gray-400">/</span>
                                         <span>{{ $entry['changed_at'] }}</span>
                                     </p>
                                     <p class="text-gray-700">{{ $entry['reason'] ?: 'Movement recorded in the inventory audit trail.' }}</p>
                                     <div class="grid gap-2 sm:grid-cols-2">
                                         <div class="rounded-lg bg-gray-50 px-3 py-2">
-                                            <p class="text-[11px] uppercase tracking-wide text-gray-400">Quantity</p>
-                                            <p class="font-medium text-gray-800">{{ $entry['quantity'] ?? '-' }}</p>
+                                            <p class="text-[11px] uppercase tracking-wide text-gray-400">{{ $entry['action'] === 'Stock Transfer' ? 'From' : 'Quantity' }}</p>
+                                            <p class="font-medium text-gray-800">
+                                                {{ $entry['action'] === 'Stock Transfer'
+                                                    ? collect([$entry['previous_location'] ?: null, $entry['previous_department'] ?: null])->filter()->implode(' / ') ?: '-'
+                                                    : ($entry['quantity'] ?? '-') }}
+                                            </p>
                                         </div>
                                         <div class="rounded-lg bg-gray-50 px-3 py-2">
-                                            <p class="text-[11px] uppercase tracking-wide text-gray-400">Available</p>
-                                            <p class="font-medium text-gray-800">{{ $entry['available_quantity'] ?? '-' }}</p>
+                                            <p class="text-[11px] uppercase tracking-wide text-gray-400">{{ $entry['action'] === 'Stock Transfer' ? 'To' : 'Available' }}</p>
+                                            <p class="font-medium text-gray-800">
+                                                {{ $entry['action'] === 'Stock Transfer'
+                                                    ? collect([$entry['current_location'] ?: null, $entry['current_department'] ?: null])->filter()->implode(' / ') ?: '-'
+                                                    : ($entry['available_quantity'] ?? '-') }}
+                                            </p>
                                         </div>
                                     </div>
                                     <p class="text-xs text-gray-500">
-                                        {{ collect([$entry['location'] ?: null, $entry['department'] ?: null])->filter()->implode(' • ') ?: 'Location and department not set' }}
+                                        {{ collect([$entry['location'] ?: null, $entry['department'] ?: null])->filter()->implode(' / ') ?: 'Location and department not set' }}
                                     </p>
                                 </div>
                             </article>

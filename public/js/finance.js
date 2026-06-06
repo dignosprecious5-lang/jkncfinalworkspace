@@ -1738,7 +1738,9 @@
                 numberField('monthly_depreciation', 'Monthly Depreciation', { readOnly: true }),
                 numberField('accumulated_depreciation', 'Accumulated Depreciation', { readOnly: true }),
                 numberField('net_book_value', 'Net Book Value', { readOnly: true }),
-                textareaField('movement_history_note', 'Inventory / Asset Movement Note'),
+                textareaField('movement_history_note', 'Latest Movement Highlight', {
+                    placeholder: 'Summarize the most recent stock or asset movement in a clear, helpful way.',
+                }),
                 textareaField('remarks', 'Remarks'),
             ],
         },
@@ -1797,6 +1799,14 @@
             .replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#39;');
+    }
+
+    function escapeJsString(value) {
+        return String(value === null || value === undefined ? '' : value)
+            .replace(/\\/g, '\\\\')
+            .replace(/'/g, "\\'")
+            .replace(/\r/g, '\\r')
+            .replace(/\n/g, '\\n');
     }
 
     function formatCurrency(value) {
@@ -3452,6 +3462,7 @@
         setActiveWorkflowTabs();
         setStatusMessage();
         syncFinanceSidebarState();
+        syncInventoryHistoryBoardVisibility();
         renderTableHeader();
         renderTableRows();
         updateAddButton();
@@ -3470,6 +3481,13 @@
 
     function updateAddButton() {
         $('addButton').textContent = `+ ${getModuleConfig(currentModuleKey).addLabel}`;
+    }
+
+    function syncInventoryHistoryBoardVisibility() {
+        const board = $('inventoryHistoryBoardSection');
+        if (!board) return;
+
+        board.classList.toggle('hidden', currentModuleKey !== 'arf');
     }
 
     function syncFinanceSidebarState() {
@@ -5698,7 +5716,7 @@
                     <button
                         type="button"
                         class="group h-full rounded-2xl border border-gray-200 bg-white p-4 text-left shadow-sm transition hover:border-blue-200 hover:bg-blue-50/40 hover:shadow-md"
-                        onclick="window.financeModule.selectLookupSelectorValue(${JSON.stringify(String(option.id ?? ''))}, ${JSON.stringify(option.label || option.record_title || option.record_number || 'Option')})"
+                        onclick="window.financeModule.selectLookupSelectorValue('${escapeJsString(String(option.id ?? ''))}', '${escapeJsString(option.label || option.record_title || option.record_number || 'Option')}')"
                     >
                         <div class="flex items-start justify-between gap-3">
                             <div class="min-w-0 flex-1">
@@ -7257,7 +7275,7 @@
         depreciationFields.forEach((fieldName) => {
             const wrapper = form.querySelector(`[data-finance-field="${fieldName}"]`);
             if (wrapper) {
-                wrapper.classList.toggle('hidden', !isFixedAsset);
+                wrapper.classList.remove('hidden');
             }
         });
 
@@ -8492,8 +8510,8 @@
                     { title: 'Asset Details', fieldNames: ['item_classification', 'linked_po_id', 'linked_dv_id', 'supplier_id', 'asset_code', 'asset_description', 'asset_category', 'serial_number', 'model'] },
                     { title: 'Inventory & Receiving', fieldNames: ['goods_receiving_reference', 'ordered_quantity', 'delivered_quantity', 'accepted_quantity', 'rejected_quantity', 'unit_of_measure', 'beginning_quantity', 'current_quantity', 'reserved_quantity', 'available_quantity', 'reorder_level', 'minimum_stock_level', 'maximum_stock_level', 'safety_stock_level', 'unit_cost', 'total_cost', 'average_cost', 'last_purchase_cost'] },
                     ...(isConsumableInventory
-                        ? [{ title: 'Inventory Costing & Custody', fieldNames: ['acquisition_cost', 'acquisition_date', 'asset_coa_id', 'location', 'department', 'custodian', 'movement_history_note', 'remarks'] }]
-                        : [{ title: 'Valuation & Custody', fieldNames: ['acquisition_cost', 'acquisition_date', 'asset_coa_id', 'location', 'department', 'custodian', 'useful_life', 'residual_value', 'movement_history_note', 'remarks'] }]),
+                        ? [{ title: 'Inventory Costing & Custody', fieldNames: ['acquisition_cost', 'acquisition_date', 'asset_coa_id', 'location', 'department', 'custodian', 'useful_life', 'residual_value', 'depreciable_amount', 'annual_depreciation', 'monthly_depreciation', 'accumulated_depreciation', 'net_book_value', 'movement_history_note', 'remarks'] }]
+                        : [{ title: 'Valuation & Custody', fieldNames: ['acquisition_cost', 'acquisition_date', 'asset_coa_id', 'location', 'department', 'custodian', 'useful_life', 'residual_value', 'depreciable_amount', 'annual_depreciation', 'monthly_depreciation', 'accumulated_depreciation', 'net_book_value', 'movement_history_note', 'remarks'] }]),
                 ];
             }
             default:
@@ -11783,7 +11801,7 @@
 
                     <div class="md:col-span-2 rounded-xl border border-gray-200 bg-white p-4">
                         <h4 class="text-sm font-semibold uppercase tracking-[0.24em] text-gray-700">${isFixedAsset ? 'Valuation & Custody' : 'Inventory Costing & Custody'}</h4>
-                        <p class="mt-2 text-xs text-gray-500">${isFixedAsset ? 'Depreciation fields appear for fixed assets.' : 'Depreciation fields are hidden for consumable inventory.'}</p>
+                        <p class="mt-2 text-xs text-gray-500">${isFixedAsset ? 'Depreciation fields appear for fixed assets.' : 'Depreciation fields remain visible for reference on consumable inventory.'}</p>
                         <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                             ${renderFieldsByNames(moduleConfig, ['acquisition_cost', 'acquisition_date', 'asset_coa_id', 'location', 'department', 'custodian', 'useful_life', 'residual_value', 'depreciable_amount', 'annual_depreciation', 'monthly_depreciation', 'accumulated_depreciation', 'net_book_value', 'movement_history_note', 'remarks'], values, record)}
                         </div>
@@ -14965,7 +14983,8 @@
         if (record.module_key === 'arf') {
             const custodianId = Number(record.data?.custodian || 0) || 0;
             const assetAcknowledged = Boolean(record.data?.custodian_acknowledged_at);
-            const currentUserIsCustodian = currentUserEmployeeId > 0 && currentUserEmployeeId === custodianId;
+            const currentUserIsCustodian = Boolean(record.can_acknowledge_asset)
+                || (currentUserEmployeeId > 0 && currentUserEmployeeId === custodianId);
             const assetLastEvent = String(record.data?.asset_last_event || '').trim().toLowerCase();
             const assetStatus = String(record.data?.asset_status || '').trim().toLowerCase();
             const assetLifecycleApproved = arfAssetLifecycleApproved;
@@ -14977,7 +14996,7 @@
             const canManageAsset = Boolean(assetLifecycleApproved && !assetDisposed && (bootstrap.canApproveFinance || record.can_edit || record.can_review || currentUserIsCustodian));
             const isConsumableInventory = String(record.data?.item_classification || '').toLowerCase() === 'consumable inventory';
 
-            if (currentUserIsCustodian && !assetAcknowledged) {
+            if (record.can_acknowledge_asset && !assetAcknowledged) {
                 actions.push(`<button type="button" onclick="window.financeModule.acknowledgeArfAsset(${record.id})" class="w-full bg-emerald-600 text-white rounded-md py-2 hover:bg-emerald-700">Acknowledge Receipt</button>`);
             }
 
@@ -15325,7 +15344,7 @@
                 </div>
                 <div class="flex items-center justify-end gap-3 border-t border-gray-100 px-5 py-4">
                     <button type="button" onclick="window.financeModule.closeArfInventoryMovementDialog()" class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Cancel</button>
-                    <button type="button" onclick="window.financeModule.submitArfInventoryMovementDialog(${record.id}, ${JSON.stringify(eventType)})" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">${escapeHtml(config.button)}</button>
+                    <button type="button" onclick="window.financeModule.submitArfInventoryMovementDialog(${record.id}, '${escapeHtml(eventType)}')" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">${escapeHtml(config.button)}</button>
                 </div>
             </div>
         `;
@@ -16541,6 +16560,7 @@
         openArfTransferDialog,
         closeArfTransferDialog,
         submitArfTransferDialog,
+        acknowledgeArfAsset,
         openArfAssetEventDialog,
         closeArfAssetEventDialog,
         submitArfAssetEventDialog,

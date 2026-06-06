@@ -3742,7 +3742,7 @@ SVG;
     {
         $normalized = Str::of((string) $taxType)
             ->trim()
-            ->replace(['_', '–'], [' ', '-'])
+            ->replace(['_', 'â€“'], [' ', '-'])
             ->replaceMatches('/\s+/', ' ')
             ->lower()
             ->toString();
@@ -4424,7 +4424,7 @@ SVG;
                         ['name' => 'accumulated_depreciation', 'label' => 'Accumulated Depreciation'],
                         ['name' => 'net_book_value', 'label' => 'Net Book Value'],
                     ]),
-                    ['name' => 'movement_history_note', 'label' => 'Inventory / Asset Movement Note'],
+                    ['name' => 'movement_history_note', 'label' => 'Latest Movement Highlight'],
                     ['name' => 'remarks', 'label' => 'Remarks'],
                 ]),
             ],
@@ -4927,25 +4927,68 @@ SVG;
                             || in_array($eventType, $movementActions, true);
                     })
                     ->map(function (array $entry) use ($record): array {
+                        $changeMap = collect((array) data_get($entry, 'changes', []))
+                            ->filter(fn ($change) => is_array($change) && filled(data_get($change, 'field')))
+                            ->mapWithKeys(fn (array $change) => [
+                                (string) data_get($change, 'field') => [
+                                    'old_value' => data_get($change, 'old_value'),
+                                    'new_value' => data_get($change, 'new_value'),
+                                ],
+                            ])
+                            ->all();
                         $changedAt = trim((string) data_get($entry, 'changed_at', data_get($entry, 'created_at', '')));
-                        $quantity = data_get($entry, 'changes.movement_quantity.new_value')
+                        $quantity = data_get($changeMap, 'movement_quantity.new_value')
                             ?? data_get($entry, 'new_values.movement_quantity')
-                            ?? data_get($entry, 'changes.current_quantity.new_value')
+                            ?? data_get($changeMap, 'current_quantity.new_value')
                             ?? data_get($entry, 'new_values.current_quantity');
-                        $availableQuantity = data_get($entry, 'changes.available_quantity.new_value')
+                        $availableQuantity = data_get($changeMap, 'available_quantity.new_value')
                             ?? data_get($entry, 'new_values.available_quantity');
+                        $action = trim((string) data_get($entry, 'action', 'Inventory Movement'));
+                        $previousLocation = trim((string) data_get($changeMap, 'location.old_value'));
+                        $currentLocation = trim((string) (
+                            data_get($changeMap, 'location.new_value')
+                            ?? data_get($entry, 'new_values.location')
+                            ?? data_get($record->data ?? [], 'location', '')
+                        ));
+                        $previousDepartment = trim((string) data_get($changeMap, 'department.old_value'));
+                        $currentDepartment = trim((string) (
+                            data_get($changeMap, 'department.new_value')
+                            ?? data_get($entry, 'new_values.department')
+                            ?? data_get($record->data ?? [], 'department', '')
+                        ));
+                        $reason = trim((string) data_get($entry, 'reason', ''));
+                        $displayLocation = $currentLocation;
+                        $displayDepartment = $currentDepartment;
+
+                        if ($action === 'Stock Transfer') {
+                            if (str_contains($reason, '|') && str_contains($reason, '->')) {
+                                $reason = trim((string) Str::before($reason, '|'));
+                            }
+
+                            $fromLabel = collect([$previousLocation ?: null, $previousDepartment ?: null])->filter()->implode(' / ');
+                            $toLabel = collect([$currentLocation ?: null, $currentDepartment ?: null])->filter()->implode(' / ');
+
+                            if ($fromLabel !== '' || $toLabel !== '') {
+                                $displayLocation = $fromLabel !== '' ? ('From: ' . $fromLabel) : 'From: Not recorded';
+                                $displayDepartment = $toLabel !== '' ? ('To: ' . $toLabel) : 'To: Not recorded';
+                            }
+                        }
 
                         return [
                             'record_number' => $record->record_number ?: ('FIN-' . $record->id),
                             'record_title' => $record->record_title ?: ('Inventory Record #' . $record->id),
-                            'action' => trim((string) data_get($entry, 'action', 'Inventory Movement')),
+                            'action' => $action,
                             'changed_by' => trim((string) data_get($entry, 'changed_by', 'System')) ?: 'System',
                             'changed_at' => $changedAt !== '' ? $changedAt : optional($record->updated_at)->format('M d, Y h:i A'),
-                            'reason' => trim((string) data_get($entry, 'reason', '')),
+                            'reason' => $reason,
                             'quantity' => filled($quantity) ? (string) $quantity : null,
                             'available_quantity' => filled($availableQuantity) ? (string) $availableQuantity : null,
-                            'location' => trim((string) data_get($entry, 'new_values.location', data_get($record->data ?? [], 'location', ''))),
-                            'department' => trim((string) data_get($entry, 'new_values.department', data_get($record->data ?? [], 'department', ''))),
+                            'previous_location' => $previousLocation,
+                            'current_location' => $currentLocation,
+                            'previous_department' => $previousDepartment,
+                            'current_department' => $currentDepartment,
+                            'location' => $displayLocation,
+                            'department' => $displayDepartment,
                         ];
                     });
             })
@@ -6674,6 +6717,7 @@ SVG;
             'can_request_delete' => $this->canRequestDeleteRecord($record),
             'can_approve_delete' => $this->canApproveDeleteRequest($record),
             'can_add_note' => $this->financeCurrentUserCanAddNote($record),
+            'can_acknowledge_asset' => $this->financeAssetCanAcknowledge($record),
             'ownership' => $this->financeOwnershipSummary($record),
             'supplier_completion_url' => $record->share_token
                 ? route('finance.supplier.completion', $record->share_token)
@@ -6726,6 +6770,7 @@ SVG;
             'can_request_delete' => $this->canRequestDeleteRecord($record),
             'can_approve_delete' => $this->canApproveDeleteRequest($record),
             'can_add_note' => $this->financeCurrentUserCanAddNote($record),
+            'can_acknowledge_asset' => $this->financeAssetCanAcknowledge($record),
             'ownership' => [],
             'supplier_completion_url' => $record->share_token
                 ? route('finance.supplier.completion', $record->share_token)
@@ -8711,6 +8756,29 @@ SVG;
         return $data;
     }
 
+    private function normalizeDvPayeeFields(array $data, string $recordTitle): array
+    {
+        $recordTitle = trim($recordTitle);
+        $payeeName = trim((string) data_get($data, 'payee_name', ''));
+        $payeeType = trim((string) data_get($data, 'payee_type', ''));
+        $sourcePayeeName = trim((string) data_get($data, 'source_payee_name', ''));
+        $sourcePayeeType = trim((string) data_get($data, 'source_payee_type', ''));
+        $receivedByName = trim((string) data_get($data, 'received_by_name', ''));
+
+        if ($payeeName === '') {
+            $payeeName = $recordTitle !== ''
+                ? $recordTitle
+                : ($sourcePayeeName !== '' ? $sourcePayeeName : $receivedByName);
+            data_set($data, 'payee_name', $payeeName);
+        }
+
+        if ($payeeType === '' && $payeeName !== '') {
+            data_set($data, 'payee_type', $sourcePayeeType !== '' ? $sourcePayeeType : 'User');
+        }
+
+        return $data;
+    }
+
     private function recordExistsForWorkflow(string $moduleKey, mixed $recordId, array $dataConstraints = []): bool
     {
         $record = $this->acceptedRecordQuery($moduleKey, $dataConstraints)
@@ -9053,6 +9121,9 @@ SVG;
         }
 
         $recordTitle = $this->financeAutoRecordTitle($request->module_key, $data, $recordTitle);
+        if ($request->module_key === 'dv') {
+            $data = $this->normalizeDvPayeeFields($data, $recordTitle);
+        }
         $recordNumber = $this->normalizeFinanceRecordNumber($request->module_key, $recordNumber);
         $recordAmount = in_array($request->module_key, ['dv', 'pda'], true)
             ? data_get($data, $request->module_key === 'pda' ? 'total_payroll_amount' : 'amount')
@@ -9160,6 +9231,9 @@ SVG;
         }
 
         $recordTitle = $this->financeAutoRecordTitle($request->module_key, $data, $recordTitle);
+        if ($request->module_key === 'dv') {
+            $data = $this->normalizeDvPayeeFields($data, $recordTitle);
+        }
         $recordNumber = $this->normalizeFinanceRecordNumber($request->module_key, $recordNumber);
         $recordAmount = in_array($request->module_key, ['dv', 'pda'], true)
             ? data_get($data, $request->module_key === 'pda' ? 'total_payroll_amount' : 'amount')
