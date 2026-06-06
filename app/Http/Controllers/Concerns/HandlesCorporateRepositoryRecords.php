@@ -4,7 +4,7 @@ namespace App\Http\Controllers\Concerns;
 
 use App\Models\GisRecord;
 use App\Models\User;
-use App\Notifications\SystemRealtimeNotification;
+use App\Notifications\CorporateApprovalSubmissionNotification;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -207,12 +207,13 @@ trait HandlesCorporateRepositoryRecords
             return;
         }
 
-        Notification::send($recipients, new SystemRealtimeNotification(
+        Notification::send($recipients, new CorporateApprovalSubmissionNotification(
             "{$moduleName} submitted for approval",
             $message,
             route('admin.corporate.dashboard'),
-            'Corporate',
-            'fa-building'
+            $moduleName,
+            $recordTitle,
+            $submitterName
         ));
     }
 

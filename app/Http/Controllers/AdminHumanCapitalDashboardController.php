@@ -11,7 +11,7 @@ use App\Models\HumanCapitalLog;
 use App\Models\OfficialBusinessTrip;
 use App\Models\TrainingAssignment;
 use App\Models\User;
-use App\Notifications\SystemRealtimeNotification;
+use App\Notifications\HumanCapitalWorkflowNotification;
 use App\Support\HumanCapitalLogger;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -205,6 +205,15 @@ class AdminHumanCapitalDashboardController extends Controller
             'status' => 'Approved',
         ]);
 
+        $this->notifyUserById(
+            $officialBusinessTrip->created_by,
+            'Official Business Trip Form approved',
+            'Your Official Business Trip Form has been approved.',
+            route('human-capital.obf'),
+            'Official Business Trip Form',
+            $officialBusinessTrip->ob_reference_no ?: $officialBusinessTrip->destination
+        );
+
         return redirect()->route('admin.human-capital.dashboard')
             ->with('success', 'Official Business Trip request approved successfully.');
     }
@@ -222,6 +231,20 @@ class AdminHumanCapitalDashboardController extends Controller
             'remarks' => $request->remarks ?: $officialBusinessTrip->remarks,
         ]);
 
+        $message = 'Your Official Business Trip Form has been rejected.';
+        if ($request->filled('remarks')) {
+            $message .= ' Note: ' . $request->remarks;
+        }
+
+        $this->notifyUserById(
+            $officialBusinessTrip->created_by,
+            'Official Business Trip Form rejected',
+            $message,
+            route('human-capital.obf'),
+            'Official Business Trip Form',
+            $officialBusinessTrip->ob_reference_no ?: $officialBusinessTrip->destination
+        );
+
         return redirect()->route('admin.human-capital.dashboard')
             ->with('success', 'Official Business Trip request rejected successfully.');
     }
@@ -235,6 +258,15 @@ class AdminHumanCapitalDashboardController extends Controller
             'reviewed_by' => Auth::id(),
             'reviewed_at' => now(),
         ]);
+
+        $this->notifyUserById(
+            $employeeRelation->created_by,
+            'Employee relations record resolved',
+            'Your Employee Relations record has been resolved.',
+            route('human-capital.employee-relations'),
+            'Employee Relations',
+            $employeeRelation->reference_no ?: $employeeRelation->subject
+        );
 
         return redirect()->route('admin.human-capital.dashboard')
             ->with('success', 'Employee relations record marked as resolved.');
@@ -255,6 +287,20 @@ class AdminHumanCapitalDashboardController extends Controller
             'reviewed_at' => now(),
         ]);
 
+        $message = 'Your Employee Relations record has been closed.';
+        if ($request->filled('hr_remarks')) {
+            $message .= ' Note: ' . $request->hr_remarks;
+        }
+
+        $this->notifyUserById(
+            $employeeRelation->created_by,
+            'Employee relations record closed',
+            $message,
+            route('human-capital.employee-relations'),
+            'Employee Relations',
+            $employeeRelation->reference_no ?: $employeeRelation->subject
+        );
+
         return redirect()->route('admin.human-capital.dashboard')
             ->with('success', 'Employee relations record closed successfully.');
     }
@@ -267,6 +313,16 @@ class AdminHumanCapitalDashboardController extends Controller
             'status' => 'Completed',
             'completed_at' => $trainingAssignment->completed_at ?: now(),
         ]);
+
+        $trainingAssignment->loadMissing(['employee.user', 'training']);
+        $this->notifyUser(
+            $trainingAssignment->employee?->user,
+            'Training completion approved',
+            'Your training completion has been approved.',
+            route('human-capital.training'),
+            'Training',
+            $trainingAssignment->training?->title ?: 'Training Assignment #' . $trainingAssignment->id
+        );
 
         return redirect()->route('admin.human-capital.dashboard')
             ->with('success', 'Training assignment marked as completed.');
@@ -304,6 +360,15 @@ class AdminHumanCapitalDashboardController extends Controller
             'issued_at' => now(),
         ]);
 
+        $this->notifyUser(
+            $trainingAssignment->employee?->user,
+            'Training certificate issued',
+            'Your training certificate has been issued.',
+            route('human-capital.awards'),
+            'Awards',
+            $trainingAssignment->training?->title ?: 'Certificate / Award'
+        );
+
         return redirect()->route('admin.human-capital.dashboard')
             ->with('success', 'Training certificate issued successfully.');
     }
@@ -337,6 +402,15 @@ class AdminHumanCapitalDashboardController extends Controller
                 'approved_by' => Auth::id(),
             ],
         ]);
+
+        $this->notifyUserById(
+            $systemAccess->assigned_by ?: $systemAccess->created_by,
+            'Assigned platform record approved',
+            'Your assigned platform documentation was approved. Actual system permissions were not changed.',
+            route('human-capital.employee-profile'),
+            'System Access & Assigned Platforms',
+            $systemAccess->system_platform_name
+        );
 
         return redirect()->route('admin.human-capital.dashboard')
             ->with('success', 'Assigned platform record approved. Actual system permissions were not changed.');
@@ -390,6 +464,15 @@ class AdminHumanCapitalDashboardController extends Controller
             'new_values' => $changeRequest->new_values,
         ]);
 
+        $this->notifyUserById(
+            $changeRequest->requested_by,
+            'Human Capital change request approved',
+            'Your ' . $changeRequest->module . ' ' . $changeRequest->action . ' request was approved.',
+            route('admin.human-capital.dashboard', ['view' => 'logs']),
+            $changeRequest->module,
+            $changeRequest->subject_name ?: ''
+        );
+
         return redirect()->route('admin.human-capital.dashboard')
             ->with('success', 'Human Capital change request approved and applied.');
     }
@@ -413,6 +496,20 @@ class AdminHumanCapitalDashboardController extends Controller
             'reviewed_at' => now(),
             'review_note' => $request->review_note,
         ]);
+
+        $message = 'Your ' . $changeRequest->module . ' ' . $changeRequest->action . ' request was rejected.';
+        if ($request->filled('review_note')) {
+            $message .= ' Note: ' . $request->review_note;
+        }
+
+        $this->notifyUserById(
+            $changeRequest->requested_by,
+            'Human Capital change request rejected',
+            $message,
+            route('admin.human-capital.dashboard', ['view' => 'logs']),
+            $changeRequest->module,
+            $changeRequest->subject_name ?: ''
+        );
 
         return redirect()->route('admin.human-capital.dashboard')
             ->with('success', 'Human Capital change request rejected.');
@@ -750,12 +847,38 @@ class AdminHumanCapitalDashboardController extends Controller
             return;
         }
 
-        $owner->notify(new SystemRealtimeNotification(
-            title: $title,
-            message: $message,
-            url: route('human-capital.employee-requests.index'),
-            module: 'Employee Requests',
-            icon: 'fa-file-signature'
+        $this->notifyUser(
+            $owner,
+            $title,
+            $message,
+            route('human-capital.employee-requests.index'),
+            'Employee Requests',
+            $employeeRequest->request_type ?: 'Employee Request'
+        );
+    }
+
+    private function notifyUserById($userId, string $title, string $message, ?string $url, string $module, string $recordTitle = ''): void
+    {
+        if (empty($userId)) {
+            return;
+        }
+
+        $this->notifyUser(User::find($userId), $title, $message, $url, $module, $recordTitle);
+    }
+
+    private function notifyUser(?User $user, string $title, string $message, ?string $url, string $module, string $recordTitle = ''): void
+    {
+        if (! $user) {
+            return;
+        }
+
+        $user->notify(new HumanCapitalWorkflowNotification(
+            $title,
+            $message,
+            $url,
+            $module,
+            $recordTitle,
+            Auth::user()?->name ?? Auth::user()?->email ?? ''
         ));
     }
 

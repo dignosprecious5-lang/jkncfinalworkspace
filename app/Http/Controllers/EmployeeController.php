@@ -596,7 +596,15 @@ class EmployeeController extends Controller
         $validated['created_by'] = $request->user()?->id;
         $validated['updated_by'] = $request->user()?->id;
 
-        $employee->systemAccessRecords()->create($validated);
+        $systemAccess = $employee->systemAccessRecords()->create($validated);
+
+        $this->notifyHumanCapitalAdmins(
+            title: 'Assigned platform record submitted',
+            message: ($employee->full_name ?: 'An employee') . ' has an assigned platform record waiting for approval.',
+            module: 'System Access & Assigned Platforms',
+            recordTitle: $systemAccess->system_platform_name,
+            actorName: $request->user()?->name ?? $request->user()?->email ?? 'System User'
+        );
 
         return redirect()
             ->route('human-capital.employee-profile')
@@ -616,6 +624,14 @@ class EmployeeController extends Controller
 
         $systemAccess->update($validated);
 
+        $this->notifyHumanCapitalAdmins(
+            title: 'Assigned platform record re-submitted',
+            message: ($employee->full_name ?: 'An employee') . ' has an updated assigned platform record waiting for approval.',
+            module: 'System Access & Assigned Platforms',
+            recordTitle: $systemAccess->system_platform_name,
+            actorName: $request->user()?->name ?? $request->user()?->email ?? 'System User'
+        );
+
         return redirect()
             ->route('human-capital.employee-profile')
             ->with('success', 'Assigned platform record updated. Actual system permissions were not changed.');
@@ -632,6 +648,18 @@ class EmployeeController extends Controller
             'approved_at' => now(),
             'updated_by' => $request->user()?->id,
         ]);
+
+        if ($systemAccess->assigned_by || $systemAccess->created_by) {
+            $owner = \App\Models\User::find($systemAccess->assigned_by ?: $systemAccess->created_by);
+            $owner?->notify(new \App\Notifications\HumanCapitalWorkflowNotification(
+                'Assigned platform record approved',
+                'Your assigned platform documentation was approved. Actual system permissions were not changed.',
+                route('human-capital.employee-profile'),
+                'System Access & Assigned Platforms',
+                $systemAccess->system_platform_name,
+                $request->user()?->name ?? $request->user()?->email ?? ''
+            ));
+        }
 
         return redirect()
             ->route('human-capital.employee-profile')

@@ -74,7 +74,7 @@ class EmployeeRelationController extends Controller
         $validated = $this->validateRelation($request);
         $employee = $this->resolveEmployee($validated['employee_id'] ?? null);
 
-        EmployeeRelation::create([
+        $relation = EmployeeRelation::create([
             'reference_no' => $this->generateReferenceNo($validated['form_type']),
             'form_type' => $validated['form_type'],
             'employee_id' => $employee->id,
@@ -89,6 +89,14 @@ class EmployeeRelationController extends Controller
             'status' => 'Pending',
             'created_by' => Auth::id(),
         ]);
+
+        $this->notifyHumanCapitalAdmins(
+            title: 'Employee Relations form submitted',
+            message: ($relation->employee_name ?: 'An employee') . ' submitted an Employee Relations form for approval.',
+            module: 'Employee Relations',
+            recordTitle: $relation->reference_no ?: $relation->subject,
+            actorName: Auth::user()?->name ?? Auth::user()?->email ?? 'System User'
+        );
 
         return redirect()
             ->route('human-capital.employee-relations')
@@ -134,6 +142,17 @@ class EmployeeRelationController extends Controller
             'reviewed_at' => now(),
         ]);
 
+        if ($employeeRelation->created_by) {
+            \App\Models\User::find($employeeRelation->created_by)?->notify(new \App\Notifications\HumanCapitalWorkflowNotification(
+                'Employee relations record resolved',
+                'Your Employee Relations record has been resolved.',
+                route('human-capital.employee-relations'),
+                'Employee Relations',
+                $employeeRelation->reference_no ?: $employeeRelation->subject,
+                Auth::user()?->name ?? Auth::user()?->email ?? ''
+            ));
+        }
+
         return back()->with('success', 'Employee relations form marked as resolved.');
     }
 
@@ -149,6 +168,22 @@ class EmployeeRelationController extends Controller
             'reviewed_by' => Auth::id(),
             'reviewed_at' => now(),
         ]);
+
+        if ($employeeRelation->created_by) {
+            $message = 'Your Employee Relations record has been closed.';
+            if ($request->filled('hr_remarks')) {
+                $message .= ' Note: ' . $request->hr_remarks;
+            }
+
+            \App\Models\User::find($employeeRelation->created_by)?->notify(new \App\Notifications\HumanCapitalWorkflowNotification(
+                'Employee relations record closed',
+                $message,
+                route('human-capital.employee-relations'),
+                'Employee Relations',
+                $employeeRelation->reference_no ?: $employeeRelation->subject,
+                Auth::user()?->name ?? Auth::user()?->email ?? ''
+            ));
+        }
 
         return back()->with('success', 'Employee relations form closed.');
     }

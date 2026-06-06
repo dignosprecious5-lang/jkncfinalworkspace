@@ -101,6 +101,15 @@ class TrainingController extends Controller
             'completed_at' => now(),
         ]);
 
+        $assignment->loadMissing(['training', 'employee']);
+        $this->notifyHumanCapitalAdmins(
+            title: 'Training completion submitted',
+            message: ($assignment->employee?->full_name ?: 'An employee') . ' completed training and is waiting for review.',
+            module: 'Training',
+            recordTitle: $assignment->training?->title ?: 'Training Assignment #' . $assignment->id,
+            actorName: auth()->user()?->name ?? auth()->user()?->email ?? 'System User'
+        );
+
         return back()->with('success', 'Training marked as completed.');
     }
 
