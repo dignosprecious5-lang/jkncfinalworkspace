@@ -3373,10 +3373,14 @@
     }
 
     function renderTableHeader() {
+        const hidesTitleColumn = ['pr', 'err', 'crf'].includes(currentModuleKey);
+        const titleColumnLabel = currentModuleKey === 'dv'
+            ? (getModuleConfig('dv').recordTitleLabel || 'Payee')
+            : 'Title';
+
         if (currentModuleKey === 'pr') {
             $('tableHeadRow').innerHTML = `
                 <th class="w-36 p-3 text-left">Number</th>
-                <th class="w-44 p-3 text-left">Title</th>
                 <th class="w-44 p-3 text-left">Requestor</th>
                 <th class="w-28 p-3 text-left">Priority</th>
                 <th class="w-32 p-3 text-left">Date Needed</th>
@@ -3391,7 +3395,7 @@
 
         $('tableHeadRow').innerHTML = `
             <th class="w-36 p-3 text-left">Number</th>
-            <th class="w-44 p-3 text-left">Title</th>
+            ${hidesTitleColumn ? '' : `<th class="w-44 p-3 text-left">${escapeHtml(titleColumnLabel)}</th>`}
             <th class="p-3 text-left">Summary</th>
             <th class="w-32 p-3 text-left">Date</th>
             <th class="w-36 p-3 text-left">Workflow</th>
@@ -3404,13 +3408,14 @@
         const tableBody = $('tableBody');
         const rows = filteredRecords();
         const moduleConfig = getModuleConfig(currentModuleKey);
+        const hidesTitleColumn = ['pr', 'err', 'crf'].includes(currentModuleKey);
 
         tableBody.innerHTML = '';
 
         if (!rows.length) {
             tableBody.innerHTML = `
                 <tr>
-                    <td colspan="${currentModuleKey === 'pr' ? '10' : '7'}" class="p-10 text-center text-gray-400 italic">No records found</td>
+                    <td colspan="${currentModuleKey === 'pr' ? '9' : (['err', 'crf'].includes(currentModuleKey) ? '6' : '7')}" class="p-10 text-center text-gray-400 italic">No records found</td>
                 </tr>
             `;
             return;
@@ -3421,7 +3426,6 @@
                 tableBody.innerHTML += `
                     <tr class="border-t hover:bg-blue-50 cursor-pointer" onclick="window.financeModule.openPreview(${item.id})">
                         <td class="p-3 break-words">${escapeHtml(item.record_number || '')}</td>
-                        <td class="p-3 break-words">${escapeHtml(getVisibleRecordTitle(item))}</td>
                         <td class="p-3 break-words">${escapeHtml(item.data?.requestor || item.data?.employee_name || '')}</td>
                         <td class="p-3">${escapeHtml(item.data?.priority || '')}</td>
                         <td class="p-3">${escapeHtml(formatDate(item.data?.needed_date))}</td>
@@ -3442,7 +3446,7 @@
             tableBody.innerHTML += `
                 <tr class="border-t hover:bg-blue-50 cursor-pointer" onclick="window.financeModule.openPreview(${item.id})">
                     <td class="p-3 break-words">${escapeHtml(item.record_number || '')}</td>
-                    <td class="p-3 break-words">${escapeHtml(getVisibleRecordTitle(item))}</td>
+                    ${hidesTitleColumn ? '' : `<td class="p-3 break-words">${escapeHtml(getVisibleRecordTitle(item))}</td>`}
                     <td class="p-3 text-gray-700">${escapeHtml(buildSummary(item, moduleConfig))}</td>
                     <td class="p-3">${escapeHtml(formatDate(item.record_date))}</td>
                     <td class="p-3 ${workflowBadgeClass(item.workflow_status)} font-medium">${escapeHtml(workflowLabel(item.workflow_status))}</td>
