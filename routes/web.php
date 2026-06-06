@@ -41,6 +41,7 @@ use App\Http\Controllers\AdminDashboardController;
 use App\Http\Controllers\AdminHumanCapitalDashboardController;
 use App\Http\Controllers\AdminUserController;
 use App\Http\Controllers\AdminUserPermissionController;
+use App\Http\Controllers\AccountAuditLogController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\RegularController;
@@ -334,6 +335,8 @@ Route::middleware(['auth', 'prevent-back-history', \App\Http\Middleware\EnsurePa
 
     Route::get('/admin/role-permissions', [RolePermissionController::class, 'index'])->name('admin.role-permissions');
     Route::post('/admin/role-permissions/{id}', [RolePermissionController::class, 'update'])->name('admin.role-permissions.update');
+
+    Route::get('/admin/account-audit-trail', [AccountAuditLogController::class, 'index'])->name('admin.account-audit-trail');
 
     Route::get('/admin/user-permissions', [AdminUserPermissionController::class, 'index'])->name('admin.user-permissions');
     Route::get('/admin/user-permissions/{id}', [AdminUserPermissionController::class, 'edit'])->name('admin.user-permissions.edit');
