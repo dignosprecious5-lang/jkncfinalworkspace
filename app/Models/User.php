@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
+use App\Notifications\ResetPasswordNotification;
 use Illuminate\Notifications\Notifiable;
 
 class User extends Authenticatable
@@ -170,6 +171,10 @@ class User extends Authenticatable
     {
         return $this->hasUserAccountPermission('delete_user_account');
     }
+    public function sendPasswordResetNotification($token): void
+{
+    $this->notify(new ResetPasswordNotification($token));
+}
 
     public function hasPermission(string $permission): bool
     {
