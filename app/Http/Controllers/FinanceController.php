@@ -127,6 +127,27 @@ class FinanceController extends Controller
         return ['Treasurer', 'President', 'Approver'];
     }
 
+    private function financeUsesFinanceOperationsLabels(?string $moduleKey): bool
+    {
+        return in_array((string) $moduleKey, [
+            'pr',
+            'po',
+            'ca',
+            'lr',
+            'err',
+            'pda',
+            'crf',
+            'arf',
+        ], true);
+    }
+
+    private function financeDisplayApprovalRoleLabels(?string $moduleKey): array
+    {
+        return $this->financeUsesFinanceOperationsLabels($moduleKey)
+            ? ['Finance', 'Operations']
+            : ['Treasurer', 'President'];
+    }
+
     private function financeUserDisplayName(?int $userId, string $fallback = 'N/A'): string
     {
         if (blank($userId)) {
@@ -637,6 +658,7 @@ class FinanceController extends Controller
 
     private function financeApprovalRoleLabelsForRecord(?FinanceRecord $record = null, ?string $moduleKey = null): array
     {
+        $moduleKey ??= $record?->module_key;
         $dataRoles = collect((array) data_get($record?->data ?? [], 'approval_steps', []))
             ->pluck('role')
             ->map(fn ($role) => trim((string) $role))
@@ -644,7 +666,7 @@ class FinanceController extends Controller
             ->values()
             ->all();
 
-        $priorityRoles = $this->financeApprovalRolePriority();
+        $priorityRoles = $this->financeDisplayApprovalRoleLabels($moduleKey);
 
         return [
             $dataRoles[0] ?? $priorityRoles[0],
@@ -671,7 +693,8 @@ class FinanceController extends Controller
                 continue;
             }
 
-            $role = trim((string) ($option['role'] ?? data_get($defaultSteps, $index . '.role', $index === 0 ? 'Treasurer' : 'President')));
+            $fallbackRoles = $this->financeDisplayApprovalRoleLabels($moduleKey);
+            $role = trim((string) ($option['role'] ?? data_get($defaultSteps, $index . '.role', $fallbackRoles[$index] ?? ($index === 0 ? 'Treasurer' : 'President'))));
 
             $steps[] = [
                 'step' => $index + 1,
@@ -1486,7 +1509,7 @@ class FinanceController extends Controller
             'bank_account' => 'Bank Account Name',
             'pr' => 'Title',
             'po' => 'Order Title',
-            'ca' => 'Cash Advance Request',
+            'ca' => 'Cash Advance',
             'lr' => 'Liquidating Person',
             'err' => 'Requestor',
             'dv' => 'Payee',
@@ -1667,6 +1690,37 @@ class FinanceController extends Controller
         return ['supplier', 'service', 'product', 'chart_account', 'bank_account'];
     }
 
+    private function financeAutoRecordTitle(string $moduleKey, array $data, ?string $existingTitle = null): string
+    {
+        $existingTitle = trim((string) $existingTitle);
+
+        if ($existingTitle !== '' && ! $this->recordTitleLooksLikePlaceholder($moduleKey, $existingTitle)) {
+            return $existingTitle;
+        }
+
+        if ($moduleKey !== 'ca') {
+            return $existingTitle;
+        }
+
+        $requestorName = trim((string) (
+            data_get($data, 'employee_name')
+            ?: data_get($data, 'requested_by_name')
+            ?: data_get($data, 'requestor')
+            ?: data_get($data, 'employee_email')
+        ));
+
+        $purpose = trim((string) data_get($data, 'purpose', ''));
+        $cashAdvanceType = trim((string) data_get($data, 'cash_advance_type', ''));
+
+        $derivedTitle = $purpose !== ''
+            ? $purpose
+            : ($requestorName !== ''
+                ? $requestorName . ' Cash Advance'
+                : ($cashAdvanceType !== '' ? $cashAdvanceType : 'Cash Advance'));
+
+        return Str::limit($derivedTitle, 255, '');
+    }
+
     private function recordTitleLooksLikePlaceholder(string $moduleKey, ?string $recordTitle): bool
     {
         $title = Str::lower(trim((string) $recordTitle));
@@ -1697,6 +1751,11 @@ class FinanceController extends Controller
         return $this->recordTitleLooksLikePlaceholder($moduleKey, $recordTitle)
             ? ''
             : trim((string) $recordTitle);
+    }
+
+    private function financeModuleShowsRecordTitle(string $moduleKey): bool
+    {
+        return ! in_array($moduleKey, ['pr', 'err', 'crf', 'ca'], true);
     }
 
     private function financeHistoryActor(): string
@@ -2344,7 +2403,9 @@ SVG;
             'superior' => $this->financePdfValue($value ?: data_get($linkedLrData, 'superior') ?: data_get($linkedCaData, 'superior') ?: ''),
             'superior_email' => $this->financePdfValue($value ?: data_get($linkedLrData, 'superior_email') ?: data_get($linkedCaData, 'superior_email') ?: ''),
             'for_client' => $this->financePdfValue($value ?: data_get($linkedCaData, 'for_client') ?: 'N/A'),
-            'client_names' => $this->financePdfValue($value ?: data_get($linkedCaData, 'client_names') ?: 'N/A'),
+            'client_names' => $this->financePdfLookupLabel($lookupOptions, 'client', $value)
+                ?: $this->financePdfLookupLabel($lookupOptions, 'client', data_get($linkedCaData, 'client_names'))
+                ?: $this->financePdfValue($value ?: data_get($linkedCaData, 'client_names') ?: 'N/A'),
             'purpose' => $this->financePdfValue($value ?: data_get($linkedLrData, 'purpose') ?: data_get($linkedCaData, 'purpose') ?: data_get($linkedCaData, 'justification') ?: ''),
             'expense_details' => $this->financePdfValue($value ?: data_get($linkedLrData, 'purpose') ?: 'Shortage from linked liquidation report.'),
             'amount' => $record->module_key === 'err'
@@ -4401,6 +4462,7 @@ SVG;
         $approvalActorNames = $this->financeApprovalActorNames($record);
         $ownershipCards = $this->financeOwnershipSummary($record);
         $isTemplatePreview = $forceSupplierTemplate;
+        $showRecordTitle = $this->financeModuleShowsRecordTitle($record->module_key);
         $companyName = 'John Kelly & Company';
         $companyLegalName = 'JK&C INC.';
         $companyLogo = $includeLogo ? $this->financePdfImageDataUri('images/imaglogo.png') : null;
@@ -4408,9 +4470,14 @@ SVG;
             $summaryCards = [
                 ['label' => 'Module', 'value' => $moduleLabel],
                 ['label' => 'Record Number', 'value' => $this->normalizeFinanceRecordNumber($record->module_key, $record->record_number)],
-                ['label' => $recordTitleLabel, 'value' => $record->record_title ?: 'N/A'],
                 ['label' => 'Record Date', 'value' => optional($record->record_date)->format('Y-m-d') ?: 'N/A'],
             ];
+            if ($showRecordTitle) {
+                array_splice($summaryCards, 2, 0, [[
+                    'label' => $recordTitleLabel,
+                    'value' => $record->record_title ?: 'N/A',
+                ]]);
+            }
         } else {
             $summaryCards = $record->module_key === 'pr'
                 ? [
@@ -4431,13 +4498,13 @@ SVG;
                     ['label' => 'Submitted At', 'value' => optional($record->submitted_at)->format('Y-m-d H:i:s') ?: 'N/A'],
                     ['label' => 'Approved At', 'value' => optional($record->approved_at)->format('Y-m-d H:i:s') ?: 'N/A'],
                     ...($record->module_key === 'ca' ? [
-                        ['label' => 'Treasurer', 'value' => $this->financeApprovalRoutingDisplayValue($record, 'first_approver_user_id')],
-                        ['label' => 'President', 'value' => $this->financeApprovalRoutingDisplayValue($record, 'second_approver_user_id')],
+                        ['label' => $this->financeDisplayApprovalRoleLabels($record->module_key)[0], 'value' => $this->financeApprovalRoutingDisplayValue($record, 'first_approver_user_id')],
+                        ['label' => $this->financeDisplayApprovalRoleLabels($record->module_key)[1], 'value' => $this->financeApprovalRoutingDisplayValue($record, 'second_approver_user_id')],
                     ] : []),
                     ...($record->module_key === 'pda' ? [
                         ['label' => 'Payroll Period', 'value' => $this->financePdfLookupLabel($lookupOptions, 'payroll_period', data_get($data, 'payroll_period_id')) ?: data_get($data, 'payroll_period_id') ?: 'N/A'],
-                        ['label' => 'Treasurer', 'value' => $this->financeApprovalRoutingDisplayValue($record, 'first_approver_user_id')],
-                        ['label' => 'President', 'value' => $this->financeApprovalRoutingDisplayValue($record, 'second_approver_user_id')],
+                        ['label' => $this->financeDisplayApprovalRoleLabels($record->module_key)[0], 'value' => $this->financeApprovalRoutingDisplayValue($record, 'first_approver_user_id')],
+                        ['label' => $this->financeDisplayApprovalRoleLabels($record->module_key)[1], 'value' => $this->financeApprovalRoutingDisplayValue($record, 'second_approver_user_id')],
                     ] : []),
                     ...($record->module_key === 'err' ? [
                         ['label' => 'Linked LR', 'value' => $this->financePdfLookupLabel($lookupOptions, 'lr', data_get($data, 'linked_lr_id')) ?: data_get($data, 'linked_lr_id') ?: 'N/A'],
@@ -4458,7 +4525,6 @@ SVG;
                 : [
                     ['label' => 'Module', 'value' => $moduleLabel],
                     ['label' => 'Record Number', 'value' => $this->normalizeFinanceRecordNumber($record->module_key, $record->record_number)],
-                    ['label' => $recordTitleLabel, 'value' => $record->record_title ?: 'N/A'],
                     ['label' => 'Record Date', 'value' => optional($record->record_date)->format('Y-m-d') ?: 'N/A'],
                     ['label' => 'Record Time', 'value' => data_get($data, 'transaction_time') ?: 'N/A'],
                     ['label' => 'Amount', 'value' => $record->amount !== null ? number_format((float) $record->amount, 2) : 'N/A'],
@@ -4473,8 +4539,8 @@ SVG;
                     ['label' => 'Submitted At', 'value' => optional($record->submitted_at)->format('Y-m-d H:i:s') ?: 'N/A'],
                     ['label' => 'Approved At', 'value' => optional($record->approved_at)->format('Y-m-d H:i:s') ?: 'N/A'],
                     ...($record->module_key === 'ca' ? [
-                        ['label' => 'Treasurer', 'value' => $this->financeApprovalRoutingDisplayValue($record, 'first_approver_user_id')],
-                        ['label' => 'President', 'value' => $this->financeApprovalRoutingDisplayValue($record, 'second_approver_user_id')],
+                        ['label' => $this->financeDisplayApprovalRoleLabels($record->module_key)[0], 'value' => $this->financeApprovalRoutingDisplayValue($record, 'first_approver_user_id')],
+                        ['label' => $this->financeDisplayApprovalRoleLabels($record->module_key)[1], 'value' => $this->financeApprovalRoutingDisplayValue($record, 'second_approver_user_id')],
                     ] : []),
                     ...($record->module_key === 'lr' ? [
                         ['label' => 'Attachments', 'value' => max(count((array) ($record->attachments ?? [])), 0) . ' file' . (count((array) ($record->attachments ?? [])) === 1 ? '' : 's')],
@@ -4488,6 +4554,13 @@ SVG;
                         ['label' => 'Photo Attachments', 'value' => collect((array) ($record->attachments ?? []))->filter(fn ($attachment) => $this->financeAttachmentIsImage(is_array($attachment) ? $attachment : []))->count()],
                     ] : []),
                 ];
+
+            if ($showRecordTitle) {
+                array_splice($summaryCards, 2, 0, [[
+                    'label' => $recordTitleLabel,
+                    'value' => $record->record_title ?: 'N/A',
+                ]]);
+            }
         }
 
         $lineItems = $this->financeResolvedLineItems($record, $lookupOptions);
@@ -8006,6 +8079,10 @@ SVG;
         $data = $this->normalizeRequesterEmployeeData($moduleKey, $data);
         unset($data['relationship_status'], $data['next_action'], $data['transaction_progress'], $data['disbursement_status']);
 
+        if (in_array($moduleKey, ['ca', 'lr'], true) && (string) data_get($data, 'for_client', '') !== 'Yes') {
+            unset($data['client_names']);
+        }
+
         if ($moduleKey === 'err') {
             unset($data['supplier_id'], $data['coa_id']);
 
@@ -8893,6 +8970,7 @@ SVG;
             $recordDate = $recordDate ?: now()->toDateString();
         }
 
+        $recordTitle = $this->financeAutoRecordTitle($request->module_key, $data, $recordTitle);
         $recordNumber = $this->normalizeFinanceRecordNumber($request->module_key, $recordNumber);
         $recordAmount = in_array($request->module_key, ['dv', 'pda'], true)
             ? data_get($data, $request->module_key === 'pda' ? 'total_payroll_amount' : 'amount')
@@ -8998,6 +9076,7 @@ SVG;
             $recordDate = $recordDate ?: optional($financeRecord->record_date)->format('Y-m-d') ?: now()->toDateString();
         }
 
+        $recordTitle = $this->financeAutoRecordTitle($request->module_key, $data, $recordTitle);
         $recordNumber = $this->normalizeFinanceRecordNumber($request->module_key, $recordNumber);
         $recordAmount = in_array($request->module_key, ['dv', 'pda'], true)
             ? data_get($data, $request->module_key === 'pda' ? 'total_payroll_amount' : 'amount')
