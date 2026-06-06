@@ -141,8 +141,8 @@
 
             <div class="flex-1 min-h-0 grid grid-cols-[58%_42%] gap-0 bg-gray-50">
                 {{-- LEFT LIVE PREVIEW --}}
-                <div class="min-h-0 overflow-auto p-5 border-r bg-gray-100">
-                    <div class="flex items-center justify-between mb-4 sticky top-0 z-10 bg-gray-100 py-2">
+                <div class="min-h-0 flex flex-col border-r bg-gray-100">
+                    <div class="shrink-0 flex items-center justify-between border-b border-gray-200 bg-gray-100 px-5 py-4">
                         <p class="text-xs font-bold text-gray-500 uppercase tracking-widest">Live Preview</p>
                         <button type="button" onclick="window.print()" class="px-3 py-2 border rounded-lg text-xs font-semibold text-gray-700 bg-white">
                             Download PDF
@@ -150,6 +150,7 @@
                     </div>
 
                     {{-- A4 PAPER PREVIEW --}}
+                    <div class="flex-1 min-h-0 overflow-auto p-5">
                     <div class="obf-paper print-area">
                         <div class="obf-letterhead">
                             {{-- Change the image path below if your logo uses another public path. You can copy the src from app.blade.php. --}}
@@ -314,6 +315,7 @@
                                 <div class="border-t border-gray-700 pt-1">Authorized Approver</div>
                             </div>
                         </div>
+                    </div>
                     </div>
                 </div>
 
