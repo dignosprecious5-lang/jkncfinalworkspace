@@ -13,6 +13,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
@@ -614,18 +615,18 @@ class CompanyBifController extends Controller
 
     private function companyBifDefaults(array $companyData): array
     {
-        $contact = null;
-        $primaryContactId = (int) ($companyData['primary_contact_id'] ?? 0);
-
-        if ($primaryContactId > 0 && Schema::hasTable('contacts')) {
-            $contact = Contact::query()->find($primaryContactId);
-        }
+        $contact = $this->resolveCompanyContact($companyData);
 
         $contactName = $contact ? trim(collect([
             $contact->first_name,
             $contact->last_name,
         ])->filter()->implode(' ')) : '';
         $industryDefaults = $this->industryDefaultsFromNature($contact?->nature_of_business);
+
+        // Read directly from contacts columns and CIF form data
+        $cifData = $contact ? $this->loadContactCifData($contact) : [];
+        $salesMarketingName = $contact?->sales_marketing ?: ($cifData['sales_marketing_footer'] ?? null);
+        $financeName = $cifData['finance_footer'] ?? null;
 
         return [
             'bif_date' => now()->toDateString(),
@@ -640,10 +641,14 @@ class CompanyBifController extends Controller
             'authorized_contact_person_phone' => $contact?->phone ?: ($companyData['phone'] ?? null),
             'signature_printed_name' => $contactName,
             'signature_position' => $contact?->position,
-            'sales_marketing_name' => $contact?->sales_marketing,
+            'sales_marketing_name' => $salesMarketingName,
+            'sales_marketing_date_signature' => null,
+            'finance_name' => $financeName,
+            'finance_date_signature' => null,
             'referred_by' => $contact?->referred_by,
             'consultant_lead' => $contact?->consultant_lead,
             'lead_associate' => $contact?->lead_associate,
+            'president_use_only_name' => null,
             'industry_services' => in_array('services', $industryDefaults['types'], true),
             'industry_export_import' => in_array('export_import', $industryDefaults['types'], true),
             'industry_education' => in_array('education', $industryDefaults['types'], true),
@@ -656,6 +661,92 @@ class CompanyBifController extends Controller
             'industry_other' => in_array('other', $industryDefaults['types'], true),
             'industry_other_text' => $industryDefaults['other_text'],
         ];
+    }
+
+    /**
+     * Resolve the best-matching contact for a company.
+     * Tries: primary_contact_id → many-to-many pivot → contacts with matching company_name.
+     * Prefers contacts that have CIF data with finance/sales_marketing filled.
+     */
+    private function resolveCompanyContact(array $companyData): ?Contact
+    {
+        if (! Schema::hasTable('contacts')) {
+            return null;
+        }
+
+        $companyId = (int) ($companyData['id'] ?? 0);
+        $primaryContactId = (int) ($companyData['primary_contact_id'] ?? 0);
+        $companyName = trim((string) ($companyData['company_name'] ?? ''));
+
+        $candidates = collect();
+
+        // 1. Try primary contact first
+        if ($primaryContactId > 0) {
+            $primary = Contact::query()->find($primaryContactId);
+            if ($primary) {
+                $candidates->push($primary);
+            }
+        }
+
+        // 2. Try many-to-many pivot contacts
+        if ($companyId > 0 && Schema::hasTable('company_contact')) {
+            $pivotContacts = Contact::query()
+                ->whereHas('companies', fn ($q) => $q->where('companies.id', $companyId))
+                ->get();
+            $candidates = $candidates->concat($pivotContacts);
+        }
+
+        // 3. Try contacts whose company_name matches
+        if ($companyName !== '') {
+            $nameContacts = Contact::query()
+                ->where('company_name', $companyName)
+                ->get();
+            $candidates = $candidates->concat($nameContacts);
+        }
+
+        // Deduplicate
+        $candidates = $candidates->unique('id')->values();
+
+        if ($candidates->isEmpty()) {
+            return null;
+        }
+
+        // Prefer a contact that has finance_footer or sales_marketing_footer in cif_data
+        $withCifData = $candidates->first(function (Contact $c) {
+            $cif = $this->loadContactCifData($c);
+            return filled($cif['finance_footer'] ?? null) || filled($cif['sales_marketing_footer'] ?? null);
+        });
+
+        return $withCifData ?? $candidates->first();
+    }
+
+    /**
+     * Read Sales & Marketing and Finance from the contact's CIF form data.
+     * Checks both the DB column and the CIF JSON files to ensure all data is found.
+     */
+    private function loadContactCifData(Contact $contact): array
+    {
+        $contact->refresh();
+        $embedded = $contact->getAttribute('cif_data');
+        if (is_array($embedded) && $embedded !== []) {
+            return $embedded;
+        }
+
+        $legacyPaths = [
+            'contact-cif-data/'.$contact->id.'.json',
+            'contact-cif-data/'.$contact->id.'-data.json',
+        ];
+
+        foreach ($legacyPaths as $path) {
+            if (Storage::disk('local')->exists($path)) {
+                $stored = json_decode((string) Storage::disk('local')->get($path), true);
+                if (is_array($stored) && $stored !== []) {
+                    return $stored;
+                }
+            }
+        }
+
+        return [];
     }
 
     private function employeeOptions(): array
@@ -726,6 +817,7 @@ class CompanyBifController extends Controller
                 'lead_associate',
                 'referred_by',
                 'cif_status',
+                'cif_data',
             ])
             ->map(function (Contact $contact): array {
                 $fullName = trim(collect([
@@ -733,6 +825,13 @@ class CompanyBifController extends Controller
                     $contact->last_name,
                 ])->filter()->implode(' '));
                 $address = collect([$contact->contact_address, $contact->company_address])->first(fn ($value) => filled($value));
+                $cifData = $this->loadContactCifData($contact);
+
+                // Sales & Marketing: direct column on contacts or CIF footer
+                $salesMarketingName = $contact->sales_marketing ?: ($cifData['sales_marketing_footer'] ?? null);
+
+                // Finance: stored in the CIF form footer data
+                $financeName = $cifData['finance_footer'] ?? null;
 
                 return [
                     'id' => (int) $contact->id,
@@ -754,7 +853,8 @@ class CompanyBifController extends Controller
                     'nationality' => null,
                     'date_of_birth' => optional($contact->date_of_birth)->format('Y-m-d'),
                     'tin' => $contact->tin,
-                    'sales_marketing_name' => $contact->sales_marketing,
+                    'sales_marketing_name' => $salesMarketingName,
+                    'finance_name' => $financeName,
                     'consultant_lead' => $contact->consultant_lead,
                     'lead_associate' => $contact->lead_associate,
                     'referred_by' => $contact->referred_by,

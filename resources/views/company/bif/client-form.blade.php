@@ -110,6 +110,10 @@
                                 @endforeach
                             </select>
                         </div>
+                        <div id="business_organization_other_wrap" class="{{ old('business_organization', $bif->business_organization) === 'other' ? '' : 'hidden' }}">
+                            <label for="business_organization_other" class="mb-1 block text-sm font-medium text-slate-700">If Other, please specify</label>
+                            <input id="business_organization_other" name="business_organization_other" value="{{ old('business_organization_other', $bif->business_organization_other) }}" placeholder="Other organization type" class="h-11 w-full border border-slate-300 px-3 text-sm">
+                        </div>
                         <div>
                             <label for="nationality_status" class="mb-1 block text-sm font-medium text-slate-700">Nationality</label>
                             <select id="nationality_status" name="nationality_status" class="h-11 w-full border border-slate-300 px-3 text-sm">
@@ -127,6 +131,10 @@
                                 @endforeach
                             </select>
                         </div>
+                        <div id="office_type_other_wrap" class="{{ old('office_type', $bif->office_type) === 'other' ? '' : 'hidden' }}">
+                            <label for="office_type_other" class="mb-1 block text-sm font-medium text-slate-700">If Other, please specify</label>
+                            <input id="office_type_other" name="office_type_other" value="{{ old('office_type_other', $bif->office_type_other) }}" placeholder="Other office type" class="h-11 w-full border border-slate-300 px-3 text-sm">
+                        </div>
                         <div class="md:col-span-2 xl:col-span-3">
                             <label for="business_name" class="mb-1 block text-sm font-medium text-slate-700">Business Name</label>
                             <input id="business_name" name="business_name" value="{{ old('business_name', $bif->business_name ?: $company->company_name) }}" class="h-11 w-full border border-slate-300 px-3 text-sm" required>
@@ -139,10 +147,7 @@
                             <label for="business_address" class="mb-1 block text-sm font-medium text-slate-700">Business Address</label>
                             <textarea id="business_address" name="business_address" rows="3" class="w-full border border-slate-300 px-3 py-3 text-sm">{{ old('business_address', $bif->business_address) }}</textarea>
                         </div>
-                        <div id="business_organization_other_wrap" class="md:col-span-2 xl:col-span-3 {{ old('business_organization', $bif->business_organization) === 'other' ? '' : 'hidden' }}">
-                            <label for="business_organization_other" class="mb-1 block text-sm font-medium text-slate-700">If Other, please specify</label>
-                            <input id="business_organization_other" name="business_organization_other" value="{{ old('business_organization_other', $bif->business_organization_other) }}" class="h-11 w-full border border-slate-300 px-3 text-sm">
-                        </div>
+
                         <div>
                             <label for="zip_code" class="mb-1 block text-sm font-medium text-slate-700">ZIP Code</label>
                             <input id="zip_code" name="zip_code" value="{{ old('zip_code', $bif->zip_code) }}" class="h-11 w-full border border-slate-300 px-3 text-sm">
@@ -470,6 +475,9 @@
             const juridicalTypes = new Set(['partnership', 'corporation', 'cooperative', 'ngo', 'other']);
             const businessOrganizationOtherWrap = document.getElementById('business_organization_other_wrap');
             const businessOrganizationOtherInput = document.getElementById('business_organization_other');
+            const officeTypeSelect = document.getElementById('office_type');
+            const officeTypeOtherWrap = document.getElementById('office_type_other_wrap');
+            const officeTypeOtherInput = document.getElementById('office_type_other');
             const industryOtherCheckbox = form.querySelector('[name="industry_other"]');
             const industryOtherWrap = document.getElementById('industry_other_wrap');
             const industryOtherInput = document.getElementById('industry_other_text');
@@ -489,7 +497,7 @@
                 field.classList.add('border-slate-300');
             };
 
-            const syncOtherField = () => {
+            const syncBusinessOrganizationOtherField = () => {
                 const showOther = organizationSelect.value === 'other';
 
                 businessOrganizationOtherWrap?.classList.toggle('hidden', !showOther);
@@ -497,6 +505,17 @@
                 if (!showOther && businessOrganizationOtherInput) {
                     businessOrganizationOtherInput.value = '';
                     clearValidationState(businessOrganizationOtherInput);
+                }
+            };
+
+            const syncOfficeTypeOtherField = () => {
+                const showOther = officeTypeSelect?.value === 'other';
+
+                officeTypeOtherWrap?.classList.toggle('hidden', !showOther);
+
+                if (!showOther && officeTypeOtherInput) {
+                    officeTypeOtherInput.value = '';
+                    clearValidationState(officeTypeOtherInput);
                 }
             };
 
@@ -538,14 +557,15 @@
                 soleUploads.style.display = showSole ? '' : 'none';
                 juridicalUploads.style.display = showJuridical ? '' : 'none';
                 placeholder.style.display = (showSole || showJuridical) ? 'none' : '';
-                syncOtherField();
                 syncCheckboxOtherField(industryOtherCheckbox, industryOtherWrap, industryOtherInput);
                 syncCheckboxOtherField(sourceOtherCheckbox, sourceOtherWrap, sourceOtherInput);
             };
 
             organizationSelect.addEventListener('change', syncRequirementCards);
-            industryOtherCheckbox?.addEventListener('change', syncRequirementCards);
-            sourceOtherCheckbox?.addEventListener('change', syncRequirementCards);
+            organizationSelect.addEventListener('change', syncBusinessOrganizationOtherField);
+            officeTypeSelect?.addEventListener('change', syncOfficeTypeOtherField);
+            industryOtherCheckbox?.addEventListener('change', () => syncCheckboxOtherField(industryOtherCheckbox, industryOtherWrap, industryOtherInput));
+            sourceOtherCheckbox?.addEventListener('change', () => syncCheckboxOtherField(sourceOtherCheckbox, sourceOtherWrap, sourceOtherInput));
             employeeCountInputs.forEach((field) => field.addEventListener('input', syncEmployeeTotal));
             form.querySelector('[name="business_name"]')?.addEventListener('input', syncCompanyNameHeading);
             form.addEventListener('submit', async (event) => {

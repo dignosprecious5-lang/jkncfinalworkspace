@@ -1108,13 +1108,26 @@ class CompanyController extends Controller
 
     private function loadContactCifData(Contact $contact): array
     {
-        $path = 'contact-cif-data/'.$contact->id.'.json';
-
-        if (! Storage::disk('local')->exists($path)) {
-            return [];
+        $embedded = $contact->getAttribute('cif_data');
+        if (is_array($embedded) && $embedded !== []) {
+            return $embedded;
         }
 
-        return json_decode((string) Storage::disk('local')->get($path), true) ?: [];
+        $legacyPaths = [
+            'contact-cif-data/'.$contact->id.'.json',
+            'contact-cif-data/'.$contact->id.'-data.json',
+        ];
+
+        foreach ($legacyPaths as $path) {
+            if (Storage::disk('local')->exists($path)) {
+                $stored = json_decode((string) Storage::disk('local')->get($path), true);
+                if (is_array($stored) && $stored !== []) {
+                    return $stored;
+                }
+            }
+        }
+
+        return [];
     }
 
     private function loadLinkedBifData(Contact $contact): array
@@ -1221,8 +1234,12 @@ class CompanyController extends Controller
             ),
             'consultant_lead' => $this->firstFilledValue($contact->consultant_lead, $bifData['consultant_lead'] ?? null),
             'lead_associate' => $this->firstFilledValue($contact->lead_associate, $bifData['lead_associate'] ?? null),
-            'sales_marketing_name' => $this->firstFilledValue($contact->sales_marketing, $bifData['sales_marketing_name'] ?? null),
+            'sales_marketing_name' => $this->firstFilledValue($contact->sales_marketing, $cifData['sales_marketing_footer'] ?? null, $bifData['sales_marketing_name'] ?? null),
+            'sales_marketing_date_signature' => $bifData['sales_marketing_date_signature'] ?? null,
+            'finance_name' => $this->firstFilledValue($cifData['finance_footer'] ?? null, $bifData['finance_name'] ?? null),
+            'finance_date_signature' => $bifData['finance_date_signature'] ?? null,
             'referred_by' => $this->firstFilledValue($contact->referred_by, $bifData['referred_by'] ?? null),
+            'president_use_only_name' => $this->firstFilledValue($bifData['president_use_only_name'] ?? null),
             'nationality_status' => $nationalityStatus,
             'alternative_business_name' => $bifData['alternative_business_name'] ?? null,
         ];

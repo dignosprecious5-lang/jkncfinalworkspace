@@ -1200,9 +1200,10 @@
 
                             const openDocumentModal = (filePath, docType, files = [], startIndex = 0) => {
                                 activeDoc = docType;
+                                const resolvedDocType = docType === 'specimen_signature_upload' ? 'specimen_signature_form' : docType;
                                 const requirementState = docType === 'cif_signed_document'
                                     ? { files: cifSignedDocument ? [cifSignedDocument] : [] }
-                                    : kycRequirementState[docType];
+                                    : kycRequirementState[resolvedDocType];
                                 currentDocs = Array.isArray(requirementState?.files) && requirementState.files.length
                                     ? requirementState.files
                                     : (requirementState?.file ? [requirementState.file] : []);
