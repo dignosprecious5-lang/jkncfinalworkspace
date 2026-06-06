@@ -9,10 +9,13 @@
         departmentOptions: @js($departmentOptions),
         divisionOptions: @js($divisionOptions),
         unitOptions: @js($unitOptions),
+        userOptions: @js($userOptions),
         canManageEmployeeProfiles: @js($canManageEmployeeProfiles ?? false),
+        canApproveEmployeeSystemAccess: @js($canApproveEmployeeSystemAccess ?? false),
         companyAddress: @js($employeeIdCompanyAddress ?? ''),
         storeUrl: '{{ route('human-capital.employee-profile.store') }}',
-        updateBaseUrl: '{{ url('/human-capital/employee-profile') }}'
+        updateBaseUrl: '{{ url('/human-capital/employee-profile') }}',
+        systemAccessBaseUrl: '{{ url('/human-capital/employee-profile') }}'
     })"
     class="w-full px-6 mt-4 h-[calc(100vh-100px)] flex flex-col"
 >
@@ -459,27 +462,104 @@
                         </div>
 
                         <div x-show="profileTab === 'access'" class="space-y-5">
-                            <h3 class="section-heading">System Access & Assigned Platforms</h3>
-                            <template x-if="!(selectedEmployee.access_affiliations || []).length">
-                                <div class="profile-card text-sm text-gray-500">No system access or assigned platforms recorded for this employee yet.</div>
-                            </template>
-                            <div class="grid grid-cols-1 gap-4">
-                                <template x-for="group in accessAffiliationGroups(selectedEmployee)" :key="group.source">
-                                    <div class="profile-card">
-                                        <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
-                                            <div>
-                                                <p class="profile-label" x-text="group.type"></p>
-                                                <p class="profile-value" x-text="group.source"></p>
-                                            </div>
-                                            <span class="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700" x-text="`${group.items.length} access`"></span>
-                                        </div>
-                                        <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                                            <template x-for="item in group.items" :key="item.label">
-                                                <div class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm font-semibold text-gray-800" x-text="item.label"></div>
+                            <div class="flex flex-wrap items-start justify-between gap-3">
+                                <div>
+                                    <h3 class="section-heading">System Access & Assigned Platforms</h3>
+                                    <p class="mt-1 text-xs text-gray-500">Documentation only. Manage actual permissions in Admin &gt; Role Permissions or User Permissions.</p>
+                                </div>
+                                <button type="button" x-show="canManageEmployeeProfiles" @click="openSystemAccessModal()" class="px-4 py-2 rounded-lg bg-blue-600 text-white text-xs font-bold hover:bg-blue-700">
+                                    Add Platform
+                                </button>
+                            </div>
+
+                            <div class="overflow-hidden rounded-xl border border-gray-200 bg-white">
+                                <div class="overflow-x-auto">
+                                    <table class="min-w-full text-sm">
+                                        <thead class="bg-gray-50 text-left text-xs font-bold uppercase tracking-wider text-gray-500">
+                                            <tr>
+                                                <th class="px-3 py-3">System / Platform</th>
+                                                <th class="px-3 py-3">Account</th>
+                                                <th class="px-3 py-3">Username / Email</th>
+                                                <th class="px-3 py-3">Role / Access</th>
+                                                <th class="px-3 py-3">Status</th>
+                                                <th class="px-3 py-3">Approval</th>
+                                                <th class="px-3 py-3">Dates</th>
+                                                <th class="px-3 py-3">Assigned / Approved</th>
+                                                <th class="px-3 py-3" x-show="canManageEmployeeProfiles || canApproveEmployeeSystemAccess">Action</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="divide-y divide-gray-100">
+                                            <template x-if="!(selectedEmployee.system_access_records || []).length">
+                                                <tr>
+                                                    <td :colspan="(canManageEmployeeProfiles || canApproveEmployeeSystemAccess) ? 9 : 8" class="px-3 py-8 text-center text-sm text-gray-500">No assigned platform records documented for this employee yet.</td>
+                                                </tr>
                                             </template>
-                                        </div>
-                                    </div>
+                                            <template x-for="record in selectedEmployee.system_access_records || []" :key="record.id">
+                                                <tr class="align-top">
+                                                    <td class="px-3 py-3 font-semibold text-gray-900" x-text="record.system_platform_name || '-'"></td>
+                                                    <td class="px-3 py-3 text-gray-700" x-text="record.account_type || '-'"></td>
+                                                    <td class="px-3 py-3 text-gray-700" x-text="record.username_email || '-'"></td>
+                                                    <td class="px-3 py-3 text-gray-700" x-text="record.role_access_level || '-'"></td>
+                                                    <td class="px-3 py-3"><span :class="accessStatusClass(record.access_status)" class="rounded-full px-2.5 py-1 text-xs font-bold" x-text="record.access_status || '-'"></span></td>
+                                                    <td class="px-3 py-3"><span :class="approvalStatusClass(record.approval_status)" class="rounded-full px-2.5 py-1 text-xs font-bold" x-text="record.approval_status || 'Pending'"></span></td>
+                                                    <td class="px-3 py-3 text-xs text-gray-600">
+                                                        <p><span class="font-bold">Created:</span> <span x-text="record.date_access_created || '-'"></span></p>
+                                                        <p><span class="font-bold">Removed:</span> <span x-text="record.date_access_removed || '-'"></span></p>
+                                                    </td>
+                                                    <td class="px-3 py-3 text-xs text-gray-600">
+                                                        <p><span class="font-bold">Assigned:</span> <span x-text="record.assigned_by_name || '-'"></span></p>
+                                                        <p><span class="font-bold">Approved:</span> <span x-text="record.approved_by_name || '-'"></span></p>
+                                                        <p x-show="record.approved_at"><span class="font-bold">Approved At:</span> <span x-text="record.approved_at"></span></p>
+                                                        <p x-show="record.notes" class="mt-1 text-gray-500" x-text="record.notes"></p>
+                                                    </td>
+                                                    <td class="px-3 py-3" x-show="canManageEmployeeProfiles || canApproveEmployeeSystemAccess">
+                                                        <div class="flex flex-wrap gap-2">
+                                                            <button type="button" @click="openSystemAccessModal(record)" class="rounded-lg border border-blue-200 px-3 py-1.5 text-xs font-bold text-blue-700 hover:bg-blue-50">Edit</button>
+                                                            <form x-show="canApproveEmployeeSystemAccess && record.approval_status !== 'Approved'" method="POST" :action="systemAccessApproveUrl(record.id)" onsubmit="return confirm('Approve this assigned platform documentation? This will not change real system permissions.')" class="inline">
+                                                                @csrf
+                                                                <button type="submit" class="rounded-lg border border-green-200 px-3 py-1.5 text-xs font-bold text-green-700 hover:bg-green-50">Approve</button>
+                                                            </form>
+                                                            <form method="POST" :action="systemAccessDeleteUrl(record.id)" onsubmit="return confirm('Remove this documented platform record? This will not change real system permissions.')" class="inline">
+                                                                @csrf
+                                                                @method('DELETE')
+                                                                <button type="submit" class="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-bold text-red-700 hover:bg-red-50">Remove</button>
+                                                            </form>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            </template>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <div class="rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-800">
+                                This section only documents assigned accounts and platforms. It does not grant, revoke, or update login access, roles, gates, middleware, user permissions, or role permissions.
+                            </div>
+
+                            <div class="space-y-3">
+                                <h4 class="text-sm font-bold text-gray-900">Current Permission Affiliations (Read Only)</h4>
+                                <template x-if="!(selectedEmployee.access_affiliations || []).length">
+                                    <div class="profile-card text-sm text-gray-500">No real system permission affiliations found for this employee account.</div>
                                 </template>
+                                <div class="grid grid-cols-1 gap-4">
+                                    <template x-for="group in accessAffiliationGroups(selectedEmployee)" :key="group.source">
+                                        <div class="profile-card">
+                                            <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+                                                <div>
+                                                    <p class="profile-label" x-text="group.type"></p>
+                                                    <p class="profile-value" x-text="group.source"></p>
+                                                </div>
+                                                <span class="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700" x-text="`${group.items.length} access`"></span>
+                                            </div>
+                                            <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                                                <template x-for="item in group.items" :key="item.label">
+                                                    <div class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm font-semibold text-gray-800" x-text="item.label"></div>
+                                                </template>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
                             </div>
                         </div>
 
@@ -670,6 +750,82 @@
                     </div>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <div x-show="showSystemAccessModal" x-transition.opacity class="fixed inset-0 z-[75] flex items-center justify-center bg-black/40 p-6" style="display:none;">
+        <div class="w-full max-w-4xl rounded-2xl bg-white shadow-2xl">
+            <div class="flex items-center justify-between border-b px-5 py-4">
+                <div>
+                    <p class="text-xs font-black uppercase tracking-widest text-blue-600">Documentation Only</p>
+                    <h2 class="text-lg font-bold text-gray-900" x-text="editingSystemAccessId ? 'Edit Assigned Platform' : 'Add Assigned Platform'"></h2>
+                </div>
+                <button type="button" @click="closeSystemAccessModal()" class="text-2xl leading-none text-gray-400 hover:text-gray-700">&times;</button>
+            </div>
+
+            <form method="POST" :action="systemAccessFormAction" class="space-y-5 px-5 py-5">
+                @csrf
+                <template x-if="editingSystemAccessId">
+                    <input type="hidden" name="_method" value="PUT">
+                </template>
+
+                <div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-semibold text-amber-800">
+                    Saving this record submits it for Admin/SuperAdmin approval. Assigned By and Approved By are recorded automatically. This will not change actual user roles, permissions, login authority, middleware, or admin permission records.
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="form-label">System / Platform Name <span class="text-red-500">*</span></label>
+                        <select name="system_platform_name" x-model="systemAccessForm.system_platform_name" required class="form-input">
+                            <option value="">Select platform</option>
+                            <template x-for="option in systemPlatformOptions" :key="option">
+                                <option :value="option" x-text="option"></option>
+                            </template>
+                        </select>
+                    </div>
+                    <div x-show="systemAccessForm.system_platform_name === 'Others'">
+                        <label class="form-label">Other Platform Name</label>
+                        <input type="text" name="system_platform_name_other" x-model="systemAccessForm.system_platform_name_other" class="form-input">
+                    </div>
+                    <div>
+                        <label class="form-label">Account Type</label>
+                        <input type="text" name="account_type" x-model="systemAccessForm.account_type" class="form-input" placeholder="Employee account, admin account, viewer account">
+                    </div>
+                    <div>
+                        <label class="form-label">Username / Email Used</label>
+                        <input type="text" name="username_email" x-model="systemAccessForm.username_email" class="form-input" placeholder="employee@email.com">
+                    </div>
+                    <div>
+                        <label class="form-label">Role / Access Level</label>
+                        <input type="text" name="role_access_level" x-model="systemAccessForm.role_access_level" class="form-input" placeholder="Viewer, Editor, Admin">
+                    </div>
+                    <div>
+                        <label class="form-label">Access Status <span class="text-red-500">*</span></label>
+                        <select name="access_status" x-model="systemAccessForm.access_status" required class="form-input">
+                            <template x-for="status in accessStatusOptions" :key="status">
+                                <option :value="status" x-text="status"></option>
+                            </template>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label">Date Access Created</label>
+                        <input type="date" name="date_access_created" x-model="systemAccessForm.date_access_created" class="form-input">
+                    </div>
+                    <div>
+                        <label class="form-label">Date Access Removed</label>
+                        <input type="date" name="date_access_removed" x-model="systemAccessForm.date_access_removed" class="form-input">
+                    </div>
+                    <div class="col-span-2">
+                        <label class="form-label">Notes</label>
+                        <textarea name="notes" x-model="systemAccessForm.notes" rows="3" class="form-input" placeholder="Additional remarks"></textarea>
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-end gap-3 border-t pt-4">
+                    <button type="button" @click="closeSystemAccessModal()" class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">Cancel</button>
+                    <button type="submit" class="rounded-lg bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-700">Save Record</button>
+                </div>
+            </form>
         </div>
     </div>
 
@@ -910,7 +1066,6 @@
                         <div class="col-span-2"><label class="form-label">Employment History</label><textarea name="employment_history" x-model="form.employment_history_text" rows="3" class="form-input" placeholder="One entry per line or JSON"></textarea></div>
                         <div class="col-span-2"><label class="form-label">Certifications & Trainings</label><textarea name="certifications_trainings" x-model="form.certifications_trainings_text" rows="3" class="form-input" placeholder="One entry per line or JSON"></textarea></div>
                         <div class="col-span-2"><label class="form-label">Skills & Competencies</label><textarea name="skills_competencies" x-model="form.skills_competencies_text" rows="3" class="form-input" placeholder="One skill per line"></textarea></div>
-                        <div class="col-span-2"><label class="form-label">System Access & Platforms</label><textarea name="system_access" x-model="form.system_access_text" rows="3" class="form-input" placeholder="ORDO - Admin - Active"></textarea></div>
                     </div>
                 </div>
 
@@ -1014,14 +1169,19 @@ function employeePage(config) {
         departmentOptions: config.departmentOptions ?? [],
         divisionOptions: config.divisionOptions ?? [],
         unitOptions: config.unitOptions ?? [],
+        userOptions: config.userOptions ?? [],
         canManageEmployeeProfiles: Boolean(config.canManageEmployeeProfiles),
+        canApproveEmployeeSystemAccess: Boolean(config.canApproveEmployeeSystemAccess),
         employeeIdCompanyAddress: config.companyAddress || 'John Kelly & Company / JK&C Inc.',
         storeUrl: config.storeUrl,
         updateBaseUrl: config.updateBaseUrl,
+        systemAccessBaseUrl: config.systemAccessBaseUrl,
         employmentTypeOptions: ['Intern / OJT', 'Probationary', 'Regular', 'Project-Based', 'Fixed-Term', 'Part-Time', 'Casual / Temporary', 'Consultant / Independent Contractor', 'Others'],
         employmentStatusOptions: ['Active', 'Probationary', 'Regular', 'Project-Based', 'Fixed-Term', 'Part-Time', 'Casual / Temporary', 'Consultant / Independent Contractor', 'Resigned', 'Terminated', 'End of Contract', 'Retired', 'Deceased', 'Inactive', 'Others'],
         benefitsOptions: ['Social Security System (SSS)', 'PhilHealth', 'Pag-IBIG Fund (HDMF)', '13th Month Pay', 'Overtime Pay', 'Night Differential Pay, if applicable', 'Rest Day / Special Holiday Premium Pay, if applicable', 'Maternity Benefits, per law', 'Paternity Benefits, per law', 'Solo Parent and other statutory leave benefits, if applicable', 'Retirement Benefits as required by law or policy, if applicable', 'Other benefits mandated under Philippine labor laws', 'Bonus, Performance Incentive Schemes and Merit-Based Rewards', 'Healthcare, Insurance, and Investment Benefit Plan after 6 months of employment, subject to company policy and eligibility', 'Service Incentive Leave', 'Incentives / Commission', 'Holiday Pay', 'HMO', 'Day Shift + Weekends Off', 'No Work on Philippine Holidays, subject to operations', 'Structured and Professional Work Environment', 'Exposure to Corporate Advisory and Governance Practice', 'Opportunity for Long-Term Growth Based on Performance', 'Others'],
         consentOptions: ['Data Privacy Consent', 'NDA Acknowledgment', 'Policy Acceptance', 'Handbook Acknowledgment', 'Code of Conduct Acceptance'],
+        systemPlatformOptions: ['ORDO', 'Google Workspace', 'Gmail', 'Google Drive', 'Facebook Page', 'Meta Business Suite', 'Payroll System', 'Attendance System', 'Accounting System', 'Canva', 'Zoom', 'Government Portals', 'Others'],
+        accessStatusOptions: ['Active', 'Inactive', 'Pending', 'Removed', 'Suspended', 'Revoked'],
 
         search: '',
         filterDepartment: '',
@@ -1030,6 +1190,7 @@ function employeePage(config) {
 
         showSlider: false,
         showDetails: false,
+        showSystemAccessModal: false,
         cameraActive: false,
         cameraStream: null,
         capturedPhoto: '',
@@ -1040,6 +1201,18 @@ function employeePage(config) {
         showDigitalIdFullscreen: false,
         isEdit: false,
         formAction: config.storeUrl,
+        editingSystemAccessId: null,
+        systemAccessForm: {
+            system_platform_name: '',
+            system_platform_name_other: '',
+            account_type: '',
+            username_email: '',
+            role_access_level: '',
+            access_status: 'Active',
+            date_access_created: '',
+            date_access_removed: '',
+            notes: '',
+        },
 
         form: {
             id: null,
@@ -1094,6 +1267,16 @@ function employeePage(config) {
 
                 return matchesSearch && matchesDepartment && matchesBranch && matchesPayroll;
             });
+        },
+
+        get systemAccessFormAction() {
+            if (!this.selectedEmployee?.id) return '#';
+
+            if (this.editingSystemAccessId) {
+                return `${this.systemAccessBaseUrl}/${this.selectedEmployee.id}/system-accesses/${this.editingSystemAccessId}`;
+            }
+
+            return `${this.systemAccessBaseUrl}/${this.selectedEmployee.id}/system-accesses`;
         },
 
         get uniqueDepartments() {
@@ -1186,10 +1369,73 @@ function employeePage(config) {
 
         closeDetails() {
             this.showDetails = false;
+            this.showSystemAccessModal = false;
             this.showDigitalIdFullscreen = false;
             this.selectedEmployee = null;
             this.profileTab = 'overview';
             this.digitalIdSide = 'front';
+        },
+
+        defaultSystemAccessForm() {
+            return {
+                system_platform_name: '',
+                system_platform_name_other: '',
+                account_type: '',
+                username_email: '',
+                role_access_level: '',
+                access_status: 'Active',
+                date_access_created: '',
+                date_access_removed: '',
+                notes: '',
+            };
+        },
+
+        openSystemAccessModal(record = null) {
+            if (!this.canManageEmployeeProfiles || !this.selectedEmployee) return;
+
+            this.editingSystemAccessId = record?.id ?? null;
+            const knownPlatform = record?.system_platform_name && this.systemPlatformOptions.includes(record.system_platform_name)
+                ? record.system_platform_name
+                : (record?.system_platform_name ? 'Others' : '');
+
+            this.systemAccessForm = {
+                ...this.defaultSystemAccessForm(),
+                ...record,
+                system_platform_name: knownPlatform,
+                system_platform_name_other: knownPlatform === 'Others' ? record.system_platform_name : '',
+            };
+            this.showSystemAccessModal = true;
+        },
+
+        closeSystemAccessModal() {
+            this.showSystemAccessModal = false;
+            this.editingSystemAccessId = null;
+            this.systemAccessForm = this.defaultSystemAccessForm();
+        },
+
+        systemAccessDeleteUrl(recordId) {
+            return `${this.systemAccessBaseUrl}/${this.selectedEmployee?.id}/system-accesses/${recordId}`;
+        },
+
+        systemAccessApproveUrl(recordId) {
+            return `${this.systemAccessBaseUrl}/${this.selectedEmployee?.id}/system-accesses/${recordId}/approve`;
+        },
+
+        accessStatusClass(status) {
+            const normalized = String(status || '').toLowerCase();
+
+            if (normalized === 'active') return 'bg-green-50 text-green-700';
+            if (normalized === 'pending') return 'bg-yellow-50 text-yellow-700';
+            if (['removed', 'revoked'].includes(normalized)) return 'bg-red-50 text-red-700';
+            if (normalized === 'suspended') return 'bg-orange-50 text-orange-700';
+
+            return 'bg-gray-100 text-gray-700';
+        },
+
+        approvalStatusClass(status) {
+            return String(status || '').toLowerCase() === 'approved'
+                ? 'bg-green-50 text-green-700'
+                : 'bg-yellow-50 text-yellow-700';
         },
 
         openAdd() {

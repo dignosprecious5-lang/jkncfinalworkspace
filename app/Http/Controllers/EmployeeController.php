@@ -8,10 +8,12 @@ use App\Models\Branch;
 use App\Models\Department;
 use App\Models\Division;
 use App\Models\Employee;
+use App\Models\EmployeeSystemAccess;
 use App\Models\EmployeeVerificationLog;
 use App\Models\Office;
 use App\Models\RolePermission;
 use App\Models\Unit;
+use App\Models\User;
 use App\Support\HumanCapitalLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -33,7 +35,18 @@ class EmployeeController extends Controller
         $user = auth()->user();
         $canManageEmployeeProfiles = $this->canManageEmployeeProfiles();
 
-        $employeeRecords = Employee::with(['office', 'branch', 'department', 'division', 'unit', 'user.userPermission'])
+        $employeeRecords = Employee::with([
+            'office',
+            'branch',
+            'department',
+            'division',
+            'unit',
+            'user.userPermission',
+            'systemAccessRecords.assignedBy',
+            'systemAccessRecords.approvedBy',
+            'systemAccessRecords.createdBy',
+            'systemAccessRecords.updatedBy',
+        ])
             ->when(! $canManageEmployeeProfiles, function ($query) use ($user) {
                 $query->where(function ($employeeQuery) use ($user) {
                     $employeeQuery->where('user_id', $user?->id ?: 0)
@@ -160,6 +173,7 @@ class EmployeeController extends Controller
                     'skills_competencies' => $item->skills_competencies ?? [],
                     'employee_attachments' => $this->attachmentUrls($item->employee_attachments ?? []),
                     'system_access' => $item->system_access ?? [],
+                    'system_access_records' => $this->systemAccessRecords($item),
                     'access_affiliations' => $this->employeeAccessAffiliations($item, $rolePermissions),
                     'compliance_consents' => $item->compliance_consents ?? [],
                     'activity_audit' => $item->activity_audit ?? [],
@@ -207,6 +221,12 @@ class EmployeeController extends Controller
             'unitOptions' => Unit::orderBy('unit_name')
                 ->get(['id', 'division_id', 'unit_name'])
                 ->values(),
+
+            'userOptions' => User::query()
+                ->orderBy('name')
+                ->get(['id', 'name', 'email'])
+                ->values(),
+            'canApproveEmployeeSystemAccess' => $this->canApproveEmployeeSystemAccess(),
         ]);
     }
 
@@ -523,7 +543,11 @@ class EmployeeController extends Controller
         $validated['certifications_trainings'] = $this->jsonField($request->certifications_trainings);
         $validated['skills_competencies'] = $this->skillsField($request->skills_competencies);
         $validated['other_government_information'] = $this->jsonField($request->other_government_information);
-        $validated['system_access'] = $this->jsonField($request->system_access);
+        if ($request->has('system_access')) {
+            $validated['system_access'] = $this->jsonField($request->system_access);
+        } else {
+            unset($validated['system_access']);
+        }
         $validated['compliance_consents'] = $this->consentPayload($request);
         $validated['employee_attachments'] = $this->storeEmployeeAttachments($request, $employee);
 
@@ -558,6 +582,72 @@ class EmployeeController extends Controller
         );
 
         return redirect()->back()->with('success', 'Employee update submitted for admin approval.');
+    }
+
+    public function storeSystemAccess(Request $request, Employee $employee)
+    {
+        abort_unless($this->canManageEmployeeProfiles(), 403);
+
+        $validated = $this->validatedSystemAccess($request);
+        $validated['assigned_by'] = $request->user()?->id;
+        $validated['approved_by'] = null;
+        $validated['approval_status'] = 'Pending';
+        $validated['approved_at'] = null;
+        $validated['created_by'] = $request->user()?->id;
+        $validated['updated_by'] = $request->user()?->id;
+
+        $employee->systemAccessRecords()->create($validated);
+
+        return redirect()
+            ->route('human-capital.employee-profile')
+            ->with('success', 'Assigned platform record added. Actual system permissions were not changed.');
+    }
+
+    public function updateSystemAccess(Request $request, Employee $employee, EmployeeSystemAccess $systemAccess)
+    {
+        abort_unless($this->canManageEmployeeProfiles(), 403);
+        $this->abortUnlessSystemAccessBelongsToEmployee($employee, $systemAccess);
+
+        $validated = $this->validatedSystemAccess($request);
+        $validated['approval_status'] = 'Pending';
+        $validated['approved_by'] = null;
+        $validated['approved_at'] = null;
+        $validated['updated_by'] = $request->user()?->id;
+
+        $systemAccess->update($validated);
+
+        return redirect()
+            ->route('human-capital.employee-profile')
+            ->with('success', 'Assigned platform record updated. Actual system permissions were not changed.');
+    }
+
+    public function approveSystemAccess(Request $request, Employee $employee, EmployeeSystemAccess $systemAccess)
+    {
+        abort_unless($this->canApproveEmployeeSystemAccess(), 403);
+        $this->abortUnlessSystemAccessBelongsToEmployee($employee, $systemAccess);
+
+        $systemAccess->update([
+            'approval_status' => 'Approved',
+            'approved_by' => $request->user()?->id,
+            'approved_at' => now(),
+            'updated_by' => $request->user()?->id,
+        ]);
+
+        return redirect()
+            ->route('human-capital.employee-profile')
+            ->with('success', 'Assigned platform record approved. Actual system permissions were not changed.');
+    }
+
+    public function destroySystemAccess(Employee $employee, EmployeeSystemAccess $systemAccess)
+    {
+        abort_unless($this->canManageEmployeeProfiles(), 403);
+        $this->abortUnlessSystemAccessBelongsToEmployee($employee, $systemAccess);
+
+        $systemAccess->delete();
+
+        return redirect()
+            ->route('human-capital.employee-profile')
+            ->with('success', 'Assigned platform record removed. Actual system permissions were not changed.');
     }
 
     public function verificationForm(?string $employee = null)
@@ -628,6 +718,73 @@ class EmployeeController extends Controller
             }
             return $item;
         })->values()->all();
+    }
+
+    private function systemAccessRecords(Employee $employee): array
+    {
+        return $employee->systemAccessRecords
+            ->sortByDesc(fn (EmployeeSystemAccess $record) => $record->date_access_created?->timestamp ?? $record->created_at?->timestamp ?? 0)
+            ->map(fn (EmployeeSystemAccess $record) => [
+                'id' => $record->id,
+                'employee_id' => $record->employee_id,
+                'system_platform_name' => $record->system_platform_name,
+                'account_type' => $record->account_type,
+                'username_email' => $record->username_email,
+                'role_access_level' => $record->role_access_level,
+                'access_status' => $record->access_status,
+                'approval_status' => $record->approval_status ?? 'Pending',
+                'date_access_created' => optional($record->date_access_created)->format('Y-m-d'),
+                'date_access_removed' => optional($record->date_access_removed)->format('Y-m-d'),
+                'assigned_by' => $record->assigned_by,
+                'assigned_by_name' => $record->assignedBy?->name,
+                'approved_by' => $record->approved_by,
+                'approved_by_name' => $record->approvedBy?->name,
+                'approved_at' => optional($record->approved_at)->format('Y-m-d H:i'),
+                'notes' => $record->notes,
+                'created_by' => $record->created_by,
+                'created_by_name' => $record->createdBy?->name,
+                'updated_by' => $record->updated_by,
+                'updated_by_name' => $record->updatedBy?->name,
+                'created_at' => optional($record->created_at)->format('Y-m-d H:i'),
+                'updated_at' => optional($record->updated_at)->format('Y-m-d H:i'),
+            ])
+            ->values()
+            ->all();
+    }
+
+    private function validatedSystemAccess(Request $request): array
+    {
+        $validated = $request->validate([
+            'system_platform_name' => ['required', 'string', 'max:255'],
+            'system_platform_name_other' => ['nullable', 'string', 'max:255'],
+            'account_type' => ['nullable', 'string', 'max:255'],
+            'username_email' => ['nullable', 'string', 'max:255'],
+            'role_access_level' => ['nullable', 'string', 'max:255'],
+            'access_status' => ['required', Rule::in(['Active', 'Inactive', 'Pending', 'Removed', 'Suspended', 'Revoked'])],
+            'date_access_created' => ['nullable', 'date'],
+            'date_access_removed' => ['nullable', 'date'],
+            'notes' => ['nullable', 'string', 'max:5000'],
+        ]);
+
+        if (($validated['system_platform_name'] ?? null) === 'Others') {
+            $validated['system_platform_name'] = $validated['system_platform_name_other'] ?: 'Others';
+        }
+
+        unset($validated['system_platform_name_other']);
+
+        return $validated;
+    }
+
+    private function abortUnlessSystemAccessBelongsToEmployee(Employee $employee, EmployeeSystemAccess $systemAccess): void
+    {
+        abort_unless((int) $systemAccess->employee_id === (int) $employee->id, 404);
+    }
+
+    private function canApproveEmployeeSystemAccess(): bool
+    {
+        $user = auth()->user();
+
+        return $user && ($user->isAdmin() || $user->isSuperAdmin());
     }
 
     private function canManageEmployeeProfiles(): bool

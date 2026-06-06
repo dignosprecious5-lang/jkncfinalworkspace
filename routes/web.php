@@ -354,6 +354,7 @@ Route::middleware(['auth', 'prevent-back-history', \App\Http\Middleware\EnsurePa
     Route::post('/admin/human-capital/employee-relations/{employeeRelation}/reject', [AdminHumanCapitalDashboardController::class, 'rejectEmployeeRelation'])->name('admin.human-capital.employee-relations.reject');
     Route::post('/admin/human-capital/training-assignments/{trainingAssignment}/complete', [AdminHumanCapitalDashboardController::class, 'completeTrainingAssignment'])->name('admin.human-capital.training-assignments.complete');
     Route::post('/admin/human-capital/training-assignments/{trainingAssignment}/certificate', [AdminHumanCapitalDashboardController::class, 'issueTrainingCertificate'])->name('admin.human-capital.training-assignments.certificate');
+    Route::post('/admin/human-capital/system-accesses/{systemAccess}/approve', [AdminHumanCapitalDashboardController::class, 'approveEmployeeSystemAccess'])->name('admin.human-capital.system-accesses.approve');
     Route::post('/admin/human-capital/change-requests/{changeRequest}/approve', [AdminHumanCapitalDashboardController::class, 'approveChangeRequest'])->name('admin.human-capital.change-requests.approve');
     Route::post('/admin/human-capital/change-requests/{changeRequest}/reject', [AdminHumanCapitalDashboardController::class, 'rejectChangeRequest'])->name('admin.human-capital.change-requests.reject');
     Route::post('/admin/corporate-approvals/{module}/{id}/approve', [CorporateApprovalController::class, 'approve'])->name('corporate.approvals.approve');
@@ -1355,6 +1356,10 @@ Route::middleware(['auth', 'prevent-back-history', \App\Http\Middleware\EnsurePa
         Route::middleware('human-capital.module:access_hc_employee_profile')->group(function () {
             Route::post('/employee-profile', [EmployeeController::class, 'store'])->name('employee-profile.store');
             Route::put('/employee-profile/{employee}', [EmployeeController::class, 'update'])->name('employee-profile.update');
+            Route::post('/employee-profile/{employee}/system-accesses', [EmployeeController::class, 'storeSystemAccess'])->name('employee-profile.system-accesses.store');
+            Route::put('/employee-profile/{employee}/system-accesses/{systemAccess}', [EmployeeController::class, 'updateSystemAccess'])->name('employee-profile.system-accesses.update');
+            Route::post('/employee-profile/{employee}/system-accesses/{systemAccess}/approve', [EmployeeController::class, 'approveSystemAccess'])->name('employee-profile.system-accesses.approve');
+            Route::delete('/employee-profile/{employee}/system-accesses/{systemAccess}', [EmployeeController::class, 'destroySystemAccess'])->name('employee-profile.system-accesses.destroy');
         });
 
         /*

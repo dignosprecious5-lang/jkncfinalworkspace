@@ -6,6 +6,7 @@ use App\Models\Award;
 use App\Models\HumanCapitalChangeRequest;
 use App\Models\EmployeeRequest;
 use App\Models\EmployeeRelation;
+use App\Models\EmployeeSystemAccess;
 use App\Models\HumanCapitalLog;
 use App\Models\OfficialBusinessTrip;
 use App\Models\TrainingAssignment;
@@ -30,6 +31,7 @@ class AdminHumanCapitalDashboardController extends Controller
             ->merge($this->officialBusinessTripItems())
             ->merge($this->employeeRelationItems())
             ->merge($this->trainingAssignmentItems())
+            ->merge($this->employeeSystemAccessItems())
             ->merge($this->awardItems())
             ->merge($this->changeRequestItems())
             ->sortByDesc('date_sort')
@@ -306,6 +308,40 @@ class AdminHumanCapitalDashboardController extends Controller
             ->with('success', 'Training certificate issued successfully.');
     }
 
+    public function approveEmployeeSystemAccess(EmployeeSystemAccess $systemAccess)
+    {
+        $this->authorizeHumanCapitalAdmin();
+
+        if (($systemAccess->approval_status ?? 'Pending') === 'Approved') {
+            return redirect()->route('admin.human-capital.dashboard')
+                ->withErrors(['system_access' => 'This assigned platform record was already approved.']);
+        }
+
+        $systemAccess->update([
+            'approval_status' => 'Approved',
+            'approved_by' => Auth::id(),
+            'approved_at' => now(),
+            'updated_by' => Auth::id(),
+        ]);
+
+        HumanCapitalLogger::log(request(), [
+            'module' => 'System Access & Assigned Platforms',
+            'action' => 'approved',
+            'subject_type' => EmployeeSystemAccess::class,
+            'subject_id' => $systemAccess->id,
+            'subject_name' => $systemAccess->system_platform_name,
+            'description' => 'Assigned platform documentation approved from the Human Capital admin dashboard.',
+            'old_values' => ['approval_status' => 'Pending'],
+            'new_values' => [
+                'approval_status' => 'Approved',
+                'approved_by' => Auth::id(),
+            ],
+        ]);
+
+        return redirect()->route('admin.human-capital.dashboard')
+            ->with('success', 'Assigned platform record approved. Actual system permissions were not changed.');
+    }
+
     public function approveChangeRequest(HumanCapitalChangeRequest $changeRequest)
     {
         $this->authorizeHumanCapitalAdmin();
@@ -548,6 +584,43 @@ class AdminHumanCapitalDashboardController extends Controller
                     'reject_label' => 'Reject',
                     'revise_label' => 'Revise',
                     'date_sort' => $this->sortTimestamp($award->issued_at ?: $award->created_at),
+                ];
+            });
+    }
+
+    private function employeeSystemAccessItems(): Collection
+    {
+        return EmployeeSystemAccess::query()
+            ->with(['employee.department', 'assignedBy', 'approvedBy'])
+            ->latest()
+            ->get()
+            ->map(function (EmployeeSystemAccess $access): object {
+                $employee = $access->employee;
+                $status = $this->normalizeStatus((string) ($access->approval_status ?? 'Pending'));
+                $account = collect([$access->account_type, $access->role_access_level, $access->username_email])
+                    ->filter()
+                    ->implode(' | ');
+
+                return (object) [
+                    'ref_no' => 'ESA-'.$access->id,
+                    'module' => 'System Access & Assigned Platforms',
+                    'employee' => $employee?->full_name ?: 'Unknown Employee',
+                    'record_name' => trim($access->system_platform_name . ($account ? ' - '.$account : '')),
+                    'department' => $employee?->department?->department_name ?: 'Human Capital',
+                    'date_submitted' => $this->displayDate($access->created_at),
+                    'approver' => $access->approvedBy?->name ?: '-',
+                    'priority' => $status === 'Pending Approval' ? 'High' : 'Low',
+                    'status' => $status,
+                    'details_route' => route('human-capital.employee-profile'),
+                    'approve_route' => $status === 'Pending Approval' ? route('admin.human-capital.system-accesses.approve', $access->id) : null,
+                    'reject_route' => null,
+                    'revise_route' => null,
+                    'reject_note_name' => null,
+                    'revise_note_name' => null,
+                    'approve_label' => 'Approve',
+                    'reject_label' => 'Reject',
+                    'revise_label' => 'Revise',
+                    'date_sort' => $this->sortTimestamp($access->created_at),
                 ];
             });
     }

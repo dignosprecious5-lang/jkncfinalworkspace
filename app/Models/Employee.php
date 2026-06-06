@@ -252,4 +252,9 @@ class Employee extends Model
     {
         return $this->hasMany(\App\Models\PayrollSummary::class);
     }
+
+    public function systemAccessRecords()
+    {
+        return $this->hasMany(EmployeeSystemAccess::class);
+    }
 }
