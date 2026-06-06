@@ -2,9 +2,9 @@
 
 namespace App\Models;
 
+use App\Notifications\ResetPasswordNotification;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
-use App\Notifications\ResetPasswordNotification;
 use Illuminate\Notifications\Notifiable;
 
 class User extends Authenticatable
@@ -51,6 +51,15 @@ class User extends Authenticatable
         ];
     }
 
+    /**
+     * Override Laravel's default password reset email.
+     * This sends the JK&C branded reset password notification.
+     */
+    public function sendPasswordResetNotification($token): void
+    {
+        $this->notify(new ResetPasswordNotification($token));
+    }
+
     public function setRoleAttribute($value): void
     {
         $normalized = strtolower(trim((string) $value));
@@ -66,17 +75,27 @@ class User extends Authenticatable
 
     public function userPermission()
     {
-        return $this->hasOne(\App\Models\UserPermission::class);
+        return $this->hasOne(UserPermission::class);
     }
 
     public function employeeProfile()
     {
-        return $this->hasOne(\App\Models\Employee::class, 'user_id');
+        return $this->hasOne(Employee::class, 'user_id');
     }
 
     public function contactProfile()
     {
-        return $this->hasOne(\App\Models\Contact::class, 'user_id');
+        return $this->hasOne(Contact::class, 'user_id');
+    }
+
+    public function disabledBy()
+    {
+        return $this->belongsTo(User::class, 'disabled_by');
+    }
+
+    public function archivedBy()
+    {
+        return $this->belongsTo(User::class, 'archived_by');
     }
 
     public function isSuperAdmin(): bool
@@ -101,12 +120,12 @@ class User extends Authenticatable
 
     public function canManageRoles(): bool
     {
-        return $this->isSuperAdmin() || ($this->isAdmin() && $this->can_edit_user_roles);
+        return $this->isSuperAdmin() || ($this->isAdmin() && (bool) $this->can_edit_user_roles);
     }
 
     public function canDeleteUsers(): bool
     {
-        return $this->isSuperAdmin() || ($this->isAdmin() && $this->can_delete_users);
+        return $this->isSuperAdmin() || ($this->isAdmin() && (bool) $this->can_delete_users);
     }
 
     public function isFinanceTreasurer(): bool
@@ -126,7 +145,9 @@ class User extends Authenticatable
 
     public function isDisabled(): bool
     {
-        return !((bool) ($this->is_active ?? true)) || !is_null($this->disabled_at) || !is_null($this->archived_at);
+        return !((bool) ($this->is_active ?? true))
+            || !is_null($this->disabled_at)
+            || !is_null($this->archived_at);
     }
 
     public function isArchived(): bool
@@ -171,10 +192,6 @@ class User extends Authenticatable
     {
         return $this->hasUserAccountPermission('delete_user_account');
     }
-    public function sendPasswordResetNotification($token): void
-{
-    $this->notify(new ResetPasswordNotification($token));
-}
 
     public function hasPermission(string $permission): bool
     {
@@ -188,7 +205,7 @@ class User extends Authenticatable
             return (bool) $userPermission->{$permission};
         }
 
-        $rolePermission = \App\Models\RolePermission::where('role', $this->role)->first();
+        $rolePermission = RolePermission::where('role', $this->role)->first();
 
         return $rolePermission && isset($rolePermission->{$permission})
             ? (bool) $rolePermission->{$permission}
