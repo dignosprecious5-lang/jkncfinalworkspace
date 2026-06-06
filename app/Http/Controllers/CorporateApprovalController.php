@@ -63,6 +63,8 @@ class CorporateApprovalController extends Controller
             'bylaws' => 'Bylaws',
             'gis' => 'GIS',
             'lgu' => 'LGU',
+            'bir-tax' => 'BIR & Tax',
+            'natgov' => 'NatGov',
             'accounting' => 'Accounting',
             'banking' => 'Banking',
             'operations' => 'Operations',
@@ -163,6 +165,8 @@ class CorporateApprovalController extends Controller
             'bylaws' => $record->corporation_name ?? '',
             'gis' => $record->corporation_name ?? '',
             'lgu' => trim(($record->company_name ?? 'Company') . ' - ' . ($record->permit_type ?? 'LGU Permit')),
+            'bir-tax' => trim(($record->company_name ?? $record->tax_payer ?? 'Company') . ' - ' . ($record->form_type ?? 'BIR Filing')),
+            'natgov' => trim(($record->company_name ?? $record->client ?? 'Company') . ' - ' . ($record->agency ?? 'NatGov Record')),
             'accounting' => trim(($record->company_name ?? $record->client ?? 'Company') . ' - ' . ($record->statement_type ?? 'Accounting Report')),
             'banking' => trim(($record->company_name ?? $record->client ?? 'Company') . ' - ' . ($record->bank ?? 'Banking Record')),
             'operations' => trim(($record->company_name ?? $record->client ?? 'Company') . ' - ' . ($record->document_title ?? $record->operation_type ?? 'Operations Record')),
@@ -177,6 +181,8 @@ class CorporateApprovalController extends Controller
     {
         return match ($module) {
             'lgu' => $record->permit_number ?? '',
+            'bir-tax' => $record->tin ?? '',
+            'natgov' => $record->registration_no ?? '',
             'accounting' => $record->statement_type ?? '',
             'banking' => $record->bank_doc ?? '',
             'operations' => $record->document_type ?? '',
@@ -399,6 +405,50 @@ class CorporateApprovalController extends Controller
             ]);
         }
 
+        foreach (BirTax::latest()->get() as $row) {
+            $workflow = $this->normalizeWorkflow($row);
+            if (! $this->canAppearInAdminDashboard($workflow)) continue;
+
+            $items->push((object) [
+                'id' => $row->id,
+                'module' => 'BIR & Tax',
+                'title' => trim(($row->company_name ?? $row->tax_payer ?? 'Company') . ' - ' . ($row->form_type ?? 'BIR Filing')),
+                'company_reg_no' => $row->tin ?? '',
+                'uploaded_by' => $row->uploaded_by ?: $row->user,
+                'date_uploaded' => $row->date_uploaded_at ? $row->date_uploaded_at->format('Y-m-d') : ($row->date_uploaded ? $row->date_uploaded->format('Y-m-d') : ($row->created_at ? $row->created_at->format('Y-m-d') : '')),
+                'status' => $workflow,
+                'approval_status' => $row->approval_status,
+                'show_route' => route('bir-tax', ['record' => $row->id, 'tab' => strtolower($workflow)]),
+                'preview_route' => route('bir-tax.preview', ['birTax' => $row->id]),
+                'approve_route' => route('corporate.approvals.approve', ['module' => 'bir-tax', 'id' => $row->id]),
+                'reject_route' => route('corporate.approvals.reject', ['module' => 'bir-tax', 'id' => $row->id]),
+                'revise_route' => route('corporate.approvals.revise', ['module' => 'bir-tax', 'id' => $row->id]),
+                'archive_route' => route('corporate.approvals.archive', ['module' => 'bir-tax', 'id' => $row->id]),
+            ]);
+        }
+
+        foreach (NatGov::latest()->get() as $row) {
+            $workflow = $this->normalizeWorkflow($row);
+            if (! $this->canAppearInAdminDashboard($workflow)) continue;
+
+            $items->push((object) [
+                'id' => $row->id,
+                'module' => 'NatGov',
+                'title' => trim(($row->company_name ?? $row->client ?? 'Company') . ' - ' . ($row->agency ?? 'NatGov Record')),
+                'company_reg_no' => $row->registration_no ?? '',
+                'uploaded_by' => $row->uploaded_by ?: $row->user,
+                'date_uploaded' => $row->date_uploaded_at ? $row->date_uploaded_at->format('Y-m-d') : ($row->date_uploaded ? $row->date_uploaded->format('Y-m-d') : ($row->created_at ? $row->created_at->format('Y-m-d') : '')),
+                'status' => $workflow,
+                'approval_status' => $row->approval_status,
+                'show_route' => route('natgov', ['record' => $row->id, 'tab' => strtolower($workflow)]),
+                'preview_route' => route('natgov.preview', ['natgov' => $row->id]),
+                'approve_route' => route('corporate.approvals.approve', ['module' => 'natgov', 'id' => $row->id]),
+                'reject_route' => route('corporate.approvals.reject', ['module' => 'natgov', 'id' => $row->id]),
+                'revise_route' => route('corporate.approvals.revise', ['module' => 'natgov', 'id' => $row->id]),
+                'archive_route' => route('corporate.approvals.archive', ['module' => 'natgov', 'id' => $row->id]),
+            ]);
+        }
+
         foreach (Accounting::latest()->get() as $row) {
             $workflow = $this->normalizeWorkflow($row);
             if (!$this->canAppearInAdminDashboard($workflow)) continue;
@@ -594,46 +644,6 @@ class CorporateApprovalController extends Controller
             ]);
         }
 
-        foreach (BirTax::latest()->get() as $row) {
-            if (empty($row->document_path) && empty($row->approved_document_path)) {
-                continue;
-            }
-
-            $status = $row->approved_document_path ? 'Accepted' : 'Submitted';
-
-            $this->addDocumentWorkflowItem($items, [
-                'id' => $row->id,
-                'module' => 'BIR & Tax',
-                'title' => $row->tax_payer ?: ($row->tin ?: ('BIR & Tax #' . $row->id)),
-                'company_reg_no' => $row->tin ?? '',
-                'uploaded_by' => $row->uploaded_by,
-                'date_uploaded' => $row->date_uploaded ? $row->date_uploaded->format('Y-m-d') : '',
-                'status' => $status,
-                'approval_status' => $status === 'Accepted' ? 'Approved' : 'Pending',
-                'show_route' => route('bir-tax.preview', ['birTax' => $row->id]),
-            ]);
-        }
-
-        foreach (NatGov::latest()->get() as $row) {
-            if (empty($row->document_path) && empty($row->approved_document_path)) {
-                continue;
-            }
-
-            $status = $row->approved_document_path ? 'Accepted' : 'Submitted';
-
-            $this->addDocumentWorkflowItem($items, [
-                'id' => $row->id,
-                'module' => 'NatGov',
-                'title' => $row->client ?: ($row->registration_no ?: ('NatGov #' . $row->id)),
-                'company_reg_no' => $row->registration_no ?? '',
-                'uploaded_by' => $row->uploaded_by,
-                'date_uploaded' => $row->date_uploaded ? $row->date_uploaded->format('Y-m-d') : '',
-                'status' => $status,
-                'approval_status' => $status === 'Accepted' ? 'Approved' : 'Pending',
-                'show_route' => route('natgov.preview', ['natgov' => $row->id]),
-            ]);
-        }
-
         foreach (StockTransferCertificate::latest()->get() as $row) {
             if (!is_null($row->source_certificate_id)) {
                 continue;
@@ -682,6 +692,8 @@ class CorporateApprovalController extends Controller
             'bylaws' => Bylaw::findOrFail($id),
             'gis' => GisRecord::findOrFail($id),
             'lgu' => Permit::findOrFail($id),
+            'bir-tax' => BirTax::findOrFail($id),
+            'natgov' => NatGov::findOrFail($id),
             'accounting' => Accounting::findOrFail($id),
             'banking' => Banking::findOrFail($id),
             'operations' => Operation::findOrFail($id),

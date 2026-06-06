@@ -624,70 +624,145 @@
             background: #ffffff;
         }
 
+        .asset-tag-head {
+            padding: 12px 14px;
+            text-align: center;
+            border-bottom: 1px solid #d1d5db;
+            background: #f8fafc;
+        }
+
+        .asset-tag-layout {
+            display: table;
+            width: 100%;
+            table-layout: fixed;
+        }
+
         .asset-tag-left,
         .asset-tag-right {
+            display: table-cell;
+            vertical-align: top;
             padding: 16px 14px;
             min-height: 118px;
         }
 
         .asset-tag-left {
-            width: 34%;
-            border-right: 4px solid #1f2937;
+            width: 58%;
+            border-right: 1px solid #d1d5db;
         }
 
         .asset-tag-right {
-            width: 66%;
+            width: 42%;
         }
 
         .asset-tag-company {
-            margin: 0 0 6px;
+            margin: 0;
             text-transform: uppercase;
             letter-spacing: 0.26em;
-            font-size: 12px;
+            font-size: 10px;
             font-weight: 800;
             color: #111827;
         }
 
         .asset-tag-title {
-            margin: 0 0 10px;
+            margin: 6px 0 0;
             text-transform: uppercase;
-            letter-spacing: 0.42em;
-            font-size: 20px;
+            letter-spacing: 0.32em;
+            font-size: 18px;
             line-height: 1;
             font-weight: 900;
             color: #111827;
         }
 
-        .asset-tag-meta {
-            margin: 0 0 4px;
+        .asset-tag-subtitle {
+            margin: 8px 0 0;
+            text-transform: uppercase;
+            letter-spacing: 0.22em;
+            font-size: 9px;
+            font-weight: 700;
+            color: #6b7280;
+        }
+
+        .asset-tag-box {
+            border: 1px solid #d1d5db;
+            border-radius: 10px;
+            background: #ffffff;
+            padding: 10px 12px;
+        }
+
+        .asset-tag-box + .asset-tag-box {
+            margin-top: 10px;
+        }
+
+        .asset-tag-code-box {
+            background: #f8fafc;
+            text-align: center;
+        }
+
+        .asset-tag-box-label {
+            margin: 0;
+            text-transform: uppercase;
+            letter-spacing: 0.22em;
+            font-size: 9px;
+            font-weight: 700;
+            color: #6b7280;
+        }
+
+        .asset-tag-box-value {
+            margin: 8px 0 0;
             font-size: 12px;
-            line-height: 1.15;
+            line-height: 1.2;
+            font-weight: 700;
             color: #111827;
+            word-break: break-word;
         }
 
         .asset-tag-code {
-            margin: 0;
-            font-size: 26px;
+            margin: 10px 0 0;
+            font-size: 24px;
             line-height: 1.05;
             font-weight: 900;
-            letter-spacing: 0.03em;
+            letter-spacing: 0.16em;
             color: #111827;
-        }
-
-        .asset-tag-barcode-wrap {
-            margin-top: 10px;
-            padding-top: 6px;
+            word-break: break-word;
         }
 
         .asset-tag-barcode-box {
             width: 100%;
             overflow: hidden;
+            border: 1px solid #d1d5db;
+            border-radius: 10px;
+            background: #ffffff;
+            padding: 8px;
         }
 
         .asset-tag-barcode-box svg {
             display: block;
             width: 100%;
             height: auto;
+        }
+
+        .asset-tag-note-box {
+            margin-top: 10px;
+            border: 1px dashed #d1d5db;
+            border-radius: 10px;
+            background: #f8fafc;
+            padding: 10px 12px;
+            text-align: center;
+        }
+
+        .asset-tag-note-title {
+            margin: 0;
+            text-transform: uppercase;
+            letter-spacing: 0.22em;
+            font-size: 8px;
+            font-weight: 700;
+            color: #6b7280;
+        }
+
+        .asset-tag-note-copy {
+            margin: 6px 0 0;
+            font-size: 8px;
+            color: #4b5563;
         }
     </style>
 </head>
@@ -709,7 +784,12 @@
                             <p class="eyebrow">Official Finance Form</p>
                             <h1 class="brand-name">{{ $companyName }}</h1>
                             <p class="brand-subtitle">{{ $companyLegalName }} | {{ $moduleLabel }}</p>
-                            <p class="brand-note">{{ $record->record_number ?: 'N/A' }} - {{ $recordTitleLabel ?: 'Name' }}: {{ $record->record_title ?: 'N/A' }}</p>
+                            <p class="brand-note">
+                                {{ $record->record_number ?: 'N/A' }}
+                                @if(!in_array($record->module_key, ['pr', 'err', 'crf', 'ca'], true))
+                                    - {{ $recordTitleLabel ?: 'Name' }}: {{ $record->record_title ?: 'N/A' }}
+                                @endif
+                            </p>
                         </div>
                     </div>
                 </td>
@@ -1609,17 +1689,33 @@
                 <div class="section-title">Asset Tag</div>
                 <div class="section-body">
                     <div class="asset-tag-card">
-                        <div class="asset-tag-left">
+                        <div class="asset-tag-head">
                             <p class="asset-tag-company">JK&amp;C INC.</p>
-                            <div class="asset-tag-title">ASSET</div>
-                            <p class="asset-tag-meta">{{ data_get($record->data, 'location') ?: 'No location' }}</p>
-                            <p class="asset-tag-meta">{{ data_get($record->data, 'serial_number') ?: 'No serial' }}</p>
+                            <div class="asset-tag-title">ASSET TAG</div>
+                            <p class="asset-tag-subtitle">Asset Identification Plate</p>
                         </div>
-                        <div class="asset-tag-right">
-                            <p class="asset-tag-code">{{ data_get($record->data, 'asset_code') ?: $record->record_number ?: 'N/A' }}</p>
-                            <div class="asset-tag-barcode-wrap">
+                        <div class="asset-tag-layout">
+                            <div class="asset-tag-left">
+                                <div class="asset-tag-box asset-tag-code-box">
+                                    <p class="asset-tag-box-label">Asset Code</p>
+                                    <p class="asset-tag-code">{{ data_get($record->data, 'asset_code') ?: $record->record_number ?: 'N/A' }}</p>
+                                </div>
+                                <div class="asset-tag-box">
+                                    <p class="asset-tag-box-label">Location</p>
+                                    <p class="asset-tag-box-value">{{ data_get($record->data, 'location') ?: 'N/A' }}</p>
+                                </div>
+                                <div class="asset-tag-box">
+                                    <p class="asset-tag-box-label">Serial Number</p>
+                                    <p class="asset-tag-box-value">{{ data_get($record->data, 'serial_number') ?: 'N/A' }}</p>
+                                </div>
+                            </div>
+                            <div class="asset-tag-right">
                                 <div class="asset-tag-barcode-box">
                                     {!! data_get($assetTag, 'barcode_svg') !!}
+                                </div>
+                                <div class="asset-tag-note-box">
+                                    <p class="asset-tag-note-title">System Tag Preview</p>
+                                    <p class="asset-tag-note-copy">Print layout is optimized separately for the tape label.</p>
                                 </div>
                             </div>
                         </div>

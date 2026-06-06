@@ -3,18 +3,18 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\GeneratesPdfPreview;
+use App\Http\Controllers\Concerns\HandlesCorporateRepositoryRecords;
 use App\Http\Controllers\Concerns\HandlesUploads;
 use App\Http\Controllers\Concerns\SyncsDeadlineTownHallMemo;
 use App\Models\BirTax;
-use App\Models\GisRecord;
 use Illuminate\Http\Request;
-use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 
 class BirTaxController extends Controller
 {
     use GeneratesPdfPreview;
+    use HandlesCorporateRepositoryRecords;
     use HandlesUploads;
     use SyncsDeadlineTownHallMemo;
 
@@ -96,50 +96,91 @@ class BirTaxController extends Controller
         'Completed',
     ];
 
+    private function canApproveCorporate(): bool
+    {
+        return Auth::check() && Auth::user()->hasPermission('approve_corporate');
+    }
+
+    private function canEditRecord(BirTax $record): bool
+    {
+        if ($this->canApproveCorporate()) {
+            return true;
+        }
+
+        return (int) $record->submitted_by === (int) Auth::id()
+            && in_array($record->workflow_status ?? 'Uploaded', ['Uploaded', 'Reverted'], true);
+    }
+
     public function index(Request $request)
     {
-        $searchTaxTypes = trim((string) $request->query('search_tax_types', ''));
-        $searchFormType = trim((string) $request->query('search_form_type', ''));
+        if ($request->expectsJson()) {
+            $query = BirTax::query();
+            $searchTaxTypes = trim((string) $request->query('search_tax_types', ''));
+            $searchFormType = trim((string) $request->query('search_form_type', ''));
 
-        $taxes = Schema::hasTable('bir_taxes')
-            ? BirTax::query()->get()
-            : collect();
+            if (! $this->canApproveCorporate()) {
+                $query->where('submitted_by', Auth::id());
+            }
 
-        $taxes = $taxes
-            ->when($searchTaxTypes !== '', function (Collection $items) use ($searchTaxTypes) {
-                $term = mb_strtolower($searchTaxTypes);
+            if ($request->filled('workflow_status') && $request->workflow_status !== 'all') {
+                $query->where('workflow_status', ucfirst($request->workflow_status));
+            }
 
-                return $items->filter(fn (BirTax $item) => str_contains(mb_strtolower($item->tax_types ?? ''), $term));
-            })
-            ->when($searchFormType !== '', function (Collection $items) use ($searchFormType) {
-                $term = mb_strtolower($searchFormType);
+            if ($request->filled('status') && $request->status !== 'All Filing Statuses') {
+                $query->where('status', $request->status);
+            }
 
-                return $items->filter(fn (BirTax $item) => str_contains(mb_strtolower($item->form_type ?? ''), $term));
-            })
-            ->sort(function (BirTax $left, BirTax $right) {
-                $leftRank = $this->sortRankForBirTax($left);
-                $rightRank = $this->sortRankForBirTax($right);
+            if ($request->filled('filing_frequency') && $request->filing_frequency !== 'All Filing Frequencies') {
+                $query->where('filing_frequency', $request->filing_frequency);
+            }
 
-                if ($leftRank !== $rightRank) {
-                    return $leftRank <=> $rightRank;
-                }
+            $records = $query->get()
+                ->when($searchTaxTypes !== '', function ($items) use ($searchTaxTypes) {
+                    $needle = mb_strtolower($searchTaxTypes);
 
-                $leftDate = optional($left->due_date)?->timestamp ?? PHP_INT_MAX;
-                $rightDate = optional($right->due_date)?->timestamp ?? PHP_INT_MAX;
+                    return $items->filter(fn (BirTax $record) => str_contains(mb_strtolower((string) $record->tax_types), $needle));
+                })
+                ->when($searchFormType !== '', function ($items) use ($searchFormType) {
+                    $needle = mb_strtolower($searchFormType);
 
-                if ($leftDate !== $rightDate) {
-                    return $leftDate <=> $rightDate;
-                }
+                    return $items->filter(fn (BirTax $record) => str_contains(mb_strtolower((string) $record->form_type), $needle));
+                })
+                ->sort(function (BirTax $left, BirTax $right) {
+                    $leftRank = $this->sortRankForBirTax($left);
+                    $rightRank = $this->sortRankForBirTax($right);
 
-                return $right->id <=> $left->id;
-            })
-            ->values();
+                    if ($leftRank !== $rightRank) {
+                        return $leftRank <=> $rightRank;
+                    }
 
+                    $leftDate = optional($left->due_date)?->timestamp ?? PHP_INT_MAX;
+                    $rightDate = optional($right->due_date)?->timestamp ?? PHP_INT_MAX;
+
+                    if ($leftDate !== $rightDate) {
+                        return $leftDate <=> $rightDate;
+                    }
+
+                    return $right->id <=> $left->id;
+                })
+                ->map(fn (BirTax $record) => $this->transformRecord($record))
+                ->values();
+
+            return response()->json($records);
+        }
+
+        return $this->page();
+    }
+
+    public function page()
+    {
         return view('corporate.bir-tax.index', [
-            'taxes' => $taxes,
             'companyDefaults' => $this->companyDefaults(),
-            'searchTaxTypes' => $searchTaxTypes,
-            'searchFormType' => $searchFormType,
+            'repositoryRoutes' => [
+                'dataUrl' => route('bir-tax'),
+                'storeUrl' => route('bir-tax.store'),
+                'updateUrl' => route('bir-tax.update', '__ID__'),
+                'submitUrl' => route('bir-tax.submit', '__ID__'),
+            ],
             'taxTypeOptions' => self::TAX_TYPE_OPTIONS,
             'formTypeOptions' => self::FORM_TYPE_OPTIONS,
             'filingFrequencyOptions' => self::FILING_FREQUENCY_OPTIONS,
@@ -149,57 +190,86 @@ class BirTaxController extends Controller
 
     public function create()
     {
-        return view('corporate.common.form', [
-            'title' => 'Add BIR & Tax',
-            'action' => route('bir-tax.store'),
-            'method' => 'POST',
-            'cancelRoute' => route('bir-tax'),
-            'fields' => $this->fields(),
-            'item' => new BirTax($this->companyDefaults()),
-        ]);
+        return redirect()->route('bir-tax');
     }
 
     public function store(Request $request)
     {
-        $data = $this->validateData($request);
-        $data = $this->normalizePersistedData($request, $data);
+        $validated = $this->validatedPayload($request);
+        $company = $this->companyDefaults();
+        $user = $this->currentUserLabel($request);
 
-        [$data['document_path'], $data['draft_documents']] = $this->appendUploadedFiles(
-            $request,
-            'document_path',
-            'document_paths',
-            [],
-            null,
-            'uploads/bir-tax/drafts'
-        );
+        [$documentPath, $draftDocuments] = $this->collectDraftDocuments($request);
+        [$approvedDocumentPath, $approvedDocuments] = $this->collectApprovedDocuments($request);
+        $primaryDocumentPath = $documentPath ?: $approvedDocumentPath;
+        $primaryDocumentName = $this->resolveDocumentName($primaryDocumentPath, $draftDocuments, $approvedDocuments);
 
-        if (Schema::hasColumn('bir_taxes', 'approved_document_path')) {
-            [$data['approved_document_path'], $data['approved_documents']] = $this->appendUploadedFiles(
-                $request,
-                'approved_document_path',
-                'approved_document_paths',
-                [],
-                null,
-                'uploads/bir-tax/approved'
-            );
-        }
+        $record = BirTax::create([
+            'company_id' => $company['company_id'],
+            'company_name' => $company['company_name'],
+            'tin' => $validated['tin'],
+            'tax_payer' => $validated['tax_payer'],
+            'rdo' => $validated['rdo'],
+            'registering_office' => $validated['rdo'],
+            'registered_address' => $validated['registered_address'],
+            'tax_types' => $this->normalizeMultiValueField(
+                $request->input('tax_types_selected', []),
+                $request->input('tax_types_other', ''),
+                $validated['tax_types'] ?? ''
+            ),
+            'form_type' => $this->normalizeMultiValueField(
+                $request->input('form_types_selected', []),
+                $request->input('form_type_other', ''),
+                $validated['form_type'] ?? ''
+            ),
+            'tax_due' => $validated['tax_due'] ?? null,
+            'filing_frequency' => $validated['filing_frequency'],
+            'due_date' => $validated['due_date'] ?? null,
+            'status' => $validated['status'] ?? 'Pending',
+            'user' => $user,
+            'uploaded_by' => $user,
+            'date_uploaded' => now()->toDateString(),
+            'date_uploaded_at' => now(),
+            'document_path' => $primaryDocumentPath,
+            'document_name' => $primaryDocumentName,
+            'draft_documents' => $draftDocuments,
+            'approved_document_path' => $approvedDocumentPath,
+            'approved_documents' => $approvedDocuments,
+            'last_updated_by' => $user,
+            'last_updated_at' => now(),
+            'workflow_status' => 'Uploaded',
+            'approval_status' => 'Pending',
+            'submitted_by' => Auth::id(),
+            'approved_by' => null,
+            'approved_at' => null,
+            'review_note' => null,
+            'notes_visible_to' => $validated['notes_visible_to'] ?? null,
+            'notes' => $validated['notes'] ?? null,
+        ]);
 
-        $birTax = BirTax::create($this->filterPersistableData($data));
         $this->syncDeadlineTownHallMemo(
-            $birTax,
-            $birTax->due_date?->toDateString(),
+            $record,
+            $record->due_date?->toDateString(),
             'BIR & Tax',
-            $this->recordLabel($birTax),
+            $this->recordLabel($record),
             'bir-tax.preview'
         );
 
-        return redirect()->route('bir-tax')->with('success', 'BIR & Tax entry created.');
+        return $this->birTaxResponse($request, $record, 'BIR & Tax entry saved successfully.', 201);
     }
 
-    public function show(BirTax $birTax)
+    public function show(Request $request, BirTax $birTax)
     {
+        if (! $this->canApproveCorporate() && (int) $birTax->submitted_by !== (int) Auth::id()) {
+            abort(403, 'Unauthorized');
+        }
+
+        if ($request->expectsJson()) {
+            return response()->json($this->transformRecord($birTax));
+        }
+
         $generatedDraftPath = null;
-        if (!$birTax->document_path) {
+        if (! $birTax->document_path) {
             $generatedDraftPath = $this->generatePdfPreview(
                 'corporate.bir-tax.pdf',
                 ['tax' => $birTax],
@@ -208,7 +278,7 @@ class BirTaxController extends Controller
         }
 
         $uploadUrl = function (?string $path): ?string {
-            if (!$path || !Storage::disk('public')->exists($path)) {
+            if (! $path || ! Storage::disk('public')->exists($path)) {
                 return null;
             }
 
@@ -217,8 +287,8 @@ class BirTaxController extends Controller
             return url('/uploads/' . implode('/', $segments));
         };
 
-        $draftDocuments = collect($birTax->draft_documents ?? [])->filter(fn ($entry) => !empty($entry['path']) && Storage::disk('public')->exists($entry['path']))->values();
-        $approvedDocuments = collect($birTax->approved_documents ?? [])->filter(fn ($entry) => !empty($entry['path']) && Storage::disk('public')->exists($entry['path']))->values();
+        $draftDocuments = collect($birTax->draft_documents ?? [])->filter(fn ($entry) => ! empty($entry['path']) && Storage::disk('public')->exists($entry['path']))->values();
+        $approvedDocuments = collect($birTax->approved_documents ?? [])->filter(fn ($entry) => ! empty($entry['path']) && Storage::disk('public')->exists($entry['path']))->values();
         $draftOptions = $draftDocuments->map(function ($entry, $index) use ($uploadUrl) {
             return [
                 'url' => $uploadUrl($entry['path']),
@@ -238,11 +308,14 @@ class BirTaxController extends Controller
             'draftDocuments' => $draftDocuments,
             'approvedDocuments' => $approvedDocuments,
             'draftOptions' => $draftOptions,
-            'selectedDraftUrl' => !empty($draftOptions) ? $draftOptions[array_key_last($draftOptions)]['url'] : $draftUrl,
+            'selectedDraftUrl' => ! empty($draftOptions) ? $draftOptions[array_key_last($draftOptions)]['url'] : $draftUrl,
             'latestDraft' => $draftDocuments->last(),
             'latestApproved' => $approvedDocuments->last(),
             'visibleAuthorityNotes' => $this->visibleAuthorityNotes($birTax),
-            'backRoute' => route('bir-tax'),
+            'backRoute' => route('bir-tax', [
+                'record' => $birTax->id,
+                'tab' => strtolower((string) ($birTax->workflow_status ?? 'uploaded')),
+            ]),
             'editRoute' => route('bir-tax.edit', $birTax),
             'deleteRoute' => route('bir-tax.destroy', $birTax),
             'updateRoute' => route('bir-tax.update', $birTax),
@@ -251,42 +324,56 @@ class BirTaxController extends Controller
 
     public function edit(BirTax $birTax)
     {
-        return view('corporate.common.form', [
-            'title' => 'Edit BIR & Tax',
-            'action' => route('bir-tax.update', $birTax),
-            'method' => 'PUT',
-            'cancelRoute' => route('bir-tax'),
-            'fields' => $this->fields(),
-            'item' => $birTax,
-        ]);
+        return redirect()->route('bir-tax.preview', $birTax);
     }
 
     public function update(Request $request, BirTax $birTax)
     {
-        $data = $this->validateData($request);
-        $data = $this->normalizePersistedData($request, $data, $birTax);
-
-        [$data['document_path'], $data['draft_documents']] = $this->appendUploadedFiles(
-            $request,
-            'document_path',
-            'document_paths',
-            $birTax->draft_documents ?? [],
-            $birTax->document_path,
-            'uploads/bir-tax/drafts'
-        );
-
-        if (Schema::hasColumn('bir_taxes', 'approved_document_path')) {
-            [$data['approved_document_path'], $data['approved_documents']] = $this->appendUploadedFiles(
-                $request,
-                'approved_document_path',
-                'approved_document_paths',
-                $birTax->approved_documents ?? [],
-                $birTax->approved_document_path,
-                'uploads/bir-tax/approved'
-            );
+        if (! $this->canEditRecord($birTax)) {
+            abort(403, 'This record can no longer be edited.');
         }
 
-        $birTax->update($this->filterPersistableData($data));
+        $validated = $this->validatedPayload($request);
+        $user = $this->currentUserLabel($request);
+
+        [$documentPath, $draftDocuments] = $this->collectDraftDocuments($request, $birTax);
+        [$approvedDocumentPath, $approvedDocuments] = $this->collectApprovedDocuments($request, $birTax);
+        $primaryDocumentPath = $documentPath ?: $approvedDocumentPath ?: $birTax->document_path;
+        $primaryDocumentName = $this->resolveDocumentName($primaryDocumentPath, $draftDocuments, $approvedDocuments) ?: $birTax->document_name;
+
+        $birTax->update([
+            'tin' => $validated['tin'],
+            'tax_payer' => $validated['tax_payer'],
+            'rdo' => $validated['rdo'],
+            'registering_office' => $validated['rdo'],
+            'registered_address' => $validated['registered_address'],
+            'tax_types' => $this->normalizeMultiValueField(
+                $request->input('tax_types_selected', []),
+                $request->input('tax_types_other', ''),
+                $validated['tax_types'] ?? $birTax->tax_types
+            ),
+            'form_type' => $this->normalizeMultiValueField(
+                $request->input('form_types_selected', []),
+                $request->input('form_type_other', ''),
+                $validated['form_type'] ?? $birTax->form_type
+            ),
+            'tax_due' => $validated['tax_due'] ?? null,
+            'filing_frequency' => $validated['filing_frequency'],
+            'due_date' => $validated['due_date'] ?? null,
+            'status' => $validated['status'] ?? $birTax->status,
+            'document_path' => $primaryDocumentPath,
+            'document_name' => $primaryDocumentName,
+            'draft_documents' => $draftDocuments,
+            'approved_document_path' => $approvedDocumentPath,
+            'approved_documents' => $approvedDocuments,
+            'last_updated_by' => $user,
+            'last_updated_at' => now(),
+            'approval_status' => ($birTax->workflow_status ?? 'Uploaded') === 'Reverted' ? 'Pending' : $birTax->approval_status,
+            'review_note' => ($birTax->workflow_status ?? 'Uploaded') === 'Reverted' ? null : $birTax->review_note,
+            'notes_visible_to' => $validated['notes_visible_to'] ?? $birTax->notes_visible_to,
+            'notes' => $validated['notes'] ?? $birTax->notes,
+        ]);
+
         $birTax->refresh();
 
         $this->syncDeadlineTownHallMemo(
@@ -297,11 +384,39 @@ class BirTaxController extends Controller
             'bir-tax.preview'
         );
 
-        return $this->birTaxRedirectResponse($request, $birTax, 'BIR & Tax entry updated.');
+        return $this->birTaxResponse($request, $birTax, 'BIR & Tax entry updated.');
+    }
+
+    public function submit(BirTax $birTax)
+    {
+        if ((int) $birTax->submitted_by !== (int) Auth::id()) {
+            abort(403, 'Unauthorized');
+        }
+
+        if (! in_array($birTax->workflow_status ?? 'Uploaded', ['Uploaded', 'Reverted'], true)) {
+            return response()->json(['message' => 'Only uploaded or reverted records can be submitted.'], 422);
+        }
+
+        $birTax->update([
+            'workflow_status' => 'Submitted',
+            'approval_status' => 'Pending',
+            'review_note' => null,
+            'last_updated_by' => Auth::user()?->name ?? Auth::user()?->email ?? 'System User',
+            'last_updated_at' => now(),
+        ]);
+
+        return response()->json([
+            'message' => 'BIR & Tax entry submitted for approval successfully.',
+            'data' => $this->transformRecord($birTax->fresh()),
+        ]);
     }
 
     public function destroy(BirTax $birTax)
     {
+        if (! $this->canEditRecord($birTax)) {
+            abort(403, 'This record can no longer be deleted.');
+        }
+
         $this->deleteDeadlineTownHallMemo($birTax);
         $birTax->delete();
 
@@ -326,39 +441,19 @@ class BirTaxController extends Controller
             ->with('success', 'Authority note added.');
     }
 
-    private function fields(): array
-    {
-        return [
-            ['name' => 'tin', 'label' => 'TIN', 'type' => 'text'],
-            ['name' => 'tax_payer', 'label' => 'Taxpayer', 'type' => 'text'],
-            ['name' => 'rdo', 'label' => 'RDO', 'type' => 'text'],
-            ['name' => 'registered_address', 'label' => 'Registered Address', 'type' => 'textarea'],
-            ['name' => 'tax_types', 'label' => 'Tax Type/s (comma-separated)', 'type' => 'textarea'],
-            ['name' => 'form_type', 'label' => 'Form Type (comma-separated)', 'type' => 'textarea'],
-            ['name' => 'tax_due', 'label' => 'Tax Due', 'type' => 'number', 'step' => '0.01'],
-            ['name' => 'filing_frequency', 'label' => 'Filing Frequency', 'type' => 'select', 'options' => self::FILING_FREQUENCY_OPTIONS],
-            ['name' => 'due_date', 'label' => 'Due Date', 'type' => 'date'],
-            ['name' => 'status', 'label' => 'Status', 'type' => 'select', 'options' => self::STATUS_OPTIONS],
-            ['name' => 'document_path', 'label' => 'Upload Draft BIR & Tax Document (PDF)', 'type' => 'file'],
-            ['name' => 'approved_document_path', 'label' => 'Upload Approved BIR & Tax Document (PDF)', 'type' => 'file'],
-            ['name' => 'notes_visible_to', 'label' => 'Notes Visible To Authority', 'type' => 'text'],
-            ['name' => 'notes', 'label' => 'Notes', 'type' => 'textarea'],
-        ];
-    }
-
-    private function validateData(Request $request): array
+    private function validatedPayload(Request $request): array
     {
         return $request->validate([
             'tin' => ['nullable', 'string', 'max:255'],
-            'tax_payer' => ['nullable', 'string', 'max:255'],
+            'tax_payer' => ['required', 'string', 'max:255'],
             'rdo' => ['nullable', 'string', 'max:255'],
             'registering_office' => ['nullable', 'string', 'max:255'],
             'registered_address' => ['nullable', 'string', 'max:1000'],
-            'tax_types' => ['nullable', 'string', 'max:1000'],
+            'tax_types' => ['nullable', 'string', 'max:2000'],
             'tax_types_selected' => ['nullable', 'array'],
             'tax_types_selected.*' => ['string'],
             'tax_types_other' => ['nullable', 'string', 'max:255'],
-            'form_type' => ['nullable', 'string', 'max:1000'],
+            'form_type' => ['nullable', 'string', 'max:2000'],
             'form_types_selected' => ['nullable', 'array'],
             'form_types_selected.*' => ['string'],
             'form_type_other' => ['nullable', 'string', 'max:255'],
@@ -366,8 +461,10 @@ class BirTaxController extends Controller
             'filing_frequency' => ['nullable', 'string', 'max:255'],
             'due_date' => ['nullable', 'date'],
             'status' => ['nullable', 'string', 'max:255'],
-            'uploaded_by' => ['nullable', 'string', 'max:255'],
-            'date_uploaded' => ['nullable', 'date'],
+            'draft_documents' => ['nullable'],
+            'draft_documents.*' => ['file', 'mimes:pdf', 'max:5120'],
+            'approved_documents' => ['nullable'],
+            'approved_documents.*' => ['file', 'mimes:pdf', 'max:5120'],
             'document_path' => ['nullable', 'file', 'mimes:pdf', 'max:5120'],
             'document_paths' => ['nullable', 'array'],
             'document_paths.*' => ['file', 'mimes:pdf', 'max:5120'],
@@ -379,32 +476,146 @@ class BirTaxController extends Controller
         ]);
     }
 
-    private function companyDefaults(): array
+    private function collectDraftDocuments(Request $request, ?BirTax $existing = null): array
     {
-        $gis = $this->latestSubmittedGis();
+        return $this->collectDocumentSet(
+            $request,
+            'draft_documents',
+            'document_path',
+            'document_paths',
+            $existing?->draft_documents ?? [],
+            $existing?->document_path,
+            'uploads/bir-tax/drafts'
+        );
+    }
 
-        if ($gis) {
-            return [
-                'tax_payer' => $gis->corporation_name ?: 'JK&C Group of Companies',
-                'tin' => $gis->tin ?: '000-000-000-000',
-                'registered_address' => $gis->business_address ?: ($gis->principal_address ?: 'JK&C Corporate Office'),
-            ];
+    private function collectApprovedDocuments(Request $request, ?BirTax $existing = null): array
+    {
+        return $this->collectDocumentSet(
+            $request,
+            'approved_documents',
+            'approved_document_path',
+            'approved_document_paths',
+            $existing?->approved_documents ?? [],
+            $existing?->approved_document_path,
+            'uploads/bir-tax/approved'
+        );
+    }
+
+    private function collectDocumentSet(
+        Request $request,
+        string $repositoryField,
+        string $legacySingleField,
+        string $legacyMultiField,
+        array $existingDocuments,
+        ?string $existingPath,
+        string $directory
+    ): array {
+        $documents = $existingDocuments;
+        $primaryPath = $existingPath;
+
+        if ($request->hasFile($repositoryField)) {
+            $incomingDocuments = $this->storeDocumentSet($request, $repositoryField, $directory);
+            $documents = $this->appendDocuments($documents, $incomingDocuments);
+            $latestIncoming = collect($incomingDocuments)->last();
+            $primaryPath = $latestIncoming['path'] ?? $primaryPath;
         }
 
+        if ($request->hasFile($legacySingleField) || $request->hasFile($legacyMultiField)) {
+            [$primaryPath, $documents] = $this->appendUploadedFiles(
+                $request,
+                $legacySingleField,
+                $legacyMultiField,
+                $documents,
+                $primaryPath,
+                $directory
+            );
+        }
+
+        if (! $primaryPath) {
+            $primaryPath = collect($documents)->last()['path'] ?? null;
+        }
+
+        return [$primaryPath, array_values($documents)];
+    }
+
+    private function resolveDocumentName(?string $primaryPath, array $draftDocuments, array $approvedDocuments): ?string
+    {
+        $documents = collect($draftDocuments)->merge($approvedDocuments);
+        $match = $documents->first(fn ($document) => ($document['path'] ?? null) === $primaryPath);
+
+        return $match['name'] ?? ($primaryPath ? basename($primaryPath) : null);
+    }
+
+    private function transformRecord(BirTax $record): array
+    {
+        $draftDocuments = $this->documentLinks($record->draft_documents);
+        $approvedDocuments = $this->documentLinks($record->approved_documents);
+
         return [
-            'tax_payer' => 'JK&C Group of Companies',
-            'tin' => '000-000-000-000',
-            'registered_address' => 'JK&C Corporate Office',
+            'id' => $record->id,
+            'company' => $record->company_name ?: ($record->tax_payer ?: 'Latest Approved GIS Company'),
+            'tin' => $record->tin,
+            'tax_payer' => $record->tax_payer,
+            'rdo' => $record->rdo ?: $record->registering_office,
+            'registered_address' => $record->registered_address,
+            'tax_types' => $record->tax_types,
+            'form_type' => $record->form_type,
+            'tax_due' => $record->tax_due,
+            'filing_frequency' => $record->filing_frequency,
+            'due_date' => optional($record->due_date)->format('Y-m-d'),
+            'status' => $record->display_status,
+            'filing_status' => $record->status ?? 'Pending',
+            'uploaded_by' => $record->uploaded_by ?: $record->user,
+            'date_uploaded' => $record->date_uploaded_at?->format('Y-m-d H:i:s') ?: optional($record->date_uploaded)->format('Y-m-d'),
+            'last_updated_by' => $record->last_updated_by,
+            'last_updated_date' => $record->last_updated_at?->format('Y-m-d H:i:s') ?: $record->updated_at?->format('Y-m-d H:i:s'),
+            'workflow_status' => $record->workflow_status ?? 'Uploaded',
+            'approval_status' => $record->approval_status ?? 'Pending',
+            'review_note' => $record->review_note,
+            'document_name' => $record->document_name,
+            'document_url' => $this->publicDocumentUrl($record->document_path)
+                ?: ($draftDocuments[0]['url'] ?? null)
+                ?: ($approvedDocuments[0]['url'] ?? null),
+            'draft_documents' => $draftDocuments,
+            'approved_documents' => $approvedDocuments,
+            'can_edit' => $this->canEditRecord($record),
+            'can_submit' => (int) $record->submitted_by === (int) Auth::id()
+                && in_array($record->workflow_status ?? 'Uploaded', ['Uploaded', 'Reverted'], true),
         ];
     }
 
-    private function latestSubmittedGis(): ?GisRecord
+    private function visibleAuthorityNotes(BirTax $birTax)
     {
-        if (!Schema::hasTable('gis_records')) {
-            return null;
-        }
+        $role = auth()->user()?->role;
 
-        $submitted = GisRecord::query()
+        return $birTax->authorityNotes()
+            ->with('user:id,name,role')
+            ->when($role && $role !== 'SuperAdmin', function ($query) use ($role) {
+                $query->where('visible_to_role', $role);
+            })
+            ->get();
+    }
+
+    private function recordLabel(BirTax $birTax): string
+    {
+        return trim(($birTax->form_type ?: 'BIR filing') . ' - ' . ($birTax->tax_payer ?: $birTax->tin ?: 'Untitled Record'), ' -');
+    }
+
+    private function companyDefaults(): array
+    {
+        $company = $this->latestCorporateCompany();
+        $gis = $this->latestSubmittedGis();
+
+        return [
+            ...$company,
+            'tin' => trim((string) ($gis?->tin ?: '')),
+        ];
+    }
+
+    private function latestSubmittedGis()
+    {
+        return \App\Models\GisRecord::query()
             ->where(function ($query) {
                 $query->whereNotNull('submitted_by')
                     ->orWhereIn('workflow_status', ['Submitted', 'Accepted', 'Approved'])
@@ -414,39 +625,6 @@ class BirTaxController extends Controller
             ->orderByDesc('updated_at')
             ->orderByDesc('created_at')
             ->first();
-
-        return $submitted ?: GisRecord::query()
-            ->orderByDesc('updated_at')
-            ->orderByDesc('created_at')
-            ->first();
-    }
-
-    private function normalizePersistedData(Request $request, array $data, ?BirTax $existing = null): array
-    {
-        $defaults = $this->companyDefaults();
-
-        $data['tin'] = trim((string) (($data['tin'] ?? '') ?: ($existing?->tin ?: ($defaults['tin'] ?? ''))));
-        $data['tax_payer'] = trim((string) (($data['tax_payer'] ?? '') ?: ($existing?->tax_payer ?: ($defaults['tax_payer'] ?? ''))));
-        $data['registered_address'] = trim((string) (($data['registered_address'] ?? '') ?: ($existing?->registered_address ?: ($defaults['registered_address'] ?? ''))));
-        $data['rdo'] = trim((string) (($data['rdo'] ?? '') ?: ($data['registering_office'] ?? '') ?: $existing?->rdo ?: $existing?->registering_office ?: ''));
-        $data['registering_office'] = $data['rdo'];
-        $data['tax_types'] = $this->normalizeMultiValueField(
-            $request->input('tax_types_selected', []),
-            $request->input('tax_types_other', ''),
-            ($data['tax_types'] ?? '') ?: ($existing?->tax_types ?? '')
-        );
-        $data['form_type'] = $this->normalizeMultiValueField(
-            $request->input('form_types_selected', []),
-            $request->input('form_type_other', ''),
-            ($data['form_type'] ?? '') ?: ($existing?->form_type ?? '')
-        );
-        $data['tax_due'] = $data['tax_due'] ?? $existing?->tax_due;
-        $data['filing_frequency'] = trim((string) (($data['filing_frequency'] ?? '') ?: ($existing?->filing_frequency ?? '')));
-        $data['status'] = trim((string) (($data['status'] ?? '') ?: ($existing?->status ?: 'Pending')));
-        $data['uploaded_by'] = trim((string) (($data['uploaded_by'] ?? '') ?: (auth()->user()?->name ?: 'System User')));
-        $data['date_uploaded'] = $data['date_uploaded'] ?? $existing?->date_uploaded?->toDateString() ?? now()->toDateString();
-
-        return $data;
     }
 
     private function normalizeMultiValueField(array|string|null $selectedValues, ?string $otherValue, ?string $fallbackValue = ''): string
@@ -487,25 +665,6 @@ class BirTaxController extends Controller
         return collect($values)->unique()->implode(', ');
     }
 
-    private function filterPersistableData(array $data): array
-    {
-        return collect($data)
-            ->filter(fn ($value, $key) => Schema::hasColumn('bir_taxes', $key))
-            ->all();
-    }
-
-    private function visibleAuthorityNotes(BirTax $birTax)
-    {
-        $role = auth()->user()?->role;
-
-        return $birTax->authorityNotes()
-            ->with('user:id,name,role')
-            ->when($role && $role !== 'SuperAdmin', function ($query) use ($role) {
-                $query->where('visible_to_role', $role);
-            })
-            ->get();
-    }
-
     private function sortRankForBirTax(BirTax $record): int
     {
         $status = strtolower(trim((string) ($record->display_status ?: '')));
@@ -519,13 +678,15 @@ class BirTaxController extends Controller
         };
     }
 
-    private function recordLabel(BirTax $birTax): string
+    private function birTaxResponse(Request $request, BirTax $birTax, string $message, int $status = 200)
     {
-        return trim(($birTax->form_type ?: 'BIR filing') . ' - ' . ($birTax->tax_payer ?: $birTax->tin ?: 'Untitled Record'), ' -');
-    }
+        if ($request->expectsJson()) {
+            return response()->json([
+                'message' => $message,
+                'data' => $this->transformRecord($birTax->fresh()),
+            ], $status);
+        }
 
-    private function birTaxRedirectResponse(Request $request, BirTax $birTax, string $message)
-    {
         $redirectTo = trim((string) $request->input('redirect_to', ''));
 
         if ($redirectTo === 'preview') {

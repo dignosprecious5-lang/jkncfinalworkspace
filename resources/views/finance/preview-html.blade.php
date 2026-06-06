@@ -634,43 +634,111 @@
             color: #111827;
         }
 
-        .asset-tag-grid {
-            display: grid;
-            grid-template-columns: 92px 1fr;
-        }
-
-        .asset-tag-label,
-        .asset-tag-value {
-            border-bottom: 1px solid #dbe2ea;
-            padding: 5px 6px;
-        }
-
-        .asset-tag-label {
-            background: #f8fafc;
+        .asset-tag-subtitle {
+            margin: 8px 0 0;
             font-size: 8px;
             text-transform: uppercase;
-            letter-spacing: 0.18em;
+            letter-spacing: 0.24em;
             color: #6b7280;
             font-weight: 700;
         }
 
-        .asset-tag-value {
-            font-size: 9px;
+        .asset-tag-layout {
+            display: table;
+            width: 100%;
+            table-layout: fixed;
+            border-top: 1px solid #dbe2ea;
+        }
+
+        .asset-tag-left-pane,
+        .asset-tag-right-pane {
+            display: table-cell;
+            vertical-align: top;
+            padding: 12px;
+        }
+
+        .asset-tag-left-pane {
+            width: 58%;
+            border-right: 1px solid #dbe2ea;
+        }
+
+        .asset-tag-box {
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            background: #ffffff;
+            padding: 10px 12px;
+        }
+
+        .asset-tag-box + .asset-tag-box {
+            margin-top: 10px;
+        }
+
+        .asset-tag-code-box {
+            background: #f8fafc;
+            text-align: center;
+        }
+
+        .asset-tag-box-label {
+            margin: 0;
+            font-size: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.22em;
+            color: #6b7280;
+            font-weight: 700;
+        }
+
+        .asset-tag-box-value {
+            margin: 8px 0 0;
+            font-size: 11px;
             font-weight: 700;
             color: #111827;
             word-break: break-word;
         }
 
-        .asset-tag-barcode {
-            grid-column: 1 / -1;
-            padding: 6px;
+        .asset-tag-code-value {
+            margin: 10px 0 0;
+            font-size: 22px;
+            font-weight: 900;
+            letter-spacing: 0.18em;
+            color: #111827;
+            word-break: break-word;
+        }
+
+        .asset-tag-note-box {
+            margin-top: 10px;
+            border: 1px dashed #dbe2ea;
+            border-radius: 12px;
+            background: #f8fafc;
+            padding: 10px 12px;
+            text-align: center;
+        }
+
+        .asset-tag-note-title {
+            margin: 0;
+            font-size: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.22em;
+            color: #6b7280;
+            font-weight: 700;
+        }
+
+        .asset-tag-note-copy {
+            margin: 6px 0 0;
+            font-size: 8px;
+            color: #4b5563;
         }
 
         .asset-tag-barcode-box {
             border: 1px solid #e5e7eb;
             border-radius: 8px;
-            padding: 5px;
+            padding: 8px;
             background: #fff;
+        }
+
+        .asset-tag-barcode-box svg {
+            display: block;
+            width: 100%;
+            height: auto;
         }
         @media print {
             body { background: #fff; }
@@ -705,7 +773,12 @@
                     <p class="eyebrow">Official Finance Form</p>
                     <h1>{{ $companyName }}</h1>
                     <p class="sub">{{ $companyLegalName }} | {{ $moduleLabel }}</p>
-                    <p class="meta">{{ $record->record_number ?: 'N/A' }} - {{ $recordTitleLabel ?: 'Name' }}: {{ $record->record_title ?: 'N/A' }}</p>
+                    <p class="meta">
+                        {{ $record->record_number ?: 'N/A' }}
+                        @if(!in_array($record->module_key, ['pr', 'err', 'crf', 'ca'], true))
+                            - {{ $recordTitleLabel ?: 'Name' }}: {{ $record->record_title ?: 'N/A' }}
+                        @endif
+                    </p>
                 </div>
             </div>
 
@@ -1332,18 +1405,30 @@
                             <div class="asset-tag-head">
                                 <p class="asset-tag-company">JK&amp;C INC.</p>
                                 <div class="asset-tag-title">ASSET TAG</div>
+                                <p class="asset-tag-subtitle">Asset Identification Plate</p>
                             </div>
-                            <div class="asset-tag-grid">
-                                <div class="asset-tag-label">Asset Code</div>
-                                <div class="asset-tag-value">{{ data_get($section, 'asset_code') ?: 'N/A' }}</div>
-                                <div class="asset-tag-label">Location</div>
-                                <div class="asset-tag-value">{{ data_get($section, 'location') ?: 'N/A' }}</div>
-                                <div class="asset-tag-label">Serial Number</div>
-                                <div class="asset-tag-value">{{ data_get($section, 'serial_number') ?: 'N/A' }}</div>
-                                <div class="asset-tag-label">Barcode</div>
-                                <div class="asset-tag-value">
+                            <div class="asset-tag-layout">
+                                <div class="asset-tag-left-pane">
+                                    <div class="asset-tag-box asset-tag-code-box">
+                                        <p class="asset-tag-box-label">Asset Code</p>
+                                        <p class="asset-tag-code-value">{{ data_get($section, 'asset_code') ?: 'N/A' }}</p>
+                                    </div>
+                                    <div class="asset-tag-box">
+                                        <p class="asset-tag-box-label">Location</p>
+                                        <p class="asset-tag-box-value">{{ data_get($section, 'location') ?: 'N/A' }}</p>
+                                    </div>
+                                    <div class="asset-tag-box">
+                                        <p class="asset-tag-box-label">Serial Number</p>
+                                        <p class="asset-tag-box-value">{{ data_get($section, 'serial_number') ?: 'N/A' }}</p>
+                                    </div>
+                                </div>
+                                <div class="asset-tag-right-pane">
                                     <div class="asset-tag-barcode-box">
                                         {!! data_get($section, 'barcode_svg') !!}
+                                    </div>
+                                    <div class="asset-tag-note-box">
+                                        <p class="asset-tag-note-title">System Tag Preview</p>
+                                        <p class="asset-tag-note-copy">Print layout is optimized separately for the tape label.</p>
                                     </div>
                                 </div>
                             </div>

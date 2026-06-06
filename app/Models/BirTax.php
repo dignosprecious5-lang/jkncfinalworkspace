@@ -9,6 +9,8 @@ use Illuminate\Support\Carbon;
 class BirTax extends Model
 {
     protected $fillable = [
+        'company_id',
+        'company_name',
         'tin',
         'tax_payer',
         'rdo',
@@ -20,12 +22,23 @@ class BirTax extends Model
         'filing_frequency',
         'due_date',
         'status',
+        'user',
         'uploaded_by',
         'date_uploaded',
+        'date_uploaded_at',
         'document_path',
+        'document_name',
         'draft_documents',
         'approved_document_path',
         'approved_documents',
+        'last_updated_by',
+        'last_updated_at',
+        'workflow_status',
+        'approval_status',
+        'submitted_by',
+        'approved_by',
+        'approved_at',
+        'review_note',
         'notes',
         'notes_visible_to',
     ];
@@ -34,8 +47,11 @@ class BirTax extends Model
         'tax_due' => 'decimal:2',
         'due_date' => 'date',
         'date_uploaded' => 'date',
+        'date_uploaded_at' => 'datetime',
         'draft_documents' => 'array',
         'approved_documents' => 'array',
+        'last_updated_at' => 'datetime',
+        'approved_at' => 'datetime',
     ];
 
     public function authorityNotes(): MorphMany

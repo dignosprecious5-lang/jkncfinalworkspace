@@ -32,6 +32,7 @@
     const timeField = (name, label, options = {}) => ({ name, label, type: 'time', ...options });
     const textareaField = (name, label, options = {}) => ({ name, label, type: 'textarea', rows: 3, fullWidth: true, ...options });
     const selectField = (name, label, options = {}) => ({ name, label, type: 'select', options: [], ...options });
+    const selectorField = (name, label, options = {}) => ({ name, label, type: 'selector', ...options });
     const checkboxField = (name, label, options = {}) => ({ name, label, type: 'checkbox', ...options });
     const checkboxGroupField = (name, label, options = {}) => ({ name, label, type: 'checkbox-group', options: [], fullWidth: true, ...options });
     const radioGroupField = (name, label, options = {}) => ({ name, label, type: 'radio-group', options: [], fullWidth: true, ...options });
@@ -385,6 +386,10 @@
         return ['supplier', 'service', 'product', 'chart_account', 'bank_account'].includes(moduleKey);
     }
 
+    function moduleShowsRecordTitle(moduleKey) {
+        return !['pr', 'err', 'crf', 'ca'].includes(moduleKey);
+    }
+
     function generateFinanceBarcodeSvg(value) {
         const text = String(value || '').trim();
         if (!text) return '';
@@ -706,58 +711,29 @@
         `;
     }
 
+    function refreshArfAssetTagCard() {
+        if (currentModuleKey !== 'arf') return;
+
+        const target = $('arfAssetTagCard');
+        const form = $('financeForm');
+        if (!target || !form) return;
+
+        const assetCode = String(form.querySelector('[name="data[asset_code]"]')?.value || $('recordNumberInput')?.value || '').trim();
+        const location = String(form.querySelector('[name="data[location]"]')?.value || '').trim();
+        const serialNumber = String(form.querySelector('[name="data[serial_number]"]')?.value || '').trim();
+        const barcodeSvg = generateFinanceBarcodeSvg(assetCode || '');
+
+        target.innerHTML = renderArfAssetTagCard(
+            assetCode || 'N/A',
+            location || 'N/A',
+            serialNumber || 'N/A',
+            barcodeSvg,
+            { withPrintButton: true }
+        );
+    }
+
     function renderArfAssetTagPreviewVisual(assetCode, location, serialNumber, barcodeSvg, { withPrintButton = false } = {}) {
-        return `
-            <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-                <div class="border-b border-gray-100 bg-slate-50 px-4 py-3">
-                    <div class="flex flex-wrap items-center justify-between gap-2">
-                        <div>
-                            <p class="text-[11px] uppercase tracking-[0.3em] text-gray-500">Printable Asset Tag</p>
-                            <h4 class="mt-1 text-base font-semibold text-gray-900">Tag preview for printing</h4>
-                        </div>
-                        ${withPrintButton ? renderArfAssetTagPrintButton(assetCode, location, serialNumber, 'inline-flex items-center justify-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-[11px] font-semibold text-gray-700 hover:bg-gray-50') : ''}
-                    </div>
-                </div>
-                <div class="p-4 bg-gradient-to-b from-white to-slate-50">
-                    <div class="mx-auto max-w-[540px] rounded-[18px] border border-gray-300 bg-white shadow-[0_10px_30px_rgba(15,23,42,0.08)] overflow-hidden">
-                        <div class="border-b border-gray-300 px-5 py-4 text-center">
-                            <p class="text-[10px] font-semibold uppercase tracking-[0.32em] text-gray-500">JK&amp;C INC.</p>
-                            <p class="mt-2 text-[22px] font-black uppercase tracking-[0.28em] text-gray-900">ASSET TAG</p>
-                        </div>
-                        <div class="grid grid-cols-1 md:grid-cols-[1.05fr_0.95fr]">
-                            <div class="border-b md:border-b-0 md:border-r border-gray-300 px-5 py-4">
-                                <div class="rounded-xl border border-gray-200 bg-gray-50 px-4 py-4 text-center">
-                                    <p class="text-[10px] uppercase tracking-[0.28em] text-gray-500">Asset Code</p>
-                                    <p class="mt-2 text-[24px] font-black tracking-[0.18em] text-gray-900 break-words">${escapeHtml(assetCode || 'N/A')}</p>
-                                </div>
-                                <div class="mt-4 grid grid-cols-1 gap-3">
-                                    <div class="rounded-xl border border-gray-200 px-4 py-3">
-                                        <p class="text-[10px] uppercase tracking-[0.22em] text-gray-500">Location</p>
-                                        <p class="mt-1 text-sm font-semibold text-gray-900 break-words">${escapeHtml(location || 'N/A')}</p>
-                                    </div>
-                                    <div class="rounded-xl border border-gray-200 px-4 py-3">
-                                        <p class="text-[10px] uppercase tracking-[0.22em] text-gray-500">Serial Number</p>
-                                        <p class="mt-1 text-sm font-semibold text-gray-900 break-words">${escapeHtml(serialNumber || 'N/A')}</p>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="px-5 py-4">
-                                <div class="rounded-xl border border-gray-200 bg-white px-3 py-3">
-                                    <p class="text-[10px] uppercase tracking-[0.22em] text-gray-500">Barcode</p>
-                                    <div class="mt-3 overflow-hidden rounded-lg border border-dashed border-gray-200 bg-white px-2 py-2">
-                                        ${barcodeSvg || '<div class="flex h-24 items-center justify-center text-xs text-gray-400">Enter an asset code to generate the barcode.</div>'}
-                                    </div>
-                                </div>
-                                <div class="mt-4 rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-3 text-center">
-                                    <p class="text-[10px] uppercase tracking-[0.22em] text-gray-500">Print ready</p>
-                                    <p class="mt-1 text-xs text-gray-600">This preview mirrors the printable asset tag layout.</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
+        return renderArfAssetTagCard(assetCode, location, serialNumber, barcodeSvg, { withPrintButton });
     }
 
     function setReadonlyState(input, readOnly = false) {
@@ -1382,7 +1358,8 @@
             label: 'Cash Advance',
             addLabel: 'Add CA',
             recordNumberLabel: 'CA Number',
-            recordTitleLabel: 'Cash Advance Request',
+            recordTitleLabel: 'Cash Advance',
+            hideRecordTitle: true,
             recordDateLabel: 'Date',
             summaryKeys: ['cash_advance_type', 'amount_requested', 'mode_of_release', 'release_schedule'],
             fields: [
@@ -1445,7 +1422,7 @@
                         { value: 'Yes', label: 'Yes' },
                     ],
                 }),
-                textField('client_names', 'Client Name(s)', { fullWidth: true }),
+                selectorField('client_names', 'Client Name(s)', { source: 'client', fullWidth: true, visibleWhenField: 'for_client', visibleWhenValue: 'Yes' }),
                 numberField('amount_requested', 'Amount Requested', { required: true }),
                 selectField('release_schedule', 'Release Schedule', {
                     options: [
@@ -3115,6 +3092,11 @@
     }
 
     function getApprovalRoutingRoleLabels(record) {
+        const moduleKey = String(record?.module_key || currentModuleKey || '').trim();
+        if (['pr', 'po', 'ca', 'lr', 'err', 'pda', 'crf', 'arf'].includes(moduleKey)) {
+            return ['Finance', 'Operations'];
+        }
+
         return ['Treasurer', 'President'];
     }
 
@@ -7210,6 +7192,7 @@
             });
             ['depreciable_amount', 'annual_depreciation', 'monthly_depreciation', 'accumulated_depreciation', 'net_book_value'].forEach((fieldName) => setValue(fieldName, 0));
             syncArfIdentifierSuggestions();
+            refreshArfAssetTagCard();
             return;
         }
 
@@ -7229,6 +7212,7 @@
         setValue('accumulated_depreciation', accumulatedDepreciation);
         setValue('net_book_value', Math.max(acquisitionCost - accumulatedDepreciation, 0));
         syncArfIdentifierSuggestions();
+        refreshArfAssetTagCard();
     }
 
     function getBankAccountCodeValue(bankAccountId) {
@@ -7652,13 +7636,16 @@
 
         const rows = [
             ['Record Number', record.record_number || ''],
-            [moduleConfig.recordTitleLabel || 'Name', getVisibleRecordTitle(record)],
             ['Record Date', record.record_date || ''],
             ['Status', record.status || ''],
             ['Created By', record.user || ''],
             ['Submitted At', record.submitted_at || ''],
             ['Approved At', record.approved_at || ''],
         ];
+
+        if (moduleShowsRecordTitle(record.module_key)) {
+            rows.splice(1, 0, [moduleConfig.recordTitleLabel || 'Name', getVisibleRecordTitle(record)]);
+        }
 
         if (shouldShowGenericAmount(record)) {
             rows.splice(3, 0, ['Amount', record.amount ? formatCurrency(record.amount) : '']);
@@ -9887,6 +9874,14 @@
             return option ? option.label : value;
         }
 
+        if (field.type === 'selector') {
+            if (field.source) {
+                return getLookupLabel(field.source, value) || value || 'N/A';
+            }
+
+            return value || 'N/A';
+        }
+
         return value;
     }
 
@@ -10290,6 +10285,21 @@
                 }
             }
 
+            if (field.visibleWhenField) {
+                const controllerValue = String(
+                    formValues[`data[${field.visibleWhenField}]`]
+                    || formValues[field.visibleWhenField]
+                    || ''
+                ).trim();
+                show = show && controllerValue === String(field.visibleWhenValue || '').trim();
+
+                if (!show) {
+                    financeFormValues = financeFormValues || {};
+                    financeFormValues[field.name] = '';
+                    financeFormValues[`data[${field.name}]`] = '';
+                }
+            }
+
             setConditionalFieldVisibility(field, show);
         });
 
@@ -10548,7 +10558,7 @@
                 });
             }
 
-            ['item_classification', 'item_name', 'asset_category', 'asset_description', 'asset_code', 'current_quantity', 'reserved_quantity', 'accepted_quantity', 'beginning_quantity', 'unit_cost', 'acquisition_cost', 'residual_value', 'useful_life'].forEach((fieldName) => {
+            ['item_classification', 'item_name', 'asset_category', 'asset_description', 'asset_code', 'serial_number', 'location', 'current_quantity', 'reserved_quantity', 'accepted_quantity', 'beginning_quantity', 'unit_cost', 'acquisition_cost', 'residual_value', 'useful_life'].forEach((fieldName) => {
                 const input = form.querySelector(`[name="data[${fieldName}]"]`);
                 if (input) {
                     input.addEventListener('input', () => {
@@ -10689,7 +10699,7 @@
         setSupplierFormLayout(record);
         const recordTitleWrapper = $('recordTitleInput')?.closest('#recordCoreFields > div');
         if (recordTitleWrapper) {
-            recordTitleWrapper.classList.toggle('hidden', ['pr', 'err', 'crf'].includes(currentModuleKey));
+            recordTitleWrapper.classList.toggle('hidden', !moduleShowsRecordTitle(currentModuleKey) || moduleConfig.hideRecordTitle === true);
         }
 
         const supplierFields = moduleConfig.fields.filter((field) => field.name !== 'completion_mode');
@@ -11683,7 +11693,7 @@
                     <div class="md:col-span-2 rounded-xl border border-gray-200 bg-white p-4">
                         <h4 class="text-sm font-semibold uppercase tracking-[0.24em] text-gray-700">Asset Tag</h4>
                         <p class="mt-2 text-xs text-gray-500">This tag mirrors the printable plate and updates automatically from the asset code, location, and serial number.</p>
-                        <div class="mt-4">
+                        <div id="arfAssetTagCard" class="mt-4">
                             ${renderArfAssetTagCard(assetCodeValue, locationValue, serialNumberValue, barcodeSvg, { withPrintButton: true })}
                         </div>
                     </div>
@@ -11792,6 +11802,7 @@
         if (currentModuleKey === 'arf') {
             syncArfLinkedDocumentFields({ preserveExisting: true });
             updateArfCalculatedFields();
+            refreshArfAssetTagCard();
         }
         if (currentModuleKey === 'bank_account') {
             renderBankAccountLookupList(activeBankAccountLookupQuery);
@@ -11844,7 +11855,7 @@
         const recordTitleValue = $('recordTitleInput').value.trim() || generateDefaultRecordTitle(currentModuleKey);
         const summaryItems = [
             ['Number', recordNumber || 'N/A'],
-            ...(['pr', 'err', 'crf'].includes(currentModuleKey) ? [] : [[moduleConfig.recordTitleLabel || 'Name', recordTitleValue || 'N/A']]),
+            ...(moduleShowsRecordTitle(currentModuleKey) ? [[moduleConfig.recordTitleLabel || 'Name', recordTitleValue || 'N/A']] : []),
             ['Date', recordDate || 'N/A'],
             ['Time', recordTime || 'N/A'],
             ...(shouldShowGenericAmount(currentModuleKey) ? [['Amount', amount || '0.00']] : []),
@@ -12382,6 +12393,8 @@
             const usageCategoryLabel = usageCategoryValues.length ? usageCategoryValues.join(', ') : 'Not filled yet';
             const hasOtherBusinessPurpose = String(formValues['data[cash_advance_type]'] || '').trim() === 'Other Business Purpose';
             const hasOtherExpense = usageCategoryValues.includes('Other Expense');
+            const forClientValue = String(formValues['data[for_client]'] || '').trim();
+            const clientNameValue = getLookupLabel('client', formValues['data[client_names]']) || formValues['data[client_names]'] || '';
             const declarations = [
                 ['Official Business Cash Advance', $('financeForm').querySelector('input[name="data[official_business_cash_advance]"]')?.checked ? 'Yes' : 'No'],
                 ['Employee Cash Advance - Personal Purpose', $('financeForm').querySelector('input[name="data[employee_cash_advance_personal]"]')?.checked ? 'Yes' : 'No'],
@@ -12460,8 +12473,10 @@
                             sectionCell('Needed Date', formValues['data[needed_date]'] || 'Not filled yet', 'border-r border-t border-gray-300'),
                             sectionCell('Priority', formValues['data[priority]'] || 'Not filled yet', 'border-t border-gray-300'),
                             sectionCell('Cash Advance Type', formValues['data[cash_advance_type]'] || 'Not filled yet', 'border-r border-t border-gray-300'),
-                            sectionCell('For Client?', formValues['data[for_client]'] || 'Not filled yet', 'border-t border-gray-300'),
-                            sectionCell('Client Name(s)', formValues['data[client_names]'] || 'Not filled yet', 'border-r border-t border-gray-300'),
+                            sectionCell('For Client?', forClientValue || 'Not filled yet', 'border-t border-gray-300'),
+                            ...(forClientValue === 'Yes'
+                                ? [sectionCell('Client Name(s)', clientNameValue || 'Not filled yet', 'border-r border-t border-gray-300')]
+                                : []),
                             sectionCell('Amount Requested', summaryValues.amount_requested, 'border-t border-gray-300'),
                             sectionCell('Release Schedule', summaryValues.release_schedule, 'border-r border-t border-gray-300'),
                             sectionCell('Number of Releases', summaryValues.release_count, 'border-t border-gray-300'),
@@ -14170,7 +14185,6 @@
             : [
                 ['Module', moduleConfig.label],
                 ['Record Number', record.record_number || 'N/A'],
-                [moduleConfig.recordTitleLabel || 'Name', getVisibleRecordTitle(record) || ''],
                 ['Record Date', record.record_date || 'N/A'],
                 ['Record Time', data.transaction_time || 'N/A'],
                 ...(shouldShowGenericAmount(record) ? [['Amount', record.amount ? formatCurrency(record.amount) : 'N/A']] : []),
@@ -14188,6 +14202,10 @@
                     ['Attachments', getAttachmentSummaryValue(record)],
                 ] : []),
             ];
+
+        if (!templateMode && moduleShowsRecordTitle(record.module_key)) {
+            rows.splice(2, 0, [moduleConfig.recordTitleLabel || 'Name', getVisibleRecordTitle(record) || '']);
+        }
 
         const templateSummaryItems = templateMode
             ? summaryItems.filter(([label]) => ['Module', 'Record Number', moduleConfig.recordTitleLabel || 'Name', 'Record Date'].includes(label))
