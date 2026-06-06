@@ -1,6 +1,7 @@
 ﻿(() => {
     const bootstrap = window.financeBootstrap || {};
     const csrfToken = bootstrap.csrfToken || '';
+    const moduleKeys = Array.isArray(bootstrap.moduleKeys) ? bootstrap.moduleKeys : [];
 
     function currentCsrfToken() {
         return document.querySelector('meta[name="csrf-token"]')?.content
@@ -1792,6 +1793,10 @@
 
     const $ = (id) => document.getElementById(id);
 
+    function canCreateFinanceModule(moduleKey) {
+        return Boolean(moduleKey && moduleKeys.includes(moduleKey) && financeModules[moduleKey]);
+    }
+
     function escapeHtml(value) {
         return String(value === null || value === undefined ? '' : value)
             .replace(/&/g, '&amp;')
@@ -3484,7 +3489,18 @@
     }
 
     function updateAddButton() {
-        $('addButton').textContent = `+ ${getModuleConfig(currentModuleKey).addLabel}`;
+        const addButton = $('addButton');
+        if (!addButton) return;
+
+        const canCreateCurrentModule = canCreateFinanceModule(currentModuleKey);
+        addButton.textContent = `+ ${getModuleConfig(currentModuleKey).addLabel}`;
+        addButton.disabled = !canCreateCurrentModule;
+        addButton.className = canCreateCurrentModule
+            ? 'bg-blue-600 text-white px-5 py-2 rounded-md text-sm hover:bg-blue-700 transition'
+            : 'bg-gray-200 text-gray-500 px-5 py-2 rounded-md text-sm cursor-not-allowed transition';
+        addButton.title = canCreateCurrentModule
+            ? ''
+            : 'You do not have permission to create records in this finance submodule.';
     }
 
     function syncInventoryHistoryBoardVisibility() {
@@ -3909,6 +3925,12 @@
         }
 
         const branchDraft = pendingLiquidationBranchDraft;
+        if (!canCreateFinanceModule(branchDraft.moduleKey)) {
+            pendingLiquidationBranchDraft = null;
+            showFinanceToast('You do not have permission to create records in this finance submodule.', 'warning');
+            return;
+        }
+
         pendingLiquidationBranchDraft = null;
         financeDraftContext = branchDraft;
         changeModule(branchDraft.moduleKey);
@@ -7970,16 +7992,16 @@
                     </div>
                 ` : ''}
                 <div class="p-4">
-                    <table class="w-full border-collapse">
+                    <table class="w-full table-fixed border-collapse">
                         ${chunkArray(entries, 2).map((row) => `
                             <tr class="align-top">
                                 ${row.map((entry) => `
-                                    <td class="w-1/2 border-b border-gray-100 pb-3 ${row.length === 1 ? 'pr-0' : 'pr-3'}">
+                                    <td class="w-1/2 min-w-0 border-b border-gray-100 pb-3 align-top ${row.length === 1 ? 'pr-0' : 'pr-3'}">
                                         <p class="text-[11px] uppercase tracking-[0.18em] text-gray-500">${escapeHtml(entry.label)}</p>
-                                        <p class="mt-1 text-[14px] font-semibold text-gray-900 break-words">${escapeHtml(entry.value)}</p>
+                                        <p class="mt-1 text-[14px] font-semibold leading-6 text-gray-900 break-words" style="overflow-wrap:anywhere;word-break:break-word;white-space:normal;">${escapeHtml(entry.value)}</p>
                                     </td>
                                 `).join('')}
-                                ${Array.from({ length: 2 - row.length }).map(() => '<td class="w-1/2 border-b border-gray-100 pb-3"></td>').join('')}
+                                ${Array.from({ length: 2 - row.length }).map(() => '<td class="w-1/2 min-w-0 border-b border-gray-100 pb-3 align-top"></td>').join('')}
                             </tr>
                         `).join('')}
                     </table>
@@ -12044,9 +12066,9 @@
 
                         <div class="relative grid grid-cols-2 border-t border-gray-300 text-sm">
                             ${summaryItems.map(([label, value], index) => `
-                                <div class="${index % 2 === 0 ? 'border-r' : ''} ${index > 1 ? 'border-t' : ''} border-gray-300 px-4 py-3">
+                                <div class="${index % 2 === 0 ? 'border-r' : ''} ${index > 1 ? 'border-t' : ''} min-w-0 border-gray-300 px-4 py-3">
                                     <p class="text-[11px] uppercase tracking-[0.22em] text-gray-500">${escapeHtml(label)}</p>
-                                    <p class="mt-1 text-[15px] font-semibold text-gray-900 break-words">${escapeHtml(value)}</p>
+                                    <p class="mt-1 text-[15px] font-semibold leading-6 text-gray-900 break-words" style="overflow-wrap:anywhere;word-break:break-word;white-space:normal;">${escapeHtml(value)}</p>
                                 </div>
                             `).join('')}
                         </div>
@@ -12066,9 +12088,9 @@
                                     ['Serial Number', serialNumber],
                                     ['Model', model],
                                 ].map(([label, value], index) => `
-                                    <div class="${index % 2 === 0 ? 'border-r' : ''} ${index > 1 ? 'border-t' : ''} border-gray-300 px-4 py-3">
+                                    <div class="${index % 2 === 0 ? 'border-r' : ''} ${index > 1 ? 'border-t' : ''} min-w-0 border-gray-300 px-4 py-3">
                                         <p class="text-[11px] uppercase tracking-[0.22em] text-gray-500">${escapeHtml(label)}</p>
-                                        <p class="mt-2 min-h-[20px] border-b border-gray-300 text-[14px] font-semibold text-gray-900 break-words">${escapeHtml(value)}</p>
+                                    <p class="mt-2 min-h-[20px] border-b border-gray-300 text-[14px] font-semibold leading-6 text-gray-900 break-words" style="overflow-wrap:anywhere;word-break:break-word;white-space:normal;">${escapeHtml(value)}</p>
                                     </div>
                                 `).join('')}
                             </div>
@@ -12099,9 +12121,9 @@
                                     ['Average Cost', averageCost],
                                     ['Last Purchase Cost', lastPurchaseCost],
                                 ].map(([label, value], index) => `
-                                    <div class="${index % 2 === 0 ? 'border-r' : ''} ${index > 1 ? 'border-t' : ''} border-gray-300 px-4 py-3">
+                                    <div class="${index % 2 === 0 ? 'border-r' : ''} ${index > 1 ? 'border-t' : ''} min-w-0 border-gray-300 px-4 py-3">
                                         <p class="text-[11px] uppercase tracking-[0.22em] text-gray-500">${escapeHtml(label)}</p>
-                                        <p class="mt-2 min-h-[20px] border-b border-gray-300 text-[14px] font-semibold text-gray-900 break-words">${escapeHtml(value)}</p>
+                                    <p class="mt-2 min-h-[20px] border-b border-gray-300 text-[14px] font-semibold leading-6 text-gray-900 break-words" style="overflow-wrap:anywhere;word-break:break-word;white-space:normal;">${escapeHtml(value)}</p>
                                     </div>
                                 `).join('')}
                             </div>
@@ -12125,9 +12147,9 @@
                                     ] : []),
                                     ['Remarks', formValues['data[remarks]'] || 'N/A'],
                                 ].map(([label, value], index) => `
-                                    <div class="${index % 2 === 0 ? 'border-r' : ''} ${index > 1 ? 'border-t' : ''} border-gray-300 px-4 py-3">
+                                    <div class="${index % 2 === 0 ? 'border-r' : ''} ${index > 1 ? 'border-t' : ''} min-w-0 border-gray-300 px-4 py-3">
                                         <p class="text-[11px] uppercase tracking-[0.22em] text-gray-500">${escapeHtml(label)}</p>
-                                        <p class="mt-2 min-h-[20px] border-b border-gray-300 text-[14px] font-semibold text-gray-900 break-words">${escapeHtml(value)}</p>
+                                    <p class="mt-2 min-h-[20px] border-b border-gray-300 text-[14px] font-semibold leading-6 text-gray-900 break-words" style="overflow-wrap:anywhere;word-break:break-word;white-space:normal;">${escapeHtml(value)}</p>
                                     </div>
                                 `).join('')}
                             </div>
@@ -12224,9 +12246,9 @@
 
                         <div class="relative grid grid-cols-2 border-t border-gray-300 text-sm">
                             ${lrSummaryItems.map(([label, value], index) => `
-                                <div class="${index % 2 === 0 ? 'border-r' : ''} ${index > 1 ? 'border-t' : ''} border-gray-300 px-4 py-3">
+                                <div class="${index % 2 === 0 ? 'border-r' : ''} ${index > 1 ? 'border-t' : ''} min-w-0 border-gray-300 px-4 py-3">
                                     <p class="text-[11px] uppercase tracking-[0.22em] text-gray-500">${escapeHtml(label)}</p>
-                                    <p class="mt-1 text-[15px] font-semibold text-gray-900 break-words">${escapeHtml(value)}</p>
+                                    <p class="mt-1 text-[15px] font-semibold leading-6 text-gray-900 break-words" style="overflow-wrap:anywhere;word-break:break-word;white-space:normal;">${escapeHtml(value)}</p>
                                 </div>
                             `).join('')}
                         </div>
@@ -12238,19 +12260,19 @@
                             <div class="grid grid-cols-1 md:grid-cols-2">
                                 <div class="border-r border-gray-300 px-4 py-3">
                                     <p class="text-[11px] uppercase tracking-[0.22em] text-gray-500">Source</p>
-                                    <p class="mt-2 min-h-[20px] border-b border-gray-300 text-[14px] font-semibold text-gray-900 break-words">CA (Cash Advance)</p>
+                                    <p class="mt-2 min-h-[20px] border-b border-gray-300 text-[14px] font-semibold leading-6 text-gray-900 break-words" style="overflow-wrap:anywhere;word-break:break-word;white-space:normal;">CA (Cash Advance)</p>
                                 </div>
                                 <div class="px-4 py-3">
                                     <p class="text-[11px] uppercase tracking-[0.22em] text-gray-500">CA Reference No.</p>
-                                    <p class="mt-2 min-h-[20px] border-b border-gray-300 text-[14px] font-semibold text-gray-900 break-words">${escapeHtml(summaryValues.ca_reference_no)}</p>
+                                    <p class="mt-2 min-h-[20px] border-b border-gray-300 text-[14px] font-semibold leading-6 text-gray-900 break-words" style="overflow-wrap:anywhere;word-break:break-word;white-space:normal;">${escapeHtml(summaryValues.ca_reference_no)}</p>
                                 </div>
                                 <div class="border-r border-gray-300 px-4 py-3">
                                     <p class="text-[11px] uppercase tracking-[0.22em] text-gray-500">CA Amount</p>
-                                    <p class="mt-2 min-h-[20px] border-b border-gray-300 text-[14px] font-semibold text-gray-900 break-words">${escapeHtml(summaryValues.ca_amount)}</p>
+                                    <p class="mt-2 min-h-[20px] border-b border-gray-300 text-[14px] font-semibold leading-6 text-gray-900 break-words" style="overflow-wrap:anywhere;word-break:break-word;white-space:normal;">${escapeHtml(summaryValues.ca_amount)}</p>
                                 </div>
                                 <div class="px-4 py-3">
                                     <p class="text-[11px] uppercase tracking-[0.22em] text-gray-500">Justification / Business Need</p>
-                                    <p class="mt-2 min-h-[20px] border-b border-gray-300 text-[14px] font-semibold text-gray-900 break-words">${escapeHtml(formValues['data[purpose]'] || 'Not filled yet')}</p>
+                                    <p class="mt-2 min-h-[20px] border-b border-gray-300 text-[14px] font-semibold leading-6 text-gray-900 break-words" style="overflow-wrap:anywhere;word-break:break-word;white-space:normal;">${escapeHtml(formValues['data[purpose]'] || 'Not filled yet')}</p>
                                 </div>
                             </div>
                         </div>
@@ -12279,9 +12301,9 @@
             const showBankTransferFields = modeOfReturnValue === 'Bank Transfer';
             const showCoaAccount = modeOfReturnValue === 'Check';
             const sectionCell = (label, value, extraClasses = '') => `
-                <div class="${extraClasses} px-4 py-3">
+                <div class="${extraClasses} min-w-0 px-4 py-3">
                     <p class="text-[11px] uppercase tracking-[0.22em] text-gray-500">${escapeHtml(label)}</p>
-                    <p class="mt-2 min-h-[20px] border-b border-gray-300 text-[14px] font-semibold text-gray-900 break-words">${escapeHtml(value || 'Not filled yet')}</p>
+                    <p class="mt-2 min-h-[20px] border-b border-gray-300 text-[14px] font-semibold leading-6 text-gray-900 break-words" style="overflow-wrap:anywhere;word-break:break-word;white-space:normal;">${escapeHtml(value || 'Not filled yet')}</p>
                 </div>
             `;
             const renderSection = (title, cells) => `
@@ -12316,9 +12338,9 @@
 
                         <div class="relative grid grid-cols-2 border-t border-gray-300 text-sm">
                             ${summaryItems.map(([label, value], index) => `
-                                <div class="${index % 2 === 0 ? 'border-r' : ''} ${index > 1 ? 'border-t' : ''} border-gray-300 px-4 py-3">
+                                <div class="${index % 2 === 0 ? 'border-r' : ''} ${index > 1 ? 'border-t' : ''} min-w-0 border-gray-300 px-4 py-3">
                                     <p class="text-[11px] uppercase tracking-[0.22em] text-gray-500">${escapeHtml(label)}</p>
-                                    <p class="mt-1 text-[15px] font-semibold text-gray-900 break-words">${escapeHtml(value)}</p>
+                                    <p class="mt-1 text-[15px] font-semibold leading-6 text-gray-900 break-words" style="overflow-wrap:anywhere;word-break:break-word;white-space:normal;">${escapeHtml(value)}</p>
                                 </div>
                             `).join('')}
                         </div>
@@ -12370,9 +12392,9 @@
                 client_id: row.querySelector('[data-pr-line-item-field="client_id"]')?.value || '',
             }));
             const sectionCell = (label, value, extraClasses = '') => `
-                <div class="${extraClasses} px-4 py-3">
+                <div class="${extraClasses} min-w-0 px-4 py-3">
                     <p class="text-[11px] uppercase tracking-[0.22em] text-gray-500">${escapeHtml(label)}</p>
-                    <p class="mt-2 min-h-[20px] border-b border-gray-300 text-[14px] font-semibold text-gray-900 break-words">${escapeHtml(value || 'Not filled yet')}</p>
+                    <p class="mt-2 min-h-[20px] border-b border-gray-300 text-[14px] font-semibold leading-6 text-gray-900 break-words" style="overflow-wrap:anywhere;word-break:break-word;white-space:normal;">${escapeHtml(value || 'Not filled yet')}</p>
                 </div>
             `;
             const renderSection = (title, cells) => `
@@ -12407,9 +12429,9 @@
 
                         <div class="relative grid grid-cols-2 border-t border-gray-300 text-sm">
                             ${summaryItems.map(([label, value], index) => `
-                                <div class="${index % 2 === 0 ? 'border-r' : ''} ${index > 1 ? 'border-t' : ''} border-gray-300 px-4 py-3">
+                                <div class="${index % 2 === 0 ? 'border-r' : ''} ${index > 1 ? 'border-t' : ''} min-w-0 border-gray-300 px-4 py-3">
                                     <p class="text-[11px] uppercase tracking-[0.22em] text-gray-500">${escapeHtml(label)}</p>
-                                    <p class="mt-1 text-[15px] font-semibold text-gray-900 break-words">${escapeHtml(value)}</p>
+                                    <p class="mt-1 text-[15px] font-semibold leading-6 text-gray-900 break-words" style="overflow-wrap:anywhere;word-break:break-word;white-space:normal;">${escapeHtml(value)}</p>
                             </div>
                         `).join('')}
                     </div>
@@ -12509,9 +12531,9 @@
                 ['Policy Acknowledgment', $('financeForm').querySelector('input[name="data[policy_acknowledgment]"]')?.checked ? 'Yes' : 'No'],
             ];
             const sectionCell = (label, value, extraClasses = '') => `
-                <div class="${extraClasses} px-4 py-3">
+                <div class="${extraClasses} min-w-0 px-4 py-3">
                     <p class="text-[11px] uppercase tracking-[0.22em] text-gray-500">${escapeHtml(label)}</p>
-                    <p class="mt-2 min-h-[20px] border-b border-gray-300 text-[14px] font-semibold text-gray-900 break-words">${escapeHtml(value || 'Not filled yet')}</p>
+                    <p class="mt-2 min-h-[20px] border-b border-gray-300 text-[14px] font-semibold leading-6 text-gray-900 break-words" style="overflow-wrap:anywhere;word-break:break-word;white-space:normal;">${escapeHtml(value || 'Not filled yet')}</p>
                 </div>
             `;
             const renderSection = (title, cells) => `
@@ -12545,9 +12567,9 @@
 
                         <div class="relative grid grid-cols-2 border-t border-gray-300 text-sm">
                             ${summaryItems.map(([label, value], index) => `
-                                <div class="${index % 2 === 0 ? 'border-r' : ''} ${index > 1 ? 'border-t' : ''} border-gray-300 px-4 py-3">
+                                <div class="${index % 2 === 0 ? 'border-r' : ''} ${index > 1 ? 'border-t' : ''} min-w-0 border-gray-300 px-4 py-3">
                                     <p class="text-[11px] uppercase tracking-[0.22em] text-gray-500">${escapeHtml(label)}</p>
-                                    <p class="mt-1 text-[15px] font-semibold text-gray-900 break-words">${escapeHtml(value)}</p>
+                                    <p class="mt-1 text-[15px] font-semibold leading-6 text-gray-900 break-words" style="overflow-wrap:anywhere;word-break:break-word;white-space:normal;">${escapeHtml(value)}</p>
                                 </div>
                             `).join('')}
                         </div>
@@ -12661,9 +12683,9 @@
             const costCenterLabel = formValues['data[cost_center]'] || 'Not filled yet';
             const supplierLabel = getLookupLabel('supplier', formValues['data[supplier_id]']) || formValues['data[supplier_id]'] || 'Not filled yet';
             const sectionCell = (label, value, extraClasses = '') => `
-                <div class="${extraClasses} px-4 py-3">
+                <div class="${extraClasses} min-w-0 px-4 py-3">
                     <p class="text-[11px] uppercase tracking-[0.22em] text-gray-500">${escapeHtml(label)}</p>
-                    <p class="mt-2 min-h-[20px] border-b border-gray-300 text-[14px] font-semibold text-gray-900 break-words">${escapeHtml(value || 'Not filled yet')}</p>
+                    <p class="mt-2 min-h-[20px] border-b border-gray-300 text-[14px] font-semibold leading-6 text-gray-900 break-words" style="overflow-wrap:anywhere;word-break:break-word;white-space:normal;">${escapeHtml(value || 'Not filled yet')}</p>
                 </div>
             `;
             const renderSection = (title, cells) => `
@@ -12698,9 +12720,9 @@
 
                     <div class="relative grid grid-cols-2 border-t border-gray-300 text-sm">
                         ${summaryItems.map(([label, value], index) => `
-                            <div class="${index % 2 === 0 ? 'border-r' : ''} ${index > 1 ? 'border-t' : ''} border-gray-300 px-4 py-3">
+                            <div class="${index % 2 === 0 ? 'border-r' : ''} ${index > 1 ? 'border-t' : ''} min-w-0 border-gray-300 px-4 py-3">
                                 <p class="text-[11px] uppercase tracking-[0.22em] text-gray-500">${escapeHtml(label)}</p>
-                                <p class="mt-1 text-[15px] font-semibold text-gray-900 break-words">${escapeHtml(value)}</p>
+                                <p class="mt-1 text-[15px] font-semibold leading-6 text-gray-900 break-words" style="overflow-wrap:anywhere;word-break:break-word;white-space:normal;">${escapeHtml(value)}</p>
                             </div>
                         `).join('')}
                     </div>
@@ -12983,9 +13005,9 @@
             const renderPairGrid = (pairs) => `
                 <div class="grid grid-cols-1 md:grid-cols-2">
                     ${pairs.map(([label, value], index) => `
-                        <div class="${index % 2 === 0 ? 'border-r' : ''} ${index > 1 ? 'border-t' : ''} border-gray-300 px-4 py-3">
+                        <div class="${index % 2 === 0 ? 'border-r' : ''} ${index > 1 ? 'border-t' : ''} min-w-0 border-gray-300 px-4 py-3">
                             <p class="text-[11px] uppercase tracking-[0.22em] text-gray-500">${escapeHtml(label)}</p>
-                            <p class="mt-2 min-h-[20px] border-b border-gray-300 text-[14px] font-semibold text-gray-900 break-words">${escapeHtml(value)}</p>
+                            <p class="mt-2 min-h-[20px] border-b border-gray-300 text-[14px] font-semibold leading-6 text-gray-900 break-words" style="overflow-wrap:anywhere;word-break:break-word;white-space:normal;">${escapeHtml(value)}</p>
                         </div>
                     `).join('')}
                 </div>
@@ -13143,9 +13165,9 @@
 
                         <div class="relative grid grid-cols-2 border-t border-gray-300 text-sm">
                             ${summaryItems.map(([label, value], index) => `
-                                <div class="${index % 2 === 0 ? 'border-r' : ''} ${index > 1 ? 'border-t' : ''} border-gray-300 px-4 py-3">
+                                <div class="${index % 2 === 0 ? 'border-r' : ''} ${index > 1 ? 'border-t' : ''} min-w-0 border-gray-300 px-4 py-3">
                                     <p class="text-[11px] uppercase tracking-[0.22em] text-gray-500">${escapeHtml(label)}</p>
-                                    <p class="mt-1 text-[15px] font-semibold text-gray-900 break-words">${escapeHtml(value)}</p>
+                                    <p class="mt-1 text-[15px] font-semibold leading-6 text-gray-900 break-words" style="overflow-wrap:anywhere;word-break:break-word;white-space:normal;">${escapeHtml(value)}</p>
                                 </div>
                             `).join('')}
                         </div>
@@ -13238,7 +13260,7 @@
             return `
                 <div class="${cellClasses}">
                     <p class="text-[11px] uppercase tracking-[0.22em] text-gray-500">${escapeHtml(field.label)}</p>
-                    <p class="mt-2 min-h-[20px] border-b border-gray-300 text-[14px] font-semibold text-gray-900 break-words">${escapeHtml(getFormDisplayValue(field, value, formValues))}</p>
+                    <p class="mt-2 min-h-[20px] border-b border-gray-300 text-[14px] font-semibold leading-6 text-gray-900 break-words" style="overflow-wrap:anywhere;word-break:break-word;white-space:normal;">${escapeHtml(getFormDisplayValue(field, value, formValues))}</p>
                 </div>
             `;
         }).join('');
@@ -13264,9 +13286,9 @@
 
                 <div class="relative grid grid-cols-2 border-t border-gray-300 text-sm">
                     ${summaryItems.map(([label, value], index) => `
-                        <div class="${index % 2 === 0 ? 'border-r' : ''} ${index > 1 ? 'border-t' : ''} border-gray-300 px-4 py-3">
+                        <div class="${index % 2 === 0 ? 'border-r' : ''} ${index > 1 ? 'border-t' : ''} min-w-0 border-gray-300 px-4 py-3">
                             <p class="text-[11px] uppercase tracking-[0.22em] text-gray-500">${escapeHtml(label)}</p>
-                            <p class="mt-1 text-[15px] font-semibold text-gray-900 break-words">${escapeHtml(value)}</p>
+                            <p class="mt-1 text-[15px] font-semibold leading-6 text-gray-900 break-words" style="overflow-wrap:anywhere;word-break:break-word;white-space:normal;">${escapeHtml(value)}</p>
                         </div>
                     `).join('')}
                 </div>
@@ -13304,6 +13326,11 @@
     }
 
     function openFinanceDrawer(record = null) {
+        if (!record && !canCreateFinanceModule(currentModuleKey)) {
+            showFinanceToast('You do not have permission to create records in this finance submodule.', 'warning');
+            return;
+        }
+
         currentEditRecordId = record ? record.id : null;
         renderFinanceForm(record);
         const drawerSection = $('drawerSection');
@@ -13319,6 +13346,10 @@
             : getRecordById(sourceRecord);
 
         if (!resolvedSourceRecord || !moduleKey) return;
+        if (!canCreateFinanceModule(moduleKey)) {
+            showFinanceToast('You do not have permission to create records in this finance submodule.', 'warning');
+            return;
+        }
 
         currentModuleKey = moduleKey;
         currentWorkflowFilter = 'all';
@@ -15026,10 +15057,10 @@
                 || matchesAny(relationshipStatus, ['awaiting disbursement', 'pending disbursement', 'approved for release', 'partially disbursed']);
             const canOpenLiquidationReport = matchesAny(nextAction, ['submit liquidation report'])
                 || matchesAny(relationshipStatus, ['awaiting liquidation', 'awaiting liquidation approval', 'disbursed']);
-            if (canOpenDisbursementVoucher && !isFinalWorkflow) {
+            if (canOpenDisbursementVoucher && !isFinalWorkflow && canCreateFinanceModule('dv')) {
                 actions.push(`<button type="button" onclick="window.financeModule.openDisbursementVoucherFromSource(${record.id}, event)" class="w-full bg-indigo-600 text-white rounded-md py-2 hover:bg-indigo-700">Create Disbursement Voucher</button>`);
             }
-            if (canOpenLiquidationReport) {
+            if (canOpenLiquidationReport && canCreateFinanceModule('lr')) {
                 actions.push(`<button type="button" onclick="window.financeModule.openLiquidationReportFromSource(${record.id})" class="w-full bg-indigo-600 text-white rounded-md py-2 hover:bg-indigo-700">Create Liquidation Report</button>`);
             }
         }
@@ -15050,14 +15081,14 @@
         const canCreateAssetFromSource = record.module_key === 'po'
             || (record.module_key === 'dv' && dvSourceType === 'po');
 
-        if (canCreateAssetFromSource && !isFinalWorkflow) {
+        if (canCreateAssetFromSource && !isFinalWorkflow && canCreateFinanceModule('arf')) {
             actions.push(`<button type="button" onclick="window.financeModule.openAssetRecordFromSource(${record.id})" class="w-full bg-indigo-600 text-white rounded-md py-2 hover:bg-indigo-700">Create Asset / Inventory File</button>`);
         }
 
         if (record.module_key === 'pr' && !isFinalWorkflow) {
             const canOpenPurchaseOrder = matchesAny(nextAction, ['create purchase order'])
                 || matchesAny(relationshipStatus, ['awaiting purchase order', 'converted to purchase order', 'purchase order approved']);
-            if (canOpenPurchaseOrder) {
+            if (canOpenPurchaseOrder && canCreateFinanceModule('po')) {
                 actions.push(`<button type="button" onclick="window.financeModule.openPurchaseOrderFromSource(${record.id})" class="w-full bg-indigo-600 text-white rounded-md py-2 hover:bg-indigo-700">Create Purchase Order</button>`);
             }
         }
@@ -15087,7 +15118,11 @@
             const variance = caAmount - effectiveActualExpenses;
             const varianceIndicator = variance > 0 ? 'Overage' : (variance < 0 ? 'Shortage' : 'Balanced');
 
-            if (lrApproved && (varianceIndicator === 'Shortage' || varianceIndicator === 'Overage')) {
+            if (
+                lrApproved
+                && (varianceIndicator === 'Shortage' || varianceIndicator === 'Overage')
+                && canCreateFinanceModule(varianceIndicator === 'Shortage' ? 'err' : 'crf')
+            ) {
                 actions.push(`<button type="button" onclick="window.financeModule.openPreviewLiquidationBranch(${record.id})" class="w-full bg-indigo-600 text-white rounded-md py-2 hover:bg-indigo-700">${varianceIndicator === 'Shortage' ? 'Create ERR' : 'Create CRF'}</button>`);
             }
         }
@@ -15127,6 +15162,7 @@
         const showCreateDisbursementVoucher = ['po', 'err', 'pda', 'ibtf', 'crf'].includes(record.module_key)
             && !isFinalWorkflow
             && !linkedDisbursementVoucherId
+            && canCreateFinanceModule('dv')
             && (
                 disbursementButtonStatus === 'Create Disbursement Voucher'
                 || matchesAny(disbursementRelationshipStatus.toLowerCase(), ['awaiting disbursement voucher', 'awaiting disbursement', 'partially disbursed'])

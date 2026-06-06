@@ -873,11 +873,7 @@ class FinanceController extends Controller
 
     private function currentUserHasFinanceWideAccess(): bool
     {
-        $user = Auth::user();
-
-        return $this->canAdministerFinance()
-            || $this->currentUserIsDefaultFinanceApprover()
-            || (bool) $user?->hasPermission('approve_finance');
+        return $this->canAdministerFinance();
     }
 
     private function currentUserCanOpenFinance(): bool
@@ -892,7 +888,12 @@ class FinanceController extends Controller
             return true;
         }
 
-        if ($user->hasPermission('access_finance') || $user->hasPermission('create_finance')) {
+        if (
+            $user->hasPermission('access_finance')
+            || $user->hasPermission('create_finance')
+            || $user->hasPermission('approve_finance')
+            || $this->currentUserIsDefaultFinanceApprover()
+        ) {
             return true;
         }
 
