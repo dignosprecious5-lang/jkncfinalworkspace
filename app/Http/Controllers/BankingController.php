@@ -113,6 +113,8 @@ class BankingController extends Controller
             'document_path' => $primaryDocument['path'] ?? null,
         ]);
 
+        $this->notifyCorporateApproversOfSubmission($entry->fresh(), 'banking');
+
         return response()->json([
             'message' => 'Banking record saved successfully.',
             'data' => $this->transformRecord($entry),
@@ -171,6 +173,8 @@ class BankingController extends Controller
             'approval_status' => 'Pending',
             'review_note' => null,
         ]);
+
+        $this->notifyCorporateApproversOfSubmission($record->fresh(), 'banking');
 
         return response()->json([
             'message' => 'Banking record submitted for approval successfully.',

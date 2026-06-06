@@ -168,6 +168,7 @@ class PermitController extends Controller
         ]);
 
         $this->syncPermitDeadline($permit);
+        $this->notifyCorporateApproversOfSubmission($permit->fresh(), 'lgu');
 
         return response()->json([
             'message' => 'LGU compliance record saved successfully.',
@@ -274,6 +275,8 @@ class PermitController extends Controller
             'approval_status' => 'Pending',
             'review_note' => null,
         ]);
+
+        $this->notifyCorporateApproversOfSubmission($record->fresh(), 'lgu');
 
         return response()->json(['message' => 'LGU submitted for approval.']);
     }

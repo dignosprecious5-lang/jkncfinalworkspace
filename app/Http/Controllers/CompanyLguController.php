@@ -113,6 +113,8 @@ class CompanyLguController extends Controller
             'review_note' => null,
         ]);
 
+        $this->notifyCorporateApproversOfSubmission($permit->fresh(), 'lgu');
+
         return response()->json([
             'message' => 'LGU compliance record saved successfully.',
             'data' => $this->transformRecord($permit->fresh()),
@@ -188,6 +190,8 @@ class CompanyLguController extends Controller
             'approval_status' => 'Pending',
             'review_note' => null,
         ]);
+
+        $this->notifyCorporateApproversOfSubmission($permit->fresh(), 'lgu');
 
         return response()->json(['message' => 'LGU submitted for approval.']);
     }

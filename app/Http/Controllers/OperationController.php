@@ -122,6 +122,8 @@ class OperationController extends Controller
             'document_path' => $primaryDocument['path'] ?? null,
         ]);
 
+        $this->notifyCorporateApproversOfSubmission($entry->fresh(), 'operations');
+
         return response()->json([
             'message' => 'Operations record saved successfully.',
             'data' => $this->transformRecord($entry),
@@ -181,6 +183,8 @@ class OperationController extends Controller
             'approval_status' => 'Pending',
             'review_note' => null,
         ]);
+
+        $this->notifyCorporateApproversOfSubmission($record->fresh(), 'operations');
 
         return response()->json([
             'message' => 'Operations record submitted for approval successfully.',
