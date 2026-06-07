@@ -1010,7 +1010,7 @@
                         <a href="{{ route('sales-marketing.earners.index') }}"
                            class="block px-3 py-2 rounded-lg transition
                            {{ request()->routeIs('sales-marketing.earners.*') ? 'bg-blue-50 text-blue-700 border border-blue-100 font-semibold' : 'hover:bg-gray-100 text-gray-700' }}">
-                            Commission Earners
+                            Incentive Earners
                         </a>
 
                         <a href="{{ route('sales-marketing.ida.index') }}"
