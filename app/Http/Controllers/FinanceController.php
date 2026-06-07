@@ -873,11 +873,7 @@ class FinanceController extends Controller
 
     private function currentUserHasFinanceWideAccess(): bool
     {
-        $user = Auth::user();
-
-        return $this->canAdministerFinance()
-            || $this->currentUserIsDefaultFinanceApprover()
-            || (bool) $user?->hasPermission('approve_finance');
+        return $this->canAdministerFinance();
     }
 
     private function currentUserCanOpenFinance(): bool
@@ -892,7 +888,12 @@ class FinanceController extends Controller
             return true;
         }
 
-        if ($user->hasPermission('access_finance') || $user->hasPermission('create_finance')) {
+        if (
+            $user->hasPermission('access_finance')
+            || $user->hasPermission('create_finance')
+            || $user->hasPermission('approve_finance')
+            || $this->currentUserIsDefaultFinanceApprover()
+        ) {
             return true;
         }
 
@@ -2321,16 +2322,7 @@ SVG;
             }));
 
             foreach ($liquidationLineItems as $item) {
-                $quantity = (float) data_get($item, 'quantity', 0);
-                $amount = (float) data_get($item, 'amount', 0);
-                $rowSubtotal = $quantity * $amount;
-                $discountPercent = (float) str_replace('%', '', (string) data_get($item, 'discount', '0'));
-                $manualDiscount = (float) data_get($item, 'discount_amount', 0);
-                $discountAmount = $discountPercent > 0 ? $rowSubtotal * ($discountPercent / 100) : $manualDiscount;
-                $shippingAmount = (float) data_get($item, 'shipping_amount', 0);
-                $taxAmount = (float) data_get($item, 'tax_amount', 0);
-                $whtAmount = (float) data_get($item, 'wht_amount', 0);
-                $liquidationLineItemsTotal += $rowSubtotal - $discountAmount + $shippingAmount + $taxAmount - $whtAmount;
+                $liquidationLineItemsTotal += $this->financeLiquidationLineItemTotal($item);
             }
 
             $liquidationCashAdvance = (float) (data_get($data, 'total_cash_advance') ?: data_get($linkedCaData, 'amount_requested') ?: 0);
@@ -2962,6 +2954,12 @@ SVG;
                 data_get($data, 'amount'),
                 $record->amount,
             ],
+            'ca' => [
+                data_get($data, 'amount_requested'),
+                data_get($data, 'total_cash_advance'),
+                data_get($data, 'amount'),
+                $record->amount,
+            ],
             default => [
                 data_get($data, 'amount'),
                 data_get($data, 'grand_total'),
@@ -3298,16 +3296,7 @@ SVG;
             }));
             $lineItemsTotal = 0.0;
             foreach ($lineItems as $item) {
-                $quantity = (float) data_get($item, 'quantity', 0);
-                $amount = (float) data_get($item, 'amount', 0);
-                $rowSubtotal = $quantity * $amount;
-                $discountPercent = (float) str_replace('%', '', (string) data_get($item, 'discount', '0'));
-                $manualDiscount = (float) data_get($item, 'discount_amount', 0);
-                $discountAmount = $discountPercent > 0 ? $rowSubtotal * ($discountPercent / 100) : $manualDiscount;
-                $shippingAmount = (float) data_get($item, 'shipping_amount', 0);
-                $taxAmount = (float) data_get($item, 'tax_amount', 0);
-                $whtAmount = (float) data_get($item, 'wht_amount', 0);
-                $lineItemsTotal += $rowSubtotal - $discountAmount + $shippingAmount + $taxAmount - $whtAmount;
+                $lineItemsTotal += $this->financeLiquidationLineItemTotal($item);
             }
             $actualExpenses = $lineItemsTotal > 0
                 ? $lineItemsTotal
@@ -3446,16 +3435,7 @@ SVG;
             }));
             $lineItemsTotal = 0.0;
             foreach ($lineItems as $item) {
-                $quantity = (float) data_get($item, 'quantity', 0);
-                $amount = (float) data_get($item, 'amount', 0);
-                $rowSubtotal = $quantity * $amount;
-                $discountPercent = (float) str_replace('%', '', (string) data_get($item, 'discount', '0'));
-                $manualDiscount = (float) data_get($item, 'discount_amount', 0);
-                $discountAmount = $discountPercent > 0 ? $rowSubtotal * ($discountPercent / 100) : $manualDiscount;
-                $shippingAmount = (float) data_get($item, 'shipping_amount', 0);
-                $taxAmount = (float) data_get($item, 'tax_amount', 0);
-                $whtAmount = (float) data_get($item, 'wht_amount', 0);
-                $lineItemsTotal += $rowSubtotal - $discountAmount + $shippingAmount + $taxAmount - $whtAmount;
+                $lineItemsTotal += $this->financeLiquidationLineItemTotal($item);
             }
             $actualExpenses = $lineItemsTotal > 0
                 ? $lineItemsTotal
@@ -3555,9 +3535,12 @@ SVG;
         $dvApproved = $record->module_key === 'dv'
             ? $this->financeRecordIsApproved($record)
             : $this->financeRecordIsApproved($dv);
-        $fundsReleased = $this->financeRecordIsReleased($record)
-            || $this->financeRecordIsReleased($dv)
-            || ($sourceRecord ? $this->financeRecordIsReleased($sourceRecord) : false);
+        $fundsReleased = $record->module_key === 'ca'
+            ? $this->financeRecordIsReleased($dv)
+            : (
+                $this->financeRecordIsReleased($record)
+                || $this->financeRecordIsReleased($dv)
+            );
         $supportingDocumentsSubmitted = collect([$record, $sourceRecord, $dv, $lr])
             ->filter(fn ($candidate) => $candidate instanceof FinanceRecord)
             ->contains(fn (FinanceRecord $candidate) => !blank((array) ($candidate->attachments ?? [])));
@@ -3570,7 +3553,7 @@ SVG;
             ['label' => 'Source Document Approved', 'completed' => $sourceDocumentApproved],
             ['label' => 'DV Created', 'completed' => $dvCreated],
             ['label' => 'DV Approved', 'completed' => $dvApproved],
-            ['label' => 'Funds Released', 'completed' => $fundsReleased],
+            ['label' => 'Fund Release', 'completed' => $fundsReleased],
             ['label' => 'Supporting Documents Submitted', 'completed' => $supportingDocumentsSubmitted],
             ['label' => 'Transaction Completed', 'completed' => $completed],
         ];
@@ -3691,6 +3674,25 @@ SVG;
                 $this->sendFinanceRecordWorkflowNotification($linkedRecord, 'liquidation_due');
             }
         }
+    }
+
+    private function financeLiquidationLineItemTotal(array $item): float
+    {
+        if (!blank(data_get($item, 'total'))) {
+            return (float) data_get($item, 'total', 0);
+        }
+
+        $quantity = (float) data_get($item, 'quantity', 0);
+        $amount = (float) data_get($item, 'amount', 0);
+        $rowSubtotal = (float) data_get($item, 'subtotal', $quantity * $amount);
+        $discountPercent = (float) str_replace('%', '', (string) data_get($item, 'discount', '0'));
+        $manualDiscount = (float) data_get($item, 'discount_amount', 0);
+        $discountAmount = $discountPercent > 0 ? $rowSubtotal * ($discountPercent / 100) : $manualDiscount;
+        $shippingAmount = (float) data_get($item, 'shipping_amount', 0);
+        $taxAmount = (float) data_get($item, 'tax_amount', 0);
+        $whtAmount = (float) data_get($item, 'wht_amount', 0);
+
+        return $rowSubtotal - $discountAmount + $shippingAmount + $taxAmount - $whtAmount;
     }
 
     private function financeLegacyLineItems(FinanceRecord $record): array
@@ -3930,6 +3932,34 @@ SVG;
         }, $groups));
     }
 
+    private function financePreviewItemizationLineItems(FinanceRecord $record, array $lookupOptions): array
+    {
+        if ($record->module_key === 'dv') {
+            $sourceType = (string) data_get($record->data ?? [], 'source_document_type', '');
+            $sourceId = data_get($record->data ?? [], 'source_document_id');
+            $sourceRecord = $sourceType !== '' && filled($sourceId)
+                ? $this->financeResolveModuleRecord($sourceType, $sourceId)
+                : null;
+
+            return $sourceRecord
+                ? $this->financeResolvedLineItems($sourceRecord, $lookupOptions)
+                : [];
+        }
+
+        if (in_array($record->module_key, ['err', 'crf'], true)) {
+            $linkedLrId = data_get($record->data ?? [], 'linked_lr_id');
+            $linkedLr = filled($linkedLrId)
+                ? $this->financeResolveModuleRecord('lr', $linkedLrId)
+                : null;
+
+            if ($linkedLr) {
+                return $this->financeResolvedLineItems($linkedLr, $lookupOptions);
+            }
+        }
+
+        return $this->financeResolvedLineItems($record, $lookupOptions);
+    }
+
     private function financePreviewSections(FinanceRecord $record, array $lookupOptions, bool $forceSupplierTemplate = false): array
     {
         $moduleKey = $record->module_key;
@@ -4166,8 +4196,6 @@ SVG;
                     ['name' => 'release_schedule', 'label' => 'Release Schedule'],
                     ['name' => 'release_count', 'label' => 'Number of Releases'],
                     ['name' => 'amount_per_release', 'label' => 'Amount per Release'],
-                    ['name' => 'cash_release_date', 'label' => 'Cash Release Date'],
-                    ['name' => 'cash_release_time', 'label' => 'Cash Release Time'],
                     ['name' => 'mode_of_release', 'label' => 'Mode of Release'],
                     ['name' => 'paid_through', 'label' => 'Paid Through'],
                     ['name' => 'purpose', 'label' => 'Justification / Business Need'],
@@ -4446,25 +4474,35 @@ SVG;
             ->filter(fn ($entry) => is_array($entry))
             ->values();
         $entriesByRelease = $entries->groupBy(fn (array $entry) => (int) data_get($entry, 'release_no', 0));
+        $releaseEntries = collect((array) data_get($data, 'release_entries', []))
+            ->filter(fn ($entry) => is_array($entry))
+            ->keyBy(fn (array $entry) => (int) data_get($entry, 'release_no', 0));
 
-        $rows = collect(range(1, $releaseCount))->map(function (int $releaseNo) use ($releaseCount, $amount, $amountPerRelease, $entriesByRelease, $data) {
-            $releaseEntries = $entriesByRelease->get($releaseNo, collect());
-            $paidAmount = $releaseEntries->sum(fn (array $entry) => (float) data_get($entry, 'payment_amount', 0));
-            $scheduledAmount = $releaseNo === $releaseCount
-                ? max($amount - ($amountPerRelease * ($releaseCount - 1)), 0)
-                : $amountPerRelease;
-            $latestPayment = $releaseEntries->last() ?: [];
+        $rows = collect(range(1, $releaseCount))->map(function (int $releaseNo) use ($releaseCount, $amount, $amountPerRelease, $entriesByRelease, $releaseEntries, $data) {
+            $paymentEntries = $entriesByRelease->get($releaseNo, collect());
+            $paidAmount = $paymentEntries->sum(fn (array $entry) => (float) data_get($entry, 'payment_amount', 0));
+            $schedule = (array) $releaseEntries->get($releaseNo, []);
+            $scheduledAmount = (float) data_get(
+                $schedule,
+                'scheduled_amount',
+                $releaseNo === $releaseCount
+                    ? max($amount - ($amountPerRelease * ($releaseCount - 1)), 0)
+                    : $amountPerRelease
+            );
+            $latestPayment = $paymentEntries->last() ?: [];
             $status = $paidAmount >= $scheduledAmount && $scheduledAmount > 0
                 ? 'Paid'
                 : ($paidAmount > 0 ? 'Partial' : 'Pending');
 
             return [
                 'no' => $releaseNo,
-                'scheduled_date' => $releaseNo === 1 ? (data_get($data, 'cash_release_date') ?: '-') : '-',
+                'scheduled_date' => data_get($schedule, 'scheduled_date') ?: ($releaseNo === 1 ? (data_get($data, 'cash_release_date') ?: '-') : '-'),
+                'scheduled_time' => data_get($schedule, 'scheduled_time') ?: ($releaseNo === 1 ? (data_get($data, 'cash_release_time') ?: '-') : '-'),
                 'scheduled_amount' => number_format($scheduledAmount, 2),
+                'scheduled_remarks' => trim((string) data_get($schedule, 'scheduled_remarks', '')),
                 'paid_amount' => number_format($paidAmount, 2),
                 'payment_date' => data_get($latestPayment, 'payment_date') ?: '-',
-                'payment_remarks' => $releaseEntries->pluck('payment_remarks')->filter()->implode(' | '),
+                'payment_remarks' => $paymentEntries->pluck('payment_remarks')->filter()->implode(' | '),
                 'status' => $status,
             ];
         })->values();
@@ -4599,6 +4637,7 @@ SVG;
         }
 
         $lineItems = $this->financeResolvedLineItems($record, $lookupOptions);
+        $itemizationLineItems = $this->financePreviewItemizationLineItems($record, $lookupOptions);
         $lineItemsTotal = array_reduce($lineItems, function (float $carry, array $item) {
             return $carry + (float) ($item['total_value'] ?? 0);
         }, 0.0);
@@ -4775,6 +4814,7 @@ SVG;
             'detailRows' => $detailRows,
             'previewSections' => $this->financePreviewSections($record, $lookupOptions, $forceSupplierTemplate),
             'lineItems' => $lineItems,
+            'itemizationLineItems' => $itemizationLineItems,
             'poSupplierGroups' => $poSupplierGroups,
             'dvSourceDocumentType' => $dvSourceDocumentType,
             'dvSourceRecord' => $dvSourceRecord,
@@ -5449,8 +5489,8 @@ SVG;
 
     private function canApproveSubmittedFinanceRecord(FinanceRecord $record): bool
     {
-        return $this->currentUserIsFinanceApprover($record)
-            && in_array($record->workflow_status ?? 'Uploaded', ['Submitted', 'On Hold'], true)
+        return ($this->canApproveFinance() || $this->currentUserIsFinanceApprover($record))
+            && in_array($record->workflow_status ?? 'Uploaded', ['Submitted', 'Pending Approval', 'On Hold'], true)
             && in_array($record->approval_status ?? 'Pending', ['Pending', 'Partially Approved', 'On Hold'], true)
             && ! $this->currentUserHasApprovedFinanceRecord($record);
     }
@@ -6661,6 +6701,11 @@ SVG;
             $data['asset_last_event'] = data_get($data, 'asset_last_event') ?: 'Asset Registered';
         }
 
+        if ($record->module_key === 'dv') {
+            $data['line_items'] = $this->financeNormalizedDvLineItems($record, $data);
+            $data = array_merge($data, $this->financeDvAccountingSummaryFromLineItems((array) $data['line_items']));
+        }
+
         return [
             'id' => $record->id,
             'module_key' => $record->module_key,
@@ -6839,6 +6884,8 @@ SVG;
             'payee_type' => data_get($data, 'payee_type') ?: data_get($this->financeSourceDocumentPayeeSnapshot($record), 'payee_type', ''),
             'payee_name' => data_get($data, 'payee_name') ?: data_get($this->financeSourceDocumentPayeeSnapshot($record), 'payee_name', ''),
             'amount' => $firstFilled([
+                ((string) $record->module_key === 'ca' ? data_get($data, 'amount_requested') : null),
+                ((string) $record->module_key === 'ca' ? data_get($data, 'total_cash_advance') : null),
                 data_get($data, 'amount'),
                 data_get($data, 'grand_total'),
                 data_get($data, 'amount_requested'),
@@ -7231,7 +7278,7 @@ SVG;
             return null;
         }
 
-        $lineItems = array_values(array_filter((array) data_get($financeRecord->data ?? [], 'line_items', []), fn ($item) => is_array($item)));
+        $lineItems = $this->financeNormalizedDvLineItems($financeRecord, $financeRecord->data ?? []);
         $totalDebit = 0.0;
         $totalCredit = 0.0;
 
@@ -7252,7 +7299,12 @@ SVG;
             'status' => $isBalanced ? 'Balanced' : 'Unbalanced',
             'warning' => $isBalanced
                 ? null
-                : 'Total Debit must equal Total Credit before the Disbursement Voucher can be approved.',
+                : sprintf(
+                    'Total Debit must equal Total Credit before the Disbursement Voucher can be approved. Current totals: Debit %s, Credit %s, Difference %s.',
+                    number_format($totalDebit, 2, '.', ','),
+                    number_format($totalCredit, 2, '.', ','),
+                    number_format($difference, 2, '.', ',')
+                ),
         ];
     }
 
@@ -7269,18 +7321,10 @@ SVG;
             : null;
         $sourceSnapshot = $sourceRecord ? $this->financeSourceDocumentSnapshot($sourceRecord) : [];
 
-        $currentAttachments = collect($attachments)->filter(fn ($attachment) => is_array($attachment) && collect($attachment)->contains(fn ($value) => !blank($value)));
-        $sourceAttachments = collect((array) ($sourceRecord?->attachments ?? []))->filter(fn ($attachment) => is_array($attachment) && collect($attachment)->contains(fn ($value) => !blank($value)));
-        $hasSupportingAttachments = $currentAttachments->isNotEmpty() || $sourceAttachments->isNotEmpty();
-
         $requirements = [];
 
         if (!$this->financeRecordIsApproved($financeRecord)) {
             $requirements[] = 'Fully approved';
-        }
-
-        if (! $hasSupportingAttachments) {
-            $requirements[] = 'required attachments uploaded';
         }
 
         if (!in_array($sourceDocumentType, ['err', 'ibtf', 'crf'], true) && blank(data_get($data, 'fund_source')) && blank(data_get($sourceSnapshot, 'fund_source'))) {
@@ -7325,6 +7369,177 @@ SVG;
             'status' => 'Blocked',
             'warning' => 'The Disbursement Voucher cannot be marked as disbursed until it is ' . collect($requirements)->join(', ') . '.',
             'missing' => $requirements,
+        ];
+    }
+
+    private function financeDvSourceRecord(FinanceRecord $financeRecord, array $payload = []): ?FinanceRecord
+    {
+        $sourceType = (string) data_get($payload, 'source_document_type', data_get($financeRecord->data ?? [], 'source_document_type', ''));
+        $sourceId = data_get($payload, 'source_document_id', data_get($financeRecord->data ?? [], 'source_document_id'));
+
+        if (blank($sourceType) || blank($sourceId)) {
+            return null;
+        }
+
+        return $this->financeResolveModuleRecord($sourceType, $sourceId);
+    }
+
+    private function financeResolveBankAccountCreditCoaId(mixed $bankAccountValue): ?int
+    {
+        $bankAccount = blank($bankAccountValue)
+            ? null
+            : $this->financeResolveModuleRecord('bank_account', $bankAccountValue);
+
+        if (! $bankAccount) {
+            return null;
+        }
+
+        $bankData = is_array($bankAccount->data ?? null) ? $bankAccount->data : [];
+        $candidates = array_values(array_filter([
+            data_get($bankData, 'linked_coa_id'),
+            data_get($bankData, 'linked_chart_account_id'),
+            data_get($bankData, 'coa_id'),
+            data_get($bankData, 'chart_account_id'),
+            data_get($bankData, 'bank_coa_id'),
+            data_get($bankData, 'default_credit_coa_id'),
+        ], fn ($value) => filled($value)));
+
+        foreach ($candidates as $candidate) {
+            if (is_numeric($candidate)) {
+                $chartAccount = $this->financeResolveModuleRecord('chart_account', $candidate);
+                if ($chartAccount) {
+                    return (int) $chartAccount->id;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private function financeNormalizeDvLineItems(array $lineItems, FinanceRecord $financeRecord, array $payload = []): array
+    {
+        $normalizedRows = collect($lineItems)
+            ->filter(fn ($item) => is_array($item) && collect($item)->contains(fn ($value) => !blank($value)))
+            ->map(function (array $item, int $index): array {
+                $debit = (float) data_get($item, 'debit', 0);
+                $credit = (float) data_get($item, 'credit', 0);
+
+                return [
+                    'description' => trim((string) data_get($item, 'description', '')),
+                    'account_code' => trim((string) data_get($item, 'account_code', '')),
+                    'debit' => $debit > 0 ? number_format($debit, 2, '.', '') : '',
+                    'credit' => $credit > 0 ? number_format($credit, 2, '.', '') : '',
+                ];
+            })
+            ->values()
+            ->all();
+
+        $debitTotal = collect($normalizedRows)->sum(fn (array $row) => (float) data_get($row, 'debit', 0));
+        $creditTotal = collect($normalizedRows)->sum(fn (array $row) => (float) data_get($row, 'credit', 0));
+        if ($debitTotal <= 0) {
+            return $normalizedRows;
+        }
+
+        $creditAccountId = $this->financeResolveBankAccountCreditCoaId(
+            data_get($payload, 'bank_account_id')
+                ?: data_get($financeRecord->data ?? [], 'bank_account_id')
+                ?: data_get($payload, 'source_bank_account_id')
+                ?: data_get($financeRecord->data ?? [], 'source_bank_account_id')
+                ?: data_get($payload, 'funding_bank_account_id')
+                ?: data_get($financeRecord->data ?? [], 'funding_bank_account_id')
+                ?: data_get($payload, 'receiving_bank_account_id')
+                ?: data_get($financeRecord->data ?? [], 'receiving_bank_account_id')
+                ?: data_get($payload, 'destination_bank_account_id')
+                ?: data_get($financeRecord->data ?? [], 'destination_bank_account_id')
+        );
+
+        $creditAccountCode = $creditAccountId ?: data_get($payload, 'coa_id') ?: data_get($financeRecord->data ?? [], 'coa_id') ?: data_get($financeRecord->data ?? [], 'asset_coa_id') ?: data_get($financeRecord->data ?? [], 'payroll_expense_coa_id');
+        if (blank($creditAccountCode)) {
+            return $normalizedRows;
+        }
+
+        $firstDebitRow = collect($normalizedRows)->first(fn (array $row) => (float) data_get($row, 'debit', 0) > 0) ?: ($normalizedRows[0] ?? []);
+        $debitDescription = trim((string) data_get($firstDebitRow, 'description', ''))
+            ?: trim((string) $financeRecord->record_number)
+            ?: trim((string) $financeRecord->record_title)
+            ?: 'Disbursement Voucher';
+        $debitAccountCode = trim((string) data_get($firstDebitRow, 'account_code', ''));
+        $creditLabel = trim((string) collect([
+            $this->financeResolveModuleRecord('chart_account', $creditAccountCode)?->record_number,
+            $this->financeResolveModuleRecord('chart_account', $creditAccountCode)?->record_title,
+            $creditAccountCode,
+        ])->first(fn ($value) => filled($value)) ?: '');
+
+        return [
+            [
+                'description' => $debitDescription,
+                'account_code' => $debitAccountCode,
+                'debit' => number_format($debitTotal, 2, '.', ''),
+                'credit' => '',
+            ],
+            [
+                'description' => $creditLabel !== '' ? 'Credit ' . $creditLabel : 'Credit Fund Source',
+                'account_code' => (string) $creditAccountCode,
+                'debit' => '',
+                'credit' => number_format($debitTotal, 2, '.', ''),
+            ],
+        ];
+    }
+
+    private function financeNormalizedDvLineItems(FinanceRecord $financeRecord, array $payload = []): array
+    {
+        if ($financeRecord->module_key !== 'dv') {
+            return [];
+        }
+
+        $currentLineItems = (array) data_get($payload, 'line_items', data_get($financeRecord->data ?? [], 'line_items', []));
+        $hasCurrentLineItems = collect($currentLineItems)
+            ->filter(fn ($item) => is_array($item) && collect($item)->contains(fn ($value) => !blank($value)))
+            ->isNotEmpty();
+
+        if ($hasCurrentLineItems) {
+            return $this->financeNormalizeDvLineItems($currentLineItems, $financeRecord, $payload);
+        }
+
+        $sourceRecord = $this->financeDvSourceRecord($financeRecord, $payload);
+        if ($sourceRecord) {
+            return $this->financeNormalizeDvLineItems(
+                $this->financeDvLineItemsFromSource($sourceRecord, $payload),
+                $financeRecord,
+                $payload
+            );
+        }
+
+        return $this->financeNormalizeDvLineItems(
+            $currentLineItems,
+            $financeRecord,
+            $payload
+        );
+    }
+
+    private function financeDvAccountingSummaryFromLineItems(array $lineItems): array
+    {
+        $totalDebit = 0.0;
+        $totalCredit = 0.0;
+
+        foreach ($lineItems as $lineItem) {
+            if (! is_array($lineItem)) {
+                continue;
+            }
+
+            $totalDebit += (float) data_get($lineItem, 'debit', 0);
+            $totalCredit += (float) data_get($lineItem, 'credit', 0);
+        }
+
+        $totalDebit = round($totalDebit, 2);
+        $totalCredit = round($totalCredit, 2);
+        $difference = round(abs($totalDebit - $totalCredit), 2);
+
+        return [
+            'total_debit_amount' => number_format($totalDebit, 2, '.', ''),
+            'total_credit_amount' => number_format($totalCredit, 2, '.', ''),
+            'accounting_balance_difference' => number_format($difference, 2, '.', ''),
+            'accounting_balance_status' => $difference < 0.01 ? 'Balanced' : 'Unbalanced',
         ];
     }
 
@@ -7378,7 +7593,7 @@ SVG;
                 ];
             }
 
-            return $debitRows;
+            return $this->financeNormalizeDvLineItems($debitRows, $record, $payload);
         }
 
         $amount = (float) (data_get($payload, 'amount') ?: $record->amount ?: data_get($data, 'amount') ?: 0);
@@ -7415,7 +7630,7 @@ SVG;
             ?: data_get($data, 'payroll_expense_coa_id')
             ?: data_get($data, 'asset_coa_id');
 
-        return array_values(array_filter([
+        $lineItems = array_values(array_filter([
             [
                 'description' => trim(collect([
                     $record->record_number ?: strtoupper($record->module_key),
@@ -7431,7 +7646,9 @@ SVG;
                 'debit' => '',
                 'credit' => number_format($amount, 2, '.', ''),
             ] : null,
-        ]));
+        ], fn (array $row) => collect($row)->contains(fn ($value) => !blank($value))));
+
+        return $this->financeNormalizeDvLineItems($lineItems, $record, $payload);
     }
 
     private function persistAttachments(Request $request, array $existingAttachments = []): array
@@ -7650,6 +7867,37 @@ SVG;
         return ((int) $releaseCount) > 1 ? 'Staggered Release' : 'Full Release';
     }
 
+    private function normalizeCashAdvanceReleaseEntries(array $data): array
+    {
+        $amount = (float) data_get($data, 'amount_requested', 0);
+        $releaseCount = max((int) data_get($data, 'release_count', 1), 1);
+        $amountPerRelease = (float) data_get($data, 'amount_per_release', $releaseCount > 0 ? $amount / $releaseCount : $amount);
+
+        $submittedEntries = collect((array) data_get($data, 'release_entries', []))
+            ->filter(fn ($entry) => is_array($entry))
+            ->keyBy(fn (array $entry, int $index) => max((int) data_get($entry, 'release_no', $index + 1), 1));
+
+        return collect(range(1, $releaseCount))
+            ->map(function (int $releaseNo) use ($submittedEntries, $releaseCount, $amount, $amountPerRelease, $data): array {
+                $entry = (array) $submittedEntries->get($releaseNo, []);
+                $defaultAmount = $releaseNo === $releaseCount
+                    ? max($amount - ($amountPerRelease * ($releaseCount - 1)), 0)
+                    : $amountPerRelease;
+
+                return [
+                    'release_no' => $releaseNo,
+                    'scheduled_date' => data_get($entry, 'scheduled_date')
+                        ?: ($releaseNo === 1 ? (data_get($data, 'cash_release_date') ?: null) : null),
+                    'scheduled_time' => data_get($entry, 'scheduled_time')
+                        ?: ($releaseNo === 1 ? (data_get($data, 'cash_release_time') ?: null) : null),
+                    'scheduled_amount' => number_format($defaultAmount, 2, '.', ''),
+                    'scheduled_remarks' => trim((string) data_get($entry, 'scheduled_remarks', '')),
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
     private function moduleSpecificRules(string $moduleKey): array
     {
         $rules = [
@@ -7761,6 +8009,12 @@ SVG;
                 'data.ca_payment_entries.*.payment_date' => 'nullable|date',
                 'data.ca_payment_entries.*.payment_amount' => 'nullable|numeric|min:0',
                 'data.ca_payment_entries.*.payment_remarks' => 'nullable|string|max:1000',
+                'data.release_entries' => 'nullable|array',
+                'data.release_entries.*.release_no' => 'nullable|integer|min:1',
+                'data.release_entries.*.scheduled_date' => 'nullable|date',
+                'data.release_entries.*.scheduled_time' => 'nullable|date_format:H:i',
+                'data.release_entries.*.scheduled_amount' => 'nullable|numeric|min:0',
+                'data.release_entries.*.scheduled_remarks' => 'nullable|string|max:1000',
             ],
             'lr' => [
                 'data.requester_mode' => 'nullable|in:own_request,request_for_another',
@@ -7783,6 +8037,18 @@ SVG;
                 'data.variance' => 'required|numeric',
                 'data.variance_indicator' => 'required|in:Shortage,Overage,Balanced',
                 'data.coa_id' => ['nullable', $this->acceptedLinkedRecordRule('chart_account')],
+                'data.line_items' => 'nullable|array',
+                'data.line_items.*.item_module' => 'nullable|in:service,product',
+                'data.line_items.*.item_record_id' => 'nullable|integer',
+                'data.line_items.*.item_id' => 'nullable|string|max:255',
+                'data.line_items.*.supplier_id' => ['nullable', $this->acceptedLinkedRecordRule('supplier')],
+                'data.line_items.*.description' => 'nullable|string|max:1000',
+                'data.line_items.*.category' => 'nullable|string|max:255',
+                'data.line_items.*.quantity' => 'nullable|numeric|min:0',
+                'data.line_items.*.amount' => 'nullable|numeric|min:0',
+                'data.line_items.*.tax_type' => 'nullable|in:VAT,Expanded Withholding Tax,VAT Exempt,Zero Rated,Zero-Rated,Non-VAT,N/A',
+                'data.line_items.*.supplier_id' => ['nullable', $this->acceptedLinkedRecordRule('supplier')],
+                'data.line_items.*.client_id' => ['nullable', 'string', 'max:255', $this->financeLineItemClientRule()],
             ],
             'err' => [
                 'data.requester_mode' => 'nullable|in:own_request,request_for_another',
@@ -8521,6 +8787,7 @@ SVG;
             $cashAdvanceAmount = (float) data_get($data, 'amount_requested', 0);
             $releaseCount = max((int) data_get($data, 'release_count', 1), 1);
             $amountPerRelease = $releaseCount > 0 ? $cashAdvanceAmount / $releaseCount : $cashAdvanceAmount;
+            $releaseEntries = $this->normalizeCashAdvanceReleaseEntries($data);
             $entries = array_values(array_filter((array) data_get($data, 'ca_payment_entries', []), function ($entry) {
                 return is_array($entry) && (
                     !blank(data_get($entry, 'payment_date'))
@@ -8539,14 +8806,25 @@ SVG;
             }, $entries, array_keys($entries)));
 
             $totalPaid = collect($entries)->sum(fn (array $entry) => (float) data_get($entry, 'payment_amount', 0));
+            $releaseEntryMap = collect($releaseEntries)->keyBy(fn (array $entry) => (int) data_get($entry, 'release_no', 0));
             $paidReleaseNos = collect($entries)
                 ->groupBy(fn (array $entry) => (int) data_get($entry, 'release_no', 0))
-                ->filter(fn ($releaseEntries) => $amountPerRelease > 0 && $releaseEntries->sum(fn (array $entry) => (float) data_get($entry, 'payment_amount', 0)) >= $amountPerRelease)
+                ->filter(function ($releaseEntries, $releaseNo) use ($releaseEntryMap, $amountPerRelease) {
+                    $scheduledAmount = (float) data_get($releaseEntryMap->get((int) $releaseNo), 'scheduled_amount', $amountPerRelease);
+
+                    return $scheduledAmount > 0
+                        && $releaseEntries->sum(fn (array $entry) => (float) data_get($entry, 'payment_amount', 0)) >= $scheduledAmount;
+                })
                 ->keys()
                 ->count();
             $remainingBalance = max($cashAdvanceAmount - $totalPaid, 0);
 
+            $firstReleaseEntry = $releaseEntries[0] ?? [];
+
             data_set($data, 'amount_per_release', number_format($amountPerRelease, 2, '.', ''));
+            data_set($data, 'release_entries', $releaseEntries);
+            data_set($data, 'cash_release_date', data_get($firstReleaseEntry, 'scheduled_date'));
+            data_set($data, 'cash_release_time', data_get($firstReleaseEntry, 'scheduled_time'));
             data_set($data, 'ca_payment_entries', $entries);
             data_set($data, 'ca_payment_total_paid', number_format($totalPaid, 2, '.', ''));
             data_set($data, 'ca_payment_remaining_balance', number_format($remainingBalance, 2, '.', ''));
@@ -8968,6 +9246,15 @@ SVG;
 
                 return str_contains($haystack, strtolower($filters['search']));
             })
+            ->map(function (FinanceRecord $record): FinanceRecord {
+                $record->setAttribute('dashboard_can_approve', $this->canApproveSubmittedFinanceRecord($record));
+                $record->setAttribute('dashboard_can_revert', $this->canRevertSubmittedFinanceRecord($record));
+                $record->setAttribute('dashboard_can_archive', $this->canArchiveFinanceRecord($record));
+                $record->setAttribute('dashboard_can_unarchive', $this->canUnarchiveFinanceRecord($record));
+                $record->setAttribute('dashboard_can_approve_delete', $this->canApproveDeleteRequest($record));
+
+                return $record;
+            })
             ->values();
 
         $inventoryHistoryBoard = $this->financeInventoryHistoryBoardItems();
@@ -9123,6 +9410,13 @@ SVG;
         $recordTitle = $this->financeAutoRecordTitle($request->module_key, $data, $recordTitle);
         if ($request->module_key === 'dv') {
             $data = $this->normalizeDvPayeeFields($data, $recordTitle);
+            $data['line_items'] = $this->financeNormalizedDvLineItems(new FinanceRecord([
+                'module_key' => 'dv',
+                'record_number' => $recordNumber,
+                'record_title' => $recordTitle,
+                'data' => $data,
+            ]), $data);
+            $data = array_merge($data, $this->financeDvAccountingSummaryFromLineItems((array) $data['line_items']));
         }
         $recordNumber = $this->normalizeFinanceRecordNumber($request->module_key, $recordNumber);
         $recordAmount = in_array($request->module_key, ['dv', 'pda'], true)
@@ -9233,6 +9527,13 @@ SVG;
         $recordTitle = $this->financeAutoRecordTitle($request->module_key, $data, $recordTitle);
         if ($request->module_key === 'dv') {
             $data = $this->normalizeDvPayeeFields($data, $recordTitle);
+            $data['line_items'] = $this->financeNormalizedDvLineItems(new FinanceRecord([
+                'module_key' => 'dv',
+                'record_number' => $recordNumber,
+                'record_title' => $recordTitle,
+                'data' => $data,
+            ]), $data);
+            $data = array_merge($data, $this->financeDvAccountingSummaryFromLineItems((array) $data['line_items']));
         }
         $recordNumber = $this->normalizeFinanceRecordNumber($request->module_key, $recordNumber);
         $recordAmount = in_array($request->module_key, ['dv', 'pda'], true)
@@ -9268,7 +9569,25 @@ SVG;
         ];
         $data = $this->appendFinanceHistoryEntry($data, 'Updated', $request->module_key, $oldHistorySnapshot, $newHistorySnapshot);
 
-        if ($request->module_key === 'dv' && $this->financeRecordIsApproved($financeRecord)) {
+        $releaseIntent = filter_var(data_get($data, 'release_intent', false), FILTER_VALIDATE_BOOL, FILTER_NULL_ON_FAILURE) ?? false;
+        unset($data['release_intent']);
+
+        if ($request->module_key === 'dv' && $wasReleased && ! $releaseIntent) {
+            foreach ([
+                'released_at',
+                'released_by',
+                'released_by_name',
+                'release_recorded_at',
+                'release_recorded_by',
+                'release_recorded_by_name',
+            ] as $fieldName) {
+                if (!filled(data_get($data, $fieldName)) && filled(data_get($financeRecord->data ?? [], $fieldName))) {
+                    $data[$fieldName] = data_get($financeRecord->data, $fieldName);
+                }
+            }
+        }
+
+        if ($request->module_key === 'dv' && $this->financeRecordIsApproved($financeRecord) && $releaseIntent) {
             $releaseAssessment = $this->financeDvReleasePrerequisitesAssessment($financeRecord, $data, $attachments);
 
             if ($releaseAssessment && data_get($releaseAssessment, 'status') !== 'Ready') {
@@ -9408,6 +9727,21 @@ SVG;
         $data = $this->initializeFinanceApprovalState($oldData, $financeRecord->module_key);
 
         if ($financeRecord->module_key === 'dv') {
+            $sourceRecord = $this->financeDvSourceRecord($financeRecord, $data);
+            $normalizedLineItems = $sourceRecord
+                ? $this->financeNormalizeDvLineItems(
+                    $this->financeDvLineItemsFromSource($sourceRecord, $data),
+                    $financeRecord,
+                    $data
+                )
+                : $this->financeNormalizedDvLineItems($financeRecord, $data);
+
+            if (! empty($normalizedLineItems)) {
+                $data['line_items'] = $normalizedLineItems;
+                $data = array_merge($data, $this->financeDvAccountingSummaryFromLineItems($normalizedLineItems));
+                $financeRecord->setAttribute('data', $data);
+            }
+
             $fundAvailability = $this->financeDvFundAvailabilityAssessment($financeRecord);
 
             if ($fundAvailability) {

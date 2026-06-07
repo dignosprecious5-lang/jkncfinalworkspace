@@ -895,6 +895,38 @@
             </div>
         @endif
 
+        @if(in_array($record->module_key, ['lr', 'err', 'dv', 'crf'], true))
+            <div class="box">
+                <div class="block-title">Itemization</div>
+                <div class="block">
+                    @if(count($itemizationLineItems ?? []))
+                        <table class="line-table">
+                            <tr>
+                                <th>Item</th>
+                                <th>Item Description</th>
+                                <th>Category</th>
+                                <th>Qty</th>
+                                <th>Unit Cost / Amount</th>
+                                <th>Supplier</th>
+                            </tr>
+                            @foreach(($itemizationLineItems ?? []) as $item)
+                                <tr>
+                                    <td>{{ $item['item'] ?? 'N/A' }}</td>
+                                    <td>{{ $item['description'] ?? 'N/A' }}</td>
+                                    <td>{{ $item['category'] ?? 'N/A' }}</td>
+                                    <td>{{ $item['quantity'] ?? '0' }}</td>
+                                    <td>{{ $item['amount'] ?? '0.00' }}</td>
+                                    <td>{{ $item['supplier_label'] ?? 'N/A' }}</td>
+                                </tr>
+                            @endforeach
+                        </table>
+                    @else
+                        <p class="note">No itemized rows were found for this record yet.</p>
+                    @endif
+                </div>
+            </div>
+        @endif
+
         @foreach($previewSections as $section)
             <div class="box">
                 <div class="block">
@@ -1380,19 +1412,32 @@
                             <table class="line-table" style="margin-top: 8px;">
                                 <tr>
                                     <th>Release</th>
-                                    <th>Scheduled Date</th>
-                                    <th>Amount</th>
-                                    <th>Paid</th>
+                                    <th>Scheduled Date / Time</th>
+                                    <th>Scheduled Amount</th>
+                                    <th>Paid Amount</th>
                                     <th>Payment Date</th>
                                     <th>Status</th>
                                 </tr>
                                 @foreach(($cashAdvancePaymentTracking['rows'] ?? []) as $row)
                                     <tr>
                                         <td>{{ $row['no'] }}</td>
-                                        <td>{{ $row['scheduled_date'] }}</td>
+                                        <td>
+                                            <div>{{ $row['scheduled_date'] }}</div>
+                                            @if(!empty($row['scheduled_time']))
+                                                <div class="label" style="margin-top:4px;">{{ $row['scheduled_time'] }}</div>
+                                            @endif
+                                            @if(!empty($row['scheduled_remarks']))
+                                                <div class="label" style="margin-top:4px;">{{ $row['scheduled_remarks'] }}</div>
+                                            @endif
+                                        </td>
                                         <td>{{ $row['scheduled_amount'] }}</td>
                                         <td>{{ $row['paid_amount'] }}</td>
-                                        <td>{{ $row['payment_date'] }}</td>
+                                        <td>
+                                            <div>{{ $row['payment_date'] }}</div>
+                                            @if(!empty($row['payment_remarks']))
+                                                <div class="label" style="margin-top:4px;">{{ $row['payment_remarks'] }}</div>
+                                            @endif
+                                        </td>
                                         <td>{{ $row['status'] }}</td>
                                     </tr>
                                 @endforeach

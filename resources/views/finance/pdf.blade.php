@@ -931,7 +931,7 @@
 
         @if($record->module_key === 'ca')
             <div class="section-box">
-                <div class="section-title">Cash Advance Payment Tracking</div>
+                <div class="section-title">Release Schedule &amp; Payment Tracking</div>
                 <div class="section-body">
                     @if(!empty($cashAdvancePaymentTracking))
                         <table class="detail-table">
@@ -953,19 +953,32 @@
                         <table class="line-table" style="margin-top: 8px;">
                             <tr>
                                 <th>Release</th>
-                                <th>Scheduled Date</th>
-                                <th>Amount</th>
-                                <th>Paid</th>
+                                <th>Scheduled Date / Time</th>
+                                <th>Scheduled Amount</th>
+                                <th>Paid Amount</th>
                                 <th>Payment Date</th>
                                 <th>Status</th>
                             </tr>
                             @foreach(($cashAdvancePaymentTracking['rows'] ?? []) as $row)
                                 <tr>
                                     <td>{{ $row['no'] }}</td>
-                                    <td>{{ $row['scheduled_date'] }}</td>
+                                    <td>
+                                        <div>{{ $row['scheduled_date'] }}</div>
+                                        @if(!empty($row['scheduled_time']))
+                                            <div class="detail-label" style="margin-top:4px;">{{ $row['scheduled_time'] }}</div>
+                                        @endif
+                                        @if(!empty($row['scheduled_remarks']))
+                                            <div class="detail-label" style="margin-top:4px;">{{ $row['scheduled_remarks'] }}</div>
+                                        @endif
+                                    </td>
                                     <td>{{ $row['scheduled_amount'] }}</td>
                                     <td>{{ $row['paid_amount'] }}</td>
-                                    <td>{{ $row['payment_date'] }}</td>
+                                    <td>
+                                        <div>{{ $row['payment_date'] }}</div>
+                                        @if(!empty($row['payment_remarks']))
+                                            <div class="detail-label" style="margin-top:4px;">{{ $row['payment_remarks'] }}</div>
+                                        @endif
+                                    </td>
                                     <td>{{ $row['status'] }}</td>
                                 </tr>
                             @endforeach
@@ -1308,6 +1321,38 @@
                         </table>
                     @else
                         <div class="muted">No line items added.</div>
+                    @endif
+                </div>
+            </div>
+        @endif
+
+        @if(in_array($record->module_key, ['lr', 'err', 'dv', 'crf'], true))
+            <div class="section-box">
+                <div class="section-title">Itemization</div>
+                <div class="section-body">
+                    @if(count($itemizationLineItems ?? []))
+                        <table class="line-table">
+                            <tr>
+                                <th>Item</th>
+                                <th>Item Description</th>
+                                <th>Category</th>
+                                <th>Qty</th>
+                                <th>Unit Cost / Amount</th>
+                                <th>Supplier</th>
+                            </tr>
+                            @foreach(($itemizationLineItems ?? []) as $item)
+                                <tr>
+                                    <td>{{ $item['item'] ?? 'N/A' }}</td>
+                                    <td>{{ $item['description'] ?? 'N/A' }}</td>
+                                    <td>{{ $item['category'] ?? 'N/A' }}</td>
+                                    <td>{{ $item['quantity'] ?? '0' }}</td>
+                                    <td>{{ $item['amount'] ?? '0.00' }}</td>
+                                    <td>{{ $item['supplier_label'] ?? 'N/A' }}</td>
+                                </tr>
+                            @endforeach
+                        </table>
+                    @else
+                        <div class="muted">No itemized rows were found for this record yet.</div>
                     @endif
                 </div>
             </div>
