@@ -3931,6 +3931,34 @@ SVG;
         }, $groups));
     }
 
+    private function financePreviewItemizationLineItems(FinanceRecord $record, array $lookupOptions): array
+    {
+        if ($record->module_key === 'dv') {
+            $sourceType = (string) data_get($record->data ?? [], 'source_document_type', '');
+            $sourceId = data_get($record->data ?? [], 'source_document_id');
+            $sourceRecord = $sourceType !== '' && filled($sourceId)
+                ? $this->financeResolveModuleRecord($sourceType, $sourceId)
+                : null;
+
+            return $sourceRecord
+                ? $this->financeResolvedLineItems($sourceRecord, $lookupOptions)
+                : [];
+        }
+
+        if (in_array($record->module_key, ['err', 'crf'], true)) {
+            $linkedLrId = data_get($record->data ?? [], 'linked_lr_id');
+            $linkedLr = filled($linkedLrId)
+                ? $this->financeResolveModuleRecord('lr', $linkedLrId)
+                : null;
+
+            if ($linkedLr) {
+                return $this->financeResolvedLineItems($linkedLr, $lookupOptions);
+            }
+        }
+
+        return $this->financeResolvedLineItems($record, $lookupOptions);
+    }
+
     private function financePreviewSections(FinanceRecord $record, array $lookupOptions, bool $forceSupplierTemplate = false): array
     {
         $moduleKey = $record->module_key;
@@ -4600,6 +4628,7 @@ SVG;
         }
 
         $lineItems = $this->financeResolvedLineItems($record, $lookupOptions);
+        $itemizationLineItems = $this->financePreviewItemizationLineItems($record, $lookupOptions);
         $lineItemsTotal = array_reduce($lineItems, function (float $carry, array $item) {
             return $carry + (float) ($item['total_value'] ?? 0);
         }, 0.0);
@@ -4776,6 +4805,7 @@ SVG;
             'detailRows' => $detailRows,
             'previewSections' => $this->financePreviewSections($record, $lookupOptions, $forceSupplierTemplate),
             'lineItems' => $lineItems,
+            'itemizationLineItems' => $itemizationLineItems,
             'poSupplierGroups' => $poSupplierGroups,
             'dvSourceDocumentType' => $dvSourceDocumentType,
             'dvSourceRecord' => $dvSourceRecord,

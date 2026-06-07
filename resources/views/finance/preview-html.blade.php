@@ -895,6 +895,38 @@
             </div>
         @endif
 
+        @if(in_array($record->module_key, ['lr', 'err', 'dv', 'crf'], true))
+            <div class="box">
+                <div class="block-title">Itemization</div>
+                <div class="block">
+                    @if(count($itemizationLineItems ?? []))
+                        <table class="line-table">
+                            <tr>
+                                <th>Item</th>
+                                <th>Item Description</th>
+                                <th>Category</th>
+                                <th>Qty</th>
+                                <th>Unit Cost / Amount</th>
+                                <th>Supplier</th>
+                            </tr>
+                            @foreach(($itemizationLineItems ?? []) as $item)
+                                <tr>
+                                    <td>{{ $item['item'] ?? 'N/A' }}</td>
+                                    <td>{{ $item['description'] ?? 'N/A' }}</td>
+                                    <td>{{ $item['category'] ?? 'N/A' }}</td>
+                                    <td>{{ $item['quantity'] ?? '0' }}</td>
+                                    <td>{{ $item['amount'] ?? '0.00' }}</td>
+                                    <td>{{ $item['supplier_label'] ?? 'N/A' }}</td>
+                                </tr>
+                            @endforeach
+                        </table>
+                    @else
+                        <p class="note">No itemized rows were found for this record yet.</p>
+                    @endif
+                </div>
+            </div>
+        @endif
+
         @foreach($previewSections as $section)
             <div class="box">
                 <div class="block">

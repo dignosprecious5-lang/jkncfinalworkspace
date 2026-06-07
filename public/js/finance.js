@@ -8408,6 +8408,78 @@
         `;
     }
 
+    function getFinanceItemizationRows(record) {
+        if (!record) {
+            return [];
+        }
+
+        if (record.module_key === 'dv') {
+            const sourceRecord = getDvSourceRecordForDisplay(record);
+            return sourceRecord
+                ? getPrLineItemRows(sourceRecord, { preferDraftLineItems: false }).filter((row) => row && Object.values(row).some((value) => String(value || '').trim() !== ''))
+                : [];
+        }
+
+        if (record.module_key === 'err' || record.module_key === 'crf') {
+            const linkedLrId = record?.data?.linked_lr_id;
+            const linkedLrRecord = linkedLrId ? (getRecordById(linkedLrId) || getRecordByLookupValue('lr', linkedLrId)) : null;
+            if (linkedLrRecord) {
+                return getPrLineItemRows(linkedLrRecord, { preferDraftLineItems: false }).filter((row) => row && Object.values(row).some((value) => String(value || '').trim() !== ''));
+            }
+        }
+
+        return getPrLineItemRows(record, { preferDraftLineItems: false }).filter((row) => row && Object.values(row).some((value) => String(value || '').trim() !== ''));
+    }
+
+    function renderFinanceItemizationTable(record) {
+        const rows = getFinanceItemizationRows(record);
+        const resolveItemLabel = (row) => getPrItemDisplayValue(row.item_id || row.item_record_id) || row.item_id || row.item_record_id || row.description || 'N/A';
+        const resolveSupplierLabel = (row) => getLookupLabel('supplier', row.supplier_id) || row.supplier_id || 'N/A';
+
+        return `
+            <div class="mt-6 rounded-2xl border border-gray-200 bg-white/95 p-5 shadow-sm">
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                        <h5 class="text-sm font-semibold text-gray-700">Itemization</h5>
+                        <p class="mt-1 text-xs text-gray-500">Restored item-level breakdown for the linked expense rows.</p>
+                    </div>
+                </div>
+                <div class="mt-4 overflow-x-auto">
+                    ${rows.length ? `
+                        <table class="w-full min-w-[860px] border-collapse text-sm">
+                            <thead>
+                                <tr class="bg-gray-50 text-gray-700">
+                                    <th class="border border-gray-200 px-3 py-2 text-left">Item</th>
+                                    <th class="border border-gray-200 px-3 py-2 text-left">Item Description</th>
+                                    <th class="border border-gray-200 px-3 py-2 text-left w-32">Category</th>
+                                    <th class="border border-gray-200 px-3 py-2 text-left w-24">Qty</th>
+                                    <th class="border border-gray-200 px-3 py-2 text-left w-36">Unit Cost / Amount</th>
+                                    <th class="border border-gray-200 px-3 py-2 text-left w-40">Supplier</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${rows.map((row) => `
+                                    <tr>
+                                        <td class="border border-gray-200 px-3 py-2 break-words">${escapeHtml(resolveItemLabel(row))}</td>
+                                        <td class="border border-gray-200 px-3 py-2 break-words">${escapeHtml(row.description || 'N/A')}</td>
+                                        <td class="border border-gray-200 px-3 py-2 break-words">${escapeHtml(row.category || 'N/A')}</td>
+                                        <td class="border border-gray-200 px-3 py-2">${escapeHtml(formatPrQuantity(row.quantity || 0))}</td>
+                                        <td class="border border-gray-200 px-3 py-2">${escapeHtml(formatCurrency(row.amount || 0))}</td>
+                                        <td class="border border-gray-200 px-3 py-2 break-words">${escapeHtml(resolveSupplierLabel(row))}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    ` : `
+                        <div class="rounded-2xl border border-dashed border-gray-200 bg-slate-50 p-4 text-sm text-gray-500">
+                            No itemized rows were found for this record yet.
+                        </div>
+                    `}
+                </div>
+            </div>
+        `;
+    }
+
     function getPreviewLineItemRows(record) {
         const cleanRows = getPrLineItemRows(record, { preferDraftLineItems: record?.module_key !== 'po' }).filter((row) => row && Object.values(row).some((value) => String(value || '').trim() !== ''));
         if (cleanRows.length || record?.module_key !== 'po') {
@@ -8491,6 +8563,7 @@
             case 'lr':
                 return [
                     { title: 'Liquidation Details', fieldNames: ['requester_mode', 'requester_employee_id', 'linked_ca_id', 'total_cash_advance', 'purpose', 'employee_id', 'employee_name', 'employee_email', 'contact_number', 'position', 'department', 'superior', 'superior_email', 'for_client', 'client_names', 'actual_expenses'] },
+                    { title: 'Itemization', renderer: () => renderFinanceItemizationTable(record) },
                 ];
             case 'err':
                 const errPaymentFieldNames = {
@@ -8501,6 +8574,7 @@
 
                 return [
                     { title: 'Reimbursement Details', fieldNames: ['requester_mode', 'requester_employee_id', 'requestor', 'linked_lr_id', 'expense_details', 'amount', 'reimbursement_payment_details', 'manual_liquidation_entry', 'reimbursement_mode', ...errPaymentFieldNames, 'remarks'] },
+                    { title: 'Itemization', renderer: () => renderFinanceItemizationTable(record) },
                 ];
             case 'dv':
                 const dvSourceType = String(data.source_document_type || '').trim().toLowerCase();
@@ -8508,6 +8582,7 @@
                 const filterDvFields = (fieldNames, section = 'voucher') => fieldNames.filter((fieldName) => shouldRenderDvField(fieldName, dvFieldValue(fieldName), dvSourceType, section));
                 return [
                     { title: 'Voucher Details', fieldNames: filterDvFields(['source_document_type', 'source_document_id', 'payee_type', 'payee_name', 'supplier_id', 'amount', 'payment_type', 'disbursement_type']) },
+                    { title: 'Itemization', renderer: () => renderFinanceItemizationTable(record) },
                     { title: 'Breakdown / Line Items', renderer: () => renderDvPreviewLineItems(record) },
                     { title: 'Funding & Notes', fieldNames: filterDvFields(['bank_account_id', 'coa_id', 'fund_source', 'department', 'reference_number', 'purpose', 'remarks']) },
                     { title: 'Tax & Receipt', fieldNames: filterDvFields(['withholding_tax', 'vat_amount', 'net_amount', 'currency', 'exchange_rate', 'received_by_name', 'date_received'], 'tax') },
@@ -8519,6 +8594,7 @@
             case 'crf':
                 return [
                     { title: 'Return Details', fieldNames: ['requester_mode', 'requester_employee_id', 'requestor', 'linked_lr_id', 'amount_returned', 'mode_of_return', 'receiving_bank_account_id', 'coa_id'] },
+                    { title: 'Itemization', renderer: () => renderFinanceItemizationTable(record) },
                     { title: 'Connected Records', fieldNames: ['linked_lr_id', 'linked_dv_id'] },
                     { title: 'Requester Details', fieldNames: ['requestor', 'employee_id', 'employee_name', 'employee_email', 'contact_number', 'position', 'department', 'superior', 'superior_email'] },
                     { type: 'attachments', title: 'Attachments' },
