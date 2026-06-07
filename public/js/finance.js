@@ -15999,7 +15999,10 @@
         const moduleTrackingHtml = record.module_key === 'ca'
             ? renderCashAdvancePreviewPaymentManager(record)
             : '';
-        const progressHtml = renderFinanceProgressTracker(record);
+        const progressHiddenModules = new Set(['supplier', 'service', 'product', 'chart_account', 'bank_account']);
+        const progressHtml = progressHiddenModules.has(String(record.module_key || '').trim().toLowerCase())
+            ? ''
+            : renderFinanceProgressTracker(record);
         const historyHtml = renderFinanceHistoryCards(record);
         const detailCards = [
             crfCalloutHtml,
