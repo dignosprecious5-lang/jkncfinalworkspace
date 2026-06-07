@@ -6349,13 +6349,13 @@ SVG;
         };
 
         $notification = new FinanceRecordWorkflowNotification(
-            $record->id,
-            $action,
-            $title,
-            $body,
-            $buttonLabel,
-            route('finance.preview.html', $record->id),
-            $note
+            recordId: $record->id,
+            action: $action,
+            title: $title,
+            body: $body,
+            buttonLabel: $buttonLabel,
+            url: route('finance.preview.html', $record->id),
+            reviewNote: $note
         );
 
         if ($employee->user) {

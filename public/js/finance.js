@@ -3895,6 +3895,43 @@
             return [{ id: normalizedValue, label: selectedLabel }, ...options];
         };
 
+        const buildMergedLookupOptions = (lookupModuleKey) => {
+            const baseOptions = Array.isArray(financeLookupOptions[lookupModuleKey]) ? financeLookupOptions[lookupModuleKey] : [];
+            const combinedRecords = [
+                ...(Array.isArray(financeSourceRecords) ? financeSourceRecords : []),
+                ...(Array.isArray(financeRecords) ? financeRecords : []),
+            ];
+            const merged = [...baseOptions];
+            const seenIds = new Set(merged.map((option) => String(option.id ?? option.value ?? '')));
+
+            combinedRecords.forEach((record) => {
+                if (!record || String(record.module_key || '').trim().toLowerCase() !== lookupModuleKey) {
+                    return;
+                }
+
+                const accepted = String(record.workflow_status || '').trim() === 'Accepted'
+                    || String(record.approval_status || '').trim() === 'Approved';
+                if (!accepted) {
+                    return;
+                }
+
+                const id = String(record.id || '').trim();
+                if (!id || seenIds.has(id)) {
+                    return;
+                }
+
+                seenIds.add(id);
+                merged.push({
+                    id,
+                    label: [record.record_number || '', record.record_title || ''].filter(Boolean).join(' - ') || record.record_number || record.record_title || `PO-${id}`,
+                    record_number: record.record_number || '',
+                    record_title: record.record_title || '',
+                });
+            });
+
+            return merged;
+        };
+
         if (moduleKey === 'arf') {
             const linkedPoId = String(formValues['data[linked_po_id]'] || formValues.linked_po_id || '').trim();
             const linkedDvId = String(formValues['data[linked_dv_id]'] || formValues.linked_dv_id || '').trim();
@@ -3926,7 +3963,7 @@
                 }));
 
             if (field.name === 'linked_po_id') {
-                const poOptions = financeLookupOptions.po || [];
+                const poOptions = buildMergedLookupOptions('po');
                 const filteredPoOptions = linkedDvId
                     ? poOptions.filter((option) => {
                         const poId = String(option.id ?? option.value ?? '');
