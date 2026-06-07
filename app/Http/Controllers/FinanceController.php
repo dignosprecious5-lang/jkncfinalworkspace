@@ -3695,6 +3695,20 @@ SVG;
         return $rowSubtotal - $discountAmount + $shippingAmount + $taxAmount - $whtAmount;
     }
 
+    private function financeNormalizeDateString(mixed $value): ?string
+    {
+        $raw = trim((string) $value);
+        if ($raw === '') {
+            return null;
+        }
+
+        try {
+            return \Carbon\Carbon::parse($raw)->toDateString();
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
     private function financeLegacyLineItems(FinanceRecord $record): array
     {
         $data = $record->data ?? [];
@@ -8787,6 +8801,7 @@ SVG;
             $cashAdvanceAmount = (float) data_get($data, 'amount_requested', 0);
             $releaseCount = max((int) data_get($data, 'release_count', 1), 1);
             $amountPerRelease = $releaseCount > 0 ? $cashAdvanceAmount / $releaseCount : $cashAdvanceAmount;
+            $today = now()->toDateString();
             $releaseEntries = $this->normalizeCashAdvanceReleaseEntries($data);
             $entries = array_values(array_filter((array) data_get($data, 'ca_payment_entries', []), function ($entry) {
                 return is_array($entry) && (
@@ -8820,6 +8835,28 @@ SVG;
             $remainingBalance = max($cashAdvanceAmount - $totalPaid, 0);
 
             $firstReleaseEntry = $releaseEntries[0] ?? [];
+            $overdueCount = 0;
+            foreach (range(1, $releaseCount) as $releaseNo) {
+                $paymentEntries = collect($entries)->filter(fn (array $entry) => (int) data_get($entry, 'release_no', 0) === $releaseNo);
+                $paidAmount = $paymentEntries->sum(fn (array $entry) => (float) data_get($entry, 'payment_amount', 0));
+                $schedule = (array) ($releaseEntryMap->get($releaseNo) ?? []);
+                $scheduledAmount = (float) data_get(
+                    $schedule,
+                    'scheduled_amount',
+                    $releaseNo === $releaseCount
+                        ? max($cashAdvanceAmount - ($amountPerRelease * ($releaseCount - 1)), 0)
+                        : $amountPerRelease
+                );
+                $scheduledDate = $this->financeNormalizeDateString(data_get($schedule, 'scheduled_date'));
+                $isOverdue = filled($scheduledDate) && $scheduledDate < $today;
+
+                $status = $paidAmount >= $scheduledAmount && $scheduledAmount > 0
+                    ? 'Paid'
+                    : ($paidAmount > 0 ? 'Partial' : ($isOverdue ? 'Unpaid' : 'Pending'));
+                if ($status === 'Unpaid') {
+                    $overdueCount++;
+                }
+            }
 
             data_set($data, 'amount_per_release', number_format($amountPerRelease, 2, '.', ''));
             data_set($data, 'release_entries', $releaseEntries);
@@ -8830,7 +8867,10 @@ SVG;
             data_set($data, 'ca_payment_remaining_balance', number_format($remainingBalance, 2, '.', ''));
             data_set($data, 'ca_payment_paid_count', min($paidReleaseNos, $releaseCount));
             data_set($data, 'ca_payment_remaining_count', max($releaseCount - min($paidReleaseNos, $releaseCount), 0));
-            data_set($data, 'ca_payment_status', $remainingBalance <= 0 && $cashAdvanceAmount > 0 ? 'Fully Released' : ($totalPaid > 0 ? 'Partially Released' : 'Pending Release'));
+            data_set($data, 'ca_payment_overdue_count', $overdueCount);
+            data_set($data, 'ca_payment_status', $remainingBalance <= 0 && $cashAdvanceAmount > 0
+                ? 'Fully Released'
+                : ($overdueCount > 0 ? 'Overdue / Unpaid' : ($totalPaid > 0 ? 'Partially Released' : 'Pending Release')));
         }
 
         if ($moduleKey === 'lr') {

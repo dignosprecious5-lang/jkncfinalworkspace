@@ -111,7 +111,11 @@
     }
 
     function todayDateValue() {
-        return new Date().toISOString().slice(0, 10);
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
     }
 
     function currentTimeValue() {
@@ -1943,6 +1947,42 @@
             .filter((entry) => entry.payment_date || numericAmount(entry.payment_amount) > 0 || entry.payment_remarks);
     }
 
+    function isCashAdvanceDueDatePassed(dueDate, referenceDate = todayDateValue()) {
+        const parseDateKey = (value) => {
+            const raw = String(value || '').trim();
+            if (!raw) return null;
+
+            const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+            if (isoMatch) {
+                return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
+            }
+
+            const slashMatch = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+            if (slashMatch) {
+                const month = String(slashMatch[1]).padStart(2, '0');
+                const day = String(slashMatch[2]).padStart(2, '0');
+                return `${slashMatch[3]}-${month}-${day}`;
+            }
+
+            const parsed = new Date(raw);
+            if (Number.isNaN(parsed.getTime())) {
+                return null;
+            }
+
+            const year = parsed.getFullYear();
+            const month = String(parsed.getMonth() + 1).padStart(2, '0');
+            const day = String(parsed.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        };
+
+        const normalizedDueDate = parseDateKey(dueDate);
+        const normalizedReferenceDate = parseDateKey(referenceDate);
+
+        return Boolean(normalizedDueDate)
+            && Boolean(normalizedReferenceDate)
+            && normalizedDueDate < normalizedReferenceDate;
+    }
+
     function collectCashAdvancePaymentEntriesFromForm(form = $('financeForm')) {
         if (!form) return [];
 
@@ -1989,6 +2029,24 @@
         }
     }
 
+    function bindCashAdvanceScheduleFieldListeners(form = $('financeForm')) {
+        if (!form || currentModuleKey !== 'ca') return;
+
+        form.querySelectorAll('[data-ca-schedule-field]').forEach((input) => {
+            if (input.dataset.caScheduleListenerBound === '1') return;
+
+            const refreshCashAdvanceLiveTracker = () => {
+                syncCashAdvanceReleaseMirrors(form);
+                refreshCashAdvancePaymentTracker();
+                renderDrawerPreview();
+            };
+
+            input.addEventListener('input', refreshCashAdvanceLiveTracker);
+            input.addEventListener('change', refreshCashAdvanceLiveTracker);
+            input.dataset.caScheduleListenerBound = '1';
+        });
+    }
+
     function getCurrentCashAdvanceDraftValues() {
         const form = $('financeForm');
         const values = {};
@@ -2023,6 +2081,7 @@
         const amount = numericAmount(getCashAdvanceDraftValue(values, 'amount_requested', values.amount ?? 0));
         const releaseCount = Math.max(parseInt(getCashAdvanceDraftValue(values, 'release_count', 1), 10) || 1, 1);
         const amountPerRelease = numericAmount(getCashAdvanceDraftValue(values, 'amount_per_release', 0)) || (amount / releaseCount);
+        const today = todayDateValue();
         const releaseEntries = normalizeCashAdvanceReleaseEntries(values.release_entries ?? values['data[release_entries]'] ?? [], values);
         const releaseEntryMap = releaseEntries.reduce((map, entry) => {
             map[String(entry.release_no)] = entry;
@@ -2046,9 +2105,10 @@
                 || (releaseNo === releaseCount
                     ? Math.max(amount - (amountPerRelease * (releaseCount - 1)), 0)
                     : amountPerRelease);
+            const isOverdue = isCashAdvanceDueDatePassed(scheduleEntry.scheduled_date, today);
             const status = paidAmount >= scheduledAmount && scheduledAmount > 0
                 ? 'Paid'
-                : (paidAmount > 0 ? 'Partial' : 'Pending');
+                : (paidAmount > 0 ? 'Partial' : (isOverdue ? 'Unpaid' : 'Pending'));
 
             return {
                 no: releaseNo,
@@ -2070,6 +2130,7 @@
         const paidCount = rows.filter((row) => row.status === 'Paid').length;
         const remainingCount = Math.max(rows.length - paidCount, 0);
         const nextPaymentRow = rows.find((row) => row.status !== 'Paid') || null;
+        const overdueCount = rows.filter((row) => row.status === 'Unpaid').length;
 
         return {
             amount,
@@ -2083,7 +2144,10 @@
             paidCount,
             remainingCount,
             nextPaymentRow,
-            status: remainingBalance <= 0 && amount > 0 ? 'Fully Released' : (totalPaid > 0 ? 'Partially Released' : 'Pending Release'),
+            overdueCount,
+            status: remainingBalance <= 0 && amount > 0
+                ? 'Fully Released'
+                : (overdueCount > 0 ? 'Overdue / Unpaid' : (totalPaid > 0 ? 'Partially Released' : 'Pending Release')),
         };
     }
 
@@ -2095,7 +2159,7 @@
                 <div class="flex flex-wrap items-center justify-between gap-3">
                     <div>
                         <h4 class="text-sm font-semibold uppercase tracking-[0.24em] text-gray-700">Release Schedule Details</h4>
-                        <p class="mt-2 text-xs text-gray-500">Set the planned payment date, time, and amount for each release.</p>
+                        <p class="mt-2 text-xs text-gray-500">Set the payment due date, time, and amount for each release.</p>
                     </div>
                     <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">${escapeHtml(`${state.releaseCount} release${state.releaseCount === 1 ? '' : 's'}`)}</span>
                 </div>
@@ -2104,8 +2168,8 @@
                         <thead>
                             <tr class="bg-gray-50 text-gray-700">
                                 <th class="border border-gray-200 px-3 py-2 text-left w-24">Release</th>
-                                <th class="border border-gray-200 px-3 py-2 text-left w-40">Scheduled Date</th>
-                                <th class="border border-gray-200 px-3 py-2 text-left w-32">Scheduled Time</th>
+                                <th class="border border-gray-200 px-3 py-2 text-left w-40">Payment Due Date</th>
+                                <th class="border border-gray-200 px-3 py-2 text-left w-32">Payment Due Time</th>
                                 <th class="border border-gray-200 px-3 py-2 text-left w-40">Scheduled Amount</th>
                                 <th class="border border-gray-200 px-3 py-2 text-left">Remarks</th>
                             </tr>
@@ -2153,7 +2217,9 @@
         const state = buildCashAdvancePaymentState(values);
         const statusClass = state.status === 'Fully Released'
             ? 'bg-green-100 text-green-800'
-            : (state.status === 'Partially Released' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-700');
+            : (state.status === 'Partially Released'
+                ? 'bg-amber-100 text-amber-800'
+                : (state.status === 'Overdue / Unpaid' ? 'bg-red-100 text-red-800' : 'bg-slate-100 text-slate-700'));
         const metricGridClass = compact
             ? 'mt-4 space-y-2'
             : 'mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3';
@@ -2240,20 +2306,22 @@
             <div class="${containerClass}">
                 <div class="flex flex-wrap items-center justify-between gap-2">
                     <h4 class="text-sm font-semibold text-gray-900">Scheduled Payment Tracker</h4>
-                    ${compact ? `<span class="text-xs font-medium text-gray-500">${escapeHtml(state.paidCount)} paid / ${escapeHtml(state.remainingCount)} remaining</span>` : ''}
+                    ${compact ? `<span class="text-xs font-medium text-gray-500">${escapeHtml(state.paidCount)} paid / ${escapeHtml(state.remainingCount)} remaining${state.overdueCount > 0 ? ` / ${escapeHtml(state.overdueCount)} overdue` : ''}</span>` : ''}
                 </div>
                 <div class="${rowsWrapperClass}">
                     ${state.rows.length ? state.rows.map((row) => {
                         const badgeClass = row.status === 'Paid'
                             ? 'bg-green-100 text-green-800'
-                            : (row.status === 'Partial' ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800');
+                            : (row.status === 'Partial'
+                                ? 'bg-blue-100 text-blue-800'
+                                : (row.status === 'Unpaid' ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'));
 
                         return `
                             <div class="${rowClass}">
                                 <div class="${rowLayoutClass}">
                                     <div class="min-w-0">
                                         <p class="text-xs uppercase tracking-[0.18em] text-gray-500">Release ${escapeHtml(row.no)}</p>
-                                        <p class="mt-1 text-sm font-semibold text-gray-900">Scheduled ${escapeHtml(row.scheduled_date || '-')} ${escapeHtml(row.scheduled_time || '')}</p>
+                                        <p class="mt-1 text-sm font-semibold text-gray-900">Payment Due ${escapeHtml(row.scheduled_date || '-')} ${escapeHtml(row.scheduled_time || '')}</p>
                                         <p class="mt-1 text-xs text-gray-500">Scheduled Amount: ${escapeHtml(formatCurrency(row.scheduled_amount_value || row.amount_value || 0))}</p>
                                         <p class="mt-1 text-xs text-gray-500">Payment Date: ${escapeHtml(row.payment_date || '-')}</p>
                                         ${row.scheduled_remarks ? `<p class="mt-1 text-xs text-gray-500 break-words">Schedule Note: ${escapeHtml(row.scheduled_remarks)}</p>` : ''}
@@ -2287,7 +2355,7 @@
                             <input type="text" value="Release ${escapeHtml(next.no)}" class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900" readonly>
                         </div>
                         <div>
-                            <label class="text-xs text-gray-600">Scheduled Date</label>
+                            <label class="text-xs text-gray-600">Payment Due Date</label>
                             <input type="text" value="${escapeHtml(next.scheduled_date || '-')}" class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900" readonly>
                         </div>
                         <div>
@@ -2338,6 +2406,7 @@
         const values = nextValues || getCurrentCashAdvanceDraftValues();
         financeFormValues = { ...financeFormValues, ...values, ca_payment_entries: values.ca_payment_entries };
         section.outerHTML = renderCashAdvancePaymentTracker(values);
+        bindCashAdvanceScheduleFieldListeners(form);
     }
 
     function recordCashAdvancePayment() {
@@ -2414,31 +2483,55 @@
                     <div class="rounded-xl border ${canRecordPayment ? 'border-emerald-200 bg-white' : 'border-gray-200 bg-gray-50'} p-4">
                         <h5 class="text-sm font-semibold text-gray-900">Record Scheduled Payment</h5>
                         ${canRecordPayment ? `
-                            <div class="mt-4 grid grid-cols-1 gap-3">
-                                <div class="grid grid-cols-1 gap-3">
-                                    <div>
-                                        <label class="text-xs text-gray-600">Release</label>
-                                        <input type="text" value="Release ${escapeHtml(next.no)}" class="mt-1 w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-900" readonly>
+                            <div class="mt-4 space-y-4">
+                                <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                    <div class="space-y-1">
+                                        <label class="block text-xs text-gray-600">Release</label>
+                                        <input type="text" value="Release ${escapeHtml(next.no)}" class="block w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-900" readonly>
                                     </div>
-                                    <div>
-                                        <label class="text-xs text-gray-600">Amount</label>
-                                        <input type="text" value="${escapeHtml(formatCurrency(next.remaining_amount_value || next.amount_value))}" class="mt-1 w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-900" readonly>
+                                    <div class="space-y-1">
+                                        <label class="block text-xs text-gray-600">Amount</label>
+                                        <input type="text" value="${escapeHtml(formatCurrency(next.remaining_amount_value || next.amount_value))}" class="block w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-900" readonly>
                                     </div>
                                 </div>
-                                <div>
-                                    <label class="text-xs text-gray-600">Payment Date</label>
-                                    <input type="date" data-ca-preview-payment-date value="${escapeHtml(todayDateValue())}" class="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900">
+                                <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                    <div class="space-y-1">
+                                        <label class="block text-xs text-gray-600">Payment Date</label>
+                                        <input type="date" data-ca-preview-payment-date value="${escapeHtml(todayDateValue())}" class="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900">
+                                    </div>
+                                    <div class="space-y-1">
+                                        <label class="block text-xs text-gray-600">Payment Option</label>
+                                        <select data-ca-preview-payment-scope class="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900">
+                                            <option value="next">Pay next release only</option>
+                                            <option value="all_remaining">Pay all remaining releases</option>
+                                        </select>
+                                    </div>
                                 </div>
-                                <div>
-                                    <label class="text-xs text-gray-600">Payment Option</label>
-                                    <select data-ca-preview-payment-scope class="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900">
-                                        <option value="next">Pay next release only</option>
-                                        <option value="all_remaining">Pay all remaining releases</option>
-                                    </select>
+                                <div class="space-y-1">
+                                    <label class="block text-xs text-gray-600">Payment Remarks</label>
+                                    <textarea data-ca-preview-payment-remarks rows="3" class="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900" placeholder="Optional note for this scheduled payment."></textarea>
                                 </div>
-                                <div>
-                                    <label class="text-xs text-gray-600">Payment Remarks</label>
-                                    <textarea data-ca-preview-payment-remarks rows="3" class="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900" placeholder="Optional note for this scheduled payment."></textarea>
+                                <div class="rounded-xl border border-blue-100 bg-blue-50/60 p-4 space-y-4">
+                                    <div class="flex flex-wrap items-center justify-between gap-2">
+                                        <div>
+                                            <p class="text-xs font-semibold uppercase tracking-[0.22em] text-blue-700">Extend Due Date</p>
+                                            <p class="mt-1 text-xs text-blue-700">Move the next unpaid release to a later date before recording payment.</p>
+                                        </div>
+                                        <span class="text-xs font-medium text-blue-700">Release ${escapeHtml(next.no)}</span>
+                                    </div>
+                                    <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                        <div class="space-y-1">
+                                            <label class="block text-xs text-gray-600">New Due Date</label>
+                                            <input type="date" data-ca-preview-extend-date value="${escapeHtml(next.scheduled_date || todayDateValue())}" class="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900">
+                                        </div>
+                                        <div class="space-y-1">
+                                            <label class="block text-xs text-gray-600">Extension Note</label>
+                                            <input type="text" data-ca-preview-extend-remarks value="" class="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900" placeholder="Optional reason for extending">
+                                        </div>
+                                    </div>
+                                    <button type="button" onclick="window.financeModule.extendCashAdvancePreviewPaymentDueDate(${Number(record.id)})" class="w-full rounded-lg border border-blue-600 bg-white px-4 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50">
+                                        Extend Due Date
+                                    </button>
                                 </div>
                             </div>
                             <button type="button" onclick="window.financeModule.recordCashAdvancePreviewPayment(${Number(record.id)})" class="mt-4 w-full rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700">
@@ -2542,6 +2635,87 @@
         renderPreviewDocument(data.data);
         renderPreviewActions(data.data);
             showFinanceToast(paymentScope === 'all_remaining' ? 'All remaining scheduled payments were recorded.' : 'Scheduled payment recorded.', 'success');
+    }
+
+    async function extendCashAdvancePreviewPaymentDueDate(recordId) {
+        const record = getRecordById(recordId);
+        if (!record || record.module_key !== 'ca') return;
+
+        const root = document.querySelector(`[data-ca-preview-payment-root="${cssIdentifier(recordId)}"]`);
+        const state = buildCashAdvancePaymentState(record.data || {});
+        const next = state.nextPaymentRow;
+        if (!next) {
+            showFinanceToast('There is no upcoming release to extend.', 'info');
+            return;
+        }
+
+        const newDueDate = String(root?.querySelector('[data-ca-preview-extend-date]')?.value || '').trim();
+        if (!newDueDate) {
+            showFinanceToast('Please choose a new due date before extending.', 'error');
+            return;
+        }
+
+        const extensionNote = String(root?.querySelector('[data-ca-preview-extend-remarks]')?.value || '').trim();
+        const releaseEntries = normalizeCashAdvanceReleaseEntries(record.data?.release_entries || [], record.data || []);
+        const nextReleaseEntries = releaseEntries.map((entry) => {
+            if (Number(entry.release_no) !== Number(next.no)) {
+                return entry;
+            }
+
+            return {
+                ...entry,
+                scheduled_date: newDueDate,
+                scheduled_remarks: extensionNote
+                    ? [entry.scheduled_remarks, extensionNote].filter(Boolean).join(' | ')
+                    : entry.scheduled_remarks,
+            };
+        });
+
+        const nextData = {
+            ...(record.data || {}),
+            release_entries: nextReleaseEntries,
+            cash_release_date: next.no === 1 ? newDueDate : (record.data?.cash_release_date || ''),
+            cash_release_time: next.no === 1 ? (next.scheduled_time || record.data?.cash_release_time || '') : (record.data?.cash_release_time || ''),
+        };
+
+        const formData = new FormData();
+        const token = currentCsrfToken();
+
+        if (token) {
+            formData.set('_token', token);
+        }
+        formData.set('_method', 'PUT');
+        formData.set('module_key', record.module_key);
+        formData.set('record_number', record.record_number || generateModuleRecordNumber(record.module_key));
+        formData.set('record_title', record.record_title || generateDefaultRecordTitle(record.module_key, record));
+        formData.set('record_date', record.record_date || todayDateValue());
+        formData.set('amount', record.amount || nextData.amount_requested || '');
+        formData.set('status', record.status || 'Active');
+        formData.set('existing_attachments_json', JSON.stringify(record.attachments || []));
+        Object.entries(nextData).forEach(([key, value]) => appendFinanceDataToFormData(formData, value, `data[${key}]`));
+
+        const res = await csrfFetch(`/finance/${record.id}`, {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json',
+            },
+            body: formData,
+        });
+        const data = await res.json().catch(() => ({}));
+
+        if (!res.ok) {
+            const firstErrorKey = data.errors ? Object.keys(data.errors)[0] : null;
+            const firstErrorMessage = firstErrorKey && data.errors[firstErrorKey] ? data.errors[firstErrorKey][0] : '';
+            showFinanceToast(getFriendlyErrorMessage(firstErrorMessage || data.message || 'Unable to extend the payment due date.'), 'error');
+            return;
+        }
+
+        upsertFinanceRecord(data.data);
+        currentPreviewRecord = data.data;
+        renderPreviewTabContent(data.data);
+        renderPreviewDocument(data.data);
+        renderPreviewActions(data.data);
+        showFinanceToast('Payment due date extended successfully.', 'success');
     }
 
     function formatDate(value) {
@@ -11019,13 +11193,7 @@
         }
 
         if (currentModuleKey === 'ca') {
-            form.querySelectorAll('[data-ca-schedule-field]').forEach((input) => {
-                input.addEventListener('change', () => {
-                    syncCashAdvanceReleaseMirrors(form);
-                    refreshCashAdvancePaymentTracker();
-                    renderDrawerPreview();
-                });
-            });
+            bindCashAdvanceScheduleFieldListeners(form);
         }
 
         if (currentModuleKey === 'ibtf') {
@@ -17141,6 +17309,7 @@
         submitArfInventoryMovementDialog,
         recordCashAdvancePayment,
         recordCashAdvancePreviewPayment,
+        extendCashAdvancePreviewPaymentDueDate,
         addPrLineItemRow,
         removePrLineItemRow,
         addDvLineItemRow,
