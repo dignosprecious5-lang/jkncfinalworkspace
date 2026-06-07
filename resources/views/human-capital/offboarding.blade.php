@@ -1,6 +1,13 @@
 @extends('layouts.app')
 
 @section('content')
+@php
+    $companyHeader = $companyHeader ?? [
+        'logo_url' => asset('images/jk-logo.png'),
+        'company_name' => 'JOHN KELLY & COMPANY (JK&C INC)',
+        'company_address' => '3F Cebu Holdings Center Cebu Business Park, Cebu City, Philippines, 6000',
+    ];
+@endphp
 <div class="w-full px-6 mt-4 h-[calc(100vh-100px)] flex flex-col" x-data="offboardingPage()">
     <div class="bg-white rounded-xl border border-gray-200 flex flex-col flex-grow min-h-0">
         <div class="flex items-center justify-between px-5 py-4 border-b shrink-0 gap-4">
@@ -127,21 +134,24 @@
             </div>
 
             <div class="flex-1 min-h-0 grid grid-cols-[58%_42%] bg-gray-50">
-                <div class="min-h-0 overflow-auto p-5 border-r bg-gray-100">
-                    <div class="flex items-center justify-between mb-4 sticky top-0 z-10 bg-gray-100 py-2">
-                        <p class="text-xs font-bold text-gray-500 uppercase tracking-widest">PDF Preview</p>
+                <div class="min-h-0 border-r bg-gray-100 flex flex-col">
+                    <div class="shrink-0 flex items-center justify-between border-b border-gray-200 bg-gray-100 px-5 py-3 z-20">
+                        <div class="flex items-center gap-3">
+                            <p class="text-xs font-bold text-gray-500 uppercase tracking-widest">PDF Preview</p>
+                            <div class="inline-flex rounded-lg border border-gray-300 bg-white p-1">
+                                <button type="button" @click="previewMode = 'form'" :class="previewMode === 'form' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50'" class="px-3 py-1.5 rounded-md text-xs font-semibold">Offboarding Form</button>
+                                <button type="button" @click="previewMode = 'attachment'" :disabled="!attachmentPreviewUrl" :class="previewMode === 'attachment' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50 disabled:text-gray-300 disabled:hover:bg-white'" class="px-3 py-1.5 rounded-md text-xs font-semibold">Attached Document</button>
+                            </div>
+                        </div>
                         <button type="button" onclick="window.print()" class="px-3 py-2 border rounded-lg text-xs font-semibold text-gray-700 bg-white">Download PDF</button>
                     </div>
 
-                    <div class="bg-white mx-auto border border-gray-300 shadow-lg px-10 py-8 text-[11px] leading-tight w-[820px] min-h-[1123px] print-area">
+                    <div class="flex-1 min-h-0 overflow-auto p-5">
+                    <div x-show="previewMode === 'form'" class="bg-white mx-auto border border-gray-300 shadow-lg px-10 py-8 text-[11px] leading-tight w-[820px] min-h-[1123px] print-area">
                         <div class="text-center border-b-2 border-blue-700 pb-4 mb-4">
-                            <img src="{{ asset('images/jk-logo-template.png') }}" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';" class="h-24 mx-auto mb-2 object-contain" alt="John Kelly & Company Logo">
-                            <div style="display:none">
-                                <div class="text-3xl font-serif font-bold text-gray-900">John Kelly</div>
-                                <div class="text-2xl font-serif italic text-gray-800">& Company</div>
-                            </div>
-                            <p class="mt-2 text-[11px] font-semibold">3F, Cebu Holdings Center, Cebu Business Park, Cebu City, Philippines 6000</p>
-                            <p>Email: start@jknc.io | Website: https://jknc.io/ | Phone: 0995-535-8729</p>
+                            <img src="{{ $companyHeader['logo_url'] }}" onerror="this.style.display='none';" class="h-24 mx-auto mb-2 object-contain" alt="Company Logo">
+                            <p class="mt-2 text-[12px] font-bold uppercase">{{ $companyHeader['company_name'] }}</p>
+                            <p class="mt-1 text-[11px] font-semibold">{{ $companyHeader['company_address'] }}</p>
                             <p class="mt-1">Form Code: <span x-text="currentModule().formCode"></span> | Version: 1.0 | Issued by: Human Capital</p>
                         </div>
 
@@ -186,10 +196,34 @@
                             <div><div class="border-b border-gray-700 h-8"></div><p class="mt-1 font-bold">Human Capital</p></div>
                         </div>
                     </div>
+
+                    <div x-show="previewMode === 'attachment'" class="bg-white mx-auto border border-gray-300 shadow-lg w-[820px] min-h-[1123px] overflow-hidden">
+                        <template x-if="attachmentPreviewUrl">
+                            <div class="h-[1123px] flex flex-col">
+                                <div class="px-4 py-3 border-b bg-gray-50 flex items-center justify-between gap-3">
+                                    <div class="min-w-0">
+                                        <p class="text-xs font-bold uppercase tracking-widest text-gray-500">Attached Document</p>
+                                        <p class="text-sm font-semibold text-gray-800 truncate" x-text="attachmentPreviewName || 'Attachment'"></p>
+                                    </div>
+                                    <a :href="attachmentPreviewUrl" target="_blank" class="shrink-0 px-3 py-2 text-xs font-semibold rounded-lg border border-gray-300 text-gray-700 hover:bg-white">Open</a>
+                                </div>
+                                <iframe :src="attachmentPreviewUrl" class="flex-1 w-full border-0 bg-white"></iframe>
+                            </div>
+                        </template>
+                        <template x-if="!attachmentPreviewUrl">
+                            <div class="h-[1123px] flex items-center justify-center px-8 text-center">
+                                <div>
+                                    <p class="text-sm font-semibold text-gray-800">No attached document</p>
+                                    <p class="mt-1 text-xs text-gray-500">Upload a document on the form to preview it here.</p>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                    </div>
                 </div>
 
                 <div class="min-h-0 overflow-auto bg-white">
-                    <form :action="formAction()" method="POST" class="p-6 space-y-4">
+                    <form :action="formAction()" method="POST" enctype="multipart/form-data" class="p-6 space-y-4">
                         @csrf
                         <template x-if="isEdit">
                             <input type="hidden" name="_method" value="PUT">
@@ -265,6 +299,30 @@
                                 </div>
                             </div>
                         </template>
+
+                        <div class="rounded-xl border border-gray-200 overflow-hidden">
+                            <div class="px-4 py-2 bg-blue-700 text-white text-xs font-bold uppercase tracking-widest">Document Attachment</div>
+                            <div class="p-4 space-y-3">
+                                <template x-if="attachmentPreviewUrl">
+                                    <div class="flex items-center justify-between gap-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
+                                        <div class="min-w-0">
+                                            <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Current Attachment</p>
+                                            <p class="text-sm text-gray-800 truncate" x-text="attachmentPreviewName || 'Attachment'"></p>
+                                        </div>
+                                        <button type="button" @click="previewMode = 'attachment'" class="shrink-0 px-3 py-2 text-xs font-semibold text-blue-700 border border-blue-200 rounded-lg bg-white hover:bg-blue-50">Preview</button>
+                                    </div>
+                                </template>
+                                <input
+                                    type="file"
+                                    name="attachment"
+                                    accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx"
+                                    @change="handleAttachmentChange($event)"
+                                    :disabled="isView"
+                                    class="input"
+                                >
+                                <p class="text-xs text-gray-500">Optional supporting document. PDF, image, Word, or Excel files up to 10 MB.</p>
+                            </div>
+                        </div>
 
                         <div class="sticky bottom-0 bg-white border-t pt-4 flex gap-2">
                             <button type="button" @click="closePanel()" class="flex-1 border border-gray-300 rounded-lg py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">Cancel</button>
@@ -630,7 +688,18 @@ function offboardingPage() {
         isView: false,
         editingId: null,
         panelTitle: 'Add Termination',
+        previewMode: 'form',
+        selectedAttachmentUrl: '',
+        selectedAttachmentName: '',
         form: {},
+
+        get attachmentPreviewUrl() {
+            return this.selectedAttachmentUrl || this.form.attachment_url || '';
+        },
+
+        get attachmentPreviewName() {
+            return this.selectedAttachmentName || this.form.attachment_original_name || '';
+        },
 
         init() {
             this.form = this.blankForm('termination');
@@ -643,6 +712,8 @@ function offboardingPage() {
         setTab(key) {
             this.activeTab = key;
             this.form = this.blankForm(key);
+            this.resetAttachmentSelection();
+            this.previewMode = 'form';
 
             this.panelTitle = `${this.isEdit ? 'Edit' : this.isView ? 'View' : 'Add'} ${this.currentModule().label}`;
         },
@@ -653,6 +724,8 @@ function offboardingPage() {
             this.editingId = null;
             this.form = this.blankForm(this.activeTab);
             this.panelTitle = `Add ${this.currentModule().label}`;
+            this.resetAttachmentSelection();
+            this.previewMode = 'form';
             this.showPanel = true;
         },
 
@@ -662,6 +735,8 @@ function offboardingPage() {
             this.activeTab = record.form_type || record.type;
             this.form = { ...this.blankForm(this.activeTab), ...record };
             this.panelTitle = `View ${this.currentModule().label}`;
+            this.resetAttachmentSelection();
+            this.previewMode = 'form';
             this.showPanel = true;
         },
 
@@ -672,11 +747,36 @@ function offboardingPage() {
             this.activeTab = record.form_type || record.type;
             this.form = { ...this.blankForm(this.activeTab), ...record };
             this.panelTitle = `Edit ${this.currentModule().label}`;
+            this.resetAttachmentSelection();
+            this.previewMode = 'form';
             this.showPanel = true;
         },
 
         closePanel() {
             this.showPanel = false;
+        },
+
+        resetAttachmentSelection() {
+            if (this.selectedAttachmentUrl) {
+                URL.revokeObjectURL(this.selectedAttachmentUrl);
+            }
+
+            this.selectedAttachmentUrl = '';
+            this.selectedAttachmentName = '';
+        },
+
+        handleAttachmentChange(event) {
+            this.resetAttachmentSelection();
+
+            const file = event.target.files?.[0];
+
+            if (!file) {
+                return;
+            }
+
+            this.selectedAttachmentUrl = URL.createObjectURL(file);
+            this.selectedAttachmentName = file.name;
+            this.previewMode = 'attachment';
         },
 
         formAction() {
@@ -701,6 +801,8 @@ function offboardingPage() {
                 employee_code: '',
                 position: '',
                 department: '',
+                attachment_url: '',
+                attachment_original_name: '',
             };
         },
 

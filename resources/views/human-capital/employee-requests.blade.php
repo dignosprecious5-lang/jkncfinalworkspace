@@ -1,6 +1,13 @@
 @extends('layouts.app')
 
 @section('content')
+@php
+    $companyHeader = $companyHeader ?? [
+        'logo_url' => asset('images/jk-logo.png'),
+        'company_name' => 'JOHN KELLY & COMPANY (JK&C INC)',
+        'company_address' => '3F Cebu Holdings Center Cebu Business Park, Cebu City, Philippines, 6000',
+    ];
+@endphp
 <div class="w-full px-6 mt-4 h-[calc(100vh-100px)] flex flex-col" x-data="employeeRequestsPage()">
     <div class="bg-white rounded-xl border border-gray-200 flex flex-col flex-grow min-h-0">
         <div class="flex items-center justify-between px-5 py-4 border-b shrink-0 gap-4">
@@ -176,29 +183,31 @@
                             <div class="inline-flex rounded-lg border border-gray-300 bg-white p-1">
                                 <button type="button" @click="previewMode = 'form'" :class="previewMode === 'form' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50'" class="px-3 py-1.5 rounded-md text-xs font-semibold">Request Form</button>
                                 <button type="button" @click="previewMode = 'attachment'" :disabled="!attachmentPreviewUrl" :class="previewMode === 'attachment' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50 disabled:text-gray-300 disabled:hover:bg-white'" class="px-3 py-1.5 rounded-md text-xs font-semibold">Attached Document</button>
+                                <button type="button" @click="previewMode = 'coe'" :disabled="!isCoeRequest" :class="previewMode === 'coe' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50 disabled:text-gray-300 disabled:hover:bg-white'" class="px-3 py-1.5 rounded-md text-xs font-semibold">COE Preview</button>
                             </div>
                         </div>
 
-                        <button
-                            type="button"
-                            onclick="window.print()"
-                            class="px-3 py-2 border rounded-lg text-xs font-semibold text-gray-700 bg-white hover:bg-gray-50 shadow-sm"
-                        >
-                            Download PDF
-                        </button>
+                        <template x-if="isApprovedCoe && form.coe_download_url">
+                            <a :href="form.coe_download_url" class="px-3 py-2 border rounded-lg text-xs font-semibold text-gray-700 bg-white hover:bg-gray-50 shadow-sm">Download PDF</a>
+                        </template>
+                        <template x-if="!isApprovedCoe || !form.coe_download_url">
+                            <button
+                                type="button"
+                                onclick="window.print()"
+                                class="px-3 py-2 border rounded-lg text-xs font-semibold text-gray-700 bg-white hover:bg-gray-50 shadow-sm"
+                            >
+                                Download PDF
+                            </button>
+                        </template>
                     </div>
 
     <!-- SCROLLABLE PDF AREA ONLY -->
     <div class="flex-1 min-h-0 overflow-auto p-5">
-        <div x-show="previewMode === 'form'" class="bg-white mx-auto border border-gray-300 shadow-lg px-10 py-8 text-[11px] leading-tight w-[820px] min-h-[1123px] print-area">
+                        <div x-show="previewMode === 'form'" class="bg-white mx-auto border border-gray-300 shadow-lg px-10 py-8 text-[11px] leading-tight w-[820px] min-h-[1123px] print-area">
                         <div class="text-center border-b-2 border-blue-700 pb-4 mb-4">
-                            <img src="{{ asset('images/jk-logo-template.png') }}" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';" class="h-24 mx-auto mb-2 object-contain" alt="John Kelly & Company Logo">
-                            <div style="display:none">
-                                <div class="text-3xl font-serif font-bold text-gray-900">John Kelly</div>
-                                <div class="text-2xl font-serif italic text-gray-800">& Company</div>
-                            </div>
-                            <p class="mt-2 text-[11px] font-semibold">3F, Cebu Holdings Center, Cebu Business Park, Cebu City, Philippines 6000</p>
-                            <p>Email: start@jknc.io | Website: https://jknc.io/ | Phone: 0995-535-8729</p>
+                            <img src="{{ $companyHeader['logo_url'] }}" onerror="this.style.display='none';" class="h-24 mx-auto mb-2 object-contain" alt="Company Logo">
+                            <p class="mt-2 text-[12px] font-bold uppercase">{{ $companyHeader['company_name'] }}</p>
+                            <p class="mt-1 text-[11px] font-semibold">{{ $companyHeader['company_address'] }}</p>
                             <p class="mt-1">Form Code: ERF-F002 | Version: 1.0 | Effective Date: {{ now()->format('F j, Y') }} | Issued by: Human Capital</p>
                         </div>
 
@@ -267,6 +276,70 @@
                     <div>
                         <p class="text-sm font-semibold text-gray-800">No attached document</p>
                         <p class="mt-1 text-xs text-gray-500">Upload a document on the form to preview it here.</p>
+                    </div>
+                </div>
+            </template>
+        </div>
+        <div x-show="previewMode === 'coe'" class="bg-white mx-auto border border-gray-300 shadow-lg px-12 py-10 text-[13px] leading-relaxed w-[820px] min-h-[1123px] print-area font-serif text-gray-900">
+            <template x-if="isCoeRequest">
+                <div>
+                    <div class="text-center border-b-2 border-blue-700 pb-5 mb-8">
+                        <img :src="coe.logo_url" onerror="this.style.display='none';" class="h-24 mx-auto mb-2 object-contain" alt="Company Logo">
+                        <p class="mt-2 text-[14px] font-bold uppercase" x-text="coe.company_name"></p>
+                        <p class="mt-1 text-[12px] font-semibold" x-text="coe.company_address"></p>
+                    </div>
+
+                    <h3 class="text-center text-[20px] font-bold uppercase tracking-widest mb-8">Certificate of Employment</h3>
+
+                    <p class="mb-5 text-justify">
+                        This is to certify that <strong x-text="coe.employee_name"></strong>
+                        is/was employed with <strong x-text="coe.company_name"></strong>
+                        as <strong x-text="coe.position"></strong>
+                        under <strong x-text="coe.department"></strong>
+                        from <strong x-text="coe.start_date"></strong>
+                        to <strong x-text="coe.end_date"></strong>.
+                    </p>
+
+                    <p class="mb-5 text-justify">
+                        Based on company records, the employee receives/received a monthly basic salary of
+                        <strong x-text="coe.monthly_basic_salary"></strong>, exclusive of incentives, allowances, benefits, and other
+                        compensation that may be reflected in the employee's payslip, and subject to applicable deductions, taxes,
+                        and company policies.
+                    </p>
+
+                    <p class="mb-5 text-justify">
+                        This certification is issued upon the request of the employee for
+                        <strong x-text="coe.purpose"></strong>.
+                    </p>
+
+                    <p class="mb-6 text-justify">
+                        Issued on <strong x-text="coe.date_issued"></strong> at
+                        <strong x-text="coe.company_address"></strong>, Philippines.
+                    </p>
+
+                    <p class="mb-10"><strong>Certificate No.:</strong> <span x-text="coe.coe_number"></span></p>
+
+                    <div class="mb-10 leading-snug">
+                        <p class="font-bold">Approved By:</p>
+                        <p x-text="coe.approver_name"></p>
+                        <p>Human Capital</p>
+                        <p>Approved on: <span x-text="coe.date_approved"></span></p>
+                    </div>
+
+                    <p class="text-[11px] text-justify mb-6">
+                        This certificate discloses only information allowed by law and company policy. It is subject to applicable data privacy
+                        requirements. Unauthorized access, use, disclosure, reproduction, or alteration of this certificate is strictly prohibited.
+                    </p>
+
+                    <p class="text-center text-[12px] font-bold">
+                        This is a computer-generated Certificate of Employment. No signature is required.
+                    </p>
+                </div>
+            </template>
+            <template x-if="!isCoeRequest">
+                <div class="min-h-[1040px] flex items-center justify-center text-center">
+                    <div>
+                        <p class="text-sm font-semibold text-gray-800">COE preview is only available for COE requests.</p>
                     </div>
                 </div>
             </template>
@@ -542,6 +615,18 @@ function employeeRequestsPage() {
             return this.selectedAttachmentName || this.form.attachment_original_name || '';
         },
 
+        get isCoeRequest() {
+            return this.form.request_type === 'COE Request Form';
+        },
+
+        get isApprovedCoe() {
+            return this.isCoeRequest && this.form.status === 'Approved';
+        },
+
+        get coe() {
+            return this.form.coe_preview || {};
+        },
+
         get panelTitle() {
             if (this.isView) return 'View Employee Request';
             if (this.isApproval) return 'Approve Employee Request';
@@ -625,6 +710,8 @@ function employeeRequestsPage() {
                 created_at: '',
                 attachment_url: '',
                 attachment_original_name: '',
+                coe_preview: null,
+                coe_download_url: '',
             };
         },
 
@@ -641,7 +728,7 @@ function employeeRequestsPage() {
             this.mode = 'view';
             this.form = { ...this.defaultForm(), ...request };
             this.resetAttachmentSelection();
-            this.previewMode = 'form';
+            this.previewMode = request.request_type === 'COE Request Form' ? 'coe' : 'form';
             this.calculateOvertimeEnd();
             this.showPanel = true;
         },
