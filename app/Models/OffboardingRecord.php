@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Storage;
 
 class OffboardingRecord extends Model
 {
@@ -33,14 +34,29 @@ class OffboardingRecord extends Model
         'position',
         'department',
         'details',
+        'attachment_path',
+        'attachment_original_name',
         'status',
         'created_by',
         'updated_by',
     ];
 
+    protected $appends = [
+        'attachment_url',
+    ];
+
     protected $casts = [
         'details' => 'array',
     ];
+
+    public function getAttachmentUrlAttribute(): ?string
+    {
+        if (! $this->attachment_path) {
+            return null;
+        }
+
+        return Storage::disk('public')->url($this->attachment_path);
+    }
 
     public function employee()
     {

@@ -6,8 +6,12 @@ use App\Models\Employee;
 use App\Models\EmployeeRequest;
 use App\Models\User;
 use App\Http\Controllers\Concerns\ScopesHumanCapitalRecords;
+use App\Http\Controllers\Concerns\UsesLatestGisCompanyHeader;
 use App\Notifications\HumanCapitalWorkflowNotification;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Carbon;
@@ -15,6 +19,7 @@ use Illuminate\Support\Carbon;
 class EmployeeRequestController extends Controller
 {
     use ScopesHumanCapitalRecords;
+    use UsesLatestGisCompanyHeader;
 
     public function index()
     {
@@ -24,7 +29,7 @@ class EmployeeRequestController extends Controller
         $currentEmployee = $this->currentEmployee();
 
         $employeeRequests = $canManageEmployeeRequests
-            ? EmployeeRequest::latest()->get()
+            ? EmployeeRequest::latest()->get()->map(fn (EmployeeRequest $item) => $this->formatEmployeeRequest($item))
             : collect();
 
         $identity = $this->humanCapitalEmployeeIdentity($currentEmployee, $user);
@@ -37,7 +42,8 @@ class EmployeeRequestController extends Controller
                 ['employee_name']
             )
             ->latest()
-            ->get();
+            ->get()
+            ->map(fn (EmployeeRequest $item) => $this->formatEmployeeRequest($item));
 
         $employees = $canManageEmployeeRequests
             ? Employee::with('department')
@@ -58,7 +64,9 @@ class EmployeeRequestController extends Controller
             'canManageEmployeeRequests',
             'employees',
             'currentEmployeeProfile'
-        ));
+        ) + [
+            'companyHeader' => $this->latestGisCompanyHeader(),
+        ]);
     }
 
     public function store(Request $request)
@@ -66,57 +74,69 @@ class EmployeeRequestController extends Controller
         $request->validate([
             'request_type' => 'required|string|max:255',
             'employee_id' => ($this->canManageRequests() ? 'required' : 'nullable').'|nullable|exists:employees,id',
+            'purpose' => 'required_if:request_type,COE Request Form|nullable|string|max:255',
+            'coe_type' => 'required_if:request_type,COE Request Form|nullable|string|in:Employment Only,With Compensation',
+            'coe_purpose_other' => 'required_if:purpose,Others|nullable|string|max:255',
             'attachment' => 'nullable|file|max:10240|mimes:pdf,jpg,jpeg,png,doc,docx,xls,xlsx',
         ]);
 
         $employee = $this->resolveEmployee($request->integer('employee_id') ?: null);
         $requestUser = $this->userForEmployee($employee);
 
-        $employeeRequest = EmployeeRequest::create([
-            'user_id' => $requestUser->id,
-            'employee_name' => $employee->full_name,
+        $attachmentPayload = $this->attachmentPayload($request);
+        $coePayload = $this->coeColumnPayload($request);
 
-            // Main request type
-            'request_type' => $request->request_type,
+        try {
+            $employeeRequest = EmployeeRequest::create([
+                'user_id' => $requestUser->id,
+                'employee_name' => $employee->full_name,
 
-            // Common fields
-            'department' => $employee->department?->department_name,
-            'request_date' => $request->request_date,
+                // Main request type
+                'request_type' => $request->request_type,
 
-            // Overtime Request fields
-            'overtime_date' => $request->overtime_date,
-            'start_time' => $request->start_time,
-            'end_time' => $this->calculateOvertimeEndTime($request),
-            'total_hours' => $request->total_hours,
+                // Common fields
+                'department' => $employee->department?->department_name,
+                'request_date' => $request->request_date,
 
-            // Leave Application fields
-            'leave_type' => $request->leave_type,
-            'start_date' => $request->start_date,
-            'end_date' => $request->end_date,
-            'number_of_days' => $request->number_of_days,
-            'with_pay' => $request->with_pay,
+                // Overtime Request fields
+                'overtime_date' => $request->overtime_date,
+                'start_time' => $request->start_time,
+                'end_time' => $this->calculateOvertimeEndTime($request),
+                'total_hours' => $request->total_hours,
 
-            // Attendance Correction fields
-            'attendance_date' => $request->attendance_date,
-            'correction_type' => $request->correction_type,
-            'correct_time' => $request->correct_time,
+                // Leave Application fields
+                'leave_type' => $request->leave_type,
+                'start_date' => $request->start_date,
+                'end_date' => $request->end_date,
+                'number_of_days' => $request->number_of_days,
+                'with_pay' => $request->with_pay,
 
-            // Undertime / Absence fields
-            'absence_type' => $request->absence_type,
-            'time_affected' => $request->time_affected,
+                // Attendance Correction fields
+                'attendance_date' => $request->attendance_date,
+                'correction_type' => $request->correction_type,
+                'correct_time' => $request->correct_time,
 
-            // COE Request fields
-            'purpose' => $request->purpose,
-            'date_needed' => $request->date_needed,
-            'number_of_copies' => $request->number_of_copies,
+                // Undertime / Absence fields
+                'absence_type' => $request->absence_type,
+                'time_affected' => $request->time_affected,
 
-            // Shared text fields
-            'reason' => $request->reason,
-            'remarks' => $request->remarks,
+                // COE Request fields
+                'purpose' => $request->purpose,
+                'date_needed' => $request->date_needed,
+                'number_of_copies' => $request->number_of_copies,
 
-            // Default status
-            'status' => 'Pending',
-        ] + $this->attachmentPayload($request));
+                // Shared text fields
+                'reason' => $request->reason,
+                'remarks' => $request->remarks,
+
+                // Default status
+                'status' => 'Pending',
+            ] + $coePayload + $attachmentPayload);
+        } catch (\Throwable $exception) {
+            $this->deleteStoredAttachment($attachmentPayload);
+
+            throw $exception;
+        }
 
         $this->notifyAdmins(
             title: 'New employee request submitted',
@@ -152,7 +172,9 @@ class EmployeeRequestController extends Controller
             'correct_time' => 'nullable',
             'absence_type' => 'nullable|string|max:255',
             'time_affected' => 'nullable',
-            'purpose' => 'nullable|string|max:255',
+            'purpose' => 'required_if:request_type,COE Request Form|nullable|string|max:255',
+            'coe_type' => 'required_if:request_type,COE Request Form|nullable|string|in:Employment Only,With Compensation',
+            'coe_purpose_other' => 'required_if:purpose,Others|nullable|string|max:255',
             'date_needed' => 'nullable|date',
             'number_of_copies' => 'nullable|integer',
             'reason' => 'nullable|string',
@@ -162,40 +184,52 @@ class EmployeeRequestController extends Controller
 
         $employee = $this->currentEmployee();
 
-        $employeeRequest->update([
-            'department' => $employee?->department?->department_name,
-            'request_date' => $request->request_date,
+        $oldAttachmentPath = $employeeRequest->attachment_path;
+        $attachmentPayload = $this->attachmentPayload($request, $employeeRequest);
+        $coePayload = $this->coeColumnPayload($request);
 
-            'overtime_date' => $request->overtime_date,
-            'start_time' => $request->start_time,
-            'end_time' => $this->calculateOvertimeEndTime($request),
-            'total_hours' => $request->total_hours,
+        try {
+            $employeeRequest->update([
+                'department' => $employee?->department?->department_name,
+                'request_date' => $request->request_date,
 
-            'leave_type' => $request->leave_type,
-            'start_date' => $request->start_date,
-            'end_date' => $request->end_date,
-            'number_of_days' => $request->number_of_days,
-            'with_pay' => $request->with_pay,
+                'overtime_date' => $request->overtime_date,
+                'start_time' => $request->start_time,
+                'end_time' => $this->calculateOvertimeEndTime($request),
+                'total_hours' => $request->total_hours,
 
-            'attendance_date' => $request->attendance_date,
-            'correction_type' => $request->correction_type,
-            'correct_time' => $request->correct_time,
+                'leave_type' => $request->leave_type,
+                'start_date' => $request->start_date,
+                'end_date' => $request->end_date,
+                'number_of_days' => $request->number_of_days,
+                'with_pay' => $request->with_pay,
 
-            'absence_type' => $request->absence_type,
-            'time_affected' => $request->time_affected,
+                'attendance_date' => $request->attendance_date,
+                'correction_type' => $request->correction_type,
+                'correct_time' => $request->correct_time,
 
-            'purpose' => $request->purpose,
-            'date_needed' => $request->date_needed,
-            'number_of_copies' => $request->number_of_copies,
+                'absence_type' => $request->absence_type,
+                'time_affected' => $request->time_affected,
 
-            'reason' => $request->reason,
-            'remarks' => $request->remarks,
+                'purpose' => $request->purpose,
+                'date_needed' => $request->date_needed,
+                'number_of_copies' => $request->number_of_copies,
 
-            'status' => 'Pending',
-            'admin_note' => null,
-            'reviewed_by' => null,
-            'reviewed_at' => null,
-        ] + $this->attachmentPayload($request, $employeeRequest));
+                'reason' => $request->reason,
+                'remarks' => $request->remarks,
+
+                'status' => 'Pending',
+                'admin_note' => null,
+                'reviewed_by' => null,
+                'reviewed_at' => null,
+            ] + $coePayload + $attachmentPayload);
+        } catch (\Throwable $exception) {
+            $this->deleteStoredAttachment($attachmentPayload);
+
+            throw $exception;
+        }
+
+        $this->deleteReplacedAttachment($oldAttachmentPath, $attachmentPayload);
 
         $this->notifyAdmins(
             title: 'Employee request revision submitted',
@@ -230,9 +264,25 @@ class EmployeeRequestController extends Controller
             url: route('human-capital.employee-requests.index')
         );
 
+        if ($this->isCoeRequest($employeeRequest)) {
+            $this->sendApprovedCoeEmail($employeeRequest);
+        }
+
         return redirect()
             ->route('human-capital.employee-requests.index')
             ->with('success', 'Employee request approved successfully.');
+    }
+
+    public function downloadCoe(EmployeeRequest $employeeRequest)
+    {
+        abort_unless($this->canViewRequest($employeeRequest), 403);
+        abort_unless($this->isCoeRequest($employeeRequest), 404);
+        abort_unless($employeeRequest->status === 'Approved' || $this->canManageRequests(), 403);
+
+        $coeData = $this->coeData($employeeRequest);
+        $pdf = $this->coePdf($employeeRequest, $coeData);
+
+        return $pdf->download(($coeData['coe_number'] ?: 'COE-' . $employeeRequest->id) . '.pdf');
     }
 
     public function update(Request $request, EmployeeRequest $employeeRequest)
@@ -258,7 +308,9 @@ class EmployeeRequestController extends Controller
             'correct_time' => 'nullable',
             'absence_type' => 'nullable|string|max:255',
             'time_affected' => 'nullable',
-            'purpose' => 'nullable|string|max:255',
+            'purpose' => 'required_if:request_type,COE Request Form|nullable|string|max:255',
+            'coe_type' => 'required_if:request_type,COE Request Form|nullable|string|in:Employment Only,With Compensation',
+            'coe_purpose_other' => 'required_if:purpose,Others|nullable|string|max:255',
             'date_needed' => 'nullable|date',
             'number_of_copies' => 'nullable|integer',
             'reason' => 'nullable|string',
@@ -271,34 +323,46 @@ class EmployeeRequestController extends Controller
         $employee = Employee::with('department')->findOrFail($request->integer('employee_id'));
         $requestUser = $this->userForEmployee($employee);
 
-        $employeeRequest->update([
-            'user_id' => $requestUser->id,
-            'employee_name' => $employee->full_name,
-            'request_type' => $request->request_type,
-            'department' => $employee->department?->department_name,
-            'request_date' => $request->request_date,
-            'overtime_date' => $request->overtime_date,
-            'start_time' => $request->start_time,
-            'end_time' => $this->calculateOvertimeEndTime($request),
-            'total_hours' => $request->total_hours,
-            'leave_type' => $request->leave_type,
-            'start_date' => $request->start_date,
-            'end_date' => $request->end_date,
-            'number_of_days' => $request->number_of_days,
-            'with_pay' => $request->with_pay,
-            'attendance_date' => $request->attendance_date,
-            'correction_type' => $request->correction_type,
-            'correct_time' => $request->correct_time,
-            'absence_type' => $request->absence_type,
-            'time_affected' => $request->time_affected,
-            'purpose' => $request->purpose,
-            'date_needed' => $request->date_needed,
-            'number_of_copies' => $request->number_of_copies,
-            'reason' => $request->reason,
-            'remarks' => $request->remarks,
-            'status' => $request->status,
-            'admin_note' => $request->admin_note,
-        ] + $this->attachmentPayload($request, $employeeRequest));
+        $oldAttachmentPath = $employeeRequest->attachment_path;
+        $attachmentPayload = $this->attachmentPayload($request, $employeeRequest);
+        $coePayload = $this->coeColumnPayload($request);
+
+        try {
+            $employeeRequest->update([
+                'user_id' => $requestUser->id,
+                'employee_name' => $employee->full_name,
+                'request_type' => $request->request_type,
+                'department' => $employee->department?->department_name,
+                'request_date' => $request->request_date,
+                'overtime_date' => $request->overtime_date,
+                'start_time' => $request->start_time,
+                'end_time' => $this->calculateOvertimeEndTime($request),
+                'total_hours' => $request->total_hours,
+                'leave_type' => $request->leave_type,
+                'start_date' => $request->start_date,
+                'end_date' => $request->end_date,
+                'number_of_days' => $request->number_of_days,
+                'with_pay' => $request->with_pay,
+                'attendance_date' => $request->attendance_date,
+                'correction_type' => $request->correction_type,
+                'correct_time' => $request->correct_time,
+                'absence_type' => $request->absence_type,
+                'time_affected' => $request->time_affected,
+                'purpose' => $request->purpose,
+                'date_needed' => $request->date_needed,
+                'number_of_copies' => $request->number_of_copies,
+                'reason' => $request->reason,
+                'remarks' => $request->remarks,
+                'status' => $request->status,
+                'admin_note' => $request->admin_note,
+            ] + $coePayload + $attachmentPayload);
+        } catch (\Throwable $exception) {
+            $this->deleteStoredAttachment($attachmentPayload);
+
+            throw $exception;
+        }
+
+        $this->deleteReplacedAttachment($oldAttachmentPath, $attachmentPayload);
 
         return redirect()
             ->route('human-capital.employee-requests.index')
@@ -386,8 +450,8 @@ class EmployeeRequestController extends Controller
             return [];
         }
 
-        if ($employeeRequest?->attachment_path) {
-            Storage::disk('public')->delete($employeeRequest->attachment_path);
+        if (! $this->employeeRequestAttachmentColumnsExist()) {
+            return [];
         }
 
         $file = $request->file('attachment');
@@ -396,6 +460,65 @@ class EmployeeRequestController extends Controller
             'attachment_path' => $file->store('employee-request-attachments', 'public'),
             'attachment_original_name' => $file->getClientOriginalName(),
         ];
+    }
+
+    private function deleteStoredAttachment(array $attachmentPayload): void
+    {
+        if (! empty($attachmentPayload['attachment_path'])) {
+            Storage::disk('public')->delete($attachmentPayload['attachment_path']);
+        }
+    }
+
+    private function deleteReplacedAttachment(?string $oldAttachmentPath, array $attachmentPayload): void
+    {
+        if ($oldAttachmentPath && ! empty($attachmentPayload['attachment_path']) && $oldAttachmentPath !== $attachmentPayload['attachment_path']) {
+            Storage::disk('public')->delete($oldAttachmentPath);
+        }
+    }
+
+    private function employeeRequestAttachmentColumnsExist(): bool
+    {
+        static $exists = null;
+
+        if ($exists !== null) {
+            return $exists;
+        }
+
+        return $exists = Schema::hasColumns('employee_requests', [
+            'attachment_path',
+            'attachment_original_name',
+        ]);
+    }
+
+    private function coeColumnPayload(Request $request): array
+    {
+        if (! $this->employeeRequestCoeColumnsExist()) {
+            return [];
+        }
+
+        $purpose = (string) $request->input('purpose', '');
+        $purposeOther = $purpose === 'Others'
+            ? trim((string) $request->input('coe_purpose_other', ''))
+            : null;
+
+        return [
+            'coe_type' => $request->input('coe_type') ?: 'Employment Only',
+            'coe_purpose_other' => $purposeOther,
+        ];
+    }
+
+    private function employeeRequestCoeColumnsExist(): bool
+    {
+        static $exists = null;
+
+        if ($exists !== null) {
+            return $exists;
+        }
+
+        return $exists = Schema::hasColumns('employee_requests', [
+            'coe_type',
+            'coe_purpose_other',
+        ]);
     }
 
     private function notifyEmployee(EmployeeRequest $employeeRequest, string $title, string $message, ?string $url = null): void
@@ -414,6 +537,142 @@ class EmployeeRequestController extends Controller
             recordTitle: $employeeRequest->request_type ?: 'Employee Request',
             actorName: ''
         ));
+    }
+
+    private function formatEmployeeRequest(EmployeeRequest $employeeRequest): array
+    {
+        $data = $employeeRequest->toArray();
+        $data['coe_type'] = $data['coe_type'] ?? 'Employment Only';
+        $data['coe_purpose_other'] = $data['coe_purpose_other'] ?? '';
+        $data['created_at'] = optional($employeeRequest->created_at)->format('Y-m-d H:i:s');
+        $data['updated_at'] = optional($employeeRequest->updated_at)->format('Y-m-d H:i:s');
+        $data['coe_preview'] = $this->isCoeRequest($employeeRequest) ? $this->coeData($employeeRequest) : null;
+        $data['coe_download_url'] = $this->isCoeRequest($employeeRequest)
+            ? route('human-capital.employee-requests.coe.download', $employeeRequest)
+            : null;
+
+        return $data;
+    }
+
+    private function isCoeRequest(EmployeeRequest $employeeRequest): bool
+    {
+        return $employeeRequest->request_type === 'COE Request Form';
+    }
+
+    private function canViewRequest(EmployeeRequest $employeeRequest): bool
+    {
+        if ($this->canManageRequests()) {
+            return true;
+        }
+
+        if ($employeeRequest->user_id === auth()->id()) {
+            return true;
+        }
+
+        $employee = $this->currentEmployee();
+
+        return $employee
+            && $employeeRequest->employee_name
+            && strcasecmp($employeeRequest->employee_name, $employee->full_name) === 0;
+    }
+
+    private function coeData(EmployeeRequest $employeeRequest): array
+    {
+        $employee = $this->employeeForRequest($employeeRequest);
+        $companyHeader = $this->latestGisCompanyHeader();
+        $approvedAt = $employeeRequest->reviewed_at
+            ? Carbon::parse($employeeRequest->reviewed_at)
+            : ($employeeRequest->updated_at ?: now());
+        $dateFrom = $employee?->date_hired ?: $employee?->start_date;
+        $isSeparated = $employee && ! in_array(strtolower((string) $employee->employment_status), ['', 'active', 'regular', 'probationary'], true);
+        $dateTo = $isSeparated ? ($employee->status_effective_date ?: now()) : null;
+
+        return [
+            'logo_url' => $companyHeader['logo_url'],
+            'company_name' => $companyHeader['company_name'],
+            'company_address' => $companyHeader['company_address'],
+            'employee_name' => $employee?->full_name ?: $employeeRequest->employee_name,
+            'position' => $employee?->position ?: '-',
+            'department' => $employee?->department?->department_name ?: $employeeRequest->department ?: '-',
+            'start_date' => $dateFrom ? $dateFrom->format('F d, Y') : '-',
+            'end_date' => $dateTo ? $dateTo->format('F d, Y') : 'Present',
+            'coe_type' => $employeeRequest->coe_type ?: 'Employment Only',
+            'show_salary' => ($employeeRequest->coe_type ?: 'Employment Only') === 'With Compensation',
+            'monthly_basic_salary' => $employee ? 'PHP ' . number_format((float) $employee->basic_salary, 2) : '-',
+            'purpose' => $this->coePurposeText($employeeRequest),
+            'date_issued' => $approvedAt->format('F d, Y'),
+            'date_approved' => $approvedAt->format('F d, Y h:i A'),
+            'coe_number' => 'COE-' . now()->format('Y') . '-' . str_pad((string) $employeeRequest->id, 5, '0', STR_PAD_LEFT),
+            'approver_name' => User::find($employeeRequest->reviewed_by)?->name ?: 'Human Capital',
+            'download_url' => route('human-capital.employee-requests.coe.download', $employeeRequest),
+        ];
+    }
+
+    private function coePurposeText(EmployeeRequest $employeeRequest): string
+    {
+        if ($employeeRequest->purpose === 'Others') {
+            return $employeeRequest->coe_purpose_other ?: $employeeRequest->remarks ?: 'employment verification';
+        }
+
+        return $employeeRequest->purpose ?: $employeeRequest->remarks ?: 'employment verification';
+    }
+
+    private function employeeForRequest(EmployeeRequest $employeeRequest): ?Employee
+    {
+        $user = User::find($employeeRequest->user_id);
+
+        return Employee::with('department')
+            ->where('user_id', $employeeRequest->user_id)
+            ->when($user?->email, function ($query, string $email) {
+                $query->orWhere('email', $email)
+                    ->orWhere('work_email', $email)
+                    ->orWhere('company_email', $email);
+            })
+            ->first();
+    }
+
+    private function coePdf(EmployeeRequest $employeeRequest, array $coeData)
+    {
+        return Pdf::loadView('human-capital.pdf.coe', [
+            'employeeRequest' => $employeeRequest,
+            'coe' => $coeData,
+        ])->setPaper('a4', 'portrait')
+            ->setOptions([
+                'isHtml5ParserEnabled' => true,
+                'isRemoteEnabled' => true,
+                'defaultFont' => 'Georgia',
+            ]);
+    }
+
+    private function sendApprovedCoeEmail(EmployeeRequest $employeeRequest): void
+    {
+        $user = User::find($employeeRequest->user_id);
+
+        if (! $user || ! $user->email) {
+            return;
+        }
+
+        $coeData = $this->coeData($employeeRequest);
+        $pdf = $this->coePdf($employeeRequest, $coeData);
+
+        Mail::send('emails.branded-workflow-notification', [
+            'logoUrl' => rtrim((string) config('app.url'), '/') . '/images/imaglogo.png',
+            'notifiableName' => $user->name ?? 'there',
+            'title' => 'Certificate of Employment approved',
+            'body' => 'Your Certificate of Employment has been approved. The PDF copy is attached to this email and is also available in your Employee Requests tab.',
+            'moduleName' => 'Employee Requests',
+            'recordTitle' => $coeData['coe_number'],
+            'actorName' => $coeData['approver_name'],
+            'reviewNote' => null,
+            'url' => $coeData['download_url'],
+            'buttonLabel' => 'Download COE',
+        ], function ($mail) use ($user, $coeData, $pdf) {
+            $mail->to($user->email)
+                ->subject('Certificate of Employment Approved - ' . $coeData['coe_number'])
+                ->attachData($pdf->output(), $coeData['coe_number'] . '.pdf', [
+                    'mime' => 'application/pdf',
+                ]);
+        });
     }
 
     private function authorizeAdminAccess(): void

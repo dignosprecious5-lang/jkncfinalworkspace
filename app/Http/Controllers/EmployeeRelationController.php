@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\RequestsHumanCapitalApproval;
 use App\Http\Controllers\Concerns\ScopesHumanCapitalRecords;
+use App\Http\Controllers\Concerns\UsesLatestGisCompanyHeader;
 use App\Models\Employee;
 use App\Models\EmployeeRelation;
 use Illuminate\Http\Request;
@@ -16,6 +17,7 @@ class EmployeeRelationController extends Controller
 {
     use RequestsHumanCapitalApproval;
     use ScopesHumanCapitalRecords;
+    use UsesLatestGisCompanyHeader;
 
     public function index()
     {
@@ -66,6 +68,7 @@ class EmployeeRelationController extends Controller
                 'position' => $currentEmployee->position,
                 'department' => $currentEmployee->department?->department_name,
             ] : null,
+            'companyHeader' => $this->latestGisCompanyHeader(),
         ]);
     }
 
