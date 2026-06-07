@@ -10306,8 +10306,11 @@
         `;
     }
 
-    function renderLiquidationReportSection(record, fallbackValues = {}) {
+    function renderLiquidationReportSection(record, fallbackValues = {}, options = {}) {
         const data = record?.data || {};
+        const showLineItemsSection = Object.prototype.hasOwnProperty.call(options, 'showLineItemsSection')
+            ? Boolean(options.showLineItemsSection)
+            : true;
         const linkedCaId = fallbackValues['data[linked_ca_id]'] || data.linked_ca_id || '';
         const linkedCaRecord = linkedCaId ? (getRecordById(linkedCaId) || getRecordByLookupValue('ca', linkedCaId)) : null;
         const linkedCaData = linkedCaRecord?.data || {};
@@ -10449,6 +10452,7 @@
                     </div>
                 </div>
 
+                ${showLineItemsSection ? `
                 <div class="mt-4 rounded-xl border border-white/80 bg-white p-4">
                     <div class="flex flex-wrap items-center justify-between gap-3">
                         <div>
@@ -10500,6 +10504,7 @@
                         `}
                     </div>
                 </div>
+                ` : ''}
             </div>
         `;
     }
@@ -12052,7 +12057,7 @@
                     ` : ''}
 
                     <div class="md:col-span-2">
-                        ${renderLiquidationReportSection(draftLinkedRecord || record, values)}
+                        ${renderLiquidationReportSection(draftLinkedRecord || record, values, { showLineItemsSection: false })}
                     </div>
 
                     <div class="md:col-span-2">
@@ -13402,7 +13407,7 @@
                                 <h4 class="text-[12px] font-semibold uppercase tracking-[0.26em] text-gray-700">Liquidation Report</h4>
                             </div>
                             <div class="p-4">
-                                ${renderLiquidationReportSection(draftLinkedRecord || null, formValues)}
+                                ${renderLiquidationReportSection(draftLinkedRecord || null, formValues, { showLineItemsSection: false })}
                             </div>
                         </div>
 
