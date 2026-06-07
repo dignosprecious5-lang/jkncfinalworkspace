@@ -1524,6 +1524,10 @@ Route::middleware(['auth', 'prevent-back-history', \App\Http\Middleware\EnsurePa
             ->name('employee-requests.update-revision')
             ->middleware('human-capital.module:access_hc_employee_requests,true');
 
+        Route::post('/employee-requests/{employeeRequest}/update', [EmployeeRequestController::class, 'update'])
+            ->name('employee-requests.update')
+            ->middleware('human-capital.module:access_hc_employee_requests');
+
         Route::get('/employee-requests', [EmployeeRequestController::class, 'index'])
             ->name('employee-requests.index')
             ->middleware('human-capital.module:access_hc_employee_requests,true');

@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Http\Controllers\Concerns\ScopesHumanCapitalRecords;
 use App\Notifications\HumanCapitalWorkflowNotification;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Carbon;
 
@@ -65,6 +66,7 @@ class EmployeeRequestController extends Controller
         $request->validate([
             'request_type' => 'required|string|max:255',
             'employee_id' => ($this->canManageRequests() ? 'required' : 'nullable').'|nullable|exists:employees,id',
+            'attachment' => 'nullable|file|max:10240|mimes:pdf,jpg,jpeg,png,doc,docx,xls,xlsx',
         ]);
 
         $employee = $this->resolveEmployee($request->integer('employee_id') ?: null);
@@ -114,7 +116,7 @@ class EmployeeRequestController extends Controller
 
             // Default status
             'status' => 'Pending',
-        ]);
+        ] + $this->attachmentPayload($request));
 
         $this->notifyAdmins(
             title: 'New employee request submitted',
@@ -155,6 +157,7 @@ class EmployeeRequestController extends Controller
             'number_of_copies' => 'nullable|integer',
             'reason' => 'nullable|string',
             'remarks' => 'nullable|string',
+            'attachment' => 'nullable|file|max:10240|mimes:pdf,jpg,jpeg,png,doc,docx,xls,xlsx',
         ]);
 
         $employee = $this->currentEmployee();
@@ -192,7 +195,7 @@ class EmployeeRequestController extends Controller
             'admin_note' => null,
             'reviewed_by' => null,
             'reviewed_at' => null,
-        ]);
+        ] + $this->attachmentPayload($request, $employeeRequest));
 
         $this->notifyAdmins(
             title: 'Employee request revision submitted',
@@ -230,6 +233,76 @@ class EmployeeRequestController extends Controller
         return redirect()
             ->route('human-capital.employee-requests.index')
             ->with('success', 'Employee request approved successfully.');
+    }
+
+    public function update(Request $request, EmployeeRequest $employeeRequest)
+    {
+        $this->authorizeAdminAccess();
+
+        $request->validate([
+            'request_type' => 'required|string|max:255',
+            'employee_id' => 'required|exists:employees,id',
+            'department' => 'nullable|string|max:255',
+            'request_date' => 'nullable|date',
+            'overtime_date' => 'nullable|date',
+            'start_time' => 'nullable',
+            'end_time' => 'nullable',
+            'total_hours' => 'nullable|numeric',
+            'leave_type' => 'nullable|string|max:255',
+            'start_date' => 'nullable|date',
+            'end_date' => 'nullable|date',
+            'number_of_days' => 'nullable|numeric',
+            'with_pay' => 'nullable|string|max:255',
+            'attendance_date' => 'nullable|date',
+            'correction_type' => 'nullable|string|max:255',
+            'correct_time' => 'nullable',
+            'absence_type' => 'nullable|string|max:255',
+            'time_affected' => 'nullable',
+            'purpose' => 'nullable|string|max:255',
+            'date_needed' => 'nullable|date',
+            'number_of_copies' => 'nullable|integer',
+            'reason' => 'nullable|string',
+            'remarks' => 'nullable|string',
+            'admin_note' => 'nullable|string|max:1000',
+            'status' => 'required|string|in:Pending,Approved,For Revision,Declined',
+            'attachment' => 'nullable|file|max:10240|mimes:pdf,jpg,jpeg,png,doc,docx,xls,xlsx',
+        ]);
+
+        $employee = Employee::with('department')->findOrFail($request->integer('employee_id'));
+        $requestUser = $this->userForEmployee($employee);
+
+        $employeeRequest->update([
+            'user_id' => $requestUser->id,
+            'employee_name' => $employee->full_name,
+            'request_type' => $request->request_type,
+            'department' => $employee->department?->department_name,
+            'request_date' => $request->request_date,
+            'overtime_date' => $request->overtime_date,
+            'start_time' => $request->start_time,
+            'end_time' => $this->calculateOvertimeEndTime($request),
+            'total_hours' => $request->total_hours,
+            'leave_type' => $request->leave_type,
+            'start_date' => $request->start_date,
+            'end_date' => $request->end_date,
+            'number_of_days' => $request->number_of_days,
+            'with_pay' => $request->with_pay,
+            'attendance_date' => $request->attendance_date,
+            'correction_type' => $request->correction_type,
+            'correct_time' => $request->correct_time,
+            'absence_type' => $request->absence_type,
+            'time_affected' => $request->time_affected,
+            'purpose' => $request->purpose,
+            'date_needed' => $request->date_needed,
+            'number_of_copies' => $request->number_of_copies,
+            'reason' => $request->reason,
+            'remarks' => $request->remarks,
+            'status' => $request->status,
+            'admin_note' => $request->admin_note,
+        ] + $this->attachmentPayload($request, $employeeRequest));
+
+        return redirect()
+            ->route('human-capital.employee-requests.index')
+            ->with('success', 'Employee request updated successfully.');
     }
 
     public function reject(Request $request, EmployeeRequest $employeeRequest)
@@ -305,6 +378,24 @@ class EmployeeRequestController extends Controller
             recordTitle: '',
             actorName: auth()->user()?->name ?? auth()->user()?->email ?? ''
         ));
+    }
+
+    private function attachmentPayload(Request $request, ?EmployeeRequest $employeeRequest = null): array
+    {
+        if (! $request->hasFile('attachment')) {
+            return [];
+        }
+
+        if ($employeeRequest?->attachment_path) {
+            Storage::disk('public')->delete($employeeRequest->attachment_path);
+        }
+
+        $file = $request->file('attachment');
+
+        return [
+            'attachment_path' => $file->store('employee-request-attachments', 'public'),
+            'attachment_original_name' => $file->getClientOriginalName(),
+        ];
     }
 
     private function notifyEmployee(EmployeeRequest $employeeRequest, string $title, string $message, ?string $url = null): void

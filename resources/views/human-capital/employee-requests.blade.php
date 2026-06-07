@@ -142,6 +142,7 @@
                                     </td>
                                     <td class="p-3 text-right whitespace-nowrap space-x-2">
                                         <button type="button" @click="openView(request)" class="text-indigo-600 hover:underline text-xs font-semibold">View</button>
+                                        <button type="button" @click="openAdminEdit(request)" class="text-blue-600 hover:underline text-xs font-semibold">Edit</button>
                                         <button type="button" @click="openApproveForm(request)" x-show="request.status === 'Pending'" class="text-green-600 hover:underline text-xs font-semibold">Approve</button>
                                         <button type="button" @click="openRejectForm(request)" x-show="request.status !== 'Approved'" class="text-red-600 hover:underline text-xs font-semibold">Reject</button>
                                     </td>
@@ -156,7 +157,7 @@
 
     <!-- SLIDER PANEL -->
     <div x-show="showPanel" x-transition.opacity class="fixed inset-0 z-50 bg-black/40 flex justify-end" style="display:none;" @click.self="closePanel()">
-        <div class="w-screen h-full bg-white shadow-xl flex flex-col">
+        <div class="w-[90vw] max-w-[90vw] h-full bg-white shadow-xl flex flex-col">
             <div class="px-6 py-4 border-b bg-white flex items-center justify-between">
                 <div>
                     <h2 class="text-lg font-bold uppercase tracking-widest text-gray-900" x-text="panelTitle"></h2>
@@ -169,8 +170,14 @@
                 <!-- LEFT SIDE: PDF PREVIEW -->
                 <div class="min-h-0 border-r bg-gray-100 flex flex-col">
                     <!-- STICKY / FIXED TOOLBAR -->
-                    <div class="shrink-0 px-5 py-3 border-b bg-gray-100 flex items-center justify-between z-30">
-                        <p class="text-xs font-bold text-gray-500 uppercase tracking-widest">Preview</p>
+                    <div class="shrink-0 px-5 py-3 border-b bg-gray-100 flex items-center justify-between z-30 gap-3">
+                        <div class="flex items-center gap-3">
+                            <p class="text-xs font-bold text-gray-500 uppercase tracking-widest">Preview</p>
+                            <div class="inline-flex rounded-lg border border-gray-300 bg-white p-1">
+                                <button type="button" @click="previewMode = 'form'" :class="previewMode === 'form' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50'" class="px-3 py-1.5 rounded-md text-xs font-semibold">Request Form</button>
+                                <button type="button" @click="previewMode = 'attachment'" :disabled="!attachmentPreviewUrl" :class="previewMode === 'attachment' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50 disabled:text-gray-300 disabled:hover:bg-white'" class="px-3 py-1.5 rounded-md text-xs font-semibold">Attached Document</button>
+                            </div>
+                        </div>
 
                         <button
                             type="button"
@@ -183,7 +190,7 @@
 
     <!-- SCROLLABLE PDF AREA ONLY -->
     <div class="flex-1 min-h-0 overflow-auto p-5">
-        <div class="bg-white mx-auto border border-gray-300 shadow-lg px-10 py-8 text-[11px] leading-tight w-[820px] min-h-[1123px] print-area">
+        <div x-show="previewMode === 'form'" class="bg-white mx-auto border border-gray-300 shadow-lg px-10 py-8 text-[11px] leading-tight w-[820px] min-h-[1123px] print-area">
                         <div class="text-center border-b-2 border-blue-700 pb-4 mb-4">
                             <img src="{{ asset('images/jk-logo-template.png') }}" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';" class="h-24 mx-auto mb-2 object-contain" alt="John Kelly & Company Logo">
                             <div style="display:none">
@@ -242,12 +249,34 @@
                             <div><div class="border-b border-gray-700 h-8"></div><p class="mt-1 font-bold">HR / Authorized Reviewer</p></div>
                         </div>
                     </div>
+        <div x-show="previewMode === 'attachment'" class="bg-white mx-auto border border-gray-300 shadow-lg w-[820px] min-h-[1123px] overflow-hidden">
+            <template x-if="attachmentPreviewUrl">
+                <div class="h-[1123px] flex flex-col">
+                    <div class="px-4 py-3 border-b bg-gray-50 flex items-center justify-between gap-3">
+                        <div class="min-w-0">
+                            <p class="text-xs font-bold uppercase tracking-widest text-gray-500">Attached Document</p>
+                            <p class="text-sm font-semibold text-gray-800 truncate" x-text="attachmentPreviewName || 'Attachment'"></p>
+                        </div>
+                        <a :href="attachmentPreviewUrl" target="_blank" class="shrink-0 px-3 py-2 text-xs font-semibold rounded-lg border border-gray-300 text-gray-700 hover:bg-white">Open</a>
+                    </div>
+                    <iframe :src="attachmentPreviewUrl" class="flex-1 w-full border-0 bg-white"></iframe>
+                </div>
+            </template>
+            <template x-if="!attachmentPreviewUrl">
+                <div class="h-[1123px] flex items-center justify-center px-8 text-center">
+                    <div>
+                        <p class="text-sm font-semibold text-gray-800">No attached document</p>
+                        <p class="mt-1 text-xs text-gray-500">Upload a document on the form to preview it here.</p>
+                    </div>
+                </div>
+            </template>
+        </div>
                 </div>
                 </div>
 
                 <!-- RIGHT SIDE: FORM -->
                 <div class="min-h-0 overflow-auto bg-white">
-                    <form :action="formAction" method="POST" class="p-6 space-y-4">
+                    <form :action="formAction" method="POST" enctype="multipart/form-data" class="p-6 space-y-4">
                         @csrf
 
                         <!-- REQUEST TYPE SELECTOR -->
@@ -381,6 +410,31 @@
                             </div>
                         </div>
 
+                        <!-- ATTACHMENT -->
+                        <div class="rounded-xl border border-gray-200 overflow-hidden">
+                            <div class="px-4 py-2 bg-blue-700 text-white text-xs font-bold uppercase tracking-widest">Document Attachment</div>
+                            <div class="p-4 space-y-3">
+                                <template x-if="attachmentPreviewUrl">
+                                    <div class="flex items-center justify-between gap-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
+                                        <div class="min-w-0">
+                                            <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Current Attachment</p>
+                                            <p class="text-sm text-gray-800 truncate" x-text="attachmentPreviewName || 'Attachment'"></p>
+                                        </div>
+                                        <button type="button" @click="previewMode = 'attachment'" class="shrink-0 px-3 py-2 text-xs font-semibold text-blue-700 border border-blue-200 rounded-lg bg-white hover:bg-blue-50">Preview</button>
+                                    </div>
+                                </template>
+                                <input
+                                    type="file"
+                                    name="attachment"
+                                    accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx"
+                                    @change="handleAttachmentChange($event)"
+                                    :disabled="isView"
+                                    class="w-full border rounded-lg px-3 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-blue-50 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-blue-700 hover:file:bg-blue-100"
+                                >
+                                <p class="text-xs text-gray-500">Optional proof or supporting document. PDF, image, Word, or Excel files up to 10 MB.</p>
+                            </div>
+                        </div>
+
                         <!-- ADMIN REVIEW SECTION (Admin only) -->
                         <template x-if="canManageRequests">
                             <div class="rounded-xl border border-gray-200 overflow-hidden">
@@ -455,6 +509,9 @@ function employeeRequestsPage() {
         showPanel: false,
         mode: 'create',
         selectedEmployee: '',
+        previewMode: 'form',
+        selectedAttachmentUrl: '',
+        selectedAttachmentName: '',
         form: {},
 
         get isView() {
@@ -473,10 +530,23 @@ function employeeRequestsPage() {
             return this.mode === 'reject';
         },
 
+        get isAdminEdit() {
+            return this.mode === 'admin-edit';
+        },
+
+        get attachmentPreviewUrl() {
+            return this.selectedAttachmentUrl || this.form.attachment_url || '';
+        },
+
+        get attachmentPreviewName() {
+            return this.selectedAttachmentName || this.form.attachment_original_name || '';
+        },
+
         get panelTitle() {
             if (this.isView) return 'View Employee Request';
             if (this.isApproval) return 'Approve Employee Request';
             if (this.isRejection) return 'Reject Employee Request';
+            if (this.isAdminEdit) return 'Edit Employee Request';
             if (this.isEdit) return 'Edit Employee Request';
             return 'New Employee Request';
         },
@@ -496,12 +566,17 @@ function employeeRequestsPage() {
                 return `${base}/${this.form.id}/update-revision`;
             }
 
+            if (this.isAdminEdit && this.form.id) {
+                return `${base}/${this.form.id}/update`;
+            }
+
             return `{{ route('human-capital.employee-requests.store') }}`;
         },
 
         get submitLabel() {
             if (this.isApproval) return 'Approve Request';
             if (this.isRejection) return 'Reject Request';
+            if (this.isAdminEdit) return 'Update Request';
             if (this.isEdit) return 'Submit Revision';
             return 'Save Request';
         },
@@ -548,12 +623,16 @@ function employeeRequestsPage() {
                 admin_note: '',
                 status: 'Pending',
                 created_at: '',
+                attachment_url: '',
+                attachment_original_name: '',
             };
         },
 
         openAdd() {
             this.mode = 'create';
             this.form = this.defaultForm();
+            this.resetAttachmentSelection();
+            this.previewMode = 'form';
             this.syncEmployee();
             this.showPanel = true;
         },
@@ -561,6 +640,8 @@ function employeeRequestsPage() {
         openView(request) {
             this.mode = 'view';
             this.form = { ...this.defaultForm(), ...request };
+            this.resetAttachmentSelection();
+            this.previewMode = 'form';
             this.calculateOvertimeEnd();
             this.showPanel = true;
         },
@@ -568,6 +649,17 @@ function employeeRequestsPage() {
         openEdit(request) {
             this.mode = 'edit';
             this.form = { ...this.defaultForm(), ...request };
+            this.resetAttachmentSelection();
+            this.previewMode = 'form';
+            this.calculateOvertimeEnd();
+            this.showPanel = true;
+        },
+
+        openAdminEdit(request) {
+            this.mode = 'admin-edit';
+            this.form = { ...this.defaultForm(), ...request };
+            this.resetAttachmentSelection();
+            this.previewMode = 'form';
             this.calculateOvertimeEnd();
             this.showPanel = true;
         },
@@ -575,6 +667,8 @@ function employeeRequestsPage() {
         openApproveForm(request) {
             this.mode = 'approve';
             this.form = { ...this.defaultForm(), ...request, status: 'Approved' };
+            this.resetAttachmentSelection();
+            this.previewMode = 'form';
             this.calculateOvertimeEnd();
             this.showPanel = true;
         },
@@ -582,12 +676,37 @@ function employeeRequestsPage() {
         openRejectForm(request) {
             this.mode = 'reject';
             this.form = { ...this.defaultForm(), ...request, status: 'Declined' };
+            this.resetAttachmentSelection();
+            this.previewMode = 'form';
             this.calculateOvertimeEnd();
             this.showPanel = true;
         },
 
         closePanel() {
             this.showPanel = false;
+        },
+
+        resetAttachmentSelection() {
+            if (this.selectedAttachmentUrl) {
+                URL.revokeObjectURL(this.selectedAttachmentUrl);
+            }
+
+            this.selectedAttachmentUrl = '';
+            this.selectedAttachmentName = '';
+        },
+
+        handleAttachmentChange(event) {
+            this.resetAttachmentSelection();
+
+            const file = event.target.files?.[0];
+
+            if (!file) {
+                return;
+            }
+
+            this.selectedAttachmentUrl = URL.createObjectURL(file);
+            this.selectedAttachmentName = file.name;
+            this.previewMode = 'attachment';
         },
 
         syncEmployee() {

@@ -4,10 +4,15 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Storage;
 
 class EmployeeRequest extends Model
 {
     use HasFactory;
+
+    protected $appends = [
+        'attachment_url',
+    ];
 
     protected $fillable = [
         'user_id',
@@ -38,5 +43,16 @@ class EmployeeRequest extends Model
         'reviewed_by',
         'reviewed_at',
         'admin_note',
+        'attachment_path',
+        'attachment_original_name',
     ];
+
+    public function getAttachmentUrlAttribute(): ?string
+    {
+        if (! $this->attachment_path) {
+            return null;
+        }
+
+        return Storage::disk('public')->url($this->attachment_path);
+    }
 }
