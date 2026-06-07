@@ -1,8 +1,6 @@
 ﻿(() => {
     const bootstrap = window.financeBootstrap || {};
     const csrfToken = bootstrap.csrfToken || '';
-    const moduleKeys = Array.isArray(bootstrap.moduleKeys) ? bootstrap.moduleKeys : [];
-
     function currentCsrfToken() {
         return document.querySelector('meta[name="csrf-token"]')?.content
             || document.querySelector('input[name="_token"]')?.value
@@ -38,6 +36,7 @@
     const checkboxGroupField = (name, label, options = {}) => ({ name, label, type: 'checkbox-group', options: [], fullWidth: true, ...options });
     const radioGroupField = (name, label, options = {}) => ({ name, label, type: 'radio-group', options: [], fullWidth: true, ...options });
     const calculationField = (name, label, options = {}) => ({ name, label, type: 'calculation', readOnly: true, ...options });
+    let releaseFundsIntentRecordId = null;
 
     const friendlyFieldLabels = {
         'module_key': 'Finance section',
@@ -1879,6 +1878,48 @@
         return (parseInt(releaseCount, 10) || 1) > 1 ? 'Staggered Release' : 'Full Release';
     }
 
+    function normalizeCashAdvanceReleaseEntries(entries = [], values = {}) {
+        const amount = numericAmount(getCashAdvanceDraftValue(values, 'amount_requested', values.amount ?? 0));
+        const releaseCount = Math.max(parseInt(getCashAdvanceDraftValue(values, 'release_count', 1), 10) || 1, 1);
+        const amountPerRelease = numericAmount(getCashAdvanceDraftValue(values, 'amount_per_release', 0)) || (amount / releaseCount);
+        const rows = Array.isArray(entries)
+            ? entries
+            : (entries && typeof entries === 'object' ? Object.values(entries) : []);
+        const normalizedRows = rows
+            .map((entry, index) => {
+                const row = entry && typeof entry === 'object' ? entry : {};
+                const releaseNo = Math.max(parseInt(row.release_no ?? row.releaseNo ?? index + 1, 10) || index + 1, 1);
+
+                return {
+                    release_no: releaseNo,
+                    scheduled_date: String(row.scheduled_date ?? row.scheduledDate ?? '').trim(),
+                    scheduled_time: String(row.scheduled_time ?? row.scheduledTime ?? '').trim(),
+                    scheduled_amount: numericAmount(row.scheduled_amount ?? row.scheduledAmount ?? 0).toFixed(2),
+                    scheduled_remarks: String(row.scheduled_remarks ?? row.scheduledRemarks ?? '').trim(),
+                };
+            })
+            .reduce((map, entry) => {
+                map[String(entry.release_no)] = entry;
+                return map;
+            }, {});
+
+        return Array.from({ length: releaseCount }).map((_, index) => {
+            const releaseNo = index + 1;
+            const defaultAmount = releaseNo === releaseCount
+                ? Math.max(amount - (amountPerRelease * (releaseCount - 1)), 0)
+                : amountPerRelease;
+            const existing = normalizedRows[String(releaseNo)] || {};
+
+            return {
+                release_no: releaseNo,
+                scheduled_date: existing.scheduled_date || (releaseNo === 1 ? String(getCashAdvanceDraftValue(values, 'cash_release_date', '') || '') : ''),
+                scheduled_time: existing.scheduled_time || (releaseNo === 1 ? String(getCashAdvanceDraftValue(values, 'cash_release_time', '') || '') : ''),
+                scheduled_amount: defaultAmount.toFixed(2),
+                scheduled_remarks: existing.scheduled_remarks || '',
+            };
+        });
+    }
+
     function normalizeCashAdvancePaymentEntries(entries = []) {
         const rows = Array.isArray(entries)
             ? entries
@@ -1913,10 +1954,47 @@
         })));
     }
 
+    function collectCashAdvanceReleaseEntriesFromForm(form = $('financeForm')) {
+        if (!form) return [];
+
+        return normalizeCashAdvanceReleaseEntries(Array.from(form.querySelectorAll('[data-ca-schedule-row]')).map((row) => ({
+            release_no: row.querySelector('[data-ca-schedule-field="release_no"]')?.value || '',
+            scheduled_date: row.querySelector('[data-ca-schedule-field="scheduled_date"]')?.value || '',
+            scheduled_time: row.querySelector('[data-ca-schedule-field="scheduled_time"]')?.value || '',
+            scheduled_amount: row.querySelector('[data-ca-schedule-field="scheduled_amount"]')?.value || '',
+            scheduled_remarks: row.querySelector('[data-ca-schedule-field="scheduled_remarks"]')?.value || '',
+        })), {
+            amount_requested: form.querySelector('input[name="data[amount_requested]"]')?.value || 0,
+            release_count: form.querySelector('input[name="data[release_count]"]')?.value || 1,
+            amount_per_release: form.querySelector('input[name="data[amount_per_release]"]')?.value || 0,
+            cash_release_date: form.querySelector('input[name="data[cash_release_date]"]')?.value || '',
+            cash_release_time: form.querySelector('input[name="data[cash_release_time]"]')?.value || '',
+        });
+    }
+
+    function syncCashAdvanceReleaseMirrors(form = $('financeForm')) {
+        if (!form) return;
+
+        const releaseEntries = collectCashAdvanceReleaseEntriesFromForm(form);
+        const firstReleaseEntry = Array.isArray(releaseEntries) ? releaseEntries[0] || {} : {};
+        const cashReleaseDateInput = form.querySelector('input[name="data[cash_release_date]"]');
+        const cashReleaseTimeInput = form.querySelector('input[name="data[cash_release_time]"]');
+
+        if (cashReleaseDateInput) {
+            cashReleaseDateInput.value = firstReleaseEntry.scheduled_date || '';
+        }
+
+        if (cashReleaseTimeInput) {
+            cashReleaseTimeInput.value = firstReleaseEntry.scheduled_time || '';
+        }
+    }
+
     function getCurrentCashAdvanceDraftValues() {
         const form = $('financeForm');
         const values = {};
         if (!form) return values;
+
+        syncCashAdvanceReleaseMirrors(form);
 
         new FormData(form).forEach((value, key) => {
             const match = String(key).match(/^data\[([^\]]+)\]$/);
@@ -1931,6 +2009,12 @@
             values[`data[${match[1]}]`] = values[match[1]];
         });
 
+        values.release_entries = collectCashAdvanceReleaseEntriesFromForm(form);
+        const firstReleaseEntry = Array.isArray(values.release_entries) ? values.release_entries[0] || {} : {};
+        values.cash_release_date = firstReleaseEntry.scheduled_date || '';
+        values['data[cash_release_date]'] = values.cash_release_date;
+        values.cash_release_time = firstReleaseEntry.scheduled_time || '';
+        values['data[cash_release_time]'] = values.cash_release_time;
         values.ca_payment_entries = collectCashAdvancePaymentEntriesFromForm(form);
         return values;
     }
@@ -1939,6 +2023,11 @@
         const amount = numericAmount(getCashAdvanceDraftValue(values, 'amount_requested', values.amount ?? 0));
         const releaseCount = Math.max(parseInt(getCashAdvanceDraftValue(values, 'release_count', 1), 10) || 1, 1);
         const amountPerRelease = numericAmount(getCashAdvanceDraftValue(values, 'amount_per_release', 0)) || (amount / releaseCount);
+        const releaseEntries = normalizeCashAdvanceReleaseEntries(values.release_entries ?? values['data[release_entries]'] ?? [], values);
+        const releaseEntryMap = releaseEntries.reduce((map, entry) => {
+            map[String(entry.release_no)] = entry;
+            return map;
+        }, {});
         const baseEntries = normalizeCashAdvancePaymentEntries(values.ca_payment_entries ?? values['data[ca_payment_entries]'] ?? []);
         const entriesByRelease = baseEntries.reduce((map, entry) => {
             const key = String(entry.release_no);
@@ -1952,17 +2041,22 @@
             const releaseEntries = entriesByRelease[String(releaseNo)] || [];
             const paidAmount = releaseEntries.reduce((sum, entry) => sum + numericAmount(entry.payment_amount), 0);
             const latestPayment = releaseEntries[releaseEntries.length - 1] || {};
-            const scheduledAmount = releaseNo === releaseCount
-                ? Math.max(amount - (amountPerRelease * (releaseCount - 1)), 0)
-                : amountPerRelease;
+            const scheduleEntry = releaseEntryMap[String(releaseNo)] || {};
+            const scheduledAmount = numericAmount(scheduleEntry.scheduled_amount)
+                || (releaseNo === releaseCount
+                    ? Math.max(amount - (amountPerRelease * (releaseCount - 1)), 0)
+                    : amountPerRelease);
             const status = paidAmount >= scheduledAmount && scheduledAmount > 0
                 ? 'Paid'
                 : (paidAmount > 0 ? 'Partial' : 'Pending');
 
             return {
                 no: releaseNo,
-                scheduled_date: releaseNo === 1 ? String(getCashAdvanceDraftValue(values, 'cash_release_date', '') || '') : '',
+                scheduled_date: scheduleEntry.scheduled_date || (releaseNo === 1 ? String(getCashAdvanceDraftValue(values, 'cash_release_date', '') || '') : ''),
+                scheduled_time: scheduleEntry.scheduled_time || (releaseNo === 1 ? String(getCashAdvanceDraftValue(values, 'cash_release_time', '') || '') : ''),
                 amount_value: scheduledAmount,
+                scheduled_amount_value: scheduledAmount,
+                scheduled_remarks: scheduleEntry.scheduled_remarks || '',
                 paid_amount_value: paidAmount,
                 remaining_amount_value: Math.max(scheduledAmount - paidAmount, 0),
                 payment_date: latestPayment.payment_date || '',
@@ -1981,6 +2075,7 @@
             amount,
             releaseCount,
             amountPerRelease,
+            releaseEntries,
             entries: baseEntries,
             rows,
             totalPaid,
@@ -1990,6 +2085,57 @@
             nextPaymentRow,
             status: remainingBalance <= 0 && amount > 0 ? 'Fully Released' : (totalPaid > 0 ? 'Partially Released' : 'Pending Release'),
         };
+    }
+
+    function renderCashAdvanceReleaseScheduleEditor(values = {}) {
+        const state = buildCashAdvancePaymentState(values);
+
+        return `
+            <div class="rounded-xl border border-gray-200 bg-white p-4">
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                        <h4 class="text-sm font-semibold uppercase tracking-[0.24em] text-gray-700">Release Schedule Details</h4>
+                        <p class="mt-2 text-xs text-gray-500">Set the planned payment date, time, and amount for each release.</p>
+                    </div>
+                    <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">${escapeHtml(`${state.releaseCount} release${state.releaseCount === 1 ? '' : 's'}`)}</span>
+                </div>
+                <div class="mt-4 overflow-x-auto">
+                    <table class="w-full min-w-[920px] border-collapse text-sm">
+                        <thead>
+                            <tr class="bg-gray-50 text-gray-700">
+                                <th class="border border-gray-200 px-3 py-2 text-left w-24">Release</th>
+                                <th class="border border-gray-200 px-3 py-2 text-left w-40">Scheduled Date</th>
+                                <th class="border border-gray-200 px-3 py-2 text-left w-32">Scheduled Time</th>
+                                <th class="border border-gray-200 px-3 py-2 text-left w-40">Scheduled Amount</th>
+                                <th class="border border-gray-200 px-3 py-2 text-left">Remarks</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${state.releaseEntries.map((entry, index) => `
+                                <tr data-ca-schedule-row>
+                                    <td class="border border-gray-200 px-3 py-2">
+                                        <input type="hidden" name="data[release_entries][${index}][release_no]" data-ca-schedule-field="release_no" value="${escapeHtml(entry.release_no)}">
+                                        <span class="font-semibold text-blue-700">Release ${escapeHtml(entry.release_no)}</span>
+                                    </td>
+                                    <td class="border border-gray-200 px-3 py-2">
+                                        <input type="date" name="data[release_entries][${index}][scheduled_date]" data-ca-schedule-field="scheduled_date" value="${escapeHtml(entry.scheduled_date || '')}" class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2">
+                                    </td>
+                                    <td class="border border-gray-200 px-3 py-2">
+                                        <input type="time" name="data[release_entries][${index}][scheduled_time]" data-ca-schedule-field="scheduled_time" value="${escapeHtml(entry.scheduled_time || '')}" class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2">
+                                    </td>
+                                    <td class="border border-gray-200 px-3 py-2">
+                                        <input type="number" step="0.01" min="0" name="data[release_entries][${index}][scheduled_amount]" data-ca-schedule-field="scheduled_amount" value="${escapeHtml(entry.scheduled_amount || '0.00')}" class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-right font-semibold text-blue-900" readonly>
+                                    </td>
+                                    <td class="border border-gray-200 px-3 py-2">
+                                        <input type="text" name="data[release_entries][${index}][scheduled_remarks]" data-ca-schedule-field="scheduled_remarks" value="${escapeHtml(entry.scheduled_remarks || '')}" class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2" placeholder="Optional note">
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
     }
 
     function renderCashAdvancePaymentEntryInputs(entries = []) {
@@ -2047,6 +2193,28 @@
         `;
     }
 
+    function getCashAdvanceDisbursementSummary(values = {}) {
+        const state = buildCashAdvancePaymentState(values);
+        const percentagePaid = state.amount > 0
+            ? ((state.totalPaid / state.amount) * 100).toFixed(2)
+            : '0.00';
+
+        return {
+            status: state.status,
+            amount: state.amount,
+            totalDisbursed: state.totalPaid,
+            remainingBalance: state.remainingBalance,
+            percentagePaid,
+            dvCount: state.rows.length,
+            releasedDvCount: state.paidCount,
+            summaryText: [
+                state.status,
+                `Released ${formatCurrency(state.totalPaid)}`,
+                `${percentagePaid}% paid`,
+            ].join(' • '),
+        };
+    }
+
     function renderCashAdvancePaymentTrackerPanel(values = {}, { compact = false } = {}) {
         const state = buildCashAdvancePaymentState(values);
         const containerClass = compact
@@ -2071,7 +2239,7 @@
         return `
             <div class="${containerClass}">
                 <div class="flex flex-wrap items-center justify-between gap-2">
-                    <h4 class="text-sm font-semibold text-gray-900">Cash Advance Payment Tracker</h4>
+                    <h4 class="text-sm font-semibold text-gray-900">Scheduled Payment Tracker</h4>
                     ${compact ? `<span class="text-xs font-medium text-gray-500">${escapeHtml(state.paidCount)} paid / ${escapeHtml(state.remainingCount)} remaining</span>` : ''}
                 </div>
                 <div class="${rowsWrapperClass}">
@@ -2085,8 +2253,10 @@
                                 <div class="${rowLayoutClass}">
                                     <div class="min-w-0">
                                         <p class="text-xs uppercase tracking-[0.18em] text-gray-500">Release ${escapeHtml(row.no)}</p>
-                                        <p class="mt-1 text-sm font-semibold text-gray-900">Scheduled ${escapeHtml(row.scheduled_date || '-')}</p>
+                                        <p class="mt-1 text-sm font-semibold text-gray-900">Scheduled ${escapeHtml(row.scheduled_date || '-')} ${escapeHtml(row.scheduled_time || '')}</p>
+                                        <p class="mt-1 text-xs text-gray-500">Scheduled Amount: ${escapeHtml(formatCurrency(row.scheduled_amount_value || row.amount_value || 0))}</p>
                                         <p class="mt-1 text-xs text-gray-500">Payment Date: ${escapeHtml(row.payment_date || '-')}</p>
+                                        ${row.scheduled_remarks ? `<p class="mt-1 text-xs text-gray-500 break-words">Schedule Note: ${escapeHtml(row.scheduled_remarks)}</p>` : ''}
                                         ${row.payment_remarks ? `<p class="mt-1 text-xs text-gray-500 break-words">${escapeHtml(row.payment_remarks)}</p>` : ''}
                                     </div>
                                     <div class="${rowAmountClass}">
@@ -2109,7 +2279,7 @@
 
         return `
             <div class="rounded-xl border ${next ? 'border-emerald-200 bg-emerald-50' : 'border-gray-200 bg-gray-50'} p-4">
-                <h4 class="text-sm font-semibold text-gray-900">Record Cash Advance Payment</h4>
+                <h4 class="text-sm font-semibold text-gray-900">Record Scheduled Payment</h4>
                 ${next ? `
                     <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
                         <div>
@@ -2137,13 +2307,13 @@
                         </div>
                         <div class="md:col-span-2">
                             <label class="text-xs text-gray-600">Payment Remarks</label>
-                            <textarea data-ca-payment-remarks rows="3" class="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900" placeholder="Optional note for this cash advance payment."></textarea>
+                            <textarea data-ca-payment-remarks rows="3" class="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900" placeholder="Optional note for this scheduled payment."></textarea>
                         </div>
                     </div>
                     <button type="button" onclick="window.financeModule.recordCashAdvancePayment()" class="mt-4 w-full rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700">
                         Record Payment
                     </button>
-                    <p class="mt-2 text-xs text-emerald-700">Save the cash advance record after recording payments to keep this tracker.</p>
+                    <p class="mt-2 text-xs text-emerald-700">Save the cash advance record after recording scheduled payments to keep this tracker.</p>
                 ` : '<p class="mt-3 text-sm text-gray-600">All scheduled cash advance releases have already been recorded.</p>'}
             </div>
         `;
@@ -2152,6 +2322,7 @@
     function renderCashAdvancePaymentTracker(values = {}) {
         return `
             <div data-ca-payment-tracker class="md:col-span-2 space-y-4">
+                ${renderCashAdvanceReleaseScheduleEditor(values)}
                 ${renderCashAdvancePaymentSummaryPanel(values, { editable: true })}
                 ${renderCashAdvancePaymentTrackerPanel(values)}
                 ${renderCashAdvanceRecordPaymentPanel(values)}
@@ -2204,7 +2375,7 @@
         financeFormValues.ca_payment_entries = nextValues.ca_payment_entries;
         refreshCashAdvancePaymentTracker(nextValues);
         renderDrawerPreview();
-        showFinanceToast(paymentScope === 'all_remaining' ? 'All remaining cash advance payments were recorded.' : 'Cash advance payment recorded.', 'success');
+            showFinanceToast(paymentScope === 'all_remaining' ? 'All remaining scheduled payments were recorded.' : 'Scheduled payment recorded.', 'success');
     }
 
     function renderCashAdvancePaymentPreview(recordOrValues = {}) {
@@ -2212,7 +2383,7 @@
 
         return `
             <div class="finance-preview-box">
-                <div class="finance-preview-section-title">Cash Advance Payment Tracking</div>
+                <div class="finance-preview-section-title">Release Schedule &amp; Payment Tracking</div>
                 <div class="finance-preview-inner">
                     ${renderCashAdvancePaymentSummaryPanel(values, { compact: true })}
                     <div class="mt-3">
@@ -2233,7 +2404,7 @@
         return `
             <div data-ca-preview-payment-root="${escapeHtml(record.id)}" class="rounded-2xl border border-blue-100 bg-blue-50/50 p-4">
                 <div class="flex flex-wrap items-center justify-between gap-3">
-                    <h4 class="text-[15px] font-semibold text-gray-900">Cash Advance Payment Tracking</h4>
+                    <h4 class="text-[15px] font-semibold text-gray-900">Release Schedule &amp; Payment Tracking</h4>
                     <span class="rounded-full bg-white px-3 py-1 text-xs font-semibold text-blue-700">${escapeHtml(state.status)}</span>
                 </div>
                 <p class="mt-2 text-xs text-blue-700">${escapeHtml(authorizationNote)}</p>
@@ -2241,7 +2412,7 @@
                     ${renderCashAdvancePaymentSummaryPanel(values, { compact: true })}
                     ${renderCashAdvancePaymentTrackerPanel(values, { compact: true })}
                     <div class="rounded-xl border ${canRecordPayment ? 'border-emerald-200 bg-white' : 'border-gray-200 bg-gray-50'} p-4">
-                        <h5 class="text-sm font-semibold text-gray-900">Record Cash Advance Payment</h5>
+                        <h5 class="text-sm font-semibold text-gray-900">Record Scheduled Payment</h5>
                         ${canRecordPayment ? `
                             <div class="mt-4 grid grid-cols-1 gap-3">
                                 <div class="grid grid-cols-1 gap-3">
@@ -2267,7 +2438,7 @@
                                 </div>
                                 <div>
                                     <label class="text-xs text-gray-600">Payment Remarks</label>
-                                    <textarea data-ca-preview-payment-remarks rows="3" class="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900" placeholder="Optional note for this cash advance payment."></textarea>
+                                    <textarea data-ca-preview-payment-remarks rows="3" class="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900" placeholder="Optional note for this scheduled payment."></textarea>
                                 </div>
                             </div>
                             <button type="button" onclick="window.financeModule.recordCashAdvancePreviewPayment(${Number(record.id)})" class="mt-4 w-full rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700">
@@ -2370,7 +2541,7 @@
         renderPreviewTabContent(data.data);
         renderPreviewDocument(data.data);
         renderPreviewActions(data.data);
-        showFinanceToast(paymentScope === 'all_remaining' ? 'All remaining cash advance payments were recorded.' : 'Cash advance payment recorded.', 'success');
+            showFinanceToast(paymentScope === 'all_remaining' ? 'All remaining scheduled payments were recorded.' : 'Scheduled payment recorded.', 'success');
     }
 
     function formatDate(value) {
@@ -3702,23 +3873,30 @@
         return linkedRecords[0] || null;
     }
 
+    function getLiquidationLineItemTotal(item = {}) {
+        if (!blank(item?.total)) {
+            return numericAmount(item.total || 0);
+        }
+
+        const quantity = numericAmount(item.quantity || 0);
+        const amount = numericAmount(item.amount || 0);
+        const rowSubtotal = numericAmount(item.subtotal || (quantity * amount) || 0);
+        const discountPercent = parseFloat(String(item.discount || '0').replace('%', '')) || 0;
+        const manualDiscount = numericAmount(item.discount_amount || 0);
+        const discountAmount = discountPercent > 0 ? rowSubtotal * (discountPercent / 100) : manualDiscount;
+        const shippingAmount = numericAmount(item.shipping_amount || 0);
+        const taxAmount = numericAmount(item.tax_amount || 0);
+        const whtAmount = numericAmount(item.wht_amount || 0);
+
+        return rowSubtotal - discountAmount + shippingAmount + taxAmount - whtAmount;
+    }
+
     function getLiquidationBranchMetrics(linkedLrRecord) {
         const data = linkedLrRecord?.data || {};
         const linkedCaRecord = data.linked_ca_id ? (getRecordById(data.linked_ca_id) || getRecordByLookupValue('ca', data.linked_ca_id)) : null;
         const linkedCaData = linkedCaRecord?.data || {};
         const lineItems = Array.isArray(data.line_items) ? data.line_items.filter((item) => item && Object.values(item).some((value) => String(value ?? '').trim() !== '')) : [];
-        const lineItemsTotal = lineItems.reduce((sum, item) => {
-            const quantity = numericAmount(item.quantity || 0);
-            const amount = numericAmount(item.amount || 0);
-            const rowSubtotal = quantity * amount;
-            const discountPercent = parseFloat(String(item.discount || '0').replace('%', '')) || 0;
-            const manualDiscount = numericAmount(item.discount_amount || 0);
-            const discountAmount = discountPercent > 0 ? rowSubtotal * (discountPercent / 100) : manualDiscount;
-            const shippingAmount = numericAmount(item.shipping_amount || 0);
-            const taxAmount = numericAmount(item.tax_amount || 0);
-            const whtAmount = numericAmount(item.wht_amount || 0);
-            return sum + rowSubtotal - discountAmount + shippingAmount + taxAmount - whtAmount;
-        }, 0);
+        const lineItemsTotal = lineItems.reduce((sum, item) => sum + getLiquidationLineItemTotal(item), 0);
         const totalCashAdvance = numericAmount(data.total_cash_advance || data.amount_requested || linkedLrRecord?.amount || linkedCaRecord?.amount || linkedCaData.amount_requested || 0);
         const actualExpenses = lineItemsTotal > 0
             ? lineItemsTotal
@@ -4098,7 +4276,23 @@
                 snapshot: ['source_employee_name', 'source_payee_type', 'source_payee_name', 'source_remaining_balance', 'source_current_balance', 'source_reserved_balance', 'source_available_balance'],
                 voucher: ['bank_account_id', 'coa_id', 'fund_source', 'department', 'due_date'],
                 tax: ['received_by_name', 'date_received'],
-                hidden: [],
+                hidden: [
+                    'source_project',
+                    'source_cost_center',
+                    'source_fund_source',
+                    'source_remaining_balance',
+                    'source_current_balance',
+                    'source_reserved_balance',
+                    'source_available_balance',
+                    'total_disbursed_amount',
+                    'percentage_paid',
+                    'disbursement_status',
+                    'projected_balance_after_payment',
+                    'accounting_balance_status',
+                    'total_debit_amount',
+                    'total_credit_amount',
+                    'accounting_balance_difference',
+                ],
             },
             err: {
                 snapshot: ['source_employee_name', 'source_payee_type', 'source_payee_name'],
@@ -4264,16 +4458,8 @@
 
     function getDvSourceDocumentSnapshot(sourceType, sourceRecord = null) {
         const data = sourceRecord?.data || {};
-        const amount = [
-            data.amount,
-            data.grand_total,
-            data.amount_requested,
-            data.total_cash_advance,
-            data.amount_returned,
-            data.total_payroll_amount,
-            data.acquisition_cost,
-            sourceRecord?.amount,
-        ].find((value) => !blank(value));
+        const sourceModuleKey = String(sourceType || sourceRecord?.module_key || '').toLowerCase();
+        const amount = getDvSourceDocumentAmount(sourceRecord);
 
         const remainingBalance = [
             data.ca_payment_remaining_balance,
@@ -4326,32 +4512,41 @@
             sourceRecord?.disbursement_status,
         ].find((value) => !blank(value)) || '';
         const payeeInfo = getDvSourceDocumentPayeeInfo(sourceType, sourceRecord);
-        const currentBalance = amount ?? '';
-        const availableBalance = remainingBalance ?? '';
-        const reservedBalance = numericAmount(currentBalance || 0) > 0 || numericAmount(availableBalance || 0) >= 0
-            ? Math.max(numericAmount(currentBalance || 0) - numericAmount(availableBalance || 0), 0).toFixed(2)
-            : (totalDisbursedAmount || '0.00');
+        const isCashAdvanceSource = sourceModuleKey === 'ca';
+        const currentBalance = isCashAdvanceSource ? '' : (amount ?? '');
+        const availableBalance = isCashAdvanceSource ? '' : (remainingBalance ?? '');
+        const reservedBalance = isCashAdvanceSource
+            ? ''
+            : (numericAmount(currentBalance || 0) > 0 || numericAmount(availableBalance || 0) >= 0
+                ? Math.max(numericAmount(currentBalance || 0) - numericAmount(availableBalance || 0), 0).toFixed(2)
+                : (totalDisbursedAmount || '0.00'));
         const accountingRows = Array.isArray(sourceRecord?.data?.line_items) ? sourceRecord.data.line_items : [];
         const accountingTotals = accountingRows.reduce((totals, row) => {
             totals.debit += numericAmount(row?.debit || 0);
             totals.credit += numericAmount(row?.credit || 0);
             return totals;
         }, { debit: 0, credit: 0 });
-        const totalDebitAmount = accountingTotals.debit.toFixed(2);
-        const totalCreditAmount = accountingTotals.credit.toFixed(2);
-        const accountingBalanceDifference = Math.abs(accountingTotals.debit - accountingTotals.credit).toFixed(2);
-        const accountingBalanceStatus = numericAmount(accountingBalanceDifference) < 0.01 ? 'Balanced' : 'Unbalanced';
+        const totalDebitAmount = isCashAdvanceSource ? '' : accountingTotals.debit.toFixed(2);
+        const totalCreditAmount = isCashAdvanceSource ? '' : accountingTotals.credit.toFixed(2);
+        const accountingBalanceDifference = isCashAdvanceSource ? '' : Math.abs(accountingTotals.debit - accountingTotals.credit).toFixed(2);
+        const accountingBalanceStatus = isCashAdvanceSource ? '' : (numericAmount(accountingBalanceDifference) < 0.01 ? 'Balanced' : 'Unbalanced');
 
         return {
             source_record_number: sourceRecord?.record_number || '',
             source_record_date: sourceRecord?.record_date || '',
             source_requester: requester,
             source_department: data.department || data.requesting_department || '',
-            source_project: data.project || data.project_name || data.project_code || data.fund_source || data.department || data.requesting_department || '',
-            source_cost_center: data.cost_center || data.cost_center_code || data.cost_center_name || data.department || data.requesting_department || data.fund_source || '',
-            source_fund_source: data.fund_source || data.project || data.department || '',
+            source_project: sourceModuleKey === 'ca'
+                ? (data.project || data.project_name || data.project_code || '')
+                : (data.project || data.project_name || data.project_code || data.fund_source || data.department || data.requesting_department || ''),
+            source_cost_center: sourceModuleKey === 'ca'
+                ? (data.cost_center || data.cost_center_code || data.cost_center_name || '')
+                : (data.cost_center || data.cost_center_code || data.cost_center_name || data.department || data.requesting_department || data.fund_source || ''),
+            source_fund_source: sourceModuleKey === 'ca'
+                ? (data.fund_source || '')
+                : (data.fund_source || data.project || data.department || ''),
             source_amount: amount ?? '',
-            source_remaining_balance: remainingBalance ?? '',
+            source_remaining_balance: isCashAdvanceSource ? '' : (remainingBalance ?? ''),
             source_current_balance: currentBalance,
             source_reserved_balance: reservedBalance,
             source_available_balance: availableBalance,
@@ -4367,9 +4562,9 @@
             source_status: sourceRecord?.status || '',
             source_workflow_status: sourceRecord?.workflow_status || '',
             source_relationship_status: sourceRecord?.relationship_status || '',
-            total_disbursed_amount: totalDisbursedAmount,
-            percentage_paid: percentagePaid,
-            disbursement_status: disbursementStatus,
+            total_disbursed_amount: isCashAdvanceSource ? '' : totalDisbursedAmount,
+            percentage_paid: isCashAdvanceSource ? '' : percentagePaid,
+            disbursement_status: isCashAdvanceSource ? '' : disbursementStatus,
             total_debit_amount: totalDebitAmount,
             total_credit_amount: totalCreditAmount,
             accounting_balance_difference: accountingBalanceDifference,
@@ -4567,6 +4762,45 @@
         const sourceRows = Array.isArray(data.line_items) ? data.line_items : [];
         const accountCode = getDvAccountCode(payload.coa_id || data.coa_id || data.payroll_expense_coa_id || data.asset_coa_id);
 
+        if (String(sourceType || '').trim().toLowerCase() === 'ca') {
+            const releaseRows = normalizeCashAdvanceReleaseEntries(data.release_entries || payload.release_entries || [], {
+                amount_requested: payload.amount || data.amount_requested || data.total_cash_advance || sourceRecord?.amount || 0,
+                release_count: payload.release_count || data.release_count || 1,
+                amount_per_release: payload.amount_per_release || data.amount_per_release || 0,
+                cash_release_date: payload.cash_release_date || data.cash_release_date || '',
+                cash_release_time: payload.cash_release_time || data.cash_release_time || '',
+            });
+
+            const itemRows = releaseRows.length
+                ? releaseRows.map((row, index) => ({
+                    description: `Release ${row.release_no}${row.scheduled_date ? ` - ${row.scheduled_date}` : ''}${row.scheduled_time ? ` ${row.scheduled_time}` : ''}`,
+                    account_code: accountCode,
+                    debit: numericAmount(row.scheduled_amount).toFixed(2),
+                    credit: '',
+                }))
+                : [{
+                    description: sourceRecord?.record_number || 'Cash Advance',
+                    account_code: accountCode,
+                    debit: numericAmount(payload.amount || sourceRecord?.amount || data.amount_requested || data.total_cash_advance || 0).toFixed(2),
+                    credit: '',
+                }];
+
+            const totalDebit = itemRows.reduce((sum, row) => sum + numericAmount(row.debit || 0), 0);
+            const bankAccountRecord = getRecordByLookupValue('bank_account', payload.bank_account_id || data.bank_account_id || data.funding_bank_account_id || data.receiving_bank_account_id || data.source_bank_account_id || data.destination_bank_account_id);
+            const creditAccountCode = getDvAccountCode(bankAccountRecord?.data?.linked_coa_id || payload.coa_id || data.coa_id || data.payroll_expense_coa_id || data.asset_coa_id || firstLookupValue('chart_account'));
+
+            if (totalDebit > 0 && creditAccountCode) {
+                itemRows.push({
+                    description: `Credit ${getLookupLabel('bank_account', payload.bank_account_id || data.bank_account_id || data.funding_bank_account_id || data.receiving_bank_account_id || data.source_bank_account_id || data.destination_bank_account_id) || 'fund source'}`,
+                    account_code: creditAccountCode,
+                    debit: '',
+                    credit: totalDebit.toFixed(2),
+                });
+            }
+
+            return itemRows;
+        }
+
         if (sourceRows.length) {
             const debitRows = sourceRows
                 .filter((row) => row && Object.values(row).some((value) => !blank(value)))
@@ -4716,16 +4950,22 @@
             sourceSnapshot.source_approved_by_name ? `Approved by ${sourceSnapshot.source_approved_by_name}` : '',
             sourceSnapshot.source_approved_at ? `on ${sourceSnapshot.source_approved_at}` : '',
         ].filter(Boolean).join(' • ');
-        const disbursementInformation = [
-            sourceSnapshot.disbursement_status,
-            blank(sourceSnapshot.total_disbursed_amount) ? '' : `Disbursed ${formatCurrency(sourceSnapshot.total_disbursed_amount)}`,
-            blank(sourceSnapshot.percentage_paid) ? '' : `${sourceSnapshot.percentage_paid}% paid`,
-        ].filter(Boolean).join(' • ');
+        const cashAdvanceSummary = String(sourceType || '').trim().toLowerCase() === 'ca'
+            ? getCashAdvanceDisbursementSummary(sourceRecord?.data || {})
+            : null;
+        const disbursementInformation = cashAdvanceSummary
+            ? cashAdvanceSummary.summaryText
+            : [
+                sourceSnapshot.disbursement_status,
+                blank(sourceSnapshot.total_disbursed_amount) ? '' : `Disbursed ${formatCurrency(sourceSnapshot.total_disbursed_amount)}`,
+                blank(sourceSnapshot.percentage_paid) ? '' : `${sourceSnapshot.percentage_paid}% paid`,
+            ].filter(Boolean).join(' • ');
         const statusInformation = [
             sourceSnapshot.source_status,
             sourceSnapshot.source_workflow_status,
             sourceSnapshot.source_relationship_status,
         ].filter(Boolean).join(' • ');
+        const isCashAdvanceSource = String(sourceType || '').trim().toLowerCase() === 'ca';
         const projectedBalanceAfterPayment = Math.max(
             numericAmount(sourceSnapshot.source_available_balance || sourceSnapshot.source_remaining_balance || 0)
             - numericAmount(payload.prefill.amount || sourceSnapshot.source_amount || 0),
@@ -4742,10 +4982,18 @@
             ['Source Record Date', sourceSnapshot.source_record_date || 'N/A', 'source_record_date'],
             ['Requester', sourceSnapshot.source_requester || 'N/A', 'source_requester'],
             ['Department', sourceSnapshot.source_department || 'N/A', 'source_department'],
+            ['Amount', formatCurrency(sourceSnapshot.source_amount || 0), 'source_amount'],
+        ].filter(([, value, fieldName]) => shouldRenderDvField(fieldName, value, sourceType, 'snapshot')).map(([label, value]) => `
+                    <div class="rounded-lg border border-gray-100 bg-white px-3 py-2">
+                        <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">${escapeHtml(label)}</p>
+                        <p class="mt-1 font-semibold text-gray-900 break-words">${escapeHtml(value)}</p>
+                    </div>
+        `).join('');
+
+        const sourceDetailCards = (isCashAdvanceSource ? [] : [
             ['Project', sourceSnapshot.source_project || 'N/A', 'source_project'],
             ['Cost Center', sourceSnapshot.source_cost_center || 'N/A', 'source_cost_center'],
             ['Fund Source', sourceSnapshot.source_fund_source || 'N/A', 'source_fund_source'],
-            ['Amount', formatCurrency(sourceSnapshot.source_amount || 0), 'source_amount'],
             ['Current Balance', formatCurrency(sourceSnapshot.source_current_balance || sourceSnapshot.source_amount || 0), 'source_current_balance'],
             ['Reserved Balance', formatCurrency(sourceSnapshot.source_reserved_balance || sourceSnapshot.total_disbursed_amount || 0), 'source_reserved_balance'],
             ['Available Balance', formatCurrency(sourceSnapshot.source_available_balance || sourceSnapshot.source_remaining_balance || 0), 'source_available_balance'],
@@ -4754,7 +5002,7 @@
             ['Total Debit', formatCurrency(sourceSnapshot.total_debit_amount || 0), 'total_debit_amount'],
             ['Total Credit', formatCurrency(sourceSnapshot.total_credit_amount || 0), 'total_credit_amount'],
             ['Remaining Balance', blank(sourceSnapshot.source_remaining_balance) ? 'N/A' : formatCurrency(sourceSnapshot.source_remaining_balance), 'source_remaining_balance'],
-        ].filter(([, value, fieldName]) => shouldRenderDvField(fieldName, value, sourceType, 'snapshot')).map(([label, value]) => `
+        ]).filter(([, value, fieldName]) => shouldRenderDvField(fieldName, value, sourceType, 'snapshot')).map(([label, value]) => `
                     <div class="rounded-lg border border-gray-100 bg-white px-3 py-2">
                         <p class="text-[11px] uppercase tracking-[0.2em] text-gray-500">${escapeHtml(label)}</p>
                         <p class="mt-1 font-semibold text-gray-900 break-words">${escapeHtml(value)}</p>
@@ -4800,6 +5048,7 @@
                 </div>
                 <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                     ${sourceCards}
+                    ${sourceDetailCards}
                     ${(sourceSnapshot.accounting_balance_warning ? `
                         <div class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 md:col-span-2">
                             <p class="text-[11px] uppercase tracking-[0.2em] text-amber-700">Accounting Warning</p>
@@ -4856,17 +5105,19 @@
         const data = sourceRecord?.data || {};
         const moduleKey = String(sourceType || '');
         const payload = (data.dv_payload && typeof data.dv_payload === 'object') ? data.dv_payload : {};
-        const amount = [
-            payload.amount,
-            sourceRecord?.amount,
-            data.amount,
-            data.grand_total,
-            data.amount_requested,
-            data.total_cash_advance,
-            data.amount_returned,
-            data.total_payroll_amount,
-            data.acquisition_cost,
-        ].find((value) => !blank(value));
+        const amount = moduleKey === 'ca'
+            ? [
+                data.amount_requested,
+                data.total_cash_advance,
+                data.amount,
+                getDvSourceDocumentAmount(sourceRecord),
+                payload.amount,
+            ].find((value) => !blank(value))
+            : [
+                payload.amount,
+                getDvSourceDocumentAmount(sourceRecord),
+                data.amount,
+            ].find((value) => !blank(value));
 
         const paymentType = normalizeDvPaymentType([
             payload.payment_type,
@@ -4909,13 +5160,14 @@
         const payeeInfo = getDvSourceDocumentPayeeInfo(moduleKey, sourceRecord);
         const currency = payload.currency || data.currency || 'PHP';
         const sourceRequesterName = sourceSnapshot.source_requester || data.requestor || data.employee_name || sourceSnapshot.source_employee_name || payeeInfo.payee_name || dvUserName || '';
+        const isCashAdvanceSource = moduleKey === 'ca';
         const defaultTaxAmount = moduleKey === 'ca' ? '0.00' : '';
         const defaultExchangeRate = currency === 'PHP' ? '1.00' : '';
         const defaultDateReceived = moduleKey === 'ca' ? todayDateValue() : '';
-        const currentBalance = numericAmount(sourceSnapshot.source_current_balance || sourceSnapshot.source_amount || amount || 0);
-        const reservedBalance = numericAmount(sourceSnapshot.source_reserved_balance || sourceSnapshot.total_disbursed_amount || 0);
-        const availableBalance = numericAmount(sourceSnapshot.source_available_balance || sourceSnapshot.source_remaining_balance || 0);
-        const projectedBalanceAfterPayment = Math.max(availableBalance - numericAmount(amount || 0), 0);
+        const currentBalance = isCashAdvanceSource ? '' : numericAmount(sourceSnapshot.source_current_balance || sourceSnapshot.source_amount || amount || 0);
+        const reservedBalance = isCashAdvanceSource ? '' : numericAmount(sourceSnapshot.source_reserved_balance || sourceSnapshot.total_disbursed_amount || 0);
+        const availableBalance = isCashAdvanceSource ? '' : numericAmount(sourceSnapshot.source_available_balance || sourceSnapshot.source_remaining_balance || 0);
+        const projectedBalanceAfterPayment = isCashAdvanceSource ? '' : Math.max(availableBalance - numericAmount(amount || 0), 0);
         const accountingSourceRows = Array.isArray(sourceRecord?.data?.line_items) && sourceRecord.data.line_items.length
             ? sourceRecord.data.line_items
             : [];
@@ -4924,10 +5176,10 @@
             totals.credit += numericAmount(row?.credit || 0);
             return totals;
         }, { debit: 0, credit: 0 });
-        const totalDebit = accountingTotals.debit.toFixed(2);
-        const totalCredit = accountingTotals.credit.toFixed(2);
-        const accountingBalanceDifference = Math.abs(accountingTotals.debit - accountingTotals.credit).toFixed(2);
-        const accountingBalanceStatus = numericAmount(accountingBalanceDifference) < 0.01 ? 'Balanced' : 'Unbalanced';
+        const totalDebit = isCashAdvanceSource ? '' : accountingTotals.debit.toFixed(2);
+        const totalCredit = isCashAdvanceSource ? '' : accountingTotals.credit.toFixed(2);
+        const accountingBalanceDifference = isCashAdvanceSource ? '' : Math.abs(accountingTotals.debit - accountingTotals.credit).toFixed(2);
+        const accountingBalanceStatus = isCashAdvanceSource ? '' : (numericAmount(accountingBalanceDifference) < 0.01 ? 'Balanced' : 'Unbalanced');
 
         const bankAccountId = [
             payload.bank_account_id,
@@ -4964,10 +5216,10 @@
             remarks: payload.remarks || data.remarks || '',
             payee_type: 'User',
             payee_name: dvUserName || '',
-            current_balance: currentBalance ? currentBalance.toFixed(2) : '',
-            reserved_balance: reservedBalance ? reservedBalance.toFixed(2) : '',
-            available_balance: availableBalance ? availableBalance.toFixed(2) : '',
-            projected_balance_after_payment: projectedBalanceAfterPayment.toFixed(2),
+            current_balance: isCashAdvanceSource ? '' : (currentBalance ? currentBalance.toFixed(2) : ''),
+            reserved_balance: isCashAdvanceSource ? '' : (reservedBalance ? reservedBalance.toFixed(2) : ''),
+            available_balance: isCashAdvanceSource ? '' : (availableBalance ? availableBalance.toFixed(2) : ''),
+            projected_balance_after_payment: isCashAdvanceSource ? '' : projectedBalanceAfterPayment.toFixed(2),
             accounting_balance_status: accountingBalanceStatus,
             accounting_balance_warning: accountingBalanceStatus === 'Unbalanced'
                 ? 'Total Debit must equal Total Credit before the Disbursement Voucher can be approved.'
@@ -4979,8 +5231,22 @@
         };
 
         if (moduleKey === 'ca') {
+            prefill.amount = data.amount_requested || data.total_cash_advance || data.amount || amount || '';
             prefill.supplier_id = data.supplier_id || '';
             prefill.bank_account_id = data.bank_account_id || bankAccountId || '';
+            prefill.source_project = '';
+            prefill.source_cost_center = '';
+            prefill.source_fund_source = '';
+            prefill.source_remaining_balance = '';
+            prefill.source_current_balance = '';
+            prefill.source_reserved_balance = '';
+            prefill.source_available_balance = '';
+            prefill.projected_balance_after_payment = '';
+            prefill.accounting_balance_status = '';
+            prefill.accounting_balance_warning = '';
+            prefill.total_debit_amount = '';
+            prefill.total_credit_amount = '';
+            prefill.accounting_balance_difference = '';
         }
 
         if (moduleKey === 'lr') {
@@ -6453,6 +6719,130 @@
             || null;
     }
 
+    function getDvSourceDocumentAmount(sourceRecord = null) {
+        const data = sourceRecord?.data || {};
+        const sourceType = String(sourceRecord?.module_key || data.source_document_type || '').trim().toLowerCase();
+
+        if (sourceType === 'ca') {
+            return [
+                data.amount_requested,
+                data.total_cash_advance,
+                data.amount,
+                sourceRecord?.amount,
+            ].find((value) => !blank(value)) || 0;
+        }
+
+        return [
+            data.amount,
+            data.grand_total,
+            data.amount_requested,
+            data.total_cash_advance,
+            data.amount_returned,
+            data.total_payroll_amount,
+            data.acquisition_cost,
+            sourceRecord?.amount,
+        ].find((value) => !blank(value)) || 0;
+    }
+
+    function getDvCreditAccountCode(sourceRecord = null) {
+        const form = $('financeForm');
+        const candidates = [
+            sourceRecord?.data?.linked_coa_id,
+            sourceRecord?.data?.linked_chart_account_id,
+            sourceRecord?.data?.coa_id,
+            sourceRecord?.data?.chart_account_id,
+            form?.querySelector('[name="data[bank_account_id]"]')?.value,
+            financeFormValues?.bank_account_id,
+            financeFormValues?.['data[bank_account_id]'],
+            form?.querySelector('[name="data[coa_id]"]')?.value,
+            financeFormValues?.coa_id,
+            financeFormValues?.['data[coa_id]'],
+            sourceRecord?.data?.bank_account_id,
+            sourceRecord?.data?.funding_bank_account_id,
+            sourceRecord?.data?.receiving_bank_account_id,
+            sourceRecord?.data?.source_bank_account_id,
+            sourceRecord?.data?.destination_bank_account_id,
+            firstLookupValue('chart_account'),
+        ].filter((value) => !blank(value));
+
+        for (const candidate of candidates) {
+            const bankAccountRecord = getRecordById(candidate) || getRecordByLookupValue('bank_account', candidate);
+            if (bankAccountRecord?.data?.linked_coa_id) {
+                return String(bankAccountRecord.data.linked_coa_id);
+            }
+            if (bankAccountRecord?.data?.coa_id) {
+                return String(bankAccountRecord.data.coa_id);
+            }
+            if (bankAccountRecord?.data?.chart_account_id) {
+                return String(bankAccountRecord.data.chart_account_id);
+            }
+
+            const candidateText = String(candidate || '').trim();
+            if (candidateText) {
+                return candidateText;
+            }
+        }
+
+        return '';
+    }
+
+    function normalizeDvLineItems(rows = [], sourceRecord = null) {
+        const normalizedRows = (Array.isArray(rows) ? rows : [])
+            .filter((row) => row && Object.values(row).some((value) => String(value ?? '').trim() !== ''))
+            .map((row) => {
+                const debit = numericAmount(row.debit || 0);
+                const credit = numericAmount(row.credit || 0);
+
+                return {
+                    description: String(row.description || '').trim(),
+                    account_code: String(row.account_code || '').trim(),
+                    debit: debit > 0 ? debit.toFixed(2) : '',
+                    credit: credit > 0 ? credit.toFixed(2) : '',
+                };
+            });
+
+        const sourceAmount = numericAmount(
+            getDvSourceDocumentAmount(sourceRecord)
+            || financeFormValues?.amount
+            || financeFormValues?.['data[amount]']
+            || 0
+        );
+        const rowDebitTotal = normalizedRows.reduce((sum, row) => sum + numericAmount(row.debit || 0), 0);
+        const rowCreditTotal = normalizedRows.reduce((sum, row) => sum + numericAmount(row.credit || 0), 0);
+        const debitTotal = sourceAmount > 0 ? sourceAmount : rowDebitTotal;
+        const creditTotal = sourceAmount > 0 ? sourceAmount : rowCreditTotal;
+        if (debitTotal <= 0) {
+            return normalizedRows;
+        }
+
+        const firstDebitRow = normalizedRows.find((row) => numericAmount(row.debit || 0) > 0) || normalizedRows[0] || {};
+        const debitAccountCode = String(firstDebitRow.account_code || '').trim();
+        const debitDescription = String(firstDebitRow.description || '').trim()
+            || String(sourceRecord?.record_number || '').trim()
+            || String(sourceRecord?.record_title || '').trim()
+            || 'Disbursement Voucher';
+        const creditAccountCode = getDvCreditAccountCode(sourceRecord);
+
+        if (!creditAccountCode) {
+            return normalizedRows;
+        }
+
+        return [
+            {
+                description: debitDescription,
+                account_code: debitAccountCode,
+                debit: debitTotal.toFixed(2),
+                credit: '',
+            },
+            {
+                description: `Credit ${getLookupLabel('chart_account', creditAccountCode) || creditAccountCode || 'Fund Source'}`,
+                account_code: creditAccountCode,
+                debit: '',
+                credit: debitTotal.toFixed(2),
+            },
+        ];
+    }
+
     function renderDvLineItemHiddenInputs(rows) {
         return rows.map((row, index) => `
             <input type="hidden" name="data[line_items][${index}][description]" value="${escapeHtml(row.description || '')}">
@@ -6691,7 +7081,7 @@
     }
 
     function renderDvLineItemsTable(record = null) {
-        const rows = getDvLineItemRows(record);
+        const rows = normalizeDvLineItems(getDvLineItemRows(record), getDvSourceRecordForDisplay(record));
         const sourceRecord = getDvSourceRecordForDisplay(record);
         const sourceType = String(sourceRecord?.module_key || record?.data?.source_document_type || '').trim().toLowerCase();
         if (sourceType === 'po' && sourceRecord) {
@@ -6758,16 +7148,26 @@
             };
         });
 
-        const rows = formRows.length ? formRows : (Array.isArray(financeFormValues?.dv_line_items) ? financeFormValues.dv_line_items : []);
+        const rows = normalizeDvLineItems(
+            formRows.length ? formRows : (Array.isArray(financeFormValues?.dv_line_items) ? financeFormValues.dv_line_items : []),
+            getDvSourceRecordForDisplay()
+        );
         financeFormValues.dv_line_items = rows;
+        financeFormValues.line_items = rows;
+        financeFormValues['data[dv_line_items]'] = rows;
+        financeFormValues['data[line_items]'] = rows;
         return rows;
     }
 
     function replaceDvLineItemsTable(rows) {
-        financeFormValues.dv_line_items = rows;
+        const normalizedRows = normalizeDvLineItems(rows, getDvSourceRecordForDisplay());
+        financeFormValues.dv_line_items = normalizedRows;
+        financeFormValues.line_items = normalizedRows;
+        financeFormValues['data[dv_line_items]'] = normalizedRows;
+        financeFormValues['data[line_items]'] = normalizedRows;
         const section = document.querySelector('[data-dv-line-items-section]');
         if (!section) return;
-        section.outerHTML = renderDvLineItemsTable({ data: { line_items: rows } });
+        section.outerHTML = renderDvLineItemsTable({ data: { line_items: normalizedRows } });
         bindDvLineItems();
         renderDrawerPreview();
     }
@@ -7574,7 +7974,14 @@
             $('amountInput').value = amount.toFixed(2);
         }
 
-        if (changedFieldName === 'amount_requested' || changedFieldName === 'release_schedule' || changedFieldName === 'release_count' || changedFieldName === 'cash_release_date') {
+        if ([
+            'amount_requested',
+            'release_schedule',
+            'release_count',
+            'amount_per_release',
+            'cash_release_date',
+            'cash_release_time',
+        ].includes(changedFieldName)) {
             refreshCashAdvancePaymentTracker();
         }
     }
@@ -8381,11 +8788,13 @@
             return '';
         }
 
+        const normalizedRows = normalizeDvLineItems(cleanRows, getDvSourceRecordForDisplay(record));
+
         return `
             <div class="finance-preview-box">
                 <div class="finance-preview-section-title">Breakdown / Line Items</div>
                 <div class="finance-preview-inner">
-                    ${cleanRows.length ? `
+                    ${normalizedRows.length ? `
                         <table class="finance-preview-details">
                             <tr>
                                 <td><p class="finance-preview-label">Description</p></td>
@@ -8393,7 +8802,7 @@
                                 <td><p class="finance-preview-label">Debit</p></td>
                                 <td><p class="finance-preview-label">Credit</p></td>
                             </tr>
-                            ${cleanRows.map((row) => `
+                            ${normalizedRows.map((row) => `
                                 <tr>
                                     <td><p class="finance-preview-value">${escapeHtml(row.description || 'N/A')}</p></td>
                                     <td><p class="finance-preview-value">${escapeHtml(getDvAccountCode(row.account_code) || row.account_code || 'N/A')}</p></td>
@@ -8415,6 +8824,39 @@
 
         if (record.module_key === 'dv') {
             const sourceRecord = getDvSourceRecordForDisplay(record);
+            if (sourceRecord?.module_key === 'ca') {
+                const releaseRows = normalizeCashAdvanceReleaseEntries(
+                    sourceRecord?.data?.release_entries || record?.data?.release_entries || [],
+                    {
+                        amount_requested: record?.data?.amount || sourceRecord?.amount || sourceRecord?.data?.amount_requested || sourceRecord?.data?.total_cash_advance || 0,
+                        release_count: sourceRecord?.data?.release_count || 1,
+                        amount_per_release: sourceRecord?.data?.amount_per_release || 0,
+                        cash_release_date: sourceRecord?.data?.cash_release_date || '',
+                        cash_release_time: sourceRecord?.data?.cash_release_time || '',
+                    }
+                );
+
+                return releaseRows.map((row, index) => ({
+                    item_module: 'ca',
+                    item_record_id: sourceRecord?.id || '',
+                    item_id: `RELEASE-${row.release_no}`,
+                    description: `Release ${row.release_no}${row.scheduled_date ? ` - ${row.scheduled_date}` : ''}${row.scheduled_time ? ` ${row.scheduled_time}` : ''}`,
+                    category: 'Cash Advance Release',
+                    quantity: '1',
+                    amount: row.scheduled_amount || '0.00',
+                    subtotal: row.scheduled_amount || '0.00',
+                    discount: '0%',
+                    discount_amount: '',
+                    shipping_amount: '',
+                    tax_type: 'N/A',
+                    tax_amount: '',
+                    wht_amount: '',
+                    tax_impact_label: '',
+                    total: row.scheduled_amount || '0.00',
+                    supplier_id: sourceRecord?.data?.supplier_id || '',
+                    client_id: '',
+                })).filter((row) => Object.values(row).some((value) => String(value || '').trim() !== ''));
+            }
             return sourceRecord
                 ? getPrLineItemRows(sourceRecord, { preferDraftLineItems: false }).filter((row) => row && Object.values(row).some((value) => String(value || '').trim() !== ''))
                 : [];
@@ -8557,7 +8999,7 @@
                 ];
             case 'ca':
                 return [
-                    { title: 'Request Details', fieldNames: filterConditionalPreviewFields(['requester_mode', 'requester_employee_id', 'employee_id', 'employee_name', 'employee_email', 'contact_number', 'position', 'department', 'superior', 'superior_email', 'needed_date', 'priority', 'cash_advance_type', 'other_business_purpose_specify', 'usage_categories', 'other_expense_specify', 'purpose', 'for_client', 'client_names', 'amount_requested', 'release_schedule', 'release_count', 'amount_per_release', 'cash_release_date', 'cash_release_time', 'mode_of_release', 'paid_through', 'remarks']) },
+                    { title: 'Request Details', fieldNames: filterConditionalPreviewFields(['requester_mode', 'requester_employee_id', 'employee_id', 'employee_name', 'employee_email', 'contact_number', 'position', 'department', 'superior', 'superior_email', 'needed_date', 'priority', 'cash_advance_type', 'other_business_purpose_specify', 'usage_categories', 'other_expense_specify', 'purpose', 'for_client', 'client_names', 'amount_requested', 'release_schedule', 'release_count', 'amount_per_release', 'mode_of_release', 'paid_through', 'remarks']) },
                     { title: 'Declarations & Authorizations', fieldNames: ['official_business_cash_advance', 'employee_cash_advance_personal', 'liquidation_non_compliance', 'automatic_salary_deduction_authorization', 'final_pay_deduction_authorization', 'policy_acknowledgment'] },
                 ];
             case 'lr':
@@ -8792,6 +9234,12 @@
                                     >
                                     <input type="hidden" name="data[line_items][${index}][item_module]" data-pr-line-item-field="item_module" value="${escapeHtml(row.item_module || '')}">
                                     <input type="hidden" name="data[line_items][${index}][item_record_id]" data-pr-line-item-field="item_record_id" value="${escapeHtml(row.item_record_id || '')}">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold uppercase tracking-[0.18em] text-gray-500 mb-1">Supplier</label>
+                                    <select name="data[line_items][${index}][supplier_id]" data-pr-line-item-field="supplier_id" class="w-full rounded-xl border border-gray-200 bg-white p-3">
+                                        ${renderLineItemLookupOptions('supplier', row.supplier_id || '', 'Unknown / leave blank')}
+                                    </select>
                                 </div>
                                 <div>
                                     <label class="block text-xs font-semibold uppercase tracking-[0.18em] text-gray-500 mb-1">Description</label>
@@ -9453,13 +9901,25 @@
 
     function renderSourceDisbursementSummaryCard(record) {
         const data = record?.data || {};
-        const amount = data.amount || record.amount || data.amount_requested || data.total_cash_advance || data.total_payroll_amount || data.acquisition_cost || '0.00';
-        const totalDisbursed = data.total_disbursed_amount || '0.00';
-        const remainingBalance = data.remaining_balance || '0.00';
-        const percentagePaid = data.percentage_paid || '0.00';
-        const disbursementStatus = data.disbursement_status || data.relationship_status || record.relationship_status || 'Awaiting Disbursement';
-        const dvCount = data.dv_count || 0;
-        const releasedDvCount = data.released_dv_count || 0;
+        const isCashAdvanceSource = String(record?.module_key || '').trim().toLowerCase() === 'ca';
+        const cashAdvanceSummary = isCashAdvanceSource ? getCashAdvanceDisbursementSummary(data) : null;
+        const amount = isCashAdvanceSource
+            ? cashAdvanceSummary.amount
+            : (data.amount || record.amount || data.amount_requested || data.total_cash_advance || data.total_payroll_amount || data.acquisition_cost || '0.00');
+        const totalDisbursed = isCashAdvanceSource
+            ? cashAdvanceSummary.totalDisbursed
+            : (data.total_disbursed_amount || '0.00');
+        const remainingBalance = isCashAdvanceSource
+            ? cashAdvanceSummary.remainingBalance
+            : (data.remaining_balance || '0.00');
+        const percentagePaid = isCashAdvanceSource
+            ? cashAdvanceSummary.percentagePaid
+            : (data.percentage_paid || '0.00');
+        const disbursementStatus = isCashAdvanceSource
+            ? cashAdvanceSummary.status
+            : (data.disbursement_status || data.relationship_status || record.relationship_status || 'Awaiting Disbursement');
+        const dvCount = isCashAdvanceSource ? cashAdvanceSummary.dvCount : (data.dv_count || 0);
+        const releasedDvCount = isCashAdvanceSource ? cashAdvanceSummary.releasedDvCount : (data.releasedDvCount || 0);
 
         return `
             <div class="overflow-hidden rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-cyan-50 shadow-sm">
@@ -9768,10 +10228,12 @@
             }));
             const hasManualActualExpenses = Number.isFinite(manualActualExpenses) && String(actualExpensesInput?.value || '').trim() !== '';
             const useManualExpensesOnly = !hasMeaningfulRows && hasManualActualExpenses;
-            const actualExpenses = useManualExpensesOnly
-                ? manualActualExpenses
-                : (hasManualActualExpenses ? manualActualExpenses : grandTotal);
-            const effectiveSubtotal = useManualExpensesOnly ? manualActualExpenses : subtotal;
+            const actualExpenses = hasMeaningfulRows
+                ? grandTotal
+                : (useManualExpensesOnly ? manualActualExpenses : grandTotal);
+            const effectiveSubtotal = hasMeaningfulRows
+                ? subtotal
+                : (hasManualActualExpenses ? manualActualExpenses : subtotal);
             const variance = caAmount - actualExpenses;
             const statusMeta = getLiquidationStatusMeta(variance);
             const statusPanel = form.querySelector('[data-liquidation-status-panel]');
@@ -9789,7 +10251,7 @@
             if (shippingInput && !document.activeElement?.isSameNode(shippingInput)) shippingInput.value = shippingAmountTotal.toFixed(2);
             if (whtInput && !document.activeElement?.isSameNode(whtInput)) whtInput.value = whtAmountTotal.toFixed(2);
             if (grandTotalInput) grandTotalInput.value = actualExpenses.toFixed(2);
-            if (actualExpensesInput && hasMeaningfulRows && !document.activeElement?.isSameNode(actualExpensesInput)) actualExpensesInput.value = actualExpenses.toFixed(2);
+            if (actualExpensesInput && !document.activeElement?.isSameNode(actualExpensesInput)) actualExpensesInput.value = actualExpenses.toFixed(2);
             if (varianceInput) varianceInput.value = variance.toFixed(2);
             if (varianceIndicatorInput) {
                 varianceIndicatorInput.value = statusMeta.indicator;
@@ -9809,7 +10271,7 @@
             financeFormValues['data[grand_total]'] = financeFormValues.grand_total;
             financeFormValues.line_items_total = grandTotal.toFixed(2);
             financeFormValues['data[line_items_total]'] = financeFormValues.line_items_total;
-            financeFormValues.actual_expenses = isEditingActualExpenses ? rawActualExpensesValue : actualExpenses.toFixed(2);
+            financeFormValues.actual_expenses = isEditingActualExpenses && !hasMeaningfulRows ? rawActualExpensesValue : actualExpenses.toFixed(2);
             financeFormValues['data[actual_expenses]'] = financeFormValues.actual_expenses;
             financeFormValues.variance = variance.toFixed(2);
             financeFormValues['data[variance]'] = financeFormValues.variance;
@@ -10556,6 +11018,16 @@
             }
         }
 
+        if (currentModuleKey === 'ca') {
+            form.querySelectorAll('[data-ca-schedule-field]').forEach((input) => {
+                input.addEventListener('change', () => {
+                    syncCashAdvanceReleaseMirrors(form);
+                    refreshCashAdvancePaymentTracker();
+                    renderDrawerPreview();
+                });
+            });
+        }
+
         if (currentModuleKey === 'ibtf') {
             ['source_bank_account_id', 'destination_bank_account_id'].forEach((fieldName) => {
                 const input = form.querySelector(`[name="data[${fieldName}]"]`);
@@ -10953,6 +11425,9 @@
                 const departmentValue = getDraftValue('department', record);
                 const superiorValue = getDraftValue('superior', record);
                 const superiorEmailValue = getDraftValue('superior_email', record);
+                const liquidationLineItems = Array.isArray(getDraftValue('line_items', record))
+                    ? getDraftValue('line_items', record).map((row) => ({ ...row }))
+                    : (Array.isArray(record?.data?.line_items) ? record.data.line_items.map((row) => ({ ...row })) : []);
 
                 values.linked_ca_id = linkedCaId;
                 values['data[linked_ca_id]'] = linkedCaId;
@@ -10994,6 +11469,9 @@
                 values['data[superior]'] = superiorValue;
                 values.superior_email = superiorEmailValue;
                 values['data[superior_email]'] = superiorEmailValue;
+                values.line_items = liquidationLineItems;
+                values['data[line_items]'] = liquidationLineItems;
+                financeFormValues.line_items = liquidationLineItems;
 
                 return `
                     <div class="md:col-span-2 rounded-xl border border-blue-100 bg-blue-50/40 p-4">
@@ -11047,9 +11525,13 @@
                         ${renderLiquidationReportSection(draftLinkedRecord || record, values)}
                     </div>
 
+                    <div class="md:col-span-2">
+                        ${renderPrLineItemsTable(draftLinkedRecord || record)}
+                    </div>
+
                     <div class="md:col-span-2 rounded-xl border border-gray-200 bg-white p-4">
                         <h4 class="text-sm font-semibold uppercase tracking-[0.24em] text-gray-700">Liquidation Expenses</h4>
-                        <p class="mt-2 text-xs text-gray-500">Enter the total actual expenses for this Cash Advance. Itemized lines are optional and can be added later.</p>
+                        <p class="mt-2 text-xs text-gray-500">Actual expenses auto-calculate from the itemized entries above, but you can still adjust the total manually if the liquidation needs a correction.</p>
                         <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                                 <label class="block text-xs font-semibold uppercase tracking-[0.18em] text-gray-500 mb-1">Actual Expenses</label>
@@ -11434,15 +11916,21 @@
                 values['data[payee_name]'] = effectivePayeeNameValue;
                 values.projected_balance_after_payment = sourceValue('projected_balance_after_payment');
                 values['data[projected_balance_after_payment]'] = values.projected_balance_after_payment;
-                const draftLineItems = Array.isArray(draftContext?.prefill?.line_items)
+                const draftLineItemsRaw = Array.isArray(draftContext?.prefill?.line_items)
                     ? draftContext.prefill.line_items.map((row) => ({ ...row }))
                     : (record && Array.isArray(record.data?.line_items) ? record.data.line_items.map((row) => ({ ...row })) : []);
+                const draftLineItems = normalizeDvLineItems(draftLineItemsRaw, resolvedSourceRecord || record);
+                const releaseIntentActive = Boolean(currentEditRecordId && releaseFundsIntentRecordId && String(currentEditRecordId) === String(releaseFundsIntentRecordId));
                 financeFormValues.dv_line_items = draftLineItems;
                 financeFormValues.line_items = draftLineItems;
+                financeFormValues.release_intent = releaseIntentActive ? '1' : '';
+                financeFormValues['data[release_intent]'] = financeFormValues.release_intent;
                 values.dv_line_items = draftLineItems;
                 values.line_items = draftLineItems;
                 values['data[dv_line_items]'] = draftLineItems;
                 values['data[line_items]'] = draftLineItems;
+                values.release_intent = financeFormValues.release_intent;
+                values['data[release_intent]'] = financeFormValues.release_intent;
                 const renderDvFieldList = (items, section) => items
                     .map(([field, value]) => shouldRenderDvField(field.name, value, resolvedSourceTypeValue, section)
                         ? renderDynamicField(field, value, values)
@@ -11562,6 +12050,8 @@
 
                     ${renderDvLineItemsTable(record)}
 
+                    ${releaseIntentActive ? '<input type="hidden" name="data[release_intent]" value="1">' : ''}
+
                     <div class="md:col-span-2 rounded-xl border border-gray-200 bg-white p-4">
                         <h4 class="text-sm font-semibold uppercase tracking-[0.24em] text-gray-700">Tax, Currency & Receipt</h4>
                         <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -11572,12 +12062,20 @@
             }
 
             if (currentModuleKey === 'ca') {
+                values.release_entries = normalizeCashAdvanceReleaseEntries(record?.data?.release_entries || values.release_entries || [], values);
                 values.ca_payment_entries = normalizeCashAdvancePaymentEntries(record?.data?.ca_payment_entries || values.ca_payment_entries || []);
                 const requestorValue = getDraftValue('requestor', record) || getDraftValue('employee_name', record) || getPrRequesterDefaults().requestor || '';
+                const firstReleaseEntry = values.release_entries[0] || {};
                 values.requestor = requestorValue;
                 values['data[requestor]'] = requestorValue;
+                values.cash_release_date = firstReleaseEntry.scheduled_date || '';
+                values['data[cash_release_date]'] = values.cash_release_date;
+                values.cash_release_time = firstReleaseEntry.scheduled_time || '';
+                values['data[cash_release_time]'] = values.cash_release_time;
                 return `
                     <input type="hidden" name="data[requestor]" value="${escapeHtml(requestorValue)}">
+                    <input type="hidden" name="data[cash_release_date]" value="${escapeHtml(values.cash_release_date)}">
+                    <input type="hidden" name="data[cash_release_time]" value="${escapeHtml(values.cash_release_time)}">
                     <div class="md:col-span-2 rounded-xl border border-blue-100 bg-blue-50/40 p-4">
                         <h4 class="text-sm font-semibold uppercase tracking-[0.24em] text-blue-700">Request Details</h4>
                         <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -11603,54 +12101,7 @@
                     <div class="md:col-span-2 rounded-xl border border-gray-200 bg-white p-4">
                         <h4 class="text-sm font-semibold uppercase tracking-[0.24em] text-gray-700">Cash Advance Details</h4>
                         <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                            ${renderFieldsByNames(moduleConfig, ['amount_requested', 'release_schedule', 'release_count', 'amount_per_release', 'cash_release_date', 'cash_release_time', 'mode_of_release', 'paid_through'], values, record)}
-                        </div>
-                    </div>
-
-                    ${renderCashAdvancePaymentTracker(values)}
-
-                    <div class="md:col-span-2 rounded-xl border border-gray-200 bg-white p-4">
-                        <h4 class="text-sm font-semibold uppercase tracking-[0.24em] text-gray-700">Declarations & Authorizations</h4>
-                        <div class="mt-4 grid grid-cols-1 gap-4">
-                            ${renderFieldsByNames(moduleConfig, ['official_business_cash_advance', 'employee_cash_advance_personal', 'liquidation_non_compliance', 'automatic_salary_deduction_authorization', 'final_pay_deduction_authorization', 'policy_acknowledgment'], values, record)}
-                        </div>
-                    </div>
-                `;
-            }
-
-            if (currentModuleKey === 'ca') {
-                values.ca_payment_entries = normalizeCashAdvancePaymentEntries(record?.data?.ca_payment_entries || values.ca_payment_entries || []);
-                const requestorValue = getDraftValue('requestor', record) || getDraftValue('employee_name', record) || getPrRequesterDefaults().requestor || '';
-                values.requestor = requestorValue;
-                values['data[requestor]'] = requestorValue;
-                return `
-                    <input type="hidden" name="data[requestor]" value="${escapeHtml(requestorValue)}">
-                    <div class="md:col-span-2 rounded-xl border border-blue-100 bg-blue-50/40 p-4">
-                        <h4 class="text-sm font-semibold uppercase tracking-[0.24em] text-blue-700">Request Details</h4>
-                        <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                            ${renderFieldsByNames(moduleConfig, ['needed_date', 'priority', 'cash_advance_type', 'other_business_purpose_specify', 'usage_categories', 'other_expense_specify', 'purpose'], values, record)}
-                        </div>
-                    </div>
-
-                    <div class="md:col-span-2 rounded-xl border border-gray-200 bg-white p-4">
-                        <h4 class="text-sm font-semibold uppercase tracking-[0.24em] text-gray-700">Requester Details</h4>
-                        <p class="mt-2 text-xs text-gray-500">Choose Own Request to auto-fill your account details, or Request for Another to enter someone else&apos;s information.</p>
-                        <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                            ${renderFieldsByNames(moduleConfig, ['requester_mode', 'requester_employee_id', 'employee_name', 'employee_id', 'employee_email', 'contact_number', 'position', 'department', 'superior', 'superior_email'], values, record)}
-                        </div>
-                    </div>
-
-                    <div class="md:col-span-2 rounded-xl border border-gray-200 bg-white p-4">
-                        <h4 class="text-sm font-semibold uppercase tracking-[0.24em] text-gray-700">Client Details</h4>
-                        <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                            ${renderFieldsByNames(moduleConfig, ['for_client', 'client_names'], values, record)}
-                        </div>
-                    </div>
-
-                    <div class="md:col-span-2 rounded-xl border border-gray-200 bg-white p-4">
-                        <h4 class="text-sm font-semibold uppercase tracking-[0.24em] text-gray-700">Cash Advance Details</h4>
-                        <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                            ${renderFieldsByNames(moduleConfig, ['amount_requested', 'release_schedule', 'release_count', 'amount_per_release', 'cash_release_date', 'cash_release_time', 'mode_of_release', 'paid_through'], values, record)}
+                            ${renderFieldsByNames(moduleConfig, ['amount_requested', 'release_schedule', 'release_count', 'amount_per_release', 'mode_of_release', 'paid_through'], values, record)}
                         </div>
                     </div>
 
@@ -12536,14 +12987,15 @@
                             <div class="p-4 overflow-x-auto">
                                 <table class="w-full min-w-[860px] border-collapse text-sm">
                                     <thead>
-                                        <tr class="bg-gray-50 text-gray-700">
-                                            <th class="border border-gray-200 px-3 py-2 text-left w-12">#</th>
-                                            <th class="border border-gray-200 px-3 py-2 text-left">Item</th>
-                                            <th class="border border-gray-200 px-3 py-2 text-left">Description</th>
-                                            <th class="border border-gray-200 px-3 py-2 text-left w-32">Category</th>
-                                            <th class="border border-gray-200 px-3 py-2 text-left w-24">Qty</th>
-                                            <th class="border border-gray-200 px-3 py-2 text-left w-32">Amount</th>
-                                            <th class="border border-gray-200 px-3 py-2 text-left w-32">Total</th>
+                                <tr class="bg-gray-50 text-gray-700">
+                                    <th class="border border-gray-200 px-3 py-2 text-left w-12">#</th>
+                                    <th class="border border-gray-200 px-3 py-2 text-left">Item</th>
+                                    <th class="border border-gray-200 px-3 py-2 text-left w-40">Supplier</th>
+                                    <th class="border border-gray-200 px-3 py-2 text-left">Description</th>
+                                    <th class="border border-gray-200 px-3 py-2 text-left w-32">Category</th>
+                                    <th class="border border-gray-200 px-3 py-2 text-left w-24">Qty</th>
+                                    <th class="border border-gray-200 px-3 py-2 text-left w-32">Amount</th>
+                                    <th class="border border-gray-200 px-3 py-2 text-left w-32">Total</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -12551,6 +13003,7 @@
                                             <tr>
                                                 <td class="border border-gray-200 px-3 py-2 font-semibold text-blue-700">${index + 1}</td>
                                                 <td class="border border-gray-200 px-3 py-2">${escapeHtml(getPrItemDisplayValue(row.item_id) || 'N/A')}</td>
+                                                <td class="border border-gray-200 px-3 py-2">${escapeHtml(getLineItemLookupLabel('supplier', row.supplier_id, 'N/A'))}</td>
                                                 <td class="border border-gray-200 px-3 py-2">${escapeHtml(row.description || 'N/A')}</td>
                                                 <td class="border border-gray-200 px-3 py-2">${escapeHtml(getPrCategoryDisplayValue(row.category) || 'N/A')}</td>
                                                 <td class="border border-gray-200 px-3 py-2">${escapeHtml(row.quantity || '0')}</td>
@@ -12583,6 +13036,7 @@
                 cash_release_time: $('financeForm').querySelector('input[name="data[cash_release_time]"]')?.value || 'N/A',
                 mode_of_release: $('financeForm').querySelector('select[name="data[mode_of_release]"]')?.value || 'N/A',
                 paid_through: getLookupLabel('chart_account', paidThroughValue) || paidThroughValue || 'N/A',
+                release_entries: collectCashAdvanceReleaseEntriesFromForm(),
                 ca_payment_entries: collectCashAdvancePaymentEntriesFromForm(),
             };
             const requesterModeValue = String(formValues['data[requester_mode]'] || '').trim();
@@ -12652,7 +13106,7 @@
 
                         <div class="relative border-t border-gray-300">
                             <div class="bg-gray-50 px-4 py-2 border-b border-gray-300">
-                                <h4 class="text-[12px] font-semibold uppercase tracking-[0.26em] text-gray-700">Cash Advance Payment Tracking</h4>
+                                <h4 class="text-[12px] font-semibold uppercase tracking-[0.26em] text-gray-700">Release Schedule &amp; Payment Tracking</h4>
                             </div>
                             <div class="p-4">
                                 ${renderCashAdvancePaymentSummaryPanel(summaryValues, { compact: true })}
@@ -12684,8 +13138,6 @@
                             sectionCell('Release Schedule', summaryValues.release_schedule, 'border-r border-t border-gray-300'),
                             sectionCell('Number of Releases', summaryValues.release_count, 'border-t border-gray-300'),
                             sectionCell('Amount per Release', summaryValues.amount_per_release, 'border-r border-t border-gray-300'),
-                            sectionCell('Cash Release Date', summaryValues.cash_release_date || 'Not filled yet', 'border-t border-gray-300'),
-                            sectionCell('Cash Release Time', summaryValues.cash_release_time || 'Not filled yet', 'border-r border-t border-gray-300'),
                             sectionCell('Mode of Release', summaryValues.mode_of_release || 'Not filled yet', 'border-t border-gray-300'),
                             sectionCell('Paid Through', summaryValues.paid_through, 'border-r border-t border-gray-300'),
                             sectionCell('Justification / Business Need', formValues['data[purpose]'] || 'Not filled yet', 'border-t border-gray-300 md:col-span-2'),
@@ -12919,10 +13371,13 @@
                 || $('dvSourceDocumentSelect')?.selectedOptions?.[0]?.textContent?.trim()
                 || sourceDocumentId
                 || 'Not filled yet';
-            const dvRows = Array.isArray(financeFormValues?.dv_line_items) ? financeFormValues.dv_line_items : [];
             const dvSourceRecord = sourceDocumentId
                 ? (getRecordById(sourceDocumentId) || getRecordByLookupValue(normalizedSourceType, sourceDocumentId))
                 : null;
+            const dvRows = normalizeDvLineItems(
+                Array.isArray(financeFormValues?.dv_line_items) ? financeFormValues.dv_line_items : [],
+                dvSourceRecord
+            );
             const fieldValue = (fieldName, fallback = 'Not filled yet') => {
                 const value = formValues[`data[${fieldName}]`];
                 if (Array.isArray(value)) {
@@ -13407,6 +13862,10 @@
             return;
         }
 
+        if (!record || String(record.id || '') !== String(releaseFundsIntentRecordId || '')) {
+            releaseFundsIntentRecordId = null;
+        }
+
         currentEditRecordId = record ? record.id : null;
         renderFinanceForm(record);
         const drawerSection = $('drawerSection');
@@ -13455,6 +13914,7 @@
             return;
         }
 
+        releaseFundsIntentRecordId = record.id;
         openFinanceDrawer(record);
         showFinanceToast('Complete the release details, then click Save to record fund release.', 'info');
     }
@@ -13502,14 +13962,14 @@
             || resolvedSourceRecord.user
             || bootstrap.currentUserName
             || '';
-        const totalCashAdvance = parseFloat(resolvedSourceRecord.amount || sourceData.amount_requested || sourceData.total_cash_advance || '0') || 0;
+        const totalCashAdvance = parseFloat(sourceData.amount_requested || sourceData.total_cash_advance || sourceData.amount || resolvedSourceRecord.amount || '0') || 0;
         const initialActualExpenses = parseFloat(sourceData.actual_expenses || sourceData.grand_total || totalCashAdvance) || 0;
         const initialVariance = totalCashAdvance - initialActualExpenses;
         const initialVarianceIndicator = initialVariance > 0 ? 'Overage' : (initialVariance < 0 ? 'Shortage' : 'Balanced');
 
         openFinanceDraftFromSource('lr', resolvedSourceRecord, {
             linked_ca_id: resolvedSourceRecord.id,
-            total_cash_advance: resolvedSourceRecord.amount || sourceData.amount_requested || '',
+            total_cash_advance: sourceData.amount_requested || sourceData.total_cash_advance || sourceData.amount || resolvedSourceRecord.amount || '',
             requester_mode: requesterMode,
             requester_employee_id: sourceData.requester_employee_id || requesterDefaults.requester_employee_id || '',
             requestor: requesterName,
@@ -13639,10 +14099,10 @@
                 ? crfReturneeName
                 : (sourceData.requestor || sourceData.employee_name || resolvedSourceRecord.user || bootstrap.currentUserName || ''),
             source_department: resolvedSourceRecord.module_key === 'crf' ? '' : (sourceData.department || sourceData.requesting_department || ''),
-            source_project: sourceData.project || sourceData.project_name || sourceData.project_code || sourceData.fund_source || sourceData.department || sourceData.requesting_department || '',
-            source_cost_center: sourceData.cost_center || sourceData.cost_center_code || sourceData.cost_center_name || sourceData.department || sourceData.requesting_department || sourceData.fund_source || '',
-            source_fund_source: resolvedSourceRecord.module_key === 'crf' ? '' : (sourceData.fund_source || ''),
-            source_amount: resolvedSourceRecord.amount || sourceData.amount || sourceData.amount_requested || sourceData.total_cash_advance || '',
+            source_project: sourceData.project || sourceData.project_name || sourceData.project_code || (resolvedSourceRecord.module_key === 'ca' ? '' : (sourceData.fund_source || sourceData.department || sourceData.requesting_department || '')),
+            source_cost_center: sourceData.cost_center || sourceData.cost_center_code || sourceData.cost_center_name || (resolvedSourceRecord.module_key === 'ca' ? '' : (sourceData.department || sourceData.requesting_department || sourceData.fund_source || '')),
+            source_fund_source: resolvedSourceRecord.module_key === 'crf' ? '' : (sourceData.fund_source || (resolvedSourceRecord.module_key === 'ca' ? '' : (sourceData.project || sourceData.department || ''))),
+            source_amount: sourceData.amount_requested || sourceData.total_cash_advance || sourceData.amount || resolvedSourceRecord.amount || '',
             source_remaining_balance: sourceData.remaining_balance || '',
             source_current_balance: sourceData.current_balance || '',
             source_reserved_balance: sourceData.reserved_balance || '',
@@ -13659,7 +14119,7 @@
             source_status: resolvedSourceRecord.status || sourceData.status || '',
             source_workflow_status: resolvedSourceRecord.workflow_status || sourceData.workflow_status || '',
             source_relationship_status: resolvedSourceRecord.relationship_status || sourceData.relationship_status || '',
-            amount: resolvedSourceRecord.amount || sourceData.amount || sourceData.amount_requested || sourceData.total_cash_advance || sourceData.amount_returned || sourceData.total_payroll_amount || sourceData.acquisition_cost || '',
+            amount: sourceData.amount_requested || sourceData.total_cash_advance || sourceData.amount || resolvedSourceRecord.amount || sourceData.amount_returned || sourceData.total_payroll_amount || sourceData.acquisition_cost || '',
             supplier_id: sourceData.supplier_id || sourceData.linked_pr_supplier_id || payload.supplier_id || '',
             bank_account_id: resolvedSourceRecord.module_key === 'crf'
                 ? (crfModeOfReturn === 'Check' ? (payload.bank_account_id || '') : '')
@@ -13702,6 +14162,7 @@
             drawerSection.classList.add('hidden');
             currentEditRecordId = null;
             financeDraftContext = null;
+            releaseFundsIntentRecordId = null;
         }, 300);
     }
 
@@ -14820,18 +15281,7 @@
             const data = record?.data || {};
             const caAmount = numericAmount(data.total_cash_advance || data.amount_requested || record?.amount || 0);
             const lineItems = Array.isArray(data.line_items) ? data.line_items.filter((item) => item && Object.values(item).some((value) => String(value ?? '').trim() !== '')) : [];
-            const lineItemsTotal = lineItems.reduce((sum, item) => {
-                const quantity = numericAmount(item.quantity || 0);
-                const amount = numericAmount(item.amount || 0);
-                const rowSubtotal = quantity * amount;
-                const discountPercent = parseFloat(String(item.discount || '0').replace('%', '')) || 0;
-                const manualDiscount = numericAmount(item.discount_amount || 0);
-                const discountAmount = discountPercent > 0 ? rowSubtotal * (discountPercent / 100) : manualDiscount;
-                const shippingAmount = numericAmount(item.shipping_amount || 0);
-                const taxAmount = numericAmount(item.tax_amount || 0);
-                const whtAmount = numericAmount(item.wht_amount || 0);
-                return sum + rowSubtotal - discountAmount + shippingAmount + taxAmount - whtAmount;
-            }, 0);
+            const lineItemsTotal = lineItems.reduce((sum, item) => sum + getLiquidationLineItemTotal(item), 0);
             const actualExpenses = lineItemsTotal > 0
                 ? lineItemsTotal
                 : numericAmount(data.actual_expenses || data.grand_total || caAmount || 0);
@@ -15175,18 +15625,7 @@
                 || ['Approved'].includes(String(record.approval_status || '').trim());
             const caAmount = numericAmount(data.total_cash_advance || data.amount_requested || record.amount || 0);
             const lineItems = Array.isArray(data.line_items) ? data.line_items.filter((item) => item && Object.values(item).some((value) => String(value ?? '').trim() !== '')) : [];
-            const lineItemsTotal = lineItems.reduce((sum, item) => {
-                const quantity = numericAmount(item.quantity || 0);
-                const amount = numericAmount(item.amount || 0);
-                const rowSubtotal = quantity * amount;
-                const discountPercent = parseFloat(String(item.discount || '0').replace('%', '')) || 0;
-                const manualDiscount = numericAmount(item.discount_amount || 0);
-                const discountAmount = discountPercent > 0 ? rowSubtotal * (discountPercent / 100) : manualDiscount;
-                const shippingAmount = numericAmount(item.shipping_amount || 0);
-                const taxAmount = numericAmount(item.tax_amount || 0);
-                const whtAmount = numericAmount(item.wht_amount || 0);
-                return sum + rowSubtotal - discountAmount + shippingAmount + taxAmount - whtAmount;
-            }, 0);
+            const lineItemsTotal = lineItems.reduce((sum, item) => sum + getLiquidationLineItemTotal(item), 0);
             const actualExpenses = lineItemsTotal > 0
                 ? lineItemsTotal
                 : numericAmount(data.actual_expenses || data.grand_total || caAmount || 0);
@@ -15797,6 +16236,15 @@
             }
         }
 
+        if (currentModuleKey === 'dv') {
+            const normalizedDvRows = collectDvLineItems();
+            replaceDvLineItemsTable(normalizedDvRows);
+        }
+
+        if (currentModuleKey === 'dv' && currentEditRecordId && releaseFundsIntentRecordId && String(currentEditRecordId) === String(releaseFundsIntentRecordId)) {
+            formData.set('data[release_intent]', '1');
+        }
+
         if (token) {
             formData.set('_token', token);
         }
@@ -15980,6 +16428,8 @@
     }
 
     async function approveFinanceRecord(id) {
+        showFinanceToast('Submitting approval...', 'info');
+
         const res = await csrfFetch(`/finance/${id}/approve`, {
             method: 'POST',
             headers: {
@@ -15987,15 +16437,20 @@
             }
         });
 
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
         if (!res.ok) {
-            alert(data.message || 'Unable to approve record.');
+            const firstErrorKey = data.errors ? Object.keys(data.errors)[0] : null;
+            const firstErrorMessage = firstErrorKey && data.errors[firstErrorKey] ? data.errors[firstErrorKey][0] : '';
+            const message = getFriendlyErrorMessage(firstErrorMessage || data.message || 'Unable to approve record.');
+            alert(message);
+            showFinanceToast(message, 'error');
             return;
         }
 
         upsertFinanceRecord(data.data);
         refreshFinanceView();
         openPreview(data.data.id);
+        showFinanceToast(data.message || 'Finance record approved.', 'success');
     }
 
     function removeFinanceHoldDialog() {

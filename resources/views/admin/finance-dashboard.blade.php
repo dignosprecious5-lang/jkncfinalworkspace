@@ -195,11 +195,14 @@
                                 <td class="px-4 py-3 border-r border-gray-200">{{ $record->approval_status ?: 'Pending' }}</td>
                                 <td class="px-4 py-3">
                                     <div class="flex items-center justify-center gap-2 flex-wrap">
-                                        @if($workflow === 'Submitted')
+                                        @if($workflow === 'Submitted' && $record->dashboard_can_approve)
                                             <form method="POST" action="{{ route('finance.approve', $record) }}">
                                                 @csrf
                                                 <button class="px-3 py-1.5 text-xs font-medium rounded-lg bg-green-600 text-white hover:bg-green-700 transition">Approve</button>
                                             </form>
+                                        @endif
+
+                                        @if($workflow === 'Submitted' && $record->dashboard_can_revert)
                                             <form method="POST" action="{{ route('finance.revert', $record) }}">
                                                 @csrf
                                                 <input
@@ -214,7 +217,11 @@
                                             </form>
                                         @endif
 
-                                        @if($workflow === 'Delete Requested')
+                                        @if($workflow === 'Submitted' && !$record->dashboard_can_approve)
+                                            <span class="text-[11px] text-gray-500">Approval is limited to the assigned approver.</span>
+                                        @endif
+
+                                        @if($workflow === 'Delete Requested' && $record->dashboard_can_approve_delete)
                                             <form method="POST" action="{{ route('admin.finance.delete.approve', $record) }}">
                                                 @csrf
                                                 <button class="px-3 py-1.5 text-xs font-medium rounded-lg bg-red-600 text-white hover:bg-red-700 transition">Approve Delete</button>
@@ -226,14 +233,14 @@
                                             </form>
                                         @endif
 
-                                        @if(in_array($workflow, ['Accepted', 'Reverted'], true))
+                                        @if(in_array($workflow, ['Accepted', 'Reverted'], true) && $record->dashboard_can_archive)
                                             <form method="POST" action="{{ route('finance.archive', $record) }}">
                                                 @csrf
                                                 <button class="px-3 py-1.5 text-xs font-medium rounded-lg bg-gray-700 text-white hover:bg-gray-800 transition">Archive</button>
                                             </form>
                                         @endif
 
-                                        @if($workflow === 'Archived')
+                                        @if($workflow === 'Archived' && $record->dashboard_can_unarchive)
                                             <form method="POST" action="{{ route('admin.finance.unarchive', $record) }}">
                                                 @csrf
                                                 <button class="px-3 py-1.5 text-xs font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition">Unarchive</button>

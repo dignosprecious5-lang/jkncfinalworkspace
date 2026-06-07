@@ -1412,19 +1412,32 @@
                             <table class="line-table" style="margin-top: 8px;">
                                 <tr>
                                     <th>Release</th>
-                                    <th>Scheduled Date</th>
-                                    <th>Amount</th>
-                                    <th>Paid</th>
+                                    <th>Scheduled Date / Time</th>
+                                    <th>Scheduled Amount</th>
+                                    <th>Paid Amount</th>
                                     <th>Payment Date</th>
                                     <th>Status</th>
                                 </tr>
                                 @foreach(($cashAdvancePaymentTracking['rows'] ?? []) as $row)
                                     <tr>
                                         <td>{{ $row['no'] }}</td>
-                                        <td>{{ $row['scheduled_date'] }}</td>
+                                        <td>
+                                            <div>{{ $row['scheduled_date'] }}</div>
+                                            @if(!empty($row['scheduled_time']))
+                                                <div class="label" style="margin-top:4px;">{{ $row['scheduled_time'] }}</div>
+                                            @endif
+                                            @if(!empty($row['scheduled_remarks']))
+                                                <div class="label" style="margin-top:4px;">{{ $row['scheduled_remarks'] }}</div>
+                                            @endif
+                                        </td>
                                         <td>{{ $row['scheduled_amount'] }}</td>
                                         <td>{{ $row['paid_amount'] }}</td>
-                                        <td>{{ $row['payment_date'] }}</td>
+                                        <td>
+                                            <div>{{ $row['payment_date'] }}</div>
+                                            @if(!empty($row['payment_remarks']))
+                                                <div class="label" style="margin-top:4px;">{{ $row['payment_remarks'] }}</div>
+                                            @endif
+                                        </td>
                                         <td>{{ $row['status'] }}</td>
                                     </tr>
                                 @endforeach
