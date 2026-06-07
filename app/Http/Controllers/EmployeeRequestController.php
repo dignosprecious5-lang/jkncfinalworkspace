@@ -6,7 +6,7 @@ use App\Models\Employee;
 use App\Models\EmployeeRequest;
 use App\Models\User;
 use App\Http\Controllers\Concerns\ScopesHumanCapitalRecords;
-use App\Notifications\SystemRealtimeNotification;
+use App\Notifications\HumanCapitalWorkflowNotification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Carbon;
@@ -297,12 +297,13 @@ class EmployeeRequestController extends Controller
             return;
         }
 
-        Notification::send($admins, new SystemRealtimeNotification(
+        Notification::send($admins, new HumanCapitalWorkflowNotification(
             title: $title,
             message: $message,
             url: $url ?: route('admin.human-capital.dashboard'),
-            module: 'Employee Requests',
-            icon: 'fa-file-signature'
+            humanCapitalModule: 'Employee Requests',
+            recordTitle: '',
+            actorName: auth()->user()?->name ?? auth()->user()?->email ?? ''
         ));
     }
 
@@ -314,12 +315,13 @@ class EmployeeRequestController extends Controller
             return;
         }
 
-        $user->notify(new SystemRealtimeNotification(
+        $user->notify(new HumanCapitalWorkflowNotification(
             title: $title,
             message: $message,
             url: $url ?: route('human-capital.employee-requests.index'),
-            module: 'Employee Requests',
-            icon: 'fa-file-signature'
+            humanCapitalModule: 'Employee Requests',
+            recordTitle: $employeeRequest->request_type ?: 'Employee Request',
+            actorName: ''
         ));
     }
 

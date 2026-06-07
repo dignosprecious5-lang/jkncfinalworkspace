@@ -29,6 +29,7 @@ use App\Models\Transmittal;
 use App\Models\TransmittalReceipt;
 use App\Mail\CorporateStatusNotificationMail;
 use App\Mail\TransmittalDeliveryMail;
+use App\Notifications\SystemRealtimeNotification;
 
 class CorporateApprovalController extends Controller
 {
@@ -275,6 +276,60 @@ class CorporateApprovalController extends Controller
                 'error' => $e->getMessage(),
             ]);
         }
+    }
+
+    private function sendStatusRealtimeNotification($record, string $module, string $decision, ?string $reviewNote = null): void
+    {
+        if (empty($record->submitted_by)) {
+            return;
+        }
+
+        $submitter = User::find($record->submitted_by);
+
+        if (! $submitter) {
+            return;
+        }
+
+        $moduleName = $this->getModuleName($module);
+        $recordName = $this->getCorporationName($record, $module);
+        $message = "Your {$moduleName} submission";
+
+        if ($recordName !== '') {
+            $message .= " ({$recordName})";
+        }
+
+        $message .= match ($decision) {
+            'Approved' => ' has been approved.',
+            'Needs Revision' => ' was reverted and needs revision.',
+            'Rejected' => ' was rejected.',
+            default => ' has an approval update.',
+        };
+
+        if (filled($reviewNote)) {
+            $message .= ' Note: ' . $reviewNote;
+        }
+
+        $submitter->notify(new SystemRealtimeNotification(
+            "{$moduleName} submission {$decision}",
+            $message,
+            $this->submittedRecordUrl($record, $module),
+            'Corporate',
+            'fa-building'
+        ));
+    }
+
+    private function submittedRecordUrl($record, string $module): string
+    {
+        return match ($module) {
+            'lgu' => route('corporate.lgu', ['record' => $record->id, 'tab' => strtolower((string) ($record->workflow_status ?? 'uploaded'))]),
+            'bir-tax' => route('bir-tax.preview', ['birTax' => $record->id]),
+            'natgov' => route('natgov.preview', ['natgov' => $record->id]),
+            'accounting' => route('corporate.accounting', ['record' => $record->id, 'tab' => strtolower((string) ($record->workflow_status ?? 'uploaded'))]),
+            'banking' => route('corporate.banking', ['record' => $record->id, 'tab' => strtolower((string) ($record->workflow_status ?? 'uploaded'))]),
+            'operations' => route('corporate.operations', ['record' => $record->id, 'tab' => strtolower((string) ($record->workflow_status ?? 'uploaded'))]),
+            'legal' => route('corporate.legal', ['record' => $record->id, 'tab' => strtolower((string) ($record->workflow_status ?? 'uploaded'))]),
+            default => route('admin.corporate.dashboard'),
+        };
     }
 
     private function canAppearInAdminDashboard(string $workflow): bool
@@ -742,6 +797,7 @@ class CorporateApprovalController extends Controller
         }
 
         $this->sendStatusEmail($record, $module, 'Approved', null);
+        $this->sendStatusRealtimeNotification($record, $module, 'Approved', null);
 
         return back()->with('success', 'Record approved successfully.');
     }
@@ -772,6 +828,7 @@ class CorporateApprovalController extends Controller
         ]);
 
         $this->sendStatusEmail($record, $module, 'Rejected', $request->review_note);
+        $this->sendStatusRealtimeNotification($record, $module, 'Rejected', $request->review_note);
 
         return back()->with('success', 'Record rejected successfully.');
     }
@@ -802,6 +859,7 @@ class CorporateApprovalController extends Controller
         ]);
 
         $this->sendStatusEmail($record, $module, 'Needs Revision', $request->review_note);
+        $this->sendStatusRealtimeNotification($record, $module, 'Needs Revision', $request->review_note);
 
         return back()->with('success', 'Record marked as needs revision.');
     }

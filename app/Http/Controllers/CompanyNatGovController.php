@@ -305,6 +305,8 @@ class CompanyNatGovController extends Controller
             'last_updated_at' => now(),
         ]);
 
+        $this->notifyCorporateApproversOfSubmission($natgov->fresh(), 'natgov');
+
         return response()->json([
             'message' => 'NatGov entry submitted for approval successfully.',
             'data' => $this->transformRecord($natgov->fresh()),

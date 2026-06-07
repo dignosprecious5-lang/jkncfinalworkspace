@@ -33,7 +33,7 @@ class SupplierCompletionMail extends Mailable
             ->from(config('mail.from.address'), config('mail.from.name'))
             ->view('emails.finance-supplier-completion', [
                 'supplierLabels' => $this->supplierLabels,
-                'logoUrl' => 'https://assets.zyrosite.com/cdn-cgi/image/format=auto,w=375,fit=crop,q=95/mjEqWrZkyrh3rqK0/1-mv02o8k9OrfMW0oZ.png',
+                'logoUrl' => rtrim((string) config('app.url'), '/') . '/images/imaglogo.png',
             ]);
 
         if ($this->pdfData && $this->pdfFilename) {

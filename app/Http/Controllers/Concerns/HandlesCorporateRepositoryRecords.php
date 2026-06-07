@@ -3,9 +3,13 @@
 namespace App\Http\Controllers\Concerns;
 
 use App\Models\GisRecord;
+use App\Models\User;
+use App\Notifications\CorporateApprovalSubmissionNotification;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Schema;
 
 trait HandlesCorporateRepositoryRecords
@@ -165,5 +169,79 @@ trait HandlesCorporateRepositoryRecords
             'approved_documents' => ['nullable'],
             'approved_documents.*' => ['file', 'mimes:pdf,jpg,jpeg,png,doc,docx', 'max:10240'],
         ];
+    }
+
+    protected function notifyCorporateApproversOfSubmission($record, string $moduleKey): void
+    {
+        $submitter = Auth::user();
+        $submitterName = trim((string) ($submitter?->name ?: $submitter?->email ?: 'A user'));
+        $moduleName = $this->corporateApprovalModuleName($moduleKey);
+        $recordTitle = $this->corporateApprovalRecordTitle($record, $moduleKey);
+        $message = "A new {$moduleName} record has been submitted by {$submitterName} and is waiting for approval.";
+
+        if ($recordTitle !== '') {
+            $message .= " Record: {$recordTitle}.";
+        }
+
+        $recipients = User::with('userPermission')
+            ->get()
+            ->filter(function (User $user) use ($submitter) {
+                if ($submitter && (int) $user->id === (int) $submitter->id) {
+                    return false;
+                }
+
+                if (method_exists($user, 'isDisabled') && $user->isDisabled()) {
+                    return false;
+                }
+
+                return $user->hasPermission('approve_corporate');
+            })
+            ->values();
+
+        if ($recipients->isEmpty()) {
+            Log::warning('Corporate approval submission notification skipped: no approvers found.', [
+                'module' => $moduleKey,
+                'record_id' => $record->id ?? null,
+            ]);
+
+            return;
+        }
+
+        Notification::send($recipients, new CorporateApprovalSubmissionNotification(
+            "{$moduleName} submitted for approval",
+            $message,
+            route('admin.corporate.dashboard'),
+            $moduleName,
+            $recordTitle,
+            $submitterName
+        ));
+    }
+
+    protected function corporateApprovalModuleName(string $moduleKey): string
+    {
+        return match ($moduleKey) {
+            'bir-tax' => 'BIR & Tax',
+            'natgov' => 'National Government',
+            'lgu' => 'LGU',
+            'accounting' => 'Accounting',
+            'banking' => 'Banking',
+            'legal' => 'Legal',
+            'operations' => 'Operations',
+            default => 'Corporate',
+        };
+    }
+
+    protected function corporateApprovalRecordTitle($record, string $moduleKey): string
+    {
+        return trim((string) match ($moduleKey) {
+            'bir-tax' => ($record->company_name ?? $record->tax_payer ?? 'Company') . ' - ' . ($record->form_type ?? 'BIR Filing'),
+            'natgov' => ($record->company_name ?? $record->client ?? 'Company') . ' - ' . ($record->agency ?? 'National Government Record'),
+            'lgu' => ($record->company_name ?? 'Company') . ' - ' . ($record->permit_type ?? 'LGU Permit'),
+            'accounting' => ($record->company_name ?? $record->client ?? 'Company') . ' - ' . ($record->statement_type ?? 'Accounting Report'),
+            'banking' => ($record->company_name ?? $record->client ?? 'Company') . ' - ' . ($record->bank ?? 'Banking Record'),
+            'legal' => ($record->company_name ?? $record->client ?? 'Company') . ' - ' . ($record->document_title ?? $record->document_type ?? $record->legal_type ?? 'Legal Record'),
+            'operations' => ($record->company_name ?? $record->client ?? 'Company') . ' - ' . ($record->document_title ?? $record->operation_type ?? 'Operations Record'),
+            default => $record->company_name ?? $record->document_name ?? '',
+        }, " \t\n\r\0\x0B-");
     }
 }

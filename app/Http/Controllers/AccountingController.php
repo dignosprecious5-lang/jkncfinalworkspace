@@ -132,6 +132,8 @@ class AccountingController extends Controller
             'document_path' => $primaryDocument['path'] ?? null,
         ]);
 
+        $this->notifyCorporateApproversOfSubmission($entry->fresh(), 'accounting');
+
         return response()->json([
             'message' => 'Accounting report saved successfully.',
             'data' => $this->transformRecord($entry),
@@ -191,6 +193,8 @@ class AccountingController extends Controller
             'approval_status' => 'Pending',
             'review_note' => null,
         ]);
+
+        $this->notifyCorporateApproversOfSubmission($record->fresh(), 'accounting');
 
         return response()->json([
             'message' => 'Accounting report submitted for approval successfully.',

@@ -192,6 +192,7 @@ class LegalController extends Controller
         ]);
 
         $this->syncLegalDeadline($legal);
+        $this->notifyCorporateApproversOfSubmission($legal->fresh(), 'legal');
 
         return response()->json([
             'success' => true,
@@ -258,6 +259,8 @@ class LegalController extends Controller
             'approval_status' => 'Pending',
             'review_note' => null,
         ]);
+
+        $this->notifyCorporateApproversOfSubmission($record->fresh(), 'legal');
 
         return response()->json([
             'message' => 'Legal document submitted for approval successfully.',

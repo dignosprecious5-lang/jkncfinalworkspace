@@ -321,6 +321,8 @@ class CompanyBirTaxController extends Controller
             'last_updated_at' => now(),
         ]);
 
+        $this->notifyCorporateApproversOfSubmission($birTax->fresh(), 'bir-tax');
+
         return response()->json([
             'message' => 'BIR & Tax entry submitted for approval successfully.',
             'data' => $this->transformRecord($birTax->fresh()),

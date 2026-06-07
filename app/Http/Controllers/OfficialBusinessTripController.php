@@ -117,7 +117,7 @@ class OfficialBusinessTripController extends Controller
 
         $employee = $this->resolveEmployee($validated['employee_id'] ?? null);
 
-        OfficialBusinessTrip::create([
+        $trip = OfficialBusinessTrip::create([
             'ob_reference_no' => $this->generateReferenceNo(),
 
             'employee_id' => $employee->id,
@@ -185,6 +185,14 @@ class OfficialBusinessTripController extends Controller
             'status' => 'Pending',
             'created_by' => Auth::id(),
         ]);
+
+        $this->notifyHumanCapitalAdmins(
+            title: 'Official Business Trip Form submitted',
+            message: ($trip->employee_name ?: 'An employee') . ' submitted an Official Business Trip Form for approval.',
+            module: 'Official Business Trip Form',
+            recordTitle: $trip->ob_reference_no ?: ($trip->destination ?: 'Official Business Trip'),
+            actorName: Auth::user()?->name ?? Auth::user()?->email ?? 'System User'
+        );
 
         return redirect()->route('human-capital.obf')->with('success', 'OBF request submitted successfully.');
     }
@@ -269,6 +277,17 @@ class OfficialBusinessTripController extends Controller
 
         $officialBusinessTrip->update(['status' => 'Approved']);
 
+        if ($officialBusinessTrip->created_by) {
+            \App\Models\User::find($officialBusinessTrip->created_by)?->notify(new \App\Notifications\HumanCapitalWorkflowNotification(
+                'Official Business Trip Form approved',
+                'Your Official Business Trip Form has been approved.',
+                route('human-capital.obf'),
+                'Official Business Trip Form',
+                $officialBusinessTrip->ob_reference_no ?: $officialBusinessTrip->destination,
+                Auth::user()?->name ?? Auth::user()?->email ?? ''
+            ));
+        }
+
         return redirect()->route('human-capital.obf')->with('success', 'OBF request approved.');
     }
 
@@ -282,6 +301,22 @@ class OfficialBusinessTripController extends Controller
             'status' => 'Rejected',
             'remarks' => $request->remarks ?: $officialBusinessTrip->remarks,
         ]);
+
+        if ($officialBusinessTrip->created_by) {
+            $message = 'Your Official Business Trip Form has been rejected.';
+            if ($request->filled('remarks')) {
+                $message .= ' Note: ' . $request->remarks;
+            }
+
+            \App\Models\User::find($officialBusinessTrip->created_by)?->notify(new \App\Notifications\HumanCapitalWorkflowNotification(
+                'Official Business Trip Form rejected',
+                $message,
+                route('human-capital.obf'),
+                'Official Business Trip Form',
+                $officialBusinessTrip->ob_reference_no ?: $officialBusinessTrip->destination,
+                Auth::user()?->name ?? Auth::user()?->email ?? ''
+            ));
+        }
 
         return redirect()->route('human-capital.obf')->with('success', 'OBF request rejected.');
     }
