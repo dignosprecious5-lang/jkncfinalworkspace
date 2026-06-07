@@ -1,6 +1,13 @@
 @extends('layouts.app')
 
 @section('content')
+@php
+    $companyHeader = $companyHeader ?? [
+        'logo_url' => asset('images/jk-logo.png'),
+        'company_name' => 'JOHN KELLY & COMPANY (JK&C INC)',
+        'company_address' => '3F Cebu Holdings Center Cebu Business Park, Cebu City, Philippines, 6000',
+    ];
+@endphp
 <div class="w-full px-6 mt-4 h-[calc(100vh-100px)] flex flex-col" x-data="employeeRelationsPage()">
     <div class="bg-white rounded-xl border border-gray-200 flex flex-col flex-grow min-h-0">
         <div class="flex items-center justify-between px-5 py-4 border-b shrink-0 gap-4">
@@ -126,14 +133,9 @@
 
                     <div class="bg-white mx-auto border border-gray-300 shadow-lg px-10 py-8 text-[11px] leading-tight w-[820px] min-h-[1123px] print-area">
                         <div class="text-center border-b-2 border-blue-700 pb-4 mb-4">
-                            <img src="{{ asset('images/jk-logo-template.png') }}" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';" class="h-24 mx-auto mb-2 object-contain" alt="John Kelly & Company Logo">
-                            <div style="display:none">
-                                <div class="text-3xl font-serif font-bold text-gray-900">John Kelly</div>
-                                <div class="text-2xl font-serif italic text-gray-800">& Company</div>
-                            </div>
-                            <p class="mt-2 text-[11px] font-semibold">3F, Cebu Holdings Center, Cebu Business Park, Cebu City, Philippines 6000</p>
-                            <p>Email: start@jknc.io | Website: https://jknc.io/ | Phone: 0995-535-8729</p>
-                            <p class="mt-1">Form Code: ERF-F001 | Version: 1.0 | Effective Date: {{ now()->format('F j, Y') }} | Issued by: Human Capital</p>
+                            <img src="{{ $companyHeader['logo_url'] }}" onerror="this.style.display='none';" class="h-24 mx-auto mb-2 object-contain" alt="Company Logo">
+                            <p class="mt-2 text-[12px] font-bold uppercase">{{ $companyHeader['company_name'] }}</p>
+                            <p class="mt-1 text-[11px] font-semibold">{{ $companyHeader['company_address'] }}</p>
                         </div>
 
                         <div class="bg-blue-700 text-white px-3 py-2 font-bold uppercase tracking-widest text-sm mb-3 rounded-sm" x-text="formTypeLabel(form.form_type)"></div>

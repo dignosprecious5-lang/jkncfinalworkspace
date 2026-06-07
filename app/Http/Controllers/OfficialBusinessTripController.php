@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\RequestsHumanCapitalApproval;
 use App\Http\Controllers\Concerns\ScopesHumanCapitalRecords;
+use App\Http\Controllers\Concerns\UsesLatestGisCompanyHeader;
 use App\Models\Contact;
 use App\Models\Employee;
 use App\Models\OfficialBusinessTrip;
@@ -16,6 +17,7 @@ class OfficialBusinessTripController extends Controller
 {
     use RequestsHumanCapitalApproval;
     use ScopesHumanCapitalRecords;
+    use UsesLatestGisCompanyHeader;
 
     public function index()
     {
@@ -108,6 +110,7 @@ class OfficialBusinessTripController extends Controller
             'trips' => $trips,
             'canManageObf' => $canManageObf,
             'currentEmployee' => $currentEmployee,
+            'companyHeader' => $this->latestGisCompanyHeader(),
         ]);
     }
 

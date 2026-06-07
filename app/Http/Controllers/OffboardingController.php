@@ -3,16 +3,21 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\RequestsHumanCapitalApproval;
+use App\Http\Controllers\Concerns\UsesLatestGisCompanyHeader;
 use App\Models\Employee;
 use App\Models\OffboardingRecord;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 class OffboardingController extends Controller
 {
     use RequestsHumanCapitalApproval;
+    use UsesLatestGisCompanyHeader;
+
     public function index()
     {
         $employees = Employee::with('department')
@@ -38,6 +43,7 @@ class OffboardingController extends Controller
         return view('human-capital.offboarding', [
             'employees' => $employees,
             'records' => $records,
+            'companyHeader' => $this->latestGisCompanyHeader(),
         ]);
     }
 
@@ -46,7 +52,10 @@ class OffboardingController extends Controller
         $validated = $this->validateRecord($request);
         $employee = Employee::with('department')->findOrFail($validated['employee_id']);
 
-        OffboardingRecord::create([
+        $attachmentPayload = $this->attachmentPayload($request);
+
+        try {
+            OffboardingRecord::create([
             'reference_no' => $this->generateReferenceNo($validated['form_type']),
             'form_type' => $validated['form_type'],
             'employee_id' => $employee->id,
@@ -57,7 +66,12 @@ class OffboardingController extends Controller
             'details' => $this->detailsFromValidated($validated),
             'status' => $validated['status'] ?? 'Draft',
             'created_by' => Auth::id(),
-        ]);
+            ] + $attachmentPayload);
+        } catch (\Throwable $exception) {
+            $this->deleteStoredAttachment($attachmentPayload);
+
+            throw $exception;
+        }
 
         return redirect()
             ->route('human-capital.offboarding')
@@ -69,6 +83,8 @@ class OffboardingController extends Controller
         $validated = $this->validateRecord($request);
         $employee = Employee::with('department')->findOrFail($validated['employee_id']);
 
+        $attachmentPayload = $this->attachmentPayload($request);
+
         $payload = [
             'form_type' => $validated['form_type'],
             'employee_id' => $employee->id,
@@ -79,7 +95,7 @@ class OffboardingController extends Controller
             'details' => $this->detailsFromValidated($validated),
             'status' => $validated['status'] ?? $offboardingRecord->status,
             'updated_by' => Auth::id(),
-        ];
+        ] + $attachmentPayload;
 
         $this->requestHumanCapitalChange($request, 'Offboarding', 'update', $offboardingRecord, $payload, $offboardingRecord->reference_no ?: $offboardingRecord->employee_name);
 
@@ -125,6 +141,7 @@ class OffboardingController extends Controller
             'form_type' => ['required', Rule::in(OffboardingRecord::TYPES)],
             'employee_id' => ['required', 'exists:employees,id'],
             'status' => ['required', Rule::in(['Draft', 'Pending', 'Processing', 'Completed', 'Cancelled'])],
+            'attachment' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png,doc,docx,xls,xlsx', 'max:10240'],
         ];
 
         foreach ($this->detailFields() as $field) {
@@ -185,9 +202,44 @@ class OffboardingController extends Controller
     private function detailsFromValidated(array $validated): array
     {
         return collect($validated)
-            ->except(['form_type', 'employee_id', 'status'])
+            ->except(['form_type', 'employee_id', 'status', 'attachment'])
             ->filter(fn ($value) => $value !== null && $value !== '')
             ->all();
+    }
+
+    private function attachmentPayload(Request $request): array
+    {
+        if (! $request->hasFile('attachment') || ! $this->offboardingAttachmentColumnsExist()) {
+            return [];
+        }
+
+        $file = $request->file('attachment');
+
+        return [
+            'attachment_path' => $file->store('offboarding/attachments', 'public'),
+            'attachment_original_name' => $file->getClientOriginalName(),
+        ];
+    }
+
+    private function deleteStoredAttachment(array $attachmentPayload): void
+    {
+        if (! empty($attachmentPayload['attachment_path'])) {
+            Storage::disk('public')->delete($attachmentPayload['attachment_path']);
+        }
+    }
+
+    private function offboardingAttachmentColumnsExist(): bool
+    {
+        static $exists = null;
+
+        if ($exists !== null) {
+            return $exists;
+        }
+
+        return $exists = Schema::hasColumns('offboarding_records', [
+            'attachment_path',
+            'attachment_original_name',
+        ]);
     }
 
     private function generateReferenceNo(string $formType): string
@@ -219,6 +271,8 @@ class OffboardingController extends Controller
             'employee_name' => $record->employee_name,
             'position' => $record->position,
             'department' => $record->department,
+            'attachment_url' => $record->attachment_url,
+            'attachment_original_name' => $record->attachment_original_name,
             'status' => $record->status,
         ]);
     }

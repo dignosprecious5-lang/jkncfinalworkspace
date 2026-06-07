@@ -1520,9 +1520,17 @@ Route::middleware(['auth', 'prevent-back-history', \App\Http\Middleware\EnsurePa
             ->name('employee-requests.revise')
             ->middleware('human-capital.module:access_hc_employee_requests');
 
+        Route::get('/employee-requests/{employeeRequest}/coe/download', [EmployeeRequestController::class, 'downloadCoe'])
+            ->name('employee-requests.coe.download')
+            ->middleware('human-capital.module:access_hc_employee_requests,true');
+
         Route::post('/employee-requests/{employeeRequest}/update-revision', [EmployeeRequestController::class, 'updateRevision'])
             ->name('employee-requests.update-revision')
             ->middleware('human-capital.module:access_hc_employee_requests,true');
+
+        Route::post('/employee-requests/{employeeRequest}/update', [EmployeeRequestController::class, 'update'])
+            ->name('employee-requests.update')
+            ->middleware('human-capital.module:access_hc_employee_requests');
 
         Route::get('/employee-requests', [EmployeeRequestController::class, 'index'])
             ->name('employee-requests.index')

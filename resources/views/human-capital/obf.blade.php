@@ -1,6 +1,13 @@
 @extends('layouts.app')
 
 @section('content')
+@php
+    $companyHeader = $companyHeader ?? [
+        'logo_url' => asset('images/jk-logo.png'),
+        'company_name' => 'JOHN KELLY & COMPANY (JK&C INC)',
+        'company_address' => '3F Cebu Holdings Center Cebu Business Park, Cebu City, Philippines, 6000',
+    ];
+@endphp
 <div
     class="w-full px-6 mt-4 h-[calc(100vh-100px)] flex flex-col"
     x-data="obfPage()"
@@ -153,16 +160,9 @@
                     <div class="flex-1 min-h-0 overflow-auto p-5">
                     <div class="obf-paper print-area">
                         <div class="obf-letterhead">
-                            {{-- Change the image path below if your logo uses another public path. You can copy the src from app.blade.php. --}}
-                            <img src="{{ asset('images/jk-logo-template.png') }}" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';" class="obf-logo" alt="John Kelly & Company Logo">
-                            <div style="display:none">
-                                <div class="text-3xl font-serif font-bold text-gray-900">John Kelly</div>
-                                <div class="text-2xl font-serif italic text-gray-800">& Company</div>
-                            </div>
-                            <p class="obf-partners">Atty. Jose B. Ogang, CPA, MMPSM • Jose Tomayo Rio, MM-BA, CPA •<br>Lyndon Earl P. Rio, RN, CB • John Kelly Abalde, CLSSBB, CPM</p>
-                            <p>3F, Cebu Holdings Center, Cebu Business Park, Cebu City, Philippines 6000</p>
-                            <p>Email: start@jknc.io · Website: https://jknc.io/ · Phone: 0995-535-8729</p>
-                            <p class="obf-form-meta">Form Code: OBF-F001 · Version: 1 · Effective Date: December 1, 2025 · Issued By: Office of the President</p>
+                            <img src="{{ $companyHeader['logo_url'] }}" onerror="this.style.display='none';" class="obf-logo" alt="Company Logo">
+                            <p class="obf-company-name">{{ $companyHeader['company_name'] }}</p>
+                            <p>{{ $companyHeader['company_address'] }}</p>
                         </div>
 
                         <div class="obf-title">
@@ -719,6 +719,12 @@
     height: 76px;
     margin: 0 auto 8px;
     object-fit: contain;
+}
+.obf-company-name {
+    color: #000;
+    font-size: 13px;
+    font-weight: 800;
+    text-transform: uppercase;
 }
 .obf-partners {
     color: #000;

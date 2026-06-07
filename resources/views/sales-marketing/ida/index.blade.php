@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Sales & Marketing | IDA Records')
+@section('title', 'Incentive Management | IDA Records')
 
 @section('content')
 <div class="flex-1 overflow-y-auto p-6" x-data="idaPage()">
@@ -28,7 +28,7 @@
             <div>
                 <h1 class="text-2xl font-semibold text-gray-900">Transactions (IDA)</h1>
                 <p class="text-sm text-gray-500 mt-1">
-                    Connect deals to commission earners and compute commissions automatically.
+                    Connect deals to incentive earners and compute incentives automatically.
                 </p>
             </div>
 
