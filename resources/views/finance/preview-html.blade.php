@@ -900,6 +900,9 @@
                 <div class="block-title">Itemization</div>
                 <div class="block">
                     @if(count($itemizationLineItems ?? []))
+                        @php
+                            $hasReceiptAttachments = collect($itemizationLineItems ?? [])->contains(fn ($item) => !blank(data_get($item, 'receipt_attachment.name')) || !blank(data_get($item, 'receipt_attachment_name')) || !blank(data_get($item, 'receipt_attachment_path')));
+                        @endphp
                         <table class="line-table">
                             <tr>
                                 <th>Item</th>
@@ -908,6 +911,9 @@
                                 <th>Qty</th>
                                 <th>Unit Cost / Amount</th>
                                 <th>Supplier</th>
+                                @if($hasReceiptAttachments)
+                                    <th>Receipt</th>
+                                @endif
                             </tr>
                             @foreach(($itemizationLineItems ?? []) as $item)
                                 <tr>
@@ -917,6 +923,20 @@
                                     <td>{{ $item['quantity'] ?? '0' }}</td>
                                     <td>{{ $item['amount'] ?? '0.00' }}</td>
                                     <td>{{ $item['supplier_label'] ?? 'N/A' }}</td>
+                                    @if($hasReceiptAttachments)
+                                        @php
+                                            $receiptName = data_get($item, 'receipt_attachment.name') ?: data_get($item, 'receipt_attachment_name');
+                                            $receiptPath = data_get($item, 'receipt_attachment.path') ?: data_get($item, 'receipt_attachment_path');
+                                            $receiptUrl = data_get($item, 'receipt_attachment.url') ?: ($receiptPath ? route('uploads.show', ['path' => $receiptPath]) : null);
+                                        @endphp
+                                        <td>
+                                            @if($receiptUrl)
+                                                <a href="{{ $receiptUrl }}" target="_blank">{{ $receiptName ?: basename((string) $receiptPath) ?: 'Receipt' }}</a>
+                                            @else
+                                                {{ $receiptName ?: 'No receipt attached' }}
+                                            @endif
+                                        </td>
+                                    @endif
                                 </tr>
                             @endforeach
                         </table>

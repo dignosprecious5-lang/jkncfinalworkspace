@@ -3040,7 +3040,7 @@ SVG;
         $dv = match ($record->module_key) {
             'dv' => $record,
             'pr' => $po ? $this->financeFirstDvForSource('po', $po->id) : null,
-            'po', 'ca', 'err', 'pda', 'ibtf', 'crf' => $this->financeFirstDvForSource($record->module_key, $record->id),
+            'po', 'ca', 'err', 'pda', 'ibtf' => $this->financeFirstDvForSource($record->module_key, $record->id),
             'lr', 'arf' => $this->financeResolveModuleRecord('dv', data_get($data, 'linked_dv_id')),
             default => null,
         };
@@ -3071,7 +3071,7 @@ SVG;
     {
         return match ($record->module_key) {
             'pr' => $po,
-            'po', 'ca', 'err', 'pda', 'ibtf', 'crf' => $record,
+            'po', 'ca', 'err', 'pda', 'ibtf' => $record,
             default => null,
         };
     }
@@ -3117,7 +3117,6 @@ SVG;
             ],
             'crf' => [
                 ['name' => 'linked_lr_id', 'label' => 'Linked LR'],
-                ['name' => 'linked_dv_id', 'label' => 'Linked DV'],
             ],
             'ibtf' => [
                 ['name' => 'linked_dv_id', 'label' => 'Linked DV'],
@@ -3327,7 +3326,7 @@ SVG;
             return 'Completed';
         }
 
-        if (in_array($record->module_key, ['err', 'pda', 'ibtf', 'crf'], true)) {
+        if (in_array($record->module_key, ['err', 'pda', 'ibtf'], true)) {
             if (!$this->financeRecordIsApproved($record)) {
                 return $record->workflow_status ?: 'Draft';
             }
@@ -3359,6 +3358,16 @@ SVG;
                 'ibtf' => $this->financeRecordIsReleased($dv) ? 'Transfer Completed' : 'Approved for Payment',
                 default => $this->financeRecordIsReleased($dv) ? 'Completed' : 'Approved for Payment',
             };
+        }
+
+        if ($record->module_key === 'crf') {
+            if (! $this->financeRecordIsApproved($record)) {
+                return in_array(Str::lower((string) ($record->workflow_status ?? '')), ['uploaded', 'submitted'], true)
+                    ? 'Submitted'
+                    : ($record->workflow_status ?: 'Draft');
+            }
+
+            return 'Completed';
         }
 
         if ($record->module_key === 'arf') {
@@ -3407,11 +3416,12 @@ SVG;
             $moduleKey === 'lr' && $relationshipStatus === 'Awaiting Cash Return' => 'Create Cash Return Form',
             $moduleKey === 'lr' && $relationshipStatus === 'Awaiting ERR' => 'Create ERR Form',
             $moduleKey === 'lr' && $relationshipStatus === 'Completed' => 'No further action',
-            in_array($moduleKey, ['err', 'pda', 'ibtf', 'crf'], true) && $relationshipStatus === 'Awaiting Disbursement Voucher' => 'Create Disbursement Voucher',
-            in_array($moduleKey, ['err', 'pda', 'ibtf', 'crf'], true) && $relationshipStatus === 'Pending Disbursement' => 'Approve Disbursement Voucher',
+            $moduleKey === 'crf' => 'No further action',
+            in_array($moduleKey, ['err', 'pda', 'ibtf'], true) && $relationshipStatus === 'Awaiting Disbursement Voucher' => 'Create Disbursement Voucher',
+            in_array($moduleKey, ['err', 'pda', 'ibtf'], true) && $relationshipStatus === 'Pending Disbursement' => 'Approve Disbursement Voucher',
             $moduleKey === 'pda' && $relationshipStatus === 'Payroll Released' => 'No further action',
             $moduleKey === 'ibtf' && $relationshipStatus === 'Transfer Completed' => 'No further action',
-            in_array($moduleKey, ['err', 'pda', 'ibtf', 'crf'], true) && $relationshipStatus === 'Approved for Payment' => 'Release Funds',
+            in_array($moduleKey, ['err', 'pda', 'ibtf'], true) && $relationshipStatus === 'Approved for Payment' => 'Release Funds',
             $relationshipStatus === 'Disbursed' => 'No further action',
             default => 'Continue workflow',
         };
@@ -3512,6 +3522,28 @@ SVG;
             }
 
             $steps[] = ['label' => 'Transaction Completed', 'completed' => $completed];
+
+            $firstPending = collect($steps)->search(fn (array $step) => !$step['completed']);
+
+            return array_map(function (array $step, int $index) use ($firstPending) {
+                $step['state'] = $step['completed']
+                    ? 'completed'
+                    : ($firstPending === $index ? 'current' : 'pending');
+
+                return $step;
+            }, $steps, array_keys($steps));
+        }
+
+        if ($record->module_key === 'crf') {
+            $submitted = filled($record->submitted_at) || $this->financeRecordIsApproved($record);
+            $approved = $this->financeRecordIsApproved($record);
+            $completed = $approved;
+
+            $steps = [
+                ['label' => 'CRF Submitted', 'completed' => $submitted],
+                ['label' => 'CRF Approved', 'completed' => $approved],
+                ['label' => 'Transaction Completed', 'completed' => $completed],
+            ];
 
             $firstPending = collect($steps)->search(fn (array $step) => !$step['completed']);
 
@@ -3895,10 +3927,11 @@ SVG;
                 'total' => number_format($total, 2),
                 'total_value' => $total,
                 'supplier_id' => $supplierId,
-                'supplier_label' => blank($supplierId) ? '' : (
-                    $this->financePdfLookupLabel($lookupOptions, 'supplier', $supplierId)
-                    ?: $this->financePdfValue($supplierId)
-                ),
+                'supplier_name' => $this->financePdfValue(data_get($item, 'supplier_name')),
+                'supplier_label' => $this->financePdfValue(data_get($item, 'supplier_label'))
+                    ?: $this->financePdfValue(data_get($item, 'supplier_name'))
+                    ?: $this->financePdfLookupLabel($lookupOptions, 'supplier', $supplierId)
+                    ?: $this->financePdfValue($supplierId),
                 'client_id' => $clientId,
                 'client_label' => blank($clientId) ? '' : (
                     $this->financePdfLookupLabel($lookupOptions, 'client', $clientId)
@@ -3923,12 +3956,12 @@ SVG;
         $groups = [];
 
         foreach ($lineItems as $item) {
-            $groupKey = (string) ($item['supplier_id'] ?: $item['supplier_label'] ?: 'unspecified');
+            $groupKey = (string) ($item['supplier_id'] ?: $item['supplier_label'] ?: $item['supplier_name'] ?: 'unspecified');
 
             if (!isset($groups[$groupKey])) {
                 $groups[$groupKey] = [
                     'supplier_id' => $item['supplier_id'] ?: null,
-                    'supplier_label' => $item['supplier_label'] ?: 'Unspecified Supplier',
+                    'supplier_label' => $item['supplier_label'] ?: $item['supplier_name'] ?: 'Unspecified Supplier',
                     'items' => [],
                     'group_total_value' => 0,
                 ];
@@ -4259,6 +4292,7 @@ SVG;
                     ['name' => 'superior', 'label' => 'Superior'],
                     ['name' => 'superior_email', 'label' => 'Superior Email'],
                 ]),
+                ['type' => 'line_items', 'title' => 'Liquidation Items'],
             ],
             'err' => [
                 $section('Reimbursement Details', [
@@ -7341,7 +7375,13 @@ SVG;
             $requirements[] = 'Fully approved';
         }
 
-        if (!in_array($sourceDocumentType, ['err', 'ibtf', 'crf'], true) && blank(data_get($data, 'fund_source')) && blank(data_get($sourceSnapshot, 'fund_source'))) {
+        $effectiveFundSource = data_get($data, 'fund_source')
+            ?: data_get($data, 'source_fund_source')
+            ?: data_get($sourceSnapshot, 'fund_source')
+            ?: data_get($sourceSnapshot, 'project')
+            ?: data_get($sourceSnapshot, 'department');
+
+        if (!in_array($sourceDocumentType, ['err', 'ibtf', 'crf'], true) && blank($effectiveFundSource)) {
             $requirements[] = 'fund source identified';
         }
 
@@ -7725,6 +7765,41 @@ SVG;
         return $attachments;
     }
 
+    private function financeAttachLineItemReceipts(Request $request, array $data): array
+    {
+        $lineItems = array_values((array) data_get($data, 'line_items', []));
+
+        foreach ((array) $request->file('line_item_receipts', []) as $index => $file) {
+            if (! $file instanceof \Illuminate\Http\UploadedFile || ! $file->isValid()) {
+                continue;
+            }
+
+            if (! array_key_exists($index, $lineItems) || ! is_array($lineItems[$index])) {
+                continue;
+            }
+
+            $path = $file->store('finance_documents', 'public');
+            $attachment = [
+                'name' => $file->getClientOriginalName(),
+                'path' => 'storage/' . $path,
+                'mime' => $file->getClientMimeType(),
+                'size' => $file->getSize(),
+                'uploaded_at' => now()->format('Y-m-d H:i:s'),
+                'uploaded_by' => Auth::user()?->name ?? 'Unknown User',
+            ];
+
+            data_set($lineItems, "{$index}.receipt_attachment", $attachment);
+            data_set($lineItems, "{$index}.receipt_attachment_name", data_get($attachment, 'name'));
+            data_set($lineItems, "{$index}.receipt_attachment_path", data_get($attachment, 'path'));
+            data_set($lineItems, "{$index}.receipt_attachment_mime", data_get($attachment, 'mime'));
+            data_set($lineItems, "{$index}.receipt_attachment_size", data_get($attachment, 'size'));
+        }
+
+        data_set($data, 'line_items', $lineItems);
+
+        return $data;
+    }
+
     private function supplierAttachmentSlug(string $label): string
     {
         return Str::slug($label, '_');
@@ -8063,6 +8138,8 @@ SVG;
                 'data.line_items.*.tax_type' => 'nullable|in:VAT,Expanded Withholding Tax,VAT Exempt,Zero Rated,Zero-Rated,Non-VAT,N/A',
                 'data.line_items.*.supplier_id' => ['nullable', $this->acceptedLinkedRecordRule('supplier')],
                 'data.line_items.*.client_id' => ['nullable', 'string', 'max:255', $this->financeLineItemClientRule()],
+                'line_item_receipts' => 'nullable|array',
+                'line_item_receipts.*' => 'nullable|file|max:10240|mimes:pdf,jpg,jpeg,png,doc,docx,xls,xlsx',
             ],
             'err' => [
                 'data.requester_mode' => 'nullable|in:own_request,request_for_another',
@@ -8080,7 +8157,7 @@ SVG;
                 'data.supplier_id' => ['nullable', $this->acceptedLinkedRecordRule('supplier')],
             ],
             'dv' => [
-                'data.source_document_type' => 'required|in:po,ca,err,pda,ibtf,crf',
+                'data.source_document_type' => 'required|in:po,ca,err,pda,ibtf',
                 'data.source_document_id' => 'required',
                 'data.amount' => 'required|numeric|min:0',
                 'data.payment_type' => 'required|in:Cash,Check,Bank Transfer,E-Wallet',
@@ -9425,7 +9502,11 @@ SVG;
         }
 
         $attachments = $this->persistAttachments($request);
-        $data = $this->normalizeModuleData($request->module_key, $request->input('data', []));
+        $dataInput = $request->input('data', []);
+        if ($request->module_key === 'lr') {
+            $dataInput = $this->financeAttachLineItemReceipts($request, is_array($dataInput) ? $dataInput : []);
+        }
+        $data = $this->normalizeModuleData($request->module_key, $dataInput);
         $data = $this->initializeFinanceApprovalState($data, $request->module_key);
         $supplierSendMode = $request->module_key === 'supplier' && data_get($data, 'completion_mode') === 'send_to_supplier';
         if ($supplierSendMode) {
@@ -9534,7 +9615,11 @@ SVG;
         $existingAttachments = json_decode((string) $request->input('existing_attachments_json', '[]'), true);
         $existingAttachments = is_array($existingAttachments) ? $existingAttachments : [];
         $attachments = $this->persistAttachments($request, $existingAttachments);
-        $data = $this->normalizeModuleData($request->module_key, $request->input('data', []));
+        $dataInput = $request->input('data', []);
+        if ($request->module_key === 'lr') {
+            $dataInput = $this->financeAttachLineItemReceipts($request, is_array($dataInput) ? $dataInput : []);
+        }
+        $data = $this->normalizeModuleData($request->module_key, $dataInput);
         foreach (['approval_steps', 'approval_actions', 'approval_required_count', 'approval_completed_count', 'approval_remaining_count'] as $approvalField) {
             if (!array_key_exists($approvalField, $data) && array_key_exists($approvalField, (array) ($financeRecord->data ?? []))) {
                 $data[$approvalField] = data_get($financeRecord->data, $approvalField);
@@ -9628,6 +9713,25 @@ SVG;
         }
 
         if ($request->module_key === 'dv' && $this->financeRecordIsApproved($financeRecord) && $releaseIntent) {
+            if (blank(data_get($data, 'fund_source'))) {
+                $data['fund_source'] = data_get($data, 'source_fund_source')
+                    ?: data_get($data, 'source_project')
+                    ?: data_get($data, 'department')
+                    ?: data_get($financeRecord->data ?? [], 'source_fund_source')
+                    ?: data_get($financeRecord->data ?? [], 'source_project')
+                    ?: data_get($financeRecord->data ?? [], 'department')
+                    ?: data_get($financeRecord->data ?? [], 'fund_source')
+                    ?: 'N/A';
+            }
+
+            $referenceNumber = trim((string) data_get($data, 'reference_number', ''));
+
+            if ($referenceNumber === '') {
+                $data['reference_number'] = 'N/A';
+            } else {
+                $data['reference_number'] = $referenceNumber;
+            }
+
             $releaseAssessment = $this->financeDvReleasePrerequisitesAssessment($financeRecord, $data, $attachments);
 
             if ($releaseAssessment && data_get($releaseAssessment, 'status') !== 'Ready') {

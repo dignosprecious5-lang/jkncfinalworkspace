@@ -1604,29 +1604,29 @@
             summaryKeys: ['payroll_period_id', 'employee_count', 'basic_salary_total', 'gross_pay_total', 'deductions_total', 'total_payroll_amount', 'funding_bank_account_id', 'payroll_expense_coa_id'],
             fields: [
                 selectField('payroll_period_id', 'Payroll Period', { source: 'payroll_period', required: true }),
-                dateField('period_start', 'Period Start', { readOnly: true }),
-                dateField('period_end', 'Period End', { readOnly: true }),
-                dateField('payroll_start', 'Payroll Start', { readOnly: true }),
-                dateField('payroll_end', 'Payroll End', { readOnly: true }),
-                dateField('pay_date', 'Pay Date', { readOnly: true }),
-                numberField('total_payroll_amount', 'Total Payroll Amount', { required: true, readOnly: true }),
-                textField('employee_count', 'Employees Included', { readOnly: true }),
-                numberField('basic_salary_total', 'Basic Salary Total', { readOnly: true }),
-                numberField('yearly_basic_total', 'Yearly Basic Total', { readOnly: true }),
-                numberField('daily_rate_total', 'Daily Rate Total', { readOnly: true }),
-                numberField('hourly_rate_total', 'Hourly Rate Total', { readOnly: true }),
-                numberField('minute_rate_total', 'Minute Rate Total', { readOnly: true }),
-                numberField('gross_pay_total', 'Gross Pay', { readOnly: true }),
-                numberField('benefits_total', 'Benefits', { readOnly: true }),
-                numberField('allowances_total', 'Allowances', { readOnly: true }),
-                numberField('deductions_total', 'Deductions', { readOnly: true }),
-                numberField('night_differential_total', 'Night Differential', { readOnly: true }),
-                numberField('holiday_pay_total', 'Holiday Pay', { readOnly: true }),
+                dateField('period_start', 'Period Start'),
+                dateField('period_end', 'Period End'),
+                dateField('payroll_start', 'Payroll Start'),
+                dateField('payroll_end', 'Payroll End'),
+                dateField('pay_date', 'Pay Date'),
+                numberField('total_payroll_amount', 'Total Payroll Amount', { required: true }),
+                textField('employee_count', 'Employees Included'),
+                numberField('basic_salary_total', 'Basic Salary Total'),
+                numberField('yearly_basic_total', 'Yearly Basic Total'),
+                numberField('daily_rate_total', 'Daily Rate Total'),
+                numberField('hourly_rate_total', 'Hourly Rate Total'),
+                numberField('minute_rate_total', 'Minute Rate Total'),
+                numberField('gross_pay_total', 'Gross Pay'),
+                numberField('benefits_total', 'Benefits'),
+                numberField('allowances_total', 'Allowances'),
+                numberField('deductions_total', 'Deductions'),
+                numberField('night_differential_total', 'Night Differential'),
+                numberField('holiday_pay_total', 'Holiday Pay'),
                 textField('department', 'Department / Coverage'),
                 selectField('funding_bank_account_id', 'Funding Bank Account', { source: 'bank_account' }),
                 selectField('payroll_expense_coa_id', 'Payroll Expense Account', { source: 'chart_account' }),
                 textareaField('supporting_payroll_summary', 'Supporting Payroll Summary'),
-                textareaField('employee_payroll_breakdown', 'Employee Payroll Breakdown', { readOnly: true }),
+                textareaField('employee_payroll_breakdown', 'Employee Payroll Breakdown'),
                 textareaField('remarks', 'Remarks'),
             ],
         },
@@ -4623,6 +4623,10 @@
             return true;
         }
 
+        if (fieldName === 'reference_number' && currentModuleKey === 'dv' && isTruthyFormValue(financeFormValues?.release_intent)) {
+            return true;
+        }
+
         if (Array.isArray(value)) {
             return value.some((item) => !blank(item));
         }
@@ -4782,6 +4786,22 @@
             data.destination_account_code,
             data.destination_bank_account_id,
         ].find((value) => !blank(value)) || '';
+
+        const existingPayeeType = [
+            data.payee_type,
+            sourceRecord?.payee_type,
+        ].find((value) => !blank(value)) || '';
+        const existingPayeeName = [
+            data.payee_name,
+            sourceRecord?.payee_name,
+        ].find((value) => !blank(value)) || '';
+
+        if (existingPayeeType || existingPayeeName) {
+            return {
+                payee_type: existingPayeeType || '',
+                payee_name: existingPayeeName || requestorName || supplierName || representativeName || payrollLabel || bankAccountLabel || '',
+            };
+        }
 
         if (moduleKey === 'po') {
             return { payee_type: 'Supplier', payee_name: supplierName };
@@ -5388,8 +5408,8 @@
             received_by_name: payload.received_by_name || data.received_by_name || sourceRequesterName,
             date_received: payload.date_received || data.date_received || defaultDateReceived,
             remarks: payload.remarks || data.remarks || '',
-            payee_type: 'User',
-            payee_name: dvUserName || '',
+            payee_type: payeeInfo.payee_type || payload.payee_type || 'User',
+            payee_name: payeeInfo.payee_name || payload.payee_name || dvUserName || '',
             current_balance: isCashAdvanceSource ? '' : (currentBalance ? currentBalance.toFixed(2) : ''),
             reserved_balance: isCashAdvanceSource ? '' : (reservedBalance ? reservedBalance.toFixed(2) : ''),
             available_balance: isCashAdvanceSource ? '' : (availableBalance ? availableBalance.toFixed(2) : ''),
@@ -5461,8 +5481,8 @@
         if (moduleKey === 'crf') {
             prefill.amount = data.amount_returned || amount || '';
             prefill.payment_type = normalizeDvPaymentType(data.mode_of_return || data.payment_type || '');
-            prefill.payee_type = 'User';
-            prefill.payee_name = bootstrap.currentUserName || sourceRecord?.user || data.returnee || data.requestor || data.employee_name || '';
+            prefill.payee_type = payeeInfo.payee_type || prefill.payee_type || 'User';
+            prefill.payee_name = payeeInfo.payee_name || bootstrap.currentUserName || sourceRecord?.user || data.returnee || data.requestor || data.employee_name || '';
             prefill.purpose = '';
             prefill.remarks = '';
         }
@@ -6033,6 +6053,9 @@
         const forceReadOnly = financeFormLockedReadOnly;
         const disabledAttr = (field.dependsOnCheckbox && !dependencyEnabled) || forceReadOnly ? 'disabled' : '';
         const emptyOption = field.placeholder || `Select ${field.label}`;
+        const placeholderAttr = field.placeholder && field.type !== 'select'
+            ? `placeholder="${escapeHtml(field.placeholder)}"`
+            : '';
         const readOnlyAttr = field.readOnly || forceReadOnly ? 'readonly' : '';
         const readOnlyClass = field.readOnly || (field.dependsOnCheckbox && !dependencyEnabled) || forceReadOnly ? 'bg-gray-100 cursor-not-allowed' : '';
         const wrapperHidden = (field.dependsOnCheckbox && !dependencyEnabled) || !specifyOtherVisible;
@@ -6138,13 +6161,13 @@
                 </label>
             `;
         } else if (field.type === 'number') {
-            control = `<input type="number" step="0.01" name="${fieldName}" value="${escapeHtml(value)}" class="w-full border rounded-md p-2 ${readOnlyClass}" ${required} ${readOnlyAttr}>`;
+            control = `<input type="number" step="0.01" name="${fieldName}" value="${escapeHtml(value)}" class="w-full border rounded-md p-2 ${readOnlyClass}" ${placeholderAttr} ${required} ${readOnlyAttr}>`;
         } else if (field.type === 'date') {
-            control = `<input type="date" name="${fieldName}" value="${escapeHtml(value)}" class="w-full border rounded-md p-2 ${readOnlyClass}" ${required} ${readOnlyAttr}>`;
+            control = `<input type="date" name="${fieldName}" value="${escapeHtml(value)}" class="w-full border rounded-md p-2 ${readOnlyClass}" ${placeholderAttr} ${required} ${readOnlyAttr}>`;
         } else if (field.type === 'time') {
-            control = `<input type="time" name="${fieldName}" value="${escapeHtml(value)}" class="w-full border rounded-md p-2 ${readOnlyClass}" ${required} ${readOnlyAttr}>`;
+            control = `<input type="time" name="${fieldName}" value="${escapeHtml(value)}" class="w-full border rounded-md p-2 ${readOnlyClass}" ${placeholderAttr} ${required} ${readOnlyAttr}>`;
         } else {
-            control = `<input type="${field.inputType || 'text'}" name="${fieldName}" value="${escapeHtml(value)}" class="w-full border rounded-md p-2 ${readOnlyClass}" ${required} ${readOnlyAttr}>`;
+            control = `<input type="${field.inputType || 'text'}" name="${fieldName}" value="${escapeHtml(value)}" class="w-full border rounded-md p-2 ${readOnlyClass}" ${placeholderAttr} ${required} ${readOnlyAttr}>`;
         }
 
         return `
@@ -6322,7 +6345,14 @@
                 tax_impact_label: item.tax_impact_label || '',
                 total: item.total || '',
                 supplier_id: item.supplier_id || '',
+                supplier_name: item.supplier_name || item.supplier_label || getLookupLabel('supplier', item.supplier_id) || '',
+                supplier_label: item.supplier_label || item.supplier_name || getLookupLabel('supplier', item.supplier_id) || '',
                 client_id: item.client_id || '',
+                receipt_attachment: item.receipt_attachment || '',
+                receipt_attachment_name: item.receipt_attachment_name || item.receipt_attachment?.name || '',
+                receipt_attachment_path: item.receipt_attachment_path || item.receipt_attachment?.path || '',
+                receipt_attachment_mime: item.receipt_attachment_mime || item.receipt_attachment?.mime || '',
+                receipt_attachment_size: item.receipt_attachment_size || item.receipt_attachment?.size || '',
             }));
         }
 
@@ -6346,6 +6376,11 @@
                 total: record ? (getModuleFieldValue(record, { name: 'total_amount' }) || '') : '',
                 supplier_id: record ? (getModuleFieldValue(record, { name: 'supplier_id' }) || '') : '',
                 client_id: '',
+                receipt_attachment: record ? (getModuleFieldValue(record, { name: 'receipt_attachment' }) || '') : '',
+                receipt_attachment_name: record ? (getModuleFieldValue(record, { name: 'receipt_attachment_name' }) || '') : '',
+                receipt_attachment_path: record ? (getModuleFieldValue(record, { name: 'receipt_attachment_path' }) || '') : '',
+                receipt_attachment_mime: record ? (getModuleFieldValue(record, { name: 'receipt_attachment_mime' }) || '') : '',
+                receipt_attachment_size: record ? (getModuleFieldValue(record, { name: 'receipt_attachment_size' }) || '') : '',
             };
 
             if (Object.values(legacyItem).some((value) => String(value || '').trim() !== '')) {
@@ -6370,6 +6405,7 @@
             wht_amount: '',
             total: record ? (getModuleFieldValue(record, { name: 'estimated_total_cost' }) || '') : '',
             supplier_id: record ? (getModuleFieldValue(record, { name: 'supplier_id' }) || '') : '',
+            supplier_name: record ? (getLookupLabel('supplier', getModuleFieldValue(record, { name: 'supplier_id' }) || '') || getModuleFieldValue(record, { name: 'supplier_name' }) || '') : '',
             client_id: '',
         };
 
@@ -6395,7 +6431,14 @@
             tax_impact_label: '',
             total: '',
             supplier_id: '',
+            supplier_name: '',
+            supplier_label: '',
             client_id: '',
+            receipt_attachment: '',
+            receipt_attachment_name: '',
+            receipt_attachment_path: '',
+            receipt_attachment_mime: '',
+            receipt_attachment_size: '',
         }];
     }
 
@@ -6470,6 +6513,7 @@
             category: data.category || (isService ? 'Service' : 'Product'),
             amount: data.default_cost ?? '',
             supplier_id: data.supplier_id ?? '',
+            supplier_name: getLookupLabel('supplier', data.supplier_id ?? '') || data.supplier_name || '',
             tax_type: normalizeFinanceTaxType(data.tax_type ?? ''),
         };
     }
@@ -7398,6 +7442,8 @@
             wht_amount: row.wht_amount || '',
             total: row.total || '',
             supplier_id: row.supplier_id || '',
+            supplier_name: row.supplier_name || row.supplier_label || getLookupLabel('supplier', row.supplier_id) || '',
+            supplier_label: row.supplier_label || row.supplier_name || getLookupLabel('supplier', row.supplier_id) || '',
             client_id: row.client_id || '',
         }));
     }
@@ -8181,6 +8227,38 @@
         ].join('');
     }
 
+    function renderLineItemTypeaheadOptions(source) {
+        const options = financeLookupOptions[source] || [];
+        return options
+            .map((option) => {
+                const label = option.label || option.record_title || option.record_number || option.id || '';
+                return `<option value="${escapeHtml(label)}"></option>`;
+            })
+            .join('');
+    }
+
+    function resolveLineItemLookupId(source, value) {
+        const options = financeLookupOptions[source] || [];
+        const normalizedValue = String(value || '').trim().toLowerCase();
+        if (!normalizedValue) return '';
+
+        const exactMatch = options.find((option) => {
+            const id = String(option.id ?? option.value ?? '').trim().toLowerCase();
+            const label = String(option.label || option.record_title || option.record_number || '').trim().toLowerCase();
+            return normalizedValue === id || normalizedValue === label;
+        });
+        if (exactMatch) {
+            return String(exactMatch.id ?? exactMatch.value ?? '');
+        }
+
+        const looseMatches = options.filter((option) => {
+            const label = String(option.label || option.record_title || option.record_number || '').trim().toLowerCase();
+            return label && label.includes(normalizedValue);
+        });
+
+        return looseMatches.length === 1 ? String(looseMatches[0].id ?? looseMatches[0].value ?? '') : '';
+    }
+
     function getLineItemLookupLabel(source, value, fallback = '') {
         return getLookupLabel(source, value) || fallback || '';
     }
@@ -8266,7 +8344,7 @@
         ];
     }
 
-    function getPreviewFieldValue(record, fieldName, moduleConfig) {
+    function getPreviewFieldValue(record, fieldName, moduleConfig, fallbackValues = {}) {
         if (fieldName === 'first_approver_user_id') {
             return getApproverRoutingDisplayValue(record, 0);
         }
@@ -8276,12 +8354,14 @@
         }
 
         const field = (moduleConfig.fields || []).find((item) => item.name === fieldName);
-        const rawValue = getFieldValue(record, fieldName);
+        const rawValue = fallbackValues[`data[${fieldName}]`]
+            ?? fallbackValues[fieldName]
+            ?? getFieldValue(record, fieldName);
         if (!field) {
             return rawValue;
         }
 
-        return getFormDisplayValue(field, rawValue, record.data || {});
+        return getFormDisplayValue(field, rawValue, fallbackValues.data || record.data || {});
     }
 
     function financePreviewHasValue(value) {
@@ -8506,7 +8586,6 @@
                 ['Requester Option', data.requester_mode || linkedLiquidationPrefill.requester_mode || ''],
                 ['Requested By', data.requestor || linkedLiquidationPrefill.requestor || getLookupLabel('employee', data.requester_employee_id) || ''],
                 ['Linked LR', getLookupLabel('lr', data.linked_lr_id) || ''],
-                ['Linked DV', getLookupLabel('dv', data.linked_dv_id) || ''],
                 ['Amount Returned', (data.amount_returned || linkedLiquidationPrefill.amount_returned) ? formatCurrency(data.amount_returned || linkedLiquidationPrefill.amount_returned) : ''],
                 ['Mode of Return', data.mode_of_return || linkedLiquidationPrefill.mode_of_return || ''],
             ],
@@ -8543,14 +8622,14 @@
         return rows.filter(([, value]) => financePreviewHasValue(value));
     }
 
-    function renderPreviewSectionTable(record, moduleConfig, title, fieldNames) {
+    function renderPreviewSectionTable(record, moduleConfig, title, fieldNames, fallbackValues = {}) {
         const entries = fieldNames.map((fieldName) => {
             const field = (moduleConfig.fields || []).find((item) => item.name === fieldName);
             if (!field) {
                 return null;
             }
 
-            const value = getPreviewFieldValue(record, fieldName, moduleConfig);
+            const value = getPreviewFieldValue(record, fieldName, moduleConfig, fallbackValues);
             if (!financePreviewHasValue(value)) {
                 return null;
             }
@@ -8829,13 +8908,13 @@
         `;
     }
 
-    function renderPreviewSectionCard(record, moduleConfig, section) {
+    function renderPreviewSectionCard(record, moduleConfig, section, fallbackValues = {}) {
         if (!section) {
             return '';
         }
 
         if (typeof section.renderer === 'function') {
-            return section.renderer();
+            return section.renderer(fallbackValues);
         }
 
         if (section.type === 'history') {
@@ -8866,7 +8945,7 @@
             return '';
         }
 
-        return renderPreviewSectionTable(record, moduleConfig, section.title, section.fieldNames || []);
+        return renderPreviewSectionTable(record, moduleConfig, section.title, section.fieldNames || [], fallbackValues);
     }
 
     function getFinanceNoteVisibilityLabel(value) {
@@ -8910,7 +8989,7 @@
             <div class="rounded-2xl border border-amber-100 bg-amber-50/70 p-4">
                 <div class="flex flex-wrap items-start justify-between gap-3">
                     <div>
-                        <h4 class="text-[15px] font-semibold text-gray-900">Notes</h4>
+                        <h4 class="text-[15px] font-semibold text-gray-900">Preview Page Notes</h4>
                         <p class="mt-1 text-xs text-gray-500">Add a note and choose which authority can see it.</p>
                     </div>
                     ${canAddNote ? `
@@ -8991,10 +9070,14 @@
         `;
     }
 
-    function getFinanceItemizationRows(record) {
+    function getFinanceItemizationRows(record, fallbackValues = {}) {
         if (!record) {
             return [];
         }
+
+        const fallbackLineItems = Array.isArray(fallbackValues['data[line_items]'])
+            ? fallbackValues['data[line_items]']
+            : (Array.isArray(fallbackValues.line_items) ? fallbackValues.line_items : []);
 
         if (record.module_key === 'dv') {
             const sourceRecord = getDvSourceRecordForDisplay(record);
@@ -9044,25 +9127,52 @@
             }
         }
 
+        if (record.module_key === 'lr' && fallbackLineItems.length) {
+            return fallbackLineItems.filter((row) => row && Object.values(row).some((value) => String(value || '').trim() !== ''));
+        }
+
         return getPrLineItemRows(record, { preferDraftLineItems: false }).filter((row) => row && Object.values(row).some((value) => String(value || '').trim() !== ''));
     }
 
-    function renderFinanceItemizationTable(record) {
-        const rows = getFinanceItemizationRows(record);
+    function renderFinanceItemizationTable(record, title = 'Itemization', subtitle = 'Restored item-level breakdown for the linked expense rows.', fallbackValues = {}) {
+        const rows = getFinanceItemizationRows(record, fallbackValues);
         const resolveItemLabel = (row) => getPrItemDisplayValue(row.item_id || row.item_record_id) || row.item_id || row.item_record_id || row.description || 'N/A';
-        const resolveSupplierLabel = (row) => getLookupLabel('supplier', row.supplier_id) || row.supplier_id || 'N/A';
+        const resolveSupplierLabel = (row) => row.supplier_name || row.supplier_label || getLookupLabel('supplier', row.supplier_id) || row.supplier_id || 'N/A';
+        const hasReceipts = rows.some((row) => Boolean(row.receipt_attachment?.name || row.receipt_attachment_name || row.receipt_attachment_path));
+        const receiptHeader = hasReceipts ? '<th class="border border-gray-200 px-3 py-2 text-left w-44">Receipt</th>' : '';
+        const rowsHtml = rows.map((row) => {
+            const receiptName = row.receipt_attachment?.name || row.receipt_attachment_name || '';
+            const receiptPath = row.receipt_attachment?.path || row.receipt_attachment_path || '';
+            const receiptUrl = row.receipt_attachment?.url || (receiptPath ? normalizeAttachmentUrl(receiptPath) : '');
+            const receiptLabel = receiptName || (receiptPath ? receiptPath.split(/[\\/]/).pop() : '');
+            const receiptCell = hasReceipts
+                ? `<td class="border border-gray-200 px-3 py-2 break-words">${receiptUrl ? `<a href="${escapeHtml(receiptUrl)}" target="_blank" class="text-blue-600 hover:underline">${escapeHtml(receiptLabel || 'Receipt')}</a>` : escapeHtml(receiptLabel || 'No receipt attached')}</td>`
+                : '';
+
+            return `
+                <tr>
+                    <td class="border border-gray-200 px-3 py-2 break-words">${escapeHtml(resolveItemLabel(row))}</td>
+                    <td class="border border-gray-200 px-3 py-2 break-words">${escapeHtml(row.description || 'N/A')}</td>
+                    <td class="border border-gray-200 px-3 py-2 break-words">${escapeHtml(row.category || 'N/A')}</td>
+                    <td class="border border-gray-200 px-3 py-2">${escapeHtml(formatPrQuantity(row.quantity || 0))}</td>
+                    <td class="border border-gray-200 px-3 py-2">${escapeHtml(formatCurrency(row.amount || 0))}</td>
+                    <td class="border border-gray-200 px-3 py-2 break-words">${escapeHtml(resolveSupplierLabel(row))}</td>
+                    ${receiptCell}
+                </tr>
+            `;
+        }).join('');
 
         return `
             <div class="mt-6 rounded-2xl border border-gray-200 bg-white/95 p-5 shadow-sm">
                 <div class="flex flex-wrap items-center justify-between gap-3">
                     <div>
-                        <h5 class="text-sm font-semibold text-gray-700">Itemization</h5>
-                        <p class="mt-1 text-xs text-gray-500">Restored item-level breakdown for the linked expense rows.</p>
+                        <h5 class="text-sm font-semibold text-gray-700">${escapeHtml(title)}</h5>
+                        <p class="mt-1 text-xs text-gray-500">${escapeHtml(subtitle)}</p>
                     </div>
                 </div>
-                <div class="mt-4 overflow-x-auto">
+                <div class="mt-4 max-w-full overflow-x-auto">
                     ${rows.length ? `
-                        <table class="w-full min-w-[860px] border-collapse text-sm">
+                        <table class="w-full min-w-[1040px] border-collapse text-sm">
                             <thead>
                                 <tr class="bg-gray-50 text-gray-700">
                                     <th class="border border-gray-200 px-3 py-2 text-left">Item</th>
@@ -9071,19 +9181,11 @@
                                     <th class="border border-gray-200 px-3 py-2 text-left w-24">Qty</th>
                                     <th class="border border-gray-200 px-3 py-2 text-left w-36">Unit Cost / Amount</th>
                                     <th class="border border-gray-200 px-3 py-2 text-left w-40">Supplier</th>
+                                    ${receiptHeader}
                                 </tr>
                             </thead>
                             <tbody>
-                                ${rows.map((row) => `
-                                    <tr>
-                                        <td class="border border-gray-200 px-3 py-2 break-words">${escapeHtml(resolveItemLabel(row))}</td>
-                                        <td class="border border-gray-200 px-3 py-2 break-words">${escapeHtml(row.description || 'N/A')}</td>
-                                        <td class="border border-gray-200 px-3 py-2 break-words">${escapeHtml(row.category || 'N/A')}</td>
-                                        <td class="border border-gray-200 px-3 py-2">${escapeHtml(formatPrQuantity(row.quantity || 0))}</td>
-                                        <td class="border border-gray-200 px-3 py-2">${escapeHtml(formatCurrency(row.amount || 0))}</td>
-                                        <td class="border border-gray-200 px-3 py-2 break-words">${escapeHtml(resolveSupplierLabel(row))}</td>
-                                    </tr>
-                                `).join('')}
+                                ${rowsHtml}
                             </tbody>
                         </table>
                     ` : `
@@ -9179,7 +9281,7 @@
             case 'lr':
                 return [
                     { title: 'Liquidation Details', fieldNames: ['requester_mode', 'requester_employee_id', 'linked_ca_id', 'total_cash_advance', 'purpose', 'employee_id', 'employee_name', 'employee_email', 'contact_number', 'position', 'department', 'superior', 'superior_email', 'for_client', 'client_names', 'actual_expenses'] },
-                    { title: 'Itemization', renderer: () => renderFinanceItemizationTable(record) },
+                    { title: 'Liquidation Items', renderer: (fallbackValues = {}) => renderFinanceItemizationTable(record, 'Liquidation Items', 'Restored liquidation item breakdown for the linked cash advance.', fallbackValues) },
                 ];
             case 'err':
                 const errPaymentFieldNames = {
@@ -9190,7 +9292,7 @@
 
                 return [
                     { title: 'Reimbursement Details', fieldNames: ['requester_mode', 'requester_employee_id', 'requestor', 'linked_lr_id', 'expense_details', 'amount', 'reimbursement_payment_details', 'manual_liquidation_entry', 'reimbursement_mode', ...errPaymentFieldNames, 'remarks'] },
-                    { title: 'Itemization', renderer: () => renderFinanceItemizationTable(record) },
+                    { title: 'Itemization', renderer: (fallbackValues = {}) => renderFinanceItemizationTable(record, 'Itemization', 'Restored item-level breakdown for the linked expense rows.', fallbackValues) },
                 ];
             case 'dv':
                 const dvSourceType = String(data.source_document_type || '').trim().toLowerCase();
@@ -9198,7 +9300,7 @@
                 const filterDvFields = (fieldNames, section = 'voucher') => fieldNames.filter((fieldName) => shouldRenderDvField(fieldName, dvFieldValue(fieldName), dvSourceType, section));
                 return [
                     { title: 'Voucher Details', fieldNames: filterDvFields(['source_document_type', 'source_document_id', 'payee_type', 'payee_name', 'supplier_id', 'amount', 'payment_type', 'disbursement_type']) },
-                    { title: 'Itemization', renderer: () => renderFinanceItemizationTable(record) },
+                    { title: 'Itemization', renderer: (fallbackValues = {}) => renderFinanceItemizationTable(record, 'Itemization', 'Restored item-level breakdown for the linked expense rows.', fallbackValues) },
                     { title: 'Breakdown / Line Items', renderer: () => renderDvPreviewLineItems(record) },
                     { title: 'Funding & Notes', fieldNames: filterDvFields(['bank_account_id', 'coa_id', 'fund_source', 'department', 'reference_number', 'purpose', 'remarks']) },
                     { title: 'Tax & Receipt', fieldNames: filterDvFields(['withholding_tax', 'vat_amount', 'net_amount', 'currency', 'exchange_rate', 'received_by_name', 'date_received'], 'tax') },
@@ -9211,7 +9313,7 @@
                 return [
                     { title: 'Return Details', fieldNames: ['requester_mode', 'requester_employee_id', 'requestor', 'linked_lr_id', 'amount_returned', 'mode_of_return', 'receiving_bank_account_id', 'coa_id'] },
                     { title: 'Itemization', renderer: () => renderFinanceItemizationTable(record) },
-                    { title: 'Connected Records', fieldNames: ['linked_lr_id', 'linked_dv_id'] },
+                    { title: 'Connected Records', fieldNames: ['linked_lr_id'] },
                     { title: 'Requester Details', fieldNames: ['requestor', 'employee_id', 'employee_name', 'employee_email', 'contact_number', 'position', 'department', 'superior', 'superior_email'] },
                     { type: 'attachments', title: 'Attachments' },
                     { type: 'history' },
@@ -9271,6 +9373,13 @@
                 { type: 'pda_payroll_period', title: 'Payroll Period' },
                 { title: 'Payroll Totals', fieldNames: ['total_payroll_amount', 'employee_count', 'basic_salary_total', 'gross_pay_total', 'benefits_total', 'allowances_total', 'deductions_total', 'night_differential_total', 'holiday_pay_total'] },
                 { title: 'Funding Details', fieldNames: ['department', 'funding_bank_account_id', 'payroll_expense_coa_id'] },
+            ];
+        }
+
+        if (record.module_key === 'lr') {
+            return [
+                { title: 'Liquidation Details', fieldNames: ['requester_mode', 'requester_employee_id', 'linked_ca_id', 'total_cash_advance', 'purpose', 'employee_id', 'employee_name', 'employee_email', 'contact_number', 'position', 'department', 'superior', 'superior_email', 'for_client', 'client_names', 'actual_expenses'] },
+                { title: 'Liquidation Items', renderer: () => renderFinanceItemizationTable(record, 'Liquidation Items', 'Restored liquidation item breakdown for the linked cash advance.') },
             ];
         }
 
@@ -9360,6 +9469,7 @@
         const categoryOptionsHtml = getLineItemCategorySuggestions()
             .map((label) => `<option value="${escapeHtml(label)}"></option>`)
             .join('');
+        const supplierOptionsHtml = renderLineItemTypeaheadOptions('supplier');
         const isLiquidation = isLiquidationModule();
         const title = isLiquidation ? 'Liquidation / Cost Details' : 'Line Items';
         const description = isLiquidation
@@ -9411,9 +9521,17 @@
                                 </div>
                                 <div>
                                     <label class="block text-xs font-semibold uppercase tracking-[0.18em] text-gray-500 mb-1">Supplier</label>
-                                    <select name="data[line_items][${index}][supplier_id]" data-pr-line-item-field="supplier_id" class="w-full rounded-xl border border-gray-200 bg-white p-3">
-                                        ${renderLineItemLookupOptions('supplier', row.supplier_id || '', 'Unknown / leave blank')}
-                                    </select>
+                                    <input
+                                        type="text"
+                                        name="data[line_items][${index}][supplier_name]"
+                                        data-pr-line-item-field="supplier_name"
+                                        value="${escapeHtml(row.supplier_name || getLookupLabel('supplier', row.supplier_id) || row.supplier_id || '')}"
+                                        class="w-full rounded-xl border border-gray-200 bg-white p-3"
+                                        placeholder="Type or select supplier"
+                                        list="prSupplierOptions"
+                                    >
+                                    <input type="hidden" name="data[line_items][${index}][supplier_id]" data-pr-line-item-field="supplier_id" value="${escapeHtml(row.supplier_id || '')}">
+                                    <input type="hidden" name="data[line_items][${index}][supplier_label]" data-pr-line-item-field="supplier_label" value="${escapeHtml(row.supplier_label || row.supplier_name || getLookupLabel('supplier', row.supplier_id) || row.supplier_id || '')}">
                                 </div>
                                 <div>
                                     <label class="block text-xs font-semibold uppercase tracking-[0.18em] text-gray-500 mb-1">Description</label>
@@ -9443,6 +9561,23 @@
                                     <label class="block text-xs font-semibold uppercase tracking-[0.18em] text-gray-500 mb-1">Total</label>
                                     <input type="number" step="0.01" min="0" name="data[line_items][${index}][total]" data-pr-line-item-field="total" value="${escapeHtml(row.total || '')}" class="w-full rounded-xl border border-blue-200 bg-gray-50 p-3 text-right font-semibold text-blue-900" placeholder="0.00" readonly>
                                 </div>
+                                <div class="md:col-span-2">
+                                    <label class="block text-xs font-semibold uppercase tracking-[0.18em] text-gray-500 mb-1">Receipt Attachment</label>
+                                    <input
+                                        type="file"
+                                        name="line_item_receipts[${index}]"
+                                        data-pr-line-item-field="receipt_attachment_file"
+                                        class="w-full rounded-xl border border-gray-200 bg-white p-3 text-sm"
+                                        accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx,image/*"
+                                    >
+                                    <input type="hidden" name="data[line_items][${index}][receipt_attachment_name]" data-pr-line-item-field="receipt_attachment_name" value="${escapeHtml(row.receipt_attachment_name || row.receipt_attachment?.name || '')}">
+                                    <input type="hidden" name="data[line_items][${index}][receipt_attachment_path]" data-pr-line-item-field="receipt_attachment_path" value="${escapeHtml(row.receipt_attachment_path || row.receipt_attachment?.path || '')}">
+                                    <input type="hidden" name="data[line_items][${index}][receipt_attachment_mime]" data-pr-line-item-field="receipt_attachment_mime" value="${escapeHtml(row.receipt_attachment_mime || row.receipt_attachment?.mime || '')}">
+                                    <input type="hidden" name="data[line_items][${index}][receipt_attachment_size]" data-pr-line-item-field="receipt_attachment_size" value="${escapeHtml(row.receipt_attachment_size || row.receipt_attachment?.size || '')}">
+                                    <p class="mt-2 text-xs text-gray-500" data-pr-line-item-receipt-label>
+                                        ${escapeHtml(row.receipt_attachment_name || row.receipt_attachment?.name ? `Attached: ${row.receipt_attachment_name || row.receipt_attachment?.name}` : 'No receipt attached yet.')}
+                                    </p>
+                                </div>
                             </div>
                             <p class="mt-3 text-sm font-semibold text-gray-900" data-pr-line-item-formula>${escapeHtml(formatPrQuantity(row.quantity || 0))} x ${escapeHtml(formatCurrency(row.amount || 0))} = ${escapeHtml(formatCurrency(row.total || (Number(row.quantity || 0) * Number(row.amount || 0))))}</p>
                         </div>
@@ -9454,6 +9589,9 @@
                 </datalist>
                 <datalist id="prCategoryOptions">
                     ${categoryOptionsHtml}
+                </datalist>
+                <datalist id="prSupplierOptions">
+                    ${supplierOptionsHtml}
                 </datalist>
             </div>
             `;
@@ -10089,9 +10227,13 @@
         const percentagePaid = isCashAdvanceSource
             ? cashAdvanceSummary.percentagePaid
             : (data.percentage_paid || '0.00');
+        const relationshipStatus = data.relationship_status || record.relationship_status || '';
         const disbursementStatus = isCashAdvanceSource
             ? cashAdvanceSummary.status
             : (data.disbursement_status || data.relationship_status || record.relationship_status || 'Awaiting Disbursement');
+        const displayStatus = ['Completed', 'Disbursed', 'Payroll Released', 'Transfer Completed'].includes(String(relationshipStatus || '').trim())
+            ? relationshipStatus
+            : disbursementStatus;
         const dvCount = isCashAdvanceSource ? cashAdvanceSummary.dvCount : (data.dv_count || 0);
         const releasedDvCount = isCashAdvanceSource ? cashAdvanceSummary.releasedDvCount : (data.releasedDvCount || 0);
 
@@ -10101,10 +10243,11 @@
                     <div class="flex items-start justify-between gap-3">
                         <div>
                             <p class="text-[11px] uppercase tracking-[0.18em] text-emerald-700">Disbursement Summary</p>
-                            <h4 class="mt-1 text-[16px] font-semibold text-gray-900">${escapeHtml(disbursementStatus)}</h4>
+                            <h4 class="mt-1 text-[16px] font-semibold text-gray-900">${escapeHtml(displayStatus)}</h4>
                         </div>
-                        <span class="rounded-full border border-emerald-200 bg-emerald-100 px-3 py-1 text-[11px] font-semibold text-emerald-700">${escapeHtml(disbursementStatus)}</span>
+                        <span class="rounded-full border border-emerald-200 bg-emerald-100 px-3 py-1 text-[11px] font-semibold text-emerald-700">${escapeHtml(displayStatus)}</span>
                     </div>
+                    ${relationshipStatus && relationshipStatus !== displayStatus ? `<p class="mt-2 text-xs text-emerald-700">Relationship Status: ${escapeHtml(relationshipStatus)}</p>` : ''}
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-3 p-4">
                     <div class="rounded-lg border border-emerald-100 bg-white px-3 py-2">
@@ -10158,6 +10301,12 @@
         const department = fallbackValues['data[department]'] || data.department || 'N/A';
         const superior = fallbackValues['data[superior]'] || data.superior || 'N/A';
         const superiorEmail = fallbackValues['data[superior_email]'] || data.superior_email || 'N/A';
+        const lineItems = Array.isArray(fallbackValues['data[line_items]'])
+            ? fallbackValues['data[line_items]']
+            : (Array.isArray(fallbackValues.line_items)
+                ? fallbackValues.line_items
+                : (Array.isArray(data.line_items) ? data.line_items : []));
+        const hasReceipts = lineItems.some((row) => Boolean(row.receipt_attachment?.name || row.receipt_attachment_name || row.receipt_attachment_path));
         const variance = (numericAmount(totalCashAdvance || 0) - numericAmount(actualExpenses || 0)).toFixed(2);
         const statusMeta = getLiquidationStatusMeta(variance);
         const varianceIndicator = statusMeta.label;
@@ -10270,6 +10419,58 @@
                                 <p class="mt-1 text-sm font-semibold text-gray-900 break-words">${escapeHtml(value)}</p>
                             </div>
                         `).join('')}
+                    </div>
+                </div>
+
+                <div class="mt-4 rounded-xl border border-white/80 bg-white p-4">
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                            <p class="text-[11px] uppercase tracking-[0.24em] text-gray-500">Liquidation Items</p>
+                            <p class="mt-1 text-sm text-gray-600">The actual expense lines used to compute the liquidation total.</p>
+                        </div>
+                        <div class="rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-xs font-semibold text-gray-600">${escapeHtml(String(lineItems.length || 0))} row(s)</div>
+                    </div>
+                    <div class="mt-4 max-w-full overflow-x-auto rounded-xl border border-gray-200">
+                        ${lineItems.length ? `
+                            <table class="min-w-[1040px] w-full border-collapse text-sm">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="border-b border-gray-200 px-3 py-2 text-left font-semibold text-gray-600">Item</th>
+                                        <th class="border-b border-gray-200 px-3 py-2 text-left font-semibold text-gray-600">Description</th>
+                                        <th class="border-b border-gray-200 px-3 py-2 text-left font-semibold text-gray-600">Category</th>
+                                        <th class="border-b border-gray-200 px-3 py-2 text-left font-semibold text-gray-600">Qty</th>
+                                        <th class="border-b border-gray-200 px-3 py-2 text-left font-semibold text-gray-600">Unit Cost / Amount</th>
+                                        <th class="border-b border-gray-200 px-3 py-2 text-left font-semibold text-gray-600">Supplier</th>
+                                        ${hasReceipts ? '<th class="border-b border-gray-200 px-3 py-2 text-left font-semibold text-gray-600">Receipt</th>' : ''}
+                                        <th class="border-b border-gray-200 px-3 py-2 text-right font-semibold text-gray-600">Total</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${lineItems.map((item) => {
+                                        const itemLabel = item.item || item.item_id || item.description || 'N/A';
+                                        const supplierLabel = item.supplier_name || item.supplier_label || getLookupLabel('supplier', item.supplier_id) || 'N/A';
+                                        const receiptName = item.receipt_attachment?.name || item.receipt_attachment_name || '';
+                                        const receiptPath = item.receipt_attachment?.path || item.receipt_attachment_path || '';
+                                        const receiptUrl = item.receipt_attachment?.url || (receiptPath ? normalizeAttachmentUrl(receiptPath) : '');
+                                        const receiptLabel = receiptName || (receiptPath ? receiptPath.split(/[\\/]/).pop() : '');
+                                        return `
+                                            <tr class="bg-white">
+                                                <td class="border-b border-gray-200 px-3 py-2 align-top break-words">${escapeHtml(itemLabel)}</td>
+                                                <td class="border-b border-gray-200 px-3 py-2 align-top break-words">${escapeHtml(item.description || 'N/A')}</td>
+                                                <td class="border-b border-gray-200 px-3 py-2 align-top break-words">${escapeHtml(item.category || 'N/A')}</td>
+                                                <td class="border-b border-gray-200 px-3 py-2 align-top">${escapeHtml(String(item.quantity || '0'))}</td>
+                                                <td class="border-b border-gray-200 px-3 py-2 align-top">${escapeHtml(formatCurrency(item.amount || 0))}</td>
+                                                <td class="border-b border-gray-200 px-3 py-2 align-top break-words">${escapeHtml(supplierLabel)}</td>
+                                                ${hasReceipts ? `<td class="border-b border-gray-200 px-3 py-2 align-top break-words">${receiptUrl ? `<a href="${escapeHtml(receiptUrl)}" target="_blank" class="text-blue-600 hover:underline">${escapeHtml(receiptLabel || 'Receipt')}</a>` : escapeHtml(receiptLabel || 'No receipt attached')}</td>` : ''}
+                                                <td class="border-b border-gray-200 px-3 py-2 align-top text-right font-semibold">${escapeHtml(formatCurrency(item.total || 0))}</td>
+                                            </tr>
+                                        `;
+                                    }).join('')}
+                                </tbody>
+                            </table>
+                        ` : `
+                            <div class="px-4 py-5 text-sm text-gray-500">No liquidation items added yet.</div>
+                        `}
                     </div>
                 </div>
             </div>
@@ -10477,6 +10678,7 @@
             if (routeOpenButton) {
                 routeOpenButton.textContent = `Open ${statusMeta.indicator === 'Shortage' ? 'ERR' : 'Cash Return'}`;
             }
+            renderDrawerPreview();
             return;
         }
 
@@ -10504,6 +10706,7 @@
         if (taxTypeInput && !taxTypeInput.value) taxTypeInput.value = normalizeFinanceTaxType(financeFormValues.tax_type || 'N/A');
         if (amountInput) amountInput.value = grandTotal.toFixed(2);
         syncPrPrimaryFields();
+        renderDrawerPreview();
     }
 
     function bindPurchaseRequestLineItemRow(row) {
@@ -10523,6 +10726,70 @@
                     updatePrTotals();
                     renderDrawerPreview();
                 }
+            });
+        }
+
+        const supplierInput = row.querySelector('[data-pr-line-item-field="supplier_name"]');
+        if (supplierInput) {
+            const syncSupplierId = () => {
+                const resolvedSupplierId = resolveLineItemLookupId('supplier', supplierInput.value);
+                const supplierIdInput = row.querySelector('[data-pr-line-item-field="supplier_id"]');
+                const supplierLabelInput = row.querySelector('[data-pr-line-item-field="supplier_label"]');
+                if (supplierIdInput) {
+                    supplierIdInput.value = resolvedSupplierId;
+                }
+                if (supplierLabelInput) {
+                    supplierLabelInput.value = supplierInput.value || '';
+                }
+            };
+
+            supplierInput.addEventListener('input', () => {
+                syncSupplierId();
+                updatePrTotals();
+                renderDrawerPreview();
+            });
+
+            supplierInput.addEventListener('change', () => {
+                syncSupplierId();
+                const resolvedSupplierId = resolveLineItemLookupId('supplier', supplierInput.value);
+                const resolvedSupplierLabel = resolvedSupplierId ? (getLookupLabel('supplier', resolvedSupplierId) || '') : '';
+                if (resolvedSupplierLabel) {
+                    supplierInput.value = resolvedSupplierLabel;
+                    const supplierLabelInput = row.querySelector('[data-pr-line-item-field="supplier_label"]');
+                    if (supplierLabelInput) {
+                        supplierLabelInput.value = resolvedSupplierLabel;
+                    }
+                }
+                updatePrTotals();
+                renderDrawerPreview();
+            });
+        }
+
+        const receiptInput = row.querySelector('[data-pr-line-item-field="receipt_attachment_file"]');
+        if (receiptInput) {
+            const receiptLabel = row.querySelector('[data-pr-line-item-receipt-label]');
+            const receiptNameInput = row.querySelector('[data-pr-line-item-field="receipt_attachment_name"]');
+            const receiptPathInput = row.querySelector('[data-pr-line-item-field="receipt_attachment_path"]');
+            const receiptMimeInput = row.querySelector('[data-pr-line-item-field="receipt_attachment_mime"]');
+            const receiptSizeInput = row.querySelector('[data-pr-line-item-field="receipt_attachment_size"]');
+
+            receiptInput.addEventListener('change', () => {
+                const file = receiptInput.files?.[0] || null;
+                if (file) {
+                    if (receiptNameInput) receiptNameInput.value = file.name || '';
+                    if (receiptPathInput) receiptPathInput.value = '';
+                    if (receiptMimeInput) receiptMimeInput.value = file.type || '';
+                    if (receiptSizeInput) receiptSizeInput.value = String(file.size || '');
+                    if (receiptLabel) receiptLabel.textContent = `Attached: ${file.name || 'Receipt file'}`;
+                } else {
+                    if (receiptNameInput) receiptNameInput.value = '';
+                    if (receiptPathInput) receiptPathInput.value = '';
+                    if (receiptMimeInput) receiptMimeInput.value = '';
+                    if (receiptSizeInput) receiptSizeInput.value = '';
+                    if (receiptLabel) receiptLabel.textContent = 'No receipt attached yet.';
+                }
+                updatePrTotals();
+                renderDrawerPreview();
             });
         }
 
@@ -10586,29 +10853,68 @@
         const tbody = $('prLineItemsBody');
         if (!tbody) return;
 
-        const rows = Array.from(tbody.querySelectorAll('[data-pr-line-item-row]')).map((row) => {
-            const getValue = (field) => row.querySelector(`[data-pr-line-item-field="${field}"]`)?.value || '';
-            return {
-                item_module: getValue('item_module'),
-                item_record_id: getValue('item_record_id'),
-                item_id: getValue('item_id'),
-                description: getValue('description'),
-                category: getValue('category'),
-                quantity: getValue('quantity'),
-                amount: getValue('amount'),
-                subtotal: getValue('subtotal'),
-                discount: getValue('discount'),
-                discount_amount: getValue('discount_amount'),
-                shipping_amount: getValue('shipping_amount'),
-                tax_type: getValue('tax_type'),
-                tax_amount: getValue('tax_amount'),
-                wht_amount: getValue('wht_amount'),
-                total: getValue('total'),
-                supplier_id: getValue('supplier_id'),
-                client_id: getValue('client_id'),
-            };
+        const existingRows = Array.from(tbody.querySelectorAll('[data-pr-line-item-row]'));
+        const lastRow = existingRows[existingRows.length - 1];
+        if (!lastRow) {
+            replaceCurrentLineItemSection([{}]);
+            updatePrTotals();
+            return;
+        }
+
+        const newIndex = existingRows.length;
+        const newRow = lastRow.cloneNode(true);
+        newRow.setAttribute('data-row-index', String(newIndex));
+        newRow.removeAttribute('data-pr-bound');
+        delete newRow.dataset.prBound;
+
+        newRow.querySelectorAll('[name]').forEach((input) => {
+            const name = input.getAttribute('name');
+            if (!name) return;
+            input.setAttribute('name', name.replace(/data\[line_items\]\[\d+\]/, `data[line_items][${newIndex}]`));
         });
-        replaceCurrentLineItemSection([...rows, {}]);
+
+        newRow.querySelectorAll('input, select, textarea').forEach((input) => {
+            const field = input.getAttribute('data-pr-line-item-field');
+            if (!field) return;
+
+            if (input.type === 'hidden') {
+                if (field === 'discount' || field === 'tax_type') return;
+                input.value = '';
+                return;
+            }
+
+            if (input.type === 'file') {
+                input.value = '';
+                return;
+            }
+
+            if (field === 'discount') {
+                input.value = '0%';
+                return;
+            }
+
+            if (field === 'tax_type') {
+                input.value = 'N/A';
+                return;
+            }
+
+            if (field === 'supplier_name' || field === 'receipt_attachment_name' || field === 'receipt_attachment_path' || field === 'receipt_attachment_mime' || field === 'receipt_attachment_size') {
+                input.value = '';
+                return;
+            }
+
+            input.value = '';
+        });
+
+        const badge = newRow.querySelector('.inline-flex.h-8.w-8');
+        if (badge) badge.textContent = String(newIndex + 1);
+        const title = newRow.querySelector('p.text-sm.font-semibold.text-gray-800');
+        if (title) title.textContent = isLiquidationModule() ? `Expense Line ${newIndex + 1}` : `Line Item ${newIndex + 1}`;
+        const receiptLabel = newRow.querySelector('[data-pr-line-item-receipt-label]');
+        if (receiptLabel) receiptLabel.textContent = 'No receipt attached yet.';
+
+        tbody.appendChild(newRow);
+        bindPurchaseRequestLineItemRow(newRow);
         updatePrTotals();
     }
 
@@ -12089,6 +12395,18 @@
                     : (record && Array.isArray(record.data?.line_items) ? record.data.line_items.map((row) => ({ ...row })) : []);
                 const draftLineItems = normalizeDvLineItems(draftLineItemsRaw, resolvedSourceRecord || record);
                 const releaseIntentActive = Boolean(currentEditRecordId && releaseFundsIntentRecordId && String(currentEditRecordId) === String(releaseFundsIntentRecordId));
+                const payeeFieldsEditable = releaseIntentActive;
+                const referenceNumberValue = effectiveReferenceNumberValue;
+                const referenceNumberField = textField(
+                    'reference_number',
+                    releaseIntentActive ? 'Reference Number' : 'Reference Number',
+                    {
+                        readOnly: !releaseIntentActive,
+                        required: false,
+                        placeholder: releaseIntentActive ? 'Enter reference number or N/A' : '',
+                        help: releaseIntentActive ? 'Enter the bank reference number for this release, or type N/A if none.' : '',
+                    }
+                );
                 financeFormValues.dv_line_items = draftLineItems;
                 financeFormValues.line_items = draftLineItems;
                 financeFormValues.release_intent = releaseIntentActive ? '1' : '';
@@ -12135,9 +12453,38 @@
                 ], 'snapshot');
                 const bankAccountRequired = effectivePaymentTypeValue === 'Check'
                     || ['po', 'ca', 'pda', 'ibtf'].includes(String(resolvedSourceTypeValue || '').trim().toLowerCase());
+                const editableReleaseFieldsHtml = payeeFieldsEditable ? `
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Payee Type <span class="text-red-500">*</span></label>
+                        <input
+                            type="text"
+                            name="data[payee_type]"
+                            value="${escapeHtml(payeeTypeValue || '')}"
+                            class="w-full border rounded-md p-2 bg-white"
+                        >
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Payee <span class="text-red-500">*</span></label>
+                        <input
+                            type="text"
+                            name="data[payee_name]"
+                            value="${escapeHtml(payeeNameValue || '')}"
+                            class="w-full border rounded-md p-2 bg-white"
+                        >
+                    </div>
+                    <div class="md:col-span-2">
+                        <label class="block text-sm font-medium mb-1">Reference Number</label>
+                        <input
+                            type="text"
+                            name="data[reference_number]"
+                            value="${escapeHtml(referenceNumberValue || '')}"
+                            class="w-full border rounded-md p-2 bg-white"
+                            placeholder="Enter reference number or N/A"
+                        >
+                        <p class="mt-1 text-xs text-amber-700">Enter the bank reference number for this release, or type N/A if none.</p>
+                    </div>
+                ` : '';
                 const voucherFieldHtml = renderDvFieldList([
-                    [textField('payee_type', 'Payee Type', { readOnly: true }), payeeTypeValue],
-                    [textField('payee_name', 'Payee', { readOnly: true }), payeeNameValue],
                     [textField('supplier_id', 'Supplier', { readOnly: true }), effectiveSupplierValue],
                     [numberField('amount', 'Amount'), effectiveAmountValue],
                     [textField('payment_type', 'Payment Type', { readOnly: true }), effectivePaymentTypeValue],
@@ -12146,7 +12493,6 @@
                     [textField('coa_id', 'Account', { readOnly: true }), effectiveCoaValue],
                     [textField('fund_source', 'Fund Source / Project', { readOnly: true }), effectiveFundSourceValue],
                     [textField('department', 'Department', { readOnly: true }), effectiveDepartmentValue],
-                    [textField('reference_number', 'Reference Number', { readOnly: true }), effectiveReferenceNumberValue],
                     [textareaField('purpose', 'Purpose', { readOnly: true }), effectivePurposeValue],
                     [dateField('payment_date', 'Payment Date', { readOnly: true }), effectivePaymentDateValue],
                     [dateField('due_date', 'Due Date', { readOnly: true }), effectiveDueDateValue],
@@ -12174,7 +12520,6 @@
                                         { value: 'ca', label: 'CA' },
                                         { value: 'err', label: 'ERR' },
                                         { value: 'pda', label: 'PDA' },
-                                        { value: 'crf', label: 'CRF' },
                                         { value: 'ibtf', label: 'IBTF' },
                                     ],
                                 }), resolvedSourceTypeValue, values)}
@@ -12211,9 +12556,22 @@
                     <div class="md:col-span-2 rounded-xl border border-gray-200 bg-white p-4">
                         <h4 class="text-sm font-semibold uppercase tracking-[0.24em] text-gray-700">Voucher Details</h4>
                         <p class="mt-2 text-xs text-gray-500">These values are generated from the selected source document.</p>
+                        ${payeeFieldsEditable ? `
+                            <div class="mt-4 rounded-xl border border-amber-200 bg-amber-50/70 p-4">
+                                <div class="flex items-center justify-between gap-3">
+                                    <h5 class="text-sm font-semibold text-amber-800">Editable Release Details</h5>
+                                    <span class="rounded-full bg-white px-3 py-1 text-[11px] font-semibold text-amber-700">Release mode</span>
+                                </div>
+                                <p class="mt-1 text-xs text-amber-700">Update the payee information only for this DV release. Everything else stays read-only.</p>
+                                <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    ${editableReleaseFieldsHtml}
+                                </div>
+                            </div>
+                        ` : ''}
                         <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                             ${voucherFieldHtml}
                         </div>
+                        ${releaseIntentActive ? '<p class="mt-3 text-xs text-amber-700">Enter the reference number for this release. If there is none, type N/A.</p>' : ''}
                     </div>
 
                     ${renderDvLineItemsTable(record)}
@@ -12890,6 +13248,13 @@
                 quantity: row.querySelector('[data-pr-line-item-field="quantity"]')?.value || '',
                 amount: row.querySelector('[data-pr-line-item-field="amount"]')?.value || '',
                 total: row.querySelector('[data-pr-line-item-field="total"]')?.value || '',
+                supplier_id: row.querySelector('[data-pr-line-item-field="supplier_id"]')?.value || '',
+                supplier_name: row.querySelector('[data-pr-line-item-field="supplier_name"]')?.value || '',
+                supplier_label: row.querySelector('[data-pr-line-item-field="supplier_label"]')?.value || row.querySelector('[data-pr-line-item-field="supplier_name"]')?.value || '',
+                receipt_attachment_name: row.querySelector('[data-pr-line-item-field="receipt_attachment_name"]')?.value || '',
+                receipt_attachment_path: row.querySelector('[data-pr-line-item-field="receipt_attachment_path"]')?.value || '',
+                receipt_attachment_mime: row.querySelector('[data-pr-line-item-field="receipt_attachment_mime"]')?.value || '',
+                receipt_attachment_size: row.querySelector('[data-pr-line-item-field="receipt_attachment_size"]')?.value || '',
             }));
             const linkedCaId = formValues['data[linked_ca_id]'] || '';
             const linkedCaRecord = linkedCaId ? (getRecordById(linkedCaId) || getRecordByLookupValue('ca', linkedCaId)) : null;
@@ -12919,6 +13284,10 @@
                 ['Status', summaryValues.variance_indicator],
             ];
             formValues['data[line_items_total]'] = summaryValues.line_items_total;
+            formValues.line_items = rows;
+            formValues['data[line_items]'] = rows;
+            financeFormValues.line_items = rows;
+            financeFormValues['data[line_items]'] = rows;
 
             $('drawerPreview').innerHTML = `
                 <div class="rounded-2xl border border-slate-200 bg-slate-100 p-4">
@@ -14234,6 +14603,11 @@
             return;
         }
 
+        if (String(resolvedSourceRecord.module_key || '').trim().toLowerCase() === 'crf') {
+            showFinanceToast('CRF records are completed workflows and cannot create a Disbursement Voucher.', 'warning');
+            return;
+        }
+
         const sourceData = resolvedSourceRecord.data || {};
         let payload = {};
 
@@ -15063,6 +15437,9 @@
             if (section.type === 'attachments') {
                 return renderFinanceAttachmentSourceHtml(record);
             }
+            if (section.type === 'line_items') {
+                return renderFinanceItemizationTable(record);
+            }
             if (section.type === 'asset_tag') {
                 return `
                     <div class="finance-preview-box">
@@ -15445,6 +15822,19 @@
         let steps = Array.isArray(record?.data?.transaction_progress) ? record.data.transaction_progress : [];
         let relationshipStatus = record?.relationship_status || record?.data?.relationship_status || 'In Progress';
 
+        if (record?.module_key === 'crf') {
+            const submitted = Boolean(record?.submitted_at || record?.data?.submitted_at || isApprovedRecord(record));
+            const approved = isApprovedRecord(record);
+            const completed = approved;
+
+            relationshipStatus = record?.relationship_status || record?.data?.relationship_status || (approved ? 'Completed' : (submitted ? 'Submitted' : 'Draft'));
+            steps = [
+                { label: 'CRF Submitted', completed: submitted },
+                { label: 'CRF Approved', completed: approved },
+                { label: 'Transaction Completed', completed: completed },
+            ];
+        }
+
         if (record?.module_key === 'lr') {
             const data = record?.data || {};
             const caAmount = numericAmount(data.total_cash_advance || data.amount_requested || record?.amount || 0);
@@ -15490,7 +15880,7 @@
         return `
             <div class="rounded-2xl border border-slate-200 bg-white p-4">
                 <div class="flex flex-wrap items-center justify-between gap-3">
-                    <h4 class="text-[15px] font-semibold text-gray-900">${record?.module_key === 'lr' ? 'Liquidation Progress' : 'Transaction Progress'}</h4>
+                    <h4 class="text-[15px] font-semibold text-gray-900">${record?.module_key === 'lr' ? 'Liquidation Progress' : (record?.module_key === 'crf' ? 'CRF Progress' : 'Transaction Progress')}</h4>
                     <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">${escapeHtml(relationshipStatus)}</span>
                 </div>
                 <div class="mt-4 space-y-2">
@@ -15517,10 +15907,14 @@
         const moduleConfig = getModuleConfig(record.module_key);
         const attachments = Array.isArray(record.attachments) ? record.attachments : [];
         const templateSections = getTemplatePreviewSections(record);
+        const previewDraftValues = {
+            ...collectFinanceFormValues(),
+            ...(financeFormValues || {}),
+        };
         const moveItemsBelowPdf = currentPreviewTab === 'template' && ['pr', 'po', 'dv'].includes(record.module_key);
         const templateSectionCards = templateSections
             .filter((section) => !(moveItemsBelowPdf && section && ['Items / Cost Details', 'Breakdown / Line Items'].includes(section.title)))
-            .map((section) => renderPreviewSectionCard(record, moduleConfig, section))
+            .map((section) => renderPreviewSectionCard(record, moduleConfig, section, previewDraftValues))
             .filter(Boolean)
             .join('');
         const summaryRows = getFinancePreviewSummaryRows(record);
@@ -15842,7 +16236,7 @@
         const disbursementButtonStatus = String(record?.data?.next_action || record?.next_action || '').trim();
         const disbursementRelationshipStatus = String(record?.relationship_status || record?.data?.relationship_status || '').trim();
         const linkedDisbursementVoucherId = record?.linked_dv_id || record?.data?.linked_dv_id || '';
-        const showCreateDisbursementVoucher = ['po', 'err', 'pda', 'ibtf', 'crf'].includes(record.module_key)
+        const showCreateDisbursementVoucher = ['po', 'err', 'pda', 'ibtf'].includes(record.module_key)
             && !isFinalWorkflow
             && !linkedDisbursementVoucherId
             && canCreateFinanceModule('dv')
@@ -16523,9 +16917,18 @@
             if (currentModuleKey === 'dv') {
                 collectDvLineItems();
                 updateDvNetAmount();
-                const dvPayeeName = $('recordTitleInput').value.trim();
-                formData.set('data[payee_name]', dvPayeeName);
-                formData.set('data[payee_type]', 'User');
+                const releaseIntentActive = Boolean(currentEditRecordId && releaseFundsIntentRecordId && String(currentEditRecordId) === String(releaseFundsIntentRecordId));
+                const existingPayeeType = String(formData.get('data[payee_type]') || $('financeForm')?.querySelector('[name="data[payee_type]"]')?.value || '').trim();
+                const existingPayeeName = String(formData.get('data[payee_name]') || $('financeForm')?.querySelector('[name="data[payee_name]"]')?.value || '').trim();
+                const sourcePayeeType = String(formData.get('data[source_payee_type]') || $('financeForm')?.querySelector('[name="data[source_payee_type]"]')?.value || '').trim();
+                const sourcePayeeName = String(formData.get('data[source_payee_name]') || $('financeForm')?.querySelector('[name="data[source_payee_name]"]')?.value || '').trim();
+                if (releaseIntentActive) {
+                    formData.set('data[payee_type]', existingPayeeType || sourcePayeeType || 'User');
+                    formData.set('data[payee_name]', existingPayeeName || sourcePayeeName || $('recordTitleInput').value.trim());
+                } else {
+                    formData.set('data[payee_type]', existingPayeeType || sourcePayeeType || 'User');
+                    formData.set('data[payee_name]', existingPayeeName || sourcePayeeName || $('recordTitleInput').value.trim());
+                }
                 formData.set('amount', formData.get('data[amount]') || $('amountInput').value || '');
             }
 
