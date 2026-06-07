@@ -28,7 +28,7 @@
                 <div>
                     <h1 class="text-2xl font-semibold text-gray-900">Payout Requests</h1>
                     <p class="text-sm text-gray-500 mt-1">
-                        Review commission payout requests and mark approved payouts as paid.
+                        Review incentive payout requests and mark approved payouts as paid.
                     </p>
                 </div>
             </div>
