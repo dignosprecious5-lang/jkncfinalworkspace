@@ -6754,6 +6754,9 @@ SVG;
             $data = array_merge($data, $this->financeDvAccountingSummaryFromLineItems((array) $data['line_items']));
         }
 
+        $data['line_items'] = $this->financeTransformLineItemReceiptAttachments((array) data_get($data, 'line_items', []));
+        $attachments = $this->financeTransformRecordAttachments($record, $data);
+
         return [
             'id' => $record->id,
             'module_key' => $record->module_key,
@@ -6785,15 +6788,7 @@ SVG;
                     $existingDvPayload
                 ),
             ]),
-            'attachments' => array_values(array_map(function ($attachment) {
-                $attachment = is_array($attachment) ? $attachment : [];
-                $attachment['url'] = $this->financeAttachmentUrl($attachment);
-                $attachment['download_url'] = $attachment['url'] ? $attachment['url'] . '?download=1' : null;
-                $attachment['is_image'] = $this->financeAttachmentIsImage($attachment);
-                $attachment['image_data_uri'] = $attachment['is_image'] ? $this->financeAttachmentDataUri($attachment) : null;
-
-                return $attachment;
-            }, (array) ($record->attachments ?? []))),
+            'attachments' => $attachments,
             'share_token' => $record->share_token,
             'shared_at' => optional($record->shared_at)->format('Y-m-d H:i:s'),
             'supplier_completed_at' => optional($record->supplier_completed_at)->format('Y-m-d H:i:s'),
@@ -6820,6 +6815,10 @@ SVG;
 
     private function transformRecordForIndex(FinanceRecord $record): array
     {
+        $data = $record->data ?? [];
+        $data['line_items'] = $this->financeTransformLineItemReceiptAttachments((array) data_get($data, 'line_items', []));
+        $attachments = $this->financeTransformRecordAttachments($record, $data);
+
         return [
             'id' => $record->id,
             'module_key' => $record->module_key,
@@ -6845,8 +6844,8 @@ SVG;
             'approved_at' => optional($record->approved_at)->format('Y-m-d H:i:s'),
             'review_note' => $record->review_note,
             'visible_finance_notes' => [],
-            'data' => $record->data ?? [],
-            'attachments' => [],
+            'data' => $data,
+            'attachments' => $attachments,
             'share_token' => $record->share_token,
             'shared_at' => optional($record->shared_at)->format('Y-m-d H:i:s'),
             'supplier_completed_at' => optional($record->supplier_completed_at)->format('Y-m-d H:i:s'),
@@ -7354,6 +7353,91 @@ SVG;
                     number_format($difference, 2, '.', ',')
                 ),
         ];
+    }
+
+    private function financeTransformLineItemReceiptAttachments(array $lineItems): array
+    {
+        return array_values(array_map(function ($lineItem) {
+            if (!is_array($lineItem)) {
+                return $lineItem;
+            }
+
+            $receiptAttachment = data_get($lineItem, 'receipt_attachment');
+            $receiptAttachment = is_array($receiptAttachment) ? $receiptAttachment : [];
+
+            $path = (string) (data_get($receiptAttachment, 'path') ?: data_get($lineItem, 'receipt_attachment_path') ?: '');
+            $name = (string) (data_get($receiptAttachment, 'name') ?: data_get($lineItem, 'receipt_attachment_name') ?: '');
+
+            if ($path === '' && $name === '') {
+                return $lineItem;
+            }
+
+            $attachment = array_merge($receiptAttachment, [
+                'name' => $name !== '' ? $name : 'Receipt',
+                'path' => $path,
+                'mime' => (string) (data_get($receiptAttachment, 'mime') ?: data_get($lineItem, 'receipt_attachment_mime') ?: ''),
+                'size' => data_get($receiptAttachment, 'size') ?: data_get($lineItem, 'receipt_attachment_size'),
+                'uploaded_at' => data_get($receiptAttachment, 'uploaded_at'),
+                'uploaded_by' => data_get($receiptAttachment, 'uploaded_by'),
+                'category' => data_get($receiptAttachment, 'category') ?: 'Line Item Receipt',
+            ]);
+
+            $attachment['url'] = $this->financeAttachmentUrl($attachment);
+            $attachment['download_url'] = $attachment['url'] ? $attachment['url'] . '?download=1' : null;
+            $attachment['is_image'] = $this->financeAttachmentIsImage($attachment);
+            $attachment['image_data_uri'] = $attachment['is_image'] ? $this->financeAttachmentDataUri($attachment) : null;
+
+            $lineItem['receipt_attachment'] = $attachment;
+            $lineItem['receipt_attachment_name'] = $attachment['name'];
+            $lineItem['receipt_attachment_path'] = $attachment['path'];
+            $lineItem['receipt_attachment_mime'] = $attachment['mime'];
+            $lineItem['receipt_attachment_size'] = $attachment['size'];
+
+            return $lineItem;
+        }, $lineItems));
+    }
+
+    private function financeTransformRecordAttachments(FinanceRecord $record, array $data = []): array
+    {
+        $directAttachments = array_values(array_map(function ($attachment) {
+            $attachment = is_array($attachment) ? $attachment : [];
+            $attachment['url'] = $this->financeAttachmentUrl($attachment);
+            $attachment['download_url'] = $attachment['url'] ? $attachment['url'] . '?download=1' : null;
+            $attachment['is_image'] = $this->financeAttachmentIsImage($attachment);
+            $attachment['image_data_uri'] = $attachment['is_image'] ? $this->financeAttachmentDataUri($attachment) : null;
+
+            return $attachment;
+        }, (array) ($record->attachments ?? [])));
+
+        $lineItemAttachments = collect((array) data_get($data, 'line_items', []))
+            ->map(function ($lineItem) {
+                $attachment = data_get($lineItem, 'receipt_attachment');
+
+                return is_array($attachment) ? $attachment : null;
+            })
+            ->filter(fn ($attachment) => is_array($attachment) && (!blank(data_get($attachment, 'name')) || !blank(data_get($attachment, 'path'))))
+            ->values()
+            ->all();
+
+        $merged = [];
+        $seen = [];
+
+        foreach (array_merge($directAttachments, $lineItemAttachments) as $attachment) {
+            $key = implode('|', [
+                (string) data_get($attachment, 'source', 'attachment'),
+                (string) data_get($attachment, 'path', ''),
+                (string) data_get($attachment, 'name', ''),
+            ]);
+
+            if (isset($seen[$key])) {
+                continue;
+            }
+
+            $seen[$key] = true;
+            $merged[] = $attachment;
+        }
+
+        return array_values($merged);
     }
 
     private function financeDvReleasePrerequisitesAssessment(FinanceRecord $financeRecord, array $data, array $attachments = []): ?array

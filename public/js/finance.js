@@ -6530,10 +6530,30 @@
         input.value = blank(value) ? '' : String(value);
     }
 
+    function syncLineItemMasterFields(row, { force = false } = {}) {
+        if (!row || (currentModuleKey !== 'pr' && currentModuleKey !== 'po')) return null;
+
+        const itemInput = row.querySelector('[data-pr-line-item-field="item_id"]');
+        const match = findLineItemMasterOption(itemInput?.value || '');
+        if (!match?.option) {
+            if (force) {
+                setLineItemFieldValue(row, 'item_module', '');
+                setLineItemFieldValue(row, 'item_record_id', '');
+            }
+            return null;
+        }
+
+        setLineItemFieldValue(row, 'item_module', match.moduleKey || '');
+        setLineItemFieldValue(row, 'item_record_id', match.option.id ?? match.option.value ?? '');
+        return match;
+    }
+
     function autofillLineItemFromMaster(row, { force = false } = {}) {
         if (!row || (currentModuleKey !== 'pr' && currentModuleKey !== 'po')) return false;
 
         const itemInput = row.querySelector('[data-pr-line-item-field="item_id"]');
+        const match = syncLineItemMasterFields(row, { force });
+        if (!match?.option) return false;
         const defaults = getLineItemMasterDefaults(itemInput?.value || '');
 
         if (!defaults) return false;
@@ -10721,12 +10741,14 @@
         const itemInput = row.querySelector('[data-pr-line-item-field="item_id"]');
         if (itemInput) {
             itemInput.addEventListener('input', () => {
+                syncLineItemMasterFields(row);
                 if (autofillLineItemFromMaster(row)) {
                     updatePrTotals();
                     renderDrawerPreview();
                 }
             });
             itemInput.addEventListener('change', () => {
+                syncLineItemMasterFields(row, { force: true });
                 if (autofillLineItemFromMaster(row, { force: true })) {
                     updatePrTotals();
                     renderDrawerPreview();
@@ -10819,6 +10841,10 @@
 
     function syncPrPrimaryFields() {
         if (currentModuleKey !== 'pr' && currentModuleKey !== 'po') return;
+
+        document.querySelectorAll('[data-pr-line-item-row]').forEach((row) => {
+            syncLineItemMasterFields(row);
+        });
 
         const firstRow = Array.from(document.querySelectorAll('[data-pr-line-item-row]')).find((row) => {
             return Array.from(row.querySelectorAll('[data-pr-line-item-field]')).some((input) => String(input.value || '').trim() !== '');
@@ -15912,7 +15938,7 @@
 
     function renderPreviewTabContent(record) {
         const moduleConfig = getModuleConfig(record.module_key);
-        const attachments = Array.isArray(record.attachments) ? record.attachments : [];
+        const attachments = financeAttachmentEntries(record);
         const templateSections = getTemplatePreviewSections(record);
         const previewDraftValues = {
             ...collectFinanceFormValues(),
@@ -15945,19 +15971,21 @@
                         ${pdfAttachments.length ? pdfAttachments.map((attachment, index) => {
                             const url = attachment.url || normalizeAttachmentUrl(attachment.path || '');
                             const active = currentPreviewAttachmentUrl === url;
+                            const clickable = Boolean(url);
                             return `
                                   <button
                                       type="button"
-                                      data-preview-attachment-url="${escapeHtml(url)}"
+                                      ${clickable ? `data-preview-attachment-url="${escapeHtml(url)}"` : ''}
                                       data-preview-attachment-name="${escapeHtml(attachment.name || `Attachment ${index + 1}`)}"
-                                      class="w-full rounded-xl border px-4 py-3 text-left transition ${active ? 'border-blue-200 bg-white shadow-sm' : 'border-gray-200 bg-white hover:bg-gray-50'}">
+                                      class="w-full rounded-xl border px-4 py-3 text-left transition ${active ? 'border-blue-200 bg-white shadow-sm' : 'border-gray-200 bg-white'} ${clickable ? 'hover:bg-gray-50' : 'cursor-not-allowed opacity-80'}"
+                                      ${clickable ? '' : 'disabled'}>
                                     <div class="flex items-center justify-between gap-3">
                                         <div class="min-w-0">
                                             <p class="font-semibold text-gray-900 break-all">${escapeHtml(attachment.name || `Attachment ${index + 1}`)}</p>
                                             <p class="mt-1 text-xs text-gray-500 break-all">${escapeHtml(attachment.path || '')}</p>
                                             <p class="mt-1 text-[11px] text-gray-500">${escapeHtml(attachment.category || 'Supporting Document')}${attachment.uploaded_by ? ` • ${escapeHtml(attachment.uploaded_by)}` : ''}${attachment.uploaded_at ? ` • ${escapeHtml(attachment.uploaded_at)}` : ''}</p>
                                         </div>
-                                        <span class="rounded-full border border-gray-200 px-3 py-1 text-[11px] font-medium text-gray-600">View</span>
+                                        <span class="rounded-full border border-gray-200 px-3 py-1 text-[11px] font-medium text-gray-600">${clickable ? 'View' : 'Saved metadata only'}</span>
                                     </div>
                                 </button>
                             `;
@@ -15968,13 +15996,28 @@
                 <div class="rounded-2xl border border-gray-200 bg-white p-4">
                     <h4 class="text-[15px] font-semibold text-gray-900">Other Attachments</h4>
                         <div class="mt-4 space-y-3">
-                        ${otherAttachments.length ? otherAttachments.map((attachment, index) => `
-                            <a href="${escapeHtml(attachment.url || normalizeAttachmentUrl(attachment.path || ''))}" target="_blank" class="block rounded-xl border border-gray-200 bg-white px-4 py-3 hover:bg-gray-50 transition">
+                        ${otherAttachments.length ? otherAttachments.map((attachment, index) => {
+                            const url = attachment.url || normalizeAttachmentUrl(attachment.path || '');
+                            const clickable = Boolean(url);
+
+                            if (!clickable) {
+                                return `
+                                    <div class="block rounded-xl border border-gray-200 bg-white px-4 py-3 opacity-80">
+                                        <p class="font-medium text-gray-900 break-all">${escapeHtml(attachment.name || `Attachment ${index + 1}`)}</p>
+                                        <p class="mt-1 text-xs text-gray-500 break-all">${escapeHtml(attachment.path || '')}</p>
+                                        <p class="mt-1 text-[11px] text-gray-500">${escapeHtml(attachment.category || 'Supporting Document')}${attachment.uploaded_by ? ` • ${escapeHtml(attachment.uploaded_by)}` : ''}${attachment.uploaded_at ? ` • ${escapeHtml(attachment.uploaded_at)}` : ''}</p>
+                                    </div>
+                                `;
+                            }
+
+                            return `
+                            <a href="${escapeHtml(url)}" target="_blank" class="block rounded-xl border border-gray-200 bg-white px-4 py-3 hover:bg-gray-50 transition">
                                 <p class="font-medium text-gray-900 break-all">${escapeHtml(attachment.name || `Attachment ${index + 1}`)}</p>
                                 <p class="mt-1 text-xs text-gray-500 break-all">${escapeHtml(attachment.path || '')}</p>
                                 <p class="mt-1 text-[11px] text-gray-500">${escapeHtml(attachment.category || 'Supporting Document')}${attachment.uploaded_by ? ` • ${escapeHtml(attachment.uploaded_by)}` : ''}${attachment.uploaded_at ? ` • ${escapeHtml(attachment.uploaded_at)}` : ''}</p>
                             </a>
-                        `).join('') : '<p class="text-sm text-gray-400 italic">No other attachments uploaded.</p>'}
+                        `;
+                        }).join('') : '<p class="text-sm text-gray-400 italic">No other attachments uploaded.</p>'}
                     </div>
                 </div>
             </div>
