@@ -74,6 +74,9 @@ class EmployeeRequestController extends Controller
         $request->validate([
             'request_type' => 'required|string|max:255',
             'employee_id' => ($this->canManageRequests() ? 'required' : 'nullable').'|nullable|exists:employees,id',
+            'purpose' => 'required_if:request_type,COE Request Form|nullable|string|max:255',
+            'coe_type' => 'required_if:request_type,COE Request Form|nullable|string|in:Employment Only,With Compensation',
+            'coe_purpose_other' => 'required_if:purpose,Others|nullable|string|max:255',
             'attachment' => 'nullable|file|max:10240|mimes:pdf,jpg,jpeg,png,doc,docx,xls,xlsx',
         ]);
 
@@ -81,6 +84,7 @@ class EmployeeRequestController extends Controller
         $requestUser = $this->userForEmployee($employee);
 
         $attachmentPayload = $this->attachmentPayload($request);
+        $coePayload = $this->coeColumnPayload($request);
 
         try {
             $employeeRequest = EmployeeRequest::create([
@@ -127,7 +131,7 @@ class EmployeeRequestController extends Controller
 
                 // Default status
                 'status' => 'Pending',
-            ] + $attachmentPayload);
+            ] + $coePayload + $attachmentPayload);
         } catch (\Throwable $exception) {
             $this->deleteStoredAttachment($attachmentPayload);
 
@@ -168,7 +172,9 @@ class EmployeeRequestController extends Controller
             'correct_time' => 'nullable',
             'absence_type' => 'nullable|string|max:255',
             'time_affected' => 'nullable',
-            'purpose' => 'nullable|string|max:255',
+            'purpose' => 'required_if:request_type,COE Request Form|nullable|string|max:255',
+            'coe_type' => 'required_if:request_type,COE Request Form|nullable|string|in:Employment Only,With Compensation',
+            'coe_purpose_other' => 'required_if:purpose,Others|nullable|string|max:255',
             'date_needed' => 'nullable|date',
             'number_of_copies' => 'nullable|integer',
             'reason' => 'nullable|string',
@@ -180,6 +186,7 @@ class EmployeeRequestController extends Controller
 
         $oldAttachmentPath = $employeeRequest->attachment_path;
         $attachmentPayload = $this->attachmentPayload($request, $employeeRequest);
+        $coePayload = $this->coeColumnPayload($request);
 
         try {
             $employeeRequest->update([
@@ -215,7 +222,7 @@ class EmployeeRequestController extends Controller
                 'admin_note' => null,
                 'reviewed_by' => null,
                 'reviewed_at' => null,
-            ] + $attachmentPayload);
+            ] + $coePayload + $attachmentPayload);
         } catch (\Throwable $exception) {
             $this->deleteStoredAttachment($attachmentPayload);
 
@@ -301,7 +308,9 @@ class EmployeeRequestController extends Controller
             'correct_time' => 'nullable',
             'absence_type' => 'nullable|string|max:255',
             'time_affected' => 'nullable',
-            'purpose' => 'nullable|string|max:255',
+            'purpose' => 'required_if:request_type,COE Request Form|nullable|string|max:255',
+            'coe_type' => 'required_if:request_type,COE Request Form|nullable|string|in:Employment Only,With Compensation',
+            'coe_purpose_other' => 'required_if:purpose,Others|nullable|string|max:255',
             'date_needed' => 'nullable|date',
             'number_of_copies' => 'nullable|integer',
             'reason' => 'nullable|string',
@@ -316,6 +325,7 @@ class EmployeeRequestController extends Controller
 
         $oldAttachmentPath = $employeeRequest->attachment_path;
         $attachmentPayload = $this->attachmentPayload($request, $employeeRequest);
+        $coePayload = $this->coeColumnPayload($request);
 
         try {
             $employeeRequest->update([
@@ -345,7 +355,7 @@ class EmployeeRequestController extends Controller
                 'remarks' => $request->remarks,
                 'status' => $request->status,
                 'admin_note' => $request->admin_note,
-            ] + $attachmentPayload);
+            ] + $coePayload + $attachmentPayload);
         } catch (\Throwable $exception) {
             $this->deleteStoredAttachment($attachmentPayload);
 
@@ -480,6 +490,37 @@ class EmployeeRequestController extends Controller
         ]);
     }
 
+    private function coeColumnPayload(Request $request): array
+    {
+        if (! $this->employeeRequestCoeColumnsExist()) {
+            return [];
+        }
+
+        $purpose = (string) $request->input('purpose', '');
+        $purposeOther = $purpose === 'Others'
+            ? trim((string) $request->input('coe_purpose_other', ''))
+            : null;
+
+        return [
+            'coe_type' => $request->input('coe_type') ?: 'Employment Only',
+            'coe_purpose_other' => $purposeOther,
+        ];
+    }
+
+    private function employeeRequestCoeColumnsExist(): bool
+    {
+        static $exists = null;
+
+        if ($exists !== null) {
+            return $exists;
+        }
+
+        return $exists = Schema::hasColumns('employee_requests', [
+            'coe_type',
+            'coe_purpose_other',
+        ]);
+    }
+
     private function notifyEmployee(EmployeeRequest $employeeRequest, string $title, string $message, ?string $url = null): void
     {
         $user = User::find($employeeRequest->user_id);
@@ -501,6 +542,8 @@ class EmployeeRequestController extends Controller
     private function formatEmployeeRequest(EmployeeRequest $employeeRequest): array
     {
         $data = $employeeRequest->toArray();
+        $data['coe_type'] = $data['coe_type'] ?? 'Employment Only';
+        $data['coe_purpose_other'] = $data['coe_purpose_other'] ?? '';
         $data['created_at'] = optional($employeeRequest->created_at)->format('Y-m-d H:i:s');
         $data['updated_at'] = optional($employeeRequest->updated_at)->format('Y-m-d H:i:s');
         $data['coe_preview'] = $this->isCoeRequest($employeeRequest) ? $this->coeData($employeeRequest) : null;
@@ -522,7 +565,15 @@ class EmployeeRequestController extends Controller
             return true;
         }
 
-        return $employeeRequest->user_id === auth()->id();
+        if ($employeeRequest->user_id === auth()->id()) {
+            return true;
+        }
+
+        $employee = $this->currentEmployee();
+
+        return $employee
+            && $employeeRequest->employee_name
+            && strcasecmp($employeeRequest->employee_name, $employee->full_name) === 0;
     }
 
     private function coeData(EmployeeRequest $employeeRequest): array
@@ -545,14 +596,25 @@ class EmployeeRequestController extends Controller
             'department' => $employee?->department?->department_name ?: $employeeRequest->department ?: '-',
             'start_date' => $dateFrom ? $dateFrom->format('F d, Y') : '-',
             'end_date' => $dateTo ? $dateTo->format('F d, Y') : 'Present',
+            'coe_type' => $employeeRequest->coe_type ?: 'Employment Only',
+            'show_salary' => ($employeeRequest->coe_type ?: 'Employment Only') === 'With Compensation',
             'monthly_basic_salary' => $employee ? 'PHP ' . number_format((float) $employee->basic_salary, 2) : '-',
-            'purpose' => $employeeRequest->purpose ?: $employeeRequest->remarks ?: 'employment verification',
+            'purpose' => $this->coePurposeText($employeeRequest),
             'date_issued' => $approvedAt->format('F d, Y'),
             'date_approved' => $approvedAt->format('F d, Y h:i A'),
             'coe_number' => 'COE-' . now()->format('Y') . '-' . str_pad((string) $employeeRequest->id, 5, '0', STR_PAD_LEFT),
             'approver_name' => User::find($employeeRequest->reviewed_by)?->name ?: 'Human Capital',
             'download_url' => route('human-capital.employee-requests.coe.download', $employeeRequest),
         ];
+    }
+
+    private function coePurposeText(EmployeeRequest $employeeRequest): string
+    {
+        if ($employeeRequest->purpose === 'Others') {
+            return $employeeRequest->coe_purpose_other ?: $employeeRequest->remarks ?: 'employment verification';
+        }
+
+        return $employeeRequest->purpose ?: $employeeRequest->remarks ?: 'employment verification';
     }
 
     private function employeeForRequest(EmployeeRequest $employeeRequest): ?Employee

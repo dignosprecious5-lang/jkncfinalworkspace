@@ -81,11 +81,13 @@
             as {{ $coe['position'] }} under {{ $coe['department'] }} from {{ $coe['start_date'] }} to {{ $coe['end_date'] }}.
         </p>
 
-        <p>
-            Based on company records, the employee receives/received a monthly basic salary of {{ $coe['monthly_basic_salary'] }},
-            exclusive of incentives, allowances, benefits, and other compensation that may be reflected in the employee's payslip,
-            and subject to applicable deductions, taxes, and company policies.
-        </p>
+        @if($coe['show_salary'])
+            <p>
+                Based on company records, the employee receives/received a monthly basic salary of {{ $coe['monthly_basic_salary'] }},
+                exclusive of incentives, allowances, benefits, and other compensation that may be reflected in the employee's payslip,
+                and subject to applicable deductions, taxes, and company policies.
+            </p>
+        @endif
 
         <p>
             This certification is issued upon the request of the employee for {{ $coe['purpose'] }}.

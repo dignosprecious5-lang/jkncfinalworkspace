@@ -163,7 +163,6 @@
                             <img src="{{ $companyHeader['logo_url'] }}" onerror="this.style.display='none';" class="obf-logo" alt="Company Logo">
                             <p class="obf-company-name">{{ $companyHeader['company_name'] }}</p>
                             <p>{{ $companyHeader['company_address'] }}</p>
-                            <p class="obf-form-meta">Form Code: OBF-F001 · Version: 1 · Effective Date: December 1, 2025 · Issued By: Office of the President</p>
                         </div>
 
                         <div class="obf-title">

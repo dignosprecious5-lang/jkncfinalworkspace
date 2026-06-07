@@ -152,7 +152,6 @@
                             <img src="{{ $companyHeader['logo_url'] }}" onerror="this.style.display='none';" class="h-24 mx-auto mb-2 object-contain" alt="Company Logo">
                             <p class="mt-2 text-[12px] font-bold uppercase">{{ $companyHeader['company_name'] }}</p>
                             <p class="mt-1 text-[11px] font-semibold">{{ $companyHeader['company_address'] }}</p>
-                            <p class="mt-1">Form Code: <span x-text="currentModule().formCode"></span> | Version: 1.0 | Issued by: Human Capital</p>
                         </div>
 
                         <div class="bg-blue-700 text-white px-3 py-2 font-bold uppercase tracking-widest text-sm mb-3 rounded-sm" x-text="currentModule().label"></div>

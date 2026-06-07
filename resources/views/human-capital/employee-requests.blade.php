@@ -208,7 +208,6 @@
                             <img src="{{ $companyHeader['logo_url'] }}" onerror="this.style.display='none';" class="h-24 mx-auto mb-2 object-contain" alt="Company Logo">
                             <p class="mt-2 text-[12px] font-bold uppercase">{{ $companyHeader['company_name'] }}</p>
                             <p class="mt-1 text-[11px] font-semibold">{{ $companyHeader['company_address'] }}</p>
-                            <p class="mt-1">Form Code: ERF-F002 | Version: 1.0 | Effective Date: {{ now()->format('F j, Y') }} | Issued by: Human Capital</p>
                         </div>
 
                         <div class="bg-blue-700 text-white px-3 py-2 font-bold uppercase tracking-widest text-sm mb-3 rounded-sm" x-text="form.request_type || 'Employee Request'"></div>
@@ -300,7 +299,7 @@
                         to <strong x-text="coe.end_date"></strong>.
                     </p>
 
-                    <p class="mb-5 text-justify">
+                    <p class="mb-5 text-justify" x-show="coe.show_salary">
                         Based on company records, the employee receives/received a monthly basic salary of
                         <strong x-text="coe.monthly_basic_salary"></strong>, exclusive of incentives, allowances, benefits, and other
                         compensation that may be reflected in the employee's payslip, and subject to applicable deductions, taxes,
@@ -470,12 +469,18 @@
                         <div class="rounded-xl border border-gray-200 overflow-hidden" x-show="form.request_type === 'COE Request Form'">
                             <div class="px-4 py-2 bg-blue-700 text-white text-xs font-bold uppercase tracking-widest">COE Request Details</div>
                             <div class="p-4 grid grid-cols-2 gap-3">
-                                <select name="purpose" x-model="form.purpose" :disabled="isView" class="col-span-2 border rounded-lg px-3 py-2 text-sm">
+                                <select name="purpose" x-model="form.purpose" :required="form.request_type === 'COE Request Form'" :disabled="isView" class="col-span-2 border rounded-lg px-3 py-2 text-sm">
                                     <option value="">Select purpose</option>
                                     <option value="Employment Requirement">Employment Requirement</option>
                                     <option value="Loan Application">Loan Application</option>
                                     <option value="Visa / Travel">Visa / Travel</option>
                                     <option value="School Requirement">School Requirement</option>
+                                    <option value="Others">Others</option>
+                                </select>
+                                <input type="text" name="coe_purpose_other" x-model="form.coe_purpose_other" x-show="form.purpose === 'Others'" :required="form.request_type === 'COE Request Form' && form.purpose === 'Others'" :readonly="isView" placeholder="Specify purpose" class="col-span-2 border rounded-lg px-3 py-2 text-sm">
+                                <select name="coe_type" x-model="form.coe_type" :required="form.request_type === 'COE Request Form'" :disabled="isView" class="col-span-2 border rounded-lg px-3 py-2 text-sm">
+                                    <option value="Employment Only">COE - Employment Only</option>
+                                    <option value="With Compensation">COE - With Compensation</option>
                                 </select>
                                 <input type="date" name="date_needed" x-model="form.date_needed" :readonly="isView" class="border rounded-lg px-3 py-2 text-sm">
                                 <input type="number" name="number_of_copies" x-model="form.number_of_copies" min="1" :readonly="isView" placeholder="Number of Copies" class="border rounded-lg px-3 py-2 text-sm">
@@ -701,6 +706,8 @@ function employeeRequestsPage() {
                 absence_type: '',
                 time_affected: '',
                 purpose: '',
+                coe_type: 'Employment Only',
+                coe_purpose_other: '',
                 date_needed: '',
                 number_of_copies: '',
                 reason: '',

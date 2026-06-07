@@ -34,6 +34,8 @@ class EmployeeRequest extends Model
         'correct_time',
         'time_affected',
         'purpose',
+        'coe_type',
+        'coe_purpose_other',
         'date_needed',
         'number_of_copies',
         'reason',

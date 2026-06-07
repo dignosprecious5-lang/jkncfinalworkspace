@@ -166,7 +166,6 @@
                             </div>
                             <p class="mt-2 text-[11px] font-semibold">3F, Cebu Holdings Center, Cebu Business Park, Cebu City, Philippines 6000</p>
                             <p>Email: start@jknc.io | Website: https://jknc.io/ | Phone: 0995-535-8729</p>
-                            <p class="mt-1">Form Code: <span x-text="formCode"></span> | Version: 1.0 | Effective Date: {{ now()->format('F j, Y') }} | Issued by: Human Capital</p>
                         </div>
 
                         <div class="bg-blue-700 text-white px-3 py-2 font-bold uppercase tracking-widest text-sm mb-3 rounded-sm" x-text="activeTitle"></div>
