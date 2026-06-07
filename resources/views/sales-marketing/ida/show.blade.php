@@ -166,7 +166,7 @@
             <div class="flex items-start justify-between gap-4">
                 <div>
                     <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                        Sales & Marketing
+                        Incentive Management
                     </p>
 
                     <h1 class="text-2xl font-semibold text-gray-900 mt-1">
