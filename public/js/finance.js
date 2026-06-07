@@ -2034,6 +2034,7 @@
 
         form.querySelectorAll('[data-ca-schedule-field]').forEach((input) => {
             if (input.dataset.caScheduleListenerBound === '1') return;
+            const fieldName = String(input.dataset.caScheduleField || '');
 
             const refreshCashAdvanceLiveTracker = () => {
                 syncCashAdvanceReleaseMirrors(form);
@@ -2041,8 +2042,12 @@
                 renderDrawerPreview();
             };
 
-            input.addEventListener('input', refreshCashAdvanceLiveTracker);
-            input.addEventListener('change', refreshCashAdvanceLiveTracker);
+            if (fieldName === 'scheduled_remarks') {
+                input.addEventListener('change', refreshCashAdvanceLiveTracker);
+                input.addEventListener('blur', refreshCashAdvanceLiveTracker);
+            } else {
+                input.addEventListener('change', refreshCashAdvanceLiveTracker);
+            }
             input.dataset.caScheduleListenerBound = '1';
         });
     }
@@ -2191,7 +2196,7 @@
                                         <input type="number" step="0.01" min="0" name="data[release_entries][${index}][scheduled_amount]" data-ca-schedule-field="scheduled_amount" value="${escapeHtml(entry.scheduled_amount || '0.00')}" class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-right font-semibold text-blue-900" readonly>
                                     </td>
                                     <td class="border border-gray-200 px-3 py-2">
-                                        <input type="text" name="data[release_entries][${index}][scheduled_remarks]" data-ca-schedule-field="scheduled_remarks" value="${escapeHtml(entry.scheduled_remarks || '')}" class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2" placeholder="Optional note">
+                                        <textarea name="data[release_entries][${index}][scheduled_remarks]" data-ca-schedule-field="scheduled_remarks" rows="2" class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 resize-y" placeholder="Optional note">${escapeHtml(entry.scheduled_remarks || '')}</textarea>
                                     </td>
                                 </tr>
                             `).join('')}
@@ -10480,7 +10485,7 @@
     function getPrPrimaryFieldMap() {
         if (currentModuleKey === 'po') {
             return {
-                linked_item_id: 'item_id',
+                linked_item_id: 'item_record_id',
                 quantity: 'quantity',
                 unit_cost: 'amount',
                 total_amount: 'total',
@@ -10488,7 +10493,7 @@
         }
 
         return {
-            master_item_id: 'item_id',
+            master_item_id: 'item_record_id',
             description_specification: 'description',
             quantity: 'quantity',
             unit_cost: 'amount',
@@ -10826,13 +10831,15 @@
             const target = form.querySelector(`[data-pr-primary-field="${primaryField}"]`);
             const source = firstRow?.querySelector(`[data-pr-line-item-field="${rowField}"]`);
             if (target) {
-                if (primaryField === 'master_item_id' || primaryField === 'linked_item_id') {
-                    target.value = source ? resolvePrItemId(source.value) : '';
-                } else {
-                    target.value = source ? (source.value || '') : '';
-                }
+                target.value = source ? (source.value || '') : '';
             }
         });
+
+        const itemIdTarget = form.querySelector('[data-pr-primary-field="master_item_id"], [data-pr-primary-field="linked_item_id"]');
+        const itemIdSource = firstRow?.querySelector('[data-pr-line-item-field="item_record_id"]');
+        if (itemIdTarget && itemIdSource) {
+            itemIdTarget.value = itemIdSource.value || '';
+        }
 
         const typeTarget = form.querySelector('[data-pr-primary-field="master_item_type"]');
         if (typeTarget) {
@@ -16770,6 +16777,12 @@
         if (currentModuleKey === 'ca') {
             syncCashAdvanceHiddenRequestor();
             updateCashAdvanceReleaseValues();
+        }
+        if (currentModuleKey === 'pr' || currentModuleKey === 'po') {
+            syncPrPrimaryFields();
+            if (currentModuleKey === 'pr' || currentModuleKey === 'po') {
+                updatePrTotals();
+            }
         }
         if (currentModuleKey === 'lr') {
             updatePrTotals();

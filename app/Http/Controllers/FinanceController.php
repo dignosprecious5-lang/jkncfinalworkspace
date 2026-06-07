@@ -7700,7 +7700,7 @@ SVG;
                 'debit' => '',
                 'credit' => number_format($amount, 2, '.', ''),
             ] : null,
-        ], fn (array $row) => collect($row)->contains(fn ($value) => !blank($value))));
+        ], fn ($row) => is_array($row) && collect($row)->contains(fn ($value) => !blank($value))));
 
         return $this->financeNormalizeDvLineItems($lineItems, $record, $payload);
     }
