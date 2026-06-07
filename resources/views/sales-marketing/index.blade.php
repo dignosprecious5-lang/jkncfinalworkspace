@@ -24,8 +24,8 @@
                         <i class="fas fa-users"></i>
                     </div>
                     <div>
-                        <h2 class="text-lg font-semibold text-gray-900">Commission Earners</h2>
-                        <p class="text-sm text-gray-500">Master list of earners and profiles.</p>
+                        <h2 class="text-lg font-semibold text-gray-900">Incentive Earners</h2>
+                        <p class="text-sm text-gray-500">Master list of incentive earners and profiles.</p>
                     </div>
                 </div>
             </a>
