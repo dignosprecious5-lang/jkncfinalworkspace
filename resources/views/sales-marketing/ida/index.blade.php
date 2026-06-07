@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Sales & Marketing | IDA Records')
+@section('title', 'Incentive Management | IDA Records')
 
 @section('content')
 <div class="flex-1 overflow-y-auto p-6" x-data="idaPage()">
