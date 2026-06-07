@@ -4081,11 +4081,17 @@
         const actualExpenses = lineItemsTotal > 0
             ? lineItemsTotal
             : numericAmount(data.actual_expenses || data.grand_total || totalCashAdvance || 0);
-        const effectiveActualExpenses = lineItemsTotal <= 0 && actualExpenses <= 0 && totalCashAdvance > 0
+        const storedVarianceIndicator = String(data.variance_indicator || '').trim();
+        const effectiveActualExpenses = lineItemsTotal <= 0
+            && actualExpenses <= 0
+            && totalCashAdvance > 0
+            && !['Overage', 'Shortage'].includes(storedVarianceIndicator)
             ? totalCashAdvance
             : actualExpenses;
         const variance = totalCashAdvance - effectiveActualExpenses;
-        const indicator = variance > 0 ? 'Overage' : (variance < 0 ? 'Shortage' : 'Balanced');
+        const indicator = ['Overage', 'Shortage', 'Balanced'].includes(storedVarianceIndicator)
+            ? storedVarianceIndicator
+            : (variance > 0 ? 'Overage' : (variance < 0 ? 'Shortage' : 'Balanced'));
 
         return {
             linkedCaRecord,
@@ -15916,17 +15922,32 @@
     }
 
     function renderFinanceProgressTracker(record) {
-        const isApprovedRecord = (candidate) => Boolean(candidate && (candidate.workflow_status === 'Accepted' || candidate.approval_status === 'Approved'));
+        const isApprovedRecord = (candidate) => {
+            if (!candidate) return false;
+            if (candidate.workflow_status === 'Accepted' || candidate.approval_status === 'Approved') return true;
+            const requiredCount = parseInt(candidate?.data?.approval_required_count || candidate?.approval_required_count || '0', 10) || 0;
+            const completedCount = parseInt(candidate?.data?.approval_completed_count || candidate?.approval_completed_count || '0', 10) || 0;
+            return String(candidate.workflow_status || '').trim().toLowerCase() === 'archived'
+                && requiredCount > 0
+                && completedCount >= requiredCount;
+        };
+        const data = record?.data || {};
         let steps = Array.isArray(record?.data?.transaction_progress) ? record.data.transaction_progress : [];
         let relationshipStatus = record?.relationship_status || record?.data?.relationship_status || 'In Progress';
 
         if (record?.module_key === 'crf') {
-            const submitted = Boolean(record?.submitted_at || record?.data?.submitted_at || isApprovedRecord(record));
+            const linkedLrId = record?.linked_lr_id || data.linked_lr_id || '';
+            const linkedLrRecord = linkedLrId ? getRecordById(linkedLrId) : null;
+            const linkedLrApproved = Boolean(linkedLrRecord && (linkedLrRecord.workflow_status === 'Accepted' || linkedLrRecord.approval_status === 'Approved'));
+            const submitted = Boolean(record?.submitted_at || data.submitted_at || isApprovedRecord(record));
             const approved = isApprovedRecord(record);
-            const completed = approved;
+            const completed = linkedLrApproved && approved;
 
-            relationshipStatus = record?.relationship_status || record?.data?.relationship_status || (approved ? 'Completed' : (submitted ? 'Submitted' : 'Draft'));
+            relationshipStatus = record?.relationship_status || data.relationship_status || (!linkedLrApproved
+                ? 'Awaiting Linked LR Approval'
+                : (approved ? 'Completed' : (submitted ? 'Submitted' : 'Draft')));
             steps = [
+                { label: 'Linked LR Approved', completed: linkedLrApproved },
                 { label: 'CRF Submitted', completed: submitted },
                 { label: 'CRF Approved', completed: approved },
                 { label: 'Transaction Completed', completed: completed },
@@ -15941,10 +15962,18 @@
             const actualExpenses = lineItemsTotal > 0
                 ? lineItemsTotal
                 : numericAmount(data.actual_expenses || data.grand_total || caAmount || 0);
-            const effectiveActualExpenses = lineItemsTotal <= 0 && actualExpenses <= 0 && caAmount > 0 ? caAmount : actualExpenses;
+            const storedVarianceIndicator = String(data.variance_indicator || '').trim();
+            const effectiveActualExpenses = lineItemsTotal <= 0
+                && actualExpenses <= 0
+                && caAmount > 0
+                && !['Overage', 'Shortage'].includes(storedVarianceIndicator)
+                ? caAmount
+                : actualExpenses;
             const variance = caAmount - effectiveActualExpenses;
-            const varianceIndicator = variance > 0 ? 'Overage' : (variance < 0 ? 'Shortage' : 'Balanced');
-            const cashReturnRequired = varianceIndicator === 'Overage';
+            const varianceIndicator = ['Overage', 'Shortage', 'Balanced'].includes(storedVarianceIndicator)
+                ? storedVarianceIndicator
+                : (variance > 0 ? 'Overage' : (variance < 0 ? 'Shortage' : 'Balanced'));
+            const crfRequired = varianceIndicator === 'Overage';
             const errRequired = varianceIndicator === 'Shortage';
             const linkedCrfId = record?.linked_crf_id || data?.linked_crf_id || '';
             const linkedErrId = record?.linked_err_id || data?.linked_err_id || '';
@@ -15952,19 +15981,19 @@
             const linkedErrRecord = linkedErrId ? getRecordById(linkedErrId) : null;
             const submitted = Boolean(record?.submitted_at || data?.submitted_at || isApprovedRecord(record));
             const approved = isApprovedRecord(record);
-            const cashReturnCreated = cashReturnRequired ? Boolean(linkedCrfRecord) : false;
-            const cashReturnApproved = cashReturnRequired ? isApprovedRecord(linkedCrfRecord) : false;
+            const crfCreated = crfRequired ? Boolean(linkedCrfRecord) : false;
+            const crfApproved = crfRequired ? isApprovedRecord(linkedCrfRecord) : false;
             const errCreated = errRequired ? Boolean(linkedErrRecord) : false;
             const errApproved = errRequired ? isApprovedRecord(linkedErrRecord) : false;
-            const completed = approved && (!cashReturnRequired || cashReturnApproved) && (!errRequired || errApproved);
-            relationshipStatus = record?.relationship_status || record?.data?.relationship_status || (cashReturnRequired ? 'Awaiting Cash Return' : (errRequired ? 'Awaiting ERR' : (approved ? 'Completed' : 'Draft')));
+            const completed = approved && (!crfRequired || crfApproved) && (!errRequired || errApproved);
+            relationshipStatus = record?.relationship_status || record?.data?.relationship_status || (crfRequired ? 'Awaiting CRF' : (errRequired ? 'Awaiting ERR' : (approved ? 'Completed' : 'Draft')));
 
             steps = [
                 { label: 'Liquidation Report Submitted', completed: submitted },
                 { label: 'Liquidation Report Approved', completed: approved },
-                ...(cashReturnRequired ? [
-                    { label: 'Cash Return Created', completed: cashReturnCreated },
-                    { label: 'Cash Return Approved', completed: cashReturnApproved },
+                ...(crfRequired ? [
+                    { label: 'CRF Created', completed: crfCreated },
+                    { label: 'CRF Approved', completed: crfApproved },
                 ] : errRequired ? [
                     { label: 'ERR Created', completed: errCreated },
                     { label: 'ERR Approved', completed: errApproved },
@@ -15997,6 +16026,45 @@
                         `;
                     }).join('')}
                 </div>
+                ${record?.module_key === 'lr' ? (() => {
+                    const caAmount = numericAmount(data.total_cash_advance || data.amount_requested || record?.amount || 0);
+                    const lineItems = Array.isArray(data.line_items) ? data.line_items.filter((item) => item && Object.values(item).some((value) => String(value ?? '').trim() !== '')) : [];
+                    const lineItemsTotal = lineItems.reduce((sum, item) => sum + getLiquidationLineItemTotal(item), 0);
+                    const actualExpenses = lineItemsTotal > 0
+                        ? lineItemsTotal
+                        : numericAmount(data.actual_expenses || data.grand_total || caAmount || 0);
+                    const storedVarianceIndicator = String(data.variance_indicator || '').trim();
+                    const effectiveActualExpenses = lineItemsTotal <= 0
+                        && actualExpenses <= 0
+                        && caAmount > 0
+                        && !['Overage', 'Shortage'].includes(storedVarianceIndicator)
+                        ? caAmount
+                        : actualExpenses;
+                    const variance = caAmount - effectiveActualExpenses;
+                    const varianceIndicator = ['Overage', 'Shortage', 'Balanced'].includes(storedVarianceIndicator)
+                        ? storedVarianceIndicator
+                        : (variance > 0 ? 'Overage' : (variance < 0 ? 'Shortage' : 'Balanced'));
+                    const lrApproved = isApprovedRecord(record);
+                    const crfRecord = Array.isArray(financeRecords)
+                        ? financeRecords.find((candidate) => String(candidate?.module_key || '').toLowerCase() === 'crf' && String(candidate?.data?.linked_lr_id || '').trim() === String(record.id))
+                        : null;
+                    const crfApproved = isApprovedRecord(crfRecord);
+
+                    if (varianceIndicator === 'Overage' && lrApproved && !crfApproved) {
+                        return `
+                            <div class="mt-4 rounded-xl border border-emerald-200 bg-emerald-50/60 p-4">
+                                <div class="flex flex-wrap items-center justify-between gap-3">
+                                    <div>
+                                        <p class="text-[11px] uppercase tracking-[0.22em] text-emerald-700">Cash Return</p>
+                                        <p class="mt-1 text-sm font-medium text-gray-900">${crfRecord ? 'Cash Return created. It still needs approval.' : 'This overage can now create a Cash Return Form.'}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    }
+
+                    return '';
+                })() : ''}
             </div>
         `;
     }
@@ -16207,6 +16275,18 @@
         const workflowStatus = String(record?.workflow_status || '').trim().toLowerCase();
         const relationshipStatus = String(record?.data?.relationship_status || record?.relationship_status || '').trim().toLowerCase();
         const nextAction = String(record?.data?.next_action || record?.next_action || '').trim().toLowerCase();
+        const isApprovedLifecycleRecord = (candidate) => {
+            if (!candidate) return false;
+            if (['approved', 'accepted'].includes(String(candidate.workflow_status || '').trim().toLowerCase())
+                || String(candidate.approval_status || '').trim().toLowerCase() === 'approved') {
+                return true;
+            }
+            const requiredCount = parseInt(candidate?.data?.approval_required_count || candidate?.approval_required_count || '0', 10) || 0;
+            const completedCount = parseInt(candidate?.data?.approval_completed_count || candidate?.approval_completed_count || '0', 10) || 0;
+            return String(candidate.workflow_status || '').trim().toLowerCase() === 'archived'
+                && requiredCount > 0
+                && completedCount >= requiredCount;
+        };
         const isFinalWorkflow = ['completed', 'paid', 'disbursed', 'liquidated', 'closed'].includes(workflowStatus)
             || ['completed', 'paid', 'disbursed', 'liquidated', 'closed'].includes(relationshipStatus);
         const isApprovedWorkflow = ['approved', 'accepted'].includes(workflowStatus);
@@ -16303,26 +16383,45 @@
             }
         }
 
-        if (record.module_key === 'lr' && !isFinalWorkflow) {
+        if (record.module_key === 'lr') {
             const data = record.data || {};
-            const lrApproved = ['Accepted'].includes(String(record.workflow_status || '').trim())
-                || ['Approved'].includes(String(record.approval_status || '').trim());
+            const lrApproved = isApprovedLifecycleRecord(record);
             const caAmount = numericAmount(data.total_cash_advance || data.amount_requested || record.amount || 0);
             const lineItems = Array.isArray(data.line_items) ? data.line_items.filter((item) => item && Object.values(item).some((value) => String(value ?? '').trim() !== '')) : [];
             const lineItemsTotal = lineItems.reduce((sum, item) => sum + getLiquidationLineItemTotal(item), 0);
             const actualExpenses = lineItemsTotal > 0
                 ? lineItemsTotal
                 : numericAmount(data.actual_expenses || data.grand_total || caAmount || 0);
-            const effectiveActualExpenses = lineItemsTotal <= 0 && actualExpenses <= 0 && caAmount > 0 ? caAmount : actualExpenses;
+            const storedVarianceIndicator = String(data.variance_indicator || '').trim();
+            const effectiveActualExpenses = lineItemsTotal <= 0
+                && actualExpenses <= 0
+                && caAmount > 0
+                && !['Overage', 'Shortage'].includes(storedVarianceIndicator)
+                ? caAmount
+                : actualExpenses;
             const variance = caAmount - effectiveActualExpenses;
-            const varianceIndicator = variance > 0 ? 'Overage' : (variance < 0 ? 'Shortage' : 'Balanced');
+            const varianceIndicator = ['Overage', 'Shortage', 'Balanced'].includes(storedVarianceIndicator)
+                ? storedVarianceIndicator
+                : (variance > 0 ? 'Overage' : (variance < 0 ? 'Shortage' : 'Balanced'));
+            const linkedCrfRecord = data.linked_crf_id
+                ? (getRecordById(data.linked_crf_id) || getRecordByLookupValue('crf', data.linked_crf_id))
+                : (Array.isArray(financeRecords)
+                    ? financeRecords.find((candidate) => String(candidate?.module_key || '').toLowerCase() === 'crf' && String(candidate?.data?.linked_lr_id || '').trim() === String(record.id))
+                    : null);
+            const lrLifecycleComplete = lrApproved
+                || isFinalWorkflow
+                || ['completed', 'approved', 'accepted'].includes(relationshipStatus);
 
             if (
-                lrApproved
+                lrLifecycleComplete
                 && (varianceIndicator === 'Shortage' || varianceIndicator === 'Overage')
                 && canCreateFinanceModule(varianceIndicator === 'Shortage' ? 'err' : 'crf')
             ) {
-                actions.push(`<button type="button" onclick="window.financeModule.openPreviewLiquidationBranch(${record.id})" class="w-full bg-indigo-600 text-white rounded-md py-2 hover:bg-indigo-700">${varianceIndicator === 'Shortage' ? 'Create ERR' : 'Create CRF'}</button>`);
+                if (varianceIndicator === 'Overage' && linkedCrfRecord) {
+                    actions.push(`<button type="button" onclick="window.financeModule.openPreview(${linkedCrfRecord.id})" class="w-full bg-indigo-600 text-white rounded-md py-2 hover:bg-indigo-700">Open CRF</button>`);
+                } else {
+                    actions.push(`<button type="button" onclick="window.financeModule.openPreviewLiquidationBranch(${record.id})" class="w-full bg-indigo-600 text-white rounded-md py-2 hover:bg-indigo-700">${varianceIndicator === 'Shortage' ? 'Create ERR' : 'Create CRF'}</button>`);
+                }
             }
         }
 
@@ -16980,44 +17079,53 @@
         }
         if (currentModuleKey === 'crf') {
             const amountReturnedValue = String(
-                financeFormValues['data[amount_returned]']
-                || financeFormValues.amount_returned
+                formData.get('data[amount_returned]')
                 || form.querySelector('input[name="data[amount_returned]"]')?.value
+                || financeFormValues['data[amount_returned]']
+                || financeFormValues.amount_returned
                 || ''
             ).trim();
             const modeOfReturnValue = String(
-                financeFormValues['data[mode_of_return]']
-                || financeFormValues.mode_of_return
+                formData.get('data[mode_of_return]')
                 || form.querySelector('[name="data[mode_of_return]"]')?.value
+                || financeFormValues['data[mode_of_return]']
+                || financeFormValues.mode_of_return
                 || ''
             ).trim();
             const cashReceiverValue = String(
-                financeFormValues['data[cash_receiver_name]']
-                || financeFormValues.cash_receiver_name
+                formData.get('data[cash_receiver_name]')
                 || form.querySelector('[name="data[cash_receiver_name]"]')?.value
+                || financeFormValues['data[cash_receiver_name]']
+                || financeFormValues.cash_receiver_name
                 || ''
             ).trim();
             const recipientBankAccountValue = String(
-                financeFormValues['data[recipient_bank_account]']
-                || financeFormValues.recipient_bank_account
+                formData.get('data[recipient_bank_account]')
                 || form.querySelector('[name="data[recipient_bank_account]"]')?.value
+                || financeFormValues['data[recipient_bank_account]']
+                || financeFormValues.recipient_bank_account
                 || ''
             ).trim();
             const recipientBankNumberValue = String(
-                financeFormValues['data[recipient_bank_number]']
-                || financeFormValues.recipient_bank_number
+                formData.get('data[recipient_bank_number]')
                 || form.querySelector('[name="data[recipient_bank_number]"]')?.value
+                || financeFormValues['data[recipient_bank_number]']
+                || financeFormValues.recipient_bank_number
                 || ''
             ).trim();
             const coaValue = String(
-                financeFormValues['data[coa_id]']
-                || financeFormValues.coa_id
+                formData.get('data[coa_id]')
                 || form.querySelector('[name="data[coa_id]"]')?.value
+                || financeFormValues['data[coa_id]']
+                || financeFormValues.coa_id
                 || ''
             ).trim();
 
             if (amountReturnedValue) {
                 formData.set('data[amount_returned]', amountReturnedValue);
+            }
+            if (modeOfReturnValue) {
+                formData.set('data[mode_of_return]', modeOfReturnValue);
             }
 
             if (modeOfReturnValue === 'Cash') {
