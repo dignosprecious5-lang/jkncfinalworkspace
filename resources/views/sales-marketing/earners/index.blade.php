@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Sales & Marketing | Commission Earners')
+@section('title', 'Incentive Management | Commission Earners')
 
 @section('content')
 <div class="flex-1 overflow-y-auto p-6" x-data="earnersPage()">

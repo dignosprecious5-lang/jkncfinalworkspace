@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Sales & Marketing | Earner Profile')
+@section('title', 'Incentive Management | Earner Profile')
 
 @section('content')
 @php

@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Sales & Marketing | IDA Sheet Preview')
+@section('title', 'Incentive Management | IDA Sheet Preview')
 
 @section('content')
 @php

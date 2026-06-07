@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Sales & Marketing')
+@section('title', 'Incentive Management')
 
 @section('content')
 <div class="flex-1 overflow-y-auto p-6">
@@ -8,7 +8,7 @@
         <div class="bg-white border border-gray-200 rounded-2xl p-6">
             <div class="flex items-start justify-between gap-4">
                 <div>
-                    <h1 class="text-2xl font-semibold text-gray-900">Sales & Marketing</h1>
+                    <h1 class="text-2xl font-semibold text-gray-900">Incentive Management</h1>
                     <p class="text-sm text-gray-500 mt-1">
                         Manage commission earners, IDA records, and future Sales & Marketing workflows.
                     </p>

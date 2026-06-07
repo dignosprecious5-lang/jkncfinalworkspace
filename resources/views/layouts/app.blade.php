@@ -408,7 +408,7 @@
             @if(Auth::user()->hasPermission('access_sales_marketing') && \Illuminate\Support\Facades\Route::has('sales-marketing.index'))
                 <a href="{{ route('sales-marketing.index') }}"
                    class="block rounded-lg px-3 py-2 transition {{ request()->routeIs('sales-marketing*') ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900' }}">
-                    Sales & Marketing
+                    Incentive Management
                 </a>
             @endif
         </div>
@@ -996,7 +996,7 @@
         )
             <aside class="w-72 bg-white border-r border-gray-200 flex flex-col">
                 <div class="px-4 py-3 border-b border-gray-100">
-                    <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Sales & Marketing</p>
+                    <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Incentive Management</p>
                 </div>
 
                 <div class="flex-1 overflow-y-auto p-3">
