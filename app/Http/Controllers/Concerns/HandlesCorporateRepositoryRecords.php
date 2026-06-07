@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 
 trait HandlesCorporateRepositoryRecords
 {
@@ -194,7 +195,10 @@ trait HandlesCorporateRepositoryRecords
                     return false;
                 }
 
-                return $user->hasPermission('approve_corporate');
+                $role = trim((string) ($user->role ?? ''));
+
+                return $user->hasPermission('approve_corporate')
+                    || in_array(Str::lower($role), ['admin', 'corporate admin'], true);
             })
             ->values();
 
