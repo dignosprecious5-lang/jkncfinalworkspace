@@ -1786,6 +1786,7 @@
     let currentPreviewPdfGeneration = 0;
     let currentPreviewRefreshTimer = null;
     let currentPreviewRefreshSignature = '';
+    let financeLineItemReceiptFiles = {};
     let currentEditRecordId = null;
     let financeFormLockedReadOnly = false;
     let activeLookupSelector = null;
@@ -7476,6 +7477,7 @@
     function replaceCurrentLineItemSection(rows = []) {
         if (!isLineItemModule()) return;
 
+        syncLineItemReceiptFileCacheFromDom();
         const section = document.querySelector('[data-pr-line-items-section]');
         if (!section) return;
 
@@ -10802,13 +10804,20 @@
 
             receiptInput.addEventListener('change', () => {
                 const file = receiptInput.files?.[0] || null;
+                const rowIndex = String(row.getAttribute('data-row-index') || '').trim();
                 if (file) {
+                    if (rowIndex) {
+                        financeLineItemReceiptFiles[rowIndex] = file;
+                    }
                     if (receiptNameInput) receiptNameInput.value = file.name || '';
                     if (receiptPathInput) receiptPathInput.value = '';
                     if (receiptMimeInput) receiptMimeInput.value = file.type || '';
                     if (receiptSizeInput) receiptSizeInput.value = String(file.size || '');
                     if (receiptLabel) receiptLabel.textContent = `Attached: ${file.name || 'Receipt file'}`;
                 } else {
+                    if (rowIndex) {
+                        delete financeLineItemReceiptFiles[rowIndex];
+                    }
                     if (receiptNameInput) receiptNameInput.value = '';
                     if (receiptPathInput) receiptPathInput.value = '';
                     if (receiptMimeInput) receiptMimeInput.value = '';
@@ -10883,6 +10892,7 @@
     function addPrLineItemRow() {
         if (!isLineItemModule()) return;
 
+        syncLineItemReceiptFileCacheFromDom();
         const tbody = $('prLineItemsBody');
         if (!tbody) return;
 
@@ -10957,7 +10967,13 @@
         const tbody = $('prLineItemsBody');
         if (!row || !tbody) return;
 
+        syncLineItemReceiptFileCacheFromDom();
+
         if (tbody.querySelectorAll('[data-pr-line-item-row]').length <= 1) {
+            const rowIndex = String(row.getAttribute('data-row-index') || '').trim();
+            if (rowIndex) {
+                delete financeLineItemReceiptFiles[rowIndex];
+            }
             row.querySelectorAll('input, select').forEach((input) => {
                 input.value = '';
             });
@@ -10965,8 +10981,11 @@
             return;
         }
 
+        const previousFiles = { ...financeLineItemReceiptFiles };
         row.remove();
+        const nextFiles = {};
         Array.from(tbody.querySelectorAll('[data-pr-line-item-row]')).forEach((tr, index) => {
+            const previousIndex = String(tr.getAttribute('data-row-index') || '').trim();
             tr.setAttribute('data-row-index', String(index));
             const badge = tr.querySelector('.inline-flex.h-8.w-8');
             if (badge) {
@@ -10980,8 +10999,12 @@
                 const name = input.getAttribute('name');
                 input.setAttribute('name', name.replace(/data\[line_items\]\[\d+\]/, `data[line_items][${index}]`));
             });
+            if (previousIndex && previousFiles[previousIndex]) {
+                nextFiles[String(index)] = previousFiles[previousIndex];
+            }
             bindPurchaseRequestLineItemRow(tr);
         });
+        financeLineItemReceiptFiles = nextFiles;
         updatePrTotals();
     }
 
@@ -14876,7 +14899,36 @@
     }
 
     function normalizeAttachmentUrl(path) {
-        return `/${String(path || '').replace(/^\//, '')}`;
+        const normalizedPath = String(path || '').trim().replace(/^\//, '');
+        return normalizedPath ? `/${normalizedPath}` : '';
+    }
+
+    function syncLineItemReceiptFileCacheFromDom() {
+        const nextFiles = {};
+        document.querySelectorAll('[data-pr-line-item-row]').forEach((row) => {
+            const rowIndex = String(row.getAttribute('data-row-index') || '').trim();
+            if (!rowIndex) return;
+
+            const input = row.querySelector('[data-pr-line-item-field="receipt_attachment_file"]');
+            const file = input?.files?.[0] || financeLineItemReceiptFiles[rowIndex] || null;
+            if (file) {
+                nextFiles[rowIndex] = file;
+            }
+        });
+        financeLineItemReceiptFiles = nextFiles;
+    }
+
+    function resolvePreviewAttachmentUrl(record, fallbackUrl = '') {
+        const targetUrl = String(fallbackUrl || currentPreviewAttachmentUrl || '').trim();
+        if (!targetUrl) return '';
+
+        const attachments = financeAttachmentEntries(record);
+        const matched = attachments.find((attachment) => {
+            const candidateUrl = String(attachment?.url || normalizeAttachmentUrl(attachment?.path || '') || '').trim();
+            return candidateUrl && candidateUrl === targetUrl;
+        });
+
+        return matched ? targetUrl : '';
     }
 
     function revokeCurrentPreviewPdfObjectUrl() {
@@ -14904,6 +14956,13 @@
         currentPreviewRecord = record;
         currentPreviewRefreshSignature = buildPreviewRefreshSignature(record);
         $('previewModuleTitle').textContent = record.module_label;
+        const validAttachmentUrl = resolvePreviewAttachmentUrl(record);
+        if (validAttachmentUrl) {
+            currentPreviewAttachmentUrl = validAttachmentUrl;
+        } else {
+            currentPreviewAttachmentUrl = '';
+            revokeCurrentPreviewAttachmentObjectUrl();
+        }
         if (currentPreviewTab !== 'attachments' || !currentPreviewAttachmentUrl) {
             revokeCurrentPreviewAttachmentObjectUrl();
         }
@@ -15784,15 +15843,16 @@
 
     function renderPreviewDocument(record) {
         const templateMode = currentPreviewTab === 'template';
-        const attachmentMode = Boolean(currentPreviewAttachmentUrl);
+        const validAttachmentUrl = resolvePreviewAttachmentUrl(record);
+        const attachmentMode = Boolean(currentPreviewAttachmentObjectUrl || validAttachmentUrl);
         const attachmentName = templateMode
             ? 'Template PDF'
-            : (currentPreviewAttachmentUrl
-            ? (record.attachments || []).find((attachment) => (attachment.url || normalizeAttachmentUrl(attachment.path || '')) === currentPreviewAttachmentUrl)?.name || 'Attached PDF'
+            : (validAttachmentUrl
+            ? financeAttachmentEntries(record).find((attachment) => (attachment.url || normalizeAttachmentUrl(attachment.path || '')) === validAttachmentUrl)?.name || 'Attached PDF'
             : 'Finance Preview PDF');
         const holderLabel = templateMode ? 'Template PDF' : (attachmentMode ? 'Attachment PDF' : 'Finance PDF');
         const previewCacheKey = encodeURIComponent(buildPreviewRefreshSignature(record) || record.id);
-        const attachmentPreviewUrl = currentPreviewAttachmentObjectUrl || currentPreviewAttachmentUrl;
+        const attachmentPreviewUrl = currentPreviewAttachmentObjectUrl || validAttachmentUrl;
         const previewUrl = templateMode
             ? `/finance/${record.id}/preview-pdf?template=1&t=${previewCacheKey}`
             : (attachmentPreviewUrl
@@ -16113,13 +16173,17 @@
         currentPreviewTab = ['attachments', 'template'].includes(tab) ? tab : 'details';
         if (currentPreviewRecord) {
             if (currentPreviewTab === 'attachments') {
-                const firstPdf = (currentPreviewRecord.attachments || []).find((attachment) => {
+                const firstPdf = financeAttachmentEntries(currentPreviewRecord).find((attachment) => {
                     const name = String(attachment.name || attachment.path || '').toLowerCase();
                     const mime = String(attachment.mime || '').toLowerCase();
-                    return name.endsWith('.pdf') || mime.includes('pdf');
+                    const url = String(attachment.url || normalizeAttachmentUrl(attachment.path || '') || '').trim();
+                    return url && (name.endsWith('.pdf') || mime.includes('pdf'));
                 });
                 currentPreviewAttachmentUrl = firstPdf ? (firstPdf.url || normalizeAttachmentUrl(firstPdf.path || '')) : '';
                 currentPreviewAttachmentToken = 0;
+                if (!currentPreviewAttachmentUrl) {
+                    revokeCurrentPreviewAttachmentObjectUrl();
+                }
             } else {
                 currentPreviewAttachmentToken = (currentPreviewAttachmentToken || 0) + 1;
                 currentPreviewAttachmentUrl = '';
@@ -16839,6 +16903,19 @@
             if (varianceIndicatorInput) varianceIndicatorInput.value = varianceIndicator;
         }
         const formData = new FormData(form);
+
+        if (currentModuleKey === 'lr') {
+            syncLineItemReceiptFileCacheFromDom();
+            document.querySelectorAll('[data-pr-line-item-row]').forEach((row, index) => {
+                const input = row.querySelector('[data-pr-line-item-field="receipt_attachment_file"]');
+                const file = input?.files?.[0] || financeLineItemReceiptFiles[String(index)] || null;
+                formData.delete(`line_item_receipts[${index}]`);
+                if (file) {
+                    formData.append(`line_item_receipts[${index}]`, file, file.name || `receipt-${index + 1}`);
+                }
+            });
+        }
+
         const token = currentCsrfToken();
         const moduleConfig = getModuleConfig(currentModuleKey);
         const currentRecord = currentEditRecordId ? getRecordById(currentEditRecordId) : null;
