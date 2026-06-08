@@ -721,13 +721,10 @@
                                     </div>
                                 </div>
                                 <div class="mt-5 rounded-2xl border border-slate-200 bg-slate-50 overflow-hidden">
-                                    @if($activeMinutesPdfUrl)
-                                        <iframe id="minutes-template-pdf-frame" src="{{ $activeMinutesPdfUrl }}" class="h-[720px] w-full bg-white"></iframe>
-                                        <div id="minutes-template-pdf-empty" class="hidden px-6 py-10 text-sm text-slate-500">The PDF preview will appear here after the final preview is generated.</div>
-                                    @else
-                                        <iframe id="minutes-template-pdf-frame" src="" class="hidden h-[720px] w-full bg-white"></iframe>
-                                        <div id="minutes-template-pdf-empty" class="px-6 py-10 text-sm text-slate-500">The PDF preview will appear here after the final preview is generated.</div>
-                                    @endif
+                                    <iframe id="minutes-template-pdf-frame" src="" class="hidden h-[720px] w-full bg-white"></iframe>
+                                    <div id="minutes-template-pdf-empty" class="px-6 py-10 text-sm text-slate-500">
+                                        PDF preview is not loaded automatically to prevent server overload. Use “Download Draft PDF” when you need the PDF copy.
+                                    </div>
                                 </div>
                             </div>
                             <div class="rounded-xl border border-slate-200 bg-white p-5">
@@ -861,18 +858,13 @@
             return;
         }
 
-        if (!url) {
-            templatePdfFrame.classList.add('hidden');
-            templatePdfFrame.removeAttribute('src');
-            templatePdfEmpty.classList.remove('hidden');
-            return;
-        }
-
-        const cacheBustedUrl = url + (url.includes('?') ? '&' : '?') + '_=' + Date.now();
-        templatePdfFrame.src = cacheBustedUrl;
-        templatePdfFrame.classList.remove('hidden');
-        templatePdfEmpty.classList.add('hidden');
+        // Performance fix: do not auto-load the PDF iframe.
+        // The PDF route generates DomPDF output, so it should only run when the user clicks Download.
+        templatePdfFrame.classList.add('hidden');
+        templatePdfFrame.removeAttribute('src');
+        templatePdfEmpty.classList.remove('hidden');
     };
+
 
     if (editor) {
         editor.addEventListener('focus', () => { activeMinutesEditor = editor; });
@@ -2264,13 +2256,15 @@
                     pdfButton.classList.remove('pointer-events-none', 'opacity-50');
                 }
 
-                if (pdfFrame && stampedPreviewUrl) {
-                    pdfFrame.src = stampedPreviewUrl;
-                    pdfFrame.classList.remove('hidden');
+                // Performance fix: do not auto-load the PDF iframe after saving.
+                // Keep it hidden so PDF generation only happens when downloading.
+                if (pdfFrame) {
+                    pdfFrame.classList.add('hidden');
+                    pdfFrame.removeAttribute('src');
                 }
 
-                if (pdfEmpty && stampedPreviewUrl) {
-                    pdfEmpty.classList.add('hidden');
+                if (pdfEmpty) {
+                    pdfEmpty.classList.remove('hidden');
                 }
 
                 setStatus('Saved successfully. Preview and PDF are updated.', 'emerald');
