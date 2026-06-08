@@ -73,6 +73,7 @@ class EmployeeRequestController extends Controller
     {
         $request->validate([
             'request_type' => 'required|string|max:255',
+            'request_type_other' => 'required_if:request_type,Other|nullable|string|max:255',
             'employee_id' => ($this->canManageRequests() ? 'required' : 'nullable').'|nullable|exists:employees,id',
             'purpose' => 'required_if:request_type,COE Request Form|nullable|string|max:255',
             'coe_type' => 'required_if:request_type,COE Request Form|nullable|string|in:Employment Only,With Compensation',
@@ -85,6 +86,7 @@ class EmployeeRequestController extends Controller
 
         $attachmentPayload = $this->attachmentPayload($request);
         $coePayload = $this->coeColumnPayload($request);
+        $otherRequestPayload = $this->otherRequestTypePayload($request);
 
         try {
             $employeeRequest = EmployeeRequest::create([
@@ -131,7 +133,7 @@ class EmployeeRequestController extends Controller
 
                 // Default status
                 'status' => 'Pending',
-            ] + $coePayload + $attachmentPayload);
+            ] + $otherRequestPayload + $coePayload + $attachmentPayload);
         } catch (\Throwable $exception) {
             $this->deleteStoredAttachment($attachmentPayload);
 
@@ -140,7 +142,7 @@ class EmployeeRequestController extends Controller
 
         $this->notifyAdmins(
             title: 'New employee request submitted',
-            message: $employeeRequest->employee_name . ' submitted a ' . $employeeRequest->request_type . ' request.',
+            message: $employeeRequest->employee_name . ' submitted a ' . $this->displayRequestType($employeeRequest) . ' request.',
             url: route('admin.human-capital.dashboard')
         );
 
@@ -157,6 +159,8 @@ class EmployeeRequestController extends Controller
 
         $request->validate([
             'department' => 'nullable|string|max:255',
+            'request_type' => 'nullable|string|max:255',
+            'request_type_other' => 'required_if:request_type,Other|nullable|string|max:255',
             'request_date' => 'nullable|date',
             'overtime_date' => 'nullable|date',
             'start_time' => 'nullable',
@@ -187,10 +191,12 @@ class EmployeeRequestController extends Controller
         $oldAttachmentPath = $employeeRequest->attachment_path;
         $attachmentPayload = $this->attachmentPayload($request, $employeeRequest);
         $coePayload = $this->coeColumnPayload($request);
+        $otherRequestPayload = $this->otherRequestTypePayload($request);
 
         try {
             $employeeRequest->update([
                 'department' => $employee?->department?->department_name,
+                'request_type' => $request->request_type ?: $employeeRequest->request_type,
                 'request_date' => $request->request_date,
 
                 'overtime_date' => $request->overtime_date,
@@ -222,7 +228,7 @@ class EmployeeRequestController extends Controller
                 'admin_note' => null,
                 'reviewed_by' => null,
                 'reviewed_at' => null,
-            ] + $coePayload + $attachmentPayload);
+            ] + $otherRequestPayload + $coePayload + $attachmentPayload);
         } catch (\Throwable $exception) {
             $this->deleteStoredAttachment($attachmentPayload);
 
@@ -233,7 +239,7 @@ class EmployeeRequestController extends Controller
 
         $this->notifyAdmins(
             title: 'Employee request revision submitted',
-            message: $employeeRequest->employee_name . ' resubmitted a revised ' . $employeeRequest->request_type . ' request.',
+            message: $employeeRequest->employee_name . ' resubmitted a revised ' . $this->displayRequestType($employeeRequest) . ' request.',
             url: route('admin.human-capital.dashboard')
         );
 
@@ -260,7 +266,7 @@ class EmployeeRequestController extends Controller
         $this->notifyEmployee(
             $employeeRequest,
             title: 'Employee request approved',
-            message: 'Your ' . $employeeRequest->request_type . ' request has been approved.',
+            message: 'Your ' . $this->displayRequestType($employeeRequest) . ' request has been approved.',
             url: route('human-capital.employee-requests.index')
         );
 
@@ -291,6 +297,7 @@ class EmployeeRequestController extends Controller
 
         $request->validate([
             'request_type' => 'required|string|max:255',
+            'request_type_other' => 'required_if:request_type,Other|nullable|string|max:255',
             'employee_id' => 'required|exists:employees,id',
             'department' => 'nullable|string|max:255',
             'request_date' => 'nullable|date',
@@ -326,6 +333,7 @@ class EmployeeRequestController extends Controller
         $oldAttachmentPath = $employeeRequest->attachment_path;
         $attachmentPayload = $this->attachmentPayload($request, $employeeRequest);
         $coePayload = $this->coeColumnPayload($request);
+        $otherRequestPayload = $this->otherRequestTypePayload($request);
 
         try {
             $employeeRequest->update([
@@ -355,7 +363,7 @@ class EmployeeRequestController extends Controller
                 'remarks' => $request->remarks,
                 'status' => $request->status,
                 'admin_note' => $request->admin_note,
-            ] + $coePayload + $attachmentPayload);
+            ] + $otherRequestPayload + $coePayload + $attachmentPayload);
         } catch (\Throwable $exception) {
             $this->deleteStoredAttachment($attachmentPayload);
 
@@ -387,7 +395,7 @@ class EmployeeRequestController extends Controller
         $this->notifyEmployee(
             $employeeRequest,
             title: 'Employee request rejected',
-            message: 'Your ' . $employeeRequest->request_type . ' request has been rejected.',
+            message: 'Your ' . $this->displayRequestType($employeeRequest) . ' request has been rejected.',
             url: route('human-capital.employee-requests.index')
         );
 
@@ -414,7 +422,7 @@ class EmployeeRequestController extends Controller
         $this->notifyEmployee(
             $employeeRequest,
             title: 'Employee request sent back for revision',
-            message: 'Your ' . $employeeRequest->request_type . ' request needs revision.',
+            message: 'Your ' . $this->displayRequestType($employeeRequest) . ' request needs revision.',
             url: route('human-capital.employee-requests.index')
         );
 
@@ -507,6 +515,30 @@ class EmployeeRequestController extends Controller
         ];
     }
 
+    private function otherRequestTypePayload(Request $request): array
+    {
+        if (! $this->employeeRequestOtherTypeColumnExists()) {
+            return [];
+        }
+
+        return [
+            'request_type_other' => $request->input('request_type') === 'Other'
+                ? trim((string) $request->input('request_type_other', ''))
+                : null,
+        ];
+    }
+
+    private function employeeRequestOtherTypeColumnExists(): bool
+    {
+        static $exists = null;
+
+        if ($exists !== null) {
+            return $exists;
+        }
+
+        return $exists = Schema::hasColumn('employee_requests', 'request_type_other');
+    }
+
     private function employeeRequestCoeColumnsExist(): bool
     {
         static $exists = null;
@@ -534,7 +566,7 @@ class EmployeeRequestController extends Controller
             message: $message,
             url: $url ?: route('human-capital.employee-requests.index'),
             humanCapitalModule: 'Employee Requests',
-            recordTitle: $employeeRequest->request_type ?: 'Employee Request',
+            recordTitle: $this->displayRequestType($employeeRequest),
             actorName: ''
         ));
     }
@@ -542,6 +574,8 @@ class EmployeeRequestController extends Controller
     private function formatEmployeeRequest(EmployeeRequest $employeeRequest): array
     {
         $data = $employeeRequest->toArray();
+        $data['request_type_other'] = $data['request_type_other'] ?? '';
+        $data['display_request_type'] = $this->displayRequestType($employeeRequest);
         $data['coe_type'] = $data['coe_type'] ?? 'Employment Only';
         $data['coe_purpose_other'] = $data['coe_purpose_other'] ?? '';
         $data['created_at'] = optional($employeeRequest->created_at)->format('Y-m-d H:i:s');
@@ -557,6 +591,15 @@ class EmployeeRequestController extends Controller
     private function isCoeRequest(EmployeeRequest $employeeRequest): bool
     {
         return $employeeRequest->request_type === 'COE Request Form';
+    }
+
+    private function displayRequestType(EmployeeRequest $employeeRequest): string
+    {
+        if ($employeeRequest->request_type === 'Other' && $employeeRequest->request_type_other) {
+            return $employeeRequest->request_type_other;
+        }
+
+        return $employeeRequest->request_type ?: 'Employee Request';
     }
 
     private function canViewRequest(EmployeeRequest $employeeRequest): bool

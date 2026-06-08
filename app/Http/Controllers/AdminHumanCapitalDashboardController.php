@@ -128,7 +128,7 @@ class AdminHumanCapitalDashboardController extends Controller
         $this->notifyEmployeeRequestOwner(
             $employeeRequest,
             'Employee request approved',
-            'Your ' . ($employeeRequest->request_type ?: 'employee') . ' request has been approved.'
+            'Your ' . $this->displayEmployeeRequestType($employeeRequest) . ' request has been approved.'
         );
 
         return redirect()->route('admin.human-capital.dashboard')
@@ -150,7 +150,7 @@ class AdminHumanCapitalDashboardController extends Controller
             'admin_note' => $request->admin_note,
         ]);
 
-        $message = 'Your ' . ($employeeRequest->request_type ?: 'employee') . ' request has been rejected.';
+        $message = 'Your ' . $this->displayEmployeeRequestType($employeeRequest) . ' request has been rejected.';
 
         if ($request->filled('admin_note')) {
             $message .= ' Note: ' . $request->admin_note;
@@ -181,7 +181,7 @@ class AdminHumanCapitalDashboardController extends Controller
             'admin_note' => $request->admin_note,
         ]);
 
-        $message = 'Your ' . ($employeeRequest->request_type ?: 'employee') . ' request needs revision.';
+        $message = 'Your ' . $this->displayEmployeeRequestType($employeeRequest) . ' request needs revision.';
 
         if ($request->filled('admin_note')) {
             $message .= ' Note: ' . $request->admin_note;
@@ -527,7 +527,7 @@ class AdminHumanCapitalDashboardController extends Controller
                     'ref_no' => 'ER-'.$request->id,
                     'module' => 'Employee Requests',
                     'employee' => $request->employee_name ?: 'Unknown Employee',
-                    'record_name' => $request->request_type ?: 'Employee Request',
+                    'record_name' => $this->displayEmployeeRequestType($request),
                     'department' => $request->department ?: 'Human Capital',
                     'date_submitted' => $this->displayDate($request->request_date ?: $request->created_at),
                     'approver' => $request->reviewed_by ? 'User #'.$request->reviewed_by : '-',
@@ -853,8 +853,17 @@ class AdminHumanCapitalDashboardController extends Controller
             $message,
             route('human-capital.employee-requests.index'),
             'Employee Requests',
-            $employeeRequest->request_type ?: 'Employee Request'
+            $this->displayEmployeeRequestType($employeeRequest)
         );
+    }
+
+    private function displayEmployeeRequestType(EmployeeRequest $employeeRequest): string
+    {
+        if ($employeeRequest->request_type === 'Other' && $employeeRequest->request_type_other) {
+            return $employeeRequest->request_type_other;
+        }
+
+        return $employeeRequest->request_type ?: 'Employee Request';
     }
 
     private function notifyUserById($userId, string $title, string $message, ?string $url, string $module, string $recordTitle = ''): void

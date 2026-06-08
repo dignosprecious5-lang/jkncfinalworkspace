@@ -84,7 +84,7 @@
                             <template x-for="request in myRequests" :key="request.id">
                                 <tr class="border-t hover:bg-gray-50">
                                     <td class="p-3 font-semibold text-blue-700" x-text="`REQ-${String(request.id).padStart(4, '0')}`"></td>
-                                    <td class="p-3 text-gray-700" x-text="request.request_type"></td>
+                                    <td class="p-3 text-gray-700" x-text="request.display_request_type || request.request_type"></td>
                                     <td class="p-3 text-gray-700" x-text="request.created_at ? request.created_at.split(' ')[0] : '-'"></td>
                                     <td class="p-3">
                                         <span class="px-2 py-1 rounded-full text-xs font-semibold" :class="statusClass(request.status)" x-text="request.status || 'Pending'"></span>
@@ -142,7 +142,7 @@
                                 <tr class="border-t hover:bg-gray-50">
                                     <td class="p-3 font-semibold text-blue-700" x-text="`REQ-${String(request.id).padStart(4, '0')}`"></td>
                                     <td class="p-3 text-gray-700" x-text="request.employee_name"></td>
-                                    <td class="p-3 text-gray-700" x-text="request.request_type"></td>
+                                    <td class="p-3 text-gray-700" x-text="request.display_request_type || request.request_type"></td>
                                     <td class="p-3 text-gray-700" x-text="request.created_at ? request.created_at.split(' ')[0] : '-'"></td>
                                     <td class="p-3">
                                         <span class="px-2 py-1 rounded-full text-xs font-semibold" :class="statusClass(request.status)" x-text="request.status || 'Pending'"></span>
@@ -210,13 +210,13 @@
                             <p class="mt-1 text-[11px] font-semibold">{{ $companyHeader['company_address'] }}</p>
                         </div>
 
-                        <div class="bg-blue-700 text-white px-3 py-2 font-bold uppercase tracking-widest text-sm mb-3 rounded-sm" x-text="form.request_type || 'Employee Request'"></div>
+                        <div class="bg-blue-700 text-white px-3 py-2 font-bold uppercase tracking-widest text-sm mb-3 rounded-sm" x-text="displayRequestType(form)"></div>
 
                         <div class="grid grid-cols-2 gap-2 mb-3">
                             <div><span class="font-bold">Request No:</span> <span x-text="form.id ? `REQ-${String(form.id).padStart(4, '0')}` : 'Auto-generated'"></span></div>
                             <div><span class="font-bold">Status:</span> <span x-text="form.status || 'Pending'"></span></div>
                             <div><span class="font-bold">Filed Date:</span> <span x-text="form.created_at ? form.created_at.split(' ')[0] : '{{ now()->format('Y-m-d') }}'"></span></div>
-                            <div><span class="font-bold">Request Type:</span> <span x-text="form.request_type || '-'"></span></div>
+                            <div><span class="font-bold">Request Type:</span> <span x-text="displayRequestType(form)"></span></div>
                         </div>
 
                         <div class="section-title">A. Employee Information</div>
@@ -243,6 +243,9 @@
                             </template>
                             <template x-if="form.request_type === 'COE Request Form'">
                                 <tr><td><b>Purpose:</b> <span x-text="form.purpose || '-'"></span></td><td><b>Needed:</b> <span x-text="form.date_needed || '-'"></span></td></tr>
+                            </template>
+                            <template x-if="form.request_type === 'Other'">
+                                <tr><td><b>Specified Request:</b> <span x-text="form.request_type_other || '-'"></span></td><td><b>Request Date:</b> <span x-text="form.request_date || '-'"></span></td></tr>
                             </template>
                             <tr><td colspan="2"><b>Reason/Details:</b><br><span x-text="form.reason || form.remarks || '-'"></span></td></tr>
                         </table>
@@ -362,7 +365,18 @@
                                     <option value="Attendance Correction Request">Attendance Correction Request</option>
                                     <option value="Undertime / Absence Request">Undertime / Absence Request</option>
                                     <option value="COE Request Form">COE Request Form</option>
+                                    <option value="Other">Other</option>
                                 </select>
+                                <input
+                                    type="text"
+                                    name="request_type_other"
+                                    x-model="form.request_type_other"
+                                    x-show="form.request_type === 'Other'"
+                                    :required="form.request_type === 'Other'"
+                                    :readonly="isView"
+                                    placeholder="Specify request type"
+                                    class="mt-3 w-full border rounded-lg px-3 py-2 text-sm"
+                                >
                             </div>
                         </div>
 
@@ -485,6 +499,17 @@
                                 <input type="date" name="date_needed" x-model="form.date_needed" :readonly="isView" class="border rounded-lg px-3 py-2 text-sm">
                                 <input type="number" name="number_of_copies" x-model="form.number_of_copies" min="1" :readonly="isView" placeholder="Number of Copies" class="border rounded-lg px-3 py-2 text-sm">
                                 <textarea name="remarks" x-model="form.remarks" :readonly="isView" rows="3" placeholder="Remarks" class="col-span-2 border rounded-lg px-3 py-2 text-sm"></textarea>
+                            </div>
+                        </div>
+
+                        <!-- OTHER REQUEST FIELDS -->
+                        <div class="rounded-xl border border-gray-200 overflow-hidden" x-show="form.request_type === 'Other'">
+                            <div class="px-4 py-2 bg-blue-700 text-white text-xs font-bold uppercase tracking-widest">Other Request Details</div>
+                            <div class="p-4 grid grid-cols-2 gap-3">
+                                <input type="date" name="request_date" x-model="form.request_date" :readonly="isView" class="border rounded-lg px-3 py-2 text-sm">
+                                <input type="text" x-model="form.request_type_other" readonly placeholder="Specified request" class="border rounded-lg px-3 py-2 text-sm bg-gray-100 text-gray-700 cursor-not-allowed">
+                                <textarea name="reason" x-model="form.reason" :readonly="isView" rows="3" placeholder="Reason / Details" class="col-span-2 border rounded-lg px-3 py-2 text-sm"></textarea>
+                                <textarea name="remarks" x-model="form.remarks" :readonly="isView" rows="3" placeholder="Additional remarks" class="col-span-2 border rounded-lg px-3 py-2 text-sm"></textarea>
                             </div>
                         </div>
 
@@ -687,6 +712,8 @@ function employeeRequestsPage() {
             return {
                 id: null,
                 request_type: '',
+                request_type_other: '',
+                display_request_type: '',
                 employee_id: this.currentEmployee?.id || '',
                 employee_name: this.currentEmployee?.full_name || '{{ auth()->user()->name ?? "" }}',
                 department: this.currentEmployee?.department || '',
@@ -720,6 +747,15 @@ function employeeRequestsPage() {
                 coe_preview: null,
                 coe_download_url: '',
             };
+        },
+
+        displayRequestType(request) {
+            if (!request) return 'Employee Request';
+            if (request.request_type === 'Other') {
+                return request.request_type_other || request.display_request_type || 'Other Request';
+            }
+
+            return request.display_request_type || request.request_type || 'Employee Request';
         },
 
         openAdd() {

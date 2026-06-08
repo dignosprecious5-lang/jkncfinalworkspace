@@ -18,6 +18,7 @@ class EmployeeRequest extends Model
         'user_id',
         'employee_name',
         'request_type',
+        'request_type_other',
         'department',
         'request_date',
         'overtime_date',
