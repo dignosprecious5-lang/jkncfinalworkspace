@@ -1786,6 +1786,7 @@
     let currentPreviewPdfGeneration = 0;
     let currentPreviewRefreshTimer = null;
     let currentPreviewRefreshSignature = '';
+    let financeLineItemReceiptFiles = {};
     let currentEditRecordId = null;
     let financeFormLockedReadOnly = false;
     let activeLookupSelector = null;
@@ -3894,6 +3895,43 @@
             return [{ id: normalizedValue, label: selectedLabel }, ...options];
         };
 
+        const buildMergedLookupOptions = (lookupModuleKey) => {
+            const baseOptions = Array.isArray(financeLookupOptions[lookupModuleKey]) ? financeLookupOptions[lookupModuleKey] : [];
+            const combinedRecords = [
+                ...(Array.isArray(financeSourceRecords) ? financeSourceRecords : []),
+                ...(Array.isArray(financeRecords) ? financeRecords : []),
+            ];
+            const merged = [...baseOptions];
+            const seenIds = new Set(merged.map((option) => String(option.id ?? option.value ?? '')));
+
+            combinedRecords.forEach((record) => {
+                if (!record || String(record.module_key || '').trim().toLowerCase() !== lookupModuleKey) {
+                    return;
+                }
+
+                const accepted = String(record.workflow_status || '').trim() === 'Accepted'
+                    || String(record.approval_status || '').trim() === 'Approved';
+                if (!accepted) {
+                    return;
+                }
+
+                const id = String(record.id || '').trim();
+                if (!id || seenIds.has(id)) {
+                    return;
+                }
+
+                seenIds.add(id);
+                merged.push({
+                    id,
+                    label: [record.record_number || '', record.record_title || ''].filter(Boolean).join(' - ') || record.record_number || record.record_title || `PO-${id}`,
+                    record_number: record.record_number || '',
+                    record_title: record.record_title || '',
+                });
+            });
+
+            return merged;
+        };
+
         if (moduleKey === 'arf') {
             const linkedPoId = String(formValues['data[linked_po_id]'] || formValues.linked_po_id || '').trim();
             const linkedDvId = String(formValues['data[linked_dv_id]'] || formValues.linked_dv_id || '').trim();
@@ -3925,7 +3963,7 @@
                 }));
 
             if (field.name === 'linked_po_id') {
-                const poOptions = financeLookupOptions.po || [];
+                const poOptions = buildMergedLookupOptions('po');
                 const filteredPoOptions = linkedDvId
                     ? poOptions.filter((option) => {
                         const poId = String(option.id ?? option.value ?? '');
@@ -4080,11 +4118,17 @@
         const actualExpenses = lineItemsTotal > 0
             ? lineItemsTotal
             : numericAmount(data.actual_expenses || data.grand_total || totalCashAdvance || 0);
-        const effectiveActualExpenses = lineItemsTotal <= 0 && actualExpenses <= 0 && totalCashAdvance > 0
+        const storedVarianceIndicator = String(data.variance_indicator || '').trim();
+        const effectiveActualExpenses = lineItemsTotal <= 0
+            && actualExpenses <= 0
+            && totalCashAdvance > 0
+            && !['Overage', 'Shortage'].includes(storedVarianceIndicator)
             ? totalCashAdvance
             : actualExpenses;
         const variance = totalCashAdvance - effectiveActualExpenses;
-        const indicator = variance > 0 ? 'Overage' : (variance < 0 ? 'Shortage' : 'Balanced');
+        const indicator = ['Overage', 'Shortage', 'Balanced'].includes(storedVarianceIndicator)
+            ? storedVarianceIndicator
+            : (variance > 0 ? 'Overage' : (variance < 0 ? 'Shortage' : 'Balanced'));
 
         return {
             linkedCaRecord,
@@ -6530,10 +6574,30 @@
         input.value = blank(value) ? '' : String(value);
     }
 
+    function syncLineItemMasterFields(row, { force = false } = {}) {
+        if (!row || (currentModuleKey !== 'pr' && currentModuleKey !== 'po')) return null;
+
+        const itemInput = row.querySelector('[data-pr-line-item-field="item_id"]');
+        const match = findLineItemMasterOption(itemInput?.value || '');
+        if (!match?.option) {
+            if (force) {
+                setLineItemFieldValue(row, 'item_module', '');
+                setLineItemFieldValue(row, 'item_record_id', '');
+            }
+            return null;
+        }
+
+        setLineItemFieldValue(row, 'item_module', match.moduleKey || '');
+        setLineItemFieldValue(row, 'item_record_id', match.option.id ?? match.option.value ?? '');
+        return match;
+    }
+
     function autofillLineItemFromMaster(row, { force = false } = {}) {
         if (!row || (currentModuleKey !== 'pr' && currentModuleKey !== 'po')) return false;
 
         const itemInput = row.querySelector('[data-pr-line-item-field="item_id"]');
+        const match = syncLineItemMasterFields(row, { force });
+        if (!match?.option) return false;
         const defaults = getLineItemMasterDefaults(itemInput?.value || '');
 
         if (!defaults) return false;
@@ -7456,6 +7520,7 @@
     function replaceCurrentLineItemSection(rows = []) {
         if (!isLineItemModule()) return;
 
+        syncLineItemReceiptFileCacheFromDom();
         const section = document.querySelector('[data-pr-line-items-section]');
         if (!section) return;
 
@@ -10284,8 +10349,11 @@
         `;
     }
 
-    function renderLiquidationReportSection(record, fallbackValues = {}) {
+    function renderLiquidationReportSection(record, fallbackValues = {}, options = {}) {
         const data = record?.data || {};
+        const showLineItemsSection = Object.prototype.hasOwnProperty.call(options, 'showLineItemsSection')
+            ? Boolean(options.showLineItemsSection)
+            : true;
         const linkedCaId = fallbackValues['data[linked_ca_id]'] || data.linked_ca_id || '';
         const linkedCaRecord = linkedCaId ? (getRecordById(linkedCaId) || getRecordByLookupValue('ca', linkedCaId)) : null;
         const linkedCaData = linkedCaRecord?.data || {};
@@ -10427,6 +10495,7 @@
                     </div>
                 </div>
 
+                ${showLineItemsSection ? `
                 <div class="mt-4 rounded-xl border border-white/80 bg-white p-4">
                     <div class="flex flex-wrap items-center justify-between gap-3">
                         <div>
@@ -10478,6 +10547,7 @@
                         `}
                     </div>
                 </div>
+                ` : ''}
             </div>
         `;
     }
@@ -10721,12 +10791,14 @@
         const itemInput = row.querySelector('[data-pr-line-item-field="item_id"]');
         if (itemInput) {
             itemInput.addEventListener('input', () => {
+                syncLineItemMasterFields(row);
                 if (autofillLineItemFromMaster(row)) {
                     updatePrTotals();
                     renderDrawerPreview();
                 }
             });
             itemInput.addEventListener('change', () => {
+                syncLineItemMasterFields(row, { force: true });
                 if (autofillLineItemFromMaster(row, { force: true })) {
                     updatePrTotals();
                     renderDrawerPreview();
@@ -10780,13 +10852,20 @@
 
             receiptInput.addEventListener('change', () => {
                 const file = receiptInput.files?.[0] || null;
+                const rowIndex = String(row.getAttribute('data-row-index') || '').trim();
                 if (file) {
+                    if (rowIndex) {
+                        financeLineItemReceiptFiles[rowIndex] = file;
+                    }
                     if (receiptNameInput) receiptNameInput.value = file.name || '';
                     if (receiptPathInput) receiptPathInput.value = '';
                     if (receiptMimeInput) receiptMimeInput.value = file.type || '';
                     if (receiptSizeInput) receiptSizeInput.value = String(file.size || '');
                     if (receiptLabel) receiptLabel.textContent = `Attached: ${file.name || 'Receipt file'}`;
                 } else {
+                    if (rowIndex) {
+                        delete financeLineItemReceiptFiles[rowIndex];
+                    }
                     if (receiptNameInput) receiptNameInput.value = '';
                     if (receiptPathInput) receiptPathInput.value = '';
                     if (receiptMimeInput) receiptMimeInput.value = '';
@@ -10819,6 +10898,10 @@
 
     function syncPrPrimaryFields() {
         if (currentModuleKey !== 'pr' && currentModuleKey !== 'po') return;
+
+        document.querySelectorAll('[data-pr-line-item-row]').forEach((row) => {
+            syncLineItemMasterFields(row);
+        });
 
         const firstRow = Array.from(document.querySelectorAll('[data-pr-line-item-row]')).find((row) => {
             return Array.from(row.querySelectorAll('[data-pr-line-item-field]')).some((input) => String(input.value || '').trim() !== '');
@@ -10857,6 +10940,7 @@
     function addPrLineItemRow() {
         if (!isLineItemModule()) return;
 
+        syncLineItemReceiptFileCacheFromDom();
         const tbody = $('prLineItemsBody');
         if (!tbody) return;
 
@@ -10931,7 +11015,13 @@
         const tbody = $('prLineItemsBody');
         if (!row || !tbody) return;
 
+        syncLineItemReceiptFileCacheFromDom();
+
         if (tbody.querySelectorAll('[data-pr-line-item-row]').length <= 1) {
+            const rowIndex = String(row.getAttribute('data-row-index') || '').trim();
+            if (rowIndex) {
+                delete financeLineItemReceiptFiles[rowIndex];
+            }
             row.querySelectorAll('input, select').forEach((input) => {
                 input.value = '';
             });
@@ -10939,8 +11029,11 @@
             return;
         }
 
+        const previousFiles = { ...financeLineItemReceiptFiles };
         row.remove();
+        const nextFiles = {};
         Array.from(tbody.querySelectorAll('[data-pr-line-item-row]')).forEach((tr, index) => {
+            const previousIndex = String(tr.getAttribute('data-row-index') || '').trim();
             tr.setAttribute('data-row-index', String(index));
             const badge = tr.querySelector('.inline-flex.h-8.w-8');
             if (badge) {
@@ -10954,8 +11047,12 @@
                 const name = input.getAttribute('name');
                 input.setAttribute('name', name.replace(/data\[line_items\]\[\d+\]/, `data[line_items][${index}]`));
             });
+            if (previousIndex && previousFiles[previousIndex]) {
+                nextFiles[String(index)] = previousFiles[previousIndex];
+            }
             bindPurchaseRequestLineItemRow(tr);
         });
+        financeLineItemReceiptFiles = nextFiles;
         updatePrTotals();
     }
 
@@ -12003,7 +12100,7 @@
                     ` : ''}
 
                     <div class="md:col-span-2">
-                        ${renderLiquidationReportSection(draftLinkedRecord || record, values)}
+                        ${renderLiquidationReportSection(draftLinkedRecord || record, values, { showLineItemsSection: false })}
                     </div>
 
                     <div class="md:col-span-2">
@@ -13353,7 +13450,7 @@
                                 <h4 class="text-[12px] font-semibold uppercase tracking-[0.26em] text-gray-700">Liquidation Report</h4>
                             </div>
                             <div class="p-4">
-                                ${renderLiquidationReportSection(draftLinkedRecord || null, formValues)}
+                                ${renderLiquidationReportSection(draftLinkedRecord || null, formValues, { showLineItemsSection: false })}
                             </div>
                         </div>
 
@@ -14850,7 +14947,36 @@
     }
 
     function normalizeAttachmentUrl(path) {
-        return `/${String(path || '').replace(/^\//, '')}`;
+        const normalizedPath = String(path || '').trim().replace(/^\//, '');
+        return normalizedPath ? `/${normalizedPath}` : '';
+    }
+
+    function syncLineItemReceiptFileCacheFromDom() {
+        const nextFiles = {};
+        document.querySelectorAll('[data-pr-line-item-row]').forEach((row) => {
+            const rowIndex = String(row.getAttribute('data-row-index') || '').trim();
+            if (!rowIndex) return;
+
+            const input = row.querySelector('[data-pr-line-item-field="receipt_attachment_file"]');
+            const file = input?.files?.[0] || financeLineItemReceiptFiles[rowIndex] || null;
+            if (file) {
+                nextFiles[rowIndex] = file;
+            }
+        });
+        financeLineItemReceiptFiles = nextFiles;
+    }
+
+    function resolvePreviewAttachmentUrl(record, fallbackUrl = '') {
+        const targetUrl = String(fallbackUrl || currentPreviewAttachmentUrl || '').trim();
+        if (!targetUrl) return '';
+
+        const attachments = financeAttachmentEntries(record);
+        const matched = attachments.find((attachment) => {
+            const candidateUrl = String(attachment?.url || normalizeAttachmentUrl(attachment?.path || '') || '').trim();
+            return candidateUrl && candidateUrl === targetUrl;
+        });
+
+        return matched ? targetUrl : '';
     }
 
     function revokeCurrentPreviewPdfObjectUrl() {
@@ -14878,6 +15004,13 @@
         currentPreviewRecord = record;
         currentPreviewRefreshSignature = buildPreviewRefreshSignature(record);
         $('previewModuleTitle').textContent = record.module_label;
+        const validAttachmentUrl = resolvePreviewAttachmentUrl(record);
+        if (validAttachmentUrl) {
+            currentPreviewAttachmentUrl = validAttachmentUrl;
+        } else {
+            currentPreviewAttachmentUrl = '';
+            revokeCurrentPreviewAttachmentObjectUrl();
+        }
         if (currentPreviewTab !== 'attachments' || !currentPreviewAttachmentUrl) {
             revokeCurrentPreviewAttachmentObjectUrl();
         }
@@ -15758,15 +15891,16 @@
 
     function renderPreviewDocument(record) {
         const templateMode = currentPreviewTab === 'template';
-        const attachmentMode = Boolean(currentPreviewAttachmentUrl);
+        const validAttachmentUrl = resolvePreviewAttachmentUrl(record);
+        const attachmentMode = Boolean(currentPreviewAttachmentObjectUrl || validAttachmentUrl);
         const attachmentName = templateMode
             ? 'Template PDF'
-            : (currentPreviewAttachmentUrl
-            ? (record.attachments || []).find((attachment) => (attachment.url || normalizeAttachmentUrl(attachment.path || '')) === currentPreviewAttachmentUrl)?.name || 'Attached PDF'
+            : (validAttachmentUrl
+            ? financeAttachmentEntries(record).find((attachment) => (attachment.url || normalizeAttachmentUrl(attachment.path || '')) === validAttachmentUrl)?.name || 'Attached PDF'
             : 'Finance Preview PDF');
         const holderLabel = templateMode ? 'Template PDF' : (attachmentMode ? 'Attachment PDF' : 'Finance PDF');
         const previewCacheKey = encodeURIComponent(buildPreviewRefreshSignature(record) || record.id);
-        const attachmentPreviewUrl = currentPreviewAttachmentObjectUrl || currentPreviewAttachmentUrl;
+        const attachmentPreviewUrl = currentPreviewAttachmentObjectUrl || validAttachmentUrl;
         const previewUrl = templateMode
             ? `/finance/${record.id}/preview-pdf?template=1&t=${previewCacheKey}`
             : (attachmentPreviewUrl
@@ -15825,17 +15959,32 @@
     }
 
     function renderFinanceProgressTracker(record) {
-        const isApprovedRecord = (candidate) => Boolean(candidate && (candidate.workflow_status === 'Accepted' || candidate.approval_status === 'Approved'));
+        const isApprovedRecord = (candidate) => {
+            if (!candidate) return false;
+            if (candidate.workflow_status === 'Accepted' || candidate.approval_status === 'Approved') return true;
+            const requiredCount = parseInt(candidate?.data?.approval_required_count || candidate?.approval_required_count || '0', 10) || 0;
+            const completedCount = parseInt(candidate?.data?.approval_completed_count || candidate?.approval_completed_count || '0', 10) || 0;
+            return String(candidate.workflow_status || '').trim().toLowerCase() === 'archived'
+                && requiredCount > 0
+                && completedCount >= requiredCount;
+        };
+        const data = record?.data || {};
         let steps = Array.isArray(record?.data?.transaction_progress) ? record.data.transaction_progress : [];
         let relationshipStatus = record?.relationship_status || record?.data?.relationship_status || 'In Progress';
 
         if (record?.module_key === 'crf') {
-            const submitted = Boolean(record?.submitted_at || record?.data?.submitted_at || isApprovedRecord(record));
+            const linkedLrId = record?.linked_lr_id || data.linked_lr_id || '';
+            const linkedLrRecord = linkedLrId ? getRecordById(linkedLrId) : null;
+            const linkedLrApproved = Boolean(linkedLrRecord && (linkedLrRecord.workflow_status === 'Accepted' || linkedLrRecord.approval_status === 'Approved'));
+            const submitted = Boolean(record?.submitted_at || data.submitted_at || isApprovedRecord(record));
             const approved = isApprovedRecord(record);
-            const completed = approved;
+            const completed = linkedLrApproved && approved;
 
-            relationshipStatus = record?.relationship_status || record?.data?.relationship_status || (approved ? 'Completed' : (submitted ? 'Submitted' : 'Draft'));
+            relationshipStatus = record?.relationship_status || data.relationship_status || (!linkedLrApproved
+                ? 'Awaiting Linked LR Approval'
+                : (approved ? 'Completed' : (submitted ? 'Submitted' : 'Draft')));
             steps = [
+                { label: 'Linked LR Approved', completed: linkedLrApproved },
                 { label: 'CRF Submitted', completed: submitted },
                 { label: 'CRF Approved', completed: approved },
                 { label: 'Transaction Completed', completed: completed },
@@ -15850,10 +15999,18 @@
             const actualExpenses = lineItemsTotal > 0
                 ? lineItemsTotal
                 : numericAmount(data.actual_expenses || data.grand_total || caAmount || 0);
-            const effectiveActualExpenses = lineItemsTotal <= 0 && actualExpenses <= 0 && caAmount > 0 ? caAmount : actualExpenses;
+            const storedVarianceIndicator = String(data.variance_indicator || '').trim();
+            const effectiveActualExpenses = lineItemsTotal <= 0
+                && actualExpenses <= 0
+                && caAmount > 0
+                && !['Overage', 'Shortage'].includes(storedVarianceIndicator)
+                ? caAmount
+                : actualExpenses;
             const variance = caAmount - effectiveActualExpenses;
-            const varianceIndicator = variance > 0 ? 'Overage' : (variance < 0 ? 'Shortage' : 'Balanced');
-            const cashReturnRequired = varianceIndicator === 'Overage';
+            const varianceIndicator = ['Overage', 'Shortage', 'Balanced'].includes(storedVarianceIndicator)
+                ? storedVarianceIndicator
+                : (variance > 0 ? 'Overage' : (variance < 0 ? 'Shortage' : 'Balanced'));
+            const crfRequired = varianceIndicator === 'Overage';
             const errRequired = varianceIndicator === 'Shortage';
             const linkedCrfId = record?.linked_crf_id || data?.linked_crf_id || '';
             const linkedErrId = record?.linked_err_id || data?.linked_err_id || '';
@@ -15861,19 +16018,19 @@
             const linkedErrRecord = linkedErrId ? getRecordById(linkedErrId) : null;
             const submitted = Boolean(record?.submitted_at || data?.submitted_at || isApprovedRecord(record));
             const approved = isApprovedRecord(record);
-            const cashReturnCreated = cashReturnRequired ? Boolean(linkedCrfRecord) : false;
-            const cashReturnApproved = cashReturnRequired ? isApprovedRecord(linkedCrfRecord) : false;
+            const crfCreated = crfRequired ? Boolean(linkedCrfRecord) : false;
+            const crfApproved = crfRequired ? isApprovedRecord(linkedCrfRecord) : false;
             const errCreated = errRequired ? Boolean(linkedErrRecord) : false;
             const errApproved = errRequired ? isApprovedRecord(linkedErrRecord) : false;
-            const completed = approved && (!cashReturnRequired || cashReturnApproved) && (!errRequired || errApproved);
-            relationshipStatus = record?.relationship_status || record?.data?.relationship_status || (cashReturnRequired ? 'Awaiting Cash Return' : (errRequired ? 'Awaiting ERR' : (approved ? 'Completed' : 'Draft')));
+            const completed = approved && (!crfRequired || crfApproved) && (!errRequired || errApproved);
+            relationshipStatus = record?.relationship_status || record?.data?.relationship_status || (crfRequired ? 'Awaiting CRF' : (errRequired ? 'Awaiting ERR' : (approved ? 'Completed' : 'Draft')));
 
             steps = [
                 { label: 'Liquidation Report Submitted', completed: submitted },
                 { label: 'Liquidation Report Approved', completed: approved },
-                ...(cashReturnRequired ? [
-                    { label: 'Cash Return Created', completed: cashReturnCreated },
-                    { label: 'Cash Return Approved', completed: cashReturnApproved },
+                ...(crfRequired ? [
+                    { label: 'CRF Created', completed: crfCreated },
+                    { label: 'CRF Approved', completed: crfApproved },
                 ] : errRequired ? [
                     { label: 'ERR Created', completed: errCreated },
                     { label: 'ERR Approved', completed: errApproved },
@@ -15906,13 +16063,52 @@
                         `;
                     }).join('')}
                 </div>
+                ${record?.module_key === 'lr' ? (() => {
+                    const caAmount = numericAmount(data.total_cash_advance || data.amount_requested || record?.amount || 0);
+                    const lineItems = Array.isArray(data.line_items) ? data.line_items.filter((item) => item && Object.values(item).some((value) => String(value ?? '').trim() !== '')) : [];
+                    const lineItemsTotal = lineItems.reduce((sum, item) => sum + getLiquidationLineItemTotal(item), 0);
+                    const actualExpenses = lineItemsTotal > 0
+                        ? lineItemsTotal
+                        : numericAmount(data.actual_expenses || data.grand_total || caAmount || 0);
+                    const storedVarianceIndicator = String(data.variance_indicator || '').trim();
+                    const effectiveActualExpenses = lineItemsTotal <= 0
+                        && actualExpenses <= 0
+                        && caAmount > 0
+                        && !['Overage', 'Shortage'].includes(storedVarianceIndicator)
+                        ? caAmount
+                        : actualExpenses;
+                    const variance = caAmount - effectiveActualExpenses;
+                    const varianceIndicator = ['Overage', 'Shortage', 'Balanced'].includes(storedVarianceIndicator)
+                        ? storedVarianceIndicator
+                        : (variance > 0 ? 'Overage' : (variance < 0 ? 'Shortage' : 'Balanced'));
+                    const lrApproved = isApprovedRecord(record);
+                    const crfRecord = Array.isArray(financeRecords)
+                        ? financeRecords.find((candidate) => String(candidate?.module_key || '').toLowerCase() === 'crf' && String(candidate?.data?.linked_lr_id || '').trim() === String(record.id))
+                        : null;
+                    const crfApproved = isApprovedRecord(crfRecord);
+
+                    if (varianceIndicator === 'Overage' && lrApproved && !crfApproved) {
+                        return `
+                            <div class="mt-4 rounded-xl border border-emerald-200 bg-emerald-50/60 p-4">
+                                <div class="flex flex-wrap items-center justify-between gap-3">
+                                    <div>
+                                        <p class="text-[11px] uppercase tracking-[0.22em] text-emerald-700">Cash Return</p>
+                                        <p class="mt-1 text-sm font-medium text-gray-900">${crfRecord ? 'Cash Return created. It still needs approval.' : 'This overage can now create a Cash Return Form.'}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    }
+
+                    return '';
+                })() : ''}
             </div>
         `;
     }
 
     function renderPreviewTabContent(record) {
         const moduleConfig = getModuleConfig(record.module_key);
-        const attachments = Array.isArray(record.attachments) ? record.attachments : [];
+        const attachments = financeAttachmentEntries(record);
         const templateSections = getTemplatePreviewSections(record);
         const previewDraftValues = {
             ...collectFinanceFormValues(),
@@ -15945,19 +16141,21 @@
                         ${pdfAttachments.length ? pdfAttachments.map((attachment, index) => {
                             const url = attachment.url || normalizeAttachmentUrl(attachment.path || '');
                             const active = currentPreviewAttachmentUrl === url;
+                            const clickable = Boolean(url);
                             return `
                                   <button
                                       type="button"
-                                      data-preview-attachment-url="${escapeHtml(url)}"
+                                      ${clickable ? `data-preview-attachment-url="${escapeHtml(url)}"` : ''}
                                       data-preview-attachment-name="${escapeHtml(attachment.name || `Attachment ${index + 1}`)}"
-                                      class="w-full rounded-xl border px-4 py-3 text-left transition ${active ? 'border-blue-200 bg-white shadow-sm' : 'border-gray-200 bg-white hover:bg-gray-50'}">
+                                      class="w-full rounded-xl border px-4 py-3 text-left transition ${active ? 'border-blue-200 bg-white shadow-sm' : 'border-gray-200 bg-white'} ${clickable ? 'hover:bg-gray-50' : 'cursor-not-allowed opacity-80'}"
+                                      ${clickable ? '' : 'disabled'}>
                                     <div class="flex items-center justify-between gap-3">
                                         <div class="min-w-0">
                                             <p class="font-semibold text-gray-900 break-all">${escapeHtml(attachment.name || `Attachment ${index + 1}`)}</p>
                                             <p class="mt-1 text-xs text-gray-500 break-all">${escapeHtml(attachment.path || '')}</p>
                                             <p class="mt-1 text-[11px] text-gray-500">${escapeHtml(attachment.category || 'Supporting Document')}${attachment.uploaded_by ? ` • ${escapeHtml(attachment.uploaded_by)}` : ''}${attachment.uploaded_at ? ` • ${escapeHtml(attachment.uploaded_at)}` : ''}</p>
                                         </div>
-                                        <span class="rounded-full border border-gray-200 px-3 py-1 text-[11px] font-medium text-gray-600">View</span>
+                                        <span class="rounded-full border border-gray-200 px-3 py-1 text-[11px] font-medium text-gray-600">${clickable ? 'View' : 'Saved metadata only'}</span>
                                     </div>
                                 </button>
                             `;
@@ -15968,13 +16166,28 @@
                 <div class="rounded-2xl border border-gray-200 bg-white p-4">
                     <h4 class="text-[15px] font-semibold text-gray-900">Other Attachments</h4>
                         <div class="mt-4 space-y-3">
-                        ${otherAttachments.length ? otherAttachments.map((attachment, index) => `
-                            <a href="${escapeHtml(attachment.url || normalizeAttachmentUrl(attachment.path || ''))}" target="_blank" class="block rounded-xl border border-gray-200 bg-white px-4 py-3 hover:bg-gray-50 transition">
+                        ${otherAttachments.length ? otherAttachments.map((attachment, index) => {
+                            const url = attachment.url || normalizeAttachmentUrl(attachment.path || '');
+                            const clickable = Boolean(url);
+
+                            if (!clickable) {
+                                return `
+                                    <div class="block rounded-xl border border-gray-200 bg-white px-4 py-3 opacity-80">
+                                        <p class="font-medium text-gray-900 break-all">${escapeHtml(attachment.name || `Attachment ${index + 1}`)}</p>
+                                        <p class="mt-1 text-xs text-gray-500 break-all">${escapeHtml(attachment.path || '')}</p>
+                                        <p class="mt-1 text-[11px] text-gray-500">${escapeHtml(attachment.category || 'Supporting Document')}${attachment.uploaded_by ? ` • ${escapeHtml(attachment.uploaded_by)}` : ''}${attachment.uploaded_at ? ` • ${escapeHtml(attachment.uploaded_at)}` : ''}</p>
+                                    </div>
+                                `;
+                            }
+
+                            return `
+                            <a href="${escapeHtml(url)}" target="_blank" class="block rounded-xl border border-gray-200 bg-white px-4 py-3 hover:bg-gray-50 transition">
                                 <p class="font-medium text-gray-900 break-all">${escapeHtml(attachment.name || `Attachment ${index + 1}`)}</p>
                                 <p class="mt-1 text-xs text-gray-500 break-all">${escapeHtml(attachment.path || '')}</p>
                                 <p class="mt-1 text-[11px] text-gray-500">${escapeHtml(attachment.category || 'Supporting Document')}${attachment.uploaded_by ? ` • ${escapeHtml(attachment.uploaded_by)}` : ''}${attachment.uploaded_at ? ` • ${escapeHtml(attachment.uploaded_at)}` : ''}</p>
                             </a>
-                        `).join('') : '<p class="text-sm text-gray-400 italic">No other attachments uploaded.</p>'}
+                        `;
+                        }).join('') : '<p class="text-sm text-gray-400 italic">No other attachments uploaded.</p>'}
                     </div>
                 </div>
             </div>
@@ -16070,13 +16283,17 @@
         currentPreviewTab = ['attachments', 'template'].includes(tab) ? tab : 'details';
         if (currentPreviewRecord) {
             if (currentPreviewTab === 'attachments') {
-                const firstPdf = (currentPreviewRecord.attachments || []).find((attachment) => {
+                const firstPdf = financeAttachmentEntries(currentPreviewRecord).find((attachment) => {
                     const name = String(attachment.name || attachment.path || '').toLowerCase();
                     const mime = String(attachment.mime || '').toLowerCase();
-                    return name.endsWith('.pdf') || mime.includes('pdf');
+                    const url = String(attachment.url || normalizeAttachmentUrl(attachment.path || '') || '').trim();
+                    return url && (name.endsWith('.pdf') || mime.includes('pdf'));
                 });
                 currentPreviewAttachmentUrl = firstPdf ? (firstPdf.url || normalizeAttachmentUrl(firstPdf.path || '')) : '';
                 currentPreviewAttachmentToken = 0;
+                if (!currentPreviewAttachmentUrl) {
+                    revokeCurrentPreviewAttachmentObjectUrl();
+                }
             } else {
                 currentPreviewAttachmentToken = (currentPreviewAttachmentToken || 0) + 1;
                 currentPreviewAttachmentUrl = '';
@@ -16095,6 +16312,18 @@
         const workflowStatus = String(record?.workflow_status || '').trim().toLowerCase();
         const relationshipStatus = String(record?.data?.relationship_status || record?.relationship_status || '').trim().toLowerCase();
         const nextAction = String(record?.data?.next_action || record?.next_action || '').trim().toLowerCase();
+        const isApprovedLifecycleRecord = (candidate) => {
+            if (!candidate) return false;
+            if (['approved', 'accepted'].includes(String(candidate.workflow_status || '').trim().toLowerCase())
+                || String(candidate.approval_status || '').trim().toLowerCase() === 'approved') {
+                return true;
+            }
+            const requiredCount = parseInt(candidate?.data?.approval_required_count || candidate?.approval_required_count || '0', 10) || 0;
+            const completedCount = parseInt(candidate?.data?.approval_completed_count || candidate?.approval_completed_count || '0', 10) || 0;
+            return String(candidate.workflow_status || '').trim().toLowerCase() === 'archived'
+                && requiredCount > 0
+                && completedCount >= requiredCount;
+        };
         const isFinalWorkflow = ['completed', 'paid', 'disbursed', 'liquidated', 'closed'].includes(workflowStatus)
             || ['completed', 'paid', 'disbursed', 'liquidated', 'closed'].includes(relationshipStatus);
         const isApprovedWorkflow = ['approved', 'accepted'].includes(workflowStatus);
@@ -16191,26 +16420,45 @@
             }
         }
 
-        if (record.module_key === 'lr' && !isFinalWorkflow) {
+        if (record.module_key === 'lr') {
             const data = record.data || {};
-            const lrApproved = ['Accepted'].includes(String(record.workflow_status || '').trim())
-                || ['Approved'].includes(String(record.approval_status || '').trim());
+            const lrApproved = isApprovedLifecycleRecord(record);
             const caAmount = numericAmount(data.total_cash_advance || data.amount_requested || record.amount || 0);
             const lineItems = Array.isArray(data.line_items) ? data.line_items.filter((item) => item && Object.values(item).some((value) => String(value ?? '').trim() !== '')) : [];
             const lineItemsTotal = lineItems.reduce((sum, item) => sum + getLiquidationLineItemTotal(item), 0);
             const actualExpenses = lineItemsTotal > 0
                 ? lineItemsTotal
                 : numericAmount(data.actual_expenses || data.grand_total || caAmount || 0);
-            const effectiveActualExpenses = lineItemsTotal <= 0 && actualExpenses <= 0 && caAmount > 0 ? caAmount : actualExpenses;
+            const storedVarianceIndicator = String(data.variance_indicator || '').trim();
+            const effectiveActualExpenses = lineItemsTotal <= 0
+                && actualExpenses <= 0
+                && caAmount > 0
+                && !['Overage', 'Shortage'].includes(storedVarianceIndicator)
+                ? caAmount
+                : actualExpenses;
             const variance = caAmount - effectiveActualExpenses;
-            const varianceIndicator = variance > 0 ? 'Overage' : (variance < 0 ? 'Shortage' : 'Balanced');
+            const varianceIndicator = ['Overage', 'Shortage', 'Balanced'].includes(storedVarianceIndicator)
+                ? storedVarianceIndicator
+                : (variance > 0 ? 'Overage' : (variance < 0 ? 'Shortage' : 'Balanced'));
+            const linkedCrfRecord = data.linked_crf_id
+                ? (getRecordById(data.linked_crf_id) || getRecordByLookupValue('crf', data.linked_crf_id))
+                : (Array.isArray(financeRecords)
+                    ? financeRecords.find((candidate) => String(candidate?.module_key || '').toLowerCase() === 'crf' && String(candidate?.data?.linked_lr_id || '').trim() === String(record.id))
+                    : null);
+            const lrLifecycleComplete = lrApproved
+                || isFinalWorkflow
+                || ['completed', 'approved', 'accepted'].includes(relationshipStatus);
 
             if (
-                lrApproved
+                lrLifecycleComplete
                 && (varianceIndicator === 'Shortage' || varianceIndicator === 'Overage')
                 && canCreateFinanceModule(varianceIndicator === 'Shortage' ? 'err' : 'crf')
             ) {
-                actions.push(`<button type="button" onclick="window.financeModule.openPreviewLiquidationBranch(${record.id})" class="w-full bg-indigo-600 text-white rounded-md py-2 hover:bg-indigo-700">${varianceIndicator === 'Shortage' ? 'Create ERR' : 'Create CRF'}</button>`);
+                if (varianceIndicator === 'Overage' && linkedCrfRecord) {
+                    actions.push(`<button type="button" onclick="window.financeModule.openPreview(${linkedCrfRecord.id})" class="w-full bg-indigo-600 text-white rounded-md py-2 hover:bg-indigo-700">Open CRF</button>`);
+                } else {
+                    actions.push(`<button type="button" onclick="window.financeModule.openPreviewLiquidationBranch(${record.id})" class="w-full bg-indigo-600 text-white rounded-md py-2 hover:bg-indigo-700">${varianceIndicator === 'Shortage' ? 'Create ERR' : 'Create CRF'}</button>`);
+                }
             }
         }
 
@@ -16796,6 +17044,19 @@
             if (varianceIndicatorInput) varianceIndicatorInput.value = varianceIndicator;
         }
         const formData = new FormData(form);
+
+        if (currentModuleKey === 'lr') {
+            syncLineItemReceiptFileCacheFromDom();
+            document.querySelectorAll('[data-pr-line-item-row]').forEach((row, index) => {
+                const input = row.querySelector('[data-pr-line-item-field="receipt_attachment_file"]');
+                const file = input?.files?.[0] || financeLineItemReceiptFiles[String(index)] || null;
+                formData.delete(`line_item_receipts[${index}]`);
+                if (file) {
+                    formData.append(`line_item_receipts[${index}]`, file, file.name || `receipt-${index + 1}`);
+                }
+            });
+        }
+
         const token = currentCsrfToken();
         const moduleConfig = getModuleConfig(currentModuleKey);
         const currentRecord = currentEditRecordId ? getRecordById(currentEditRecordId) : null;
@@ -16855,44 +17116,53 @@
         }
         if (currentModuleKey === 'crf') {
             const amountReturnedValue = String(
-                financeFormValues['data[amount_returned]']
-                || financeFormValues.amount_returned
+                formData.get('data[amount_returned]')
                 || form.querySelector('input[name="data[amount_returned]"]')?.value
+                || financeFormValues['data[amount_returned]']
+                || financeFormValues.amount_returned
                 || ''
             ).trim();
             const modeOfReturnValue = String(
-                financeFormValues['data[mode_of_return]']
-                || financeFormValues.mode_of_return
+                formData.get('data[mode_of_return]')
                 || form.querySelector('[name="data[mode_of_return]"]')?.value
+                || financeFormValues['data[mode_of_return]']
+                || financeFormValues.mode_of_return
                 || ''
             ).trim();
             const cashReceiverValue = String(
-                financeFormValues['data[cash_receiver_name]']
-                || financeFormValues.cash_receiver_name
+                formData.get('data[cash_receiver_name]')
                 || form.querySelector('[name="data[cash_receiver_name]"]')?.value
+                || financeFormValues['data[cash_receiver_name]']
+                || financeFormValues.cash_receiver_name
                 || ''
             ).trim();
             const recipientBankAccountValue = String(
-                financeFormValues['data[recipient_bank_account]']
-                || financeFormValues.recipient_bank_account
+                formData.get('data[recipient_bank_account]')
                 || form.querySelector('[name="data[recipient_bank_account]"]')?.value
+                || financeFormValues['data[recipient_bank_account]']
+                || financeFormValues.recipient_bank_account
                 || ''
             ).trim();
             const recipientBankNumberValue = String(
-                financeFormValues['data[recipient_bank_number]']
-                || financeFormValues.recipient_bank_number
+                formData.get('data[recipient_bank_number]')
                 || form.querySelector('[name="data[recipient_bank_number]"]')?.value
+                || financeFormValues['data[recipient_bank_number]']
+                || financeFormValues.recipient_bank_number
                 || ''
             ).trim();
             const coaValue = String(
-                financeFormValues['data[coa_id]']
-                || financeFormValues.coa_id
+                formData.get('data[coa_id]')
                 || form.querySelector('[name="data[coa_id]"]')?.value
+                || financeFormValues['data[coa_id]']
+                || financeFormValues.coa_id
                 || ''
             ).trim();
 
             if (amountReturnedValue) {
                 formData.set('data[amount_returned]', amountReturnedValue);
+            }
+            if (modeOfReturnValue) {
+                formData.set('data[mode_of_return]', modeOfReturnValue);
             }
 
             if (modeOfReturnValue === 'Cash') {
