@@ -273,9 +273,9 @@
                     x-transition:leave="transform transition ease-in-out duration-300"
                     x-transition:leave-start="translate-x-0"
                     x-transition:leave-end="-translate-x-full"
-                    class="w-[70%] h-full bg-[#f3f4f6] overflow-y-auto p-6 border-r border-gray-200"
+                    class="w-[72%] h-full bg-[#f3f4f6] overflow-y-auto p-6 border-r border-gray-200"
                 >
-                    <div class="max-w-[930px] mx-auto mb-4 flex justify-end sticky top-0 z-10">
+                    <div class="max-w-[980px] mx-auto mb-4 flex justify-end sticky top-0 z-10">
                         <button
                             type="button"
                             id="download-preview-pdf"
@@ -286,7 +286,7 @@
                         </button>
                     </div>
 
-                    <div class="max-w-[930px] mx-auto flex justify-center">
+                    <div class="max-w-[980px] mx-auto flex justify-center">
                         <div id="transmittal-preview-pdf" class="transmittal-doc-page bg-white border border-gray-300 shadow">
                             <div class="tm-corp-header">
                                 <img src="{{ $tmLogoUrl }}" alt="Company Logo" class="tm-corp-logo">
@@ -423,7 +423,7 @@
                     x-transition:leave="transform transition ease-in-out duration-300"
                     x-transition:leave-start="translate-x-0"
                     x-transition:leave-end="translate-x-full"
-                    class="w-[30%] h-full bg-white shadow-2xl flex flex-col"
+                    class="w-[28%] h-full bg-white shadow-2xl flex flex-col"
                 >
                     <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
                         <h2 class="text-lg font-semibold text-gray-800">Add Transmittal</h2>
@@ -705,7 +705,7 @@
     .transmittal-doc-page {
         width: 210mm;
         min-height: 297mm;
-        padding: 16mm 16mm 18mm 16mm;
+        padding: 18mm 16mm 22mm 16mm;
         box-sizing: border-box;
         background: #fff;
         color: #111827;
@@ -716,7 +716,7 @@
 
 
     .tm-corp-header { text-align:center; margin-bottom:18mm; color:#000; }
-    .tm-corp-logo { width:70px; max-height:70px; object-fit:contain; margin:0 auto 4px auto; display:block; }
+    .tm-corp-logo { width:155px; max-width:155px; max-height:100px; object-fit:contain; margin:0 auto 6px auto; display:block; }
     .tm-corp-name { font-family: Georgia, 'Times New Roman', serif; font-size:22px; font-weight:700; text-transform:uppercase; line-height:1.15; }
     .tm-corp-line { font-family: Georgia, 'Times New Roman', serif; font-size:12px; font-weight:700; line-height:1.25; text-transform:uppercase; }
 
@@ -930,7 +930,14 @@
 
     @media (max-width: 1280px) {
         .transmittal-doc-page {
-            transform: scale(0.88);
+            transform: scale(0.96);
+            transform-origin: top center;
+        }
+    }
+
+    @media (max-width: 1180px) {
+        .transmittal-doc-page {
+            transform: scale(0.90);
             transform-origin: top center;
         }
     }
