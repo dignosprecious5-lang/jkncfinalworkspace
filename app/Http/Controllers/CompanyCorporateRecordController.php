@@ -274,14 +274,24 @@ class CompanyCorporateRecordController extends Controller
     public function minutes(Request $request, int $company): View
     {
         $companyData = $this->findCompanyOrAbort($request, $company);
+
+        /*
+        |--------------------------------------------------------------------------
+        | PERFORMANCE FIX
+        |--------------------------------------------------------------------------
+        | Use pagination for the Company Minutes list. This prevents the Company
+        | Corporate Formation page from loading every minutes record at once.
+        */
         $minutes = $this->companyScopedQuery(Minute::query(), new Minute(), $company)
             ->with('notice')
             ->latest()
-            ->get()
-            ->each(function (Minute $minute) use ($company) {
-                $minute->preview_url = route('company.corporate-formation.minutes.preview', [$company, $minute->id]);
-                $minute->approve_url = route('company.corporate-formation.minutes.approve', [$company, $minute->id]);
-            });
+            ->paginate(10);
+
+        $minutes->getCollection()->each(function (Minute $minute) use ($company) {
+            $minute->preview_url = route('company.corporate-formation.minutes.preview', [$company, $minute->id]);
+            $minute->approve_url = route('company.corporate-formation.minutes.approve', [$company, $minute->id]);
+        });
+
         $notices = $this->companyScopedQuery(Notice::query(), new Notice(), $company)
             ->with('attendees')
             ->orderBy('date_of_meeting')
@@ -322,9 +332,18 @@ class CompanyCorporateRecordController extends Controller
     {
         $companyData = $this->findCompanyOrAbort($request, $company);
         $minuteRecord = $this->findCompanyMinute($company, $minute);
-        $minuteRecord->load('notice.attendees');
+
+        /*
+        |--------------------------------------------------------------------------
+        | PERFORMANCE FIX
+        |--------------------------------------------------------------------------
+        | Do not generate PDF while opening the normal Company Minutes preview.
+        | The PDF route will generate the template only when the user opens or
+        | downloads the PDF.
+        */
+        $minuteRecord->loadMissing('notice.attendees');
+
         $noticeRecord = $minuteRecord->notice;
-        $templatePreviewPath = $this->generateCompanyMinuteTemplatePreviewPdf($minuteRecord);
         $lockedGis = $this->companyGisForDocument($minuteRecord, $company);
         $baseViewData = $this->companyViewData($companyData, $company, $lockedGis);
         $corporateContext = $baseViewData['corporateContext'] ?? [];
@@ -496,29 +515,35 @@ class CompanyCorporateRecordController extends Controller
         return redirect()->route('company.corporate-formation.minutes', $company)->with('success', 'Minutes deleted.');
     }
 
-    public function resolutions(Request $request, int $company): View
-    {
-        $companyData = $this->findCompanyOrAbort($request, $company);
-        $resolutions = $this->companyScopedQuery(Resolution::query(), new Resolution(), $company)
-            ->with(['minute', 'notice', 'secretaryCertificates'])
-            ->latest()
-            ->get()
-            ->each(fn (Resolution $resolution) => $resolution->preview_url = route('company.corporate-formation.resolutions.preview', [$company, $resolution->id]));
-        $minutes = $this->companyScopedQuery(Minute::query(), new Minute(), $company)
-            ->with('notice')
-            ->orderBy('date_of_meeting')
-            ->get();
+public function resolutions(Request $request, int $company): View
+{
+    $companyData = $this->findCompanyOrAbort($request, $company);
 
-        return view('corporate.resolutions.index', [
-            'resolutions' => $resolutions,
-            'minutes' => $minutes,
-            'nextResolutionNumber' => $this->nextCompanyResolutionNumber($company),
-            'sectionRibbonPartial' => 'company.partials.corporate-formation-ribbon',
-            'resolutionStoreUrl' => route('company.corporate-formation.resolutions.store', $company),
-            'documentDefaultsUrl' => route('corporate-document-defaults'),
-            ...$this->companyViewData($companyData, $company),
-        ]);
-    }
+    $resolutions = $this->companyScopedQuery(Resolution::query(), new Resolution(), $company)
+        ->with(['minute', 'notice'])
+        ->withCount('secretaryCertificates')
+        ->latest()
+        ->paginate(10);
+
+    $resolutions->getCollection()->each(function (Resolution $resolution) use ($company) {
+        $resolution->preview_url = route('company.corporate-formation.resolutions.preview', [$company, $resolution->id]);
+    });
+
+    $minutes = $this->companyScopedQuery(Minute::query(), new Minute(), $company)
+        ->with('notice')
+        ->orderByDesc('date_of_meeting')
+        ->get();
+
+    return view('corporate.resolutions.index', [
+        'resolutions' => $resolutions,
+        'minutes' => $minutes,
+        'nextResolutionNumber' => $this->nextCompanyResolutionNumber($company),
+        'sectionRibbonPartial' => 'company.partials.corporate-formation-ribbon',
+        'resolutionStoreUrl' => route('company.corporate-formation.resolutions.store', $company),
+        'documentDefaultsUrl' => route('corporate-document-defaults'),
+        ...$this->companyViewData($companyData, $company),
+    ]);
+}
 
     public function storeResolution(Request $request, int $company): RedirectResponse
     {
@@ -546,68 +571,69 @@ class CompanyCorporateRecordController extends Controller
         return redirect()->route('company.corporate-formation.resolutions', $company)->with('success', 'Resolution created.');
     }
 
-    public function showResolution(Request $request, int $company, int $resolution): View
-    {
-        $companyData = $this->findCompanyOrAbort($request, $company);
-        $resolutionRecord = $this->findCompanyResolution($company, $resolution);
+public function showResolution(Request $request, int $company, int $resolution): View
+{
+    $companyData = $this->findCompanyOrAbort($request, $company);
+    $resolutionRecord = $this->findCompanyResolution($company, $resolution);
 
-        // Always load the linked meeting sources before building the template data.
-        $resolutionRecord->load(['minute.notice.attendees', 'notice.attendees', 'secretaryCertificates']);
+    /*
+    |--------------------------------------------------------------------------
+    | PERFORMANCE FIX
+    |--------------------------------------------------------------------------
+    | Do not generate or sync PDFs while opening the normal Company Resolution
+    | preview. PDF generation is heavy and can cause PHP-FPM/MySQL pressure and
+    | 502 errors. The PDF will be generated only through the download route.
+    */
+    $resolutionRecord->loadMissing([
+        'minute.notice.attendees',
+        'notice.attendees',
+        'secretaryCertificates',
+    ]);
 
-        // Build the same document payload used by the Corporate Resolution module,
-        // but scoped to this company GIS/notice/minutes.
-        $document = $this->companyResolutionDocumentData($resolutionRecord, $company, $companyData);
+    $document = $this->companyResolutionDocumentData($resolutionRecord, $company, $companyData);
+    $noticeRecord = $resolutionRecord->notice ?: $resolutionRecord->minute?->notice;
 
-        // Rebuild the generated draft if it was system-generated, then reload and rebuild
-        // the live preview path using the same company document payload.
-        $this->syncGeneratedResolutionPdf($resolutionRecord, false);
-        $resolutionRecord = $resolutionRecord->fresh();
-        $resolutionRecord->load(['minute.notice.attendees', 'notice.attendees', 'secretaryCertificates']);
-        $document = $this->companyResolutionDocumentData($resolutionRecord, $company, $companyData);
-        $noticeRecord = $resolutionRecord->notice ?: $resolutionRecord->minute?->notice;
+    // Keep the editor/builder body clean. The standard WHEREAS RESOLVED
+    // clauses are system-generated in the preview/PDF only, not stored in
+    // or shown inside the editable Resolution Body field.
+    $resolutionRecord->setAttribute(
+        'resolution_body',
+        $this->stripCompanyStandardResolutionClauses($resolutionRecord->resolution_body)
+    );
 
-        // Keep the editor/builder body clean. The standard WHEREAS RESOLVED
-        // clauses are system-generated in the preview/PDF only, not stored in
-        // or shown inside the editable Resolution Body field.
-        $resolutionRecord->setAttribute(
-            'resolution_body',
-            $this->stripCompanyStandardResolutionClauses($resolutionRecord->resolution_body)
-        );
+    // The shared blade may read signatories directly from the resolution model,
+    // so expose the company-scoped attendees/signatories in-memory.
+    $resolutionRecord->setAttribute(
+        'directors',
+        collect($document['approval_rows'] ?? [])->pluck('name')->implode(', ')
+    );
 
-        // The shared blade may read signatories directly from the resolution
-        // model, so expose the company-scoped attendees/signatories in-memory.
-        $resolutionRecord->setAttribute('directors', collect($document['approval_rows'] ?? [])->pluck('name')->implode(', '));
-        if (!empty($document['chairman']['name'])) {
-            $resolutionRecord->setAttribute('chairman', $document['chairman']['name']);
-        }
-
-        $lockedGis = $this->companyGisForDocument($resolutionRecord, $company);
-        $baseViewData = $this->companyViewData($companyData, $company, $lockedGis);
-        $corporateContext = $baseViewData['corporateContext'] ?? [];
-
-        $generatedBodyPreviewPath = $this->generateResolutionPdf(
-            $resolutionRecord,
-            'generated-previews/resolutions/' . ($resolutionRecord->resolution_no ?: $resolutionRecord->id) . '-body-built.pdf'
-        );
-
-        return view('corporate.resolutions.preview', [
-            'resolution' => $resolutionRecord,
-            'document' => $document,
-            'generatedBodyPreviewUrl' => $generatedBodyPreviewPath ? route('uploads.show', ['path' => $generatedBodyPreviewPath]) : null,
-            'backRoute' => route('company.corporate-formation.resolutions', $company),
-            'editRoute' => route('company.corporate-formation.resolutions.preview', [$company, $resolutionRecord->id]),
-            'updateRoute' => route('company.corporate-formation.resolutions.update', [$company, $resolutionRecord->id]),
-            'deleteRoute' => route('company.corporate-formation.resolutions.destroy', [$company, $resolutionRecord->id]),
-            'downloadRoute' => route('company.corporate-formation.resolutions.download', [$company, $resolutionRecord->id, 'download' => 1]),
-            'sectionRibbonPartial' => 'company.partials.corporate-formation-ribbon',
-            'sendRoute' => $noticeRecord
-                ? route('company.corporate-formation.notices.send', [$company, $noticeRecord->id])
-                : null,
-            ...$baseViewData,
-            // Keep this AFTER companyViewData so it will not be overwritten by the generic company context.
-            'corporateContext' => $corporateContext,
-        ]);
+    if (!empty($document['chairman']['name'])) {
+        $resolutionRecord->setAttribute('chairman', $document['chairman']['name']);
     }
+
+    $lockedGis = $this->companyGisForDocument($resolutionRecord, $company);
+    $baseViewData = $this->companyViewData($companyData, $company, $lockedGis);
+    $corporateContext = $baseViewData['corporateContext'] ?? [];
+
+    return view('corporate.resolutions.preview', [
+        'resolution' => $resolutionRecord,
+        'document' => $document,
+        'generatedBodyPreviewUrl' => route('company.corporate-formation.resolutions.download', [$company, $resolutionRecord->id]),
+        'backRoute' => route('company.corporate-formation.resolutions', $company),
+        'editRoute' => route('company.corporate-formation.resolutions.preview', [$company, $resolutionRecord->id]),
+        'updateRoute' => route('company.corporate-formation.resolutions.update', [$company, $resolutionRecord->id]),
+        'deleteRoute' => route('company.corporate-formation.resolutions.destroy', [$company, $resolutionRecord->id]),
+        'downloadRoute' => route('company.corporate-formation.resolutions.download', [$company, $resolutionRecord->id, 'download' => 1]),
+        'sectionRibbonPartial' => 'company.partials.corporate-formation-ribbon',
+        'sendRoute' => $noticeRecord
+            ? route('company.corporate-formation.notices.send', [$company, $noticeRecord->id])
+            : null,
+        ...$baseViewData,
+        // Keep this AFTER companyViewData so it will not be overwritten by the generic company context.
+        'corporateContext' => $corporateContext,
+    ]);
+}
 
     public function updateResolution(Request $request, int $company, int $resolution): RedirectResponse
     {

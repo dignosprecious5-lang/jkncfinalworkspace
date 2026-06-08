@@ -96,7 +96,7 @@
                                     <span class="inline-flex rounded-full px-2 py-1 font-semibold {{ $resolution->draft_file_path ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600' }}">Draft {{ $resolution->draft_file_path ? 'uploaded' : 'generated' }}</span>
                                     <span class="inline-flex rounded-full px-2 py-1 font-semibold {{ $resolution->notarized_file_path ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700' }}">Original {{ $resolution->notarized_file_path ? 'ready' : 'pending' }}</span>
                                 </td>
-                                <td class="px-4 py-3">{{ $resolution->secretaryCertificates->count() }}</td>
+                                <td class="px-4 py-3">{{ $resolution->secretary_certificates_count ?? 0 }}</td>
                             </tr>
                         @empty
                             <tr>
@@ -105,6 +105,12 @@
                         @endforelse
                     </tbody>
                 </table>
+
+                @if (method_exists($resolutions, 'links'))
+                    <div class="mt-4">
+                        {{ $resolutions->links() }}
+                    </div>
+                @endif
             </div>
         </div>
     </div>

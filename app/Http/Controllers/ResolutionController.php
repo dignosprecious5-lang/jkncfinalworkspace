@@ -21,24 +21,25 @@ class ResolutionController extends Controller
     use GeneratesCorporateDocumentNumbers;
     use HandlesUploads;
 
-    public function index()
-    {
-        $resolutions = Resolution::whereNull('company_id')
-            ->with(['minute.notice.attendees', 'notice.attendees', 'secretaryCertificates'])
-            ->latest()
-            ->get();
+public function index()
+{
+    $resolutions = Resolution::whereNull('company_id')
+        ->with(['minute', 'notice'])
+        ->withCount('secretaryCertificates')
+        ->latest()
+        ->paginate(10);
 
-        $minutes = Minute::whereNull('company_id')
-            ->with('notice.attendees')
-            ->orderByDesc('date_of_meeting')
-            ->get();
+    $minutes = Minute::whereNull('company_id')
+        ->with('notice')
+        ->orderByDesc('date_of_meeting')
+        ->get();
 
-        return view('corporate.resolutions.index', [
-            'resolutions' => $resolutions,
-            'minutes' => $minutes,
-            'nextResolutionNumber' => $this->nextResolutionNumber(),
-        ]);
-    }
+    return view('corporate.resolutions.index', [
+        'resolutions' => $resolutions,
+        'minutes' => $minutes,
+        'nextResolutionNumber' => $this->nextResolutionNumber(),
+    ]);
+}
 
     public function create()
     {
@@ -73,30 +74,37 @@ class ResolutionController extends Controller
         return redirect()->route('resolutions')->with('success', 'Resolution created.');
     }
 
-    public function show(Resolution $resolution)
-    {
-        abort_if($resolution->company_id !== null, 404);
+public function show(Resolution $resolution)
+{
+    abort_if($resolution->company_id !== null, 404);
 
-        $this->syncGeneratedResolutionPdf($resolution, false);
-        $resolution = $resolution->fresh();
-        $resolution->load(['minute.notice.attendees', 'notice.attendees', 'secretaryCertificates']);
-        $document = $this->resolutionDocumentData($resolution);
-        $generatedBodyPreviewPath = $this->generateResolutionPdf(
-            $resolution,
-            'generated-previews/resolutions/' . ($resolution->resolution_no ?: $resolution->id) . '-body-built.pdf'
-        );
+    /*
+    |--------------------------------------------------------------------------
+    | PERFORMANCE FIX
+    |--------------------------------------------------------------------------
+    | Do not generate or sync PDFs while opening the normal Resolution preview.
+    | PDF generation is heavy and can cause PHP-FPM/MySQL pressure and 502
+    | errors. The PDF will be generated only through the download route.
+    */
+    $resolution->loadMissing([
+        'minute.notice.attendees',
+        'notice.attendees',
+        'secretaryCertificates',
+    ]);
 
-        return view('corporate.resolutions.preview', [
-            'resolution' => $resolution,
-            'document' => $document,
-            'generatedBodyPreviewUrl' => $generatedBodyPreviewPath ? route('uploads.show', ['path' => $generatedBodyPreviewPath]) : null,
-            'downloadRoute' => route('resolutions.download', $resolution),
-            'backRoute' => route('resolutions'),
-            'editRoute' => route('resolutions.edit', $resolution),
-            'updateRoute' => route('resolutions.update', $resolution),
-            'deleteRoute' => route('resolutions.destroy', $resolution),
-        ]);
-    }
+    $document = $this->resolutionDocumentData($resolution);
+
+    return view('corporate.resolutions.preview', [
+        'resolution' => $resolution,
+        'document' => $document,
+        'generatedBodyPreviewUrl' => route('resolutions.download', $resolution),
+        'downloadRoute' => route('resolutions.download', $resolution),
+        'backRoute' => route('resolutions'),
+        'editRoute' => route('resolutions.edit', $resolution),
+        'updateRoute' => route('resolutions.update', $resolution),
+        'deleteRoute' => route('resolutions.destroy', $resolution),
+    ]);
+}
 
     public function downloadPdf(Resolution $resolution)
     {

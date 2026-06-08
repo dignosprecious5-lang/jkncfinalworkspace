@@ -21,10 +21,17 @@ class MinuteController extends Controller
 
     public function index()
     {
+        /*
+        |--------------------------------------------------------------------------
+        | PERFORMANCE FIX
+        |--------------------------------------------------------------------------
+        | Use pagination for the Minutes list. This prevents the Corporate Minutes
+        | page from loading every minutes record at once as the table grows.
+        */
         $minutes = Minute::whereNull('company_id')
             ->with('notice')
             ->latest()
-            ->get();
+            ->paginate(10);
 
         $notices = Notice::whereNull('company_id')
             ->with('attendees')
@@ -75,8 +82,14 @@ class MinuteController extends Controller
     {
         abort_if($minute->company_id !== null, 404);
 
-        $minute->load('notice');
-        $templatePreviewPath = $this->generateTemplatePreviewPdf($minute);
+        /*
+        |--------------------------------------------------------------------------
+        | PERFORMANCE FIX
+        |--------------------------------------------------------------------------
+        | Do not generate PDF while opening the normal Minutes preview page.
+        | PDF generation is heavy and should only happen through downloadPdf().
+        */
+        $minute->loadMissing('notice.attendees');
 
         return view('corporate.minutes.preview', [
             'minute' => $minute,

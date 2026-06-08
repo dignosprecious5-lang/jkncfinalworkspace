@@ -146,6 +146,11 @@
                         @endforelse
                     </tbody>
                 </table>
+                @if (method_exists($minutes, 'links'))
+                    <div class="mt-4">
+                        {{ $minutes->links() }}
+                    </div>
+                @endif
             </div>
         </div>
     </div>
