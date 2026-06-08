@@ -383,7 +383,7 @@ class TransmittalController extends Controller
         $approvedByDisplay = $this->resolveApprovedByName($transmittal);
         $corporateContext = $this->transmittalCorporateContext();
 
-        $pdf = Pdf::loadView('transmittal.preview-pdf', [
+        $transmittalPdf = Pdf::loadView('transmittal.preview-pdf', [
                 'transmittal' => $transmittal,
                 'approvedByDisplay' => $approvedByDisplay,
                 'corporateContext' => $corporateContext,
@@ -391,8 +391,88 @@ class TransmittalController extends Controller
             ->setPaper('a4', 'portrait')
             ->setOptions(['isPhpEnabled' => true, 'isRemoteEnabled' => true]);
 
-        $pdfFileName = 'transmittal-' . Str::slug((string) $transmittal->transmittal_no, '-') . '.pdf';
-        $pdfOutput = $pdf->output();
+        $transmittalPdfFileName = 'transmittal-' . Str::slug((string) ($transmittal->transmittal_no ?: $transmittal->id), '-') . '.pdf';
+        $transmittalPdfOutput = $transmittalPdf->output();
+
+        $receiptPdfFileName = null;
+        $receiptPdfOutput = null;
+
+        if ($transmittal->receipt) {
+            $receipt = $transmittal->receipt;
+            $customPaper = [0, 0, 612, 255];
+
+            $receiptDate = $receipt->created_at
+                ? $receipt->created_at->format('Y-m-d')
+                : now()->format('Y-m-d');
+
+            $receivedAt = $transmittal->received_at
+                ? $transmittal->received_at->format('Y-m-d H:i:s')
+                : 'N/A';
+
+            $preparedAt = $transmittal->prepared_at
+                ? $transmittal->prepared_at->format('Y-m-d H:i:s')
+                : 'N/A';
+
+            $approvedAt = $transmittal->approved_at
+                ? $transmittal->approved_at->format('Y-m-d H:i:s')
+                : 'N/A';
+
+            $deliveryType = 'N/A';
+            if (($transmittal->delivery_type ?? '') === 'By Person') {
+                $deliveryType = $transmittal->by_person_who
+                    ? 'By Person - ' . $transmittal->by_person_who
+                    : 'By Person';
+            } elseif (($transmittal->delivery_type ?? '') === 'Registered Mail') {
+                $deliveryType = $transmittal->registered_mail_provider
+                    ? 'Registered Mail - ' . $transmittal->registered_mail_provider
+                    : 'Registered Mail';
+            } elseif (($transmittal->delivery_type ?? '') === 'Electronic') {
+                $deliveryType = $transmittal->electronic_method
+                    ? 'Electronic - ' . $transmittal->electronic_method
+                    : 'Electronic';
+            }
+
+            $actions = collect([
+                $transmittal->action_delivery ? 'Delivery' : null,
+                $transmittal->action_pick_up ? 'Pick Up' : null,
+                $transmittal->action_drop_off ? 'Drop Off' : null,
+                $transmittal->action_email ? 'Email' : null,
+            ])->filter()->implode(', ');
+
+            if ($actions === '') {
+                $actions = '—';
+            }
+
+            $fromValue = $transmittal->mode === 'SEND'
+                ? ($transmittal->office_name ?? 'N/A')
+                : ($transmittal->party_name ?? 'N/A');
+
+            $toValue = $transmittal->mode === 'SEND'
+                ? ($transmittal->party_name ?? 'N/A')
+                : ($transmittal->office_name ?? 'N/A');
+
+            $approvedByText = ($transmittal->approved_by_name ?? 'N/A')
+                . ($transmittal->approved_position ? ' (' . $transmittal->approved_position . ')' : '');
+
+            $receiptPdf = Pdf::loadView('transmittal.receipt-pdf', [
+                    'transmittal' => $transmittal,
+                    'receipt' => $receipt,
+                    'receiptDate' => $receiptDate,
+                    'receivedAt' => $receivedAt,
+                    'preparedAt' => $preparedAt,
+                    'approvedAt' => $approvedAt,
+                    'deliveryType' => $deliveryType,
+                    'actions' => $actions,
+                    'fromValue' => $fromValue,
+                    'toValue' => $toValue,
+                    'approvedByText' => $approvedByText,
+                    'corporateContext' => $corporateContext,
+                ])
+                ->setPaper($customPaper);
+
+            $receiptPdfFileName = 'receipt-' . Str::slug((string) ($receipt->receipt_no ?: $transmittal->transmittal_no ?: $transmittal->id), '-') . '.pdf';
+            $receiptPdfOutput = $receiptPdf->output();
+        }
 
         $fileAttachments = [];
 
@@ -417,17 +497,29 @@ class TransmittalController extends Controller
         Mail::send('emails.transmittal-sent', [
             'transmittal' => $transmittal,
             'corporateContext' => $corporateContext,
-        ], function ($message) use ($recipient, $transmittal, $pdfOutput, $pdfFileName, $fileAttachments) {
+        ], function ($message) use ($recipient, $transmittal, $transmittalPdfOutput, $transmittalPdfFileName, $receiptPdfOutput, $receiptPdfFileName, $fileAttachments) {
             $message->to($recipient)
                 ->subject('Transmittal Form ' . ($transmittal->transmittal_no ?? ''))
-                ->attachData($pdfOutput, $pdfFileName, ['mime' => 'application/pdf']);
+                ->attachData($transmittalPdfOutput, $transmittalPdfFileName, ['mime' => 'application/pdf']);
+
+            if ($receiptPdfOutput && $receiptPdfFileName) {
+                $message->attachData($receiptPdfOutput, $receiptPdfFileName, ['mime' => 'application/pdf']);
+            }
 
             foreach ($fileAttachments as $attachment) {
                 $message->attach($attachment['path'], ['as' => $attachment['name']]);
             }
         });
 
-        return back()->with('success', 'Transmittal email sent successfully to ' . $recipient . '.');
+        $sentParts = ['transmittal PDF'];
+        if ($receiptPdfOutput) {
+            $sentParts[] = 'receipt PDF';
+        }
+        if (count($fileAttachments) > 0) {
+            $sentParts[] = count($fileAttachments) . ' attachment(s)';
+        }
+
+        return back()->with('success', 'Transmittal email sent successfully to ' . $recipient . ' with ' . implode(', ', $sentParts) . '.');
     }
 
     public function receiptPdf($id)
