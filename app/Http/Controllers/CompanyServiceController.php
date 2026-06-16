@@ -42,6 +42,7 @@ class CompanyServiceController extends Controller
     ];
 
     private const FREQUENCY_OPTIONS = [
+        'No Frequency / Not Applicable',
         'One-time',
         'Daily',
         'Weekly',
@@ -852,14 +853,21 @@ class CompanyServiceController extends Controller
             if (($validated['category'] ?? null) === 'Others' && blank($validated['category_other'] ?? null)) {
                 $validator->errors()->add('category_other', 'Other Category is required when Others is selected.');
             }
-
-            if ($isRecurring && blank($validated['schedule_rule'] ?? null)) {
-                $validator->errors()->add('schedule_rule', 'Schedule Rule is required for recurring services.');
-            }
-
-            if (filled($frequency) && blank($validated['deadline'] ?? null)) {
-                $validator->errors()->add('deadline', 'Deadline is required when a frequency is selected.');
-            }
+if (
+    $isRecurring
+    && filled($frequency)
+    && ! in_array($frequency, [
+        'No Frequency / Not Applicable',
+        'One-time',
+        'Per Transaction',
+    ], true)
+    && blank($validated['schedule_rule'] ?? null)
+) {
+    $validator->errors()->add(
+        'schedule_rule',
+        'Schedule Rule is required for recurring scheduled services.'
+    );
+}
 
             if (blank($validated['rate_per_unit'] ?? null) && blank($validated['price_fee'] ?? null)) {
                 $validator->errors()->add('rate_per_unit', 'Either Rate per Unit or Price / Fee is required.');
