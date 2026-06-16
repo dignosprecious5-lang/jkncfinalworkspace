@@ -340,7 +340,7 @@ class CompanyServiceController extends Controller
         }
 
         $options = collect($validated['options'] ?? [])
-            ->map(fn($value) => trim((string) $value))
+            ->map(fn ($value) => trim((string) $value))
             ->filter()
             ->values()
             ->all();
@@ -354,11 +354,11 @@ class CompanyServiceController extends Controller
             $keyBase = 'custom_field';
         }
 
-        $fieldKey = 'custom_' . $keyBase;
+        $fieldKey = 'custom_'.$keyBase;
         $suffix = 1;
         while (ServiceCustomField::query()->where('field_key', $fieldKey)->exists()) {
             $suffix++;
-            $fieldKey = 'custom_' . $keyBase . '_' . $suffix;
+            $fieldKey = 'custom_'.$keyBase.'_'.$suffix;
         }
 
         ServiceCustomField::query()->create([
@@ -431,7 +431,7 @@ class CompanyServiceController extends Controller
         }
 
         if ($filters['search'] !== '') {
-            $term = '%' . $filters['search'] . '%';
+            $term = '%'.$filters['search'].'%';
             $query->where(function ($builder) use ($term) {
                 $builder
                     ->where('service_name', 'like', $term)
@@ -440,8 +440,8 @@ class CompanyServiceController extends Controller
                     ->orWhere('frequency', 'like', $term)
                     ->orWhere('assigned_unit', 'like', $term)
                     ->orWhere('status', 'like', $term)
-                    ->orWhereHas('company', fn($companyQuery) => $companyQuery->where('company_name', 'like', $term))
-                    ->orWhereHas('creator', fn($userQuery) => $userQuery->where('name', 'like', $term));
+                    ->orWhereHas('company', fn ($companyQuery) => $companyQuery->where('company_name', 'like', $term))
+                    ->orWhereHas('creator', fn ($userQuery) => $userQuery->where('name', 'like', $term));
             });
         }
 
@@ -778,7 +778,7 @@ class CompanyServiceController extends Controller
             'service_area_other' => ['nullable', 'string', 'max:255'],
             'category' => ['nullable', 'string', 'max:255'],
             'category_other' => ['nullable', 'string', 'max:255'],
-            'frequency' => ['required', 'string', Rule::in(self::FREQUENCY_OPTIONS)],
+            'frequency' => ['nullable', 'string', Rule::in(self::FREQUENCY_OPTIONS)],
             'schedule_rule' => ['nullable', 'string', 'max:255'],
             'deadline' => ['nullable', 'date'],
             'reminder_lead_time' => ['nullable', 'string', Rule::in(self::REMINDER_OPTIONS)],
@@ -808,7 +808,7 @@ class CompanyServiceController extends Controller
         }
 
         foreach ($customFields as $field) {
-            $key = 'custom_fields.' . $field->field_key;
+            $key = 'custom_fields.'.$field->field_key;
             $fieldRules = [$field->is_required ? 'required' : 'nullable'];
 
             switch ($field->field_type) {
@@ -844,7 +844,7 @@ class CompanyServiceController extends Controller
                 trim((string) ($validated['requirements_individual'] ?? '')),
                 trim((string) ($validated['requirements_juridical'] ?? '')),
                 trim((string) ($validated['requirements_other'] ?? '')),
-            ])->filter(fn($value) => $value !== '');
+            ])->filter(fn ($value) => $value !== '');
 
             if ($serviceArea->contains('Others') && blank($validated['service_area_other'] ?? null)) {
                 $validator->errors()->add('service_area_other', 'Other Service Area is required when Others is selected.');
@@ -853,21 +853,21 @@ class CompanyServiceController extends Controller
             if (($validated['category'] ?? null) === 'Others' && blank($validated['category_other'] ?? null)) {
                 $validator->errors()->add('category_other', 'Other Category is required when Others is selected.');
             }
-            if (
-                $isRecurring
-                && filled($frequency)
-                && ! in_array($frequency, [
-                    'No Frequency / Not Applicable',
-                    'One-time',
-                    'Per Transaction',
-                ], true)
-                && blank($validated['schedule_rule'] ?? null)
-            ) {
-                $validator->errors()->add(
-                    'schedule_rule',
-                    'Schedule Rule is required for recurring scheduled services.'
-                );
-            }
+if (
+    $isRecurring
+    && filled($frequency)
+    && ! in_array($frequency, [
+        'No Frequency / Not Applicable',
+        'One-time',
+        'Per Transaction',
+    ], true)
+    && blank($validated['schedule_rule'] ?? null)
+) {
+    $validator->errors()->add(
+        'schedule_rule',
+        'Schedule Rule is required for recurring scheduled services.'
+    );
+}
 
             if (blank($validated['rate_per_unit'] ?? null) && blank($validated['price_fee'] ?? null)) {
                 $validator->errors()->add('rate_per_unit', 'Either Rate per Unit or Price / Fee is required.');
@@ -898,16 +898,16 @@ class CompanyServiceController extends Controller
 
                         return is_array($areas) ? $areas : [];
                     })
-                    ->filter(fn($value): bool => is_string($value) && trim($value) !== '' && trim($value) !== 'Others')
-                    ->map(fn($value): string => trim((string) $value));
+                    ->filter(fn ($value): bool => is_string($value) && trim($value) !== '' && trim($value) !== 'Others')
+                    ->map(fn ($value): string => trim((string) $value));
 
                 $storedOtherAreas = [];
                 if (Schema::hasColumn('services', 'service_area_other')) {
                     $storedOtherAreas = Service::query()
                         ->whereNotNull('service_area_other')
                         ->pluck('service_area_other')
-                        ->filter(fn($value): bool => is_string($value) && trim($value) !== '')
-                        ->map(fn($value): string => trim((string) $value))
+                        ->filter(fn ($value): bool => is_string($value) && trim($value) !== '')
+                        ->map(fn ($value): string => trim((string) $value))
                         ->all();
                 }
 
@@ -934,8 +934,8 @@ class CompanyServiceController extends Controller
                 $storedCategories = Service::query()
                     ->whereNotNull('category')
                     ->pluck('category')
-                    ->filter(fn($value): bool => is_string($value) && trim($value) !== '')
-                    ->map(fn($value): string => trim((string) $value));
+                    ->filter(fn ($value): bool => is_string($value) && trim($value) !== '')
+                    ->map(fn ($value): string => trim((string) $value));
 
                 $options = $options->merge($storedCategories);
             }
@@ -1007,7 +1007,7 @@ class CompanyServiceController extends Controller
     private function normalizeRequirements(?string $category, string $requirementsText): ?array
     {
         $lines = collect(preg_split('/\r\n|\r|\n/', $requirementsText) ?: [])
-            ->map(fn($line) => trim(Str::replaceFirst('•', '', $line)))
+            ->map(fn ($line) => trim(Str::replaceFirst('•', '', $line)))
             ->filter()
             ->values()
             ->all();
@@ -1031,7 +1031,7 @@ class CompanyServiceController extends Controller
         ];
 
         $groups = collect($groups)
-            ->filter(fn(array $lines): bool => count($lines) > 0)
+            ->filter(fn (array $lines): bool => count($lines) > 0)
             ->all();
 
         if ($groups === [] && filled($legacyRequirementsText) && filled($legacyCategory)) {
@@ -1066,7 +1066,7 @@ class CompanyServiceController extends Controller
     private function normalizeRequirementLines(string $requirementsText): array
     {
         return collect(preg_split('/\r\n|\r|\n/', $requirementsText) ?: [])
-            ->map(fn($line) => trim(preg_replace('/^[^A-Za-z0-9]+/u', '', (string) $line) ?? ''))
+            ->map(fn ($line) => trim(preg_replace('/^[^A-Za-z0-9]+/u', '', (string) $line) ?? ''))
             ->filter()
             ->values()
             ->all();
@@ -1099,7 +1099,7 @@ class CompanyServiceController extends Controller
             $value = data_get($request->input('custom_fields', []), $field->field_key);
 
             if ($field->field_type === 'checkbox') {
-                $values[$field->field_key] = $request->boolean('custom_fields.' . $field->field_key) ? '1' : '0';
+                $values[$field->field_key] = $request->boolean('custom_fields.'.$field->field_key) ? '1' : '0';
                 continue;
             }
 
@@ -1130,7 +1130,7 @@ class CompanyServiceController extends Controller
 
     private function isRecurring(array $engagementStructure): bool
     {
-        return collect($engagementStructure)->contains(fn($value) => in_array($value, ['Regular (Retainer)', 'Hybrid'], true));
+        return collect($engagementStructure)->contains(fn ($value) => in_array($value, ['Regular (Retainer)', 'Hybrid'], true));
     }
 
     private function generateServiceId(): string

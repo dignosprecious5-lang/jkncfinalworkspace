@@ -43,16 +43,16 @@
     >
         @csrf
 
-              @if ($errors->any())
-            <div class="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-                <div class="font-semibold">Unable to save service.</div>
-                <ul class="mt-2 list-disc pl-5">
-                    @foreach ($errors->all() as $error)
-                        <li>{{ $error }}</li>
-                    @endforeach
-                </ul>
-            </div>
-        @endif
+        @if ($errors->any())
+    <div class="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+        <div class="font-semibold">Unable to save service.</div>
+        <ul class="mt-2 list-disc pl-5">
+            @foreach ($errors->all() as $error)
+                <li>{{ $error }}</li>
+            @endforeach
+        </ul>
+    </div>
+@endif
 
         <input type="hidden" id="{{ $methodId }}" name="_method" value="POST">
 
@@ -260,7 +260,7 @@
 
                         <div class="grid gap-4 md:grid-cols-2">
                             <div>
-                               <label class="mb-2 block text-sm font-medium text-gray-700">Frequency <span class="text-red-500">*</span></label>
+                                <label class="mb-2 block text-sm font-medium text-gray-700">Frequency</label>
                                 <select id="{{ $fieldPrefix }}FormFrequency" name="frequency" @change="syncFrequency($event.target.value)" class="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
                                     <option value="">Select frequency</option>
                                     @foreach ($frequencyOptions as $option)
@@ -627,21 +627,10 @@ function serviceFormState(config) {
         },
 
         syncFrequency(value) {
-    this.frequency = value || '';
-
-    this.showDeadline =
-        this.frequency !== '' &&
-        !['No Frequency / Not Applicable', 'Per Transaction'].includes(this.frequency);
-
-    this.showScheduleRule = [
-        'Daily',
-        'Weekly',
-        'Monthly',
-        'Quarterly',
-        'Annually',
-        'Custom'
-    ].includes(this.frequency);
-},
+            this.frequency = value || '';
+            this.showDeadline = this.frequency !== '';
+            this.showScheduleRule = ['Daily', 'Weekly', 'Monthly', 'Quarterly', 'Annually', 'Custom'].includes(this.frequency);
+        },
 
         syncRecurring() {
             this.isRecurring = this.selectedEngagements.includes('Regular (Retainer)') || this.selectedEngagements.includes('Hybrid');
@@ -656,15 +645,3 @@ function serviceFormState(config) {
     };
 }
 </script>
-@if ($errors->any())
-    <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            const modal = document.getElementById('{{ $modalId }}');
-
-            if (modal) {
-                modal.classList.remove('hidden');
-                modal.setAttribute('aria-hidden', 'false');
-            }
-        });
-    </script>
-@endif
