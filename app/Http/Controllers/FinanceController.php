@@ -100,21 +100,21 @@ class FinanceController extends Controller
 
     private function moduleRequiresTwoPersonApproval(string $moduleKey): bool
     {
-       return in_array($moduleKey, [
-        'supplier',
-        'pr',
-        'po',
-        'ca',
-        'lr',
-        'err',
-        'dv',
-        'pda',
-        'crf',
-        'ibtf',
-        'arf',
-        'bank_account',
-        'chart_account',
-    ], true);
+        return in_array($moduleKey, [
+            'supplier',
+            'pr',
+            'po',
+            'ca',
+            'lr',
+            'err',
+            'dv',
+            'pda',
+            'crf',
+            'ibtf',
+            'arf',
+            'bank_account',
+            'chart_account',
+        ], true);
     }
 
     private function financeApprovalThreshold(string $moduleKey): int
@@ -181,11 +181,11 @@ class FinanceController extends Controller
     private function financeApprovalActorNames(FinanceRecord $record): array
     {
         $actions = collect((array) data_get($record->data ?? [], 'approval_actions', []))
-            ->filter(fn ($action) => is_array($action))
+            ->filter(fn($action) => is_array($action))
             ->values();
 
         return $actions
-            ->map(fn (array $action) => trim((string) (data_get($action, 'approved_by_name') ?: data_get($action, 'official_name') ?: data_get($action, 'approver_role') ?: 'Finance Approver')))
+            ->map(fn(array $action) => trim((string) (data_get($action, 'approved_by_name') ?: data_get($action, 'official_name') ?: data_get($action, 'approver_role') ?: 'Finance Approver')))
             ->filter()
             ->unique()
             ->values()
@@ -311,7 +311,7 @@ class FinanceController extends Controller
                     'score' => $score,
                 ];
             })
-            ->filter(fn (array $candidate) => $candidate['score'] > 0 && filled($candidate['email']))
+            ->filter(fn(array $candidate) => $candidate['score'] > 0 && filled($candidate['email']))
             ->sortByDesc('score')
             ->pluck('email')
             ->first();
@@ -373,7 +373,7 @@ class FinanceController extends Controller
                         $score = max($score, 220);
                     } elseif ($normalizedOfficerName !== '') {
                         $tokens = collect(explode(' ', $normalizedOfficerName))->filter();
-                        if ($tokens->isNotEmpty() && $tokens->every(fn ($token) => Str::contains($normalizedCandidate, $token))) {
+                        if ($tokens->isNotEmpty() && $tokens->every(fn($token) => Str::contains($normalizedCandidate, $token))) {
                             $score = max($score, 180);
                         }
                     }
@@ -395,7 +395,7 @@ class FinanceController extends Controller
                     'score' => $score,
                 ];
             })
-            ->filter(fn (array $candidate) => $candidate['score'] > 0)
+            ->filter(fn(array $candidate) => $candidate['score'] > 0)
             ->sortByDesc('score')
             ->pluck('user')
             ->first();
@@ -416,7 +416,7 @@ class FinanceController extends Controller
         if ($gisRecord) {
             $officialRows = $officialRows->merge(
                 $gisRecord->directors
-                    ->filter(fn ($director) => filled($director->officer_name) && in_array(Str::lower(trim((string) $director->officer_type)), ['president', 'treasurer'], true))
+                    ->filter(fn($director) => filled($director->officer_name) && in_array(Str::lower(trim((string) $director->officer_type)), ['president', 'treasurer'], true))
                     ->map(function ($director) {
                         return [
                             'official_name' => trim((string) $director->officer_name),
@@ -442,7 +442,7 @@ class FinanceController extends Controller
                     'email' => null,
                     'source' => 'BIF',
                 ],
-            ])->filter(fn (array $row) => filled($row['official_name'])));
+            ])->filter(fn(array $row) => filled($row['official_name'])));
         }
 
         $permissionRows = $this->financePermissionApproverRows();
@@ -451,8 +451,8 @@ class FinanceController extends Controller
         }
 
         $officialRows = $officialRows
-            ->filter(fn (array $row) => filled($row['official_name']))
-            ->unique(fn (array $row) => $this->financeNormalizePersonName($row['official_name']) . '|' . Str::lower((string) $row['role']))
+            ->filter(fn(array $row) => filled($row['official_name']))
+            ->unique(fn(array $row) => $this->financeNormalizePersonName($row['official_name']) . '|' . Str::lower((string) $row['role']))
             ->values();
 
         $options = $officialRows
@@ -475,7 +475,7 @@ class FinanceController extends Controller
                 ];
             })
             ->filter()
-            ->unique(fn (array $option) => Str::lower((string) $option['role']) . '|' . (int) $option['user_id'])
+            ->unique(fn(array $option) => Str::lower((string) $option['role']) . '|' . (int) $option['user_id'])
             ->values();
 
         $defaults = collect($this->financeApprovalRolePriority())
@@ -487,12 +487,12 @@ class FinanceController extends Controller
                 return $match ? ['role' => $role, ...$match] : null;
             })
             ->filter()
-            ->unique(fn (array $option) => (int) $option['user_id'])
+            ->unique(fn(array $option) => (int) $option['user_id'])
             ->values();
 
         return $directory = [
             'options' => $options->all(),
-            'default_steps' => $defaults->map(fn (array $option, int $index) => [
+            'default_steps' => $defaults->map(fn(array $option, int $index) => [
                 'step' => $index + 1,
                 'role' => $option['role'],
                 'label' => $option['role'],
@@ -505,13 +505,13 @@ class FinanceController extends Controller
             ])->all(),
             'available_default_roles' => $defaults
                 ->pluck('role')
-                ->map(fn ($role) => trim((string) $role))
+                ->map(fn($role) => trim((string) $role))
                 ->filter()
                 ->unique()
                 ->values()
                 ->all(),
             'missing_default_roles' => collect($this->financeApprovalRolePriority())
-                ->reject(fn (string $role) => $defaults->contains(fn (array $option) => Str::lower((string) $option['role']) === Str::lower($role)))
+                ->reject(fn(string $role) => $defaults->contains(fn(array $option) => Str::lower((string) $option['role']) === Str::lower($role)))
                 ->values()
                 ->all(),
         ];
@@ -592,7 +592,7 @@ class FinanceController extends Controller
         }
 
         return collect($this->financeOfficialApproverDirectory()['options'])
-            ->first(fn (array $option) => (int) ($option['user_id'] ?? 0) === $targetId);
+            ->first(fn(array $option) => (int) ($option['user_id'] ?? 0) === $targetId);
     }
 
     private function financeEmployeeApproverOptionByUserId(mixed $userId): ?array
@@ -604,7 +604,7 @@ class FinanceController extends Controller
         }
 
         $employee = Employee::query()
-            ->when(Schema::hasTable('departments'), fn ($query) => $query->with('department'))
+            ->when(Schema::hasTable('departments'), fn($query) => $query->with('department'))
             ->with('user')
             ->where('user_id', $targetId)
             ->first();
@@ -649,8 +649,8 @@ class FinanceController extends Controller
         }
 
         return collect($userIds)
-            ->map(fn ($id) => (int) $id)
-            ->filter(fn (int $id) => $id > 0)
+            ->map(fn($id) => (int) $id)
+            ->filter(fn(int $id) => $id > 0)
             ->unique()
             ->values()
             ->all();
@@ -661,7 +661,7 @@ class FinanceController extends Controller
         $moduleKey ??= $record?->module_key;
         $dataRoles = collect((array) data_get($record?->data ?? [], 'approval_steps', []))
             ->pluck('role')
-            ->map(fn ($role) => trim((string) $role))
+            ->map(fn($role) => trim((string) $role))
             ->filter()
             ->values()
             ->all();
@@ -765,14 +765,14 @@ class FinanceController extends Controller
         $targetUserId = $userId ?: (int) Auth::id();
 
         $step = collect((array) data_get($record->data ?? [], 'approval_steps', []))
-            ->first(fn (array $step) => (int) ($step['user_id'] ?? 0) === $targetUserId);
+            ->first(fn(array $step) => (int) ($step['user_id'] ?? 0) === $targetUserId);
 
         if ($step) {
             return $step;
         }
 
         return collect($this->financeOfficialApproverDirectory()['default_steps'])
-            ->first(fn (array $step) => (int) ($step['user_id'] ?? 0) === $targetUserId);
+            ->first(fn(array $step) => (int) ($step['user_id'] ?? 0) === $targetUserId);
     }
 
     private function financeApprovalRoutingDisplayValue(FinanceRecord $record, string $fieldName): string
@@ -806,8 +806,8 @@ class FinanceController extends Controller
     {
         $approverIds = collect((array) data_get($record->data ?? [], 'approval_steps', []))
             ->pluck('user_id')
-            ->map(fn ($id) => (int) $id)
-            ->filter(fn (int $id) => $id > 0)
+            ->map(fn($id) => (int) $id)
+            ->filter(fn(int $id) => $id > 0)
             ->unique()
             ->values()
             ->all();
@@ -818,8 +818,8 @@ class FinanceController extends Controller
 
         return collect($this->financeOfficialApproverDirectory()['default_steps'])
             ->pluck('user_id')
-            ->map(fn ($id) => (int) $id)
-            ->filter(fn (int $id) => $id > 0)
+            ->map(fn($id) => (int) $id)
+            ->filter(fn(int $id) => $id > 0)
             ->unique()
             ->values()
             ->all();
@@ -898,7 +898,7 @@ class FinanceController extends Controller
         }
 
         return collect($this->financeModulePermissionMap())
-            ->contains(fn (string $permission) => $user->hasPermission($permission));
+            ->contains(fn(string $permission) => $user->hasPermission($permission));
     }
 
     private function currentUserCanAccessFinanceModule(string $moduleKey): bool
@@ -984,7 +984,7 @@ class FinanceController extends Controller
         $userId = Auth::id();
 
         return collect($this->financeApprovalActions($record))
-            ->contains(fn (array $action) => (int) data_get($action, 'approved_by') === (int) $userId);
+            ->contains(fn(array $action) => (int) data_get($action, 'approved_by') === (int) $userId);
     }
 
     private function canAdministerFinance(): bool
@@ -1099,7 +1099,7 @@ class FinanceController extends Controller
     {
         $userRoles = $this->financeCurrentUserAuthorityRoles();
         $notes = collect((array) data_get($record->data ?? [], 'finance_notes', []))
-            ->filter(fn ($note) => is_array($note))
+            ->filter(fn($note) => is_array($note))
             ->map(function (array $note) use ($userRoles): ?array {
                 $visibility = Str::lower(trim((string) data_get($note, 'visibility', 'all')));
                 $authorId = (int) data_get($note, 'author_user_id', 0);
@@ -1353,7 +1353,7 @@ class FinanceController extends Controller
                 'record_title_label' => $recordTitleLabel !== '' ? Str::limit($recordTitleLabel, 255, '') : null,
                 'record_date_label' => $recordDateLabel !== '' ? Str::limit($recordDateLabel, 255, '') : null,
                 'field_labels' => $fieldLabels,
-            ], fn ($value) => $value !== null && $value !== []);
+            ], fn($value) => $value !== null && $value !== []);
         }
 
         return $sanitized ?: $this->financeDefaultLabelOverrides();
@@ -1399,7 +1399,7 @@ class FinanceController extends Controller
     private function financeVisibleAttachmentTypes(): array
     {
         return collect($this->financeAttachmentTypesSettings())
-            ->filter(fn (array $type) => !blank(data_get($type, 'value')) && data_get($type, 'active', true) && !data_get($type, 'hidden', false))
+            ->filter(fn(array $type) => !blank(data_get($type, 'value')) && data_get($type, 'active', true) && !data_get($type, 'hidden', false))
             ->values()
             ->all();
     }
@@ -1409,8 +1409,8 @@ class FinanceController extends Controller
         return collect($this->financeAttachmentTypesSettings())
             ->pluck('value')
             ->filter()
-            ->map(fn ($value) => (string) $value)
-            ->unique(fn (string $value) => Str::lower($value))
+            ->map(fn($value) => (string) $value)
+            ->unique(fn(string $value) => Str::lower($value))
             ->values()
             ->all();
     }
@@ -1474,12 +1474,12 @@ class FinanceController extends Controller
         }
 
         $moduleKeys = collect(array_keys(self::MODULES))
-            ->filter(fn (string $moduleKey) => $this->currentUserCanAccessFinanceModule($moduleKey))
+            ->filter(fn(string $moduleKey) => $this->currentUserCanAccessFinanceModule($moduleKey))
             ->unique()
             ->values();
 
         return $moduleKeys
-            ->mapWithKeys(fn (string $moduleKey) => [$moduleKey => self::MODULES[$moduleKey]])
+            ->mapWithKeys(fn(string $moduleKey) => [$moduleKey => self::MODULES[$moduleKey]])
             ->all();
     }
 
@@ -1586,7 +1586,7 @@ class FinanceController extends Controller
         $categories = data_get($data, 'supplier_category');
 
         if (is_array($categories)) {
-            return array_values(array_filter(array_map(static fn ($value) => trim((string) $value), $categories)));
+            return array_values(array_filter(array_map(static fn($value) => trim((string) $value), $categories)));
         }
 
         $normalized = trim((string) $categories);
@@ -1594,7 +1594,7 @@ class FinanceController extends Controller
             return [];
         }
 
-        return array_values(array_filter(array_map(static fn ($value) => trim((string) $value), preg_split('/[,;|]+/', $normalized) ?: [])));
+        return array_values(array_filter(array_map(static fn($value) => trim((string) $value), preg_split('/[,;|]+/', $normalized) ?: [])));
     }
 
     private function supplierPreviewFieldVisible(array $data, string $fieldName): bool
@@ -1769,7 +1769,7 @@ class FinanceController extends Controller
     private function financeHistoryActorForActions(FinanceRecord $record, array $actions): ?string
     {
         $normalizedActions = collect($actions)
-            ->map(fn (string $action) => Str::lower(trim($action)))
+            ->map(fn(string $action) => Str::lower(trim($action)))
             ->filter()
             ->values()
             ->all();
@@ -1779,7 +1779,7 @@ class FinanceController extends Controller
         }
 
         $history = collect((array) data_get($record->data ?? [], 'history', []))
-            ->filter(fn ($entry) => is_array($entry))
+            ->filter(fn($entry) => is_array($entry))
             ->values();
 
         $matched = $history->reverse()->first(function (array $entry) use ($normalizedActions): bool {
@@ -1840,7 +1840,7 @@ class FinanceController extends Controller
 
         return collect($fields)
             ->except(['Submitted By', 'Approved By'])
-            ->map(fn (string $value, string $label) => [
+            ->map(fn(string $value, string $label) => [
                 'label' => $label,
                 'value' => $value !== '' ? $value : 'N/A',
             ])
@@ -1874,11 +1874,11 @@ class FinanceController extends Controller
 
                 if (is_array($value)) {
                     $value = $cleanHistoryValue($value);
-                    $hasNested = collect($value)->contains(fn ($nested) => is_array($nested));
+                    $hasNested = collect($value)->contains(fn($nested) => is_array($nested));
                     if ($hasNested) {
                         $snapshot[$field] = json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
                     } else {
-                        $snapshot[$field] = implode(', ', array_map(fn ($item) => is_bool($item) ? ($item ? 'Yes' : 'No') : (string) $item, $value));
+                        $snapshot[$field] = implode(', ', array_map(fn($item) => is_bool($item) ? ($item ? 'Yes' : 'No') : (string) $item, $value));
                     }
                     continue;
                 }
@@ -2038,17 +2038,17 @@ class FinanceController extends Controller
     private function financeAttachmentSummary(FinanceRecord $record): array
     {
         $attachments = collect((array) ($record->attachments ?? []))
-            ->filter(fn ($attachment) => is_array($attachment))
+            ->filter(fn($attachment) => is_array($attachment))
             ->values();
 
-        $imageCount = $attachments->filter(fn (array $attachment) => $this->financeAttachmentIsImage($attachment))->count();
+        $imageCount = $attachments->filter(fn(array $attachment) => $this->financeAttachmentIsImage($attachment))->count();
         $typeSummary = $attachments
-            ->map(fn (array $attachment) => trim((string) data_get($attachment, 'category', 'Supporting Document')))
+            ->map(fn(array $attachment) => trim((string) data_get($attachment, 'category', 'Supporting Document')))
             ->filter()
             ->countBy()
             ->sortDesc()
             ->take(6)
-            ->map(fn (int $count, string $category) => $category . ' x ' . $count)
+            ->map(fn(int $count, string $category) => $category . ' x ' . $count)
             ->values()
             ->all();
 
@@ -2074,10 +2074,10 @@ class FinanceController extends Controller
     {
         $data = $record->data ?? [];
         $steps = collect((array) data_get($data, 'approval_steps', []))
-            ->filter(fn ($step) => is_array($step))
+            ->filter(fn($step) => is_array($step))
             ->values();
         $actions = collect((array) data_get($data, 'approval_actions', []))
-            ->filter(fn ($action) => is_array($action))
+            ->filter(fn($action) => is_array($action))
             ->values();
 
         $rows = $steps->map(function (array $step) use ($actions): array {
@@ -2157,7 +2157,7 @@ class FinanceController extends Controller
                         continue;
                     }
 
-                    $hasNested = collect($value)->contains(fn ($nested) => is_array($nested));
+                    $hasNested = collect($value)->contains(fn($nested) => is_array($nested));
                     $display = $hasNested
                         ? json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)
                         : implode(', ', array_map(function ($item) {
@@ -2318,7 +2318,7 @@ SVG;
             }
 
             $liquidationLineItems = array_values(array_filter((array) data_get($data, 'line_items', []), function ($item) {
-                return is_array($item) && collect($item)->contains(fn ($value) => !blank($value));
+                return is_array($item) && collect($item)->contains(fn($value) => !blank($value));
             }));
 
             foreach ($liquidationLineItems as $item) {
@@ -2457,7 +2457,7 @@ SVG;
         static $cache = null;
 
         if ($cache === null) {
-            $cache = $this->financeActiveRecords()->keyBy(fn (FinanceRecord $record) => (int) $record->id);
+            $cache = $this->financeActiveRecords()->keyBy(fn(FinanceRecord $record) => (int) $record->id);
         }
 
         return $cache->get($recordId);
@@ -2469,8 +2469,8 @@ SVG;
 
         if (!array_key_exists($moduleKey, $cache)) {
             $cache[$moduleKey] = $this->financeActiveRecords()
-                ->filter(fn (FinanceRecord $record) => $record->module_key === $moduleKey)
-                ->sortByDesc(fn (FinanceRecord $record) => optional($record->created_at)->getTimestamp() ?: 0)
+                ->filter(fn(FinanceRecord $record) => $record->module_key === $moduleKey)
+                ->sortByDesc(fn(FinanceRecord $record) => optional($record->created_at)->getTimestamp() ?: 0)
                 ->values();
         }
 
@@ -2527,7 +2527,7 @@ SVG;
             'supplier_phone' => data_get($data, 'phone_number'),
             'supplier_contact_name' => data_get($data, 'representative_full_name'),
             'company_name' => data_get($data, 'company_name') ?: data_get($data, 'business_name') ?: $supplierName,
-        ], fn ($value) => ! blank($value));
+        ], fn($value) => ! blank($value));
     }
 
     private function financeCompanyReferenceData(?Company $company): array
@@ -2548,7 +2548,7 @@ SVG;
             'company_owner_name' => $company->owner_name,
             'company_primary_contact_id' => $company->primary_contact_id,
             'company_bif_id' => $latestBif?->id,
-        ], fn ($value) => ! blank($value));
+        ], fn($value) => ! blank($value));
     }
 
     private function financeHydrateReferenceData(string $moduleKey, array $data): array
@@ -2573,7 +2573,7 @@ SVG;
                     'cost_center' => data_get($data, 'cost_center') ?: data_get($linkedPr->data ?? [], 'cost_center') ?: data_get($linkedPr->data ?? [], 'cost_center_code') ?: data_get($linkedPr->data ?? [], 'cost_center_name'),
                     'trade_name' => data_get($data, 'trade_name') ?: data_get($linkedPr->data ?? [], 'trade_name'),
                     'company_name' => data_get($data, 'company_name') ?: data_get($linkedPr->data ?? [], 'company_name'),
-                ], fn ($value) => ! blank($value)));
+                ], fn($value) => ! blank($value)));
             }
         }
 
@@ -2603,7 +2603,7 @@ SVG;
                         ?: data_get($sourceData, 'trade_name'),
                     'trade_name' => data_get($data, 'trade_name')
                         ?: data_get($sourceData, 'trade_name'),
-                ], fn ($value) => ! blank($value)));
+                ], fn($value) => ! blank($value)));
             }
 
             $supplierRecord = $this->financeResolveSupplierRecord(data_get($data, 'supplier_id'));
@@ -2642,7 +2642,7 @@ SVG;
                     'date_received' => data_get($data, 'date_received') ?: data_get($sourcePayload, 'date_received'),
                     'reference_number' => data_get($data, 'reference_number') ?: data_get($sourcePayload, 'reference_number'),
                     'remarks' => data_get($data, 'remarks') ?: data_get($sourcePayload, 'remarks'),
-                ], fn ($value) => !blank($value)));
+                ], fn($value) => !blank($value)));
             }
         }
 
@@ -2697,7 +2697,7 @@ SVG;
         $paymentStatus = Str::lower((string) data_get($record->data ?? [], 'ca_payment_status', data_get($record->data ?? [], 'payment_status')));
 
         return collect([$status, $workflow, $relationshipStatus, $paymentStatus])
-            ->contains(fn ($value) => in_array($value, [
+            ->contains(fn($value) => in_array($value, [
                 'released',
                 'paid',
                 'disbursed',
@@ -2717,7 +2717,7 @@ SVG;
         $relationshipStatus = Str::lower($this->financeDerivedRelationshipStatus($record));
 
         return collect([$status, $relationshipStatus])
-            ->contains(fn ($value) => in_array($value, [
+            ->contains(fn($value) => in_array($value, [
                 'completed',
                 'paid',
                 'disbursed',
@@ -2829,14 +2829,14 @@ SVG;
             }
         }
 
-        return array_values(array_unique(array_filter($ids, fn ($id) => $id > 0)));
+        return array_values(array_unique(array_filter($ids, fn($id) => $id > 0)));
     }
 
     private function financeRecordsLinkedTo(FinanceRecord $record): \Illuminate\Support\Collection
     {
         return $this->financeActiveRecords()
-            ->filter(fn (FinanceRecord $candidate) => (int) $candidate->id !== (int) $record->id)
-            ->filter(fn (FinanceRecord $candidate) => in_array((int) $record->id, $this->financeOwnLinkedRecordIds($candidate), true))
+            ->filter(fn(FinanceRecord $candidate) => (int) $candidate->id !== (int) $record->id)
+            ->filter(fn(FinanceRecord $candidate) => in_array((int) $record->id, $this->financeOwnLinkedRecordIds($candidate), true))
             ->values();
     }
 
@@ -2857,7 +2857,7 @@ SVG;
             $linkedIds = $this->financeOwnLinkedRecordIds($current);
             $linkedIds = array_merge(
                 $linkedIds,
-                $this->financeRecordsLinkedTo($current)->pluck('id')->map(fn ($id) => (int) $id)->all()
+                $this->financeRecordsLinkedTo($current)->pluck('id')->map(fn($id) => (int) $id)->all()
             );
 
             foreach (array_unique($linkedIds) as $linkedId) {
@@ -2906,12 +2906,12 @@ SVG;
             $destinationBankAccount?->record_title,
             $destinationBankAccount?->record_number,
             data_get($data, 'destination_bank_account_id'),
-        ])->first(fn ($value) => !blank($value)) ?: '');
+        ])->first(fn($value) => !blank($value)) ?: '');
         $payrollLabel = trim((string) collect([
             data_get($data, 'payroll_period_label'),
             data_get($data, 'payroll_period_name'),
             $record->record_title,
-        ])->first(fn ($value) => !blank($value)) ?: '');
+        ])->first(fn($value) => !blank($value)) ?: '');
 
         return match ($moduleKey) {
             'po' => [
@@ -2942,7 +2942,7 @@ SVG;
                     data_get($data, 'mode_of_return') === 'Bank Transfer' ? data_get($data, 'recipient_bank_account') : null,
                     data_get($data, 'requestor'),
                     data_get($data, 'employee_name'),
-                ])->first(fn ($value) => !blank($value)) ?: ''),
+                ])->first(fn($value) => !blank($value)) ?: ''),
             ],
             default => [
                 'payee_type' => '',
@@ -2950,7 +2950,7 @@ SVG;
                     $requestor,
                     $representative,
                     data_get($data, 'supplier_name', ''),
-                ])->first(fn ($value) => !blank($value)) ?: ''),
+                ])->first(fn($value) => !blank($value)) ?: ''),
             ],
         };
     }
@@ -2990,16 +2990,16 @@ SVG;
             ],
         };
 
-        return (float) (collect($amountCandidates)->first(fn ($value) => ! blank($value)) ?? 0);
+        return (float) (collect($amountCandidates)->first(fn($value) => ! blank($value)) ?? 0);
     }
 
     private function financeSourceDisbursementSummary(FinanceRecord $record): array
     {
         $dvs = $this->financeDvsForSource($record->module_key, $record->id);
-        $releasedDvs = $dvs->filter(fn (FinanceRecord $dv) => $this->financeRecordIsReleased($dv))->values();
-        $approvedDvs = $dvs->filter(fn (FinanceRecord $dv) => $this->financeRecordIsApproved($dv))->values();
+        $releasedDvs = $dvs->filter(fn(FinanceRecord $dv) => $this->financeRecordIsReleased($dv))->values();
+        $approvedDvs = $dvs->filter(fn(FinanceRecord $dv) => $this->financeRecordIsApproved($dv))->values();
         $amount = max($this->financeSourceDocumentAmount($record), 0);
-        $totalDisbursed = (float) $releasedDvs->sum(fn (FinanceRecord $dv) => (float) (data_get($dv->data ?? [], 'amount', $dv->amount) ?: $dv->amount ?: 0));
+        $totalDisbursed = (float) $releasedDvs->sum(fn(FinanceRecord $dv) => (float) (data_get($dv->data ?? [], 'amount', $dv->amount) ?: $dv->amount ?: 0));
         $remainingBalance = max($amount - $totalDisbursed, 0);
         $percentagePaid = $amount > 0 ? min(($totalDisbursed / $amount) * 100, 100) : 0;
         $releasedCount = $releasedDvs->count();
@@ -3023,22 +3023,22 @@ SVG;
 
     private function financeFirstPoForPr(mixed $recordId): ?FinanceRecord
     {
-        return $this->financeFirstRelatedRecord('po', fn (FinanceRecord $record) => (string) data_get($record->data ?? [], 'linked_pr_id') === (string) $recordId);
+        return $this->financeFirstRelatedRecord('po', fn(FinanceRecord $record) => (string) data_get($record->data ?? [], 'linked_pr_id') === (string) $recordId);
     }
 
     private function financeFirstLiquidationForCa(mixed $recordId): ?FinanceRecord
     {
-        return $this->financeFirstRelatedRecord('lr', fn (FinanceRecord $record) => (string) data_get($record->data ?? [], 'linked_ca_id') === (string) $recordId);
+        return $this->financeFirstRelatedRecord('lr', fn(FinanceRecord $record) => (string) data_get($record->data ?? [], 'linked_ca_id') === (string) $recordId);
     }
 
     private function financeFirstCashReturnForLr(mixed $recordId): ?FinanceRecord
     {
-        return $this->financeFirstRelatedRecord('crf', fn (FinanceRecord $record) => (string) data_get($record->data ?? [], 'linked_lr_id') === (string) $recordId);
+        return $this->financeFirstRelatedRecord('crf', fn(FinanceRecord $record) => (string) data_get($record->data ?? [], 'linked_lr_id') === (string) $recordId);
     }
 
     private function financeFirstErrForLr(mixed $recordId): ?FinanceRecord
     {
-        return $this->financeFirstRelatedRecord('err', fn (FinanceRecord $record) => (string) data_get($record->data ?? [], 'linked_lr_id') === (string) $recordId);
+        return $this->financeFirstRelatedRecord('err', fn(FinanceRecord $record) => (string) data_get($record->data ?? [], 'linked_lr_id') === (string) $recordId);
     }
 
     private function financeLifecycleLinkedRecords(FinanceRecord $record): array
@@ -3152,9 +3152,9 @@ SVG;
     private function financeConnectedRecordsSection(FinanceRecord $record, array $lookupOptions): ?array
     {
         $rows = array_values(array_filter(array_map(
-            fn (array $field) => $this->financePreviewRow($record, $lookupOptions, $field['name'], $field['label']),
+            fn(array $field) => $this->financePreviewRow($record, $lookupOptions, $field['name'], $field['label']),
             $this->financeConnectedRecordFieldsForModule($record->module_key)
-        ), fn (array $row) => filled(data_get($row, 'value'))));
+        ), fn(array $row) => filled(data_get($row, 'value'))));
 
         if ($rows === []) {
             return null;
@@ -3309,7 +3309,7 @@ SVG;
                 : null;
             $caAmount = (float) (data_get($data, 'total_cash_advance') ?: ($linkedCa?->amount ?: data_get($linkedCa?->data ?? [], 'amount_requested') ?: 0));
             $lineItems = array_values(array_filter((array) data_get($data, 'line_items', []), function ($item) {
-                return is_array($item) && collect($item)->contains(fn ($value) => !blank($value));
+                return is_array($item) && collect($item)->contains(fn($value) => !blank($value));
             }));
             $lineItemsTotal = 0.0;
             foreach ($lineItems as $item) {
@@ -3471,7 +3471,7 @@ SVG;
                 : null;
             $caAmount = (float) (data_get($data, 'total_cash_advance') ?: ($linkedCa?->amount ?: data_get($linkedCa?->data ?? [], 'amount_requested') ?: 0));
             $lineItems = array_values(array_filter((array) data_get($data, 'line_items', []), function ($item) {
-                return is_array($item) && collect($item)->contains(fn ($value) => !blank($value));
+                return is_array($item) && collect($item)->contains(fn($value) => !blank($value));
             }));
             $lineItemsTotal = 0.0;
             foreach ($lineItems as $item) {
@@ -3511,7 +3511,7 @@ SVG;
 
             $steps[] = ['label' => 'Transaction Completed', 'completed' => $completed];
 
-            $firstPending = collect($steps)->search(fn (array $step) => !$step['completed']);
+            $firstPending = collect($steps)->search(fn(array $step) => !$step['completed']);
 
             return array_map(function (array $step, int $index) use ($firstPending) {
                 $step['state'] = $step['completed']
@@ -3556,7 +3556,7 @@ SVG;
 
             $steps[] = ['label' => 'Transaction Completed', 'completed' => $completed];
 
-            $firstPending = collect($steps)->search(fn (array $step) => !$step['completed']);
+            $firstPending = collect($steps)->search(fn(array $step) => !$step['completed']);
 
             return array_map(function (array $step, int $index) use ($firstPending) {
                 $step['state'] = $step['completed']
@@ -3578,7 +3578,7 @@ SVG;
                 ['label' => 'Transaction Completed', 'completed' => $completed],
             ];
 
-            $firstPending = collect($steps)->search(fn (array $step) => !$step['completed']);
+            $firstPending = collect($steps)->search(fn(array $step) => !$step['completed']);
 
             return array_map(function (array $step, int $index) use ($firstPending) {
                 $step['state'] = $step['completed']
@@ -3607,8 +3607,8 @@ SVG;
                 || $this->financeRecordIsReleased($dv)
             );
         $supportingDocumentsSubmitted = collect([$record, $sourceRecord, $dv, $lr])
-            ->filter(fn ($candidate) => $candidate instanceof FinanceRecord)
-            ->contains(fn (FinanceRecord $candidate) => !blank((array) ($candidate->attachments ?? [])));
+            ->filter(fn($candidate) => $candidate instanceof FinanceRecord)
+            ->contains(fn(FinanceRecord $candidate) => !blank((array) ($candidate->attachments ?? [])));
         $completed = in_array($relationshipStatus, ['Completed', 'Disbursed'], true)
             || $relationshipStatus === 'Payroll Released'
             || $relationshipStatus === 'Transfer Completed'
@@ -3623,7 +3623,7 @@ SVG;
             ['label' => 'Transaction Completed', 'completed' => $completed],
         ];
 
-        $firstPending = collect($steps)->search(fn (array $step) => !$step['completed']);
+        $firstPending = collect($steps)->search(fn(array $step) => !$step['completed']);
 
         return array_map(function (array $step, int $index) use ($firstPending) {
             $step['state'] = $step['completed']
@@ -3815,7 +3815,7 @@ SVG;
         };
 
         return array_values(array_filter($items, function (array $item) {
-            return collect($item)->contains(fn ($value) => !blank($value) && $value !== 0 && $value !== '0');
+            return collect($item)->contains(fn($value) => !blank($value) && $value !== 0 && $value !== '0');
         }));
     }
 
@@ -3900,7 +3900,7 @@ SVG;
         $data = $record->data ?? [];
         $rawItems = array_values(array_filter(
             (array) data_get($data, 'line_items', []),
-            fn ($item) => is_array($item)
+            fn($item) => is_array($item)
         ));
 
         if (!$rawItems) {
@@ -3980,7 +3980,7 @@ SVG;
                 $item['quantity'] ?? null,
                 $item['amount'] ?? null,
                 $item['total'] ?? null,
-            ])->contains(fn ($value) => trim((string) $value) !== '' && $value !== 'N/A');
+            ])->contains(fn($value) => trim((string) $value) !== '' && $value !== 'N/A');
         }));
     }
 
@@ -4054,7 +4054,7 @@ SVG;
             return [
                 'type' => 'fields',
                 'title' => $title,
-                'rows' => array_map(fn ($field) => is_array($field)
+                'rows' => array_map(fn($field) => is_array($field)
                     ? $this->financePreviewRow($record, $lookupOptions, $field['name'], $field['label'] ?? null)
                     : $this->financePreviewRow($record, $lookupOptions, $field), $fields),
             ];
@@ -4073,58 +4073,58 @@ SVG;
                         ['name' => 'corporation_type', 'label' => 'If Corporation, Specify Corporation Type'],
                         ['name' => 'registration_number', 'label' => 'Registration Number'],
                         ['name' => 'tin', 'label' => 'Tax Identification Number (TIN)'],
-                    ], fn ($field) => ! isset($field['name']) || $this->conditionalPreviewFieldVisible($data, $field['name'])))),
-                $section('Business Details', array_values(array_filter([
-                    ['name' => 'vat_status', 'label' => 'VAT Status'],
-                    ['name' => 'business_permit_number', 'label' => 'Business Permit Number'],
-                    ['name' => 'permit_expiry_date', 'label' => 'Permit Expiry Date'],
-                    ['name' => 'nature_of_business', 'label' => 'Nature of Business'],
-                    ['name' => 'products_services_offered', 'label' => 'Products / Services Offered'],
-                    ['name' => 'supplier_category', 'label' => 'Supplier Category'],
-                    ['name' => 'supplier_category_other', 'label' => 'Specify Other Supplier Category'],
-                    ['name' => 'years_in_operation', 'label' => 'Years in Operation'],
-                ], fn ($field) => ! isset($field['name']) || $this->conditionalPreviewFieldVisible($data, $field['name'])))),
-                $section('Addresses & Contacts', [
-                    ['name' => 'registered_address', 'label' => 'Registered Address'],
-                    ['name' => 'office_address', 'label' => 'Office Address'],
-                    ['name' => 'warehouse_address', 'label' => 'Warehouse Address'],
-                    ['name' => 'telephone_number', 'label' => 'Telephone Number'],
-                    ['name' => 'mobile_number', 'label' => 'Mobile Number'],
-                    ['name' => 'email_address', 'label' => 'Official Email Address'],
-                    ['name' => 'website_social_media', 'label' => 'Website / Social Media'],
-                ]),
-                $section('Authorized Representative', [
-                    ['name' => 'representative_full_name', 'label' => 'Authorized Representative Full Name'],
-                    ['name' => 'designation', 'label' => 'Position / Designation'],
-                    ['name' => 'phone_number', 'label' => 'Mobile Number'],
-                    ['name' => 'representative_email_address', 'label' => 'Email Address'],
-                ]),
-                $section('Billing & Payment', array_values(array_filter([
-                    ['name' => 'billing_address', 'label' => 'Billing Address'],
-                    ['name' => 'accounting_contact_person', 'label' => 'Accounting Contact Person'],
-                    ['name' => 'accounting_contact_number', 'label' => 'Accounting Contact Number'],
-                    ['name' => 'accounting_email_address', 'label' => 'Accounting Email Address'],
-                    ['name' => 'payment_terms', 'label' => 'Payment Terms'],
-                    ['name' => 'payment_terms_other', 'label' => 'Specify Other Payment Terms'],
-                    ['name' => 'preferred_payment_method', 'label' => 'Preferred Payment Method'],
-                    ['name' => 'preferred_payment_method_other', 'label' => 'Specify Other Payment Method'],
-                    ['name' => 'online_payment_details', 'label' => 'Online Payment Details'],
-                    ['name' => 'bank_name', 'label' => 'Bank Name'],
-                    ['name' => 'bank_branch', 'label' => 'Bank Branch'],
-                    ['name' => 'bank_account_name', 'label' => 'Bank Account Name'],
-                    ['name' => 'bank_account_number', 'label' => 'Bank Account Number'],
-                    ['name' => 'swift_code', 'label' => 'Swift Code'],
-                ], fn ($field) => ! isset($field['name']) || $this->conditionalPreviewFieldVisible($data, $field['name'])))),
-                $section('Acknowledgment', array_values(array_filter([
-                    ['name' => 'person_accomplishing_full_name', 'label' => 'Person Accomplishing the Form'],
-                    ['name' => 'person_accomplishing_position', 'label' => 'Position / Designation'],
-                    ['name' => 'id_type', 'label' => 'ID Type'],
-                    ['name' => 'id_type_other', 'label' => 'Specify Other ID Type'],
-                    ['name' => 'id_number', 'label' => 'ID Number'],
-                    ['name' => 'date_signed', 'label' => 'Date Signed'],
-                ], fn ($field) => ! isset($field['name']) || $this->conditionalPreviewFieldVisible($data, $field['name'])))),
-                $notesSection,
-            ],
+                    ], fn($field) => ! isset($field['name']) || $this->conditionalPreviewFieldVisible($data, $field['name'])))),
+                    $section('Business Details', array_values(array_filter([
+                        ['name' => 'vat_status', 'label' => 'VAT Status'],
+                        ['name' => 'business_permit_number', 'label' => 'Business Permit Number'],
+                        ['name' => 'permit_expiry_date', 'label' => 'Permit Expiry Date'],
+                        ['name' => 'nature_of_business', 'label' => 'Nature of Business'],
+                        ['name' => 'products_services_offered', 'label' => 'Products / Services Offered'],
+                        ['name' => 'supplier_category', 'label' => 'Supplier Category'],
+                        ['name' => 'supplier_category_other', 'label' => 'Specify Other Supplier Category'],
+                        ['name' => 'years_in_operation', 'label' => 'Years in Operation'],
+                    ], fn($field) => ! isset($field['name']) || $this->conditionalPreviewFieldVisible($data, $field['name'])))),
+                    $section('Addresses & Contacts', [
+                        ['name' => 'registered_address', 'label' => 'Registered Address'],
+                        ['name' => 'office_address', 'label' => 'Office Address'],
+                        ['name' => 'warehouse_address', 'label' => 'Warehouse Address'],
+                        ['name' => 'telephone_number', 'label' => 'Telephone Number'],
+                        ['name' => 'mobile_number', 'label' => 'Mobile Number'],
+                        ['name' => 'email_address', 'label' => 'Official Email Address'],
+                        ['name' => 'website_social_media', 'label' => 'Website / Social Media'],
+                    ]),
+                    $section('Authorized Representative', [
+                        ['name' => 'representative_full_name', 'label' => 'Authorized Representative Full Name'],
+                        ['name' => 'designation', 'label' => 'Position / Designation'],
+                        ['name' => 'phone_number', 'label' => 'Mobile Number'],
+                        ['name' => 'representative_email_address', 'label' => 'Email Address'],
+                    ]),
+                    $section('Billing & Payment', array_values(array_filter([
+                        ['name' => 'billing_address', 'label' => 'Billing Address'],
+                        ['name' => 'accounting_contact_person', 'label' => 'Accounting Contact Person'],
+                        ['name' => 'accounting_contact_number', 'label' => 'Accounting Contact Number'],
+                        ['name' => 'accounting_email_address', 'label' => 'Accounting Email Address'],
+                        ['name' => 'payment_terms', 'label' => 'Payment Terms'],
+                        ['name' => 'payment_terms_other', 'label' => 'Specify Other Payment Terms'],
+                        ['name' => 'preferred_payment_method', 'label' => 'Preferred Payment Method'],
+                        ['name' => 'preferred_payment_method_other', 'label' => 'Specify Other Payment Method'],
+                        ['name' => 'online_payment_details', 'label' => 'Online Payment Details'],
+                        ['name' => 'bank_name', 'label' => 'Bank Name'],
+                        ['name' => 'bank_branch', 'label' => 'Bank Branch'],
+                        ['name' => 'bank_account_name', 'label' => 'Bank Account Name'],
+                        ['name' => 'bank_account_number', 'label' => 'Bank Account Number'],
+                        ['name' => 'swift_code', 'label' => 'Swift Code'],
+                    ], fn($field) => ! isset($field['name']) || $this->conditionalPreviewFieldVisible($data, $field['name'])))),
+                    $section('Acknowledgment', array_values(array_filter([
+                        ['name' => 'person_accomplishing_full_name', 'label' => 'Person Accomplishing the Form'],
+                        ['name' => 'person_accomplishing_position', 'label' => 'Position / Designation'],
+                        ['name' => 'id_type', 'label' => 'ID Type'],
+                        ['name' => 'id_type_other', 'label' => 'Specify Other ID Type'],
+                        ['name' => 'id_number', 'label' => 'ID Number'],
+                        ['name' => 'date_signed', 'label' => 'Date Signed'],
+                    ], fn($field) => ! isset($field['name']) || $this->conditionalPreviewFieldVisible($data, $field['name'])))),
+                    $notesSection,
+                ],
             'service' => [
                 $section('Service Profile', [
                     ['name' => 'service_description', 'label' => 'Service Description'],
@@ -4282,7 +4282,7 @@ SVG;
                     ['name' => 'usage_categories', 'label' => 'Cash Advance Usage / Expense Categories'],
                     ['name' => 'other_business_purpose_specify', 'label' => 'Other Business Purpose - Specify'],
                     ['name' => 'other_expense_specify', 'label' => 'Other Expense - Specify'],
-                ], fn ($field) => ! isset($field['name']) || $this->conditionalPreviewFieldVisible($data, $field['name'])))),
+                ], fn($field) => ! isset($field['name']) || $this->conditionalPreviewFieldVisible($data, $field['name'])))),
                 $section('Requester Details', [
                     ['name' => 'requester_employee_id', 'label' => 'Selected Employee'],
                     ['name' => 'employee_id', 'label' => 'Employee ID'],
@@ -4381,8 +4381,7 @@ SVG;
                             ? ($isErrCheck ? [['name' => 'bank_account_id', 'label' => 'Bank Account']] : [])
                             : ($isCrfSource
                                 ? ($isCrfCheck ? [['name' => 'bank_account_id', 'label' => 'Bank Account']] : [])
-                                : [['name' => 'bank_account_id', 'label' => 'Bank Account']]))
-                        ,
+                                : [['name' => 'bank_account_id', 'label' => 'Bank Account']])),
                         ['name' => 'coa_id', 'label' => 'Account'],
                         ...($isErrSource || $isCrfSource || $isIbtfSource ? [] : [['name' => 'fund_source', 'label' => 'Fund Source / Project']]),
                         ...($isCrfSource || $isIbtfSource ? [] : [['name' => 'department', 'label' => 'Department']]),
@@ -4552,16 +4551,16 @@ SVG;
         $releaseCount = max((int) data_get($data, 'release_count', 1), 1);
         $amountPerRelease = (float) data_get($data, 'amount_per_release', $releaseCount > 0 ? $amount / $releaseCount : $amount);
         $entries = collect((array) data_get($data, 'ca_payment_entries', []))
-            ->filter(fn ($entry) => is_array($entry))
+            ->filter(fn($entry) => is_array($entry))
             ->values();
-        $entriesByRelease = $entries->groupBy(fn (array $entry) => (int) data_get($entry, 'release_no', 0));
+        $entriesByRelease = $entries->groupBy(fn(array $entry) => (int) data_get($entry, 'release_no', 0));
         $releaseEntries = collect((array) data_get($data, 'release_entries', []))
-            ->filter(fn ($entry) => is_array($entry))
-            ->keyBy(fn (array $entry) => (int) data_get($entry, 'release_no', 0));
+            ->filter(fn($entry) => is_array($entry))
+            ->keyBy(fn(array $entry) => (int) data_get($entry, 'release_no', 0));
 
         $rows = collect(range(1, $releaseCount))->map(function (int $releaseNo) use ($releaseCount, $amount, $amountPerRelease, $entriesByRelease, $releaseEntries, $data) {
             $paymentEntries = $entriesByRelease->get($releaseNo, collect());
-            $paidAmount = $paymentEntries->sum(fn (array $entry) => (float) data_get($entry, 'payment_amount', 0));
+            $paidAmount = $paymentEntries->sum(fn(array $entry) => (float) data_get($entry, 'payment_amount', 0));
             $schedule = (array) $releaseEntries->get($releaseNo, []);
             $scheduledAmount = (float) data_get(
                 $schedule,
@@ -4588,7 +4587,7 @@ SVG;
             ];
         })->values();
 
-        $totalPaid = $entries->sum(fn (array $entry) => (float) data_get($entry, 'payment_amount', 0));
+        $totalPaid = $entries->sum(fn(array $entry) => (float) data_get($entry, 'payment_amount', 0));
         $remainingBalance = max($amount - $totalPaid, 0);
         $paidCount = $rows->where('status', 'Paid')->count();
         $status = $remainingBalance <= 0 && $amount > 0 ? 'Fully Released' : ($totalPaid > 0 ? 'Partially Released' : 'Pending Release');
@@ -4673,7 +4672,7 @@ SVG;
                     ] : []),
                     ...($record->module_key === 'arf' ? [
                         ['label' => 'Attachments', 'value' => max(count((array) ($record->attachments ?? [])), 0) . ' file' . (count((array) ($record->attachments ?? [])) === 1 ? '' : 's')],
-                        ['label' => 'Photo Attachments', 'value' => collect((array) ($record->attachments ?? []))->filter(fn ($attachment) => $this->financeAttachmentIsImage(is_array($attachment) ? $attachment : []))->count()],
+                        ['label' => 'Photo Attachments', 'value' => collect((array) ($record->attachments ?? []))->filter(fn($attachment) => $this->financeAttachmentIsImage(is_array($attachment) ? $attachment : []))->count()],
                     ] : []),
                 ]
                 : [
@@ -4705,7 +4704,7 @@ SVG;
                     ] : []),
                     ...($record->module_key === 'arf' ? [
                         ['label' => 'Attachments', 'value' => max(count((array) ($record->attachments ?? [])), 0) . ' file' . (count((array) ($record->attachments ?? [])) === 1 ? '' : 's')],
-                        ['label' => 'Photo Attachments', 'value' => collect((array) ($record->attachments ?? []))->filter(fn ($attachment) => $this->financeAttachmentIsImage(is_array($attachment) ? $attachment : []))->count()],
+                        ['label' => 'Photo Attachments', 'value' => collect((array) ($record->attachments ?? []))->filter(fn($attachment) => $this->financeAttachmentIsImage(is_array($attachment) ? $attachment : []))->count()],
                     ] : []),
                 ];
 
@@ -4755,7 +4754,7 @@ SVG;
             $attachment['image_data_uri'] = $attachment['is_image'] ? $this->financeAttachmentDataUri($attachment) : null;
 
             return $attachment;
-        }, array_filter((array) ($record->attachments ?? []), fn ($attachment) => !blank(data_get($attachment, 'name')) || !blank(data_get($attachment, 'path')))));
+        }, array_filter((array) ($record->attachments ?? []), fn($attachment) => !blank(data_get($attachment, 'name')) || !blank(data_get($attachment, 'path')))));
 
         $attachmentSummary = $this->financeAttachmentSummary($record);
         $approvalTrailRows = $this->financeApprovalTrailRows($record);
@@ -4808,7 +4807,7 @@ SVG;
                     $this->financePreviewRow($record, $lookupOptions, 'net_book_value', 'Net Book Value'),
                 ]),
                 $this->financePreviewRow($record, $lookupOptions, 'remarks', 'Remarks'),
-            ], fn ($row) => is_array($row) && filled(data_get($row, 'value'))))
+            ], fn($row) => is_array($row) && filled(data_get($row, 'value'))))
             : [];
 
         $liquidationReport = $record->module_key === 'lr'
@@ -4826,21 +4825,21 @@ SVG;
                 $varianceIndicator = $variance > 0 ? 'Overage' : ($variance < 0 ? 'Shortage' : 'Balanced');
 
                 return [
-                'ca_reference_no' => $this->financePdfLookupLabel($lookupOptions, 'ca', data_get($data, 'linked_ca_id')) ?: data_get($data, 'linked_ca_id') ?: 'N/A',
-                'ca_amount' => number_format($caAmount, 2, '.', ''),
-                'for_client' => data_get($data, 'for_client') ?: (data_get($linkedCaData, 'for_client') ?: 'N/A'),
-                'client_names' => data_get($data, 'client_names') ?: (data_get($linkedCaData, 'client_names') ?: 'N/A'),
-                'line_items_total' => number_format($lineItemsTotal, 2),
-                'actual_expenses' => number_format($actualExpenses, 2, '.', ''),
-                'variance' => number_format($variance, 2, '.', ''),
-                'variance_indicator' => $varianceIndicator,
-                'purpose' => data_get($data, 'purpose') ?: 'N/A',
-                'remarks' => data_get($data, 'remarks') ?: 'N/A',
-                'employee_name' => data_get($data, 'employee_name') ?: data_get($linkedCaData, 'employee_name') ?: data_get($data, 'requestor') ?: data_get($linkedCaData, 'requestor') ?: data_get($data, 'employee_id') ?: 'N/A',
-                'status_label' => $this->financePdfValue($varianceIndicator),
-                'calculation_label' => 'Line Items Total',
-                'calculation_formula' => 'Line Items Total = Sum of all line item totals',
-            ];
+                    'ca_reference_no' => $this->financePdfLookupLabel($lookupOptions, 'ca', data_get($data, 'linked_ca_id')) ?: data_get($data, 'linked_ca_id') ?: 'N/A',
+                    'ca_amount' => number_format($caAmount, 2, '.', ''),
+                    'for_client' => data_get($data, 'for_client') ?: (data_get($linkedCaData, 'for_client') ?: 'N/A'),
+                    'client_names' => data_get($data, 'client_names') ?: (data_get($linkedCaData, 'client_names') ?: 'N/A'),
+                    'line_items_total' => number_format($lineItemsTotal, 2),
+                    'actual_expenses' => number_format($actualExpenses, 2, '.', ''),
+                    'variance' => number_format($variance, 2, '.', ''),
+                    'variance_indicator' => $varianceIndicator,
+                    'purpose' => data_get($data, 'purpose') ?: 'N/A',
+                    'remarks' => data_get($data, 'remarks') ?: 'N/A',
+                    'employee_name' => data_get($data, 'employee_name') ?: data_get($linkedCaData, 'employee_name') ?: data_get($data, 'requestor') ?: data_get($linkedCaData, 'requestor') ?: data_get($data, 'employee_id') ?: 'N/A',
+                    'status_label' => $this->financePdfValue($varianceIndicator),
+                    'calculation_label' => 'Line Items Total',
+                    'calculation_formula' => 'Line Items Total = Sum of all line item totals',
+                ];
             })()
             : null;
 
@@ -4945,7 +4944,7 @@ SVG;
             data_get($bankAccountRecord->data, 'bank_name'),
             data_get($bankAccountRecord->data, 'branch'),
             data_get($bankAccountRecord->data, 'currency'),
-        ])->filter(fn ($value) => filled($value))->implode(' | '));
+        ])->filter(fn($value) => filled($value))->implode(' | '));
 
         $chartData['bank_account_name'] = $bankAccountRecord->record_title ?: ($chartData['bank_account_name'] ?? '');
         $chartData['bank_account_number'] = data_get($bankAccountRecord->data, 'bank_account_number') ?: ($chartData['bank_account_number'] ?? '');
@@ -5013,7 +5012,7 @@ SVG;
         return User::query()
             ->with('userPermission')
             ->get()
-            ->filter(fn (User $user) => $user->isSuperAdmin()
+            ->filter(fn(User $user) => $user->isSuperAdmin()
                 || $user->isAdmin()
                 || $user->hasPermission('manage_users')
                 || $user->hasPermission('access_admin_dashboard'))
@@ -5033,7 +5032,7 @@ SVG;
             ->orderByDesc('updated_at')
             ->orderByDesc('created_at')
             ->get()
-            ->filter(fn (FinanceRecord $record) => $this->canViewFinanceRecord($record))
+            ->filter(fn(FinanceRecord $record) => $this->canViewFinanceRecord($record))
             ->flatMap(function (FinanceRecord $record) use ($movementActions) {
                 $historyEntries = array_values(array_filter((array) data_get($record->data ?? [], 'history', []), 'is_array'));
 
@@ -5049,8 +5048,8 @@ SVG;
                     })
                     ->map(function (array $entry) use ($record): array {
                         $changeMap = collect((array) data_get($entry, 'changes', []))
-                            ->filter(fn ($change) => is_array($change) && filled(data_get($change, 'field')))
-                            ->mapWithKeys(fn (array $change) => [
+                            ->filter(fn($change) => is_array($change) && filled(data_get($change, 'field')))
+                            ->mapWithKeys(fn(array $change) => [
                                 (string) data_get($change, 'field') => [
                                     'old_value' => data_get($change, 'old_value'),
                                     'new_value' => data_get($change, 'new_value'),
@@ -5113,7 +5112,7 @@ SVG;
                         ];
                     });
             })
-            ->sortByDesc(fn (array $item) => strtotime((string) ($item['changed_at'] ?? '')) ?: 0)
+            ->sortByDesc(fn(array $item) => strtotime((string) ($item['changed_at'] ?? '')) ?: 0)
             ->take($limit)
             ->values()
             ->all();
@@ -5128,8 +5127,8 @@ SVG;
         if ($approvers->isEmpty()) {
             $fallbackApproverIds = collect($this->financeOfficialApproverDirectory()['default_steps'] ?? [])
                 ->pluck('user_id')
-                ->map(fn ($id) => (int) $id)
-                ->filter(fn (int $id) => $id > 0)
+                ->map(fn($id) => (int) $id)
+                ->filter(fn(int $id) => $id > 0)
                 ->unique()
                 ->values();
 
@@ -5143,8 +5142,8 @@ SVG;
 
         $workflowRecipients = $roleRecipients->merge($approvers)->unique('id')->values();
         $adminRecipients = $this->financeAdminNotificationUsers();
-        $pendingApprovers = $workflowRecipients->reject(fn (User $user) => collect($this->financeApprovalActions($record))
-            ->contains(fn (array $actionRow) => (int) data_get($actionRow, 'approved_by') === (int) $user->id));
+        $pendingApprovers = $workflowRecipients->reject(fn(User $user) => collect($this->financeApprovalActions($record))
+            ->contains(fn(array $actionRow) => (int) data_get($actionRow, 'approved_by') === (int) $user->id));
         $inventoryAlertRecipients = $adminRecipients;
 
         if ($record->module_key === 'arf') {
@@ -5181,7 +5180,7 @@ SVG;
 
         if ($action !== 'delete_requested') {
             $recipients = $recipients
-                ->reject(fn (User $user) => Auth::check() && (int) $user->id === (int) Auth::id())
+                ->reject(fn(User $user) => Auth::check() && (int) $user->id === (int) Auth::id())
                 ->values();
         }
 
@@ -5505,7 +5504,7 @@ SVG;
         }
 
         return $records
-            ->filter(fn (FinanceRecord $record) => $this->canViewFinanceRecord($record) || $this->currentUserCanOpenFinance())
+            ->filter(fn(FinanceRecord $record) => $this->canViewFinanceRecord($record) || $this->currentUserCanOpenFinance())
             ->values();
     }
 
@@ -5612,7 +5611,7 @@ SVG;
         }
 
         return collect((array) data_get($record->data ?? [], 'correction_requests', []))
-            ->filter(fn ($request) => is_array($request))
+            ->filter(fn($request) => is_array($request))
             ->reverse()
             ->first();
     }
@@ -5852,7 +5851,7 @@ SVG;
         }
 
         $options['dv_ca'] = $this->visibleAcceptedFinanceRecords('dv', ['source_document_type' => 'ca'])
-            ->map(fn (FinanceRecord $record) => [
+            ->map(fn(FinanceRecord $record) => [
                 'id' => $record->id,
                 'label' => $this->optionLabel($record),
                 'record_number' => $record->record_number,
@@ -5874,7 +5873,7 @@ SVG;
             })
             ->sortByDesc('record_date')
             ->sortByDesc('created_at')
-            ->map(fn (FinanceRecord $record) => [
+            ->map(fn(FinanceRecord $record) => [
                 'id' => $record->id,
                 'label' => $this->optionLabel($record),
                 'record_number' => $record->record_number,
@@ -5883,7 +5882,7 @@ SVG;
             ->values();
 
         $options['lr_overage'] = $this->visibleAcceptedFinanceRecords('lr', ['variance_indicator' => 'Overage'])
-            ->map(fn (FinanceRecord $record) => [
+            ->map(fn(FinanceRecord $record) => [
                 'id' => $record->id,
                 'label' => $this->optionLabel($record),
                 'record_number' => $record->record_number,
@@ -5892,7 +5891,7 @@ SVG;
             ->values();
 
         $options['lr_shortage'] = $this->visibleAcceptedFinanceRecords('lr', ['variance_indicator' => 'Shortage'])
-            ->map(fn (FinanceRecord $record) => [
+            ->map(fn(FinanceRecord $record) => [
                 'id' => $record->id,
                 'label' => $this->optionLabel($record),
                 'record_number' => $record->record_number,
@@ -5904,20 +5903,20 @@ SVG;
 
         $options['employee'] = Schema::hasTable('employees')
             ? Employee::query()
-                ->when(Schema::hasTable('departments'), fn ($query) => $query->with('department'))
-                ->with('user')
-                ->orderBy('last_name')
-                ->orderBy('first_name')
-                ->get()
-                ->map(fn (Employee $employee) => $this->employeeRequesterOption($employee))
-                ->values()
+            ->when(Schema::hasTable('departments'), fn($query) => $query->with('department'))
+            ->with('user')
+            ->orderBy('last_name')
+            ->orderBy('first_name')
+            ->get()
+            ->map(fn(Employee $employee) => $this->employeeRequesterOption($employee))
+            ->values()
             : collect();
 
         $options['payroll_period'] = PayrollPeriod::query()
             ->orderByDesc('period_start')
             ->orderByDesc('created_at')
             ->get()
-            ->map(fn (PayrollPeriod $period) => $this->payrollPeriodSnapshot($period))
+            ->map(fn(PayrollPeriod $period) => $this->payrollPeriodSnapshot($period))
             ->values();
 
         return $options;
@@ -5927,39 +5926,39 @@ SVG;
     {
         $contactOptions = Schema::hasTable('contacts')
             ? Contact::query()
-                ->whereRaw('LOWER(COALESCE(cif_status, "")) = ?', ['approved'])
-                ->with([
-                    'companies:id,company_name',
-                    'primaryCompanies:id,company_name,primary_contact_id',
-                ])
-                ->orderBy('first_name')
-                ->orderBy('last_name')
-                ->get([
-                    'id',
-                    'salutation',
-                    'first_name',
-                    'middle_initial',
-                    'middle_name',
-                    'last_name',
-                    'name_extension',
-                    'email',
-                    'phone',
-                    'contact_address',
-                    'company_name',
-                    'company_address',
-                    'position',
-                    'customer_type',
-                    'client_status',
-                    'cif_no',
-                    'tin',
-                ])
-                ->map(fn (Contact $contact) => $this->financeContactClientOption($contact))
-                ->values()
+            ->whereRaw('LOWER(COALESCE(cif_status, "")) = ?', ['approved'])
+            ->with([
+                'companies:id,company_name',
+                'primaryCompanies:id,company_name,primary_contact_id',
+            ])
+            ->orderBy('first_name')
+            ->orderBy('last_name')
+            ->get([
+                'id',
+                'salutation',
+                'first_name',
+                'middle_initial',
+                'middle_name',
+                'last_name',
+                'name_extension',
+                'email',
+                'phone',
+                'contact_address',
+                'company_name',
+                'company_address',
+                'position',
+                'customer_type',
+                'client_status',
+                'cif_no',
+                'tin',
+            ])
+            ->map(fn(Contact $contact) => $this->financeContactClientOption($contact))
+            ->values()
             : collect();
 
         return $contactOptions
             ->concat($this->financeCompanyPersonClientOptions($contactOptions))
-            ->unique(fn (array $option) => (string) ($option['id'] ?? ''))
+            ->unique(fn(array $option) => (string) ($option['id'] ?? ''))
             ->values();
     }
 
@@ -5975,7 +5974,7 @@ SVG;
         $label = $this->contactDisplayName($contact, includeEmail: true);
 
         if ($companyNames->isNotEmpty()) {
-            $label .= ' - '.$companyNames->implode(', ');
+            $label .= ' - ' . $companyNames->implode(', ');
         }
 
         return [
@@ -6021,18 +6020,18 @@ SVG;
                 }
 
                 return $this->financeCompanyBifPersonRows($bif)
-                    ->reject(fn (array $person) => $this->financeCompanyPersonMatchesContact($person, $company->company_name, $contactOptions))
-                    ->map(fn (array $person) => $this->financeCompanyPersonClientOption($company, $bif, $person));
+                    ->reject(fn(array $person) => $this->financeCompanyPersonMatchesContact($person, $company->company_name, $contactOptions))
+                    ->map(fn(array $person) => $this->financeCompanyPersonClientOption($company, $bif, $person));
             })
-            ->unique(fn (array $option) => (string) ($option['id'] ?? ''))
+            ->unique(fn(array $option) => (string) ($option['id'] ?? ''))
             ->values();
     }
 
     private function financeCompanyBifPersonRows(CompanyBif $bif): \Illuminate\Support\Collection
     {
         $rows = collect($bif->authorized_signatories ?? [])
-            ->filter(fn (array $item) => filled($item['full_name'] ?? null))
-            ->map(fn (array $item) => $this->financeCompanyPersonRow($item, 'Authorized Signatory'));
+            ->filter(fn(array $item) => filled($item['full_name'] ?? null))
+            ->map(fn(array $item) => $this->financeCompanyPersonRow($item, 'Authorized Signatory'));
 
         if ($rows->isEmpty() && filled($bif->authorized_signatory_name)) {
             $rows->push($this->financeCompanyPersonRow([
@@ -6046,8 +6045,8 @@ SVG;
         }
 
         $ubos = collect($bif->ubos ?? [])
-            ->filter(fn (array $item) => filled($item['full_name'] ?? null))
-            ->map(fn (array $item) => $this->financeCompanyPersonRow($item, 'UBO (20%+ Stockholder)'));
+            ->filter(fn(array $item) => filled($item['full_name'] ?? null))
+            ->map(fn(array $item) => $this->financeCompanyPersonRow($item, 'UBO (20%+ Stockholder)'));
 
         if ($ubos->isEmpty() && filled($bif->ubo_name)) {
             $ubos->push($this->financeCompanyPersonRow([
@@ -6071,7 +6070,7 @@ SVG;
 
         return $rows
             ->concat($ubos)
-            ->unique(fn (array $item) => Str::lower(($item['role_label'] ?? '').'|'.($item['full_name'] ?? '').'|'.($item['email'] ?? '').'|'.($item['phone'] ?? '')))
+            ->unique(fn(array $item) => Str::lower(($item['role_label'] ?? '') . '|' . ($item['full_name'] ?? '') . '|' . ($item['email'] ?? '') . '|' . ($item['phone'] ?? '')))
             ->values();
     }
 
@@ -6102,10 +6101,10 @@ SVG;
             $label .= " ({$email})";
         }
 
-        $label .= ' - '.$roleLabel;
+        $label .= ' - ' . $roleLabel;
 
         if ($companyName !== '') {
-            $label .= ' - '.$companyName;
+            $label .= ' - ' . $companyName;
         }
 
         return [
@@ -6140,7 +6139,7 @@ SVG;
             $person['phone'] ?? '',
         ]));
 
-        return 'company-person:'.$companyId.':'.Str::slug($roleLabel ?: 'person').':'.substr(sha1($signature), 0, 12);
+        return 'company-person:' . $companyId . ':' . Str::slug($roleLabel ?: 'person') . ':' . substr(sha1($signature), 0, 12);
     }
 
     private function financeCompanyPersonMatchesContact(array $person, string $companyName, \Illuminate\Support\Collection $contactOptions): bool
@@ -6167,7 +6166,7 @@ SVG;
             $optionCompanyNames = collect($option['company_names'] ?? [])
                 ->push($option['company_name'] ?? '')
                 ->filter()
-                ->map(fn ($name) => Str::lower(trim((string) $name)));
+                ->map(fn($name) => Str::lower(trim((string) $name)));
 
             return $fullName !== ''
                 && $optionName === $fullName
@@ -6270,7 +6269,7 @@ SVG;
         }
 
         return Employee::query()
-            ->when(Schema::hasTable('departments'), fn ($query) => $query->with('department'))
+            ->when(Schema::hasTable('departments'), fn($query) => $query->with('department'))
             ->find($custodianId);
     }
 
@@ -6611,18 +6610,18 @@ SVG;
 
         $contact = Schema::hasTable('contacts')
             ? Contact::query()
-                ->where(function ($query) use ($email, $name) {
-                    if ($email !== '') {
-                        $query->where('email', $email);
-                    }
+            ->where(function ($query) use ($email, $name) {
+                if ($email !== '') {
+                    $query->where('email', $email);
+                }
 
-                    if ($name !== '') {
-                        $method = $email !== '' ? 'orWhereRaw' : 'whereRaw';
-                        $query->{$method}("TRIM(CONCAT_WS(' ', first_name, middle_name, last_name)) = ?", [$name])
-                            ->orWhereRaw("TRIM(CONCAT_WS(' ', first_name, last_name)) = ?", [$name]);
-                    }
-                })
-                ->first()
+                if ($name !== '') {
+                    $method = $email !== '' ? 'orWhereRaw' : 'whereRaw';
+                    $query->{$method}("TRIM(CONCAT_WS(' ', first_name, middle_name, last_name)) = ?", [$name])
+                        ->orWhereRaw("TRIM(CONCAT_WS(' ', first_name, last_name)) = ?", [$name]);
+                }
+            })
+            ->first()
             : null;
 
         $employee = $this->resolveCurrentUserEmployee($email, $name);
@@ -6638,7 +6637,7 @@ SVG;
             $user->getAttribute('superior_email'),
         ];
 
-        if (! $contact && ! $employee && ! collect($userProfileFields)->contains(fn ($value) => filled($value))) {
+        if (! $contact && ! $employee && ! collect($userProfileFields)->contains(fn($value) => filled($value))) {
             return null;
         }
 
@@ -6754,7 +6753,7 @@ SVG;
         ])->filter()->implode(' '));
 
         if ($name === '') {
-            $name = trim((string) ($contact->company_name ?: $contact->email ?: 'Contact #'.$contact->id));
+            $name = trim((string) ($contact->company_name ?: $contact->email ?: 'Contact #' . $contact->id));
         }
 
         if ($includeEmail && filled($contact->email)) {
@@ -7184,14 +7183,16 @@ SVG;
         ]) ?: '');
 
         if ($resolvedBankAccountLabel === '') {
-            foreach ([
-                data_get($data, 'bank_account_id'),
-                data_get($data, 'funding_bank_account_id'),
-                data_get($data, 'source_bank_account_id'),
-                data_get($data, 'destination_bank_account_id'),
-                data_get($data, 'receiving_bank_account_id'),
-                data_get($data, 'paid_through'),
-            ] as $bankAccountId) {
+            foreach (
+                [
+                    data_get($data, 'bank_account_id'),
+                    data_get($data, 'funding_bank_account_id'),
+                    data_get($data, 'source_bank_account_id'),
+                    data_get($data, 'destination_bank_account_id'),
+                    data_get($data, 'receiving_bank_account_id'),
+                    data_get($data, 'paid_through'),
+                ] as $bankAccountId
+            ) {
                 $bankAccountRecord = blank($bankAccountId)
                     ? null
                     : $this->financeResolveModuleRecord('bank_account', $bankAccountId);
@@ -7200,7 +7201,7 @@ SVG;
                     $resolvedBankAccountLabel = trim((string) collect([
                         $bankAccountRecord->record_title,
                         $bankAccountRecord->record_number,
-                    ])->first(fn ($value) => !blank($value)) ?: '');
+                    ])->first(fn($value) => !blank($value)) ?: '');
 
                     if ($resolvedBankAccountLabel !== '') {
                         break;
@@ -7448,7 +7449,7 @@ SVG;
 
                 return is_array($attachment) ? $attachment : null;
             })
-            ->filter(fn ($attachment) => is_array($attachment) && (!blank(data_get($attachment, 'name')) || !blank(data_get($attachment, 'path'))))
+            ->filter(fn($attachment) => is_array($attachment) && (!blank(data_get($attachment, 'name')) || !blank(data_get($attachment, 'path'))))
             ->values()
             ->all();
 
@@ -7503,7 +7504,8 @@ SVG;
         }
 
         if ((blank(data_get($data, 'payee_type')) || blank(data_get($data, 'payee_name')))
-            && (blank(data_get($sourceSnapshot, 'payee_type')) || blank(data_get($sourceSnapshot, 'payee_name')))) {
+            && (blank(data_get($sourceSnapshot, 'payee_type')) || blank(data_get($sourceSnapshot, 'payee_name')))
+        ) {
             $requirements[] = 'payee identified';
         }
 
@@ -7573,7 +7575,7 @@ SVG;
             data_get($bankData, 'chart_account_id'),
             data_get($bankData, 'bank_coa_id'),
             data_get($bankData, 'default_credit_coa_id'),
-        ], fn ($value) => filled($value)));
+        ], fn($value) => filled($value)));
 
         foreach ($candidates as $candidate) {
             if (is_numeric($candidate)) {
@@ -7590,7 +7592,7 @@ SVG;
     private function financeNormalizeDvLineItems(array $lineItems, FinanceRecord $financeRecord, array $payload = []): array
     {
         $normalizedRows = collect($lineItems)
-            ->filter(fn ($item) => is_array($item) && collect($item)->contains(fn ($value) => !blank($value)))
+            ->filter(fn($item) => is_array($item) && collect($item)->contains(fn($value) => !blank($value)))
             ->map(function (array $item, int $index): array {
                 $debit = (float) data_get($item, 'debit', 0);
                 $credit = (float) data_get($item, 'credit', 0);
@@ -7605,8 +7607,8 @@ SVG;
             ->values()
             ->all();
 
-        $debitTotal = collect($normalizedRows)->sum(fn (array $row) => (float) data_get($row, 'debit', 0));
-        $creditTotal = collect($normalizedRows)->sum(fn (array $row) => (float) data_get($row, 'credit', 0));
+        $debitTotal = collect($normalizedRows)->sum(fn(array $row) => (float) data_get($row, 'debit', 0));
+        $creditTotal = collect($normalizedRows)->sum(fn(array $row) => (float) data_get($row, 'credit', 0));
         if ($debitTotal <= 0) {
             return $normalizedRows;
         }
@@ -7629,7 +7631,7 @@ SVG;
             return $normalizedRows;
         }
 
-        $firstDebitRow = collect($normalizedRows)->first(fn (array $row) => (float) data_get($row, 'debit', 0) > 0) ?: ($normalizedRows[0] ?? []);
+        $firstDebitRow = collect($normalizedRows)->first(fn(array $row) => (float) data_get($row, 'debit', 0) > 0) ?: ($normalizedRows[0] ?? []);
         $debitDescription = trim((string) data_get($firstDebitRow, 'description', ''))
             ?: trim((string) $financeRecord->record_number)
             ?: trim((string) $financeRecord->record_title)
@@ -7639,7 +7641,7 @@ SVG;
             $this->financeResolveModuleRecord('chart_account', $creditAccountCode)?->record_number,
             $this->financeResolveModuleRecord('chart_account', $creditAccountCode)?->record_title,
             $creditAccountCode,
-        ])->first(fn ($value) => filled($value)) ?: '');
+        ])->first(fn($value) => filled($value)) ?: '');
 
         return [
             [
@@ -7665,7 +7667,7 @@ SVG;
 
         $currentLineItems = (array) data_get($payload, 'line_items', data_get($financeRecord->data ?? [], 'line_items', []));
         $hasCurrentLineItems = collect($currentLineItems)
-            ->filter(fn ($item) => is_array($item) && collect($item)->contains(fn ($value) => !blank($value)))
+            ->filter(fn($item) => is_array($item) && collect($item)->contains(fn($value) => !blank($value)))
             ->isNotEmpty();
 
         if ($hasCurrentLineItems) {
@@ -7718,7 +7720,7 @@ SVG;
     {
         $data = $record->data ?? [];
         $rows = collect((array) data_get($data, 'line_items', []))
-            ->filter(fn ($row) => is_array($row) && collect($row)->contains(fn ($value) => !blank($value)))
+            ->filter(fn($row) => is_array($row) && collect($row)->contains(fn($value) => !blank($value)))
             ->values();
 
         if ($rows->isNotEmpty()) {
@@ -7727,8 +7729,8 @@ SVG;
                 $unitAmount = (float) (data_get($row, 'amount') ?: data_get($row, 'unit_cost') ?: 0);
                 $amount = (float) (data_get($row, 'total') ?: data_get($row, 'line_total') ?: data_get($row, 'debit') ?: data_get($row, 'credit') ?: ($quantity * $unitAmount) ?: $unitAmount);
                 $description = trim(collect([
-                    data_get($row, 'item_id') ?: data_get($row, 'description') ?: data_get($row, 'account_code') ?: 'Line '.($index + 1),
-                    data_get($row, 'category') ? '('.data_get($row, 'category').')' : null,
+                    data_get($row, 'item_id') ?: data_get($row, 'description') ?: data_get($row, 'account_code') ?: 'Line ' . ($index + 1),
+                    data_get($row, 'category') ? '(' . data_get($row, 'category') . ')' : null,
                 ])->filter()->implode(' '));
 
                 return [
@@ -7739,7 +7741,7 @@ SVG;
                 ];
             })->values()->all();
 
-            $totalDebit = array_sum(array_map(fn (array $row) => (float) data_get($row, 'debit', 0), $debitRows));
+            $totalDebit = array_sum(array_map(fn(array $row) => (float) data_get($row, 'debit', 0), $debitRows));
             $bankAccountRecord = $this->financeResolveModuleRecord(
                 'bank_account',
                 data_get($payload, 'bank_account_id')
@@ -7772,13 +7774,13 @@ SVG;
         if ($record->module_key === 'ibtf') {
             return [
                 [
-                    'description' => 'Transfer to '.(data_get($data, 'destination_account_code') ?: data_get($data, 'destination_bank_account_id') ?: 'destination account'),
+                    'description' => 'Transfer to ' . (data_get($data, 'destination_account_code') ?: data_get($data, 'destination_bank_account_id') ?: 'destination account'),
                     'account_code' => data_get($data, 'destination_account_code') ?: '',
                     'debit' => $amount > 0 ? number_format($amount, 2, '.', '') : '',
                     'credit' => '',
                 ],
                 [
-                    'description' => 'Transfer from '.(data_get($data, 'source_account_code') ?: data_get($data, 'source_bank_account_id') ?: 'source account'),
+                    'description' => 'Transfer from ' . (data_get($data, 'source_account_code') ?: data_get($data, 'source_bank_account_id') ?: 'source account'),
                     'account_code' => data_get($data, 'source_account_code') ?: '',
                     'debit' => '',
                     'credit' => $amount > 0 ? number_format($amount, 2, '.', '') : '',
@@ -7817,7 +7819,7 @@ SVG;
                 'debit' => '',
                 'credit' => number_format($amount, 2, '.', ''),
             ] : null,
-        ], fn ($row) => is_array($row) && collect($row)->contains(fn ($value) => !blank($value))));
+        ], fn($row) => is_array($row) && collect($row)->contains(fn($value) => !blank($value))));
 
         return $this->financeNormalizeDvLineItems($lineItems, $record, $payload);
     }
@@ -8047,7 +8049,7 @@ SVG;
                 return;
             }
 
-            if (str_starts_with($value, 'company-person:') && $this->financeClientLookupOptions()->contains(fn (array $option) => (string) ($option['id'] ?? '') === $value)) {
+            if (str_starts_with($value, 'company-person:') && $this->financeClientLookupOptions()->contains(fn(array $option) => (string) ($option['id'] ?? '') === $value)) {
                 return;
             }
 
@@ -8080,8 +8082,8 @@ SVG;
         $amountPerRelease = (float) data_get($data, 'amount_per_release', $releaseCount > 0 ? $amount / $releaseCount : $amount);
 
         $submittedEntries = collect((array) data_get($data, 'release_entries', []))
-            ->filter(fn ($entry) => is_array($entry))
-            ->keyBy(fn (array $entry, int $index) => max((int) data_get($entry, 'release_no', $index + 1), 1));
+            ->filter(fn($entry) => is_array($entry))
+            ->keyBy(fn(array $entry, int $index) => max((int) data_get($entry, 'release_no', $index + 1), 1));
 
         return collect(range(1, $releaseCount))
             ->map(function (int $releaseNo) use ($submittedEntries, $releaseCount, $amount, $amountPerRelease, $data): array {
@@ -8447,7 +8449,7 @@ SVG;
 
             $allowedApproverIds = collect($directory['options'] ?? [])
                 ->pluck('user_id')
-                ->map(fn ($id) => (int) $id)
+                ->map(fn($id) => (int) $id)
                 ->filter();
 
             $allowedApproverIds = $allowedApproverIds->unique()->values()->all();
@@ -8497,8 +8499,8 @@ SVG;
         if ($this->moduleRequiresTwoPersonApproval($moduleKey) && ! $supplierSendMode) {
             $defaultStepCount = collect($this->financeOfficialApproverDirectory()['default_steps'] ?? [])
                 ->pluck('user_id')
-                ->map(fn ($id) => (int) $id)
-                ->filter(fn (int $id) => $id > 0)
+                ->map(fn($id) => (int) $id)
+                ->filter(fn(int $id) => $id > 0)
                 ->unique()
                 ->count();
 
@@ -8701,7 +8703,7 @@ SVG;
 
         if (in_array($moduleKey, ['pr', 'po', 'lr'], true)) {
             $lineItems = array_values(array_filter((array) data_get($data, 'line_items', []), function ($item) {
-                return is_array($item) && collect($item)->contains(fn ($value) => !blank($value));
+                return is_array($item) && collect($item)->contains(fn($value) => !blank($value));
             }));
 
             if ($lineItems) {
@@ -8767,54 +8769,56 @@ SVG;
 
             if ($sourceRecord) {
                 $sourcePayload = $this->fallbackDvPayload($sourceRecord);
-                foreach ([
-                    'supplier_id',
-                    'bank_account_id',
-                    'payment_type',
-                    'disbursement_type',
-                    'payee_type',
-                    'payee_name',
-                    'coa_id',
-                    'fund_source',
-                    'department',
-                    'purpose',
-                    'payment_date',
-                    'due_date',
-                    'withholding_tax',
-                    'vat_amount',
-                    'currency',
-                    'exchange_rate',
-                    'received_by_name',
-                    'date_received',
-                    'reference_number',
-                    'remarks',
-                    'source_record_number',
-                    'source_record_date',
-                    'source_requester',
-                    'source_department',
-                    'source_project',
-                    'source_cost_center',
-                    'source_fund_source',
-                    'source_amount',
-                    'source_remaining_balance',
-                    'source_current_balance',
-                    'source_reserved_balance',
-                    'source_available_balance',
-                    'source_approval_status',
-                    'source_approved_by_name',
-                    'source_approved_at',
-                    'source_supplier_name',
-                    'source_employee_name',
-                    'source_payee_type',
-                    'source_payee_name',
-                    'source_status',
-                    'source_workflow_status',
-                    'source_relationship_status',
-                    'total_disbursed_amount',
-                    'percentage_paid',
-                    'disbursement_status',
-                    'projected_balance_after_payment',
-                ] as $lockedField) {
+                foreach (
+                    [
+                        'supplier_id',
+                        'bank_account_id',
+                        'payment_type',
+                        'disbursement_type',
+                        'payee_type',
+                        'payee_name',
+                        'coa_id',
+                        'fund_source',
+                        'department',
+                        'purpose',
+                        'payment_date',
+                        'due_date',
+                        'withholding_tax',
+                        'vat_amount',
+                        'currency',
+                        'exchange_rate',
+                        'received_by_name',
+                        'date_received',
+                        'reference_number',
+                        'remarks',
+                        'source_record_number',
+                        'source_record_date',
+                        'source_requester',
+                        'source_department',
+                        'source_project',
+                        'source_cost_center',
+                        'source_fund_source',
+                        'source_amount',
+                        'source_remaining_balance',
+                        'source_current_balance',
+                        'source_reserved_balance',
+                        'source_available_balance',
+                        'source_approval_status',
+                        'source_approved_by_name',
+                        'source_approved_at',
+                        'source_supplier_name',
+                        'source_employee_name',
+                        'source_payee_type',
+                        'source_payee_name',
+                        'source_status',
+                        'source_workflow_status',
+                        'source_relationship_status',
+                        'total_disbursed_amount',
+                        'percentage_paid',
+                        'disbursement_status',
+                        'projected_balance_after_payment',
+                    ] as $lockedField
+                ) {
                     data_set($data, $lockedField, data_get($sourcePayload, $lockedField, data_get($data, $lockedField)));
                 }
 
@@ -8859,21 +8863,23 @@ SVG;
             $projectedBalanceAfterPayment = max($availableBalance - $amount, 0);
             data_set($data, 'projected_balance_after_payment', number_format($projectedBalanceAfterPayment, 2, '.', ''));
             data_set($data, 'source_projected_balance_after_payment', number_format($projectedBalanceAfterPayment, 2, '.', ''));
-            foreach ([
-                'fund_availability_status',
-                'fund_availability_warning',
-                'fund_availability_requested_amount',
-                'fund_availability_available_balance',
-                'fund_availability_checked_at',
-                'fund_availability_checked_by',
-                'fund_availability_checked_by_name',
-                'fund_availability_policy_allows_approval',
-            ] as $lockedField) {
+            foreach (
+                [
+                    'fund_availability_status',
+                    'fund_availability_warning',
+                    'fund_availability_requested_amount',
+                    'fund_availability_available_balance',
+                    'fund_availability_checked_at',
+                    'fund_availability_checked_by',
+                    'fund_availability_checked_by_name',
+                    'fund_availability_policy_allows_approval',
+                ] as $lockedField
+            ) {
                 unset($data[$lockedField]);
             }
 
             $lineItems = array_values(array_filter((array) data_get($data, 'line_items', []), function ($item) {
-                return is_array($item) && collect($item)->contains(fn ($value) => !blank($value));
+                return is_array($item) && collect($item)->contains(fn($value) => !blank($value));
             }));
             data_set($data, 'line_items', $lineItems);
 
@@ -8896,7 +8902,7 @@ SVG;
             $custodianId = data_get($data, 'custodian');
             if (!blank($custodianId) && Schema::hasTable('employees')) {
                 $employee = Employee::query()
-                    ->when(Schema::hasTable('departments'), fn ($query) => $query->with('department'))
+                    ->when(Schema::hasTable('departments'), fn($query) => $query->with('department'))
                     ->find($custodianId);
 
                 if ($employee) {
@@ -8923,31 +8929,33 @@ SVG;
             if ($period) {
                 $snapshot = $this->payrollPeriodSnapshot($period, true);
 
-                foreach ([
-                    'period_start',
-                    'period_end',
-                    'payroll_start',
-                    'payroll_end',
-                    'pay_date',
-                    'dispute_start',
-                    'dispute_end',
-                    'status',
-                    'employee_count',
-                    'basic_salary_total',
-                    'yearly_basic_total',
-                    'daily_rate_total',
-                    'hourly_rate_total',
-                    'minute_rate_total',
-                    'gross_pay_total',
-                    'benefits_total',
-                    'allowances_total',
-                    'deductions_total',
-                    'night_differential_total',
-                    'holiday_pay_total',
-                    'total_payroll_amount',
-                    'payroll_summary_ids',
-                    'employee_lines',
-                ] as $field) {
+                foreach (
+                    [
+                        'period_start',
+                        'period_end',
+                        'payroll_start',
+                        'payroll_end',
+                        'pay_date',
+                        'dispute_start',
+                        'dispute_end',
+                        'status',
+                        'employee_count',
+                        'basic_salary_total',
+                        'yearly_basic_total',
+                        'daily_rate_total',
+                        'hourly_rate_total',
+                        'minute_rate_total',
+                        'gross_pay_total',
+                        'benefits_total',
+                        'allowances_total',
+                        'deductions_total',
+                        'night_differential_total',
+                        'holiday_pay_total',
+                        'total_payroll_amount',
+                        'payroll_summary_ids',
+                        'employee_lines',
+                    ] as $field
+                ) {
                     data_set($data, $field, data_get($snapshot, $field));
                 }
 
@@ -9014,15 +9022,15 @@ SVG;
                 ];
             }, $entries, array_keys($entries)));
 
-            $totalPaid = collect($entries)->sum(fn (array $entry) => (float) data_get($entry, 'payment_amount', 0));
-            $releaseEntryMap = collect($releaseEntries)->keyBy(fn (array $entry) => (int) data_get($entry, 'release_no', 0));
+            $totalPaid = collect($entries)->sum(fn(array $entry) => (float) data_get($entry, 'payment_amount', 0));
+            $releaseEntryMap = collect($releaseEntries)->keyBy(fn(array $entry) => (int) data_get($entry, 'release_no', 0));
             $paidReleaseNos = collect($entries)
-                ->groupBy(fn (array $entry) => (int) data_get($entry, 'release_no', 0))
+                ->groupBy(fn(array $entry) => (int) data_get($entry, 'release_no', 0))
                 ->filter(function ($releaseEntries, $releaseNo) use ($releaseEntryMap, $amountPerRelease) {
                     $scheduledAmount = (float) data_get($releaseEntryMap->get((int) $releaseNo), 'scheduled_amount', $amountPerRelease);
 
                     return $scheduledAmount > 0
-                        && $releaseEntries->sum(fn (array $entry) => (float) data_get($entry, 'payment_amount', 0)) >= $scheduledAmount;
+                        && $releaseEntries->sum(fn(array $entry) => (float) data_get($entry, 'payment_amount', 0)) >= $scheduledAmount;
                 })
                 ->keys()
                 ->count();
@@ -9031,8 +9039,8 @@ SVG;
             $firstReleaseEntry = $releaseEntries[0] ?? [];
             $overdueCount = 0;
             foreach (range(1, $releaseCount) as $releaseNo) {
-                $paymentEntries = collect($entries)->filter(fn (array $entry) => (int) data_get($entry, 'release_no', 0) === $releaseNo);
-                $paidAmount = $paymentEntries->sum(fn (array $entry) => (float) data_get($entry, 'payment_amount', 0));
+                $paymentEntries = collect($entries)->filter(fn(array $entry) => (int) data_get($entry, 'release_no', 0) === $releaseNo);
+                $paidAmount = $paymentEntries->sum(fn(array $entry) => (float) data_get($entry, 'payment_amount', 0));
                 $schedule = (array) ($releaseEntryMap->get($releaseNo) ?? []);
                 $scheduledAmount = (float) data_get(
                     $schedule,
@@ -9069,7 +9077,7 @@ SVG;
 
         if ($moduleKey === 'lr') {
             $lineItems = array_values(array_filter((array) data_get($data, 'line_items', []), function ($item) {
-                return is_array($item) && collect($item)->contains(fn ($value) => !blank($value));
+                return is_array($item) && collect($item)->contains(fn($value) => !blank($value));
             }));
 
             $subtotal = 0;
@@ -9245,7 +9253,7 @@ SVG;
         }
 
         $employee = Employee::query()
-            ->when(Schema::hasTable('departments'), fn ($query) => $query->with('department'))
+            ->when(Schema::hasTable('departments'), fn($query) => $query->with('department'))
             ->find($employeeId);
 
         if (! $employee) {
@@ -9326,9 +9334,10 @@ SVG;
             ->where('workflow_status', '!=', 'Deleted')
             ->orderByDesc('record_date')
             ->orderByDesc('created_at')
+            ->limit(100)
             ->get()
-            ->filter(fn (FinanceRecord $record) => $this->canViewFinanceRecord($record))
-            ->map(fn (FinanceRecord $record) => $this->transformRecordForIndex($record))
+            ->filter(fn(FinanceRecord $record) => $this->canViewFinanceRecord($record))
+            ->map(fn(FinanceRecord $record) => $this->transformRecordForIndex($record))
             ->values();
 
         $inventoryHistoryBoard = $this->financeInventoryHistoryBoardItems();
@@ -9342,10 +9351,11 @@ SVG;
             })
             ->orderByDesc('record_date')
             ->orderByDesc('created_at')
+            ->limit(200)
             ->get()
-            ->filter(fn (FinanceRecord $record) => $this->financeRecordEligibleAsSourceDocument($record))
-            ->filter(fn (FinanceRecord $record) => $this->canViewFinanceRecord($record))
-            ->map(fn (FinanceRecord $record) => $this->transformRecordForIndex($record))
+            ->filter(fn(FinanceRecord $record) => $this->financeRecordEligibleAsSourceDocument($record))
+            ->filter(fn(FinanceRecord $record) => $this->canViewFinanceRecord($record))
+            ->map(fn(FinanceRecord $record) => $this->transformRecordForIndex($record))
             ->values();
 
         return view('finance.index', [
@@ -9394,7 +9404,7 @@ SVG;
         }
 
         $data = $financeRecord->data ?? [];
-        $existingNotes = array_values(array_filter((array) data_get($data, 'finance_notes', []), fn ($item) => is_array($item)));
+        $existingNotes = array_values(array_filter((array) data_get($data, 'finance_notes', []), fn($item) => is_array($item)));
         $newNote = [
             'id' => (string) Str::uuid(),
             'note' => $noteBody,
@@ -9815,14 +9825,16 @@ SVG;
         unset($data['release_intent']);
 
         if ($request->module_key === 'dv' && $wasReleased && ! $releaseIntent) {
-            foreach ([
-                'released_at',
-                'released_by',
-                'released_by_name',
-                'release_recorded_at',
-                'release_recorded_by',
-                'release_recorded_by_name',
-            ] as $fieldName) {
+            foreach (
+                [
+                    'released_at',
+                    'released_by',
+                    'released_by_name',
+                    'release_recorded_at',
+                    'release_recorded_by',
+                    'release_recorded_by_name',
+                ] as $fieldName
+            ) {
                 if (!filled(data_get($data, $fieldName)) && filled(data_get($financeRecord->data ?? [], $fieldName))) {
                     $data[$fieldName] = data_get($financeRecord->data, $fieldName);
                 }
@@ -10309,7 +10321,7 @@ SVG;
         ]);
 
         $newCustodian = Employee::query()
-            ->when(Schema::hasTable('departments'), fn ($query) => $query->with('department'))
+            ->when(Schema::hasTable('departments'), fn($query) => $query->with('department'))
             ->find($validated['new_custodian_id']);
 
         if (! $newCustodian) {
@@ -10428,7 +10440,7 @@ SVG;
                 if (filled($validated['target_custodian'] ?? null)) {
                     data_set($data, 'custodian', (int) $validated['target_custodian']);
                     $custodianEmployee = Employee::query()
-                        ->when(Schema::hasTable('departments'), fn ($query) => $query->with('department'))
+                        ->when(Schema::hasTable('departments'), fn($query) => $query->with('department'))
                         ->find((int) $validated['target_custodian']);
                     if ($custodianEmployee) {
                         data_set($data, 'custodian_name', $this->employeeRequesterOption($custodianEmployee)['label'] ?? $custodianEmployee->full_name);
@@ -10747,7 +10759,7 @@ SVG;
         $latestIndex = collect($correctionRequests)
             ->keys()
             ->reverse()
-            ->first(fn ($index) => is_array($correctionRequests[$index] ?? null) && in_array(data_get($correctionRequests[$index], 'status'), ['Pending', 'Submitted'], true));
+            ->first(fn($index) => is_array($correctionRequests[$index] ?? null) && in_array(data_get($correctionRequests[$index], 'status'), ['Pending', 'Submitted'], true));
 
         if ($latestIndex === null) {
             abort(422, 'No pending correction request exists for this record.');
@@ -10818,7 +10830,7 @@ SVG;
         $latestIndex = collect($correctionRequests)
             ->keys()
             ->reverse()
-            ->first(fn ($index) => is_array($correctionRequests[$index] ?? null) && in_array(data_get($correctionRequests[$index], 'status'), ['Pending', 'Submitted'], true));
+            ->first(fn($index) => is_array($correctionRequests[$index] ?? null) && in_array(data_get($correctionRequests[$index], 'status'), ['Pending', 'Submitted'], true));
 
         if ($latestIndex === null) {
             abort(422, 'No pending correction request exists for this record.');
