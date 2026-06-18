@@ -9332,8 +9332,7 @@ SVG;
 
         $records = FinanceRecord::query()
             ->where('workflow_status', '!=', 'Deleted')
-            ->orderByDesc('record_date')
-            ->orderByDesc('created_at')
+            ->orderByDesc('id')
             ->limit(100)
             ->get()
             ->filter(fn(FinanceRecord $record) => $this->canViewFinanceRecord($record))
@@ -9349,8 +9348,7 @@ SVG;
                 $statusQuery->where('workflow_status', 'Accepted')
                     ->orWhere('approval_status', 'Approved');
             })
-            ->orderByDesc('record_date')
-            ->orderByDesc('created_at')
+            ->orderByDesc('id')
             ->limit(200)
             ->get()
             ->filter(fn(FinanceRecord $record) => $this->financeRecordEligibleAsSourceDocument($record))
