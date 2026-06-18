@@ -2443,8 +2443,7 @@ SVG;
         if ($cache === null) {
             $cache = FinanceRecord::query()
                 ->where('workflow_status', '!=', 'Deleted')
-                ->orderByDesc('record_date')
-                ->orderByDesc('created_at')
+                ->orderByDesc('id')
                 ->get()
                 ->values();
         }
