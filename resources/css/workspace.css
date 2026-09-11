@@ -1,0 +1,25 @@
+@charset "UTF-8";
+
+/* Alpine.js Cloak Directive */
+[x-cloak] { 
+    display: none !important; 
+}
+
+/* Custom Horizontal Scrollbar para sa Workspace Tabs */
+.tab-scroll-container::-webkit-scrollbar {
+    height: 4px;
+}
+
+.tab-scroll-container::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 4px;
+}
+
+.tab-scroll-container::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 4px;
+}
+
+.tab-scroll-container::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
