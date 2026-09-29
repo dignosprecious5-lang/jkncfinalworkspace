@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>@yield('title', 'ORDO Workspace')</title>
+    <title>@yield('title', 'ORDO Project')</title>
     <link rel="stylesheet" href="{{ asset('css/ordo.css') }}">
 </head>
 <body><a class="skip-link" href="#main-content">Skip to content</a>

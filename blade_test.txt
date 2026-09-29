@@ -1,2 +1,0 @@
-  <warning> WARNING </warning> Undefined variable $deals in storage\framework\views\4380701b42225113cd3c593a0ff1f43f.php on line 2158.
-   Illuminate\View\ViewException  Call to a member function count() on null (View: resources\views\deals\index.blade.php).

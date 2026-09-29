@@ -3,5 +3,5 @@
 use Illuminate\Support\Facades\Artisan;
 
 Artisan::command('ordo:about', function () {
-    $this->info('ORDO Laravel unified workspace (Project, Regular & Hybrid)');
+    $this->info('ORDO Laravel project workspace');
 })->purpose('Display the ORDO application name');
