@@ -6,6 +6,10 @@
 
     <title>START Workspace | ORDO Deals</title>
 
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap" rel="stylesheet">
+
     <style>
         * {
             box-sizing: border-box;
@@ -14,9 +18,10 @@
         }
 
         body {
-            font-family: Arial, Helvetica, sans-serif;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             background: #f5f7fb;
             color: #1f2937;
+            -webkit-font-smoothing: antialiased;
         }
 
         /* =====================================================

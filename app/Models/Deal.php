@@ -30,6 +30,7 @@ class Deal extends Model
         'amount',
         'customer_type',
         'pipeline_stage',
+        'stage_entered_at',
         'commercial_stage',
         'client_search',
         'owner_name',
@@ -103,6 +104,7 @@ class Deal extends Model
         // Notes
         'consultant_notes',
         'associate_notes',
+        'consultation_records',
 
         // Approval
         'prepared_by',
@@ -126,6 +128,43 @@ class Deal extends Model
         'record_custodian',
         'date_recorded',
         'date_signed',
+
+        // Stage Workflow Requirements
+        'inquiry_source',
+        'inquiry_date',
+        'inquiry_details',
+        'inquiry_records',
+        'qualification_result',
+        'client_need',
+        'decision_maker',
+        'qualification_notes',
+        'consultation_date',
+        'consultation_type',
+        'requirements_confirmed',
+        'proposal_number',
+        'proposal_date',
+        'proposal_value',
+        'proposal_valid_until',
+        'proposal_status',
+        'proposal_notes',
+        'negotiation_status',
+        'final_deal_value',
+        'pricing_model',
+        'negotiation_notes',
+        'payment_method',
+        'payment_amount',
+        'payment_date',
+        'payment_status',
+        'payment_reference',
+        'activation_date',
+        'assigned_team',
+        'assigned_person',
+        'service_start_date',
+        'activation_notes',
+        'closed_won_date',
+        'closed_lost_date',
+        'lost_reason',
+        'closing_notes',
     ];
 
     protected function casts(): array
@@ -135,6 +174,8 @@ class Deal extends Model
             'services_products' => 'array',
             'client_requirements' => 'array',
             'required_actions' => 'array',
+            'inquiry_records' => 'array',
+            'consultation_records' => 'array',
             'services_pricing_guide' => 'array',
             'products_pricing_guide' => 'array',
             'other_fees' => 'array',
@@ -149,6 +190,20 @@ class Deal extends Model
             'approval_date' => 'date:Y-m-d',
             'date_recorded' => 'date:Y-m-d',
             'date_signed' => 'date:Y-m-d',
+
+            'inquiry_date' => 'date:Y-m-d',
+            'consultation_date' => 'date:Y-m-d',
+            'proposal_date' => 'date:Y-m-d',
+            'proposal_valid_until' => 'date:Y-m-d',
+            'payment_date' => 'date:Y-m-d',
+            'activation_date' => 'date:Y-m-d',
+            'service_start_date' => 'date:Y-m-d',
+            'closed_won_date' => 'date:Y-m-d',
+            'closed_lost_date' => 'date:Y-m-d',
+            'stage_entered_at' => 'datetime',
+            'proposal_value' => 'decimal:2',
+            'final_deal_value' => 'decimal:2',
+            'payment_amount' => 'decimal:2',
         ];
     }
 
@@ -223,5 +278,129 @@ class Deal extends Model
     public function startRecords(): HasMany
     {
         return $this->hasMany(StartRecord::class);
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Stage Histories / Duration Tracking
+    |--------------------------------------------------------------------------
+    */
+
+    public function stageHistories(): HasMany
+    {
+        return $this->hasMany(DealStageHistory::class)->orderBy('started_at', 'asc')->orderBy('id', 'asc');
+    }
+
+    public function currentStageHistory(): HasOne
+    {
+        return $this->hasOne(DealStageHistory::class)->whereNull('ended_at')->latestOfMany('started_at');
+    }
+
+    /**
+     * Start timestamp of current stage.
+     */
+    public function getCurrentStageStartedAtAttribute(): \Carbon\Carbon
+    {
+        if ($this->stage_entered_at) {
+            return $this->stage_entered_at;
+        }
+
+        $activeStageHistory = $this->stageHistories()->whereNull('ended_at')->latest('started_at')->first();
+        if ($activeStageHistory && $activeStageHistory->started_at) {
+            return $activeStageHistory->started_at;
+        }
+
+        return $this->created_at ?? now();
+    }
+
+    /**
+     * Current formatted duration of active stage.
+     */
+    public function getCurrentStageDurationAttribute(): string
+    {
+        $startedAt = $this->current_stage_started_at;
+        $elapsed = max(0, $startedAt->diffInSeconds(now()));
+        return DealStageHistory::formatDuration($elapsed);
+    }
+
+    /**
+     * Map of stage durations for the pipeline bar.
+     */
+    public function getStageDurationsMap(): array
+    {
+        $allStages = [
+            'Inquiry',
+            'Qualification',
+            'Consultation',
+            'Proposal',
+            'Negotiation',
+            'Payment',
+            'Activation',
+            'Closed Won',
+            'Closed Lost',
+        ];
+
+        $currentStage = $this->pipeline_stage ?: 'Inquiry';
+        $currentIdx = array_search($currentStage, $allStages, true);
+        if ($currentIdx === false) {
+            $currentIdx = 0;
+        }
+
+        $histories = $this->stageHistories;
+        $map = [];
+
+        foreach ($allStages as $idx => $stg) {
+            $stageRecords = $histories->filter(fn($h) => $h->stage === $stg);
+
+            if ($stg === $currentStage) {
+                $runningRecord = $stageRecords->firstWhere('ended_at', null);
+                if ($runningRecord) {
+                    $map[$stg] = DealStageHistory::formatHumanDuration($runningRecord->elapsed_duration_seconds);
+                } else {
+                    $elapsed = max(0, $this->current_stage_started_at->diffInSeconds(now()));
+                    $map[$stg] = DealStageHistory::formatHumanDuration($elapsed);
+                }
+            } elseif ($idx < $currentIdx || ($currentStage === 'Closed Won' && $idx < 7) || ($currentStage === 'Closed Lost' && $idx < 7)) {
+                $completedRecord = $stageRecords->whereNotNull('ended_at')->last();
+                if ($completedRecord && $completedRecord->duration_seconds !== null) {
+                    $map[$stg] = DealStageHistory::formatHumanDuration($completedRecord->duration_seconds);
+                } elseif ($completedRecord && !empty($completedRecord->duration_formatted)) {
+                    $map[$stg] = $completedRecord->duration_formatted;
+                } else {
+                    $map[$stg] = '0s';
+                }
+            } else {
+                $map[$stg] = '-';
+            }
+        }
+
+        return $map;
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Universal Client Action Requests
+    |--------------------------------------------------------------------------
+    */
+
+    public function clientActionRequests(): HasMany
+    {
+        return $this->hasMany(ClientActionRequest::class)->latestFirst();
+    }
+
+    public function pendingClientActionRequests(): HasMany
+    {
+        return $this->hasMany(ClientActionRequest::class)->pending()->latestFirst();
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Histories / Audit Trail
+    |--------------------------------------------------------------------------
+    */
+
+    public function histories(): HasMany
+    {
+        return $this->hasMany(DealHistory::class)->latestFirst();
     }
 }

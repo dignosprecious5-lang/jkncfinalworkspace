@@ -29,7 +29,13 @@
                      x-transition:leave-end="translate-x-full"
                      class="pointer-events-auto w-screen max-w-3xl bg-white shadow-2xl flex flex-col justify-between">
                     
-                    <form action="{{ route('deals.store') }}" method="POST" class="h-full flex flex-col">
+                    <form
+                        action="{{ route('deals.store') }}"
+                        method="POST"
+                        class="h-full flex flex-col"
+                        x-data="{ isSubmitting: false }"
+                        @submit="if (isSubmitting) { $event.preventDefault(); return false; } isSubmitting = true;"
+                    >
                         @csrf
 
                         <!-- Sticky Top Header -->
@@ -54,8 +60,12 @@
                                 <span class="absolute left-3.5 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-blue-600 pointer-events-none z-10"></span>
                                 <select name="owner_id" class="w-full bg-white border border-gray-200 rounded-full pl-7 pr-8 py-1.5 text-xs font-medium text-gray-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none cursor-pointer">
                                     <option value="">Owner</option>
-                                    <option value="1">Carmela Ortiz</option>
-                                    <option value="2">Precious Dignos</option>
+                                    @php
+                                        $allUsers = \App\Models\User::orderBy('name')->get();
+                                    @endphp
+                                    @foreach($allUsers as $u)
+                                        <option value="{{ $u->id }}" {{ (auth()->id() == $u->id) ? 'selected' : '' }}>{{ $u->name }}</option>
+                                    @endforeach
                                 </select>
                                 <div class="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
                                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -69,9 +79,9 @@
                         <!-- Scrollable Form Body -->
                         <div class="p-6 overflow-y-auto space-y-6 flex-1 text-sm text-gray-700">
 
-                            <!-- Card 1: Customer Type -->
+                            <!-- Card 1: Customer & Account -->
                             <div class="bg-white border border-gray-200 rounded-xl p-5 space-y-3 shadow-sm">
-                                <h3 class="font-bold text-gray-900 text-base">Customer Type</h3>
+                                <h3 class="font-bold text-gray-900 text-base">Customer &amp; Account</h3>
                                 <div class="grid grid-cols-2 gap-4">
                                     <label class="flex items-center p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
                                         <input type="radio" name="customer_type" value="business" class="mr-3 text-blue-600 focus:ring-blue-500">
@@ -97,11 +107,32 @@
                                     </div>
                                     <div>
                                         <span class="block text-gray-400 uppercase font-bold text-[10px] tracking-wider mb-0.5">Created By</span>
-                                        <span class="text-gray-800 font-semibold">Precious Dignos</span>
+                                        <span class="text-gray-800 font-semibold">{{ auth()->user()?->name ?? 'Administrator' }}</span>
                                     </div>
                                     <div>
                                         <span class="block text-gray-400 uppercase font-bold text-[10px] tracking-wider mb-0.5">Created At</span>
-                                        <span class="text-gray-800 font-semibold">September 01 • 2026 at 10:19:06 AM</span>
+                                        <span
+                                            class="text-gray-800 font-semibold"
+                                            x-data="{
+                                                now: '',
+                                                formatDate() {
+                                                    const d = new Date();
+                                                    const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+                                                    const month = months[d.getMonth()];
+                                                    const day = String(d.getDate()).padStart(2, '0');
+                                                    const year = d.getFullYear();
+                                                    let hours = d.getHours();
+                                                    const minutes = String(d.getMinutes()).padStart(2, '0');
+                                                    const seconds = String(d.getSeconds()).padStart(2, '0');
+                                                    const ampm = hours >= 12 ? 'PM' : 'AM';
+                                                    hours = hours % 12;
+                                                    hours = hours ? String(hours).padStart(2, '0') : '12';
+                                                    this.now = `${month} ${day} • ${year} at ${hours}:${minutes}:${seconds} ${ampm}`;
+                                                }
+                                            }"
+                                            x-init="formatDate(); setInterval(() => formatDate(), 1000)"
+                                            x-text="now"
+                                        >{{ now()->timezone('Asia/Manila')->format('F d • Y \a\t h:i:s A') }}</span>
                                     </div>
                                 </div>
                             </div>
@@ -121,9 +152,9 @@
                                 </div>
                                 <div class="grid grid-cols-2 gap-4">
                                     <div>
-                                        <label class="block font-semibold text-gray-700 mb-1.5">Deal Title</label>
-                                        <input type="text" name="deal_title" value="CONDEAL-YYYY-###" readonly class="w-full bg-gray-100 border border-gray-200 rounded-lg p-2.5 text-sm text-gray-500 cursor-not-allowed">
-                                        <p class="text-[11px] text-gray-400 mt-1">Auto-generated by the backend when saved.</p>
+                                        <label class="block font-semibold text-gray-700 mb-1.5">Deal Code / Title</label>
+                                        <input type="text" name="deal_title" value="" placeholder="Auto-generated (e.g. CONDEAL-{{ date('Y') }}-###)" readonly class="w-full bg-gray-100 border border-gray-200 rounded-lg p-2.5 text-sm text-gray-500 cursor-not-allowed">
+                                        <p class="text-[11px] text-gray-400 mt-1">Auto-generated CONDEAL code assigned when saved.</p>
                                     </div>
                                     <div>
                                         <label class="block font-semibold text-gray-700 mb-1.5">Pipeline Stage</label>
@@ -411,8 +442,17 @@
                             <button type="button" @click="open = false" class="px-5 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors focus:outline-none">
                                 Cancel
                             </button>
-                            <button type="submit" class="px-5 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors shadow-sm focus:outline-none">
-                                Create Deal
+                            <button
+                                type="submit"
+                                :disabled="isSubmitting"
+                                class="px-5 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors shadow-sm focus:outline-none flex items-center gap-2"
+                                :class="isSubmitting ? 'opacity-70 cursor-not-allowed' : ''"
+                            >
+                                <svg x-show="isSubmitting" class="w-4 h-4 animate-spin text-white" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                <span x-text="isSubmitting ? 'Creating Deal...' : 'Create Deal'"></span>
                             </button>
                         </div>
 
