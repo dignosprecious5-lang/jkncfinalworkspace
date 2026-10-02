@@ -13,12 +13,14 @@
 /.zed
 /auth.json
 /node_modules
+**/node_modules
 /public/build
 /public/hot
 /public/storage
 /storage/*.key
 /storage/pail
 /vendor
+**/vendor
 Homestead.json
 Homestead.yaml
 Thumbs.db
@@ -26,6 +28,8 @@ Thumbs.db
 # SQLite database files
 /laravel
 /database/*.sqlite
+*.sqlite
 /storage/framework/views/*
 /scratch
+
 
