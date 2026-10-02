@@ -45,6 +45,7 @@ use App\Http\Controllers\AccountAuditLogController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\RegularController;
+use App\Http\Controllers\RegularProjectController;
 use App\Http\Controllers\RolePermissionController;
 use App\Http\Controllers\SecAoiController;
 use App\Http\Controllers\StockholderController;
@@ -1563,3 +1564,19 @@ Route::middleware(['auth', 'prevent-back-history', \App\Http\Middleware\EnsurePa
             ->middleware('human-capital.module:access_hc_employee_requests,true');
     });
 });
+
+/*
+|--------------------------------------------------------------------------
+| REGULAR OPERATIONS UPGRADE (ORDO)
+|--------------------------------------------------------------------------
+*/
+Route::get('/projects', [RegularProjectController::class, 'index'])->name('projects.index');
+Route::post('/projects', [RegularProjectController::class, 'create'])->name('projects.create');
+Route::get('/reports/export', [RegularProjectController::class, 'export'])->name('projects.export');
+Route::post('/preferences', [RegularProjectController::class, 'settings'])->name('preferences.save');
+Route::get('/portfolio/{module}', [RegularProjectController::class, 'index'])->name('portfolio.module');
+Route::get('/projects/{project}', [RegularProjectController::class, 'workspace'])->whereNumber('project')->name('projects.workspace');
+Route::get('/projects/{project}/{section}', [RegularProjectController::class, 'workspace'])->whereNumber('project')->name('projects.section');
+Route::post('/projects/{project}/actions/{action}', [RegularProjectController::class, 'action'])->whereNumber('project')->name('projects.action');
+Route::get('/projects/{project}/files/{file}', [RegularProjectController::class, 'download'])->whereNumber('project')->name('projects.file');
+

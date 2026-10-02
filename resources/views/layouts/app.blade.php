@@ -50,8 +50,8 @@
 
 <body class="bg-gray-50 font-sans">
     @php
-        $user = Auth::user();
-        $notificationsEnabled = \Illuminate\Support\Facades\Schema::hasTable('notifications');
+        $user = Auth::user() ?: new \App\Models\User(['name' => session('viewer', 'Guest User'), 'role' => 'admin']);
+        $notificationsEnabled = Auth::check() && \Illuminate\Support\Facades\Schema::hasTable('notifications');
         $unreadNotifications = $notificationsEnabled
             ? $user->unreadNotifications()->latest()->take(8)->get()
             : collect();
